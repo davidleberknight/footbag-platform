@@ -213,6 +213,16 @@ describe(`GET /clubs/${PRE_POPULATE_KEY} — full diagnostic (authenticated only
     expect(res.text).toMatch(/club-qc-rule club-qc-rule--not-fired[\s\S]{0,200}>R2:/);
   });
 
+  it('renders the rule table with a Stage column carrying pre_populate / onboarding_visible values', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${PRE_POPULATE_KEY}`)
+      .set('Cookie', authCookie());
+    expect(res.text).toMatch(/<th scope="col">Stage<\/th>/);
+    expect(res.text).toContain('>pre_populate<');
+    expect(res.text).toContain('>onboarding_visible<');
+  });
+
   it('renders the contact-substitute warning when applied', async () => {
     const app = createApp();
     const res = await request(app)

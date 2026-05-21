@@ -6,16 +6,16 @@ Design and specification documents for the footbag-platform modernization projec
 
 ## Canonical documents
 
-- [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md) — big-picture product, architecture, and operating philosophy
-- [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) — rationale, constraints, and non-negotiable design commitments
-- [`DATA_MODEL.md`](DATA_MODEL.md) — canonical entities, relationships, schema conventions, DB-vs-app boundaries
-- [`USER_STORIES.md`](USER_STORIES.md) — functional scope and acceptance criteria
-- [`DIAGRAMS.md`](DIAGRAMS.md) — architecture and data-flow diagrams
-- [`GLOSSARY.md`](GLOSSARY.md) — cross-document terminology
-- [`SERVICE_CATALOG.md`](SERVICE_CATALOG.md) — service contracts and ownership
-- [`VIEW_CATALOG.md`](VIEW_CATALOG.md) — public page standards, per-route rules, and the page-matrix
-- [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md) — build, deploy, operate, recover, and infrastructure procedures
-- [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md) — developer setup and local/staging iteration guidance
+- [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md): big-picture product, architecture, and operating philosophy
+- [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md): rationale, constraints, and non-negotiable design commitments
+- [`DATA_MODEL.md`](DATA_MODEL.md): canonical entities, relationships, schema conventions, DB-vs-app boundaries
+- [`USER_STORIES.md`](USER_STORIES.md): functional scope and acceptance criteria
+- [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
+- [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
+- [`SERVICE_CATALOG.md`](SERVICE_CATALOG.md): service contracts and ownership
+- [`VIEW_CATALOG.md`](VIEW_CATALOG.md): public page standards, per-route rules, and the page-matrix
+- [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md): build, deploy, operate, recover, and infrastructure procedures
+- [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local/staging iteration guidance
 
 ## Where to look
 

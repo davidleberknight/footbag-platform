@@ -86,8 +86,25 @@ describe('POST /login — response shape identical for exists vs not-exists', ()
     expect(lenRatio).toBeGreaterThan(0.95);
     expect(lenRatio).toBeLessThan(1.05);
     // Both must use the same user-facing error phrase.
-    expect(knownWrongPw.text).toContain('Invalid email or password');
-    expect(unknownEmail.text).toContain('Invalid email or password');
+    expect(knownWrongPw.text).toContain('Invalid email or password. Please try again.');
+    expect(unknownEmail.text).toContain('Invalid email or password. Please try again.');
+  });
+
+  it('unverified member login matches wrong-password response shape', async () => {
+    const app = createApp();
+    const knownWrongPw = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: KNOWN_EMAIL, password: 'WrongPass1!' });
+    const unverified = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: UNVERIFIED_EMAIL, password: 'WrongPass1!' });
+    expect(unverified.status).toBe(knownWrongPw.status);
+    const lenRatio = unverified.text.length / knownWrongPw.text.length;
+    expect(lenRatio).toBeGreaterThan(0.95);
+    expect(lenRatio).toBeLessThan(1.05);
+    expect(unverified.text).toContain('Invalid email or password. Please try again.');
   });
 });
 

@@ -127,6 +127,13 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).toContain('Jane Legend');
   });
 
+  it('result body does not expose member emails', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ja`).set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/@example\.com/);
+  });
+
   it('shows country in results', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ja`).set('Cookie', searcherCookie());

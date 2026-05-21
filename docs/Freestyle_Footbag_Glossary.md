@@ -56,9 +56,9 @@ A motion where the foot circles around the bag.
 
 The action used to position the bag before a trick.
 
-* **Uptime** — before the peak
-* **Midtime (hangtime)** — at the peak
-* **Downtime** — after the peak
+* **Uptime**: before the peak
+* **Midtime (hangtime)**: at the peak
+* **Downtime**: after the peak
 
 👉 Modern usage: *set = uptime + midtime components*
 
@@ -256,11 +256,11 @@ These are key primitives that anchor freestyle:
 
 These describe event formats and play contexts.
 
-* **Freestyle Routine** — choreographed performance to music
-* **Shred Contest (Shred:30)** — technical scoring format
-* **Big Trick / Sick, Big, Best** — single or combo highlight formats
-* **Circle Contest** — turn-based elimination format
-* **Most Rippin’ Run** — last-player-standing format
+* **Freestyle Routine**: choreographed performance to music
+* **Shred Contest (Shred:30)**: technical scoring format
+* **Big Trick / Sick, Big, Best**: single or combo highlight formats
+* **Circle Contest**: turn-based elimination format
+* **Most Rippin’ Run**: last-player-standing format
 
 ---
 

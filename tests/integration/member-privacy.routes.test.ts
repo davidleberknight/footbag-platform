@@ -209,7 +209,7 @@ describe('deceased member', () => {
       .type('form')
       .send({ email: DECEASED_EMAIL, password: DECEASED_PASSWORD });
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
   });
 
   it('public profile is still visible if HoF', async () => {

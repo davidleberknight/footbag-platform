@@ -47,7 +47,7 @@ body:
       options:
         - local
         - staging
-        - production-later
+        - production
     validations:
       required: true
   - type: dropdown

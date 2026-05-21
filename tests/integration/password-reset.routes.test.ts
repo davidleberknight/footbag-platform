@@ -146,7 +146,7 @@ describe('POST /password/reset/:token', () => {
       email: MEMBER_EMAIL, password: ORIGINAL_PASSWORD,
     });
     expect(oldLogin.status).toBe(200);
-    expect(oldLogin.text).toContain('Invalid email or password');
+    expect(oldLogin.text).toContain('Invalid email or password. Please try again.');
   });
 
   it('token is single-use: second consume → 422', async () => {

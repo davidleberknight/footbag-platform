@@ -34,7 +34,7 @@
 
 **Content-Hash Filename**: Static asset filename that includes a hash of the file's content (e.g., app.a3f8b2c.js), making each version unique and immutable. Footbag.org's build pipeline generates content-hash filenames for CSS, JavaScript, and image assets, enabling CloudFront to cache them for one year without staleness concerns; the hash changes automatically whenever content changes.
 
-**Controller**: Application layer component handling HTTP requests and responses. Footbag.org controllers receive requests from Express routes, validate inputs, invoke service layer methods, and format responses as JSON or HTML. Controllers contain no business logic—only request/response orchestration.
+**Controller**: Application layer component handling HTTP requests and responses. Footbag.org controllers receive requests from Express routes, validate inputs, invoke service layer methods, and format responses as JSON or HTML. Controllers contain no business logic; only request/response orchestration.
 
 **Correlation ID**: Unique identifier attached to every incoming request and included in all log entries produced while handling that request. Footbag.org uses correlation IDs to trace a single user action across controllers, services, adapters, and background workers in CloudWatch Logs, making debugging significantly faster.
 
@@ -136,7 +136,7 @@
 
 **Node.js:** JavaScript runtime built on Chrome's V8 engine enabling server-side JavaScript execution. Footbag.org uses Node.js LTS (Long Term Support) version as the application runtime for both web server and background workers. Single language (TypeScript/JavaScript) across frontend and backend.
 
-**OOM (Out of Memory)**: Condition where a process attempts to allocate more memory than its limit allows. Docker kills a container that exceeds its mem_limit with an OOM error; Footbag.org configures restart policies so killed containers restart automatically and CloudWatch alerts fire when container memory usage approaches 80—90% to provide advance warning.
+**OOM (Out of Memory)**: Condition where a process attempts to allocate more memory than its limit allows. Docker kills a container that exceeds its mem_limit with an OOM error; Footbag.org configures restart policies so killed containers restart automatically and CloudWatch alerts fire when container memory usage approaches 80-90% to provide advance warning.
 
 **Outbox Pattern**: Reliability pattern ensuring email delivery despite transient failures. Footbag.org inserts outbox records into the SQLite database within the same transaction as the business operation that triggers the email, guaranteeing that if the transaction commits the email is queued and if it rolls back neither the event nor the email record exists. A background worker scans for pending entries on a configurable interval (default 30 seconds via `outbox_poll_interval_seconds`), sends via SES with retries and exponential backoff, and moves entries to dead-letter status after maximum retries for admin review.
 
@@ -148,7 +148,7 @@
 
 **PRAGMA**: SQLite configuration directive executed as a SQL statement to control database behavior. Footbag.org applies five startup PRAGMAs: journal_mode=WAL (concurrent reads during writes), foreign_keys=ON (referential integrity), busy_timeout=5000 (5-second lock wait), synchronous=NORMAL (safe faster writes), and cache_size=-64000 (64MB read cache). Operational PRAGMAs like wal_checkpoint are executed at runtime separately.
 
-**Prepared Statement**: SQL query compiled into executable bytecode once at application startup and reused for every subsequent execution, with parameters bound at call time. Footbag.org prepares all statements in db.ts at startup (50—100 total, grouped by domain), calling them with positional parameters (?) via better-sqlite3 methods; this eliminates repeated SQL compilation overhead and provides complete SQL injection protection.
+**Prepared Statement**: SQL query compiled into executable bytecode once at application startup and reused for every subsequent execution, with parameters bound at call time. Footbag.org prepares all statements in db.ts at startup (50-100 total, grouped by domain), calling them with positional parameters (?) via better-sqlite3 methods; this eliminates repeated SQL compilation overhead and provides complete SQL injection protection.
 
 **Progressive Enhancement**: Web development approach where core functionality works with plain HTML and full page reloads, with JavaScript used only to enhance the experience. Footbag.org evaluated this approach and rejected it; the platform requires JavaScript for interactive features, and the no-JS path is not maintained. Users with JavaScript disabled see a noscript message. See also: JavaScript.
 
@@ -156,7 +156,7 @@
 
 **Reconciliation Job**: Nightly background job (runs 2 AM UTC) matching Stripe payment records against platform transaction records, detecting discrepancies from webhook failures or timing issues. Generates alert report for treasurer review if mismatches exceed threshold.
 
-**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5—10 minutes through a background worker that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
+**Recovery Point Objective (RPO)**: The maximum acceptable amount of data that can be lost in a failure, measured in time. Footbag.org achieves an RPO of 5-10 minutes through a background worker that uploads a consistent SQLite database snapshot to S3 every 5 minutes. Cross-region disaster recovery sync runs nightly providing a 24-hour RPO for catastrophic regional failures.
 
 **Recovery Time Objective (RTO)**: The maximum acceptable time to restore normal service after a failure. Footbag.org targets an RTO of approximately 5 minutes: download the latest S3 backup, run PRAGMA integrity_check to validate the snapshot, replace the local database file, restart application containers, and verify health endpoints return OK.
 
@@ -182,7 +182,7 @@
 
 **SSH (Secure Shell)**: Standard secure remote shell protocol for host administration. Footbag.org uses hardened per-operator SSH access to named host accounts on Lightsail for exceptional operational tasks such as troubleshooting, deployment verification, restore work, patching, and manual recovery. Private keys are never shared between operators; shell access is controlled through individual accounts, key lifecycle management, and source-IP-restricted port-22 rules.
 
-**Sharp**: High-performance Node.js image processing library using libvips. Footbag.org uses Sharp to resize uploaded photos to two variants (thumbnail 300×300 pixels, display 800px width), re-encode at 85% JPEG quality, and strip all EXIF metadata. Re-encoding through Sharp also destroys any malware embedded in uploaded files by converting to raw pixels and back. Processing is synchronous; users wait 2—5 seconds and receive immediate success or failure feedback.
+**Sharp**: High-performance Node.js image processing library using libvips. Footbag.org uses Sharp to resize uploaded photos to two variants (thumbnail 300×300 pixels, display 800px width), re-encode at 85% JPEG quality, and strip all EXIF metadata. Re-encoding through Sharp also destroys any malware embedded in uploaded files by converting to raw pixels and back. Processing is synchronous; users wait 2-5 seconds and receive immediate success or failure feedback.
 
 **SIGTERM**: Unix signal sent to a process requesting graceful shutdown. When Docker stops a container, it sends SIGTERM to allow the application to finish in-flight work before exiting. Footbag.org handles SIGTERM by stopping new request acceptance, waiting up to 30 seconds for active transactions to complete, running a final WAL checkpoint, closing the SQLite connection, uploading a final S3 backup, and then exiting cleanly.
 

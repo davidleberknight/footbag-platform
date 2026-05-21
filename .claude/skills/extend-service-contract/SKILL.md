@@ -24,7 +24,7 @@ Read only the section relevant to this task. For large documents, locate the sec
 
 1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`**: confirm the service change is in scope now. Note any current deviations from target patterns flagged here.
 2. **`docs/USER_STORIES.md`**: locate the relevant user story by feature name, then read only that story's acceptance criteria.
-3. **`docs/GOVERNANCE.md`**: when the service touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
+3. **`docs/DATA_GOVERNANCE.md`**: when the service touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
 4. **`docs/DESIGN_DECISIONS.md`** (targeted): check for invariants relevant to the change. Read the controller-to-service pattern decision, the data-access pattern decision, the soft-deletes decision, the immutable-audit-logs decision, and any auth or security decisions the service touches.
 5. **`docs/SERVICE_CATALOG.md`**: target service-layer ownership and required patterns. Locate the entry for the affected service. Read:
    - the service's target ownership boundary (Owns / Does not own)

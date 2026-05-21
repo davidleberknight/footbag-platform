@@ -13,7 +13,7 @@ Read only the section relevant to this task. For large documents, locate the sec
 
 1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`**: confirm the page is in scope now, drafted next, or out of scope. Note any current deviations from target patterns flagged here.
 2. **`docs/USER_STORIES.md`**: locate the relevant user story by page name or route, then read only that story's acceptance criteria. Do not infer behavior; derive it from the stories.
-3. **`docs/GOVERNANCE.md`**: when the page touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
+3. **`docs/DATA_GOVERNANCE.md`**: when the page touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
 4. **`docs/DESIGN_DECISIONS.md`** (targeted): read when entering a new code area, unwinding a temporary simplification, or when the rationale behind a pattern is unclear.
 5. **`docs/VIEW_CATALOG.md`**: target rendering standard and target page contract. Read:
    - public-rendering-standard section: required `PageViewModel<TContent>` shape (`seo`, `page`, `navigation`, `content`); required reusable primitives (event card, discipline tag, result section, year nav, etc.); implementation rules (thin controllers, logic-light templates, service-owned shaping); visual rules and CSS token baseline.

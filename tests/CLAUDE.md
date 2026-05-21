@@ -1,4 +1,4 @@
-# tests/ — Testing conventions
+# tests/ -- Testing conventions
 
 Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.md`. This file is the operational conventions layer: tooling, factories, layout.
 
@@ -6,16 +6,16 @@ Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.
 
 - **Runner:** Vitest (`npm test` = `vitest run`; `npm run test:watch` = `vitest`)
 - **HTTP assertions:** Supertest
-- **Database:** better-sqlite3 (synchronous, real SQLite — no mocking)
+- **Database:** better-sqlite3 (synchronous, real SQLite; no mocking)
 
 ## Test strategy
 
 Tests are split into two layers:
 
-- **Unit tests** (`tests/unit/`) — fast, no-DB tests for exported pure functions (slugify, personHref, groupPlayerResults, serviceErrors).
-- **Integration tests** (`tests/integration/`) — exercise real HTTP routes against a real SQLite database. No mocks — tests run against real code paths.
+- **Unit tests** (`tests/unit/`): fast, no-DB tests for exported pure functions (slugify, personHref, groupPlayerResults, serviceErrors).
+- **Integration tests** (`tests/integration/`): exercise real HTTP routes against a real SQLite database. No mocks; tests run against real code paths.
 
-Tests can be written before, during, or after implementation — whenever they add the most value. The goal is meaningful coverage, not ceremony.
+When tests land, edge-case coverage, and anti-patterns are governed by `.claude/rules/testing.md` (operational mandate). Strategic framing lives in `docs/TESTING.md`.
 
 ## Test data: use factories
 
@@ -32,7 +32,7 @@ const discId   = insertDiscipline(db, eventId, { name: 'Freestyle' });
 
 Available factories: `insertMember`, `insertTag`, `insertEvent`, `insertDiscipline`, `insertResultsUpload`, `insertResultEntry`, `insertResultParticipant`, `insertHistoricalPerson`, `insertClub`, `insertLegacyClubCandidate`, `insertLegacyPersonClubAffiliation`.
 
-Insert only the rows a given test suite needs. Do not assume rows from other test files exist. Keep seed data deterministic — no random values, no timestamps that vary between runs.
+Insert only the rows a given test suite needs. Do not assume rows from other test files exist. Keep seed data deterministic: no random values, no timestamps that vary between runs.
 
 ## Database isolation (integration tests)
 
@@ -71,22 +71,6 @@ tests/
 
 New unit tests go in `tests/unit/`. New integration tests go in `tests/integration/`. Name them `{domain}.routes.test.ts` or `{domain}.service.test.ts`.
 
-## What to test
-
-For every new route, good coverage includes:
-- Happy path — correct HTTP status and expected content
-- Auth gate — 302 redirect if unauthenticated, 200 if authenticated (for protected routes)
-- Not-found / invalid input — 404 or 400 as appropriate
-- Draft/unpublished content does not appear in public responses
-- Route ordering — more-specific routes match before catch-alls
-
-For every new service method (exercised through routes):
-- Correct output shape for the page view-model
-- Business rule enforcement (filters, sorts, eligibility checks)
-- Edge cases from `docs/USER_STORIES.md` or `docs/SERVICE_CATALOG.md`
-
-Adversarial tests are valuable: try to break your own feature before production does.
-
 ## Running tests
 
 ```bash
@@ -95,7 +79,7 @@ npm run test:unit     # unit tests only
 npm run test:integration  # integration tests only
 npm run test:watch    # watch mode
 npm run test:coverage # with coverage report
-npm run build         # tsc type-check — must pass before any PR
+npm run build         # tsc type-check; must pass before any PR
 ```
 
 ## CI

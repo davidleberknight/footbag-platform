@@ -1046,7 +1046,7 @@ describe('POST /login', () => {
       .send('email=footbag&password=wrongpassword')
       .set('Content-Type', 'application/x-www-form-urlencoded');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
   });
 
   it('returns 200 with error message on unknown username', async () => {
@@ -1056,7 +1056,7 @@ describe('POST /login', () => {
       .send('email=nobody@example.com&password=wrongpassword')
       .set('Content-Type', 'application/x-www-form-urlencoded');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
   });
 });
 

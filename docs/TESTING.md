@@ -1,6 +1,6 @@
 # Footbag Website Modernization Project -- Testing Strategy
 
-**Authority:** This document is the canonical reference for testing strategy on the Footbag platform. It is strategic and additive. Operational testing rules live in `.claude/rules/testing.md` and `tests/CLAUDE.md`; security and privacy policy lives in `docs/GOVERNANCE.md`; migration testing rules live in `docs/MIGRATION_PLAN.md`. This document layers a risk classification rubric, an adversarial derivation playbook, OWASP ASVS level mapping, a rigor maturity model, a penetration testing strategy, an execution efficiency model, AI-assisted testing governance, accessibility as a first-class layer, and explicit deferrals. Where this document and `.claude/rules/testing.md` overlap, the rules file is operational truth and this document is strategic context; the two must not contradict.
+**Authority:** This document is the canonical reference for testing strategy on the Footbag platform. It is strategic and additive. Operational testing rules live in `.claude/rules/testing.md` and `tests/CLAUDE.md`; security and privacy policy lives in `docs/DATA_GOVERNANCE.md`; migration testing rules live in `docs/MIGRATION_PLAN.md`. This document layers a risk classification rubric, an adversarial derivation playbook, OWASP ASVS level mapping, a rigor maturity model, a penetration testing strategy, an execution efficiency model, AI-assisted testing governance, accessibility as a first-class layer, and explicit deferrals. Where this document and `.claude/rules/testing.md` overlap, the rules file is operational truth and this document is strategic context; the two must not contradict.
 
 **Scope:** This policy applies to all contributors, maintainers, and AI agents who write, review, derive, or execute tests against the platform.
 
@@ -8,30 +8,11 @@
 
 ## 1. Scope and authority of this file
 
-This file governs:
-
-- the philosophy and non-negotiables that all platform tests share,
-- the risk classification rubric and OWASP ASVS level mapping per surface,
-- the adversarial test derivation playbook (anchor, derived assertion extraction, STRIDE per surface, technique selector, skip discipline),
-- the target architecture of test layers, including unit, integration, db-load smoke, staging smoke, lightweight Playwright, security regression, and penetration testing,
-- the Playwright strategy, including lightweight and heavyweight suites, tagging conventions, and artifact privacy,
-- environment parity testing, including adapter parity, staging personas, and login-without-email patterns,
-- migration and onboarding testing,
-- security and penetration testing, including regression-grade automated checks, staging-safe lightweight pentest, heavyweight human-invoked pentest, and third-party periodic pentest at major launches,
-- test data, privacy, secrets handling, and artifact treatment,
-- the execution strategy and gated test selection model,
-- the coverage signal and rigor maturity model,
-- AI-assisted testing governance,
-- accessibility testing and explicit deferrals (performance and load, chaos engineering),
-- traceability templates, strategic anti-patterns, and the tooling appendix.
-
 This file does not duplicate:
 
 - the edge-case lists, anti-pattern lists, adversarial input list, factories pattern, adapter parity test contracts, or the coverage floor that live in `.claude/rules/testing.md` and `tests/CLAUDE.md`,
-- the security and privacy policy in `docs/GOVERNANCE.md` (member-data visibility taxonomy, anti-enumeration rules, logging hygiene, legacy archive handling, contributor obligations),
+- the security and privacy policy in `docs/DATA_GOVERNANCE.md` (member-data visibility taxonomy, anti-enumeration rules, logging hygiene, legacy archive handling, contributor obligations),
 - the validation gate and operational readiness rules for migration in `docs/MIGRATION_PLAN.md` §24 and §28.
-
-References to those files are inline in the prose where load-bearing. A test PR or test session reads the canonical operational rules from the source, not from a paraphrase here.
 
 ---
 
@@ -47,13 +28,11 @@ Every test, every helper, every staging script, every Playwright artifact treats
 - These values are supplied to scripts and test helpers via standard input or an approved secret manager. They are never passed as command-line arguments, never echoed to stdout, never logged, never serialized into snapshots, screenshots, traces, videos, Playwright HTML reports, storage state files, or any committed artifact.
 - The existing `scripts/install-cwagent-staging.sh` stdin pattern is the reference model. Any new staging or test helper that needs a password must follow it.
 - Real member PII does not appear in committed test fixtures, factories, seed data, snapshots, screenshots, traces, or any other committed artifact. Synthetic data only. Where operator-controlled access to real legacy data is genuinely required for migration validation (per `docs/MIGRATION_PLAN.md`), the data is minimized, gitignored, access-controlled, and redacted in output.
-- `docs/GOVERNANCE.md` §9 (Logging and observability hygiene) governs what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
-
-Later sections of this document cross-reference this rule rather than restating it.
+- `docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) governs what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
 
 ### 2.2 The doc applies to humans and AI agents equally
 
-When an AI agent (Claude Code or any other) writes or reviews tests for this codebase, the agent applies this document the same way a human contributor does: read the user story verbatim, extract derived assertions, classify the risk tier, model STRIDE per surface, apply the technique selector, document any skip rationale, produce a traceability entry, and submit for human review. §13 expands these obligations into the AI-assisted testing governance rules.
+When an AI agent (Claude Code or any other) writes or reviews tests for this codebase, the agent applies this document the same way a human contributor does: read the user story verbatim, extract derived assertions, classify the risk severity, model STRIDE per surface, apply the technique selector, document any skip rationale, produce a traceability entry, and submit for human review. §13 expands these obligations into the AI-assisted testing governance rules.
 
 ---
 
@@ -78,7 +57,7 @@ A surface (a user story success criterion, a route, a service method, or a featu
 
 - *Catastrophic:* PII at rest or in transit, secrets, signing material, raw legacy member data.
 - *High:* member contact fields, member-only profile data, role-scoped operational rosters, audit logs.
-- *Medium:* public historical record data, official event results, HoF and BAP entries, world records (per `docs/GOVERNANCE.md` §5).
+- *Medium:* public historical record data, official event results, HoF and BAP entries, world records (per `docs/DATA_GOVERNANCE.md` §5).
 - *Low:* static content, public legal or marketing copy.
 
 **Reversibility.** If the surface fails or is exploited, can the damage be undone?
@@ -94,21 +73,21 @@ A surface (a user story success criterion, a route, a service method, or a featu
 - *Medium:* authenticated-user input, role-scoped operational surface.
 - *Low:* internal-only, admin-only with hardened access, static content.
 
-The surface's tier is the highest criterion result. A surface that is "Medium blast radius, Catastrophic data sensitivity, Medium reversibility, High likelihood" is Catastrophic.
+The surface's severity is the highest criterion result. A surface that is "Medium blast radius, Catastrophic data sensitivity, Medium reversibility, High likelihood" is Catastrophic.
 
-### 3.3 Mapping to the GOVERNANCE.md member-data taxonomy
+### 3.3 Mapping to the DATA_GOVERNANCE.md member-data taxonomy
 
-The five-tier member-data visibility taxonomy in `docs/GOVERNANCE.md` §4 maps onto the risk classification:
+The member-data visibility taxonomy in `docs/DATA_GOVERNANCE.md` §4 maps onto the risk classification:
 
-- *Tier 1 (public official historical record):* Medium risk baseline. Errors embarrass and can corrupt the public record but do not leak current-member PII. Higher when the surface displays data derived from current members.
-- *Tier 2 (authenticated current-member lookup):* High risk. Anti-enumeration, PII leak via search results, and scraping resistance are all in scope.
-- *Tier 3 (role-scoped operational):* High risk. Role escalation, unauthorized export, contact-field leak.
-- *Tier 4 (internal or admin):* Catastrophic. Broad PII access, admin compromise, irreversible governance actions.
-- *Tier 5 (archived member-only legacy):* High to Catastrophic. Contains raw legacy member data including email addresses; exposure is irreversible.
+- *Sensitivity 1 (public official historical record):* Medium risk baseline. Errors embarrass and can corrupt the public record but do not leak current-member PII. Higher when the surface displays data derived from current members.
+- *Sensitivity 2 (authenticated current-member lookup):* High risk. Anti-enumeration, PII leak via search results, and scraping resistance are all in scope.
+- *Sensitivity 3 (role-scoped operational):* High risk. Role escalation, unauthorized export, contact-field leak.
+- *Sensitivity 4 (internal or admin):* Catastrophic. Broad PII access, admin compromise, irreversible governance actions.
+- *Sensitivity 5 (archived member-only legacy):* High to Catastrophic. Contains raw legacy member data including email addresses; exposure is irreversible.
 
-Authentication, registration, email verification, password reset, legacy claim, online registration, and payment surfaces are Catastrophic regardless of which GOVERNANCE tier they live in, because failure on these surfaces cascades into every other tier.
+Authentication, registration, email verification, password reset, legacy claim, online registration, and payment surfaces are Catastrophic regardless of which DATA_GOVERNANCE sensitivity level they live in, because failure on these surfaces cascades into every other surface.
 
-### 3.4 OWASP ASVS levels per risk tier
+### 3.4 OWASP ASVS levels per risk severity
 
 OWASP ASVS (Application Security Verification Standard) defines three security verification levels:
 
@@ -116,7 +95,7 @@ OWASP ASVS (Application Security Verification Standard) defines three security v
 - *L2:* standard verification. The baseline for any application with authenticated users, PII, or sensitive business logic.
 - *L3:* high-value verification. Required for surfaces handling significant secrets, regulated data, or high-trust operations.
 
-Mapping to risk tier:
+Mapping to risk severity:
 
 - *Catastrophic surfaces* satisfy ASVS L3 for the categories that apply (authentication, session management, access control, validation, error handling, data protection, cryptography, communication, logging, configuration).
 - *High-risk surfaces* satisfy ASVS L2 across applicable categories.
@@ -162,7 +141,7 @@ For each route and service method linked to the success criterion, model the six
 - *Repudiation:* the threat that a user denies an action they performed, or that an action cannot be reliably traced. Applies whenever the surface performs auditable actions (admin actions, role grants, exports, governance actions).
 - *Information Disclosure:* the threat that the surface leaks data it should not (PII, secrets, existence of records, internal structure). Applies whenever the surface returns content, raises errors, or logs.
 - *Denial of Service:* the threat that the surface can be made unavailable or unresponsive. Applies whenever the surface accepts arbitrary input volume, performs unbounded work, or depends on rate-limit enforcement.
-- *Elevation of Privilege:* the threat that an attacker gains a role or capability they should not have. Applies whenever the surface has role-based access control, multi-tier authorization, or admin paths.
+- *Elevation of Privilege:* the threat that an attacker gains a role or capability they should not have. Applies whenever the surface has role-based access control, layered authorization, or admin paths.
 
 For each STRIDE category, the surface entry records one of: applicable with one-line rationale, not applicable with one-line rationale. "Not applicable" is allowed; "no entry" is not. The entry lives in the test file header or the PR description and is part of the traceability output described in §4.7.
 
@@ -172,7 +151,7 @@ Once the STRIDE table is filled, each applicable threat category and each derive
 
 - *Equivalence partitioning plus boundary value analysis* for input-shaped threats (Tampering, malicious input). Partition the input space into equivalence classes (valid, malformed, oversized, wrong type, unicode mischief, injection attempt). Test one representative per class plus the boundary between classes (empty, single, max length, max plus one, unicode normalization edges, timezone edges, leap year, NULL). Do not enumerate within a class; one representative is sufficient.
 - *Pairwise or combinatorial coverage* for matrix-shaped threats (Spoofing, Elevation of Privilege). Where the surface depends on role times route times method times auth-state (or a similar multi-dimensional matrix), use all-pairs coverage rather than full Cartesian product. All-pairs catches the large majority of defects at O(N squared) rather than O(N to the fourth) cost. Tool: any pairwise generator (PICT, ACTS, or equivalent), or hand-derive for small matrices.
-- *Property-based testing* for invariant-shaped threats (Information Disclosure invariants, idempotency, CSRF presence on every state-changing verb). Where the claim is "for all inputs, property P holds", state P as a property and let the property tester generate cases. Target tool: fast-check (see §15 tooling appendix).
+- *Property-based testing* for invariant-shaped threats (Information Disclosure invariants, idempotency, CSRF presence on every state-changing verb). Where the claim is "for all inputs, property P holds", state P as a property and let the property tester generate cases. Target tool: fast-check (see §15.3 tooling appendix).
 - *Scenario tests with explicit state transitions* for state-machine-shaped threats (Repudiation, partial failure, concurrency). Where the surface has state machines (multi-step wizard, lifecycle of a token, audit-log emission on state-changing paths), write scenario tests that drive the state machine through transitions and assert at each step. Add property tests for invariants that must hold across all transitions ("audit log emits on every state-changing path").
 - *Selective fuzzing* for parsers, validators, and complex input handlers. Targeted at the specific module, not the whole surface.
 - *Rate-limit and resource-bound assertions* for Denial of Service threats. Assert that the rate limit fires at the configured threshold, that resource bounds (request size, response size, worker concurrency) are enforced. Load testing is deferred (§14); this dimension is configuration verification, not throughput.
@@ -196,7 +175,7 @@ Skip rationales are reviewed during human review of the test PR (§13) and re-va
 
 ### 4.7 Output: the traceability entry
 
-The derivation produces an entry of the following shape, recorded in test-file header comments, the PR description, or the traceability template in §15:
+The derivation produces an entry of the following shape, recorded in test-file header comments, the PR description, or the traceability template in §15.1:
 
 - *US ID:* the user story header (for example `M_Login`).
 - *Derived assertions:* A1, A2, ..., An, each a one-line statement of the discrete testable claim.
@@ -204,7 +183,7 @@ The derivation produces an entry of the following shape, recorded in test-file h
 - *Service methods:* the service methods exercised.
 - *STRIDE applicability:* per category, applicable or not, with a one-line rationale.
 - *Technique per assertion:* which technique applies to each derived assertion.
-- *Risk tier:* one of catastrophic, high, medium, low, per §3.
+- *Risk severity:* one of catastrophic, high, medium, low, per §3.
 - *ASVS level:* L1, L2, or L3, per §3.4.
 - *Test files:* the test files that implement the derivation.
 - *Rigor level:* current level per §12, with target.
@@ -229,7 +208,7 @@ This walks the playbook end to end for `M_Login` from `docs/USER_STORIES.md` (th
 - *A7a:* individual failed login attempts are not persisted to the audit log.
 - *A7b:* when the rate-limit threshold is crossed, a single audit log entry is created per account identifier (no IP address stored).
 
-**Risk tier and ASVS level.** Catastrophic. Authentication is the gate to every other surface. ASVS L3 applies for the categories: V2 Authentication, V3 Session Management, V4 Access Control, V5 Validation, V7 Error Handling and Logging, V8 Data Protection, V14 Configuration.
+**Risk severity and ASVS level.** Catastrophic. Authentication is the gate to every other surface. ASVS L3 applies for the categories: V2 Authentication, V3 Session Management, V4 Access Control, V5 Validation, V7 Error Handling and Logging, V8 Data Protection, V14 Configuration.
 
 **STRIDE per surface (POST /login).**
 
@@ -265,7 +244,7 @@ This walks the playbook end to end for `M_Login` from `docs/USER_STORIES.md` (th
 
 - A1, A3, A4, A5, A6, A7a, A7b: integration tests in `tests/integration/login.routes.test.ts` (route plus service plus real SQLite).
 - A2: integration tests for the boundary plus a unit test on the rate-limit middleware configuration parser.
-- Enumeration-safety property tests: integration tests using fast-check (per §16.3.1).
+- Enumeration-safety property tests: integration tests using fast-check (per §15.3.1).
 - The browser session-cookie path: one lightweight Playwright test tagged `@security` asserting cookie attributes after a real-browser login.
 - Pentest probe for credential stuffing against the CAPTCHA and rate-limit defenses: operator-invoked via the `browser-qa` skill when targeted exploration is needed; ZAP baseline scan covers the automated layer.
 
@@ -496,17 +475,9 @@ The dev-shortcuts subsystem at `src/dev-shortcuts/` is the canonical model for a
 
 No testing shortcut lives outside `src/dev-shortcuts/`. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper joins the existing umbrella. The umbrella exists so the entire shortcut surface can be removed in one operation at production cutover; a parallel test-login subsystem defeats that property.
 
-#### 7.5.1 Existing umbrella shortcuts available for testing
+#### 7.5.1 Existing umbrella shortcuts
 
-The dev-shortcuts subsystem includes the following mechanisms (per `src/dev-shortcuts/README.md`). Testing shortcuts may build on these directly:
-
-- *Dev autologin* (`FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID`). Issues a session for a specified member id without password verification. Suitable for Playwright tests that need an authenticated session without driving the M_Login form.
-- *Skip-claim-email* (`FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL`). Bypasses the email-verification step in the legacy-claim flow. Suitable for legacy-claim regression tests without a staging mailbox.
-- *Dev-admin seed* (`--seed-dev-admins` flag plus `.local/dev-admin-seed.json` or `FOOTBAG_DEV_ADMIN_SEED_JSON`). Directly inserts admin members with audit-marked provenance.
-- *Register-allowlist bootstrap* (`FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` plus `.local/initial-admins.txt`). Bootstraps the initial admin set at first registration.
-- *Tier2 invariant repair* (`FOOTBAG_DEV_ADMIN_GRANT_TIER2`). Restores Tier 2 invariants for a member.
-
-Each carries audit-marker provenance on every persisted side effect (`reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`).
+The dev-shortcuts subsystem already exposes mechanisms for autologin, skip-claim-email, dev-admin seed, register-allowlist bootstrap, and tier2 invariant repair (see `src/dev-shortcuts/README.md` for env-var triggers and behavior). Testing shortcuts may build on these directly. Each carries audit-marker provenance (`reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`).
 
 #### 7.5.2 Required properties of a new testing shortcut
 
@@ -555,7 +526,7 @@ The validation gates in `docs/MIGRATION_PLAN.md` §24 and the operational readin
 
 For surfaces in the legacy data pipeline that have no direct user story success criterion, anchor on the relevant `docs/MIGRATION_PLAN.md` validation gate instead of a `docs/USER_STORIES.md` entry. The derived assertion extraction step still applies (the validation-gate text decomposes into discrete ordinal assertions before STRIDE and dimension lenses apply).
 
-### 8.2 Identity claim and confidence tiers
+### 8.2 Identity claim and confidence levels
 
 Legacy-member identity claim has three confidence outcomes (high, medium, low) plus the no-match case (per `docs/MIGRATION_PLAN.md`). Each outcome class becomes a class of derived assertions:
 
@@ -584,7 +555,7 @@ A loader-pipeline test that asserts only what the loader implementation happens 
 
 ## 9. Security and penetration testing
 
-The platform's security testing strategy has three tiers of automated and tooled testing plus a fourth tier of third-party periodic pentest before major launches. The OWASP WSTG (Web Security Testing Guide) is the canonical reference for techniques; the OWASP ASVS (per §3.4) is the canonical reference for verification requirements. WSTG describes how to test; ASVS describes what to verify.
+The platform's security testing strategy has three classes of automated and tooled testing plus a fourth class of third-party periodic pentest before major launches. The OWASP WSTG (Web Security Testing Guide) is the canonical reference for techniques; the OWASP ASVS (per §3.4) is the canonical reference for verification requirements. WSTG describes how to test; ASVS describes what to verify.
 
 ### 9.1 Regression-grade automated security tests
 
@@ -652,7 +623,7 @@ A pentest that discovers any of these properties violated is a launch-blocker.
 
 ### 9.6 Penetration findings produce regression tests
 
-Every finding from any tier of pentest results in a regression test at the cheapest appropriate layer plus a fix. The regression test verifies the fix and prevents reintroduction. A finding without a regression test is not closed.
+Every finding from any class of pentest results in a regression test at the cheapest appropriate layer plus a fix. The regression test verifies the fix and prevents reintroduction. A finding without a regression test is not closed.
 
 ---
 
@@ -693,7 +664,7 @@ Secret literals (the dev-admin-seed password, any test-only signing key, any tes
 
 ### 10.6 Logging and audit hygiene applies to tests
 
-`docs/GOVERNANCE.md` §9 (Logging and observability hygiene) prohibits raw email addresses, tokens, passwords, raw JWT cookie values, account-token raw strings, session secrets, AWS access keys, KMS material, and signing keys from application logs. The same prohibition applies to test output, CI logs, and test artifact uploads. Test output is treated as potentially public.
+`docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) prohibits raw email addresses, tokens, passwords, raw JWT cookie values, account-token raw strings, session secrets, AWS access keys, KMS material, and signing keys from application logs. The same prohibition applies to test output, CI logs, and test artifact uploads. Test output is treated as potentially public.
 
 ### 10.7 No real PII in fixtures, snapshots, or seed files
 
@@ -719,13 +690,13 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
 - *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 
-The db-load smoke gate is a canonical example of tier-specific gating within the CI-on-PR gate: it runs only on changes that affect the loader pipeline. The pattern (run a gate only when the surface that the gate covers has changed) extends to other gates as tooling permits.
+The db-load smoke gate is a canonical example of class-specific gating within the CI-on-PR gate: it runs only on changes that affect the loader pipeline. The pattern (run a gate only when the surface that the gate covers has changed) extends to other gates as tooling permits.
 
 ### 11.2 Selection mechanisms within a gate
 
 - *Test impact analysis* for the local fast loop. `vitest --changed` plus git-diff-driven file selection. The fast loop runs only tests that touch changed code paths.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`) drives which tests run at each gate.
-- *Risk-tier-based selection* for nightly and on-demand gates. Catastrophic and high surfaces (per §3) run on every PR. Medium surfaces run nightly or when the surface changes. Low surfaces run weekly or when the surface changes. Risk tier is recorded in the surface's traceability entry (§4.7).
+- *Risk-severity-based selection* for nightly and on-demand gates. Catastrophic and high surfaces (per §3) run on every PR. Medium surfaces run nightly or when the surface changes. Low surfaces run weekly or when the surface changes. Risk severity is recorded in the surface's traceability entry (§4.7).
 - *Parallel sharding* where the test runner supports it. Vitest workers for unit and integration; Playwright workers are constrained to 1 by SQLite WAL serialization, so Playwright sharding happens via separate processes against separate ephemeral databases.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
@@ -763,9 +734,9 @@ Coverage thresholds set in `vitest.config.ts` are non-negotiable floors per `.cl
 Signals tracked per surface:
 
 - *Line and branch coverage* (per the `vitest.config.ts` thresholds). Floor.
-- *Mutation score* on the safety-critical short list (auth, privacy filters, migration matchers, role gates). Tool: Stryker per §16.3.1.
+- *Mutation score* on the safety-critical short list (auth, privacy filters, migration matchers, role gates). Tool: Stryker per §15.3.1.
 - *Threat coverage* per surface (the STRIDE-applicability table from §4.3 with every category marked applicable or not-applicable with rationale). Target one hundred percent for catastrophic and high surfaces.
-- *Risk-tier coverage* (every catastrophic and high surface has a traceability entry per §4.7). Target one hundred percent.
+- *Risk-severity coverage* (every catastrophic and high surface has a traceability entry per §4.7). Target one hundred percent.
 - *Quarantine count* (§11.3). Target zero; sustained growth is a maintenance signal.
 
 ### 12.2 Rigor maturity model
@@ -778,14 +749,14 @@ A surface's testing rigor is a level from 1 to 5. Higher rigor levels strictly i
 - *Rigor 4: pairwise plus property-tested.* All of Rigor 3, plus property-based tests for invariants (Information Disclosure invariants, idempotency, CSRF presence on every state-changing verb, enumeration-safety equivalence). fast-check or an equivalent property tester installed and configured. Acceptable for high-risk surfaces.
 - *Rigor 5: mutation-validated.* All of Rigor 4, plus mutation testing (Stryker or equivalent) runs against the surface's module periodically and the mutation score meets the target threshold. Required for catastrophic-risk surfaces.
 
-### 12.3 Target rigor by risk tier
+### 12.3 Target rigor by risk severity
 
 - *Catastrophic surfaces:* target Rigor 5.
 - *High-risk surfaces:* target Rigor 4.
 - *Medium-risk surfaces:* target Rigor 3.
 - *Low-risk surfaces:* target Rigor 2.
 
-A surface's risk tier (§3) determines target rigor. A surface that falls short of target rigor has a tracked gap (§12.4).
+A surface's risk severity (§3) determines target rigor. A surface that falls short of target rigor has a tracked gap (§12.4).
 
 ### 12.4 Rigor tracking lives in IMPLEMENTATION_PLAN.md
 
@@ -796,7 +767,7 @@ A "Testing rigor by surface" section in `IMPLEMENTATION_PLAN.md` tracks the rigo
 IP entry format for a surface gap:
 
 - *Surface:* US ID (or migration anchor).
-- *Risk tier:* per §3.
+- *Risk severity:* per §3.
 - *Target rigor:* per §12.3.
 - *Rigor reached:* 1 to 5 per §12.2.
 - *Gap:* one line describing what the next step is to advance rigor (e.g., "install fast-check and add enumeration-safety property test").
@@ -805,9 +776,9 @@ When a surface reaches target rigor, its IP entry is deleted.
 
 ### 12.5 New test PRs target the highest feasible rigor
 
-When a contributor (human or AI) lands tests for a surface, the target is the highest rigor feasible given the surface's risk tier and the tooling adoption state. The PR description documents:
+When a contributor (human or AI) lands tests for a surface, the target is the highest rigor feasible given the surface's risk severity and the tooling adoption state. The PR description documents:
 
-- The risk tier and target rigor.
+- The risk severity and target rigor.
 - The rigor reached in the PR.
 - The gap (if any) and what blocks closing it (tooling adoption, US success criterion missing, related surface unmodeled, and so on).
 
@@ -827,7 +798,7 @@ Before deriving tests for a surface, the AI reads the relevant `docs/USER_STORIE
 
 ### 13.2 Produce a derivation trail
 
-Every test or test cluster that the AI lands carries a derivation trail in the test file header or the PR description, in the format specified in §4.7 and templated in §16.1. The derivation trail is the AI's work-product, and is reviewed by the human alongside the test code itself.
+Every test or test cluster that the AI lands carries a derivation trail in the test file header or the PR description, in the format specified in §4.7 and templated in §15.1. The derivation trail is the AI's work-product, and is reviewed by the human alongside the test code itself.
 
 ### 13.3 Human review is required
 
@@ -843,7 +814,7 @@ No AI-written test lands without human review. Branch protection enforces this a
 
 ### 13.4 The AI applies this document the same way a human does
 
-The full derivation playbook (§4) applies. Risk classification (§3), STRIDE per surface (§4.3), technique selector (§4.4), rigor maturity model (§12), and the traceability template (§16.1) are the AI's working set when deriving tests. The AI does not skip steps because they are tedious; the steps exist to keep test quality high.
+The full derivation playbook (§4) applies. Risk classification (§3), STRIDE per surface (§4.3), technique selector (§4.4), rigor maturity model (§12), and the traceability template (§15.1) are the AI's working set when deriving tests. The AI does not skip steps because they are tedious; the steps exist to keep test quality high.
 
 ---
 
@@ -851,11 +822,11 @@ The full derivation playbook (§4) applies. Risk classification (§3), STRIDE pe
 
 ### 14.1 Accessibility as a first-class layer
 
-The platform targets WCAG 2.1 AA as the baseline accessibility conformance level. Higher AAA criteria apply where explicitly called out for a specific surface (typically forms and error messages on auth surfaces).
+The platform targets WCAG 2.1 AA as the baseline accessibility conformance level.
 
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
-- *Automated checks* via `@axe-core/playwright` (per §16.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs on every PR; catches automated-detectable regressions before merge.
+- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs on every PR; catches automated-detectable regressions before merge.
 - *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that also runs in the post-deploy staging smoke gate.
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
@@ -885,59 +856,9 @@ Deferral does not mean these test classes are unimportant. It means the strategy
 
 ---
 
-## 15. Bug tracking
+## 15. Annexes
 
-Bugs and pentest findings are tracked in GitHub Issues, organized by a GitHub Projects board, captured through structured GitHub issue forms. This is the canonical bug-tracking system; ad-hoc tracking in commit messages, IP entries, or conversations is not a substitute.
-
-### 15.1 Issue forms
-
-Issue forms live at `.github/ISSUE_TEMPLATE/`:
-
-- `bug_report.yml`. General bug report.
-- `staging_bug.yml`. Staging-specific bug.
-- `migration_or_onboarding_bug.yml`. Migration or onboarding-flow bug.
-- `docs_or_policy_issue.yml`. Documentation or policy-level issue.
-
-Security vulnerability reports route via `config.yml` `contact_links` to GitHub's private vulnerability reporting (per `SECURITY.md`); there is no public-issue form for security.
-
-### 15.2 GitHub Projects board
-
-The board has the following custom fields:
-
-- *Status:* New, Needs triage, Reproduced, Ready, In progress, In review, Done, Won't fix.
-- *Area:* auth, migration, onboarding, clubs, members, events, media, admin, staging, docs, security.
-- *Environment:* local, staging, production-later.
-- *Severity:* blocker, major, normal, minor.
-- *User role:* anonymous, member, club leader, admin, event organizer, legacy claimant.
-
-GitHub Projects syncs directly with issues and PRs; the board is the operational view, the issue is the canonical record.
-
-### 15.3 Privacy constraints on public issues
-
-Public GitHub issues do not collect:
-
-- Security reports. The `security_notice.yml` form redirects to the private path per `SECURITY.md`; it does not store report content.
-- Passwords, tokens, signing material, or any other secret.
-- Member PII (email addresses, real names of current members, phone numbers, contact details).
-- Screenshots containing member data.
-- Raw legacy data (the `legacy_data/` archive contents).
-
-Reporters who need to attach sensitive material follow the private security path. Maintainers who triage public issues redact any sensitive material that accidentally appears before discussion continues.
-
-### 15.4 Connection to testing
-
-The bug tracker is the lifecycle home for:
-
-- Bugs found during development, manual testing, or production observation. Each fixed bug lands a regression test at the cheapest appropriate layer (per `.claude/rules/testing.md` mandate 1). The issue is not closed until the regression test is merged.
-- Pentest findings (per §9). A finding is not closed without a regression test or an explicit verification procedure (per §9.6).
-- Quarantined tests (per §11.3). A test entering quarantine carries a tracking issue with the 7-day deadline; the issue closes when the test is fixed or the surface is patched.
-- Accessibility regressions caught by the lightweight `@a11y` suite (per §14.1). Each regression lands as an issue and a follow-up test extension if the existing test missed the case.
-
----
-
-## 16. Annexes
-
-### 16.1 Traceability entry template
+### 15.1 Traceability entry template
 
 The traceability entry produced by the derivation playbook (§4.7) follows this bulleted format, recorded in the test file header, the PR description, or both. Items in angle brackets are filled in per surface.
 
@@ -959,7 +880,7 @@ The traceability entry produced by the derivation playbook (§4.7) follows this 
 - *Technique per assertion:*
   - *A1:* `<equivalence partitioning | boundary value analysis | pairwise | property-based | scenario | fuzzing | rate-limit assertion>`.
   - *...*
-- *Risk tier:* `<catastrophic | high | medium | low>`.
+- *Risk severity:* `<catastrophic | high | medium | low>`.
 - *ASVS level:* `<L1 | L2 | L3>`.
 - *Test files:* `<paths>`.
 - *Rigor level:* `<1 to 5>`. Target: `<1 to 5>`. Gap: `<one line>` if any.
@@ -967,7 +888,7 @@ The traceability entry produced by the derivation playbook (§4.7) follows this 
 
 The template is intentionally bulleted (per the project doc style) rather than a table. Future Claude sessions and human contributors fill it in mechanically per the derivation playbook.
 
-### 16.2 Strategic anti-patterns
+### 15.2 Strategic anti-patterns
 
 Operational anti-patterns (no DB mocking, no framework mocking, no timestamp leakage, no global state leakage between files, no silent skips, no "tested manually," no tests on the dev DB) are enumerated in `.claude/rules/testing.md` and apply to every test. This section adds the strategic anti-patterns that follow from the playbook discipline.
 
@@ -977,34 +898,23 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Arbitrary sleeps.* `await page.waitForTimeout(N)` masks race conditions. Wait on observable conditions (selector visibility, network response, app state).
 - *Depending on production data.* Tests that read or assume real production records are brittle and may leak PII into test output.
 - *Depending on real email receipt for routine tests.* The dev-shortcuts autologin and skip-claim-email mechanisms exist to avoid this. Routine tests do not poll a mailbox.
-- *Committing credentials or storageState.* Forbidden per §2.1 and §10.3.
-- *Passing passwords as command-line arguments.* Forbidden per §2.1. Stdin or approved secret-manager only.
-- *Printing passwords or tokens in logs, traces, or screenshots.* Forbidden per §2.1 and `docs/GOVERNANCE.md` §9.
-- *Capturing sensitive data in snapshots, HTML reports, or videos.* Forbidden per §2.1 and §10.5.
-- *Using real member PII.* Forbidden per §10.1 and `docs/GOVERNANCE.md` §11.
-- *Committing raw legacy PII fixtures.* Forbidden per §8.5 and §10.7.
 - *Making staging tests destructive by default.* Staging tests are read-only or explicitly idempotent and audited per §5.4.
 - *Running penetration tests against production without explicit authorization.* Forbidden per §9.3 and §9.4.
 - *Attacking third-party services.* Forbidden per §9.3.
 - *Using brute force against real accounts.* Forbidden per §9.3.
-- *Testing future features as if implemented.* Tests are landed in the same diff as the code they cover per `.claude/rules/testing.md`. A test for a not-yet-implemented feature is either rejected or marked as a target test in the IP "Testing rigor by surface" section pending implementation.
 - *Weakening tests to make them pass.* If a test fails, the code is fixed. The exception is when the test was wrong about intent; then the user story is updated first, with explicit human consent, and the test is rewritten against the corrected story. Weakening assertions to admit failing code is forbidden.
-- *Changing documentation to match broken code.* Forbidden. When implemented behavior conflicts with the user story or design decision, the doc is the truth and the code is wrong, unless the maintainer explicitly approves a design change. Per `.claude/rules/doc-governance.md` "Drift handling".
 - *Overusing snapshots.* Snapshot tests are brittle. Prefer explicit assertions on shape or content. Snapshots are acceptable only when the assertion structure is genuinely too large to enumerate (rare).
 - *Ignoring migration edge cases.* Migration testing covers all four confidence outcomes per §8.2; ignoring medium or low confidence cases is forbidden.
 - *Blurring groups and committees into clubs.* Groups and committees (when implemented) are distinct from clubs per `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`. Tests preserve the distinction.
-- *Testing only happy paths.* The baseline edge-case list in `.claude/rules/testing.md` plus the STRIDE-driven derivation per §4 ensures negative, malicious, boundary, and partial-failure cases are covered.
 - *Introducing a test-only HTTP endpoint outside dev-shortcuts.* Forbidden per §7.6.
-- *Lower-rigor regression.* A surface that has reached Rigor 4 must not drop to Rigor 3 in a PR that touches the surface per §12.5.
-- *Asserting that a STRIDE category is "not applicable" without rationale.* Forbidden per §4.6 and §13.3.
 
-### 16.3 Tooling appendix
+### 15.3 Tooling appendix
 
-#### 16.3.1 Toolchain
+#### 15.3.1 Toolchain
 
 The platform's testing toolchain consists of:
 
-- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/` and `tests/e2e/`; `npm run test:unit`, `npm run test:integration`, `npm run test:smoke`, `npm run test:e2e`, `npm run test:coverage`, `npm run test:all` are the canonical scripts.
+- *Vitest.* Unit and integration test runner. `npm test` excludes `tests/smoke/` and `tests/e2e/`; `npm run test:unit`, `npm run test:integration`, `npm run test:smoke`, `npm run test:e2e`, `npm run test:coverage`, `npm run test:pre-pr`, `npm run test:all` are the canonical scripts.
 - *Supertest.* HTTP assertion helper for integration tests.
 - *better-sqlite3.* Real SQLite per test file; no mocking. Per `tests/CLAUDE.md`.
 - *@vitest/coverage-v8.* Coverage measurement. Thresholds set in `vitest.config.ts`.
@@ -1017,7 +927,7 @@ The platform's testing toolchain consists of:
 - *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique selector per §4.4 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
 - *Dependency vulnerability scanner.* `npm audit` is built in; a third-party scanner (Snyk, Socket, or equivalent) supplements with supply-chain signal. Integrated into the on-demand heavyweight pentest gate.
 
-#### 16.3.2 Tools explicitly not adopted
+#### 15.3.2 Tools explicitly not adopted
 
 - *Jest.* Vitest is the platform test runner. No Jest dependency.
 - *Cypress.* Playwright is the platform browser automation tool. No Cypress.

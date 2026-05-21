@@ -57,6 +57,22 @@ describe('CSRF — SameSite cookie attribute', () => {
     expect(session!).toMatch(/HttpOnly/i);
   });
 
+  it('login under X-Forwarded-Proto: https issues a Secure session cookie', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/login')
+      .set('X-Forwarded-Proto', 'https')
+      .type('form')
+      .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
+    expect(res.status).toBe(303);
+    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const session = cookies?.find((c) => c.startsWith('footbag_session='));
+    expect(session).toBeDefined();
+    expect(session!).toMatch(/Secure/i);
+    expect(session!).toMatch(/SameSite=Lax/i);
+    expect(session!).toMatch(/HttpOnly/i);
+  });
+
   it('registration does not set a session cookie (unverified until /verify/:token)', async () => {
     const app = createApp();
     const res = await request(app)

@@ -137,7 +137,7 @@ Append-only tables (audit log, ballots, transition ledgers, tier grants, system_
 
 Tables with soft-delete carry `deleted_at TEXT` and `deleted_by TEXT`. The `_active` view filters `WHERE deleted_at IS NULL`. Soft-deleted rows are never physically removed; use the `_all` view for admin queries.
 
-> **Exception — Clubs:** `clubs` does **not** carry `deleted_at` or `deleted_by`. Club archival sets `status = 'archived'`. The `clubs_open` view filters `WHERE status IN ('active', 'inactive')`; `clubs_all` includes archived rows. See §4.2.
+> **Exception; Clubs:** `clubs` does **not** carry `deleted_at` or `deleted_by`. Club archival sets `status = 'archived'`. The `clubs_open` view filters `WHERE status IN ('active', 'inactive')`; `clubs_all` includes archived rows. See §4.2.
 
 ### Enum values
 
@@ -290,11 +290,11 @@ When a vouch has effect, the resulting Active Player ledger row in `active_playe
 `ballots` stores encrypted ballots. UPDATE and DELETE are blocked by triggers.
 
 **Ballot encryption (per-ballot AES-256-GCM envelope encryption):** For each ballot submission, the server requests a fresh data key from AWS KMS (`GenerateDataKey`). The ballot payload is encrypted using AES-256-GCM with that key. The following fields are persisted together:
-- `encrypted_ballot_b64` — AES-256-GCM ciphertext (base64)
-- `ballot_nonce_b64` — AES-GCM nonce/IV (base64); required for decryption
-- `ballot_auth_tag_b64` — AES-GCM authentication tag (base64); required for integrity verification
-- `encrypted_data_key_b64` — KMS-encrypted data key (base64); decryptable only with the privileged tally role
-- `kms_key_id` — KMS CMK identifier
+- `encrypted_ballot_b64`; AES-256-GCM ciphertext (base64)
+- `ballot_nonce_b64`; AES-GCM nonce/IV (base64); required for decryption
+- `ballot_auth_tag_b64`; AES-GCM authentication tag (base64); required for integrity verification
+- `encrypted_data_key_b64`; KMS-encrypted data key (base64); decryptable only with the privileged tally role
+- `kms_key_id`; KMS CMK identifier
 
 The plaintext data key is never persisted. Decryption is available only during controlled tally operations using a separate IAM role with `kms:Decrypt` permission.
 
@@ -309,9 +309,9 @@ The plaintext data key is never persisted. Decryption is available only during c
 
 #### Vote window ordering (DB-enforced)
 `votes` carries three table-level `CHECK` constraints that protect election integrity:
-- `vote_open_at < vote_close_at` — always required.
-- `nomination_open_at < nomination_close_at` — when both are non-NULL.
-- `nomination_close_at <= vote_open_at` — when nomination phase is used.
+- `vote_open_at < vote_close_at`; always required.
+- `nomination_open_at < nomination_close_at`; when both are non-NULL.
+- `nomination_close_at <= vote_open_at`; when nomination phase is used.
 
 These are DB-enforced because multiple admin paths can write `votes` and the invariants are critical for correct ballot acceptance windows.
 
@@ -402,7 +402,7 @@ Config values are admin-configurable. All numeric limits and time windows in the
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE and DELETE are blocked by DB triggers; rows are permanent. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
 
-**`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). The values currently emitted across the codebase, grouped by domain:
+**`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). The values emitted across the codebase, grouped by domain:
 
 - **Authentication and account lifecycle**: `password_changed`, `password_reset_completed`, `password_reset_requested`, `login_rate_limit_exceeded`, `account_locked`, `account_unlocked`, `account_deleted`, `account_restored`, `account_purged`, `email_verified`, `email_verification_resent`, `member_deceased_marked`, `member_deceased_reverted`.
 - **Admin role and tier grants**: `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_manual`, `revoke_admin`, `dev_admin_invariant_repair`, `member_tier_granted`, `member_tier_revoked`, `active_player_vouched`, `active_player_attended`, `active_player_expired`, `active_player_reminder_sent`.
@@ -673,7 +673,7 @@ Operational roster surface for `A_View_Official_Roster_Reports`. Joins `members_
 
 #### Access policy
 
-The Official IFPA Roster is not public. Service-layer access is restricted to admins and admin-provisioned Tier 2 / Tier 3 organizers per US `A_View_Official_Roster_Reports`. All access and exports must be audit-logged via `audit_entries`. There is no dedicated table for tracking admin-provisioned access in the current slice; admin-provisioned access is recorded directly in `audit_entries` with category `roster_access` and the actor / target / purpose captured in `metadata_json`.
+The Official IFPA Roster is not public. Service-layer access is restricted to admins and admin-provisioned Tier 2 / Tier 3 organizers per US `A_View_Official_Roster_Reports`. All access and exports must be audit-logged via `audit_entries`. There is no dedicated table for tracking admin-provisioned access; admin-provisioned access is recorded directly in `audit_entries` with category `roster_access` and the actor / target / purpose captured in `metadata_json`.
 
 #### Deceased exclusion rationale
 
@@ -716,13 +716,13 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 Two FK-style columns carry person-identity / legacy-account linkage:
 
-- `historical_person_id` (`TEXT`, nullable, `REFERENCES historical_persons(person_id) ON DELETE NO ACTION`): direct FK to the archival historical-person identity this member claims. NULL = no HP claim. Set at claim time — either as a side effect of M_Claim_Legacy_Account (when the claimed legacy account has a matching HP) or as a direct HP claim (competitor with no legacy account claims their historical record). Partial UNIQUE index `ux_members_historical_person_id` enforces at most one live, non-purged member per HP.
-- `legacy_member_id` (`TEXT`, nullable, `REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION`): pointer into the old footbag.org user-account namespace — also the PK of `legacy_members` (§4.14b). Set at M_Claim_Legacy_Account time. Partial UNIQUE index `ux_members_legacy_id` enforces at most one member per legacy account.
+- `historical_person_id` (`TEXT`, nullable, `REFERENCES historical_persons(person_id) ON DELETE NO ACTION`): direct FK to the archival historical-person identity this member claims. NULL = no HP claim. Set at claim time; either as a side effect of M_Claim_Legacy_Account (when the claimed legacy account has a matching HP) or as a direct HP claim (competitor with no legacy account claims their historical record). Partial UNIQUE index `ux_members_historical_person_id` enforces at most one live, non-purged member per HP.
+- `legacy_member_id` (`TEXT`, nullable, `REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION`): pointer into the old footbag.org user-account namespace; also the PK of `legacy_members` (§4.14b). Set at M_Claim_Legacy_Account time. Partial UNIQUE index `ux_members_legacy_id` enforces at most one member per legacy account.
 
 `legacy_user_id` and `legacy_email` also remain as TEXT columns for backward compatibility with fields migrated into `members` at claim time; the canonical source for these is `legacy_members`. Post-claim, the member's row holds its own editable copy per MIGRATION_PLAN §8 merge rules; the `legacy_members` row is preserved unchanged as the permanent archival record.
 
-- `legacy_is_admin` — flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
-- `ifpa_join_date`, `birth_date`, `street_address`, `postal_code` — profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The active member can subsequently edit them; the `legacy_members` copy remains immutable.
+- `legacy_is_admin`; flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
+- `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`; profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The active member can subsequently edit them; the `legacy_members` copy remains immutable.
 
 #### Pending auto-link confirmation card
 
@@ -734,9 +734,9 @@ Two FK-style columns carry person-identity / legacy-account linkage:
 
 The `members` table enforces a three-branch credential-state invariant via a `CHECK` constraint:
 
-1. **Live non-system account** — `is_system=0`, `personal_data_purged_at IS NULL`, all credential fields (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) are non-NULL.
-2. **Purged non-system row** — `is_system=0`, `personal_data_purged_at IS NOT NULL`, all credential fields are NULL.
-3. **System member account** — `is_system=1`, `personal_data_purged_at IS NULL`, all credential fields are NULL. The system member is unauthenticatable by data shape (no email-lookup query can match) and is single-row enforced by a partial UNIQUE on `members(is_system) WHERE is_system=1`. See DD §2.8.
+1. **Live non-system account**; `is_system=0`, `personal_data_purged_at IS NULL`, all credential fields (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) are non-NULL.
+2. **Purged non-system row**; `is_system=0`, `personal_data_purged_at IS NOT NULL`, all credential fields are NULL.
+3. **System member account**; `is_system=1`, `personal_data_purged_at IS NULL`, all credential fields are NULL. The system member is unauthenticatable by data shape (no email-lookup query can match) and is single-row enforced by a partial UNIQUE on `members(is_system) WHERE is_system=1`. See DD §2.8.
 
 Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder rows in `members`.
 
@@ -760,7 +760,7 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 
 **Table:** `legacy_members`
 
-Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK) — the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
+Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK); the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
 
 #### Immutability and claim semantics
 
@@ -773,17 +773,17 @@ Permanent archival table: one row per imported legacy account from the old footb
 
 - `legacy_member_id` (`TEXT`, PK): the old-site user-account id.
 - `legacy_user_id`, `legacy_email`: migration metadata from the mirror/dump. `legacy_email` is used to deliver the one-time claim link (MIGRATION_PLAN §7); never a login credential.
-- Profile snapshot — `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
-- Honor flags — `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
-- `legacy_is_admin` — old-site admin flag. Retained for audit; never grants live admin privilege.
-- Import audit — `import_source` ('mirror' | 'legacy_site_data' | NULL pre-integration), `imported_at`, `version`.
-- Claim state — `claimed_by_member_id` (nullable FK to `members(id)` with `ON DELETE NO ACTION`), `claimed_at`. A CHECK constraint enforces the two-column invariant: both NULL (unclaimed) or both set (claimed).
+- Profile snapshot; `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
+- Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
+- `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
+- Import audit; `import_source` ('mirror' | 'legacy_site_data' | NULL pre-integration), `imported_at`, `version`.
+- Claim state; `claimed_by_member_id` (nullable FK to `members(id)` with `ON DELETE NO ACTION`), `claimed_at`. A CHECK constraint enforces the two-column invariant: both NULL (unclaimed) or both set (claimed).
 
 #### Indexes
 
-- `ux_legacy_members_claimed_by` — partial UNIQUE on `claimed_by_member_id` where non-NULL. Enforces at most one current member per legacy account.
-- `ux_legacy_members_legacy_email` — partial UNIQUE on `legacy_email` where non-NULL. Supports M_Claim_Legacy_Account email lookup.
-- `ux_legacy_members_legacy_user_id` — partial UNIQUE on `legacy_user_id` where non-NULL. Supports M_Claim_Legacy_Account username lookup.
+- `ux_legacy_members_claimed_by`; partial UNIQUE on `claimed_by_member_id` where non-NULL. Enforces at most one current member per legacy account.
+- `ux_legacy_members_legacy_email`; partial UNIQUE on `legacy_email` where non-NULL. Supports M_Claim_Legacy_Account email lookup.
+- `ux_legacy_members_legacy_user_id`; partial UNIQUE on `legacy_user_id` where non-NULL. Supports M_Claim_Legacy_Account username lookup.
 
 ### 4.15 Member Links
 
@@ -812,11 +812,11 @@ Attendance never changes membership tier. For Tier 1, Tier 2, or Tier 3 attendee
 
 `historical_persons` stores imported read-only archival identity records sourced from event-data (competition results) and, going forward, mirror club-roster extraction. Rows are never deleted. A row may or may not correspond to a current `members` row and may or may not carry a `legacy_member_id` (populated only when the source data named the legacy account).
 
-Three entity types form the identity model — see DD §2.4:
+Three entity types form the identity model; see DD §2.4:
 
-- `members` — credentialed accounts on this platform.
-- `legacy_members` (§4.14b) — imported legacy accounts from the old footbag.org site (mirror + legacy data dump).
-- `historical_persons` — archival identity records of past participants.
+- `members`; credentialed accounts on this platform.
+- `legacy_members` (§4.14b); imported legacy accounts from the old footbag.org site (mirror + legacy data dump).
+- `historical_persons`; archival identity records of past participants.
 
 Linkage is expressed via explicit FK pointers (not via shared-column derivation):
 
@@ -826,18 +826,18 @@ Linkage is expressed via explicit FK pointers (not via shared-column derivation)
 
 Possible row combinations (all legitimate):
 
-- `members` only — new registrant with no legacy account and no historical record.
-- `legacy_members` only — imported legacy account that hasn't been claimed and wasn't linked to any historical person.
-- `historical_persons` only — imported competitor whose legacy account (if any) isn't known.
-- `members` + `historical_persons` — member who claims their archival identity directly (no legacy account).
-- `members` + `legacy_members` — member who claims their legacy account; the legacy account had no historical-person link.
-- `legacy_members` + `historical_persons` — imported legacy account linked to an archival record, not yet claimed.
-- All three — member who claimed a legacy account that was already linked to a historical person.
+- `members` only; new registrant with no legacy account and no historical record.
+- `legacy_members` only; imported legacy account that hasn't been claimed and wasn't linked to any historical person.
+- `historical_persons` only; imported competitor whose legacy account (if any) isn't known.
+- `members` + `historical_persons`; member who claims their archival identity directly (no legacy account).
+- `members` + `legacy_members`; member who claims their legacy account; the legacy account had no historical-person link.
+- `legacy_members` + `historical_persons`; imported legacy account linked to an archival record, not yet claimed.
+- All three; member who claimed a legacy account that was already linked to a historical person.
 
-**Governance note:** Imported `historical_persons` rows are public historical record surfaces only. They do not confer member-account status, searchability, or contactability. The imported aggregate fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata — not automatic public statistics. Any aggregate field shown publicly must satisfy the historian-value and completeness/caveat requirements in `docs/GOVERNANCE.md`. When `members.historical_person_id` links a current member to a historical person, the historical public pages must continue to show only historical-record data; the link does not escalate the historical identity into a searchable or contactable current-member account.
+**Governance note:** Imported `historical_persons` rows are public historical record surfaces only. They do not confer member-account status, searchability, or contactability. The imported aggregate fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata; not automatic public statistics. Any aggregate field shown publicly must satisfy the historian-value and completeness/caveat requirements in `docs/DATA_GOVERNANCE.md`. When `members.historical_person_id` links a current member to a historical person, the historical public pages must continue to show only historical-record data; the link does not escalate the historical identity into a searchable or contactable current-member account.
 
 #### Results
-`event_result_entries.discipline_id` is nullable (NULL = discipline-agnostic / general ranking). `UNIQUE(event_id, discipline_id, placement)` prevents duplicate placements for discipline-specific rows. For general-ranking rows (`discipline_id IS NULL`), the partial unique index `ux_result_entries_general_placement` on `(event_id, placement) WHERE discipline_id IS NULL` prevents duplicates — required because SQLite treats `NULL` values as distinct in `UNIQUE` constraints.
+`event_result_entries.discipline_id` is nullable (NULL = discipline-agnostic / general ranking). `UNIQUE(event_id, discipline_id, placement)` prevents duplicate placements for discipline-specific rows. For general-ranking rows (`discipline_id IS NULL`), the partial unique index `ux_result_entries_general_placement` on `(event_id, placement) WHERE discipline_id IS NULL` prevents duplicates; required because SQLite treats `NULL` values as distinct in `UNIQUE` constraints.
 
 #### Result participants and linkage semantics
 
@@ -949,13 +949,13 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 **CHECK constraints:**
 - `state IN ('pending_upload','pending_transcode','processing','succeeded','failed','abandoned')`
-- `state <> 'succeeded' OR media_id IS NOT NULL` — terminal-state safety: a succeeded row must point at the resulting media item.
+- `state <> 'succeeded' OR media_id IS NOT NULL`; terminal-state safety: a succeeded row must point at the resulting media item.
 - `kind IN ('curator_video')`
 
 **Indexes:**
-- `idx_media_jobs_state ON media_jobs(state, created_at)` — state-bucketed time-ordered listing for operator inspection.
-- `idx_media_jobs_admin ON media_jobs(admin_member_id, created_at)` — admin-status-page reads.
-- `idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at) WHERE state = 'processing'` — partial index used by the boot-time orphan sweep.
+- `idx_media_jobs_state ON media_jobs(state, created_at)`; state-bucketed time-ordered listing for operator inspection.
+- `idx_media_jobs_admin ON media_jobs(admin_member_id, created_at)`; admin-status-page reads.
+- `idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at) WHERE state = 'processing'`; partial index used by the boot-time orphan sweep.
 
 ### 4.18 Club Leaders & Event Organizers
 
@@ -1027,7 +1027,7 @@ Both tables use `ON DELETE CASCADE` on `media_id`: when media is hard-deleted, i
 
 **Table:** `tag_stats`
 
-Denormalized read cache for the tag browse page (US §1.1). `computed_at` tracks the last recomputation time. Note: `tag_id` is the primary key; `tag_stats` has no `id` or `version` column — it follows a cache/upsert pattern rather than a standard mutable entity pattern.
+Denormalized read cache for the tag browse page (US §1.1). `computed_at` tracks the last recomputation time. Note: `tag_id` is the primary key; `tag_stats` has no `id` or `version` column; it follows a cache/upsert pattern rather than a standard mutable entity pattern.
 
 This is recomputable data; the application owns recomputation cadence and may rebuild from source tables at any time. A background job upserts stats rows. `distinct_member_count` drives the "community tag" threshold: tags used by at least 2 distinct members appear on the public `/tags` browse page.
 
@@ -1175,7 +1175,7 @@ Uniqueness is enforced via two partial unique indexes rather than a single UNIQU
 May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
-Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. Classification (strong, weak, or none) per `MIGRATION_PLAN.md` §2 combination gates is derived at read time from associated `club_bootstrap_leader_signals` rows. The `confidence_score` column is retained as a sortable informational attribute and does not drive classification. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row; it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. Classification (strong, weak, or none) per `MIGRATION_PLAN.md` §2 combination gates is derived at read time from associated `club_bootstrap_leader_signals` rows. The `confidence_score` column is retained as a sortable informational attribute and does not drive classification. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
 
 #### `club_bootstrap_leader_signals` — operational, migration-origin
 Per-signal evidence for the combination-gate classification of bootstrap leader candidates (see `MIGRATION_PLAN.md` §2 Bootstrap rule). Each row records that a specific structural signal or modifier fired for a `(member, club)` candidate, captured at pipeline time. Services compute the strong / weak / none classification at read time by checking which structural signals are present on the parent bootstrap row.
@@ -1418,8 +1418,8 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
-- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates` (verify by `slug`) — admin notification and member subscription workflows depend on these slugs.
-- `system_config`: all keys in §4.23 (verify by `config_key`) — application reads these at startup and during operations; missing keys will cause runtime errors.
+- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates` (verify by `slug`); admin notification and member subscription workflows depend on these slugs.
+- `system_config`: all keys in §4.23 (verify by `config_key`); application reads these at startup and during operations; missing keys will cause runtime errors.
 
 **To verify seed data is present after initialization:**
 ```sql
@@ -1579,12 +1579,12 @@ Physical tables are the direct query surface for unrestricted access. Views prov
 
 #### Column naming conventions (common patterns)
 
-- `*_id` — identifiers / foreign keys
-- `*_at` — timestamps
-- `*_by` — actor/reference for who created/updated a row
-- `*_status` — lifecycle/status value
-- `*_type` — type discriminator / category
-- `is_*` — boolean columns (`INTEGER NOT NULL DEFAULT 0 CHECK (col IN (0,1))`)
+- `*_id`; identifiers / foreign keys
+- `*_at`; timestamps
+- `*_by`; actor/reference for who created/updated a row
+- `*_status`; lifecycle/status value
+- `*_type`; type discriminator / category
+- `is_*`; boolean columns (`INTEGER NOT NULL DEFAULT 0 CHECK (col IN (0,1))`)
 
 These conventions are intentionally repetitive because they improve discoverability, grep-ability, and consistency across a large schema.
 
@@ -1594,13 +1594,13 @@ This schema intentionally uses different lifecycle strategies for different enti
 
 #### Common patterns used
 
-- **Soft-delete** — Rows remain stored but are hidden from default views. Represented by `deleted_at`. The `_active` view applies this filter; `_all` exposes everything. Example: `members`.
+- **Soft-delete**; Rows remain stored but are hidden from default views. Represented by `deleted_at`. The `_active` view applies this filter; `_all` exposes everything. Example: `members`.
 
-- **Status-based archival** — Rows remain stored and are considered archived via a status value (e.g., `status='archived'`). Default views may exclude archived rows. Example: `clubs` (via `clubs_open`).
+- **Status-based archival**; Rows remain stored and are considered archived via a status value (e.g., `status='archived'`). Default views may exclude archived rows. Example: `clubs` (via `clubs_open`).
 
-- **Hard-delete** — Rows may be physically deleted when workflow rules allow it. Workflow restrictions are often enforced in application logic. Example: `events`, `news_items`, `media_items`.
+- **Hard-delete**; Rows may be physically deleted when workflow rules allow it. Workflow restrictions are often enforced in application logic. Example: `events`, `news_items`, `media_items`.
 
-- **Append-only / immutable history** — Rows are never updated or deleted after insert. Triggers enforce immutability. Used for: audit, transition history, snapshots, tier grants, system_config.
+- **Append-only / immutable history**; Rows are never updated or deleted after insert. Triggers enforce immutability. Used for: audit, transition history, snapshots, tier grants, system_config.
 
 #### Database vs application responsibility
 
@@ -1622,16 +1622,16 @@ Do not change timestamp storage format or timestamp-generation expressions casua
 
 The schema contains a few patterns that may look inconsistent at first glance but are intentional.
 
-- **`events` and `news_items`** — These domains use hard-delete; there are no `_all` views. The bare table names are the only read surfaces for these domains.
+- **`events` and `news_items`**; These domains use hard-delete; there are no `_all` views. The bare table names are the only read surfaces for these domains.
 
-- **`recurring_donation_subscriptions`** — Only an `_active` semantic filter view is defined; the bare table name serves as the full-rowset surface. This is intentional and reflects the preferred query surfaces for this domain.
+- **`recurring_donation_subscriptions`**; Only an `_active` semantic filter view is defined; the bare table name serves as the full-rowset surface. This is intentional and reflects the preferred query surfaces for this domain.
 
-- **`tag_stats`** — Follows a cache/recomputed-statistics pattern. `tag_id` is the primary key; no `id`, `version`, or mutable metadata columns. Always upserted by background job.
+- **`tag_stats`**; Follows a cache/recomputed-statistics pattern. `tag_id` is the primary key; no `id`, `version`, or mutable metadata columns. Always upserted by background job.
 
-- **`stripe_events`** — External-event ingestion table. Uses `event_id TEXT PRIMARY KEY` (Stripe's event ID) rather than a surrogate UUID. Follows ingestion-oriented semantics that differ from the most common entity-table pattern.
+- **`stripe_events`**; External-event ingestion table. Uses `event_id TEXT PRIMARY KEY` (Stripe's event ID) rather than a surrogate UUID. Follows ingestion-oriented semantics that differ from the most common entity-table pattern.
 
-- **`mailing_lists`** — Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
+- **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
 
-- **Append-only ledger/history tables** — Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. This includes `audit_entries`, `ballots`, `member_tier_grants`, `payment_status_transitions`, `recurring_donation_subscription_transitions`, `vote_eligibility_snapshot`, and `system_config`.
+- **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. This includes `audit_entries`, `ballots`, `member_tier_grants`, `payment_status_transitions`, `recurring_donation_subscription_transitions`, `vote_eligibility_snapshot`, and `system_config`.
 
 When evaluating schema consistency, these exceptions should be treated as design choices tied to domain semantics, compatibility, or operational needs rather than as accidental inconsistencies.

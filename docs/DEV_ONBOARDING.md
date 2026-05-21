@@ -6,13 +6,13 @@ This guide helps contributors do different things: understand how the initial pu
 
 > **Choose your path**
 >
-> - **Path A** — I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public Events + Results pages locally.
-> - **Path B** — I need the architecture mental model, scope boundaries, and workflow rules.
-> - **Path C** — I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
-> - **Path D** — I already have the app working locally, and I am continuing the AWS bootstrap deployment.
-> - **Path E** — The first deployment works. I need the transition mental model: the Path E baseline boundaries, and where pre-production hardening lives.
-> - **Path F** — The initial deployment is working. I want the complete repeatable staging deploy workflow, including routine code-only deploys and destructive schema/dev deploys that rebuild and replace the host DB from scratch.
-> - **Path G** — The deploy workflow is established. I need the production-readiness hardening checklist before cutover.
+> - **Path A**; I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public Events + Results pages locally.
+> - **Path B**; I need the architecture mental model, scope boundaries, and workflow rules.
+> - **Path C**; I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
+> - **Path D**; I already have the app working locally, and I am continuing the AWS bootstrap deployment.
+> - **Path E**; The first deployment works. I need the transition mental model: the Path E baseline boundaries, and where pre-production hardening lives.
+> - **Path F**; The initial deployment is working. I want the complete repeatable staging deploy workflow, including routine code-only deploys and destructive schema/dev deploys that rebuild and replace the host DB from scratch.
+> - **Path G**; The deploy workflow is established. I need the production-readiness hardening checklist before cutover.
 
 ---
 
@@ -32,6 +32,7 @@ This guide helps contributors do different things: understand how the initial pu
   - [1.10A Optional: exercise Safe Browsing in dev](#110a-optional-exercise-safe-browsing-in-dev)
   - [1.11 Optional deterministic checks](#111-optional-deterministic-checks)
   - [1.12 Docker parity check](#112-docker-parity-check)
+  - [1.13 Filing a bug](#113-filing-a-bug)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
   - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
   - [2.2 Document relationships](#22-document-relationships)
@@ -333,7 +334,7 @@ If you ever see `bash: ...^M` errors:
 
 ### 1.5 Clone and Install the Project GitHub Repository
 
-Clone via HTTPS — no SSH key required (again, run commands one at a time):
+Clone via HTTPS; no SSH key required (again, run commands one at a time):
 
 ```bash
 mkdir -p ~/GIT
@@ -507,7 +508,7 @@ export FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID=your_dev_admin_slug
 
 Every request to a protected route auto-authenticates as that member; the cookie path is skipped entirely. Unset both vars to fall back to the cookie-based session path (real login flow).
 
-Optional password-version mirror — set `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION=N` to require a specific value of `members.password_version` for the autologin to accept. Without it, autologin accepts the row's current value (no invalidation in dev). With it, autologin refuses when the row's version drifts away from the configured value, mirroring the production cookie-path's stale-session rejection. Use this when exercising password-rotation flows in dev:
+Optional password-version mirror; set `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION=N` to require a specific value of `members.password_version` for the autologin to accept. Without it, autologin accepts the row's current value (no invalidation in dev). With it, autologin refuses when the row's version drifts away from the configured value, mirroring the production cookie-path's stale-session rejection. Use this when exercising password-rotation flows in dev:
 
 ```bash
 export FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION=1
@@ -521,7 +522,7 @@ After configuring the autologin var, run the dev-admin seed so your admin entry 
 
 Without this seed, the dashboard membership block will show your account as Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-shortcuts/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email. The dev startup banner prints the autologin'd member's slug, admin flag, and tier on each boot; a Tier 0 admin triggers a warning pointing at this seed step.
 
-Optional admin claim-email skip — set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the onboarding wizard's `legacy_claim` manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
+Optional admin claim-email skip; set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the onboarding wizard's `legacy_claim` manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
 
 ```bash
 export FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1
@@ -529,7 +530,7 @@ export FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1
 
 Production has no equivalent shortcut; production admins use the `manualLegacyClaimRecovery` flow.
 
-Optional admin Tier 2 invariant repair — set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
+Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
 
 ```bash
 export FOOTBAG_DEV_ADMIN_GRANT_TIER2=1
@@ -547,13 +548,14 @@ This is the first proof that your local environment is healthy. Tests should pas
 
 The suite is split:
 
-- `npm test` — unit + integration suites only; the default everyday verification. Excludes smoke and e2e via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'`.
-- `npm run test:unit` — pure-function tests under `tests/unit/`; no DB.
-- `npm run test:integration` — HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
-- `npm run test:smoke` — staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires assumed-role credentials on the workstation.
-- `npm run test:e2e` — Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
-- `npm run test:watch` — vitest in watch mode for fast iteration.
-- `npm run build` — `tsc -p tsconfig.json` typecheck. Must pass before any PR.
+- `npm test`; unit + integration suites only; the default everyday verification. Excludes smoke and e2e via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'`.
+- `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
+- `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
+- `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires assumed-role credentials on the workstation.
+- `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
+- `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
+- `npm run test:watch`; vitest in watch mode for fast iteration.
+- `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
 
 The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, dev autologin slug fallback, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
 
@@ -577,9 +579,60 @@ Manual curl POSTs against the local dev server must also set `Origin: http://loc
 
 New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) land with three permanent tests per `tests/CLAUDE.md`:
 
-1. Boot-time config test in `tests/unit/env-config.test.ts` — `src/config/env.ts` fails fast at module load when required prod-mode env vars are absent.
-2. Interface parity test in `tests/integration/adapter-parity.test.ts` — both implementations satisfy the TypeScript interface and produce identical-structure observable outputs (injected fake AWS client, not a mocked SDK).
-3. Staging-smoke test in `tests/smoke/` — hits real staging AWS via assumed-role chain; gated behind `RUN_STAGING_SMOKE=1`.
+1. Boot-time config test in `tests/unit/env-config.test.ts`; `src/config/env.ts` fails fast at module load when required prod-mode env vars are absent.
+2. Interface parity test in `tests/integration/adapter-parity.test.ts`; both implementations satisfy the TypeScript interface and produce identical-structure observable outputs (injected fake AWS client, not a mocked SDK).
+3. Staging-smoke test in `tests/smoke/`; hits real staging AWS via assumed-role chain; gated behind `RUN_STAGING_SMOKE=1`.
+
+#### Dev test libraries
+
+`npm install` brings in the dev-only libraries below. No further setup is required for the contributor unless noted.
+
+**fast-check.** Property-based testing. Import in any unit or integration test:
+
+```typescript
+import fc from 'fast-check';
+
+fc.assert(fc.property(fc.string(), (s) => roundTrip(s) === s));
+```
+
+Use for invariant assertions, fuzzing, and enumeration-safety checks. Targets `docs/TESTING.md` §12.2 Rigor 4.
+
+**@stryker-mutator/core, @stryker-mutator/vitest-runner.** Mutation testing. Requires a `stryker.config.json` at repo root (not committed yet). When adopted, run:
+
+```bash
+npx stryker run
+```
+
+Scope: the safety-critical short list per `docs/TESTING.md` §12.1 (auth, privacy filters, migration matchers, role gates). Targets Rigor 5.
+
+**@axe-core/playwright.** Accessibility checks for Playwright e2e tests. Import inside a test:
+
+```typescript
+import AxeBuilder from '@axe-core/playwright';
+
+const { violations } = await new AxeBuilder({ page }).analyze();
+expect(violations).toEqual([]);
+```
+
+Per `docs/TESTING.md` §14.1.
+
+**audit-ci.** Dependency vulnerability scanner beyond `npm audit`. Run:
+
+```bash
+npx audit-ci --moderate
+```
+
+Exits non-zero on moderate-or-higher advisories. Per `docs/TESTING.md` §9.
+
+#### Pentest tooling (not auto-installed)
+
+**OWASP ZAP.** Heavyweight pentest scanner. Distributed as a Java tool / Docker image, not an npm package. One-time install when first wiring `test:pentest:heavy`:
+
+```bash
+docker pull owasp/zap2docker-stable
+```
+
+Per `docs/TESTING.md` §9.3. Operator-invoked; never runs unattended against production.
 
 ### 1.9 Run the dev server
 
@@ -648,9 +701,9 @@ The primary local proof already includes `/events/event_2025_beaver_open`, becau
 
 The routes below are **optional additional deterministic checks**:
 
-- `/events/event_2026_draft_event` — should not be public; expected 404
-- `/events/event_9999_does_not_exist` — expected 404
-- `/events/year/1899` — empty year page should still render cleanly (confirmed in `smoke-local.sh`)
+- `/events/event_2026_draft_event`; should not be public; expected 404
+- `/events/event_9999_does_not_exist`; expected 404
+- `/events/year/1899`; empty year page should still render cleanly (confirmed in `smoke-local.sh`)
 
 Use these when:
 
@@ -669,7 +722,7 @@ Do this before anyone touches AWS.
 
 > **Note on `--env-file`:** The parity commands require `--env-file .env` so that Docker Compose can substitute `SESSION_SECRET` (and any future secrets) from your local `.env` into the container. Without it, Compose resolves variable substitution from `docker/` (the compose file's directory), finds no `.env` there, and the app crashes at startup. This mirrors how the production deploy passes `--env-file /srv/footbag/env`.
 
-> **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build` — the Dockerfile handles compilation internally.
+> **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build`; the Dockerfile handles compilation internally.
 
 Run the base parity stack locally in a separate terminal (or detached):
 ```bash
@@ -703,6 +756,28 @@ docker compose \
   -f docker/docker-compose.yml \
   down
 ```
+
+### 1.13 Filing a bug
+
+Defects route through GitHub Issues using the templates in `.github/ISSUE_TEMPLATE/`:
+
+- **Bug report** (`bug_report.yml`); general defects in any area (auth, clubs, members, events, media, admin, docs, security).
+- **Migration or onboarding bug** (`migration_or_onboarding_bug.yml`); defects in the legacy-data import, claim flows, or first-run onboarding paths.
+- **Security vulnerability**; routes via `config.yml` `contact_links` to GitHub's private vulnerability reporting. Not a public issue form.
+
+Issues land on the **footbag-platform bug tracker** GitHub Projects board with five custom fields:
+
+- *Area*: auth, migration, onboarding, clubs, members, events, media, admin, staging, docs, security.
+- *Environment*: local, staging, production.
+- *Severity*: blocker, major, normal, minor.
+- *User role*: anonymous, member, club leader, admin, event organizer, legacy claimant.
+- *Status*: New, In progress, In review, Done, Won't fix.
+
+Lifecycle workflows on the board automate Status transitions: opening an issue auto-adds it as New; linking a PR moves it to In review; merging or closing the issue moves it to Done. No manual board curation is required during normal flow.
+
+Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at the cheapest appropriate layer. A bug without a regression test is not closed.
+
+To re-provision the board (e.g. recovering after deletion or onto a fork), run `scripts/setup-bug-tracker-project.sh`. The script is idempotent and derives owner/repo from `gh repo view`. Five lifecycle workflows remain a one-time GH UI step per the script's trailing instructions.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
 
@@ -1039,7 +1114,7 @@ The original build order was deliberate. In cleaned-up form, it was:
 
 - integration tests
 - local smoke script
-- smoke-public script — out of scope for the initial slice
+- smoke-public script; out of scope for the initial slice
 
 #### Docker parity artifacts
 
@@ -1167,7 +1242,7 @@ The fragile parts are:
 - monitoring must be gated to signals that actually exist
 - host bootstrap (Docker, /srv/footbag, rsync, init DB, systemd) is manual; see §4.7
 - CloudFront maintenance-page behavior is not truly functional yet
-- Lightsail static IPs and instances share a single namespace — they cannot
+- Lightsail static IPs and instances share a single namespace; they cannot
   have the same name simultaneously; `lightsail.tf` uses
   `footbag-staging-web-ip` for the static IP and `footbag-staging-web` for
   the instance; do not make these the same or instance creation will fail
@@ -1183,7 +1258,7 @@ Find your current public IP from WSL:
 curl -s https://checkip.amazonaws.com
 ```
 
-Set the value in `terraform.tfvars` — one `/32` entry per authorized operator:
+Set the value in `terraform.tfvars`; one `/32` entry per authorized operator:
 
 ```hcl
 # Single operator
@@ -1191,8 +1266,8 @@ operator_cidrs = ["203.0.113.10/32"]
 
 # Multiple operators
 operator_cidrs = [
-  "203.0.113.10/32",   # Alice — home
-  "198.51.100.42/32",  # Bob — office
+  "203.0.113.10/32",   # Alice; home
+  "198.51.100.42/32",  # Bob; office
 ]
 ```
 
@@ -1200,7 +1275,7 @@ Notes on `operator_cidrs`:
 
 - `/32` means exactly that one IP address. Do not use broader ranges like `/24` unless you control a stable office block.
 - Operators on a dynamic home IP must update their entry and re-run `terraform apply` when their IP changes.
-- To add or remove an operator: update the list and run `terraform apply` — Terraform replaces only the firewall rule.
+- To add or remove an operator: update the list and run `terraform apply`; Terraform replaces only the firewall rule.
 - For temporary access from a different location (travel, etc.): add a second entry for that session, apply, then remove it and re-apply when done.
 
 > [!NOTE]
@@ -1210,7 +1285,7 @@ Notes on `operator_cidrs`:
 > `lightsail.tf` opens port 2222 to `operator_cidrs` for this reason.
 
 > [!IMPORTANT]
-> The Lightsail firewall is Terraform-managed. Do not change firewall rules in the Lightsail console — console changes are silently overwritten on the next `terraform apply`. To modify SSH access at any point, update `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
+> The Lightsail firewall is Terraform-managed. Do not change firewall rules in the Lightsail console; console changes are silently overwritten on the next `terraform apply`. To modify SSH access at any point, update `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
 
 `**terraform.tfvars` must never be committed to git.** The root `.gitignore` already excludes `*.tfvars` while keeping `*.tfvars.example` tracked. Verify this protection is in place before your first apply:
 
@@ -1218,7 +1293,7 @@ Notes on `operator_cidrs`:
 git check-ignore -v terraform/staging/terraform.tfvars
 ```
 
-Expected output: `.gitignore:97:*.tfvars  terraform/staging/terraform.tfvars`. If that command produces no output, the file is not ignored — stop and fix `.gitignore` before proceeding.
+Expected output: `.gitignore:97:*.tfvars  terraform/staging/terraform.tfvars`. If that command produces no output, the file is not ignored; stop and fix `.gitignore` before proceeding.
 
 #### 3. CloudFront origin — use DNS, not raw IP, and use the two-pass apply
 
@@ -1226,9 +1301,9 @@ CloudFront custom origins require a publicly resolvable DNS hostname, not a raw 
 
 The two-pass apply pattern:
 
-- pass 1: set `enable_cloudfront = false` in `terraform.tfvars`, apply — creates Lightsail resources only
+- pass 1: set `enable_cloudfront = false` in `terraform.tfvars`, apply; creates Lightsail resources only
 - construct the CloudFront origin hostname from the static IP Terraform output
-  using nip.io for staging (see section 4.6 step 4) — Lightsail does not
+  using nip.io for staging (see section 4.6 step 4); Lightsail does not
   provide public DNS hostnames; `publicDnsName` always returns `None`
 - set `lightsail_origin_dns` to that value and `enable_cloudfront = true` in `terraform.tfvars`
 - pass 2: apply the full stack including CloudFront
@@ -1252,17 +1327,17 @@ Done looks like:
 
 #### 5. Monitoring gates
 
-Keep `enable_cwagent_alarms = false` and `enable_backup_alarm = false` in `terraform.tfvars` for the first deployment. The `cloudfront_5xx` alarm is gated on `enable_cloudfront` and is created in pass 2 alongside the distribution — it does not exist after pass 1. The CWAgent and backup-age alarms are separately gated because the signals they monitor do not exist yet.
+Keep `enable_cwagent_alarms = false` and `enable_backup_alarm = false` in `terraform.tfvars` for the first deployment. The `cloudfront_5xx` alarm is gated on `enable_cloudfront` and is created in pass 2 alongside the distribution; it does not exist after pass 1. The CWAgent and backup-age alarms are separately gated because the signals they monitor do not exist yet.
 
-Alarms for signals that do not exist are worse than no alarms — they train the team to ignore monitoring. The backup-age alarm uses `treat_missing_data = "breaching"` and will enter ALARM immediately if enabled before the backup job exists and emits metrics.
+Alarms for signals that do not exist are worse than no alarms; they train the team to ignore monitoring. The backup-age alarm uses `treat_missing_data = "breaching"` and will enter ALARM immediately if enabled before the backup job exists and emits metrics.
 
 #### 6. Confirm current Terraform operational assumptions
 
 Before first apply, also verify these notes still hold in your staging setup:
 
 - use explicit environment directories: `terraform/shared`, `terraform/staging`, `terraform/production`
-- S3 backend with `use_lockfile = true` requires Terraform >= 1.11 — verify with `terraform version`
-- the AWS provider is pinned to `~> 5.0` in `providers.tf`; AWS provider v6.0 was released June 2025 with breaking changes — do not change this pin unless you have explicitly reviewed the v6 migration guide
+- S3 backend with `use_lockfile = true` requires Terraform >= 1.11; verify with `terraform version`
+- the AWS provider is pinned to `~> 5.0` in `providers.tf`; AWS provider v6.0 was released June 2025 with breaking changes; do not change this pin unless you have explicitly reviewed the v6 migration guide
 - `**.tflock` IAM requirement:** when `use_lockfile = true` is active, Terraform writes a `.tflock` object alongside the state file; the operator IAM policy must include `s3:PutObject` and `s3:DeleteObject` on `<bucket>/<key-prefix>*.tflock` or `terraform apply` will fail with `AccessDenied` at lock acquisition
 
 ### 4.5 AWS account/bootstrap setup
@@ -1280,7 +1355,7 @@ Before first apply, also verify these notes still hold in your staging setup:
 > [!NOTE]
 > If IAM Identity Center is already configured for this AWS account, prefer `aws configure sso --profile footbag-operator` over creating long-lived access keys. See the AWS references in section 6.3. Use the steps below only if IAM Identity Center is not yet available.
 
-Use the **AWS Console** to create `footbag-operator` — you have no working CLI credentials yet.
+Use the **AWS Console** to create `footbag-operator`; you have no working CLI credentials yet.
 
 1. Sign in to the AWS Console as root.
 2. Go to **IAM → Users → Create user**.
@@ -1288,7 +1363,7 @@ Use the **AWS Console** to create `footbag-operator` — you have no working CLI
 4. Enable MFA for that user.
 5. Attach `AdministratorAccess` for the bootstrap phase.
 6. Create CLI access keys: IAM → Users → footbag-operator → Security credentials → Create access key → choose "CLI" use case.
-7. Save the access key ID and secret access key immediately — AWS only shows the secret once.
+7. Save the access key ID and secret access key immediately; AWS only shows the secret once.
 
 Configure the local AWS CLI profile:
 
@@ -1380,7 +1455,7 @@ Examples provisioned by `terraform/staging/ssm.tf`:
 /footbag/staging/app/public_base_url
 /footbag/staging/app/db_path
 
-Not yet provisioned (deferred hardening — see Path E, section 5.3):
+Not yet provisioned (deferred hardening; see Path E, section 5.3):
 
 /footbag/staging/app/node_env
 /footbag/staging/secrets/origin_verify_secret
@@ -1460,7 +1535,7 @@ enable_cwagent_alarms = false
 enable_backup_alarm   = false
 ```
 
-`terraform.tfvars` is excluded from git by `*.tfvars` in `.gitignore`. Never commit this file — it will contain real IP addresses.
+`terraform.tfvars` is excluded from git by `*.tfvars` in `.gitignore`. Never commit this file; it will contain real IP addresses.
 
 #### 3. Initialize and validate
 
@@ -1493,7 +1568,7 @@ Then proceed to step 4.
 
 #### 4. First apply pass for Lightsail, if needed
 
-With `enable_cloudfront = false` set in `terraform.tfvars`, the first apply creates Lightsail resources only. After it completes, construct the CloudFront origin hostname from the static IP. Lightsail does not provide public DNS hostnames — unlike EC2, the `publicDnsName` API field always returns `None`. Instead, construct a resolvable hostname using nip.io:
+With `enable_cloudfront = false` set in `terraform.tfvars`, the first apply creates Lightsail resources only. After it completes, construct the CloudFront origin hostname from the static IP. Lightsail does not provide public DNS hostnames; unlike EC2, the `publicDnsName` API field always returns `None`. Instead, construct a resolvable hostname using nip.io:
 
 ```bash
 STATIC_IP=$(terraform output -raw lightsail_static_ip)
@@ -1554,9 +1629,9 @@ terraform output alarm_topic_arn
 
 - confirm the SNS email subscription, just open the footbag aws root's @gmail.com and click the confirmation link AWS sent. 
 
-CloudFront status check: N/A — CloudFront doesn't exist yet (enable_cloudfront = false). 
+CloudFront status check: N/A; CloudFront doesn't exist yet (enable_cloudfront = false). 
 But if it does exist wehen you are reading this doc, then:
-- wait for the CloudFront distribution status to show `Deployed` before you test through the edge — CloudFront takes **15–30 minutes** to propagate globally after apply; the `*.cloudfront.net` URL is assigned immediately but returns errors during propagation
+- wait for the CloudFront distribution status to show `Deployed` before you test through the edge; CloudFront takes **15–30 minutes** to propagate globally after apply; the `*.cloudfront.net` URL is assigned immediately but returns errors during propagation
 
 ```bash
 CF_ID=$(terraform output -raw cloudfront_distribution_id)
@@ -1623,7 +1698,7 @@ sudo whoami
 `sudo whoami` must return `root` before you stop using `ec2-user`.
 
 > [!IMPORTANT]
-> The Lightsail firewall is Terraform-managed via `operator_cidrs`. Do not use the Lightsail console to modify firewall rules — console changes are silently overwritten on the next `terraform apply`. To update SSH access at any point, modify `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
+> The Lightsail firewall is Terraform-managed via `operator_cidrs`. Do not use the Lightsail console to modify firewall rules; console changes are silently overwritten on the next `terraform apply`. To update SSH access at any point, modify `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
 
 #### 2. Install Docker and required packages
 
@@ -1790,7 +1865,7 @@ Expected behavior:
 
 - `footbag.service` may show `active (exited)` if it is a `Type=oneshot` unit with `RemainAfterExit=yes`
 - nginx and web containers should be running
-- the worker should exist but be in `Exited (0)` state — the worker container is a stub and runs no scheduled jobs
+- the worker should exist but be in `Exited (0)` state; the worker container is a stub and runs no scheduled jobs
 - the worker should not be restart-looping
 
 Useful checks:
@@ -3212,7 +3287,7 @@ Before starting, confirm `noreply@footbag.org` has an active Cloudflare Email Ro
 4. Create. AWS sends a verification email; click the link to confirm ownership.
 5. Repeat steps 1-4 for the email address you will use as the test recipient in §8.11 post-setup validation. You will need to click the verification link sent to that mailbox to confirm.
 
-In SES sandbox, the account can only send to verified recipients, so the test recipient is how you exercise the full send path during step 6 validation. Verifying the recipient in SES is necessary but not sufficient — the IAM policy in §8.9 step 4b must also permit `ses:SendEmail` on the recipient's identity ARN. The identity-wildcard pattern used there covers every address you verify in this step without a separate IAM edit per tester.
+In SES sandbox, the account can only send to verified recipients, so the test recipient is how you exercise the full send path during step 6 validation. Verifying the recipient in SES is necessary but not sufficient; the IAM policy in §8.9 step 4b must also permit `ses:SendEmail` on the recipient's identity ARN. The identity-wildcard pattern used there covers every address you verify in this step without a separate IAM edit per tester.
 
 Record locally:
 
@@ -3254,7 +3329,7 @@ Three Console actions. These IAM edits are applied via the AWS Console; Terrafor
 The role `footbag-staging-app-runtime` already exists in Terraform with pre-existing statements for SSM read and S3 snapshots. This step adds two new statements via Console.
 
 1. IAM → Roles → `footbag-staging-app-runtime` → **Add permissions** → **Create inline policy** → JSON.
-2. Paste the policy below, substituting the KMS key ARN from step 1 and your AWS account ID. The `JwtSigning` Resource is pinned to the single KMS key; the `OutboundEmail` Resource uses an identity wildcard within the account — see note below.
+2. Paste the policy below, substituting the KMS key ARN from step 1 and your AWS account ID. The `JwtSigning` Resource is pinned to the single KMS key; the `OutboundEmail` Resource uses an identity wildcard within the account; see note below.
 
 ```json
 {
@@ -3281,7 +3356,7 @@ The role `footbag-staging-app-runtime` already exists in Terraform with pre-exis
 
 3. Name the policy `footbag-staging-app-runtime-jwt-ses` and save.
 
-**Why the identity wildcard for `OutboundEmail`.** In SES sandbox mode, AWS performs an IAM permission check against BOTH the sender identity AND every recipient identity on each `ses:SendEmail` call. A policy that pins `Resource` to the sender identity alone will refuse sends to a verified sandbox recipient with `User ... is not authorized to perform ses:SendEmail on resource arn:aws:ses:...:identity/<RECIPIENT>`. The recipient still must be verified in SES per §8.8 — the wildcard does not bypass SES's sandbox check, it only allows the role to reach SES for identities within this account. Each new tester requires only an §8.8 SES verification step; no IAM edit per tester. SES production access (out of scope for this path) removes the recipient-identity permission check; at that point the Resource can be tightened back to the single sender identity ARN.
+**Why the identity wildcard for `OutboundEmail`.** In SES sandbox mode, AWS performs an IAM permission check against BOTH the sender identity AND every recipient identity on each `ses:SendEmail` call. A policy that pins `Resource` to the sender identity alone will refuse sends to a verified sandbox recipient with `User ... is not authorized to perform ses:SendEmail on resource arn:aws:ses:...:identity/<RECIPIENT>`. The recipient still must be verified in SES per §8.8; the wildcard does not bypass SES's sandbox check, it only allows the role to reach SES for identities within this account. Each new tester requires only an §8.8 SES verification step; no IAM edit per tester. SES production access (out of scope for this path) removes the recipient-identity permission check; at that point the Resource can be tightened back to the single sender identity ARN.
 
 `ses:SendRawEmail` is not granted. The app uses `@aws-sdk/client-ses` `SendEmailCommand` exclusively; if a future change needs raw MIME (attachments), add `ses:SendRawEmail` at that point.
 
@@ -3401,8 +3476,8 @@ Both the `web` and `worker` services must bind-mount `/root/.aws` read-only and 
 
 Under both `services.web` and `services.worker` add:
 
-- to `volumes:` — `- /root/.aws:/root/.aws:ro`
-- to `environment:` — `AWS_PROFILE: ${AWS_PROFILE}`, `AWS_REGION: ${AWS_REGION}`, `JWT_SIGNER: ${JWT_SIGNER}`, `JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}`, `SES_ADAPTER: ${SES_ADAPTER}`, `SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}`
+- to `volumes:`; `- /root/.aws:/root/.aws:ro`
+- to `environment:`; `AWS_PROFILE: ${AWS_PROFILE}`, `AWS_REGION: ${AWS_REGION}`, `JWT_SIGNER: ${JWT_SIGNER}`, `JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}`, `SES_ADAPTER: ${SES_ADAPTER}`, `SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}`
 
 The systemd unit already invokes compose with `--env-file /srv/footbag/env`, so the `${...}` substitutions resolve from the values set in 5b. Commit and redeploy per Path F.
 
@@ -3888,63 +3963,63 @@ Procedure: follow the §8.16 steps replacing `staging` with `production` through
 - WSL not installed, or the distro is not actually running in WSL 2 mode (`wsl.exe -l -v` to check)
 - repo cloned under `/mnt/c/...` instead of the Linux filesystem
 - `which node` resolves to the Windows binary under `/mnt/c/...`
-- running `source ~/.nvm/nvm.sh` before restarting the terminal after nvm install — `nvm` will not be found; close and reopen the terminal first
+- running `source ~/.nvm/nvm.sh` before restarting the terminal after nvm install; `nvm` will not be found; close and reopen the terminal first
 - Node version drift breaks native addon builds (`better-sqlite3` requires Node 22 for the documented baseline)
-- `sqlite3` CLI missing — `sudo apt install -y sqlite3`
+- `sqlite3` CLI missing; `sudo apt install -y sqlite3`
 - `.env` missing or `FOOTBAG_DB_PATH` wrong
 - Docker Desktop installed on Windows but WSL integration not enabled for the Ubuntu distro
 - `docker` command works in Windows but not in the Ubuntu shell
 - the old standalone `docker-compose` v1 tool confused with the `docker compose` v2 plugin
-- AWS CLI, Terraform, SSH, or `rsync` never installed in WSL — run the tooling gate from §4.2 to confirm
+- AWS CLI, Terraform, SSH, or `rsync` never installed in WSL; run the tooling gate from §4.2 to confirm
 - shell scripts fail with `^M` because repo was cloned or edited outside WSL (CRLF issue)
-- `ModuleNotFoundError: No module named 'apt_pkg'` on any command or after `apt-get update` — broken `command-not-found` handler; fix with `sudo apt-get install --reinstall python3-apt`; the `apt-get update` error is a harmless post-hook and can be ignored
+- `ModuleNotFoundError: No module named 'apt_pkg'` on any command or after `apt-get update`; broken `command-not-found` handler; fix with `sudo apt-get install --reinstall python3-apt`; the `apt-get update` error is a harmless post-hook and can be ignored
 
 #### Route and runtime mistakes
 
 - public statuses leak non-public events
-- `/events/year/:year` gets shadowed by `/events/:eventKey` — register the year route first
+- `/events/year/:year` gets shadowed by `/events/:eventKey`; register the year route first
 - historical no-results events hidden instead of rendered clearly
 - controllers own business rules that belong in services
 - templates own business logic that belongs in services
-- `dotenv` loads too late and `FOOTBAG_DB_PATH` is empty when `db.ts` initializes — `import 'dotenv/config'` must be the first import in `server.ts`
+- `dotenv` loads too late and `FOOTBAG_DB_PATH` is empty when `db.ts` initializes; `import 'dotenv/config'` must be the first import in `server.ts`
 
 #### Docker parity mistakes
 
 - Docker parity skipped entirely before AWS work
 - nginx not fronting the web container correctly
 - DB mount path wrong
-- `docker compose pull` used on host instead of the `docker save | docker load` ship path — images are built on the workstation and shipped manually (registry-backed delivery is deferred to §6.6)
+- `docker compose pull` used on host instead of the `docker save | docker load` ship path; images are built on the workstation and shipped manually (registry-backed delivery is deferred to §6.6)
 
 #### AWS/bootstrap mistakes
 
 - continuing to use root after bootstrap
 - creating or keeping root access keys
 - leaving `footbag-operator` without MFA
-- `export AWS_PROFILE=footbag-operator` not re-run after opening a new terminal — all Terraform and AWS CLI commands will use wrong credentials
+- `export AWS_PROFILE=footbag-operator` not re-run after opening a new terminal; all Terraform and AWS CLI commands will use wrong credentials
 - assuming runtime AWS credentials are optional; they are now required for KMS (JWT signing) and SES (transactional email); see Path H for activation and §4.5 "Lightsail runtime identity model" for the rationale
-- assuming Lightsail gives you an EC2 instance-profile story identical to EC2 — it does not
-- leaving SSH broadly exposed — verify `operator_cidrs` is set to real CIDRs before first apply (see §4.4 correction 2)
+- assuming Lightsail gives you an EC2 instance-profile story identical to EC2; it does not
+- leaving SSH broadly exposed; verify `operator_cidrs` is set to real CIDRs before first apply (see §4.4 correction 2)
 - forgetting to install `rsync` on the Lightsail host before running the rsync deployment step in §4.7
 - updating Parameter Store and expecting the running app to change without also updating `/srv/footbag/env`
 - copying files directly into the root-owned `/srv/footbag` without using a staging path and sudo promotion
 - mixing staging and production state in the same Terraform path
 - creating Terraform state storage without versioning or encryption
-- relying on old Terraform DynamoDB locking patterns — this project uses `use_lockfile = true` (S3 native locking, requires `>= 1.11`)
-- assuming `user_data` bootstraps the instance — it is intentionally omitted; all Docker install is manual via SSH (see §4.7)
-- using raw IP as the CloudFront origin — CloudFront custom origins require a resolvable DNS hostname, not a raw IP
-- assuming Lightsail provides a public DNS hostname like EC2 does —
+- relying on old Terraform DynamoDB locking patterns; this project uses `use_lockfile = true` (S3 native locking, requires `>= 1.11`)
+- assuming `user_data` bootstraps the instance; it is intentionally omitted; all Docker install is manual via SSH (see §4.7)
+- using raw IP as the CloudFront origin; CloudFront custom origins require a resolvable DNS hostname, not a raw IP
+- assuming Lightsail provides a public DNS hostname like EC2 does.
   `aws lightsail get-instance --query 'instance.publicDnsName'` always
   returns `None`; construct the CloudFront origin hostname from the static
   IP Terraform output using nip.io for staging (see §4.6 step 4)
-- naming the Lightsail static IP and instance the same — Lightsail rejects
+- naming the Lightsail static IP and instance the same; Lightsail rejects
   instance creation with "Some names are already in use" because static IPs
   and instances share a single namespace; `lightsail.tf` uses distinct names
   (`footbag-staging-web-ip` for the static IP, `footbag-staging-web` for
   the instance); do not change these to match
 - skipping or mis-sequencing the two-pass CloudFront bootstrap
-- running `sudo dnf install -y docker-compose-plugin` without first adding the Docker CE repo — the package is not in Amazon Linux 2023 default repos
-- SSH to the Lightsail instance timing out despite correct `operator_cidrs` and a running instance — some ISPs block outbound port 22 to AWS EC2 IP ranges; use `-p 2222` and the Lightsail browser SSH console to configure sshd if needed (see §4.4 note and §4.7 step 1)
-- Claude Code hooks failing with a PreToolUse hook error on every Bash call — `jq` is required by the hook scripts; install with `sudo apt-get install -y jq`
+- running `sudo dnf install -y docker-compose-plugin` without first adding the Docker CE repo; the package is not in Amazon Linux 2023 default repos
+- SSH to the Lightsail instance timing out despite correct `operator_cidrs` and a running instance; some ISPs block outbound port 22 to AWS EC2 IP ranges; use `-p 2222` and the Lightsail browser SSH console to configure sshd if needed (see §4.4 note and §4.7 step 1)
+- Claude Code hooks failing with a PreToolUse hook error on every Bash call; `jq` is required by the hook scripts; install with `sudo apt-get install -y jq`
 
 ### 10.2 Deterministic seed-data reference
 

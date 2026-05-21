@@ -116,7 +116,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: TEST_MEMBER_EMAIL, password: 'wrong-password' });
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
@@ -127,7 +127,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: 'nobody@example.com', password: TEST_PASSWORD });
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
@@ -138,7 +138,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: TEST_MEMBER_EMAIL, password: FOOTBAG_PASSWORD });
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 

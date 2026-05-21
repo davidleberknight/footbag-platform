@@ -207,7 +207,7 @@ export interface ClubClassificationRule {
   label: string;
   predicate: string;
   fired: boolean;
-  tier: 'pre_populate' | 'onboarding_visible';
+  stage: 'pre_populate' | 'onboarding_visible';
 }
 
 export interface ClubClassificationInputRow {
@@ -513,27 +513,27 @@ function toClassificationEvidence(row: ClassificationEvidenceRow): ClubClassific
     label: string;
     predicate: string;
     humanClause: string;
-    tier: ClubClassificationRule['tier'];
+    stage: ClubClassificationRule['stage'];
     fired: number;
   }> = [
-    { id: 'R1',  label: 'Recently hosted',             predicate: 'last_hosted_year >= 2020',                                humanClause: 'hosted an event in 2020 or later',                                    tier: 'pre_populate',       fired: row.r1  },
-    { id: 'R2',  label: 'Recent edit + ever hosted',   predicate: 'last_updated_year >= 2020 AND ever_hosted',               humanClause: 'page was updated in 2020+ and the club has hosted at least one event', tier: 'pre_populate',       fired: row.r2  },
-    { id: 'R3',  label: 'Recent edit + active contact',predicate: 'last_updated_year >= 2020 AND contact_competed_2020+',    humanClause: 'page was updated in 2020+ and the listed contact has been competing',  tier: 'pre_populate',       fired: row.r3  },
-    { id: 'R4',  label: 'Active contact + ever hosted',predicate: 'contact_competed_2020+ AND ever_hosted',                  humanClause: 'the listed contact has been competing and the club has hosted before', tier: 'pre_populate',       fired: row.r4  },
-    { id: 'R5',  label: 'Active contact',              predicate: 'contact_competed_2020+',                                  humanClause: 'the listed contact was competing in 2020 or later',                    tier: 'onboarding_visible', fired: row.r5  },
-    { id: 'R6',  label: 'Ever hosted',                 predicate: 'ever_hosted',                                             humanClause: 'the club has hosted at least one event',                                tier: 'onboarding_visible', fired: row.r6  },
-    { id: 'R7',  label: 'Edited after creation',       predicate: 'last_updated_year >= 2016 AND last_updated > created',    humanClause: 'the page was edited in 2016 or later, after it was first created',     tier: 'onboarding_visible', fired: row.r7  },
-    { id: 'R8',  label: 'Any member active',           predicate: 'max_affiliated_member_last_year >= 2020',                 humanClause: 'at least one affiliated member was competing in 2020 or later',        tier: 'onboarding_visible', fired: row.r8  },
-    { id: 'R9',  label: 'Recently created',            predicate: 'created_year >= 2022',                                    humanClause: 'the club page was created in 2022 or later',                            tier: 'onboarding_visible', fired: row.r9  },
-    { id: 'R10', label: 'Substantial roster',          predicate: 'unique_member_names >= 10 OR linkable_member_count >= 3', humanClause: 'the roster has 10+ unique names or 3+ identified players',              tier: 'onboarding_visible', fired: row.r10 },
+    { id: 'R1',  label: 'Recently hosted',             predicate: 'last_hosted_year >= 2020',                                humanClause: 'hosted an event in 2020 or later',                                    stage: 'pre_populate',       fired: row.r1  },
+    { id: 'R2',  label: 'Recent edit + ever hosted',   predicate: 'last_updated_year >= 2020 AND ever_hosted',               humanClause: 'page was updated in 2020+ and the club has hosted at least one event', stage: 'pre_populate',       fired: row.r2  },
+    { id: 'R3',  label: 'Recent edit + active contact',predicate: 'last_updated_year >= 2020 AND contact_competed_2020+',    humanClause: 'page was updated in 2020+ and the listed contact has been competing',  stage: 'pre_populate',       fired: row.r3  },
+    { id: 'R4',  label: 'Active contact + ever hosted',predicate: 'contact_competed_2020+ AND ever_hosted',                  humanClause: 'the listed contact has been competing and the club has hosted before', stage: 'pre_populate',       fired: row.r4  },
+    { id: 'R5',  label: 'Active contact',              predicate: 'contact_competed_2020+',                                  humanClause: 'the listed contact was competing in 2020 or later',                    stage: 'onboarding_visible', fired: row.r5  },
+    { id: 'R6',  label: 'Ever hosted',                 predicate: 'ever_hosted',                                             humanClause: 'the club has hosted at least one event',                                stage: 'onboarding_visible', fired: row.r6  },
+    { id: 'R7',  label: 'Edited after creation',       predicate: 'last_updated_year >= 2016 AND last_updated > created',    humanClause: 'the page was edited in 2016 or later, after it was first created',     stage: 'onboarding_visible', fired: row.r7  },
+    { id: 'R8',  label: 'Any member active',           predicate: 'max_affiliated_member_last_year >= 2020',                 humanClause: 'at least one affiliated member was competing in 2020 or later',        stage: 'onboarding_visible', fired: row.r8  },
+    { id: 'R9',  label: 'Recently created',            predicate: 'created_year >= 2022',                                    humanClause: 'the club page was created in 2022 or later',                            stage: 'onboarding_visible', fired: row.r9  },
+    { id: 'R10', label: 'Substantial roster',          predicate: 'unique_member_names >= 10 OR linkable_member_count >= 3', humanClause: 'the roster has 10+ unique names or 3+ identified players',              stage: 'onboarding_visible', fired: row.r10 },
   ];
   const rules: ClubClassificationRule[] = ruleSpecs.map((s) => ({
-    id: s.id, label: s.label, predicate: s.predicate, tier: s.tier, fired: s.fired === 1,
+    id: s.id, label: s.label, predicate: s.predicate, stage: s.stage, fired: s.fired === 1,
   }));
 
   const firedIds = rules.filter((r) => r.fired).map((r) => r.id);
-  const firedPrePopulate = ruleSpecs.filter((s) => s.tier === 'pre_populate' && s.fired === 1);
-  const firedOnboarding  = ruleSpecs.filter((s) => s.tier === 'onboarding_visible' && s.fired === 1);
+  const firedPrePopulate = ruleSpecs.filter((s) => s.stage === 'pre_populate' && s.fired === 1);
+  const firedOnboarding  = ruleSpecs.filter((s) => s.stage === 'onboarding_visible' && s.fired === 1);
 
   let decisionPath: string;
   switch (row.classification) {
@@ -634,18 +634,18 @@ export interface CountrySummary {
 
 // Bin boundaries for the /clubs world-map choropleth. Driven by the
 // per-country distribution of legacy_person_club_affiliations rows
-// (see exploration query 2026-05-18). Six lit tiers + tier 0 (clubs row
+// (see exploration query 2026-05-18). Six lit bins + bin 0 (clubs row
 // exists but no affiliations) give a smooth 6-step sequential green
-// ramp; USA's 1153 sits alone in tier 6, Canada plus the three
-// 100-200 cohorts populate tier 5, and the long tail spreads evenly
-// across tiers 1-4.
+// ramp; USA's 1153 sits alone in bin 6, Canada plus the three
+// 100-200 cohorts populate bin 5, and the long tail spreads evenly
+// across bins 1-4.
 //   0       no affiliations    → no fill class beyond .has-clubs
-//   1-2     trace              → tier 1
-//   3-9     small              → tier 2
-//   10-29   medium-small       → tier 3
-//   30-99   medium             → tier 4
-//   100-299 large              → tier 5
-//   300+    outlier            → tier 6
+//   1-2     trace              → bin 1
+//   3-9     small              → bin 2
+//   10-29   medium-small       → bin 3
+//   30-99   medium             → bin 4
+//   100-299 large              → bin 5
+//   300+    outlier            → bin 6
 export function memberCountBin(n: number): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
   if (n <= 0)   return 0;
   if (n < 3)    return 1;

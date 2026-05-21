@@ -530,7 +530,7 @@ Success Criteria:
 - Unverified members do not appear in the authenticated member search.
 - Members can request a new verification email by submitting their email address to a resend form. The response is identical regardless of whether an unverified member exists for that address. Resends are rate-limited per normalized email address (safe default).
 - Resend submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read; identical UX whether an unverified member exists for the address or not.
-- If an email is submitted to the registration form and an account already exists for that address, the response is identical to a successful new registration — no new verification email is sent, and no indication is given that the email is already registered.
+- If an email is submitted to the registration form and an account already exists for that address, the response is identical to a successful new registration; no new verification email is sent, and no indication is given that the email is already registered.
 - Admins are not involved in verification; the flow is self-service.
 
 ### M_Reset_Password
@@ -618,7 +618,7 @@ Story: As a member who has requested account deletion, I can log in within the g
 Success Criteria:
 
 - During the grace period, the login flow detects that valid credentials belong to an account in a deleted state (deleted_at IS NOT NULL, grace period not yet expired).
-- The system presents a restoration confirmation screen — not the normal dashboard — explaining the account is pending deletion and asking whether to restore it.
+- The system presents a restoration confirmation screen; not the normal dashboard; explaining the account is pending deletion and asking whether to restore it.
 - If the member confirms restoration, the system clears deleted_at, reinstates the account to active status, and logs the restoration in the audit log with actor, timestamp, and action type.
 - If the member dismisses the screen without confirming, they are not logged in and the account remains in its deleted state.
 - After restoration, the member is redirected to the normal post-login destination and sees a success message: "Your account has been restored."
@@ -798,10 +798,10 @@ Success Criteria:
 - Search by Display Name.
 - Support prefix matching (e.g., "jane" matches "Jane Doe").
 - Minimum 2-character query length; maximum 20 results per page.
-- Members may opt out via `searchable: false` profile flag. `searchable` means eligible for authenticated member lookup only — it does not mean publicly discoverable or contactable.
+- Members may opt out via `searchable: false` profile flag. `searchable` means eligible for authenticated member lookup only; it does not mean publicly discoverable or contactable.
 - Search results exclude: (a) members with `searchable: false`, (b) members currently in the deletion grace period (account deleted but not yet purged), and (c) deceased members. Only active members with `searchable: true` are returned.
 - Broad queries return a capped result set with a "refine your query" prompt; no exhaustive browse-all or full pagination.
-- This is the only member search feature. It is authenticated-only and deliberately narrowing — not a member directory.
+- This is the only member search feature. It is authenticated-only and deliberately narrowing; not a member directory.
 
 ### M_View_Profile
 
@@ -1267,13 +1267,13 @@ Members with Tier 1 benefits can create basic/local events; Tier 2 or Tier 3 req
 
 Valid event statuses and their transitions:
 
-- `draft` — initial state on creation.
-- `pending_approval` — paid or sanctioned event submitted for admin review (from `draft`).
-- `published` — visible and open for registration. Free events transition `draft → published` on creation. Paid/sanctioned events transition `pending_approval → published` on admin approval.
-- `registration_full` — capacity limit reached; no new registrations accepted (from `published`).
-- `closed` — registration deadline passed or organiser manually closed registration (from `published` or `registration_full`).
-- `completed` — event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
-- `canceled` — event canceled at any point before `completed`; registrants are notified.  The `canceled` state is terminal; canceled events cannot be re-opened or completed.
+- `draft`; initial state on creation.
+- `pending_approval`; paid or sanctioned event submitted for admin review (from `draft`).
+- `published`; visible and open for registration. Free events transition `draft → published` on creation. Paid/sanctioned events transition `pending_approval → published` on admin approval.
+- `registration_full`; capacity limit reached; no new registrations accepted (from `published`).
+- `closed`; registration deadline passed or organiser manually closed registration (from `published` or `registration_full`).
+- `completed`; event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
+- `canceled`; event canceled at any point before `completed`; registrants are notified.  The `canceled` state is terminal; canceled events cannot be re-opened or completed.
 
 No other status values are valid. All queries and conditional logic must use only these canonical strings.
 
@@ -1774,7 +1774,7 @@ Access: Admins only (admin residue queue). The automated cleanup layer runs as a
 
 Story: As an admin, I see only the cleanup items that require human judgment, because a daily automated process resolves unambiguous cases (orphan legacy ids, purged members, inactive onboarding, stale provisional leaders, leaderless live clubs, convergent auto-merge holds) without my involvement. I work through the residual judgment queue at my own cadence; a backlog badge on the admin home page surfaces the count and age of the oldest open item.
 
-Success Criteria — Automated cleanup layer:
+Success Criteria; Automated cleanup layer:
 
 - A daily background process applies the following transitions without admin involvement. Each transition writes one `audit_entries` row with `actor_type='system'`, `actor_member_id=NULL`, `action_type='auto_cleanup.<predicate>'`, and metadata recording the predicate, the pre-transition state, and the linked entity ids.
   - `orphan_legacy_id`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose `legacy_member_id` does not resolve to any `members` row, and the row has been loader-imported for at least 30 days. Transition: `resolution_status='former_only'` (preserves historical fact; no `resolved_club_id` stamp required).
@@ -1786,7 +1786,7 @@ Success Criteria — Automated cleanup layer:
 - The background process runs at most once per 24 hours per environment. Each predicate evaluation is idempotent; re-running the process produces no additional state changes for rows already resolved.
 - The set of automatic predicates is fixed by this story; adding a new predicate or loosening a threshold (e.g., dropping a 30-day grace period) requires an explicit story extension. Admins do not configure predicates from the queue surface.
 
-Success Criteria — Admin residue queue:
+Success Criteria; Admin residue queue:
 
 - The admin residue queue surfaces the items the automated layer cannot resolve: items requiring human judgment.
 - An admin-home backlog badge shows the count of open queue items and the age of the oldest open item, so the admin sees backlog without opening the queue. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity (post-migration cutover, after major data imports). There is no automated escalation, deadline, or service-level target.
@@ -1815,7 +1815,7 @@ Success Criteria — Admin residue queue:
 - The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.
 - The `legacy_club_candidates` table may be dropped only after every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4.
 
-Success Criteria — Predicate refinement loop:
+Success Criteria; Predicate refinement loop:
 
 - When the residue queue accumulates more than 50 `legacy_person_club_affiliations` rows that the automated predicates could not classify, the queue surfaces a "predicate refinement needed" indicator. Implementation owners revise the automatic predicate set per the story-extension rule above; previously-unclassified rows re-classify on the next automated run.
 
@@ -1943,11 +1943,11 @@ Success Criteria:
 
 All votes have a status field constrained to the following valid values. No other status values are valid.
 
-- `draft` — Vote created but not yet open. Valid transitions: → `open` (automatically when open_datetime is reached), → `canceled` (A_Cancel_Vote).
-- `open` — Active voting period; eligible members can submit ballots. Valid transitions: → `closed` (automatically via SYS_Close_Vote when close_datetime is reached), → `canceled` (A_Cancel_Vote).
-- `closed` — Voting period ended; awaiting tally. Valid transitions: → `published` (A_Publish_Vote_Results), → `canceled` (A_Cancel_Vote).
-- `published` — Results published and visible to all eligible members. Terminal state; cannot be canceled or reversed.
-- `canceled` — Vote voided before results were published. Terminal state.
+- `draft`; Vote created but not yet open. Valid transitions: → `open` (automatically when open_datetime is reached), → `canceled` (A_Cancel_Vote).
+- `open`; Active voting period; eligible members can submit ballots. Valid transitions: → `closed` (automatically via SYS_Close_Vote when close_datetime is reached), → `canceled` (A_Cancel_Vote).
+- `closed`; Voting period ended; awaiting tally. Valid transitions: → `published` (A_Publish_Vote_Results), → `canceled` (A_Cancel_Vote).
+- `published`; Results published and visible to all eligible members. Terminal state; cannot be canceled or reversed.
+- `canceled`; Vote voided before results were published. Terminal state.
 
 ### A_Create_Vote
 
@@ -2292,7 +2292,7 @@ Story: The system automatically transitions votes from `open` to `closed` when t
 
 Success Criteria:
 
-- System runs a daily job (or more frequently — at minimum once per hour is recommended) that checks all votes with status `open` and close_datetime in the past (UTC).
+- System runs a daily job (or more frequently; at minimum once per hour is recommended) that checks all votes with status `open` and close_datetime in the past (UTC).
 - For each such vote, the job sets vote.status to `closed` and records a close timestamp.
 - The job audit-logs each transition: vote_id, old status (`open`), new status (`closed`), close_datetime, job run timestamp.
 - The system sends an email notification to the admin-alerts mailing list when a vote is automatically closed, including the vote title and vote ID.
@@ -2338,9 +2338,9 @@ Success Criteria:
 
 System runs nightly cron job at 2 AM UTC in two passes:
 
-Pass 1 — One-time payments: Compares local payment records (membership dues, event registrations, one-time donations) against Stripe PaymentIntent records for the reconciliation window. Discrepancies flagged: local records with no matching Stripe PaymentIntent, Stripe PaymentIntents with no matching local record, amount or status mismatches.
+Pass 1; One-time payments: Compares local payment records (membership dues, event registrations, one-time donations) against Stripe PaymentIntent records for the reconciliation window. Discrepancies flagged: local records with no matching Stripe PaymentIntent, Stripe PaymentIntents with no matching local record, amount or status mismatches.
 
-Pass 2 — Recurring donation subscriptions: Compares local donation subscription records against Stripe Subscription objects and their associated Invoice records. Discrepancies flagged: active local subscriptions with no matching active Stripe Subscription, Stripe Subscriptions with no matching local record, local subscription status out of sync with Stripe status (e.g., local shows active but Stripe shows canceled or past_due), Invoice charges recorded in Stripe but missing as local payment records.
+Pass 2; Recurring donation subscriptions: Compares local donation subscription records against Stripe Subscription objects and their associated Invoice records. Discrepancies flagged: active local subscriptions with no matching active Stripe Subscription, Stripe Subscriptions with no matching local record, local subscription status out of sync with Stripe status (e.g., local shows active but Stripe shows canceled or past_due), Invoice charges recorded in Stripe but missing as local payment records.
 
 Amount discrepancy checks compare both the amount AND the currency field: a local record and a Stripe record for the same payment_intent_id that have matching amounts but different currency values MUST be flagged as a discrepancy. Reconciliation reports display amounts alongside currency codes.
 

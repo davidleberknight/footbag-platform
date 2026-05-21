@@ -2,7 +2,7 @@
 
 **Document Purpose:**
 
-This document is the source of truth for go-live readiness: legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern both. For functional requirements, see `USER_STORIES.md`. For privacy and visibility policy, see `GOVERNANCE.md`.
+This document is the source of truth for go-live readiness: legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern both. For functional requirements, see `USER_STORIES.md`. For privacy and visibility policy, see `DATA_GOVERNANCE.md`.
 
 ---
 
@@ -195,7 +195,7 @@ The three-table design (DD §2.4) means imported rows never occupy the `members`
 
 #### Tier handling at claim
 
-Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id` — so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
+Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id`; so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
 
 The mapping is a single blanket policy approved by IFPA: any legacy state that was active or paid at cutover maps to its lifetime equivalent under the 2026 rules (annual to lifetime); honors override paid history; default is `tier0`.
 
@@ -269,8 +269,8 @@ Two fields on `members`:
 
 Auto-link has two goals under the three-table design (DD §2.4):
 
-1. **Provenance link** — associate each `historical_persons` row with its corresponding `legacy_members` row when the mirror named the legacy account, by setting `historical_persons.legacy_member_id`. This is a data-pipeline step owned by the historical-pipeline track.
-2. **Claim link** — at registration or cutover, associate a current `members` row with a `legacy_members` row (setting `members.legacy_member_id` + `legacy_members.claimed_by_member_id`) and, if the claimed legacy account has a provenance link to an HP, additionally set `members.historical_person_id`.
+1. **Provenance link**; associate each `historical_persons` row with its corresponding `legacy_members` row when the mirror named the legacy account, by setting `historical_persons.legacy_member_id`. This is a data-pipeline step owned by the historical-pipeline track.
+2. **Claim link**; at registration or cutover, associate a current `members` row with a `legacy_members` row (setting `members.legacy_member_id` + `legacy_members.claimed_by_member_id`) and, if the claimed legacy account has a provenance link to an HP, additionally set `members.historical_person_id`.
 
 Both uses email as the primary identity anchor. Email lives on `legacy_members.legacy_email` and on the registering member's login email; `historical_persons` does not carry email.
 
@@ -318,7 +318,7 @@ The revert is idempotent: a second "report incorrect" attempt against an already
 
 ### Post-cutover monitoring
 
-A daily admin digest summarizes the prior 24 hours of silent claims that produced a `member_tier_grants` row with `reason_code='legacy.claim_tier_grant'` and a Hall of Fame or Big Add Posse honor flag. The digest cadence runs from cutover through a configurable post-cutover monitoring window (default 56 days, extensible by configuration). The digest is delivered to the admin-alerts mailing list and contains row identifiers and decision-relevant attributes only; sensitive contact fields stay out of the digest payload per `GOVERNANCE.md` logging hygiene rules.
+A daily admin digest summarizes the prior 24 hours of silent claims that produced a `member_tier_grants` row with `reason_code='legacy.claim_tier_grant'` and a Hall of Fame or Big Add Posse honor flag. The digest cadence runs from cutover through a configurable post-cutover monitoring window (default 56 days, extensible by configuration). The digest is delivered to the admin-alerts mailing list and contains row identifiers and decision-relevant attributes only; sensitive contact fields stay out of the digest payload per `DATA_GOVERNANCE.md` logging hygiene rules.
 
 ### Batch auto-link at cutover
 
@@ -384,7 +384,7 @@ The claim flow is account-bound and mailbox-verified.
 11. If club-affiliation suggestions or leadership assignments exist for the claimed identity, member is prompted to review them (see section 9).
 12. Member confirms.
 13. Merge transaction runs atomically (see section 8).
-14. The `legacy_members` row is MARKED CLAIMED — `claimed_by_member_id` set to the requesting member id, `claimed_at` set to now. The row is NOT deleted; it persists as the permanent archival record. Consumed `account_claim` tokens are marked consumed in the same transaction.
+14. The `legacy_members` row is MARKED CLAIMED; `claimed_by_member_id` set to the requesting member id, `claimed_at` set to now. The row is NOT deleted; it persists as the permanent archival record. Consumed `account_claim` tokens are marked consumed in the same transaction.
 
 ### Direct historical-person claim
 
@@ -434,7 +434,7 @@ Ineligible cases are directed to manual admin recovery.
 
 ## 8. Merge rules
 
-The active modern account always survives. The `legacy_members` row is MARKED CLAIMED (`claimed_by_member_id` + `claimed_at` set) and persists as the permanent archival record — it is NOT deleted. Merge copies editable fields from `legacy_members` to the claiming `members` row so the member has their own copy to edit; the `legacy_members` row itself is not mutated beyond the two claim-state columns.
+The active modern account always survives. The `legacy_members` row is MARKED CLAIMED (`claimed_by_member_id` + `claimed_at` set) and persists as the permanent archival record; it is NOT deleted. Merge copies editable fields from `legacy_members` to the claiming `members` row so the member has their own copy to edit; the `legacy_members` row itself is not mutated beyond the two claim-state columns.
 
 | Field / category | Merge rule |
 |---|---|
@@ -449,7 +449,7 @@ The active modern account always survives. The `legacy_members` row is MARKED CL
 | `city`, `region`, `country` | Import fills `members.*` only if active value is NULL or empty |
 | `ifpa_join_date` | Copied to `members.ifpa_join_date` if present and active value absent |
 | `first_competition_year` | COALESCE: member value wins; import value fills `members.first_competition_year` if member is NULL |
-| `is_hof`, `is_bap` | OR semantics — `members.is_hof` / `members.is_bap` set to 1 if `legacy_members` has the flag |
+| `is_hof`, `is_bap` | OR semantics; `members.is_hof` / `members.is_bap` set to 1 if `legacy_members` has the flag |
 | `historical_person_id` | Set to the HP's `person_id` whenever the claim resolves an HP: (a) legacy-account claim where `legacy_members.legacy_member_id` matches a `historical_persons.legacy_member_id` back-link, or (b) direct HP claim (scenarios D/E). Partial UNIQUE index enforces one live member per HP. |
 | `historical_persons`-sourced fields | Whenever `members.historical_person_id` is being set, the same transaction also runs the HP merge: `country` fill-if-empty from `historical_persons.country`; `is_hof` / `is_bap` OR semantics from `hof_member` / `bap_member`; `hof_inducted_year` fill-if-empty from `hof_induction_year`; `first_competition_year` COALESCE from `first_year`. This ensures honors and country propagate onto the member row from whichever archival table carries the authoritative value. |
 | `announce_opt_in` | Carry forward only if the validated export contains this field and its semantics are confirmed; unclaimed `legacy_members` rows are never treated as active mail recipients |
@@ -857,7 +857,7 @@ Every member has an ordered task list. Each task is `pending`, `skipped`, `compl
 | `first_competition_year` | §14.14 metadata | `MemberService` |
 | `show_competitive_results` | §14.14 toggle | `MemberService` |
 
-Task ordering is fixed: `legacy_claim`, then `club_affiliations`, then optional metadata. Adding a new task type at a later sprint is a service-internal change (register a handler in the catalog); the service interface does not change.
+Task ordering is fixed: `legacy_claim`, then `club_affiliations`, then optional metadata. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
 
 ### Entry points
 

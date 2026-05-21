@@ -21,7 +21,7 @@ Long-term design intent. Pure target patterns; no implementation-state language.
 | `docs/USER_STORIES.md` | Functional acceptance criteria | No |
 | `docs/DESIGN_DECISIONS.md` | Long-term architectural commitments | No |
 | `docs/DATA_MODEL.md` | Schema semantics | No |
-| `docs/GOVERNANCE.md` | Security / privacy / historical-data policy | No |
+| `docs/DATA_GOVERNANCE.md` | Security / privacy / historical-data policy | No |
 | `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` | Six requirements gating canonical trick promotion | (predates this session; referenced repeatedly) |
 | `docs/IMPLEMENTATION_PLAN.md` | Active-slice / deviation tracker (AI-facing) | No |
 | `docs/PROJECT_SUMMARY_CONCISE.md` | Project orientation routing | No |

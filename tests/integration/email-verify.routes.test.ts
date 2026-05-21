@@ -168,7 +168,7 @@ describe('Unverified login is rejected', () => {
       password: 'verifypass!1',
     });
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
+    expect(res.text).toContain('Invalid email or password. Please try again.');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 });
@@ -217,6 +217,26 @@ describe('POST /verify/resend', () => {
     });
     expect(res.status).toBe(200);
     expect(res.text).toContain('new verification link has been sent');
+  });
+
+  it('response shape identical whether or not the email matches an unverified member', async () => {
+    const app = createApp();
+    // Seed a fresh unverified member; use an email distinct from the
+    // resend-rate-limit tests above so the per-email bucket is unused.
+    await request(app).post('/register').type('form').send({
+      realName: 'Resend Equivalence',
+      email: 'resend-equiv-exists@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    const existsRes = await request(app).post('/verify/resend').type('form')
+      .send({ email: 'resend-equiv-exists@example.com' });
+    const notExistsRes = await request(app).post('/verify/resend').type('form')
+      .send({ email: 'resend-equiv-never@example.com' });
+    expect(existsRes.status).toBe(notExistsRes.status);
+    const lenRatio = existsRes.text.length / notExistsRes.text.length;
+    expect(lenRatio).toBeGreaterThan(0.95);
+    expect(lenRatio).toBeLessThan(1.05);
   });
 });
 

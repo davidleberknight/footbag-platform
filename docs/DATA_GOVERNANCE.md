@@ -1,4 +1,4 @@
-# Security, Privacy, and Historical Data Publication Policy
+# Footbag Website Modernization Project -- Data Governance
 
 **Authority:** This document is the canonical reference for all decisions about member-data visibility, public historical record publication, searchability, anti-enumeration, exports, logging hygiene, derived statistics, and contributor/AI obligations. It is grounded in `docs/DESIGN_DECISIONS.md`. Where this document specifies policy and DD specifies rationale, both are authoritative and must not contradict each other.
 
@@ -50,15 +50,15 @@ Current-member-only content still requires a genuine session-path authorization 
 
 ## 4. Member-data visibility taxonomy
 
-| Tier | Label | Examples | Auth required |
-|------|-------|----------|---------------|
+| Sensitivity | Label | Examples | Auth required |
+|-------------|-------|----------|---------------|
 | 1 | Public official historical record | Event results, year archives, HoF/BAP, world records, minimal historical-person pages | None |
-| 2 | Authenticated current-member lookup | Member search, member profiles | Yes — logged-in member |
-| 3 | Role-scoped operational surfaces | Organizer participant management, club-leader rosters, workflow exports | Yes — role check |
-| 4 | Internal/admin only | Full member history, audit workflows, broad exports, identity resolution | Yes — admin |
-| 5 | Archived member-only legacy | Old footbag.org archive | Yes — logged-in member |
+| 2 | Authenticated current-member lookup | Member search, member profiles | Yes: logged-in member |
+| 3 | Role-scoped operational surfaces | Organizer participant management, club-leader rosters, workflow exports | Yes: role check |
+| 4 | Internal/admin only | Full member history, audit workflows, broad exports, identity resolution | Yes: admin |
+| 5 | Archived member-only legacy | Old footbag.org archive | Yes: logged-in member |
 
-Anything not in this taxonomy defaults to Tier 4 (internal/admin only) until explicitly classified.
+Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) until explicitly classified.
 
 ---
 
@@ -66,12 +66,12 @@ Anything not in this taxonomy defaults to Tier 4 (internal/admin only) until exp
 
 The following surfaces are approved public historical records:
 
-- **Official event results** — results from sanctioned events, imported from legacy data or entered by organizers.
-- **Year archives** — event and result listings by year.
-- **Hall of Fame (HoF)** — permanent honor; publicly discoverable.
-- **Big Add Posse (BAP)** — permanent honor; publicly discoverable.
-- **World records** — official record tables/pages, once added. Not inferred from incomplete aggregates.
-- **Minimal historical-person pages** — name, country, official honors, official result/event links, world-record inclusion where applicable. No contact fields. Not a current-member profile.
+- **Official event results**: results from sanctioned events, imported from legacy data or entered by organizers.
+- **Year archives**: event and result listings by year.
+- **Hall of Fame (HoF)**: permanent honor; publicly discoverable.
+- **Big Add Posse (BAP)**: permanent honor; publicly discoverable.
+- **World records**: official record tables/pages, once added. Not inferred from incomplete aggregates.
+- **Minimal historical-person pages**: name, country, official honors, official result/event links, world-record inclusion where applicable. No contact fields. Not a current-member profile.
 
 Historical-person pages must be explicitly framed as historical record surfaces, not directory entries and not current-member account pages. A person's presence on a historical-person page does not imply current membership, searchability, or contactability.
 
@@ -94,11 +94,11 @@ Where those conditions are not met, prefer raw official results, honors, and rec
 
 | Stat type | Status |
 |-----------|--------|
-| Official event placements | Approved — primary source |
-| Year archive / event listing | Approved — primary source |
-| HoF/BAP membership | Approved — official honor |
-| World-record tables (official) | Approved — official record |
-| Country representation in events | Approved — clearly scoped |
+| Official event placements | Approved: primary source |
+| Year archive / event listing | Approved: primary source |
+| HoF/BAP membership | Approved: official honor |
+| World-record tables (official) | Approved: official record |
+| Country representation in events | Approved: clearly scoped |
 
 **Requires explicit caveat or suppression:**
 
@@ -108,7 +108,7 @@ Where those conditions are not met, prefer raw official results, honors, and rec
 | "All-time" aggregate from partial data | Rejected unless caveated with coverage dates |
 | Any ranking covering less than the full competitive era | Rejected unless caveat names the gap explicitly |
 
-**Test question:** "Would a footbag historian cite this stat in an article without needing to add a methodological footnote?" If no — caveat clearly or suppress.
+**Test question:** "Would a footbag historian cite this stat in an article without needing to add a methodological footnote?" If no: caveat clearly or suppress.
 
 ---
 
@@ -137,7 +137,7 @@ Public routes must not expose any endpoint that allows enumeration of current me
 - Club rosters: visible to logged-in members only; role-scoped for leader/admin operational use.
 - Event participant lists: official published results are public; operational participant-management lists are organizer-role-scoped only.
 - Organizer and club-leader contact information: never public by default. Public exposure requires the individual member's explicit consent. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged. No club-scoped or admin-scoped affordance overrides individual consent.
-- Exports: member data exports are role-scoped (Tier 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
+- Exports: member data exports are role-scoped (Sensitivity 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
 
 No contact field (email, phone, social handle) is visible on any public page or in any public API response.
 
@@ -157,14 +157,14 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Legacy archive** (`legacy_data/mirror_footbag_org/`) remains member-only because it contains private legacy member information (email addresses, personal details from the old mirror). It must not be made public.
 
-**Imported historical results** are separate: official event results and minimal person records migrated to the live database are public historical record surfaces (Tier 1). The archive itself is not.
+**Imported historical results** are separate: official event results and minimal person records migrated to the live database are public historical record surfaces (Sensitivity 1). The archive itself is not.
 
 **Imported `historical_persons` records:**
 
 - are identity placeholders for official result attribution, not activated member accounts,
 - do not automatically become searchable current members,
 - do not automatically populate current-member profile fields,
-- imported aggregate/stat fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata — not automatic public biography content and not authoritative public statistics without explicit approval and caveats.
+- imported aggregate/stat fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata, not automatic public biography content and not authoritative public statistics without explicit approval and caveats.
 
 **Identity linking** (when a `historical_person_id` is linked to a `member` record because a past competitor creates an account):
 
@@ -187,7 +187,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **You must:**
 
-1. Load this file (`docs/GOVERNANCE.md`) first.
+1. Load this file (`docs/DATA_GOVERNANCE.md`) first.
 2. Read `docs/DESIGN_DECISIONS.md` for applicable rationale.
 3. Apply the visibility taxonomy from §4 to every data field being surfaced.
 

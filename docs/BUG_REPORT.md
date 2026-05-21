@@ -23,7 +23,7 @@ General application bug not covered by the more specific forms. Use this for:
 - Computed values that look wrong.
 - Anything else that doesn't fit one of the specific forms.
 
-Fields you'll fill: Summary, Steps to reproduce, Expected behavior, Actual behavior, Environment (local / staging / production-later), Severity (blocker / major / normal / minor), Area, User role.
+Fields you'll fill: Summary, Steps to reproduce, Expected behavior, Actual behavior, Environment (local / staging / production), Severity (blocker / major / normal / minor), Area, User role.
 
 ### Staging bug
 
@@ -67,10 +67,10 @@ If you need to share sensitive material, request the private path in the issue t
 
 ## Security vulnerabilities
 
-**Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](SECURITY.md):
+**Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](../SECURITY.md):
 
 - [GitHub private vulnerability reporting](https://github.com/davidleberknight/footbag-platform/security/advisories/new) (preferred)
-- Or email: `davidleberknight@gmail.com` with subject `[SECURITY] footbag-platform — <description>`
+- Or email: `davidleberknight@gmail.com` with subject `[SECURITY] footbag-platform: <description>`
 
 ## What happens after you submit
 
@@ -83,7 +83,7 @@ If your issue stays in Status = New for more than a few days, ping the maintaine
 
 ## Related
 
-- [.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/): the form YAML files (look here if you want to see the exact prompts before opening a form).
-- [CONTRIBUTING.md](CONTRIBUTING.md): contributor onboarding and governance categories.
-- [SECURITY.md](SECURITY.md): vulnerability reporting.
-- [docs/TESTING.md](docs/TESTING.md) §15: the canonical spec for this tracker.
+- [.github/ISSUE_TEMPLATE/](../.github/ISSUE_TEMPLATE/): the form YAML files (look here if you want to see the exact prompts before opening a form).
+- [CONTRIBUTING.md](../CONTRIBUTING.md): contributor onboarding and governance categories.
+- [SECURITY.md](../SECURITY.md): vulnerability reporting.
+- [TESTING.md](TESTING.md) §15: the canonical spec for this tracker.

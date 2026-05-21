@@ -11,12 +11,12 @@ unilateral authority to define or publish official IFPA policy.
 
 ## Decision categories
 
-**Category A — Maintainer authority (no IFPA approval needed)**
+**Category A: Maintainer authority (no IFPA approval needed)**
 
 Code, architecture, schema design, documentation, tooling, repo configuration,
 bug fixes, PR acceptance on technical merit.
 
-**Category B — Requires IFPA Board approval before merge**
+**Category B: Requires IFPA Board approval before merge**
 
 Official rulebook or competition rules · IFPA policy statements · data definitions
 affecting official rankings or eligibility · authorised use of IFPA branding ·
@@ -31,9 +31,9 @@ repository ownership transfer.
 | `Draft` | Work in progress |
 | `Proposed` | Ready for review |
 | `Pending IFPA Board Decision` | Awaiting formal IFPA Board action |
-| `IFPA Approved` | Formally approved — cite resolution or date |
+| `IFPA Approved` | Formally approved; cite resolution or date |
 | `Approved` | Maintainer-approved (Category A) |
-| `Deferred` | Postponed — reason noted |
+| `Deferred` | Postponed; reason noted |
 
 ---
 

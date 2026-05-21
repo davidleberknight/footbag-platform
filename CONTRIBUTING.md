@@ -41,4 +41,4 @@ contribution under the Apache 2.0 licence per the
 
 ## Privacy and governance
 
-Any task touching members, historical persons, search, contact fields, rosters, participant lists, exports, event results, HoF, BAP, world records, rankings, stats, or auth must follow [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md). Read it before writing or reviewing code in those areas.
+Any task touching members, historical persons, search, contact fields, rosters, participant lists, exports, event results, HoF, BAP, world records, rankings, stats, or auth must follow [`docs/DATA_GOVERNANCE.md`](docs/DATA_GOVERNANCE.md). Read it before writing or reviewing code in those areas.

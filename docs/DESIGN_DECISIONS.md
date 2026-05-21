@@ -235,7 +235,7 @@ CloudFront serves media directly from the primary bucket via the `/media-store/*
 
 Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see §2.8 and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per §6.4. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.
 
-Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred to slice activation alongside the adapter and env-var rename.
+Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred alongside the adapter and env-var rename.
 
 Backup and Replication:
 
@@ -404,25 +404,25 @@ The platform uses a four-layer separation. Each layer has a specific responsibil
 
 Layers:
 
-1. Services (`src/services/`) — pure domain logic.
+1. Services (`src/services/`); pure domain logic.
 
    - Functions take domain arguments (ids, strings, DTOs) and return domain values. No `Request`/`Response`/`NextFunction` parameters.
    - Never read cookies or headers. Never set cookies, redirect, or emit status codes.
    - Own business rules, validation, authorization checks, and page-model shaping.
 
-2. Middleware (`src/middleware/`) — Express cross-cutting handlers.
+2. Middleware (`src/middleware/`); Express cross-cutting handlers.
 
    - Signature: `(req, res, next) => void` or `(err, req, res, next) => void`.
    - Apply across multiple routes: authentication, logging, CSRF checks, origin pinning, error handling.
    - May co-locate HTTP-layer constants they own (cookie names, cookie maxAge) because those are HTTP concerns.
 
-3. Controllers (`src/controllers/`) — per-route HTTP glue.
+3. Controllers (`src/controllers/`); per-route HTTP glue.
 
    - Parse `req.body`/`req.params`/`req.query`, orchestrate service calls, decide response type.
    - Own `res.cookie(...)`, `res.redirect(...)`, `res.render(...)`, `res.status(...)` calls.
    - Thin: controllers do not own business rules, route-domain interpretation, or page-model shaping beyond trivial glue logic. When a page varies by authentication state or viewer role, the controller passes viewer context to the service and the service returns the appropriately shaped response. Controllers must not mutate service-returned view models based on auth state.
 
-4. Adapters (`src/adapters/`) — external-service implementations behind typed interfaces.
+4. Adapters (`src/adapters/`); external-service implementations behind typed interfaces.
 
    - Encapsulate SDK calls (AWS, Stripe, etc.) so services never import `@aws-sdk/*` or similar directly.
    - Paired structure: one interface plus one or more implementations selected by configuration.
@@ -511,7 +511,7 @@ Impact:
 
 Decision:
 
-Configuration has two tiers with distinct lifecycles and distinct code entry points.
+Configuration has two types with distinct lifecycles and distinct code entry points.
 
 Deploy-time configuration (environment variables) is loaded once at process startup from the host environment into a single typed `config` singleton via `src/config/env.ts`. The singleton is constructed at module load, validated fail-fast, and `Object.freeze`d to prevent mutation. Every module in `src/` reads configuration through `config`; no module reads `process.env` directly. Changing a deploy-time value requires restart.
 
@@ -827,7 +827,7 @@ Rules:
 
 5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`.
 
-6. Historical persons confer no member capabilities. A row in `historical_persons` — whether claimed or unclaimed — does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and GOVERNANCE.md §4.
+6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §4.
 
 7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
@@ -994,7 +994,7 @@ Impact:
 
 - A new admin US (`A_Upload_Curated_Media`) describes the interactive admin act-as upload path.
 
-- Bulk seeding of pre-loaded system-account content (operational tooling, documented at slice activation) is written against the same ownership construct.
+- Bulk seeding of pre-loaded system-account content (operational tooling) is written against the same ownership construct.
 
 ## 2.9 Administrator Role Lifecycle
 
@@ -1153,7 +1153,7 @@ Cookie integrity for display-state cookies (the flash cookie defined in §5.2; a
 
 Rationale (CSRF, three layers):
 
-- `SameSite=Lax` blocks cross-site state-changing requests at the browser. A form, fetch, or XHR initiated from another origin does not carry the session cookie, so the request lands at the server unauthenticated. Browser support spans Chrome 80+, Firefox 69+, Safari 13+ — every browser within the platform's supported baseline.
+- `SameSite=Lax` blocks cross-site state-changing requests at the browser. A form, fetch, or XHR initiated from another origin does not carry the session cookie, so the request lands at the server unauthenticated. Browser support spans Chrome 80+, Firefox 69+, Safari 13+; every browser within the platform's supported baseline.
 - HTTP verb discipline (GET handlers are side-effect-free; mutations use POST, PUT, PATCH, or DELETE) closes the cross-site image, link, and redirect vectors. A cross-site `<img src=footbag.org/dangerous>` cannot trigger a state change because GET handlers do not change state.
 - `Origin`-header pinning closes the same-site subdomain surface that `SameSite=Lax` does not cover. The session cookie carries `Domain=.footbag.org` (§3.2) so the archive subdomain receives it. `SameSite=Lax` does not isolate same-site subdomain POSTs, so a static malicious form served from `archive.footbag.org`, or a future XSS in legacy archive content, could otherwise issue authenticated POSTs to `footbag.org`. The middleware rejects with 403 any state-changing request whose `Origin` header does not match the canonical `PUBLIC_BASE_URL` origin exactly. The `Origin` header is a forbidden-header-name in the CORS specification: no client-side script can override it via `fetch()` or `XMLHttpRequest`. Browsers send `Origin` on every cross-origin state-changing request and on same-origin state-changing requests as well.
 
@@ -1500,15 +1500,15 @@ Imported historical people and result-linked identities may appear publicly only
 
 Any public or member-visible data surface must follow privacy-by-design and data-minimization rules. Contact fields, roster visibility, participant visibility, exports, and discoverability must be scoped to the minimum audience required for the product use case.
 
-Visibility taxonomy — the platform uses five tiers:
+Visibility taxonomy; the platform uses five Sensitivities:
 
-1. **Public official historical record** — official event results, year archives, HoF/BAP honors, world records, minimal historical-person pages needed to make public results intelligible.
-2. **Authenticated current-member lookup** — logged-in-only search for current members; anti-enumeration; non-directory; minimal result fields.
-3. **Role-scoped operational surfaces** — organizer participant management, club-leader rosters, workflow exports; scoped to role.
-4. **Internal/admin only** — full member history, remediation/audit workflows, broad exports, identity resolution.
-5. **Archived member-only legacy** — immutable old archive; authenticated only; no search; no public indexing.
+1. **Public official historical record**; official event results, year archives, HoF/BAP honors, world records, minimal historical-person pages needed to make public results intelligible.
+2. **Authenticated current-member lookup**; logged-in-only search for current members; anti-enumeration; non-directory; minimal result fields.
+3. **Role-scoped operational surfaces**; organizer participant management, club-leader rosters, workflow exports; scoped to role.
+4. **Internal/admin only**; full member history, remediation/audit workflows, broad exports, identity resolution.
+5. **Archived member-only legacy**; immutable old archive; authenticated only; no search; no public indexing.
 
-Implementation note — derived statistics and incomplete historical data:
+Implementation note; derived statistics and incomplete historical data:
 
 Official result facts, honor rolls, and approved record tables are primary historical sources. Derived statistics are secondary editorial outputs and must not be treated as canonical merely because data fields exist in storage. The platform must not publish misleading or false-precision historical statistics from incomplete datasets. Public or member-visible stats are justified only when they are useful and interesting for historians of footbag or clearly valuable to the community's official historical record, and either (a) the underlying source scope is sufficiently complete for the claim being made, or (b) the UI presents clear caveats about scope, missing data, and interpretation limits. Where those conditions are not met, the platform must prefer raw official results, honors, and record listings over aggregate summaries.
 
@@ -1532,7 +1532,7 @@ The platform handles real people's competitive history, identity, and contact in
 
 Public historical records are legitimate and required: the footbag community's history belongs to the community. But historical discoverability is categorically different from current-member discoverability. The platform must maintain that distinction explicitly in both code and docs.
 
-For normative policy detail, implementation rules, and reference tables, see `docs/GOVERNANCE.md`.
+For normative policy detail, implementation rules, and reference tables, see `docs/DATA_GOVERNANCE.md`.
 
 Requirements:
 
@@ -2127,7 +2127,7 @@ Authorization runs as a chain of middleware functions after `authMiddleware` (§
 
 Defense in depth: every state-changing service method re-asserts the same authorization predicate against the DB row. A request that bypassed the middleware (a test-seam misuse, a future middleware regression) is still rejected at the service layer with the same outcome.
 
-The `/login?returnTo=...` redirect from `requireAuth` is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE) — the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
+The `/login?returnTo=...` redirect from `requireAuth` is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE); the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
 
 HTTP Response Convention:
 
@@ -2194,7 +2194,7 @@ Rationale for explicit 303:
 
 Rationale for signed flash cookies over query-string notices:
 
-A post-submit notice attached to the redirect URL (`?saved=create`, `?submitted=1`) survives in the URL bar after the redirect. The URL is then bookmarkable, shareable, indexable by crawlers, and copyable from browser history. Any of those paths produces a URL that displays the banner to viewers who never performed the action — confusing at best, a privacy leak of the originating account's activity at worst. Query-string flags also pollute CDN cache keys (each variant is a distinct cache entry), leak into the `Referer` header on outbound links, and persist in server access logs.
+A post-submit notice attached to the redirect URL (`?saved=create`, `?submitted=1`) survives in the URL bar after the redirect. The URL is then bookmarkable, shareable, indexable by crawlers, and copyable from browser history. Any of those paths produces a URL that displays the banner to viewers who never performed the action; confusing at best, a privacy leak of the originating account's activity at worst. Query-string flags also pollute CDN cache keys (each variant is a distinct cache entry), leak into the `Referer` header on outbound links, and persist in server access logs.
 
 The signed flash cookie sidesteps all of that. It is HMAC-signed with `SESSION_SECRET` (a forged value fails the HMAC check, §3.3), scoped `HttpOnly` and `SameSite=Lax` (unreadable to scripts and unsendable cross-site), and expires after 60 seconds. No shared link, cache key, log line, or `Referer` header carries the notice.
 
@@ -2833,7 +2833,7 @@ State machine for media_jobs:
 
 - abandoned: pending_upload row past its TTL.
 
-There is no polling at any tier. The only sweep is a one-shot boot-time scan in the worker for orphaned processing rows whose lease has expired; those reset to pending_transcode for re-dispatch. All other transitions are HTTP push events.
+There is no polling anywhere. The only sweep is a one-shot boot-time scan in the worker for orphaned processing rows whose lease has expired; those reset to pending_transcode for re-dispatch. All other transitions are HTTP push events.
 
 Authentication seams: web-to-worker dispatch and worker-to-web event push share an INTERNAL_EVENT_SECRET; /ipc/* routes on web are dropped at the nginx perimeter so they are reachable only from the docker internal network. SSE is gated by the admin session cookie. Direct-S3 PUT is gated by the bucket CORS policy (allowed_origins limited to the canonical public origin) and the time-bounded signed URL.
 
@@ -3231,7 +3231,7 @@ Trade-offs:
 
 Impact:
 
-- Adding a new environment (e.g., a pre-prod or QA tier) is a single Terraform input change plus an SSH alias addition; the prefix and SSM-path composition follow automatically.
+- Adding a new environment (e.g., a pre-prod or QA environment) is a single Terraform input change plus an SSH alias addition; the prefix and SSM-path composition follow automatically.
 
 - New AWS resources land with the correct prefix by default because they use `${local.prefix}`. Hand-written literal names are a review-time smell and must be changed to the composition.
 
@@ -3710,19 +3710,19 @@ Impact:
 
 Decision:
 
-The platform implements three-tier monitoring covering infrastructure health, application behavior, and business operations. CloudWatch provides the monitoring substrate with custom metrics published by application code. Alerts route through CloudWatch Alarms to SNS topics with email and SMS notification. Two alert tiers (warning, critical) have different response time expectations and escalation paths. CloudWatch is the primary monitoring system; optional external error tracking/APM tooling may be adopted if it is budget-appropriate and reduces operational risk.
+The platform implements three-layer monitoring covering infrastructure health, application behavior, and business operations. CloudWatch provides the monitoring substrate with custom metrics published by application code. Alerts route through CloudWatch Alarms to SNS topics with email and SMS notification. Two alert severities (warning, critical) have different response time expectations and escalation paths. CloudWatch is the primary monitoring system; optional external error tracking/APM tooling may be adopted if it is budget-appropriate and reduces operational risk.
 
 Rationale:
 
-Proactive monitoring detects issues before user impact and enables data-driven capacity planning. Three-tier structure provides visibility at appropriate abstraction levels for different audiences (operations team vs administrators). CloudWatch native integration minimizes operational overhead compared to external monitoring services.
+Proactive monitoring detects issues before user impact and enables data-driven capacity planning. Three-layer structure provides visibility at appropriate abstraction levels for different audiences (operations team vs administrators). CloudWatch native integration minimizes operational overhead compared to external monitoring services.
 
-Tier 1 - Infrastructure Metrics (CloudWatch Default): Lightsail instance: CPU utilization, memory utilization, network traffic, status checks. Container-level: per-container memory, per-container CPU, restart counts. S3: 4xx/5xx error rates, request rates. These detect resource exhaustion and infrastructure failures.
+Layer 1 - Infrastructure Metrics (CloudWatch Default): Lightsail instance: CPU utilization, memory utilization, network traffic, status checks. Container-level: per-container memory, per-container CPU, restart counts. S3: 4xx/5xx error rates, request rates. These detect resource exhaustion and infrastructure failures.
 
-Tier 2 - Application Metrics (Custom CloudWatch Metrics): Request rates and error rates (4xx, 5xx) broken down by route. Response latency (P50, P95, P99) per route. Authentication: login success/failure rates, JWT verification failures. Background jobs: last successful run timestamp per job type, job execution duration. These detect application bugs and performance degradation. Database: query latency (P50, P95, P99 per repository method), slow queries (\>500ms), transaction rate and duration, SQLITE_BUSY frequency, WAL file size, checkpoint latency, database file size and growth rate.
+Layer 2 - Application Metrics (Custom CloudWatch Metrics): Request rates and error rates (4xx, 5xx) broken down by route. Response latency (P50, P95, P99) per route. Authentication: login success/failure rates, JWT verification failures. Background jobs: last successful run timestamp per job type, job execution duration. These detect application bugs and performance degradation. Database: query latency (P50, P95, P99 per repository method), slow queries (\>500ms), transaction rate and duration, SQLITE_BUSY frequency, WAL file size, checkpoint latency, database file size and growth rate.
 
-Tier 3 - Business Metrics (Custom CloudWatch Metrics): Member registrations (started, completed, completion rate). Photo uploads (count, success rate, error breakdown). Payment transactions (attempts, successes, failure rate, daily revenue). Email delivery (enqueued, sent, bounces, complaints). Event registrations. These detect business process issues and usage anomalies.
+Layer 3 - Business Metrics (Custom CloudWatch Metrics): Member registrations (started, completed, completion rate). Photo uploads (count, success rate, error breakdown). Payment transactions (attempts, successes, failure rate, daily revenue). Email delivery (enqueued, sent, bounces, complaints). Event registrations. These detect business process issues and usage anomalies.
 
-Alert Tiers: Warning-level: Email to operations team, 1-hour response expectation, indicates
+Alert Severities: Warning-level: Email to operations team, 1-hour response expectation, indicates
 
 degraded but functional state. Examples: CPU \>80% for 10 minutes, P95 latency \>2 seconds for 5 minutes, background job missed 1 execution.
 

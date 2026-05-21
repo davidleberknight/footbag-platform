@@ -152,7 +152,7 @@ Production and staging use the same logical shape:
 - Route 53 for DNS
 - hardened per-operator SSH for exceptional operator shell access
 
-Single-instance, no rolling deploys: the compose stack on each environment is a single Lightsail node. Deploys bring the stack down (`compose down`) and back up (`compose up`); there is no canary, no blue/green, no parallel instance. Backward-incompatible env-var or trust-chain changes therefore land cleanly without an in-flight version mismatch — but the property is load-bearing: any future move to a multi-instance topology must re-evaluate trust-proxy parsing, env-var migration ordering, and secret-rotation atomicity.
+Single-instance, no rolling deploys: the compose stack on each environment is a single Lightsail node. Deploys bring the stack down (`compose down`) and back up (`compose up`); there is no canary, no blue/green, no parallel instance. Backward-incompatible env-var or trust-chain changes therefore land cleanly without an in-flight version mismatch; but the property is load-bearing: any future move to a multi-instance topology must re-evaluate trust-proxy parsing, env-var migration ordering, and secret-rotation atomicity.
 
 ### 1.3 Container roles
 
@@ -311,7 +311,7 @@ Host shell access is exceptional. It exists for deployment, restore, patching, d
 - Do not use shared private SSH keys.
 - Use key-based authentication only; disable password authentication.
 - Do not use direct root login as the normal operator path.
-- Restrict inbound SSH ports 22 and 2222 to approved operator IPv4 and IPv6 source ranges (Terraform-managed via `operator_cidrs` in `lightsail.tf`); never leave SSH open to the world. Port 2222 is the reliable operator port — some ISPs block outbound port 22 to AWS EC2 IP ranges. Both ports are restricted to `operator_cidrs`; only port 80 (for CloudFront origin traffic) is open to the world.
+- Restrict inbound SSH ports 22 and 2222 to approved operator IPv4 and IPv6 source ranges (Terraform-managed via `operator_cidrs` in `lightsail.tf`); never leave SSH open to the world. Port 2222 is the reliable operator port; some ISPs block outbound port 22 to AWS EC2 IP ranges. Both ports are restricted to `operator_cidrs`; only port 80 (for CloudFront origin traffic) is open to the world.
 - Keep a host-access inventory that records, at minimum, the operator name, host account, public-key fingerprint, environments allowed, approval date, and removal date when offboarded.
 - Distribute only public keys for host access. Private keys remain under the custody of the individual operator and must not be stored in the repository, Parameter Store, application containers, or shared team storage.
 - Onboard a System Administrator by creating or enabling the named host account, installing the approved public key, verifying SSH login, verifying `sudo`, and recording the inventory entry.
@@ -802,9 +802,9 @@ Use clearly separated Terraform state backends for dev, staging, and production.
 - protect access to state because it is sensitive operational metadata
 - never bypass locking for routine operations
 - treat state changes as production-impacting changes
-- Terraform >= 1.11 is required — `use_lockfile = true` (S3 native locking) requires this version floor; do not use DynamoDB locking
-- AWS provider is pinned to `~> 5.0` in `providers.tf` — do not upgrade to v6 without reviewing the migration guide (v6 released June 2025, breaking changes)
-- `terraform.tfvars` is excluded from git via `*.tfvars` in `.gitignore` — never commit it; it contains real IP addresses and account IDs; `*.tfvars.example` files are tracked and safe to commit
+- Terraform >= 1.11 is required; `use_lockfile = true` (S3 native locking) requires this version floor; do not use DynamoDB locking
+- AWS provider is pinned to `~> 5.0` in `providers.tf`; do not upgrade to v6 without reviewing the migration guide (v6 released June 2025, breaking changes)
+- `terraform.tfvars` is excluded from git via `*.tfvars` in `.gitignore`; never commit it; it contains real IP addresses and account IDs; `*.tfvars.example` files are tracked and safe to commit
 - `use_lockfile = true` requires `s3:PutObject` and `s3:DeleteObject` on `<bucket>/<key>*.tflock`; ensure the operator IAM policy includes these or `terraform apply` will fail with `AccessDenied` at lock acquisition
 
 ### 6.3 Standard workflow
@@ -955,7 +955,7 @@ Optionally run Docker parity when the change touches runtime shape, static asset
 
 #### Deploy options
 
-**Option A — routine code-only deploy**
+**Option A; routine code-only deploy**
 
 Use this when the host DB should remain untouched.
 
@@ -965,7 +965,7 @@ bash deploy_to_aws.sh -k
 
 This path preserves `/srv/footbag/env` and the live DB.
 
-**Option B — destructive schema/dev deploy**
+**Option B; destructive schema/dev deploy**
 
 Use this when the change requires rebuilding and replacing the host DB from scratch and the target's data is disposable (staging only).
 
@@ -1315,7 +1315,7 @@ If the cutover fails after step 4:
 
 - Revert `/srv/footbag/env`: remove the four lines added in step 4.
 - `systemctl restart footbag.service`.
-- `terraform apply` a revert of `cloudfront.tf` to restore the prior `/media/*` cache behavior topology (whatever was in place before the slice that migrated `/media/*` to S3 origin via OAC). Required because CloudFront still serves media from S3 until the TF revert lands; with the env reverted but CloudFront still on S3, displays will 404.
+- `terraform apply` a revert of `cloudfront.tf` to restore the prior `/media/*` cache behavior topology (whatever was in place before `/media/*` was migrated to S3 origin via OAC). Required because CloudFront still serves media from S3 until the TF revert lands; with the env reverted but CloudFront still on S3, displays will 404.
 
 A clean rollback requires both an env revert AND a CloudFront TF revert.
 
@@ -1603,6 +1603,7 @@ Required verification: the alarm test fires on a known-bad value and clears on r
 - review SES reputation and bounce/complaint rates
 - review container memory and restart trends
 - review budget status and forecast
+- run `npx audit-ci --moderate` from a clean checkout; triage any moderate-or-higher dependency advisories (per `docs/TESTING.md` §9)
 
 ### 13.2 Quarterly routine tasks
 

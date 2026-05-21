@@ -143,7 +143,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   SQLite (footbag.db) · S3 (photos) · KMS · SES · Stripe
 ```
 
-**Caption:** The codebase is organized into four strict layers with enforced boundaries. Presentation templates never call services. Controllers contain zero business logic — they orchestrate but do not decide. Services implement all rules and call `db.ts` prepared statements directly; they never touch HTTP objects. The infrastructure layer is the only place external services are invoked, and every external dependency has a swappable adapter so the system runs identically in development without AWS credentials.
+**Caption:** The codebase is organized into four strict layers with enforced boundaries. Presentation templates never call services. Controllers contain zero business logic; they orchestrate but do not decide. Services implement all rules and call `db.ts` prepared statements directly; they never touch HTTP objects. The infrastructure layer is the only place external services are invoked, and every external dependency has a swappable adapter so the system runs identically in development without AWS credentials.
 
 ---
 
@@ -324,7 +324,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** These are Express route handlers for server-rendered pages and required callbacks — not a public REST API. Routes fall into three lanes with different authentication and response rules: protected browser routes use JWT + session validation and render Handlebars HTML with POST-Redirect-GET; public browser routes (login page, health checks) skip JWT; webhook callbacks use payload signature verification instead of cookies and return JSON only. Security controls are layered: CloudFront WAF handles DDoS, app middleware handles per-account rate limiting, and each lane handles its own auth check. The 409 stale-form outcome is an application-level UX reconciliation tool; SQLite ACID transactions provide the actual write safety guarantee.
+**Caption:** These are Express route handlers for server-rendered pages and required callbacks; not a public REST API. Routes fall into three lanes with different authentication and response rules: protected browser routes use JWT + session validation and render Handlebars HTML with POST-Redirect-GET; public browser routes (login page, health checks) skip JWT; webhook callbacks use payload signature verification instead of cookies and return JSON only. Security controls are layered: CloudFront WAF handles DDoS, app middleware handles per-account rate limiting, and each lane handles its own auth check. The 409 stale-form outcome is an application-level UX reconciliation tool; SQLite ACID transactions provide the actual write safety guarantee.
 
 ---
 
@@ -417,7 +417,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   Other users see update on next page load (HTML not edge-cached)
 ```
 
-**Caption:** The read path has two distinct cases at the origin. CloudFront's default behavior uses `Managed-CachingDisabled`, so HTML is not cached at the edge regardless of auth state — the cache decision lives entirely at origin. Authenticated requests must return `Cache-Control: private, no-store` from origin to prevent any browser or downstream cache from storing personalized view models. The write path uses SQLite ACID transactions for write safety — all database work commits atomically. The 409 stale-form path is a UX reconciliation tool: if a form was loaded before another user changed the entity, the controller detects the version mismatch and shows a diff to reconcile, but this is separate from the database-level write safety that SQLite transactions provide.
+**Caption:** The read path has two distinct cases at the origin. CloudFront's default behavior uses `Managed-CachingDisabled`, so HTML is not cached at the edge regardless of auth state; the cache decision lives entirely at origin. Authenticated requests must return `Cache-Control: private, no-store` from origin to prevent any browser or downstream cache from storing personalized view models. The write path uses SQLite ACID transactions for write safety; all database work commits atomically. The 409 stale-form path is a UX reconciliation tool: if a form was loaded before another user changed the entity, the controller detects the version mismatch and shows a diff to reconcile, but this is separate from the database-level write safety that SQLite transactions provide.
 
 ---
 
@@ -474,7 +474,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** Every adapter has two implementations behind the same TypeScript interface: a production implementation that calls the real AWS service, and a development stub that works without credentials. The SQLite database and all four Docker containers run identically in both environments — only the adapter wiring changes. Contract tests in CI verify that each stub faithfully implements its production counterpart's behaviour. A developer can clone the repo, run `docker compose up`, and have a fully functional local system without any AWS account.
+**Caption:** Every adapter has two implementations behind the same TypeScript interface: a production implementation that calls the real AWS service, and a development stub that works without credentials. The SQLite database and all four Docker containers run identically in both environments; only the adapter wiring changes. Contract tests in CI verify that each stub faithfully implements its production counterpart's behaviour. A developer can clone the repo, run `docker compose up`, and have a fully functional local system without any AWS account.
 
 
 *END OF DIAGRAMS DOCUMENT*

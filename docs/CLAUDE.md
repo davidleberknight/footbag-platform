@@ -8,6 +8,6 @@ Follow root CLAUDE.md source-of-truth order. Additionally:
 
 ## Documentation rules
 
-- Canonical docs are references, not scope trackers — except `IMPLEMENTATION_PLAN.md` which is the active-slice governor.
+- Canonical docs are references, not scope trackers, except `IMPLEMENTATION_PLAN.md` which is the active-slice governor.
 - Use the `doc-sync` skill for drift detection or synchronization.
 - Do not edit any doc without explicit human consent.

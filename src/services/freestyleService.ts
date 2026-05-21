@@ -5706,9 +5706,13 @@ export const freestyleService = {
         mascotSrc: '/img/freestyle-mascot.svg',
         mascotAlt: 'Freestyle footbag mascot icon',
         intro: {
-          heading: '',
+          heading: 'What is Freestyle Footbag?',
           paragraphs: [
-            'This page is a portal: featured videos first, then learning pathways and the trick dictionary, then optional reference panels for the movement vocabulary.',
+            'Freestyle footbag began with informal Hacky Sack kicking circles in the 1970s and 1980s, evolving from casual play into a technical sport. It is a discipline built on creativity, technical difficulty, and individual style. Freestyle footbag is a great way to exercise due to its versatility and fun, cooperative flow, plus it can be practiced anywhere and anytime.',
+            'Players show off their skills by performing sequences of tricks, combining components such as spinning the body, ducking the bag with the head and neck, and dexterities (circling the bag with a leg).',
+            'Tricks are linked naturally from one to the next to create flowing, free-form, and expressive strings and combos. The list of tricks is nearly endless and can be combined in any order, giving the sport a huge variety of styles.',
+            'The ADD (Additional Degree of Difficulty) system assigns a numerical value to each trick, enabling objective difficulty scoring alongside subjective judging of execution. The core vocabulary was established by the early 1990s and continues to evolve as players innovate.',
+            'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you start learning harder tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),

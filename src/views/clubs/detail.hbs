@@ -136,14 +136,14 @@
       <h3 class="club-qc-panel-subheading">Rule firings (R1&ndash;R10), classifier as-built</h3>
       <table class="club-qc-rule-table">
         <thead>
-          <tr><th scope="col">Fired</th><th scope="col">Rule</th><th scope="col">Tier</th></tr>
+          <tr><th scope="col">Fired</th><th scope="col">Rule</th><th scope="col">Stage</th></tr>
         </thead>
         <tbody>
           {{#each content.club.qcPanel.rules}}
           <tr class="club-qc-rule club-qc-rule--{{#if fired}}fired{{else}}not-fired{{/if}}">
             <td class="club-qc-rule-fired-cell" aria-label="{{#if fired}}fired{{else}}did not fire{{/if}}">{{#if fired}}&#10003;{{else}}&#215;{{/if}}</td>
             <th scope="row">{{id}}: {{label}}</th>
-            <td>{{tier}}</td>
+            <td>{{stage}}</td>
           </tr>
           {{/each}}
         </tbody>

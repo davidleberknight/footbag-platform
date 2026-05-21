@@ -16,6 +16,7 @@
       then optional reference panels). }}
   {{#if content.intro.paragraphs.length}}
   <section class="content-section freestyle-portal-lede">
+    {{#if content.intro.heading}}<h2>{{content.intro.heading}}</h2>{{/if}}
     {{#each content.intro.paragraphs}}
     <p class="freestyle-portal-lede-paragraph">{{this}}</p>
     {{/each}}
@@ -52,8 +53,7 @@
       <div class="card">
         <div class="card-title">Tutorials &amp; Learning</div>
         <p>
-          Curated tutorial series and demonstration archives from the wider
-          freestyle community.
+          Tutorials and demonstrations from the global freestyle community.
         </p>
         <div class="card-actions">
           <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
@@ -67,12 +67,10 @@
       <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
         <div class="card-title">Trick Dictionary</div>
         <p>
-          Canonical reference for named tricks. Browse by ADD (difficulty progression),
-          by Family (canonical lineages), by Movement System (operator grammar), by
-          Movement Neighborhoods (observational similarity), or scan Observed Tricks
-          (community-named, pre-canonical). The dictionary uses Operators &amp; Components
-          (sets, dexes, surfaces, body modifiers) as supporting vocabulary across every
-          browse mode.
+          Reference for every named freestyle trick. Browse by ADD difficulty, by
+          family lineage, by movement type, or by similarity. You can also scan
+          community-named tricks that haven't been formalized yet. The component
+          vocabulary (sets, dexes, surfaces, body modifiers) is explained as you go.
         </p>
         {{#if content.totalTricks}}
         <div class="card-actions">
@@ -86,7 +84,7 @@
       <div class="card">
         <div class="card-title">Glossary</div>
         <p>
-          Beginner-friendly explanations of freestyle vocabulary: run-quality terms,
+          Beginner-friendly explanations of freestyle vocabulary: judging terms,
           components of a trick, set / modifier / catch concepts, and the abbreviations
           you'll encounter in tutorials and contests.
         </p>
@@ -98,9 +96,8 @@
       <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
         <div class="card-title">World Records</div>
         <p>
-          Per-trick consecutive-completion records, drawn from the long-running
-          Passback record community. Browse by trick, or see the all-time leaderboard
-          across record-holders.
+          Per-trick consecutive completion records from the freestyle Passback
+          community. Browse by trick, or see the all-time leaderboard.
         </p>
         {{#if content.totalRecords}}
         <div class="card-actions">
@@ -116,8 +113,8 @@
         <div class="card-title">Competition</div>
         <p>
           Top competitors, podium counts, and event history across documented
-          freestyle events from the 1980s to the present. Includes solo and
-          partnership records.
+          freestyle events, 1980 to present. Includes solo and partnership
+          records.
         </p>
         <div class="card-actions">
           <a href="/freestyle/competition" class="btn btn-outline">Competition history &rarr;</a>
@@ -126,17 +123,17 @@
       </div>
 
       <div class="card">
-        <div class="card-title">History, ADD &amp; Combo Architecture</div>
+        <div class="card-title">History, ADD &amp; Combos</div>
         <p>
-          How freestyle's vocabulary, scoring, and competitive geography evolved &mdash;
-          from the foundational 1980s clipper-and-mirage era through modifier stacking
-          in the 2000s and the modern European-led refinement. ADD construction at the
-          trick level; run-architecture and combo-flow patterns at the sequence level.
+          How freestyle's vocabulary and scoring evolved, from the foundational
+          1980s clipper-and-mirage era through modifier stacking in the 2000s and
+          the modern European-led refinement. The trick-level ADD system and the
+          sequence-level patterns that shape long combos.
         </p>
         <div class="card-actions">
           <a href="/freestyle/history" class="btn btn-outline">Full history &rarr;</a>
           <a href="/freestyle/add-analysis" class="btn btn-outline">ADD analysis &rarr;</a>
-          <a href="/freestyle/combo-analysis" class="btn btn-outline">Combo architecture &rarr;</a>
+          <a href="/freestyle/combo-analysis" class="btn btn-outline">Combo analysis &rarr;</a>
         </div>
       </div>
 
@@ -145,7 +142,7 @@
         <p>
           Data-driven sequence analysis across decades of competitive freestyle:
           how trick combinations evolved, which modifiers anchored each era, and
-          the patterns visible in the long-form record.
+          the patterns visible in the historical record.
         </p>
         <div class="card-actions">
           <a href="/freestyle/insights" class="btn btn-outline">Insights &rarr;</a>
@@ -155,10 +152,10 @@
       <div class="card freestyle-portal-card-advanced">
         <div class="card-title">Operators &amp; Modifiers <span class="freestyle-portal-card-advanced-tag">Advanced reference</span></div>
         <p>
-          The modifier vocabulary in one place: feel cards for each common
-          operator, structural decomposition reference, intermediate-operator
-          definitions, and the Tier-1 set-modifier registry. Visit when you're
-          ready to read trick decompositions in depth.
+          The trick-modifier vocabulary in one place: how each common modifier
+          feels, how it changes a trick, and how modifiers stack to build the
+          names you see in the dictionary. Visit when you're ready to read
+          trick decompositions in depth.
         </p>
         <div class="card-actions">
           <a href="/freestyle/operators" class="btn btn-outline">Operator reference &rarr;</a>
