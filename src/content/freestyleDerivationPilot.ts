@@ -300,9 +300,7 @@ export const DERIVATION_PILOT_ENTRIES: readonly DerivationPanelEntry[] = [
       breakdown:  'xbody(1) + dex(1) + stall(1) = 3 ADD',
     },
     family:   'whirl (Root)',
-    inherits: [
-      '(none — whirl is a foundational atom)',
-    ],
+    inherits: [],
     related: [
       'rev-whirl (reverse direction; ADD 4)',
       'double-whirl (rotational continuation)',

@@ -64,14 +64,16 @@
     <dl class="derivation-panel-lineage">
       <dt>Family</dt>
       <dd>{{entry.family}}</dd>
-      <dt>Inherits from</dt>
-      <dd>
-        <ul class="derivation-panel-list">
-          {{#each entry.inherits}}
-            <li>{{this}}</li>
-          {{/each}}
-        </ul>
-      </dd>
+      {{#if entry.inherits.length}}
+        <dt>Inherits from</dt>
+        <dd>
+          <ul class="derivation-panel-list">
+            {{#each entry.inherits}}
+              <li>{{this}}</li>
+            {{/each}}
+          </ul>
+        </dd>
+      {{/if}}
       <dt>Related</dt>
       <dd>
         <ul class="derivation-panel-list">
