@@ -130,6 +130,11 @@
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
+    {{! Family-anchor sub-label (Dictionary Pedagogy Phase 2). Names
+        the canonical family-anchor trick so readers connect the
+        glossary's "family-anchor trick" vocabulary to the dictionary
+        surface. Links to the anchor's trick-detail page. }}
+    <p class="trick-family-anchor-sublabel"><span class="trick-family-anchor-label">Family-anchor:</span> <a class="trick-family-anchor-link" href="/freestyle/tricks/{{familySlug}}">{{familyName}}</a></p>
     {{! Family-level shared-terminal-structure invariant. Curator-authored per
         family slug; rendered between the heading and the card stack.
         Source: src/content/freestyleFamilyInvariants.ts. }}

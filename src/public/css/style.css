@@ -7828,6 +7828,69 @@ a.dict-card-title:hover {
   }
 }
 
+/* Dictionary Pedagogy Phase 3 (2026-05-21): family-anchor callout on
+   trick-detail pages. Renders only when the current trick IS the
+   family-anchor for a curator-confirmed terminal family. Reuses the
+   muted-tone aesthetic of .browse-view-intro for visual cohesion
+   across the dictionary pedagogy surfaces. */
+.trick-family-anchor-callout {
+  max-width: 760px;
+  margin: 0 0 1rem;
+  padding: 10px 14px;
+  background: #f4f1ea;
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 0 4px 4px 0;
+  color: var(--text-primary, #1f2937);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.trick-family-anchor-callout p {
+  margin: 0;
+}
+.trick-family-anchor-callout p + p {
+  margin-top: 0.4rem;
+}
+.trick-family-anchor-invariant {
+  font-size: 0.92rem;
+  color: var(--text-muted, #64748b);
+}
+.trick-family-anchor-invariant code {
+  background: #ece6dc;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.95em;
+}
+@media (max-width: 480px) {
+  .trick-family-anchor-callout {
+    font-size: 0.92rem;
+    padding: 8px 12px;
+  }
+}
+
+/* Dictionary Pedagogy Phase 2 (2026-05-21): family-anchor sub-label
+   beneath each family heading on the family view. Names the
+   canonical family-anchor trick so readers connect the glossary's
+   "family-anchor trick" vocabulary to the dictionary. */
+.trick-family-anchor-sublabel {
+  margin: 0.15rem 0 0.5rem;
+  font-size: 0.88rem;
+  color: var(--text-muted, #64748b);
+}
+.trick-family-anchor-label {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+.trick-family-anchor-link {
+  color: var(--accent, #6b7280);
+  text-decoration: none;
+  font-weight: 500;
+}
+.trick-family-anchor-link:hover,
+.trick-family-anchor-link:focus {
+  text-decoration: underline;
+  color: var(--accent-strong, #374151);
+}
+
 /* Dictionary Pedagogy Phase 1 (2026-05-21): per-view pedagogical intro
    paragraphs. Rendered at the top of each browse view (after the
    dict-note row, before grids) to teach WHY tricks group the way they

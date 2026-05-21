@@ -386,3 +386,277 @@ flagship audit, schema scalability) is named, scoped, and deferred to
 explicit gates.
 
 Restraint-first. Reversible by deletion. Curator-paced.
+
+---
+
+## 12. Phase 2 — family-anchor sub-label + terminology audit (ratified 2026-05-21)
+
+Phase 2 extends the dictionary pedagogy with one focused visual
+addition and one audit deliverable. Disclosure panels + additional
+family invariants remain explicit gates pending curator authorization.
+
+### 12.1 Sub-deliverables
+
+**A. Family-anchor sub-label on family-view headings.** Each family
+section on `/freestyle/tricks?view=family` gains a small caption
+beneath its heading: "Family-anchor: <name>" where the anchor name
+links to `/freestyle/tricks/{slug}` (the family-anchor trick-detail
+page). This:
+
+- Adopts the GA-1 §5 glossary "family-anchor trick" vocabulary on the
+  dictionary surface.
+- Adds an outward link (per GA-6 §12.3.A standardized affordance) so
+  readers can descend from the family heading into the canonical
+  trick page in one click.
+- Is purely visual; no doctrine call; no schema change.
+
+**B. Light terminology audit.** A grep-driven survey of the four
+publicly-rendered surfaces confirms the equivalence-topology
+vocabulary is consistent post-GA Phase 6 + ET Phase 3 + DP Phase 1.
+
+| Term | Authoritative home | Other surfaces | Drift? |
+|---|---|---|---|
+| Alternate derivation | glossary §9 (defining surface); §1 publication-states dl ("Alternate derivation (equivalence topology)") | trick-detail "Alternate derivations" panel heading | none — reader-friendly form everywhere |
+| Equivalence topology | glossary §1 publication-states dl (parenthetical); design-doc internal name | not surfaced as a label outside the dl | none — the technical name is reserved for the design layer |
+| Compression ladder | glossary §9 (defining surface) | §1 derivation-atlas intro ("a symbolic-compression bridge"); derivation-panel internal labels | none — used only as defined |
+| Equivalence chain | derivation-panel.hbs collapsed-section heading ("advanced equivalence chains"); §1 publication-states dl ("equivalence chain"); freestyleSymbolicEquivalences.ts (internal); history.hbs prose example | derivation-panel data umbrella covering ladder + alternate + alias rows | label is intentionally broad — source-chip per row disambiguates ([historical] / [structural] / [community] / [curator-derived]) |
+| Family-anchor trick | glossary GA-1 §5 intro; DP-2.1 dictionary family-view sub-label (NEW) | trick-detail family chip (slug only); browse-view headings (slug only) | partially closed by DP-2.1; trick-detail family chip remains slug-only by design (chip space is constrained) |
+| Shared terminal structure | glossary §5 family cards + dictionary family view | consistent label everywhere it appears | none |
+| Movement system | glossary §11 + dictionary movement-system view + trick-detail (where surfaced) | consistent | none |
+| Observational | badge text + section footers | consistent | none |
+| Historical reading | glossary GA-1 §1 publication-states dl; equivalence-topology `[historical]` role badge | consistent | none |
+
+**No normalization changes shipped in Phase 2** — the terminology is
+already consistent. The audit IS the deliverable.
+
+### 12.2 Operator vs modifier — a remaining doctrine call (Phase 3+)
+
+The audit confirms one outstanding distinction the dictionary uses
+loosely but the glossary uses precisely:
+
+- **Glossary §6 + §7**: distinguishes "operator" (the abstract
+  primitive — `same/op`, `in/out`, `dex`, etc. — per Jobs notation)
+  from "modifier" (the named transformation applied to a base —
+  paradox, stepping, spinning, etc.)
+- **Dictionary browse**: labels modifier rows uniformly as "modifier"
+  (which is correct), but card-level operator-vs-modifier
+  distinctions don't surface.
+- **Trick-detail "Modifier reference"** link in connective panels
+  (GA-6) uses the broader "modifier" term.
+
+This is NOT drift — it's a real doctrine distinction the curator may
+sharpen further. Phase 3+ work, gated by curator input on whether the
+dictionary should expose operator-vs-modifier as a visible axis or
+remain modifier-uniform.
+
+### 12.3 Files changed (Phase 2)
+
+```
+modified  exploration/dictionary-pedagogy-phase-1-2026-05-21/DESIGN.md (this §12)
+modified  src/views/freestyle/tricks.hbs
+            - +1 <p class="trick-family-anchor-sublabel"> per family group
+modified  src/public/css/style.css
+            - +1 .trick-family-anchor-sublabel + .trick-family-anchor-link styles
+modified  tests/integration/freestyle.dictionary-pedagogy-phase1.routes.test.ts
+            - +4 assertions on the sub-label contract
+```
+
+### 12.4 Acceptance gates for Phase 2
+
+- [x] Family-anchor sub-label rendered on every family heading
+- [x] Sub-label cross-links to the family-anchor trick-detail page
+- [x] Terminology audit confirms post-GA-6 consistency
+- [x] Tests pin sub-label presence + cross-link + no curator-internal
+      language
+- [ ] Build + focused sweep green (next step)
+
+### 12.5 Non-goals for Phase 2
+
+- NOT shipping disclosure panels (`<details>` "Why grouped together?"
+  per family). Deferred — the structural-form invariant lines + the
+  family-anchor sub-label already deliver the pedagogy; disclosure
+  panels would over-engineer.
+- NOT adding more family invariants beyond the DP-1 six. Curator
+  authorization required for any branch-family or non-terminal-family
+  entries (torque, drifter, etc.).
+- NOT normalizing operator vs modifier vocabulary — doctrine call,
+  Phase 3+.
+- NOT changing the dictionary's browse-card layout or density.
+
+---
+
+## 13. Phase 3 — flagship family-anchor trick-detail polish (ratified 2026-05-21)
+
+Phase 3 extends the family-anchor vocabulary into the trick-detail
+layer. Where DP-2 added the "Family-anchor: <name>" sub-label on
+family-view headings (pointing INTO the trick-detail pages), Phase 3
+adds the reciprocal: when a reader lands on a family-anchor
+trick-detail page, the page explicitly states the dual role.
+
+### 13.1 Before/after audit (whirl, butterfly, mirage, osis)
+
+Pre-Phase-3 state of the four flagship trick-detail pages:
+
+| Surface | whirl | butterfly | mirage | osis |
+|---|:---:|:---:|:---:|:---:|
+| FIRST_CLASS_TIER_1 membership | ✓ | ✓ | ✓ | ✓ |
+| ATOMIC_FLAG_DECOMPOSITIONS entry | ✓ | ✓ | ✓ | ✓ |
+| Notation summary card (first-class Zone B) | ✓ | ✓ | ✓ | ✓ |
+| Operational chain | ✓ | ✓ | ✓ | ✓ |
+| ADD breakdown | ✓ | ✓ | ✓ | ✓ |
+| Family chip in hero | ✓ | ✓ | ✓ | ✓ |
+| Family lineage section (descendants by ADD tier) | ✓ | ✓ | ✓ | ✓ |
+| Explicit "family-anchor trick" role label | ✗ | ✗ | ✗ | ✗ |
+| Family invariant restated on page | ✗ | ✗ | ✗ | ✗ |
+| Family-browse cross-link | implicit (family chip) | implicit | implicit | implicit |
+
+The four pages already render publication-grade first-class data. The
+gap was *role-labeling*: each page rendered its content as a generic
+trick page without naming the anchor role. A reader following the
+GA-6 "View full ontology →" link from the glossary §5 family card
+arrived without confirmation that they'd reached the family-anchor.
+
+Post-Phase-3 state:
+
+| Surface | whirl | butterfly | mirage | osis |
+|---|:---:|:---:|:---:|:---:|
+| (everything above) | ✓ | ✓ | ✓ | ✓ |
+| Explicit "family-anchor trick" callout | ✓ | ✓ | ✓ | ✓ |
+| Conserved terminal mechanic surfaced as `<code>` | ✓ | ✓ | ✓ | ✓ |
+| Family-browse cross-link ("Whirl family →") | ✓ | ✓ | ✓ | ✓ |
+
+Each page now teaches the dual role in one short paragraph + one
+labeled invariant line. No essay; no fabricated formula; no parser
+exposure.
+
+### 13.2 Sub-deliverables
+
+**A. `familyAnchorContext` view-model field.** Added to
+`FreestyleTrickContent`. Populated only when:
+- `dictRow.slug === dictRow.trick_family` (the trick IS the family-
+  anchor by canonical identity)
+- AND `FAMILY_INVARIANTS` has an entry for the family slug (DP-1's
+  six: whirl, rev-whirl, butterfly, mirage, osis, swirl)
+
+Null for every other trick. Carries `{ invariant, familyName,
+familyBrowseHref }` — single source of truth via `getFamilyInvariant`
+from the existing content module.
+
+**B. Family-anchor callout in `trick-family.hbs`.** Renders at the
+top of the trick-family section, before the lineage tier grid:
+
+> **Whirl** is the **family-anchor trick** for the [Whirl family →]
+> Conserved terminal mechanic: `leggy in dex > ss clipper`
+
+Class `.trick-family-anchor-callout` reuses the muted-tone aesthetic
+of `.browse-view-intro` (DP-1) for visual cohesion across the
+pedagogy surfaces. Mobile-tested at 480px.
+
+**C. Outward link adopts the standardized class.** The "Whirl family →"
+link uses the `glossary-outward-link` class established in GA Phase 6,
+keeping the dictionary's outward-affordance vocabulary unified across
+surfaces.
+
+### 13.3 Why this slice does not need new content authorship
+
+The user's task spec said: "Polish each page so it clearly explains
+1) trick identity, 2) conserved family invariant, 3) Jobs/operational
+notation, 4) ADD computation, 5) why the trick acts as a family
+anchor, 6) representative descendants, 7) relationship to dictionary
+family view."
+
+The audit in §13.1 confirms 1, 3, 4, 6, 7 are already rendered today
+via existing components (first-class Notation summary +
+ATOMIC_FLAG_DECOMPOSITIONS + family chip + trick-family lineage).
+Phase 3 adds 2 (conserved family invariant) and 5 (family-anchor
+role) in one additive callout. No content fabrication; no new doctrine;
+no template hacks per the user's constraint list.
+
+### 13.4 Why these four anchors get the callout, not all family slugs
+
+The callout activates only for the six terminal-family slugs covered
+by `FAMILY_INVARIANTS` (whirl, rev-whirl, butterfly, mirage, osis,
+swirl). Branch-family slugs (torque, blender, drifter) and
+foundational atoms with no curator-confirmed invariant (legover,
+clipper, pickup, illusion, around-the-world) do not surface the
+callout. This is intentional:
+
+- The callout's load-bearing claim is "this trick preserves THE
+  conserved terminal mechanic of its family." That claim is only
+  honest when the family has a curator-locked invariant.
+- For branch families and non-terminal anchors, the page still
+  renders the family chip + lineage + Notation summary; the
+  *additional* anchor callout is suppressed.
+- Adding more anchor entries is a curator-paced expansion, gated on
+  per-family invariant authorship.
+
+### 13.5 Files changed (Phase 3)
+
+```
+modified  exploration/dictionary-pedagogy-phase-1-2026-05-21/DESIGN.md (this §13)
+modified  src/services/freestyleService.ts
+            - +1 view-model field: familyAnchorContext
+            - +1 populate IIFE in getTrickDetailPage
+modified  src/views/partials/trick-family.hbs
+            - +1 conditional callout block at section top
+modified  src/public/css/style.css
+            - +1 .trick-family-anchor-callout class set
+              (mobile-tested at 480px)
+new       tests/integration/freestyle.flagship-family-anchors.routes.test.ts
+            - 21 assertions across 4 anchor pages + 1 non-anchor
+              control + curator-internal-language guard
+```
+
+### 13.6 Tests (Phase 3)
+
+```
+new  tests/integration/freestyle.flagship-family-anchors.routes.test.ts
+       4 callout-render assertions (whirl, butterfly, mirage, osis)
+     + 4 "Conserved terminal mechanic" label assertions
+     + 4 first-class Notation summary regression assertions
+     + 4 ADD breakdown regression assertions
+     + 1 non-anchor control (paradox-mirage: no callout)
+     + 4 no-curator-internal-language guards per anchor page
+```
+
+Focused sweep across the 6 adjacent freestyle integration test files:
+111/111 tests green.
+
+### 13.7 Acceptance gates for Phase 3
+
+- [x] familyAnchorContext shaped at service layer, null-safe
+- [x] Callout renders only for the 6 terminal-family anchors with
+      curator-confirmed invariants
+- [x] First-class Notation summary still renders (regression covered)
+- [x] Non-anchor tricks do NOT render the callout
+- [x] No curator-internal language leaks
+- [x] Build clean; focused 111/111 tests green
+- [ ] Mobile (480px) visual review on the four flagship pages
+
+### 13.8 Non-goals for Phase 3
+
+- NOT changing the trick-detail page's overall layout, density, or
+  section ordering.
+- NOT adding equivalence-topology entries for whirl/butterfly/mirage
+  (they don't have alternate-derivation cases — that's a flurry /
+  witchdoctor surface, per ET Phase 2).
+- NOT polishing trick-detail prose content (ux2Pilot, executionParagraphs,
+  learningParagraphs are curator-authored and out of scope).
+- NOT promoting branch-family or non-terminal slugs to the callout —
+  gated on per-family invariant authorship.
+- NOT exposing parser internals (per the `feedback_parser_editorial_
+  separation` forever-rule).
+
+### 13.9 Remaining Phase 4+ work (curator-gated)
+
+- **Operator vs modifier doctrine call** — whether the dictionary
+  should expose this axis as a visible distinction
+- **Optional disclosure panels** on family-view sections — only if
+  the current pedagogy proves insufficient with real reader feedback
+- **Additional family invariants** for branch families (torque,
+  blender, drifter) — curator decision on which deserve invariants
+- **Reference-media authorship** for whirl/butterfly/mirage — these
+  pages have partial coverage; full media polish is curator-paced
+- **ux2Pilot content authorship** for the flagship pages — single-page
+  pilot prose currently only authored for montage; expanding to the
+  three flagship anchors is curator-paced

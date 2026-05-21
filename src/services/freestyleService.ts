@@ -1041,6 +1041,20 @@ export interface FreestyleTrickContent {
   // disclosure on trick-detail. Additive observational layer; never
   // overrides the canonical published reading.
   equivalenceTopology: EquivalenceTopologyEntry | null;
+  // Family-anchor context (Dictionary Pedagogy Phase 3). Populated
+  // only when the current trick IS the family-anchor (slug ===
+  // trick_family) AND the family carries a curator-authored invariant
+  // (DP-1's six: whirl, rev-whirl, butterfly, mirage, osis, swirl).
+  // Null for every other trick. Drives the family-anchor callout in
+  // the trick-family section header; teaches readers that the page
+  // they're on is itself the productive root of a family. Reuses the
+  // FAMILY_INVARIANTS data already authored for the dictionary's
+  // family view — single source of truth across surfaces.
+  familyAnchorContext: {
+    invariant:         string;       // e.g. "leggy in dex > ss clipper"
+    familyName:        string;       // e.g. "Whirl"
+    familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
+  } | null;
 }
 
 // Re-export the equivalence-topology entry type so consumers of the
@@ -4574,6 +4588,25 @@ export const freestyleService = {
             // DESIGN.md §6 lives at this seam.
             const entry = getEquivalenceTopologyFor(slug);
             return entry && !entry.curatorConfirmPending ? entry : null;
+          })(),
+          familyAnchorContext: (() => {
+            // Dictionary Pedagogy Phase 3 (2026-05-21). When the
+            // current trick is itself the family-anchor (slug ===
+            // trick_family) AND the family carries a curator-authored
+            // invariant, surface a callout in the trick-family
+            // section so the trick-detail page teaches the
+            // family-anchor role explicitly. Returns null otherwise.
+            if (!dictRow || !dictRow.trick_family) return null;
+            if (dictRow.slug !== dictRow.trick_family) return null;
+            const invariant = getFamilyInvariant(dictRow.trick_family);
+            if (!invariant) return null;
+            const familyName = dictRow.trick_family.charAt(0).toUpperCase()
+              + dictRow.trick_family.slice(1).replace(/-/g, ' ');
+            return {
+              invariant,
+              familyName,
+              familyBrowseHref: `/freestyle/tricks?view=family#family-${dictRow.trick_family}`,
+            };
           })(),
         };
       })(),

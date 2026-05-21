@@ -10,6 +10,22 @@
     <h2>{{page.title}} Family</h2>
     <p class="section-intro">Tricks in this family, grouped by ADD value.</p>
   </div>
+  {{! Family-anchor callout (Dictionary Pedagogy Phase 3). Renders only
+      when this trick IS the family-anchor for a curator-confirmed
+      terminal family. Teaches the dual role: the trick on this page
+      is itself the productive root of the family below. }}
+  {{#if content.familyAnchorContext}}
+  <div class="trick-family-anchor-callout">
+    <p>
+      <strong>{{page.title}}</strong> is the
+      <strong>family-anchor trick</strong> for the
+      <a class="glossary-outward-link" href="{{content.familyAnchorContext.familyBrowseHref}}">{{content.familyAnchorContext.familyName}} family &rarr;</a>
+    </p>
+    <p class="trick-family-anchor-invariant">
+      Conserved terminal mechanic: <code>{{content.familyAnchorContext.invariant}}</code>
+    </p>
+  </div>
+  {{/if}}
   <div class="family-lineage">
     {{#each content.familyTiers}}
     <div class="family-lineage-tier{{#if hasCurrent}} family-lineage-tier-current{{/if}}">

@@ -147,6 +147,42 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
   });
 });
 
+describe('Dictionary Pedagogy Phase 2 — family-anchor sub-label', () => {
+  it('renders the "Family-anchor:" sub-label under each family heading', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/class="trick-family-anchor-sublabel"/);
+    expect(res.text).toMatch(/class="trick-family-anchor-label"[^>]*>\s*Family-anchor:\s*</);
+  });
+
+  it('sub-label cross-links the anchor name to the trick-detail page', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    // Each family's anchor name links to /freestyle/tricks/{familySlug}.
+    // The fixture seeded whirl/butterfly/mirage/osis/swirl/rev-whirl as
+    // anchor tricks so each family's section carries an anchor link.
+    const startIdx = res.text.indexOf('id="family-whirl"');
+    const endIdx = res.text.indexOf('</section>', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*href="\/freestyle\/tricks\/whirl"/);
+  });
+
+  it('sub-label uses the family display name (not the slug) for the link text', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const startIdx = res.text.indexOf('id="family-butterfly"');
+    const endIdx = res.text.indexOf('</section>', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    // Link text should be the display name ("Butterfly") rendered by
+    // the template via {{familyName}} — case-insensitive match because
+    // the service may title-case differently from the slug.
+    expect(region).toMatch(/class="trick-family-anchor-link"[^>]*>\s*[Bb]utterfly\s*</);
+  });
+
+  it('sub-label does NOT appear on non-family views', async () => {
+    const addRes = await request(createApp()).get('/freestyle/tricks?view=add');
+    expect(addRes.text).not.toMatch(/class="trick-family-anchor-sublabel"/);
+  });
+});
+
 describe('Dictionary Pedagogy Phase 1 — no curator-internal language leakage', () => {
   it('intro paragraphs do not expose pt## tags, Slice X labels, or Wave-N references', async () => {
     const familyRes = await request(createApp()).get('/freestyle/tricks?view=family');
