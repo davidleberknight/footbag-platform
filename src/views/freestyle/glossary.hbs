@@ -49,6 +49,42 @@
       two-phase story.
     </p>
 
+    {{! ── How to read this glossary ────────────────────────────────────────
+        Reader-orientation subsection introduced in the 2026-05-21 glossary
+        architecture overhaul. Enumerates the publication-state vocabulary
+        the rest of the glossary uses (canonical / observational / doctrine /
+        historical / pending / equivalence-topology) so the reader can scan
+        any section knowing what kind of claim a given entry makes. }}
+    <h3 class="section-heading" id="how-to-read">How to read this glossary</h3>
+    <p>
+      The glossary mixes several kinds of claim. Canonical material is
+      authoritative; supplementary layers (observational, doctrine,
+      historical) surface alongside it with explicit labels. Knowing the
+      distinction lets a reader scan any section and know what kind of
+      claim a given entry makes.
+    </p>
+    <dl class="glossary-publication-states">
+      <dt>Canonical</dt>
+      <dd>Community-sanctioned; single-valued; authoritative. Default text style, no badge. Lives in the trick dictionary and in &sect;5 family cards.</dd>
+      <dt>Observational</dt>
+      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in &sect;11 and in expandable panels on family cards.</dd>
+      <dt>Doctrine-sensitive</dt>
+      <dd>A reading governed by a published doctrine (e.g. rotational continuity). The canonical ADD or decomposition holds; the doctrine explains <em>why</em>. Lives in &sect;8.7 and in the &sect;1 derivation atlas's doctrine notes.</dd>
+      <dt>Historical</dt>
+      <dd>An older or community interpretation preserved as context, not as a competing claim. Lives in &sect;13 and inside trick-detail &ldquo;Alternate derivations&rdquo; panels.</dd>
+      <dt>Alternate derivation (equivalence topology)</dt>
+      <dd>A different structural route to the same trick, reaching the same ADD. Both readings are pedagogically live. Lives in &sect;9 (concept), in trick-detail panels (per-trick), and explained in the &sect;9 worked examples.</dd>
+      <dt>Pending</dt>
+      <dd>Curator-confirm-pending; not yet ratified. Surfaces with an <em>advanced</em> badge or, on dictionary cards, a &ldquo;pending decomposition refinement&rdquo; pill. Never claimed as canonical.</dd>
+    </dl>
+    <p class="detail-muted">
+      The shortest readable form of a trick name is the one the
+      community uses; deeper readings remain available for readers who
+      want to see the structure. Multiple readings often coexist
+      legitimately. The glossary preserves all of them and marks which
+      kind each one is.
+    </p>
+
     <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
       Derivation atlas &mdash; five compositional examples
     </h3>
@@ -279,6 +315,18 @@
       spinning, ducking) are entry / topology layers &mdash; not terminal
       families.
     </p>
+    <p class="detail-muted">
+      Tricks that anchor a family carry a dual role. A
+      <strong>family-anchor trick</strong> is a canonical trick that
+      <em>also</em> acts as the productive root of a movement family or
+      topology neighborhood &mdash; whirl, butterfly, mirage, osis,
+      legover, torque, blender, drifter, barrage, blur. Every
+      family-anchor trick is a trick (with its own trick-detail page);
+      not every trick is a family-anchor (flurry, witchdoctor, and
+      paradox-mirage are tricks but not family-anchors). The family
+      cards below render only family-anchor tricks; the dictionary's
+      <a href="/freestyle/tricks">browse views</a> render every trick.
+    </p>
 
     <h3 class="section-heading">Root terminal families</h3>
     <div class="glossary-family-card-grid" aria-label="Root terminal families">
@@ -388,6 +436,47 @@
       having to memorize each compound separately. For the full operational
       grammar and worked decompositions see
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
+
+    {{! ── Generative Insight ───────────────────────────────────────────────
+        Phase 1 of the 2026-05-21 glossary architecture overhaul. Surfaces
+        the compositional-completeness framing that's implicit in the
+        notation but never stated explicitly. Two paragraphs + the
+        canonical structural formula. Honors the notation tradition
+        without biographical attribution. }}
+    <h3 class="section-heading" id="generative-insight">Generative insight</h3>
+    <p>
+      The notation carries a stronger claim than mere shorthand. A
+      small set of primitive movement operators &mdash; a starting
+      surface, a finite sequence of dex events, a terminating surface
+      &mdash; generates the entire freestyle trick space combinatorially.
+      The set of nameable tricks is, in principle,
+      <strong>enumerable</strong>: pick a starting surface, pick a
+      finite sequence of operators, read off the resulting formula.
+      The community-named tricks are the formulas the community found
+      worth naming. Many unnamed-but-structurally-valid tricks exist;
+      naming follows usage, not exhaustive enumeration.
+    </p>
+    <p>
+      The canonical structural form of a footbag trick is:
+    </p>
+    <p class="glossary-generative-formula">
+      <code class="notation-display-tokens"><span class="notation-token notation-surface">(toe | clip)</span> &gt; [<span class="notation-token notation-positional">(same | op)</span> <span class="notation-token notation-positional">(in | out)</span> <span class="notation-token notation-dex">dexterity</span>]<sup>*</sup> &gt; <span class="notation-token notation-positional">(same | op)</span> <span class="notation-token notation-surface">(toe | clip)</span></code>
+    </p>
+    <p>
+      A surface kick or stall opens the trick; zero or more dex events
+      compose the middle; a surface kick or stall closes it. The
+      <code>*</code> marks the iterable interior &mdash; one dex
+      produces a simple compound, two produces a deeper one,
+      three-and-up produces the named families
+      (<em>blurry</em>, <em>barraging</em>, <em>flurry</em>) that
+      compress longer chains under a single folk name. The trick
+      dictionary is a <em>curated subset</em> of this formula's
+      generative output, not its full closure. Modifiers (paradox,
+      symposium, spinning, ducking) modulate the
+      <code>(same | op)(in | out)</code> choices and the body
+      configuration during the dex events; their effects layer onto
+      the same generative skeleton.
     </p>
 
     {{! ── Glyph quick-reference ──────────────────────────────────────────
