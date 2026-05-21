@@ -1,0 +1,271 @@
+
+
+
+
+FOOTBAG WORLDWIDE: FREESTYLE :1-ADD MOVES
+
+FREESTYLE MOVE LIST 
+
+			
+		1-Add Moves	 
+		
+Around the World Kick
+1 add	 	Circle the footbag in between toe kicks.	 	[dex]
+Clipper Kick
+1 add	 	Kick the footbag with the inside surface of the foot with the kicking leg tucked behind the support leg.	 	[xbd]
+Cloud Kick
+1 add	 	Kick the footbag with the calf of the leg.	 	[uns]
+Flying Inside
+1 add	 	Jump and kick the footbag with the inside surface of the foot.	 	[bod]
+Flying Outside
+1 add	 	Jump and kick the footbag with the outside surface of the foot.	 	[bod]
+Forehead Delay
+1 add	 	Delay the footbag on the forehead.	 	[uns]
+Frigidosis
+1 add	 	Frigidosis is an inside delay caught behind your body, but not in the cross-body position. The best way to visualize it is to go for an osis, make the catch, but don't spin. So, you "freeze" the bag in a non-cross-body position.	 	[del]
+Head Stall
+1 add	 	Delay the footbag on the top of the head. Look slightly upwards to the get the top of the head perfectly flat.	 	[uns]
+Inside Delay*
+1 add	 	Delay the footbag on the inside surface of the foot.	 	[del]
+Knee Delay
+1 add	 	Delay the footbag on the top of the thigh.	 	[del]
+Neck Delay
+1 add	 	Delay the footbag on the back of the neck.	 	[uns]
+Outside Delay*
+1 add	 	Delay the footbag on the outside surface of the foot.	 	[del]
+Peak Delay
+1 add	 	Delay the footbag on the peak of your cap/hat. This can be dismounted by a flick of the head or 'pinging' your peak.	 	[uns]
+Shoulder Delay
+1 add	 	Delay the footbag on the shoulder. Use your cheek at first to help to catch the footbag.	 	[uns]
+Sole Kick
+1 add	 	Kick the footbag with the sole of the foot.	 	[uns]
+Spin
+1 add	 	Spin around in between kicks/delays.	 	[bod]
+Toe Delay*
+1 add	 	Delay the footbag on the top of the shoe (above the toes).
+Video demonstration available!
+
+ 	[del]
+17 moves on file.
+what's new
+overview
+f.a.q.
+reference area
+clubs
+events
+results
+photos
+videos
+freestyle
+net game
+members
+discussion
+IFPA
+IFPA Groups
+rules
+links
+
+Google
+ 
+ 	Web
+footbag.org
+
+Copyright © 2003, International Footbag Players' Association
+A 501(c)(3) Non-Profit Corporation
+	 	
+
+Website implementation by Steve Goldberg. Graphic design by Eric Côté.
+Copyright © 1994-2004, Int'l Footbag Players' Association, Inc.
+A U.S. 501(c)(3) Non-Profit Corporation. DONATE NOW
+Chat
+
+New Conversation
+
+🤓 Explain a complex thing
+
+Explain Artificial Intelligence so that I can explain it to my six-year-old child.
+
+
+🧠 Get suggestions and create new ideas
+
+Please give me the best 10 travel ideas around the world
+
+
+💭 Translate, summarize, fix grammar and more…
+
+Translate "I love you" French
+
+
+
+AITOPIA
+Hello, how can I help you today?
+
+
+
+Page Content
+Page favicon
+footbag-clean - Code Review Request
+https://chatgpt.com/g/g-p-69798bf85f78819186afd22989bf43d6/c/697c175e-0a10-83a0-9b31-40c4ebf7fb50
+ 🪄 Summarize
+Get a brief overview of the main points and key takeaways
+
+AITOPIA
+The document outlines a code review request for the Footbagorg Event Results Data Cleaning System, focusing on the transition to a Version 5 (V5) Canonical Schema. Key components include:
+
+Core Features:
+
+A public and auditable name-only schema.
+
+A player identity model that is public-safe.
+
+A confidence flagging system that avoids data deletion.
+
+A migration plan from existing version 4 files.
+
+
+
+Immediate Actions: 
+
+The document lists immediate code changes required and suggests next actions to proceed with the V5 system.
+
+
+
+Versioning and Prompts: 
+
+It discusses three versions for code review prompts aimed at enhancing clarity and completeness.
+
+
+
+Code Review Structure: 
+
+Proposed review includes assessing the existing system, strengths and weaknesses of the code, issues in the output dataset, hard-coding vs. generalization, and recommendations for better architecture.
+
+
+
+Core Principles: 
+
+V5 maintains a canonical schema, uniform confidence model, and an append-only pipeline for data integrity, with a focus on minimizing collisions in player identities.
+
+
+
+Action Plan:
+
+Suggests running specific scripts to ensure the correct setup of the V5 system and outlines verification steps, alongside potential next logical upgrades.
+
+
+
+Recommendations: 
+
+Two immediate fixes are recommended, and further governance considerations are also mentioned.
+
+
+
+
+Overall, the content serves as a guide for the code review and implementation of the new data cleaning system, emphasizing structured innovation and efficient migration processes.
+
+
+
+
+AITOPIA
+
+9
+Upgrade
+
+
+
+
+
+
+
+
+
+FOOTBAG WORLDWIDE: FREESTYLE :1-ADD MOVES
+
+FREESTYLE MOVE LIST 
+
+			
+		1-Add Moves	 
+		
+Around the World Kick
+1 add	 	Circle the footbag in between toe kicks.	 	[dex]
+Clipper Kick
+1 add	 	Kick the footbag with the inside surface of the foot with the kicking leg tucked behind the support leg.	 	[xbd]
+Cloud Kick
+1 add	 	Kick the footbag with the calf of the leg.	 	[uns]
+Flying Inside
+1 add	 	Jump and kick the footbag with the inside surface of the foot.	 	[bod]
+Flying Outside
+1 add	 	Jump and kick the footbag with the outside surface of the foot.	 	[bod]
+Forehead Delay
+1 add	 	Delay the footbag on the forehead.	 	[uns]
+Frigidosis
+1 add	 	Frigidosis is an inside delay caught behind your body, but not in the cross-body position. The best way to visualize it is to go for an osis, make the catch, but don't spin. So, you "freeze" the bag in a non-cross-body position.	 	[del]
+Head Stall
+1 add	 	Delay the footbag on the top of the head. Look slightly upwards to the get the top of the head perfectly flat.	 	[uns]
+Inside Delay*
+1 add	 	Delay the footbag on the inside surface of the foot.	 	[del]
+Knee Delay
+1 add	 	Delay the footbag on the top of the thigh.	 	[del]
+Neck Delay
+1 add	 	Delay the footbag on the back of the neck.	 	[uns]
+Outside Delay*
+1 add	 	Delay the footbag on the outside surface of the foot.	 	[del]
+Peak Delay
+1 add	 	Delay the footbag on the peak of your cap/hat. This can be dismounted by a flick of the head or 'pinging' your peak.	 	[uns]
+Shoulder Delay
+1 add	 	Delay the footbag on the shoulder. Use your cheek at first to help to catch the footbag.	 	[uns]
+Sole Kick
+1 add	 	Kick the footbag with the sole of the foot.	 	[uns]
+Spin
+1 add	 	Spin around in between kicks/delays.	 	[bod]
+Toe Delay*
+1 add	 	Delay the footbag on the top of the shoe (above the toes).
+Video demonstration available!
+
+ 	[del]
+17 moves on file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+ 	Web
+footbag.org
+
+Copyright © 2003, International Footbag Players' Association
+A 501(c)(3) Non-Profit Corporation
+	 	
+
+Website implementation by Steve Goldberg. Graphic design by Eric Côté.
+Copyright © 1994-2004, Int'l Footbag Players' Association, Inc.
+A U.S. 501(c)(3) Non-Profit Corporation. DONATE NOW
+
+
+
+
+Make a Review & Earn Credit ❤
+Chat
+Ask
+Search
+Write
+Image
+ChatFile
+Vision
+Store
+Full Page
+Invite & Earn
