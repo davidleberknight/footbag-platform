@@ -186,26 +186,27 @@ describe('Glossary §12 — named source families (Slice C)', () => {
 describe('Landing page — Educational Pathways chip removed (Slice C)', () => {
   it('does NOT render the "Educational pathways" chip on the landing Tutorials card', async () => {
     // Slice C (2026-05): the Educational-pathways chip was removed from
-    // the Tutorials card. Landing IA refactor (2026-05-19) added a
-    // separate Learning Path shelf panel that links to /freestyle/learn —
-    // structurally different from the Tutorials card chip — but the
-    // original invariant (the chip text isn't in the Tutorials card
-    // anymore) must hold.
+    // the Tutorials card. Landing Page Phase 1 (2026-05-21) lifted the
+    // Learning Path shelf panel into the Movement Reference section as
+    // a flat card pointing at /freestyle/learn — structurally different
+    // from the Tutorials card chip — but the original invariant (the
+    // chip text isn't in the Tutorials card anymore) must hold.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.status).toBe(200);
     // Old chip text is gone.
     expect(res.text).not.toContain('Educational pathways &rarr;');
     // The /freestyle/learn link still appears, but only inside the
-    // learning-path shelf panel — not on the Tutorials card.
+    // Movement Reference Learning Path card — not on the Tutorials card.
     const tutorialsCardIdx = res.text.indexOf('Tutorials &amp; Learning');
     const tutorialsEndIdx  = res.text.indexOf('</div>', res.text.indexOf('</div>', tutorialsCardIdx) + 1);
     const tutorialsCard    = res.text.slice(tutorialsCardIdx, tutorialsEndIdx);
     expect(tutorialsCard).not.toContain('/freestyle/learn');
-    // Confirm the shelf-panel link does exist (separate surface).
-    const shelfStart = res.text.indexOf('id="shelf-panel-learning-path"');
-    expect(shelfStart).toBeGreaterThan(0);
-    expect(res.text.slice(shelfStart, res.text.indexOf('</details>', shelfStart))).toContain('href="/freestyle/learn"');
+    // Confirm the Movement Reference Learning Path card does exist
+    // (separate surface).
+    const cardStart = res.text.indexOf('id="movement-ref-learning-path"');
+    expect(cardStart).toBeGreaterThan(0);
+    expect(res.text.slice(cardStart, res.text.indexOf('</article>', cardStart))).toContain('href="/freestyle/learn"');
   });
 
   it('still renders the curated-tutorial chips on the landing Tutorials card', async () => {

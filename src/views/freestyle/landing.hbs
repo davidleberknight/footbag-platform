@@ -32,21 +32,21 @@
   </section>
   {{/if}}
 
-  {{! Under-hero jump nav: two anchors only — featured (videos) and the
-      reference shelf (expandable panels). The legacy three-anchor list
-      (#basic-components / #operators / #core-tricks) collapsed into a
-      single shelf entry. }}
+  {{! Under-hero jump nav. Two anchors: Featured (videos) + Movement
+      Reference (the six-card freestyle-language section). Landing Page
+      Phase 1 (2026-05-21) consolidated the prior #reference-shelf
+      anchor into #movement-reference at the top of the page flow. }}
   <nav class="page-jump-nav" aria-label="On this page">
     <a href="#featured">Featured</a>
-    <a href="#reference-shelf">Reference shelf</a>
+    <a href="#movement-reference">Movement reference</a>
   </nav>
 
-  {{! Portal cards — user-centered order. Tutorials & learning leads;
-      Trick Dictionary + Glossary follow as the primary lookup surfaces;
-      Records / Competition / History anchor the sport's context;
-      Operators & Modifiers is demoted to the end of the grid and framed
-      as advanced reference (the full operator material lives on
-      /freestyle/operators). }}
+  {{! Portal cards. Landing Page Phase 1 (2026-05-21): the standalone
+      "Operators & Modifiers" portal card was removed; the Operators &
+      Modifiers entry now lives in the unified Movement Reference
+      section below alongside Basic Components, Core Tricks, ADD &
+      Scoring, Notation, and Learning Path. The full operator material
+      remains on /freestyle/operators. }}
   <section class="content-section">
     <div class="card-grid card-grid-2col">
 
@@ -149,19 +149,35 @@
         </div>
       </div>
 
-      <div class="card freestyle-portal-card-advanced">
-        <div class="card-title">Operators &amp; Modifiers</div>
-        <p>
-          The trick-modifier vocabulary in one place: how each common modifier
-          feels, how it changes a trick, and how modifiers stack to build the
-          names you see in the dictionary. Visit when you're ready to read
-          trick decompositions in depth.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/operators" class="btn btn-outline">Open full operator reference &rarr;</a>
-        </div>
-      </div>
+    </div>
+  </section>
 
+  {{! Movement Reference — six uniform teaser cards (Basic Components,
+      Core Tricks, Operators & Modifiers, ADD & Scoring, Notation,
+      Learning Path). Replaces the prior standalone Operators portal
+      card AND the lower Reference Shelf <details> stack with a single
+      cohort of uniformly-formatted cards. Each is a porch: title +
+      one-line summary + optional preview chips + single outbound CTA;
+      depth lives on the destination page. Landing Page Phase 1
+      (2026-05-21). }}
+  <section class="content-section freestyle-movement-reference" id="movement-reference" aria-label="Movement reference">
+    <h2 class="freestyle-movement-reference-title">{{content.movementReference.title}}</h2>
+    <p class="freestyle-movement-reference-lede">{{content.movementReference.lede}}</p>
+    <div class="freestyle-movement-reference-grid">
+      {{#each content.movementReference.cards}}
+      <article class="freestyle-movement-reference-card" id="movement-ref-{{slug}}">
+        <h3 class="freestyle-movement-reference-card-title">{{title}}</h3>
+        <p class="freestyle-movement-reference-card-summary">{{summary}}</p>
+        {{#if examples.length}}
+        <p class="freestyle-movement-reference-card-chips" aria-label="Example operators">
+          {{#each examples}}<span class="freestyle-movement-reference-chip" data-token-slug="{{slug}}">{{label}}</span>{{#unless @last}} <span class="freestyle-movement-reference-chip-sep" aria-hidden="true">&middot;</span> {{/unless}}{{/each}}
+        </p>
+        {{/if}}
+        <p class="freestyle-movement-reference-card-cta">
+          <a class="glossary-outward-link" href="{{linkOutHref}}">{{linkOutLabel}} &rarr;</a>
+        </p>
+      </article>
+      {{/each}}
     </div>
   </section>
 
@@ -185,64 +201,6 @@
     </div>
   </section>
   {{/if}}
-
-  {{! Freestyle Reference Shelf — grouped expandable reference content
-      that replaces the prior standalone Basic Components / Operator
-      Board / Core Tricks sections. Each panel is a collapsed <details>;
-      bodies use the existing service-shaped fields. The three preview-
-      style panels (ADD scoring / notation basics / learning path) carry
-      a single link-out CTA. }}
-  <section class="content-section freestyle-reference-shelf" id="reference-shelf" aria-label="Reference shelf">
-    <h2 class="freestyle-reference-shelf-title">{{content.referenceShelf.title}}</h2>
-    <p class="freestyle-reference-shelf-lede">{{content.referenceShelf.lede}}</p>
-
-    {{#each content.referenceShelf.panels}}
-    <details class="freestyle-reference-shelf-panel" id="shelf-panel-{{slug}}">
-      <summary class="freestyle-reference-shelf-summary">
-        <span class="freestyle-reference-shelf-summary-title">{{title}}</span>
-        <span class="freestyle-reference-shelf-summary-summary">{{summary}}</span>
-      </summary>
-      <div class="freestyle-reference-shelf-body freestyle-reference-shelf-body--{{slug}}">
-
-        {{#if (eq slug 'basic-components')}}
-        <div class="freestyle-basic-components-grid">
-          {{#each @root.content.basicComponents}}
-          <article class="freestyle-component-card" id="component-{{key}}">
-            <h4 class="freestyle-component-name">{{name}}</h4>
-            <p class="freestyle-component-desc">{{description}}</p>
-            {{#if subfields.length}}
-            <dl class="freestyle-component-subfields">
-              {{#each subfields}}
-              <dt>{{label}}</dt>
-              <dd>{{#each values}}{{#unless @first}} <span class="freestyle-subfield-sep">·</span> {{/unless}}<span class="freestyle-subfield-value">{{this}}</span>{{/each}}</dd>
-              {{/each}}
-            </dl>
-            {{/if}}
-          </article>
-          {{/each}}
-        </div>
-        {{/if}}
-
-        {{#if (eq slug 'core-tricks')}}
-        {{> core-tricks-grid tricks=@root.content.coreTricks}}
-        <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
-        {{/if}}
-
-        {{#if examples.length}}
-        <p class="freestyle-shelf-example-chips" aria-label="Example operators">
-          {{#each examples}}<span class="freestyle-shelf-example-chip" data-token-slug="{{slug}}">{{label}}</span>{{#unless @last}} <span class="freestyle-shelf-example-sep" aria-hidden="true">&middot;</span> {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-
-        {{#if linkOutHref}}
-        <p class="freestyle-reference-shelf-link-out">
-          <a href="{{linkOutHref}}" class="btn btn-outline">{{linkOutLabel}} &rarr;</a>
-        </p>
-        {{/if}}
-      </div>
-    </details>
-    {{/each}}
-  </section>
 
   {{! Get started tiles (placeholders). }}
   <section class="content-section">

@@ -7078,110 +7078,88 @@ a.dict-card-title:hover {
   color: var(--text-muted, #555);
 }
 
-/* Quiet visual separator on the demoted Operators & Modifiers portal
-   card. Pushes the card out of the primary lookup ladder without a
-   loud secondary badge. */
-.freestyle-portal-card-advanced {
-  border-top: 1px dashed var(--border, #e2e8f0);
-  padding-top: 14px;
-}
-
-/* Lightweight example-chip strip rendered inside the Reference Shelf
-   operators-modifiers panel. Non-interactive preview tokens; the
-   single CTA below the chips handles navigation. */
-.freestyle-shelf-example-chips {
-  margin: 10px 0 4px 0;
-  font-size: 0.9rem;
-  color: #4a4a4a;
-  letter-spacing: 0.01em;
-}
-.freestyle-shelf-example-chip {
-  display: inline-block;
-  padding: 1px 8px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.85rem;
-  color: #3b3b3b;
-  background: #f4f4ef;
-  border: 1px solid #e3e3da;
-  border-radius: 3px;
-}
-.freestyle-shelf-example-sep {
-  color: #b0b0b0;
-}
-
-/* Freestyle Reference Shelf — grouped expandable reference panels. */
-.freestyle-reference-shelf {
+/* Movement Reference — unified six-card section that replaces the prior
+   Reference Shelf <details> stack AND the duplicated standalone
+   "Operators & Modifiers" portal card. Landing Page Phase 1
+   (2026-05-21). Six uniform teaser cards in a 3-column grid; each
+   card carries title + summary + optional preview chips + single
+   outbound CTA. Cards adopt the muted-tone cohort treatment used by
+   .browse-view-intro + .trick-family-anchor-callout so the section
+   reads as a single visual cohort. */
+.freestyle-movement-reference {
   margin: 32px 0 28px 0;
-  padding: 18px 20px 14px 20px;
-  background: #fcfaf3;
-  border: 1px solid #c4a86a;
-  border-radius: 8px;
 }
-.freestyle-reference-shelf-title {
+.freestyle-movement-reference-title {
   margin: 0 0 6px 0;
-  font-size: 1.15rem;
-  color: #3a3326;
+  font-size: 1.25rem;
+  color: var(--text-primary, #1f2937);
 }
-.freestyle-reference-shelf-lede {
-  margin: 0 0 14px 0;
-  font-size: 0.92rem;
+.freestyle-movement-reference-lede {
+  margin: 0 0 18px 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
   color: var(--text-muted, #555);
   max-width: 720px;
 }
-.freestyle-reference-shelf-panel {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid #ece6d4;
+.freestyle-movement-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
 }
-.freestyle-reference-shelf-panel:first-of-type {
-  border-top: none;
-}
-.freestyle-reference-shelf-summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 10px 0;
+.freestyle-movement-reference-card {
+  background: #f4f1ea;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
-.freestyle-reference-shelf-summary::-webkit-details-marker { display: none; }
-.freestyle-reference-shelf-summary::before {
-  content: "▸";
-  display: inline-block;
-  margin-right: 8px;
-  color: var(--text-muted, #64748b);
-  transition: transform 0.15s ease;
-}
-.freestyle-reference-shelf-panel[open] > .freestyle-reference-shelf-summary::before {
-  transform: rotate(90deg);
-}
-.freestyle-reference-shelf-summary-title {
+.freestyle-movement-reference-card-title {
+  margin: 0 0 8px 0;
+  font-size: 1.02rem;
   font-weight: 600;
-  font-size: 1rem;
-  color: #3a3326;
-  display: inline;
+  color: var(--text-primary, #1f2937);
 }
-.freestyle-reference-shelf-summary-summary {
-  font-size: 0.85rem;
-  color: var(--text-muted, #64748b);
-  padding-left: 22px;
+.freestyle-movement-reference-card-summary {
+  margin: 0 0 10px 0;
+  font-size: 0.92rem;
   line-height: 1.45;
+  color: var(--text-primary, #1f2937);
+  flex-grow: 1;
 }
-.freestyle-reference-shelf-body {
-  padding: 8px 0 16px 22px;
+.freestyle-movement-reference-card-chips {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
 }
-.freestyle-reference-shelf-link-out {
-  margin: 14px 0 0 0;
+.freestyle-movement-reference-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82rem;
+  color: #3b3b3b;
+  background: #ece6dc;
+  border: 1px solid #d8d2c4;
+  border-radius: 3px;
+}
+.freestyle-movement-reference-chip-sep {
+  color: #b0b0b0;
+}
+.freestyle-movement-reference-card-cta {
+  margin: 4px 0 0 0;
+  font-size: 0.9rem;
+}
+@media (max-width: 760px) {
+  .freestyle-movement-reference-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 @media (max-width: 480px) {
-  .freestyle-reference-shelf {
-    padding: 14px 12px 12px 12px;
+  .freestyle-movement-reference-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
-  .freestyle-reference-shelf-summary-summary {
-    padding-left: 0;
-  }
-  .freestyle-reference-shelf-body {
-    padding-left: 0;
+  .freestyle-movement-reference-card {
+    padding: 12px 14px;
   }
 }
 

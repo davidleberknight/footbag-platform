@@ -517,15 +517,17 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
   });
 
-  it('landing page surfaces the operators-modifiers shelf panel with a lightweight preview only', async () => {
-    // Second-pass landing cleanup (2026-05-20): the embedded operator-
-    // board is gone from /freestyle. The panel holds an educational
-    // summary + 3 example chips + a single CTA pointing at the canonical
-    // operator reference. The legacy dual-CTA footer (Operator reference
-    // + Full set notation reference) is retired.
+  it('landing page surfaces Operators & Modifiers as a Movement Reference card with a single CTA', async () => {
+    // Landing Page Phase 1 (2026-05-21): the prior reference-shelf
+    // operators-modifiers panel was merged into the unified Movement
+    // Reference section. The entry now renders as a flat card with
+    // title + summary + preview chips + single outbound CTA pointing
+    // at /freestyle/operators. The legacy dual-CTA footer (Operator
+    // reference + Full set notation reference) is retired; no embedded
+    // operator-board on the landing surface.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
+    expect(res.text).toContain('id="movement-ref-operators-modifiers"');
     // No embedded operator-board grid on the landing surface.
     expect(res.text).not.toContain('class="operator-board ');
     // Single canonical CTA — no /freestyle/sets sibling.
@@ -2083,103 +2085,41 @@ describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
   });
 });
 
-describe('Freestyle landing — Basic Components section (C-1)', () => {
-  it('renders the Basic Components heading and all six component cards', async () => {
+// Basic Components (C-1) + Core Tricks (C-2) landing-grid contracts
+// retired by Landing Page Phase 1 (2026-05-21). The rich grids no
+// longer render on /freestyle; the Movement Reference section carries
+// flat teaser cards that link to the destinations where the content
+// lives canonically:
+//   - Basic Components → /freestyle/glossary#section-surfaces (and the
+//     §3 Dexterities / §4 Timing & Sets adjacent sections)
+//   - Core Tricks → /freestyle/tricks?view=family (where family-anchor
+//     atoms surface with the DP-1 family invariants)
+// The four-tier rendering hierarchy (NCR-3 Tier-2 operational notation
+// + Tier-1 descriptive prose) still applies on destination pages and
+// is tested in the first-class pilot + derivation-atlas suites.
+
+describe('Landing Page Phase 1 — legacy landing grids retired', () => {
+  it('Basic Components grid does NOT render on /freestyle (moved to glossary §2-§4)', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Basic Components');
-    for (const key of ['contact', 'set', 'dex', 'spin', 'duck', 'delay']) {
-      expect(res.text).toContain(`id="component-${key}"`);
-    }
+    expect(res.text).not.toContain('class="freestyle-basic-components-grid"');
+    expect(res.text).not.toContain('class="freestyle-component-card"');
+    expect(res.text).not.toContain('id="component-dex"');
+    // The Movement Reference Basic Components teaser exists and links
+    // to the glossary destination.
+    expect(res.text).toContain('id="movement-ref-basic-components"');
+    expect(res.text).toContain('/freestyle/glossary#section-surfaces');
   });
 
-  it('renders the Dex card with three sub-field rows (Direction / Movement type / Support type)', async () => {
+  it('Core Tricks grid does NOT render on /freestyle (moved to /freestyle/tricks?view=family)', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const dexIdx = res.text.indexOf('id="component-dex"');
-    expect(dexIdx).toBeGreaterThan(0);
-    // Slice forward to the next component card to scope assertions.
-    const after = res.text.slice(dexIdx);
-    const nextCard = after.indexOf('class="freestyle-component-card"');
-    const dexSlice = nextCard > 0 ? after.slice(0, nextCard) : after.slice(0, 1500);
-    expect(dexSlice).toMatch(/Direction/);
-    expect(dexSlice).toMatch(/Movement type/);
-    expect(dexSlice).toMatch(/Support type/);
-    expect(dexSlice).toMatch(/in-out/);
-    expect(dexSlice).toMatch(/out-in/);
-    expect(dexSlice).toMatch(/hippy/);
-    expect(dexSlice).toMatch(/leggy/);
-    expect(dexSlice).toMatch(/regular/);
-    expect(dexSlice).toMatch(/symposium/);
-  });
-
-  it('atom-shape Basic Components (Contact, Set, Spin, Duck, Delay) render without subfield blocks', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    for (const key of ['contact', 'set', 'spin', 'duck', 'delay']) {
-      const idx = res.text.indexOf(`id="component-${key}"`);
-      expect(idx).toBeGreaterThan(0);
-      const after = res.text.slice(idx);
-      const nextCard = after.indexOf('class="freestyle-component-card"', 50);
-      const slice = nextCard > 0 ? after.slice(0, nextCard) : after.slice(0, 600);
-      expect(slice).not.toContain('freestyle-component-subfields');
-    }
-  });
-});
-
-describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objects)', () => {
-  it('renders the Core Tricks heading and all 11 symbolic-object cards', async () => {
-    // Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the "clipper"
-    // foundational atom is anchored at slug `clipper-stall` with a
-    // `displaySlug: 'clipper'` override on the visible tag.
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Core Tricks');
-    const expected: ReadonlyArray<{ slug: string; display: string }> = [
-      { slug: 'clipper-stall',    display: 'clipper' },
-      { slug: 'mirage',           display: 'mirage' },
-      { slug: 'legover',          display: 'legover' },
-      { slug: 'pickup',           display: 'pickup' },
-      { slug: 'illusion',         display: 'illusion' },
-      { slug: 'whirl',            display: 'whirl' },
-      { slug: 'butterfly',        display: 'butterfly' },
-      { slug: 'swirl',            display: 'swirl' },
-      { slug: 'osis',             display: 'osis' },
-      { slug: 'around-the-world', display: 'around-the-world' },
-      { slug: 'orbit',            display: 'orbit' },
-    ];
-    for (const { slug, display } of expected) {
-      expect(res.text).toContain(`id="core-trick-${slug}"`);
-      expect(res.text).toContain(`#${display}`);
-    }
-  });
-
-  it('every core-trick card renders one editorial ≡ atom reading (Formula Accountability Slice 2026-05-17)', async () => {
-    // Formula Accountability Slice (2026-05-17): the prior silence policy
-    // ("foundational-atom feel" = no ≡ lines on landing atoms) was replaced
-    // by short editorial readings ("core atom — <description>") so atom
-    // cards stop rendering visually emptier than the compounds they decompose
-    // to. Misleading aliases (ATW / outside-in mirage / reverse around-the-world)
-    // are NOT used as the new readings — see the portal.routes test.
-    const res = await request(createApp()).get('/freestyle');
-    for (const slug of ['illusion', 'around-the-world', 'orbit', 'clipper-stall', 'whirl', 'butterfly']) {
-      const idx = res.text.indexOf(`id="core-trick-${slug}"`);
-      expect(idx).toBeGreaterThan(0);
-      const nextCard = res.text.indexOf('class="core-trick-object"', idx + 50);
-      const slice = nextCard > 0 ? res.text.slice(idx, nextCard) : res.text.slice(idx, idx + 600);
-      expect(slice, `${slug} card missing editorial atom reading`).toContain('core-trick-equivalence');
-      expect(slice).toMatch(/core atom/);
-    }
-  });
-
-  it('renders ADD values from freestyle_tricks for present rows and pending marker for missing rows', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    // clipper ADD=1 (per seeded freestyle_tricks row in this test file's beforeAll)
-    // We can't guarantee a specific ADD without checking factories, so assert
-    // structurally: the present-row cards carry a numeric ADD value, and orbit
-    // (DB-missing per the IA realignment plan R3) carries the pending marker.
-    const orbitIdx = res.text.indexOf('id="core-trick-orbit"');
-    expect(orbitIdx).toBeGreaterThan(0);
-    const orbitSlice = res.text.slice(orbitIdx, orbitIdx + 600);
-    expect(orbitSlice).toContain('core-trick-add-pending');
-    // The footnote about pending entries renders at the section level.
-    expect(res.text).toMatch(/pending dictionary entry/i);
+    expect(res.text).not.toContain('class="freestyle-core-trick-grid"');
+    expect(res.text).not.toContain('class="core-trick-object"');
+    expect(res.text).not.toContain('id="core-trick-whirl"');
+    expect(res.text).not.toContain('id="core-trick-mirage"');
+    // The Movement Reference Core Tricks teaser exists and links to
+    // the family-view destination.
+    expect(res.text).toContain('id="movement-ref-core-tricks"');
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view&#x3D;family"/);
   });
 });
 
@@ -2422,45 +2362,14 @@ describe('Freestyle glossary — re-bloat guard', () => {
 // plus dictionary unification (CSS-level). Most assertions are structural:
 // class presence, anchor presence, ordering.
 
-describe('Freestyle landing — Batch 4: symbolic-object class contract preserved', () => {
-  it('Core Tricks grid still renders each card with the .core-trick-object class', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    const matches = res.text.match(/class="core-trick-object"/g) ?? [];
-    // Twelve canonical core tricks.
-    expect(matches.length).toBe(12);
-  });
-
-  it('each Core Tricks card carries the .core-trick-slug element (PRIMARY layer)', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    const matches = res.text.match(/class="core-trick-slug"/g) ?? [];
-    expect(matches.length).toBe(12);
-  });
-
-  it('Core Tricks cards carry editorial atom readings + foundational ADD formulas', async () => {
-    // Formula Accountability Slice (2026-05-17) introduced "core atom —
-    // <description>" prose readings, one per atom. The foundational-formula
-    // slice (2026-05-18) briefly added a second reading per atom (accounting
-    // derivation). The Notation Normalization Wave (NCR-2, 2026-05-18)
-    // demotes the accounting derivation off the landing grid: 12 atoms × 1
-    // descriptive reading = 12 total .core-trick-equivalence lines.
-    // Accounting derivations remain accessible at /freestyle/add-analysis.
-    const res = await request(createApp()).get('/freestyle');
-    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
-    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
-    expect(gridStart).toBeGreaterThan(0);
-    const slice = res.text.slice(gridStart, gridEnd);
-    const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBe(12);
-  });
-
-  it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    const orbitIdx = res.text.indexOf('id="core-trick-orbit"');
-    expect(orbitIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(orbitIdx, orbitIdx + 600);
-    expect(slice).toContain('core-trick-add-pending');
-  });
-});
+// Batch 4 "symbolic-object class contract preserved" — retired by
+// Landing Page Phase 1 (2026-05-21). The .core-trick-object / .core-
+// trick-slug / .core-trick-equivalence / core-trick-add-pending classes
+// pinned the landing Core Tricks grid which no longer renders. The
+// `core-tricks-grid` Handlebars partial is still in use on the
+// glossary page (§5 "Other foundational atoms"), where the class
+// contract is preserved and tested. Landing-side contract retired
+// alongside the grid.
 
 describe('Freestyle glossary — Batch 4: compression-flow visual continuity (Slice X compact form)', () => {
   it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {

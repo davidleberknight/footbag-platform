@@ -535,22 +535,30 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toContain('III · Structure');
   });
 
-  it('renders the lightweight operators-modifiers preview inside the shelf panel', async () => {
+  it('renders the lightweight operators-modifiers card inside the Movement Reference section', async () => {
+    // Landing Page Phase 1 (2026-05-21): the prior shelf-panel was
+    // lifted upward into the unified Movement Reference section. The
+    // Operators & Modifiers card retains its lightweight teaser shape:
+    // three example chips (pixie · spinning · paradox) + single CTA
+    // pointing at /freestyle/operators. The card uses the standardized
+    // .glossary-outward-link class for the CTA (GA-6 convention) and
+    // the new "Operator reference →" phrasing.
     const res = await request(createApp()).get('/freestyle');
-    const panelStart = res.text.indexOf('id="shelf-panel-operators-modifiers"');
-    expect(panelStart).toBeGreaterThan(0);
-    const panelEnd = res.text.indexOf('</details>', panelStart);
-    const panel    = res.text.slice(panelStart, panelEnd);
+    const cardStart = res.text.indexOf('id="movement-ref-operators-modifiers"');
+    expect(cardStart).toBeGreaterThan(0);
+    const cardEnd = res.text.indexOf('</article>', cardStart);
+    const card    = res.text.slice(cardStart, cardEnd);
     // Three non-interactive example chips: pixie · spinning · paradox.
-    expect(panel).toContain('class="freestyle-shelf-example-chips"');
+    expect(card).toContain('class="freestyle-movement-reference-card-chips"');
     for (const slug of ['pixie', 'spinning', 'paradox']) {
-      expect(panel).toMatch(new RegExp(`data-token-slug="${slug}"`));
+      expect(card).toMatch(new RegExp(`data-token-slug="${slug}"`));
     }
-    // Single CTA pointing at /freestyle/operators with the new label.
-    expect(panel).toContain('href="/freestyle/operators"');
-    expect(panel).toMatch(/Open full operator reference/);
+    // Single CTA pointing at /freestyle/operators with the standardized
+    // Phase 6 vocabulary ("Operator reference →").
+    expect(card).toContain('href="/freestyle/operators"');
+    expect(card).toMatch(/Operator reference\s*&rarr;/);
     // No duplicate /freestyle/sets CTA (the dual-CTA footer is retired).
-    expect(panel).not.toContain('href="/freestyle/sets"');
+    expect(card).not.toContain('href="/freestyle/sets"');
   });
 
   it('does NOT render the Operators & Modifiers portal-card "Advanced Reference" tag/badge', async () => {
@@ -562,14 +570,21 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toMatch(/Operators &amp; Modifiers <span[^>]*>Advanced reference/);
   });
 
-  it('renders the Operators & Modifiers portal-card CTA exactly once with the new label', async () => {
+  it('Operators & Modifiers card appears exactly once on /freestyle (Movement Reference; no portal-card duplicate)', async () => {
+    // Landing Page Phase 1 (2026-05-21): the duplicated standalone
+    // "Operators & Modifiers" portal card was retired. The single
+    // Operators & Modifiers surface on /freestyle now lives inside the
+    // Movement Reference section. The card's CTA label is "Operator
+    // reference" (matching the GA-6 standardized outward-link
+    // vocabulary).
     const res = await request(createApp()).get('/freestyle');
-    const ctaMatches = res.text.match(/Open full operator reference/g) ?? [];
-    // Two occurrences total: portal card + shelf panel. No third copy.
-    expect(ctaMatches.length).toBe(2);
-    // The pre-cleanup short label "Operator reference →" must not appear
-    // as a standalone landing-page link any more.
-    expect(res.text).not.toMatch(/<a[^>]*href="\/freestyle\/operators"[^>]*>Operator reference &rarr;<\/a>/);
+    // Verify the new CTA label appears.
+    expect(res.text).toMatch(/Operator reference\s*&rarr;/);
+    // The pre-cleanup demoted-portal-card class must not appear.
+    expect(res.text).not.toContain('freestyle-portal-card-advanced');
+    // The pre-cleanup "Open full operator reference" CTA was tied to
+    // the demoted portal card; the new Movement Reference card uses
+    // the standardized "Operator reference →" phrasing instead.
   });
 
   it('/freestyle/operators still owns the exhaustive operator reference', async () => {
@@ -592,33 +607,15 @@ describe('GET /freestyle — onboarding + portal landing', () => {
 //   F4: covered by freestyle.dictionary-trick-card.routes.test (out of scope here).
 //   F7: tag-strip renders on every visible curated demonstration.
 describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)', () => {
-  it('F1 — core-trick cards render the numeric ADD value, not a Handlebars helper-shadow string', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // The pre-fix render emitted "[object Object]undefined" because the data
-    // field `{{add}}` collided with the helper named `add` in src/app.ts.
-    // Fix: rename the field to `addNumeric`. Guard against regression.
-    expect(res.text).not.toContain('[object Object]undefined');
-    expect(res.text).not.toContain('[object Object]');
-    // The seeded `whirl` core-trick has adds=3 in beforeAll; its card must
-    // render the numeric value inside .core-trick-add-value.
-    expect(res.text).toMatch(
-      /id="core-trick-whirl"[\s\S]*?<span class="core-trick-add-value">3<\/span>/,
-    );
-  });
-
-  it('F1 — atoms without a seeded dictionary row render the "ADD pending" em-dash, not undefined', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // `orbit` is in CORE_TRICK_SPEC but no DB row was seeded for it in this
-    // test fixture. The card must render the pending state, not "undefined".
-    expect(res.text).toMatch(
-      /id="core-trick-orbit"[\s\S]*?core-trick-add-pending[\s\S]*?&mdash;/,
-    );
-    expect(res.text).not.toMatch(
-      /id="core-trick-orbit"[\s\S]*?<span class="core-trick-add-value">undefined<\/span>/,
-    );
-  });
+  // F1 sub-tests (core-trick ADD numeric rendering + orbit ADD-pending
+  // marker) were pinned to the embedded landing Core Tricks grid.
+  // Landing Page Phase 1 (2026-05-21) retired that grid from /freestyle;
+  // Core Tricks now renders as a flat teaser card in the Movement
+  // Reference section linking to /freestyle/tricks?view=family where
+  // the rich grid lives. The "[object Object]" helper-shadow guard +
+  // ADD-pending contract migrate with the grid to its destination page
+  // tests (freestyle.family-view-identity.routes.test.ts +
+  // freestyle.glossary-derivation-atlas.routes.test.ts).
 
   // F2 sub-tests (BL=Blurry semantic + Atomic/Quantum/Fairy dex-direction
   // actions) were pinned to the embedded landing operator-board grid.
@@ -657,7 +654,7 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     // was removed from /freestyle, so the previous endIdx marker
     // ('operator-board') is no longer present. The Reference Shelf section
     // is the natural lower bound of the Featured grid region.
-    const endIdx   = res.text.indexOf('class="content-section freestyle-reference-shelf"', startIdx);
+    const endIdx   = res.text.indexOf('class="content-section freestyle-movement-reference"', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 12000);
     // Four chip strips: one each for Reese-1988 + Conlon-1998 + Worlds-2023-Team
@@ -676,26 +673,28 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
 
 // ── Landing compression + under-hero jump nav invariants ─────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants', () => {
-  it('renders the under-hero jump nav with two anchors (Featured + Reference shelf)', async () => {
-    // Landing IA refactor (2026-05-19): the three legacy anchors
-    // (#basic-components, #operators, #core-tricks) collapsed into a
-    // single #reference-shelf anchor when those sections moved inside
-    // the grouped expandable reference shelf below Featured.
+  it('renders the under-hero jump nav with two anchors (Featured + Movement reference)', async () => {
+    // Landing Page Phase 1 (2026-05-21): the prior #reference-shelf
+    // anchor was retired when the reference shelf was lifted upward
+    // into the Movement Reference section. Jump-nav anchors are now
+    // Featured + Movement reference.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="page-jump-nav"');
     expect(res.text).toContain('aria-label="On this page"');
-    for (const anchor of ['#featured', '#reference-shelf']) {
+    for (const anchor of ['#featured', '#movement-reference']) {
       expect(res.text).toContain(`href="${anchor}"`);
     }
     // Matching section ids are present.
-    for (const id of ['featured', 'reference-shelf']) {
+    for (const id of ['featured', 'movement-reference']) {
       expect(res.text).toMatch(new RegExp(`id="${id}"`));
     }
-    // The legacy three-anchor list must not reappear.
+    // The retired anchors (legacy three-anchor list + reference shelf)
+    // must not reappear.
     expect(res.text).not.toContain('href="#basic-components"');
     expect(res.text).not.toContain('href="#operators"');
     expect(res.text).not.toContain('href="#core-tricks"');
+    expect(res.text).not.toContain('href="#reference-shelf"');
     // The retired "#where-next" anchor + id must not appear.
     expect(res.text).not.toContain('href="#where-next"');
     expect(res.text).not.toContain('id="where-next"');
@@ -708,196 +707,42 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
   // partial wherever it renders (/freestyle/learn), tested in
   // tests/integration/freestyle.symbolic-discoverability.routes.test.ts.
 
-  it('basic-component descriptions are compressed (≤10 words each)', async () => {
+  it('Phase 1 contract: the basic-components grid does NOT render on /freestyle', async () => {
+    // Landing Page Phase 1 (2026-05-21): the Basic Components rich grid
+    // (six component cards with subfield rows) was retired from the
+    // landing. The Movement Reference card for Basic Components is a
+    // flat teaser linking to /freestyle/glossary#section-surfaces, where
+    // the components content lives canonically. This test guards
+    // against regression — the rich grid must not return to the landing.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    const descs = [...res.text.matchAll(/<p class="freestyle-component-desc">([^<]+)<\/p>/g)];
-    expect(descs.length).toBe(6);
-    for (const m of descs) {
-      const wc = m[1].trim().split(/\s+/).length;
-      expect(wc).toBeLessThanOrEqual(10);
-    }
-    // The retired multi-sentence descriptions must not survive.
-    expect(res.text).not.toContain('Start and end of most standard tricks.');
-    expect(res.text).not.toContain('The most common, \'main\' component of trick composition');
+    expect(res.text).not.toContain('class="freestyle-basic-components-grid"');
+    expect(res.text).not.toContain('class="freestyle-component-card"');
+    expect(res.text).not.toContain('class="freestyle-component-desc"');
   });
 });
 
-// ── Symbolic strengthening: core-tricks alias drop ──────────────────────────
-describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alias drop (B)', () => {
-  it('landing Core Tricks renders the curator-authored operational notation in the core-trick-notation slot', async () => {
-    // NCR-1 (Notation Normalization Wave 2026-05-18): each foundational
-    // atom now carries curator-authored operational notation sourced from
-    // CoreTrickSpec.operationalNotation (TS content module). The slot
-    // renders inside the core-trick-object article on every atom card.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // Mirage: hippy in + op toe.
-    const mirageStart = res.text.indexOf('id="core-trick-mirage"');
-    expect(mirageStart).toBeGreaterThan(0);
-    const mirageEnd = res.text.indexOf('</article>', mirageStart);
-    const mirageBlock = res.text.slice(mirageStart, mirageEnd);
-    expect(mirageBlock).toMatch(/<p class="core-trick-notation">\[set\] &gt; hippy in dex &gt; op toe<\/p>/);
-    // Butterfly: hippy out + ss clipper terminal.
-    const butterflyStart = res.text.indexOf('id="core-trick-butterfly"');
-    const butterflyBlock = res.text.slice(butterflyStart, res.text.indexOf('</article>', butterflyStart));
-    expect(butterflyBlock).toMatch(/<p class="core-trick-notation">\[set\] &gt; hippy out dex &gt; ss clipper<\/p>/);
-    // ATW: explicit toe plant with ss(midtime) qualifier.
-    const atwStart = res.text.indexOf('id="core-trick-around-the-world"');
-    const atwBlock = res.text.slice(atwStart, res.text.indexOf('</article>', atwStart));
-    expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss\(midtime\) in dex &gt; ss toe<\/p>/);
-  });
+// Phase 2 + NCR-3 describe blocks retired by Landing Page Phase 1
+// (2026-05-21). The embedded Core Tricks grid no longer renders on the
+// landing surface; the Movement Reference Core Tricks card teases the
+// concept and links to /freestyle/tricks?view=family where the family-
+// anchor cohort lives. The 4-tier rendering hierarchy contract
+// (NCR-3 Tier-2 operational notation + Tier-1 descriptive prose) still
+// applies on the destination pages and is tested there:
+//   - First-class Notation summary contract: freestyle.first-class-pilot
+//   - Family-view operational chain rendering: freestyle.glossary-
+//     derivation-atlas (the derivation atlas surfaces the same chains)
+//   - ATOMIC_FLAG_DECOMPOSITIONS data: freestyleConvergenceRule unit tests
 
-  it('landing Core Tricks renders editorial prose readings; accounting formulas demoted off the landing', async () => {
-    // NCR-1 / NCR-2 (Notation Normalization Wave 2026-05-18): the prior
-    // 2-reading shape (descriptive prose + accounting formula) is replaced
-    // by a single descriptive prose reading per atom + a curator-authored
-    // operational-notation paragraph (asserted by the sibling test above).
-    // Accounting derivations remain accessible on /freestyle/add-analysis;
-    // they are pruned from the landing grid via the shapeCoreTricks helper
-    // (Path B / decision #3 of the wave).
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
-    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
-    expect(gridStart).toBeGreaterThan(0);
-    const slice = res.text.slice(gridStart, gridEnd);
-    // 12 atoms × 1 descriptive reading = 12 total ≡ lines (post NCR-2).
-    const equivMatches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(equivMatches.length).toBe(12);
-    // Prose readings (Formula Accountability Slice contract preserved):
-    expect(slice).toMatch(/core atom — cross-body rotational dex/);
-    expect(slice).toMatch(/core atom — rotational dex/);
-    expect(slice).toMatch(/core atom — dex with full bag orbit/);
-    expect(slice).toMatch(/core atom — alias of reverse around-the-world/);
-    // Accounting formulas pruned off the landing per NCR-2. These patterns
-    // must NOT appear anywhere in the Core Tricks grid section. The
-    // formulas remain accessible at /freestyle/add-analysis.
-    expect(slice).not.toContain('xbody(1) + stall(1) &#x3D; 2 ADD');
-    expect(slice).not.toContain('dex(1) + stall(1) &#x3D; 2 ADD');
-    expect(slice).not.toContain('xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD');
-    expect(slice).not.toContain('dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD');
-    expect(slice).not.toContain('spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD');
-    expect(slice).not.toContain('full-orbit dex(1) + stall(1) &#x3D; 2 ADD');
-    expect(slice).not.toContain('reverse full-orbit dex(1) + stall(1) &#x3D; 2 ADD');
-    // The retired misleading aliases must still not surface anywhere.
-    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
-    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
-    // "reverse around-the-world" is no longer guarded out — it appears
-    // legitimately on the orbit card as the curator-confirmed alias
-    // mapping (2026-05-18 foundational-formula correction). Asserted
-    // positively above via the orbit prose reading.
-    // All 11 atoms still render as #slug tiles. Per
-    // CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
-    // "clipper" atom is anchored at slug `clipper-stall` with a
-    // `displaySlug: 'clipper'` override — visible tag stays `#clipper`,
-    // but the anchor id is `core-trick-clipper-stall`.
-    const expectedAtoms = [
-      { slug: 'clipper-stall',    display: 'clipper' },
-      { slug: 'mirage',           display: 'mirage' },
-      { slug: 'legover',          display: 'legover' },
-      { slug: 'pickup',           display: 'pickup' },
-      { slug: 'illusion',         display: 'illusion' },
-      { slug: 'whirl',            display: 'whirl' },
-      { slug: 'butterfly',        display: 'butterfly' },
-      { slug: 'swirl',            display: 'swirl' },
-      { slug: 'osis',             display: 'osis' },
-      { slug: 'around-the-world', display: 'around-the-world' },
-      { slug: 'orbit',            display: 'orbit' },
-    ];
-    for (const { slug, display } of expectedAtoms) {
-      expect(res.text).toContain(`id="core-trick-${slug}"`);
-      expect(res.text).toContain(`#${display}`);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Notation Normalization Wave — Slice N4 (NCR-3)
-// 4-tier rendering hierarchy contract on landing Core Tricks grid
-// ---------------------------------------------------------------------------
-
-describe('Notation Normalization Wave NCR-3 — landing Core Tricks tier contract', () => {
-  // Verbatim curator-authored operational notation per atom (CoreTrickSpec
-  // .operationalNotation, sourced from the wave brief). HTML escape: `>`
-  // becomes `&gt;` in attribute/text output; brackets + parens pass through
-  // unescaped.
-  const ATOM_OP_NOTATION: ReadonlyArray<{ slug: string; notation: string }> = [
-    { slug: 'toe-stall',        notation: '[set] &gt; toe' },
-    { slug: 'clipper-stall',    notation: '[set] &gt; clipper' },
-    { slug: 'mirage',           notation: '[set] &gt; hippy in dex &gt; op toe' },
-    { slug: 'legover',          notation: '[set] &gt; leggy out dex &gt; ss toe' },
-    { slug: 'pickup',           notation: '[set] &gt; leggy in dex &gt; ss toe' },
-    { slug: 'illusion',         notation: '[set] &gt; leggy out dex &gt; op toe' },
-    { slug: 'whirl',            notation: '[set] &gt; leggy in dex &gt; ss clipper' },
-    { slug: 'butterfly',        notation: '[set] &gt; hippy out dex &gt; ss clipper' },
-    { slug: 'swirl',            notation: '[set] &gt; leggy (xbd) out dex &gt; ss clipper' },
-    { slug: 'osis',             notation: '[set] &gt; (downtime) spin &gt; ss clipper' },
-    { slug: 'around-the-world', notation: 'toe &gt; ss(midtime) in dex &gt; ss toe' },
-    { slug: 'orbit',            notation: 'toe &gt; ss(midtime) out dex &gt; ss toe' },
-  ];
-
-  it('every atom card renders its curator-authored Tier-2 operational notation verbatim', async () => {
-    // 4-tier rendering hierarchy contract (NCR-3): each of the 12 atoms
-    // renders its CoreTrickSpec.operationalNotation string as Tier 2 on
-    // the landing Core Tricks grid. The full contract lives in
-    // exploration/notation-normalization-2026-05-18/public_notation_render_hierarchy.md.
+describe('Landing Page Phase 1 — Core Tricks grid retired from landing', () => {
+  it('the legacy .freestyle-core-trick-grid does NOT render on /freestyle', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.status).toBe(200);
-    for (const { slug, notation } of ATOM_OP_NOTATION) {
-      const cardStart = res.text.indexOf(`id="core-trick-${slug}"`);
-      expect(cardStart, `core-trick card for '${slug}' not found`).toBeGreaterThan(0);
-      const cardEnd = res.text.indexOf('</article>', cardStart);
-      const card = res.text.slice(cardStart, cardEnd);
-      expect(card, `${slug} card missing Tier-2 operational notation`).toContain(notation);
-    }
-  });
-
-  it('Tier-4 executable-accounting prose is absent from the landing Core Tricks grid', async () => {
-    // The accounting patterns must not appear inside the
-    // .freestyle-core-trick-grid section after NCR-2 demoted them to
-    // /freestyle/add-analysis. Guards future slices from re-introducing
-    // the accounting line.
-    const res = await request(createApp()).get('/freestyle');
-    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
-    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
-    expect(gridStart).toBeGreaterThan(0);
-    const grid = res.text.slice(gridStart, gridEnd);
-    const accountingPatterns: ReadonlyArray<RegExp> = [
-      /\bxbody\(\d/,
-      /\bdex\(\d/,
-      /\bstall\(\d/,
-      /\bspin\(\d/,
-      /(?:=|&#x3D;)\s*\d+\s*ADD\b/,
-      /full-orbit dex\(\d/,
-    ];
-    for (const pattern of accountingPatterns) {
-      expect(
-        grid,
-        `landing Core Tricks grid must not render Tier-4 accounting pattern ${pattern}`,
-      ).not.toMatch(pattern);
-    }
-  });
-
-  it('Tier-1 descriptive prose remains visible on every atom card', async () => {
-    // Post NCR-2, atom cards keep one ≡ line carrying the descriptive
-    // prose (CORE_TRICK_SPEC.equivalences[0]) as Tier 1. Spot-check a
-    // few atom-slug + prose-fragment pairs to confirm the prose layer
-    // wasn't accidentally pruned alongside the accounting formula.
-    const res = await request(createApp()).get('/freestyle');
-    const proseFragments: ReadonlyArray<{ slug: string; fragment: string }> = [
-      { slug: 'mirage',           fragment: 'core atom — cross-body rotational dex' },
-      { slug: 'whirl',            fragment: 'core atom — rotational dex' },
-      { slug: 'osis',             fragment: 'core atom — double-pass rotational dex' },
-      { slug: 'around-the-world', fragment: 'core atom — dex with full bag orbit' },
-    ];
-    for (const { slug, fragment } of proseFragments) {
-      const cardStart = res.text.indexOf(`id="core-trick-${slug}"`);
-      expect(cardStart).toBeGreaterThan(0);
-      const cardEnd = res.text.indexOf('</article>', cardStart);
-      const card = res.text.slice(cardStart, cardEnd);
-      expect(card, `${slug} card missing Tier-1 prose '${fragment}'`).toContain(fragment);
-    }
+    expect(res.text).not.toContain('class="freestyle-core-trick-grid"');
+    expect(res.text).not.toContain('class="core-trick-object"');
+    // The Core Tricks card now lives in Movement Reference; verify the
+    // teaser card exists and links to /freestyle/tricks?view=family.
+    expect(res.text).toContain('id="movement-ref-core-tricks"');
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view&#x3D;family"/);
   });
 });
 
@@ -907,90 +752,120 @@ describe('Notation Normalization Wave NCR-3 — landing Core Tricks tier contrac
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Landing IA refactor (2026-05-19) — reference shelf
-// Basic Components and Core Tricks live inside collapsed <details> panels
-// under the grouped Reference Shelf below Featured. Second-pass cleanup
-// (2026-05-20) renamed the shelf 'Freestyle Reference Shelf' → 'Reference
-// Shelf' and demoted the operators-modifiers panel from an embedded
-// operator-board grid to a lightweight 3-chip preview + single CTA.
+// Landing Page Phase 1 (2026-05-21) — Movement Reference section
+// The prior Reference Shelf <details> stack + duplicated standalone
+// "Operators & Modifiers" portal card were retired. The six reference
+// entries (Basic Components / Core Tricks / Operators & Modifiers /
+// ADD & Scoring / Notation Basics / Learning Path) now render as uniform
+// teaser cards in a 3-col grid in a unified Movement Reference section
+// between the portal cards and Featured. Each card is a porch (title +
+// summary + optional chips + single outbound CTA); depth lives on the
+// destination page.
 // ---------------------------------------------------------------------------
 
-describe('Landing IA refactor — Reference Shelf', () => {
-  it('renders the reference shelf section AFTER Featured', async () => {
+describe('Landing Page Phase 1 — Movement Reference section', () => {
+  it('renders the Movement Reference section ABOVE Featured (lifted upward from the prior shelf position)', async () => {
     const res = await request(createApp()).get('/freestyle');
+    const refIdx      = res.text.indexOf('class="content-section freestyle-movement-reference"');
     const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
-    const shelfIdx    = res.text.indexOf('class="content-section freestyle-reference-shelf"');
-    expect(featuredIdx).toBeGreaterThan(0);
-    expect(shelfIdx).toBeGreaterThan(featuredIdx);
+    expect(refIdx).toBeGreaterThan(0);
+    expect(featuredIdx).toBeGreaterThan(refIdx);
   });
 
-  it('renders the six expandable shelf panels with stable slugs', async () => {
+  it('the prior lower Reference Shelf section is retired', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).not.toContain('class="content-section freestyle-reference-shelf"');
+    expect(res.text).not.toMatch(/id="shelf-panel-/);
+    expect(res.text).not.toMatch(/freestyle-reference-shelf-summary/);
+  });
+
+  it('renders six Movement Reference cards with stable slug-anchor ids', async () => {
     const res = await request(createApp()).get('/freestyle');
     for (const slug of [
       'basic-components', 'core-tricks', 'operators-modifiers',
       'add-scoring', 'notation-basics', 'learning-path',
     ]) {
-      expect(res.text).toMatch(new RegExp(`id="shelf-panel-${slug}"`));
+      expect(res.text).toMatch(new RegExp(`id="movement-ref-${slug}"`));
     }
   });
 
-  it('all shelf panels are collapsed by default (no open attribute)', async () => {
+  it('cards are flat (not <details> collapsibles) — depth lives on destination pages', async () => {
     const res = await request(createApp()).get('/freestyle');
-    // <details> elements should NOT carry the `open` attribute on initial
-    // render — visitors must opt in to deep reference material.
-    expect(res.text).not.toMatch(/class="freestyle-reference-shelf-panel"\s+open/);
-    expect(res.text).not.toMatch(/<details[^>]+class="freestyle-reference-shelf-panel"[^>]*\sopen/);
+    const startIdx = res.text.indexOf('class="content-section freestyle-movement-reference"');
+    const endIdx   = res.text.indexOf('class="content-section freestyle-featured"', startIdx);
+    expect(startIdx).toBeGreaterThan(0);
+    const region = res.text.slice(startIdx, endIdx);
+    // No <details> inside the Movement Reference section.
+    expect(region).not.toMatch(/<details/);
+    expect(region).not.toMatch(/<summary/);
   });
 
-  it('Basic Components grid renders inside the basic-components shelf panel (not as a standalone section)', async () => {
+  it('Operators & Modifiers card renders preview chips (pixie / spinning / paradox)', async () => {
     const res = await request(createApp()).get('/freestyle');
-    // The legacy standalone wrapper class is gone.
-    expect(res.text).not.toContain('class="content-section freestyle-basic-components"');
-    // The grid + 6 cards still render — now inside the shelf body.
-    expect(res.text).toContain('class="freestyle-basic-components-grid"');
-    // The panel body wrapper carries the slug-tagged class.
-    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--basic-components"/);
+    const cardStart = res.text.indexOf('id="movement-ref-operators-modifiers"');
+    const cardEnd   = res.text.indexOf('</article>', cardStart);
+    expect(cardStart).toBeGreaterThan(0);
+    const region = res.text.slice(cardStart, cardEnd);
+    expect(region).toContain('class="freestyle-movement-reference-chip"');
+    expect(region).toMatch(/data-token-slug="pixie"/);
+    expect(region).toMatch(/data-token-slug="spinning"/);
+    expect(region).toMatch(/data-token-slug="paradox"/);
   });
 
-  it('operators-modifiers shelf panel renders the lightweight preview (no embedded board)', async () => {
-    // Second-pass landing cleanup (2026-05-20): the embedded operator-
-    // board encyclopedia is removed; the panel body holds only the
-    // educational summary + 3 example chips + single CTA.
+  it('every card carries a single outbound CTA using the standardized .glossary-outward-link class', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
-    // No embedded operator-board grid.
-    expect(res.text).not.toContain('class="operator-board ');
-    // Panel body holds the chip preview + CTA pointing at /freestyle/operators.
-    const shelfStart = res.text.indexOf('id="shelf-panel-operators-modifiers"');
-    const shelfEnd   = res.text.indexOf('</details>', shelfStart);
-    expect(shelfStart).toBeGreaterThan(0);
-    const region = res.text.slice(shelfStart, shelfEnd);
-    expect(region).toContain('class="freestyle-shelf-example-chips"');
-    expect(region).toContain('href="/freestyle/operators"');
-    expect(region).toContain('Open full operator reference');
+    const slugToDestination: Record<string, string> = {
+      'basic-components':     '/freestyle/glossary#section-surfaces',
+      'core-tricks':          '/freestyle/tricks?view=family',
+      'operators-modifiers':  '/freestyle/operators',
+      'add-scoring':          '/freestyle/add-analysis',
+      'notation-basics':      '/freestyle/glossary#section-notation',
+      'learning-path':        '/freestyle/learn',
+    };
+    for (const [slug, dest] of Object.entries(slugToDestination)) {
+      const cardStart = res.text.indexOf(`id="movement-ref-${slug}"`);
+      expect(cardStart, `card ${slug} missing`).toBeGreaterThan(0);
+      const cardEnd = res.text.indexOf('</article>', cardStart);
+      const region  = res.text.slice(cardStart, cardEnd);
+      // Each card has one (and only one) glossary-outward-link CTA.
+      const linkMatches = region.match(/class="glossary-outward-link"/g) ?? [];
+      expect(linkMatches.length, `card ${slug} CTA count`).toBe(1);
+      // Handlebars HTML-escapes '=' to '&#x3D;' in href attributes.
+      const escapedDest = dest.replace(/=/g, '&#x3D;');
+      expect(region, `card ${slug} destination`).toContain(`href="${escapedDest}"`);
+    }
   });
 
-  it('Core Tricks grid renders inside the core-tricks shelf panel (not as a standalone section)', async () => {
+  it('Movement Reference section appears immediately after the portal-card grid (between portal grid and Featured)', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).not.toContain('class="content-section freestyle-core-tricks"');
-    expect(res.text).toContain('class="freestyle-core-trick-grid"');
-    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--core-tricks"/);
+    const portalGridIdx = res.text.indexOf('class="card-grid card-grid-2col"');
+    const refIdx        = res.text.indexOf('class="content-section freestyle-movement-reference"');
+    const featuredIdx   = res.text.indexOf('class="content-section freestyle-featured"');
+    expect(portalGridIdx).toBeGreaterThan(0);
+    expect(refIdx).toBeGreaterThan(portalGridIdx);
+    expect(featuredIdx).toBeGreaterThan(refIdx);
   });
 
-  it('preview-only panels carry their link-out CTA (ADD scoring / notation basics / learning path)', async () => {
+  it('the duplicated standalone "Operators & Modifiers" portal card is retired', async () => {
     const res = await request(createApp()).get('/freestyle');
-    // ADD scoring → /freestyle/add-analysis
-    const add = res.text.indexOf('id="shelf-panel-add-scoring"');
-    expect(add).toBeGreaterThan(0);
-    expect(res.text.slice(add, res.text.indexOf('</details>', add))).toContain('href="/freestyle/add-analysis"');
-    // Notation basics → /freestyle/glossary
-    const not = res.text.indexOf('id="shelf-panel-notation-basics"');
-    expect(not).toBeGreaterThan(0);
-    expect(res.text.slice(not, res.text.indexOf('</details>', not))).toContain('href="/freestyle/glossary"');
-    // Learning path → /freestyle/learn
-    const learn = res.text.indexOf('id="shelf-panel-learning-path"');
-    expect(learn).toBeGreaterThan(0);
-    expect(res.text.slice(learn, res.text.indexOf('</details>', learn))).toContain('href="/freestyle/learn"');
+    // The freestyle-portal-card-advanced demoted-card modifier class
+    // is no longer in use anywhere on the page.
+    expect(res.text).not.toContain('freestyle-portal-card-advanced');
+    // The standalone-card "Advanced movement vocabulary" framing prose
+    // is no longer present.
+    expect(res.text).not.toMatch(/Advanced movement vocabulary and decomposition theory/i);
+    // The Operators & Modifiers entry exists only once on the page —
+    // inside the Movement Reference section.
+    const cardTitleMatches = res.text.match(/freestyle-movement-reference-card-title">Operators &amp; Modifiers</g) ?? [];
+    expect(cardTitleMatches.length).toBe(1);
+  });
+
+  it('section title + lede frame the cards as the freestyle-language home', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toMatch(/freestyle-movement-reference-title[^>]*>\s*Movement Reference\s*</);
+    expect(res.text).toMatch(/freestyle-movement-reference-lede/);
+    // Lede mentions the freestyle language framing.
+    expect(res.text).toMatch(/The freestyle language/i);
   });
 });
 

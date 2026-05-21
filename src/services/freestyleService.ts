@@ -296,36 +296,36 @@ export interface FreestyleLandingExplainer {
   paragraphs: string[];
 }
 
-/** Reference-shelf entry surfaced after the featured-videos block. Each
- *  entry is a collapsed `<details>` panel; expanded body is rendered by
- *  the template per slug. The summary lede sits next to the disclosure
- *  arrow so visitors can decide whether to expand without committing.
- *  External-link panels (ADD scoring / notation primer / learning path)
- *  carry an explicit link-out CTA; the shelf is a porch, not a
- *  destination. */
-export interface FreestyleShelfExampleChip {
+/** Movement Reference card surfaced between the portal-card grid and
+ *  the Featured-videos block (Landing Page Phase 1, 2026-05-21). Each
+ *  card is a uniform teaser: title + one-line summary + optional
+ *  preview chips + single outbound CTA. Replaces the prior collapsed
+ *  `<details>` shelf and the duplicated standalone "Operators &
+ *  Modifiers" portal card. The card is a porch; depth lives on the
+ *  destination page. */
+export interface FreestyleMovementReferenceChip {
   slug:  string;   // 'pixie' — drives anchor + identity
   label: string;   // visible chip text (e.g. 'pixie')
 }
 
-export interface FreestyleReferenceShelfPanel {
+export interface FreestyleMovementReferenceCard {
   slug:           'basic-components' | 'core-tricks' | 'operators-modifiers'
                 | 'add-scoring' | 'notation-basics' | 'learning-path';
   title:          string;
   summary:        string;
-  linkOutHref:    string | null;
-  linkOutLabel:   string | null;
-  /** Optional non-interactive preview chips rendered inside the panel
-   *  body. Currently used only by the operators-modifiers panel to
-   *  surface a tiny taste of the operator vocabulary without
-   *  duplicating the full /freestyle/operators reference. */
-  examples?:      ReadonlyArray<FreestyleShelfExampleChip>;
+  linkOutHref:    string;
+  linkOutLabel:   string;
+  /** Optional non-interactive preview chips rendered inside the card.
+   *  Currently used only by the operators-modifiers card to surface a
+   *  tiny taste of the operator vocabulary without duplicating the
+   *  full /freestyle/operators reference. */
+  examples?:      ReadonlyArray<FreestyleMovementReferenceChip>;
 }
 
-export interface FreestyleReferenceShelf {
+export interface FreestyleMovementReference {
   title:    string;
   lede:     string;
-  panels:   readonly FreestyleReferenceShelfPanel[];
+  cards:    readonly FreestyleMovementReferenceCard[];
 }
 
 export interface FreestyleGetStartedTile {
@@ -417,13 +417,14 @@ export interface FreestyleLandingContent {
   // one compact grid. Empty array hides the section content.
   featured:        FreestyleFeaturedItem[];
   /** Grouped expandable reference shelf rendered after Featured. Each
-   *  panel is a collapsed `<details>` element. Bodies for the
-   *  basic-components and core-tricks panels reuse the existing content
-   *  fields; the operators-modifiers panel is a lightweight preview
-   *  (panel.summary + panel.examples + single CTA) that points readers
-   *  at /freestyle/operators rather than duplicating the operator-board
-   *  reference inline. */
-  referenceShelf:  FreestyleReferenceShelf;
+   *  Movement Reference section (Landing Page Phase 1, 2026-05-21).
+   *  Replaces the prior collapsed Reference Shelf + duplicated
+   *  standalone "Operators & Modifiers" portal card. Six uniform
+   *  teaser cards (Basic Components / Core Tricks / Operators &
+   *  Modifiers / ADD & Scoring / Notation Basics / Learning Path);
+   *  each carries a single CTA pointing at the destination page where
+   *  depth lives. */
+  movementReference:  FreestyleMovementReference;
   getStartedTiles: FreestyleGetStartedTile[];
   totalRecords: number;
   recordTypes: number;
@@ -6264,54 +6265,54 @@ export const freestyleService = {
                      ),
           },
         ],
-        referenceShelf: {
-          title: 'Reference Shelf',
-          lede:  'Optional expandable references for the movement vocabulary behind the dictionary. Expand a panel only when you want to go deeper.',
-          panels: [
+        movementReference: {
+          title: 'Movement Reference',
+          lede:  'The freestyle language — components, operators, notation, and scoring. Six entry points into the vocabulary behind the dictionary. Each card teases the concept; depth lives on the destination page.',
+          cards: [
             {
               slug:         'basic-components',
               title:        'Basic Components',
-              summary:      'The six foundational components — Contact, Set, Dex, Spin, Duck, Delay — that compose every trick.',
-              linkOutHref:  null,
-              linkOutLabel: null,
+              summary:      'The foundational components — contact surfaces, dexterities, sets, body modifiers — that every trick decomposes into.',
+              linkOutHref:  '/freestyle/glossary#section-surfaces',
+              linkOutLabel: 'Components in the glossary',
             },
             {
               slug:         'core-tricks',
               title:        'Core Tricks',
-              summary:      'The twelve irreducible base tricks. Most named tricks descend from one of these.',
-              linkOutHref:  '/freestyle/tricks',
-              linkOutLabel: 'Browse the full trick dictionary',
+              summary:      'The twelve irreducible base tricks. Most named tricks descend from one of these family-anchor atoms.',
+              linkOutHref:  '/freestyle/tricks?view=family',
+              linkOutLabel: 'Browse by family',
             },
             {
               slug:         'operators-modifiers',
               title:        'Operators & Modifiers',
-              summary:      'One place to learn how modifiers compose into tricks. Operators are the verbs of freestyle: small movement adjustments (a spin, a duck, a body wrap) that stack on top of a base trick to produce its named compound form. The full reference lives at /freestyle/operators.',
+              summary:      'The trick-modifier vocabulary in one place: how each common modifier feels, how it changes a trick, and how modifiers stack to build the names you see in the dictionary.',
               examples: [
                 { slug: 'pixie',    label: 'pixie'    },
                 { slug: 'spinning', label: 'spinning' },
                 { slug: 'paradox',  label: 'paradox'  },
               ],
               linkOutHref:  '/freestyle/operators',
-              linkOutLabel: 'Open full operator reference',
+              linkOutLabel: 'Operator reference',
             },
             {
               slug:         'add-scoring',
               title:        'ADD & Scoring Basics',
-              summary:      'How ADD (Adds) measures difficulty: each ATAM bracket-flag contributes 1, and modifier stacks accumulate above the base trick value. See the analysis page for worked examples and resolution sprints.',
+              summary:      'How ADD measures structural difficulty: each atomic-flag primitive contributes 1, and modifier stacks accumulate above the base trick value.',
               linkOutHref:  '/freestyle/add-analysis',
               linkOutLabel: 'ADD analysis',
             },
             {
               slug:         'notation-basics',
               title:        'Notation Basics',
-              summary:      'A short primer on the compact-notation, operational-notation, and equivalence-chain conventions used across the trick pages.',
-              linkOutHref:  '/freestyle/glossary',
-              linkOutLabel: 'Glossary primer',
+              summary:      'A short primer on the compact, operational, and equivalence-chain notation conventions used across the trick pages.',
+              linkOutHref:  '/freestyle/glossary#section-notation',
+              linkOutLabel: 'Notation in the glossary',
             },
             {
               slug:         'learning-path',
-              title:        'Learning Path — How to Read a Trick',
-              summary:      'A curated sequence for visitors new to the vocabulary: start with the components, scan the core tricks, then read a compound trick page end-to-end.',
+              title:        'Learning Path',
+              summary:      'A curated sequence for readers new to the vocabulary: start with the components, scan the core tricks, then read a compound trick page end-to-end.',
               linkOutHref:  '/freestyle/learn',
               linkOutLabel: 'Open the learning surface',
             },

@@ -158,12 +158,16 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('spinning panel includes deep-link to /freestyle/modifier/spinning', async () => {
+    // GA Phase 6 (2026-05-21) standardized the connective-panel deep-
+    // link phrasing from "Learn more about {displayName} →" to
+    // "Modifier reference →" via the .panel-deep-link.glossary-
+    // outward-link class. The href destination is unchanged.
     const res = await request(createApp()).get('/freestyle/glossary');
     const spinningStart = res.text.indexOf('id="glossary-panel-spinning"');
     const whirlStart = res.text.indexOf('id="glossary-panel-whirl"');
     const spinningSlice = res.text.substring(spinningStart, whirlStart);
     expect(spinningSlice).toContain('href="/freestyle/modifier/spinning"');
-    expect(spinningSlice).toMatch(/Learn more about Spinning/);
+    expect(spinningSlice).toMatch(/Modifier reference\s*&rarr;/);
   });
 
   it('non-spinning panels do NOT include modifier-family deep-link (Phase 6 pilot)', async () => {
