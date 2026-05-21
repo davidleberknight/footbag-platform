@@ -17,7 +17,6 @@ describe('freestyleUnresolvedCompounds', () => {
       'reaper',
       'surreal',
       'montage',
-      'witchdoctor',
       'fury',
       'surgery',
     ]);
@@ -37,13 +36,14 @@ describe('freestyleUnresolvedCompounds', () => {
     expect(isUnresolvedCompound('torque')).toBe(false);
     expect(isUnresolvedCompound('butterfly')).toBe(false);
     expect(isUnresolvedCompound('tomahawk')).toBe(false);
+    expect(isUnresolvedCompound('witchdoctor')).toBe(false);
     expect(isUnresolvedCompound('nonexistent')).toBe(false);
     expect(isUnresolvedCompound('')).toBe(false);
   });
 
-  it('pilot size is exactly 7 (restraint contract)', () => {
+  it('pilot size is exactly 6 (restraint contract)', () => {
     // Pilot is small by design. A growing list signals unbounded doctrine
     // accumulation and should prompt curator review before the count increases.
-    expect(UNRESOLVED_COMPOUNDS.size).toBe(7);
+    expect(UNRESOLVED_COMPOUNDS.size).toBe(6);
   });
 });

@@ -87,8 +87,8 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     displayName:       'Baroque',
     compactNotation:   'barraging osis',
     officialAdd:       5,
-    derivation:        'barraging(+2) + osis(3) = 5 ADD [composite-modifier pending]',
-    status:            'pending-doctrine',
-    observationalNote: 'Barraging plays the same composite-modifier role as blurry in the Blur compound. The decomposition into atom-level operators (stepping + ducking? or stepping + paradox?) is awaiting Red review and tracked in the Wave 3 packet.',
+    derivation:        'barraging(+2) + osis(3) = 5 ADD',
+    status:            'canonical',
+    observationalNote: 'Barraging is a two-dex set: the two dex steps inside the set are each count-bearing, giving the modifier a structural +2 weight. The Baroque total of 5 converges mechanically as the two-dex contribution stacked on the osis atom.',
   },
 ];

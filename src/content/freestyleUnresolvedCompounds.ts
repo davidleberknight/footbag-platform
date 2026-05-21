@@ -47,11 +47,11 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   'surreal',
   // Same hybrid pattern as surreal. Explicitly deferred from Slice J.
   'montage',
-  // Folk name; curator-flagged per Slice M directive. Pre-Red sweep
-  // 2026-05-16 added an FM-only chain entry ('atomic symposium mirage')
-  // with curatorConfirmPending=true; pill remains because PB is silent
-  // and the row's structural identity is single-sourced.
-  'witchdoctor',
+  // witchdoctor removed 2026-05-20: Red ruling published a composite-
+  // base reading (atom-smasher(4) + symposium(+1) = 5) that now
+  // mechanically converges through the convergence-rule extension.
+  // Structural identity is no longer single-sourced and the pill would
+  // misrepresent the row's resolution state.
   // Folk name; curator-flagged per Slice M directive.
   'fury',
   // Mechanically resembles rev-whirl/hatchet but no curator
