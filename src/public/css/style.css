@@ -3535,6 +3535,111 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
+/* Equivalence-topology disclosure on trick-detail. Same collapsed-
+   <details> aesthetic as the ADD-analysis block above; renders only
+   when the service-layer gate (curatorConfirmPending: false) admits
+   the entry. Each derivation path renders as a single row with a
+   source-label chip + optional ADD breakdown + optional role badge. */
+.trick-equivalence-topology-disclosure {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0;
+}
+.trick-equivalence-topology-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.trick-equivalence-topology-summary::-webkit-details-marker { display: none; }
+.trick-equivalence-topology-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+}
+.trick-equivalence-topology-disclosure[open] .trick-equivalence-topology-summary::before { transform: rotate(90deg); }
+.trick-equivalence-topology-disclosure[open] .trick-equivalence-topology-summary {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.trick-equivalence-topology-summary-title {
+  font-weight: 600;
+  font-size: 1.02rem;
+  display: inline;
+}
+.trick-equivalence-topology-summary-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  padding-left: 22px;
+}
+.trick-equivalence-topology-context {
+  margin: 0;
+  padding: 14px 18px 8px 18px;
+  font-size: 0.92rem;
+  color: var(--text-primary, #1f2937);
+}
+.trick-equivalence-topology-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 18px 14px 18px;
+}
+.trick-equivalence-topology-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 0.95rem;
+}
+.trick-equivalence-topology-row + .trick-equivalence-topology-row {
+  border-top: 1px dashed var(--border-soft, #ece6d4);
+}
+.trick-equivalence-topology-glyph {
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
+}
+.trick-equivalence-topology-reading {
+  font-weight: 500;
+}
+.trick-equivalence-topology-source-chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #f4f1ea;
+  color: var(--text-muted, #64748b);
+}
+.trick-equivalence-topology-source-chip--historical    { background: #e9e2d2; }
+.trick-equivalence-topology-source-chip--curator-derived { background: #e6efe2; }
+.trick-equivalence-topology-source-chip--community     { background: #ece6dc; }
+.trick-equivalence-topology-source-chip--structural    { background: #e2e8f0; }
+.trick-equivalence-topology-breakdown {
+  background: #f4f1ea;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+.trick-equivalence-topology-role-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: transparent;
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--text-muted, #64748b);
+}
+.trick-equivalence-topology-role-badge--historical { border-color: #c4a07a; color: #7a5a3a; }
+.trick-equivalence-topology-role-badge--doctrine-locked-alternate { border-color: #94a3b8; color: #475569; }
+.trick-equivalence-topology-role-badge--deprecated { border-color: #c7c0b0; color: #8a8270; font-style: italic; }
+
 /* Browse-card secondary row — surfaces the OPERATIONAL/JOB chain +
    ADD breakdown beneath the primary card content for pilot first-class
    slugs only. Compact + neutral; sits below the primary card body

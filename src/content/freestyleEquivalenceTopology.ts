@@ -112,11 +112,11 @@ export interface EquivalenceTopologyEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Phase 1 pilot entries
+// Ratified entries
 //
-// One entry: flurry. Demonstrates the modifier-stack-vs-paradox-stack
-// pattern. Awaits curator ratification before any public surface
-// consumes this module.
+// Phase 2 (2026-05-21): flurry ratified; witchdoctor authored. Both
+// entries are eligible for public render through the service-layer
+// gate (curatorConfirmPending: false).
 // ─────────────────────────────────────────────────────────────────────────
 
 export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
@@ -143,19 +143,58 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
       {
         role:         'alternate-equivalent',
         source:       'curator-derived',
-        status:       'pending-curator',
+        status:       'confirmed',
         reading:      'paradox + paradox legover',
         addBreakdown: 'paradox(+1) + paradox-legover(3) = 4 ADD',
         publishedIn:
           'freestyleDerivationPilot.ts (derivation-atlas pilot 2026-05-20)',
       },
     ],
-    curatorConfirmPending: true,
+    curatorConfirmPending: false,
+  },
+  {
+    slug:        'witchdoctor',
+    displayName: 'Witchdoctor',
+    pattern:     'flat-stack-vs-composite-base',
+    summary:
+      'Witchdoctor admits two structurally distinct derivations that ' +
+      'both yield 5 ADD: a composite-base reading anchored at Red ' +
+      '2026-05-20 (atom-smasher as the structural base + symposium ' +
+      'modifier), and a flat-stack reading that walks atomic + ' +
+      'symposium over a mirage atom. The composite reading is the ' +
+      'current canonical interpretation; the flat-stack reading ' +
+      'remains pedagogically useful for showing how the composite ' +
+      'compresses.',
+    derivations: [
+      {
+        role:         'canonical-primary',
+        source:       'structural',
+        status:       'confirmed',
+        reading:      'atom-smasher + symposium',
+        addBreakdown: 'atom-smasher(4) + symposium(+1) = 5 ADD',
+        publishedIn:
+          'freestyleService.ts COMPOSITE_DERIVATIONS (Red 2026-05-20; ' +
+          'convergence-rule supported via R1b)',
+      },
+      {
+        role:         'historical',
+        source:       'historical',
+        status:       'confirmed',
+        reading:      'atomic symposium mirage',
+        addBreakdown: 'atomic(+1) + symposium(+1) + mirage(2) = 4 ADD',
+        publishedIn:
+          'freestyleSymbolicEquivalences.ts (FM-only; predates the ' +
+          'composite-base ruling)',
+      },
+    ],
+    curatorConfirmPending: false,
     curatorNote:
-      'Phase 1 pilot entry. Both readings preserve under R1b barraging ' +
-      'weight = +2. Curator must ratify which is the canonical-primary; ' +
-      'the other is pedagogically valid as alternate-equivalent. DB ' +
-      'modifier_links remains empty until ratification.',
+      'The alternate flat-stack reading\'s naïve total (4) differs ' +
+      'from the canonical ADD (5); the 1-component gap is what the ' +
+      'composite-base reading resolves (atom-smasher already carries ' +
+      'an X-dex from a toe, contributing the additional +1). The ' +
+      'alternate is preserved as historical/pedagogical context, not ' +
+      'as a competing arithmetic claim.',
   },
 ];
 

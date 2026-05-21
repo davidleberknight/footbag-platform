@@ -130,6 +130,10 @@ import {
   type GlossaryAddExample,
 } from '../content/freestyleGlossaryAddExamples';
 import {
+  getEquivalenceTopologyFor,
+  type EquivalenceTopologyEntry,
+} from '../content/freestyleEquivalenceTopology';
+import {
   DICTIONARY_LANDING_CARDS,
   DICTIONARY_LANDING_FRAMING,
   DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
@@ -1028,7 +1032,21 @@ export interface FreestyleTrickContent {
   // metadata: JOB / ADD / VIDEO). Non-null only when isFirstClass is
   // true. Renders directly below the hero, before the rest of the page.
   comparativeNotation: ComparativeNotationRow | null;
+  // Equivalence-topology entry: alternate-derivation paths for tricks
+  // whose canonical reading admits a structurally distinct path that
+  // converges arithmetically. Null when no entry is authored OR when
+  // the entry is curator-confirm-pending (filtered at service layer
+  // so pending entries never surface publicly). Renders inside a
+  // collapsed <details> advanced panel below the ADD-derivation
+  // disclosure on trick-detail. Additive observational layer; never
+  // overrides the canonical published reading.
+  equivalenceTopology: EquivalenceTopologyEntry | null;
 }
+
+// Re-export the equivalence-topology entry type so consumers of the
+// trick-detail view-model can type their handlers without depending on
+// the content module directly.
+export type { EquivalenceTopologyEntry } from '../content/freestyleEquivalenceTopology';
 
 /** First-class trick metadata strip — six labeled fields rendered as a
  *  Wikipedia-infobox-style publication metadata block below the hero.
@@ -4536,6 +4554,17 @@ export const freestyleService = {
               ? null
               : shapeTrickAddAnalysis(slug);
             return { isFirstClass: firstClassPasses, comparativeNotation, addAnalysis };
+          })(),
+          equivalenceTopology: (() => {
+            // Phase 2 of equivalence-topology rollout. Surfaces an
+            // alternate-derivation entry inside an [advanced] expandable
+            // when authored AND ratified. curatorConfirmPending entries
+            // are filtered here so pending entries never reach the
+            // template — the publication-semantics gate from
+            // exploration/equivalence-topology-phase-1-2026-05-21/
+            // DESIGN.md §6 lives at this seam.
+            const entry = getEquivalenceTopologyFor(slug);
+            return entry && !entry.curatorConfirmPending ? entry : null;
           })(),
         };
       })(),

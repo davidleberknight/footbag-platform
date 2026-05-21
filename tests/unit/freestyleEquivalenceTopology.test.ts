@@ -101,15 +101,21 @@ describe('freestyleEquivalenceTopology — schema invariants', () => {
     }
   });
 
-  it('addBreakdown values inside one entry are arithmetically consistent', () => {
-    // Each entry's derivation paths represent the SAME canonical ADD via
-    // different structural decompositions. When breakdowns are present
-    // they should each evaluate to the same total. Parse the trailing
-    // "= N ADD" segment; mismatches mean the entry is broken.
+  it('canonical-primary + alternate-equivalent breakdown totals agree within each entry', () => {
+    // Arithmetic-convergence invariant: paths whose role makes a
+    // CURRENT structural claim (canonical-primary, alternate-equivalent)
+    // MUST evaluate to the same total. Paths with role 'historical',
+    // 'doctrine-locked-alternate', or 'deprecated' may carry naïve /
+    // superseded breakdowns that don't converge — those readings are
+    // preserved as pedagogical/historical context, not competing claims.
     const totalPattern = /=\s*(\d+)\s*ADD\s*$/i;
+    const convergingRoles: ReadonlySet<DerivationRole> = new Set([
+      'canonical-primary',
+      'alternate-equivalent',
+    ]);
     for (const entry of EQUIVALENCE_TOPOLOGY) {
       const totals = entry.derivations
-        .filter(p => p.addBreakdown)
+        .filter(p => convergingRoles.has(p.role) && p.addBreakdown)
         .map(p => {
           const m = totalPattern.exec(p.addBreakdown ?? '');
           return m ? Number(m[1]) : null;
@@ -118,23 +124,19 @@ describe('freestyleEquivalenceTopology — schema invariants', () => {
       if (totals.length < 2) continue;
       const first = totals[0];
       for (const t of totals.slice(1)) {
-        expect(t, `${entry.slug} addBreakdown totals disagree (${first} vs ${t})`).toBe(first);
+        expect(t, `${entry.slug} converging-role breakdowns disagree (${first} vs ${t})`).toBe(first);
       }
     }
   });
 });
 
-describe('freestyleEquivalenceTopology — Phase 1 pilot membership', () => {
-  it('flurry entry is present', () => {
+describe('freestyleEquivalenceTopology — Phase 2 ratified membership', () => {
+  it('flurry entry is present and ratified', () => {
     const flurry = getEquivalenceTopologyFor('flurry');
     expect(flurry).not.toBeNull();
     expect(flurry?.slug).toBe('flurry');
     expect(flurry?.pattern).toBe('modifier-stack-vs-paradox-stack');
-  });
-
-  it('flurry pilot ships pending curator confirmation (Phase 1 contract)', () => {
-    const flurry = getEquivalenceTopologyFor('flurry');
-    expect(flurry?.curatorConfirmPending).toBe(true);
+    expect(flurry?.curatorConfirmPending).toBe(false);
   });
 
   it('flurry has exactly two derivation paths: canonical-primary + alternate-equivalent', () => {
@@ -153,6 +155,26 @@ describe('freestyleEquivalenceTopology — Phase 1 pilot membership', () => {
     const flurry = getEquivalenceTopologyFor('flurry');
     expect(flurry?.derivations[1].reading).toBe('paradox + paradox legover');
   });
+
+  it('witchdoctor entry is present and ratified', () => {
+    const witchdoctor = getEquivalenceTopologyFor('witchdoctor');
+    expect(witchdoctor).not.toBeNull();
+    expect(witchdoctor?.slug).toBe('witchdoctor');
+    expect(witchdoctor?.pattern).toBe('flat-stack-vs-composite-base');
+    expect(witchdoctor?.curatorConfirmPending).toBe(false);
+  });
+
+  it('witchdoctor canonical-primary is the composite-base reading (Red 2026-05-20)', () => {
+    const witchdoctor = getEquivalenceTopologyFor('witchdoctor');
+    expect(witchdoctor?.derivations[0].role).toBe('canonical-primary');
+    expect(witchdoctor?.derivations[0].reading).toBe('atom-smasher + symposium');
+  });
+
+  it('witchdoctor alternate flat-stack is role=historical (naïve undercount preserved for pedagogy)', () => {
+    const witchdoctor = getEquivalenceTopologyFor('witchdoctor');
+    expect(witchdoctor?.derivations[1].role).toBe('historical');
+    expect(witchdoctor?.derivations[1].reading).toBe('atomic symposium mirage');
+  });
 });
 
 describe('freestyleEquivalenceTopology — accessor functions', () => {
@@ -161,13 +183,16 @@ describe('freestyleEquivalenceTopology — accessor functions', () => {
     expect(getEquivalenceTopologyFor('')).toBeNull();
   });
 
-  it('getRatifiedEquivalenceTopology excludes all curatorConfirmPending entries (Phase 1: returns empty)', () => {
-    // Phase 1 ships one pending entry; no public surface should consume
-    // pending entries. The ratified projection is empty until the
-    // curator flips the flag.
+  it('getRatifiedEquivalenceTopology excludes all curatorConfirmPending entries', () => {
     const ratified = getRatifiedEquivalenceTopology();
     for (const entry of ratified) {
       expect(entry.curatorConfirmPending, `${entry.slug} should not be pending`).toBe(false);
     }
+  });
+
+  it('getRatifiedEquivalenceTopology surfaces both flurry and witchdoctor at Phase 2', () => {
+    const slugs = getRatifiedEquivalenceTopology().map(e => e.slug);
+    expect(slugs).toContain('flurry');
+    expect(slugs).toContain('witchdoctor');
   });
 });

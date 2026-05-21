@@ -1,0 +1,44 @@
+{{!--
+  Equivalence-topology entry. Collapsed by default. Renders only when
+  content.equivalenceTopology is non-null (= the trick has a curator-
+  authored entry AND the entry is ratified — pending entries are filtered
+  at the service layer before reaching this template).
+
+  Each derivation path renders as a row: an ≡ glyph, the reading text,
+  a source-label chip, the ADD breakdown (when present), and a role
+  badge for non-canonical paths. The canonical-primary row never carries
+  a role badge (it would be redundant). Historical / doctrine-locked /
+  deprecated roles carry a small badge so the reader knows the row is
+  preserved as pedagogical context, not a competing claim.
+
+  Per the four-layer separation: this surface renders curator-authored
+  editorial data only; nothing here consumes parser output. The
+  canonical published reading remains the primary surface elsewhere
+  on the page (semantic notation, operational notation, hero formula).
+--}}
+{{#if content.equivalenceTopology}}
+<section class="content-section trick-equivalence-topology" aria-label="Alternate derivations">
+  <details class="trick-equivalence-topology-disclosure">
+    <summary class="trick-equivalence-topology-summary">
+      <span class="trick-equivalence-topology-summary-title">Alternate derivations</span>
+      <span class="trick-equivalence-topology-summary-hint">Click to expand</span>
+    </summary>
+    <p class="trick-equivalence-topology-context">{{content.equivalenceTopology.summary}}</p>
+    <ul class="trick-equivalence-topology-list">
+      {{#each content.equivalenceTopology.derivations}}
+        <li class="trick-equivalence-topology-row trick-equivalence-topology-row--{{this.role}}">
+          <span class="trick-equivalence-topology-glyph" aria-hidden="true">&equiv;</span>
+          <span class="trick-equivalence-topology-reading">{{this.reading}}</span>
+          <span class="trick-equivalence-topology-source-chip trick-equivalence-topology-source-chip--{{this.source}}">{{this.source}}</span>
+          {{#if this.addBreakdown}}
+            <code class="trick-equivalence-topology-breakdown">{{this.addBreakdown}}</code>
+          {{/if}}
+          {{#unless (eq this.role 'canonical-primary')}}
+            <span class="trick-equivalence-topology-role-badge trick-equivalence-topology-role-badge--{{this.role}}">{{this.role}}</span>
+          {{/unless}}
+        </li>
+      {{/each}}
+    </ul>
+  </details>
+</section>
+{{/if}}
