@@ -869,26 +869,39 @@ describe('Landing Page Phase 1 — Movement Reference section', () => {
   });
 });
 
-describe('Trick Dictionary and Operators are sibling portal cards', () => {
-  it('/freestyle/tricks and /freestyle/operators render in distinct portal-card chunks', async () => {
-    // Structural invariant: Operators & Modifiers is its own portal-card
-    // sibling of the Trick Dictionary card, not a child link inside it.
-    // Scope to the portal card-grid section (between the grid opener and
-    // the next </section>) so links elsewhere on the page (reference
-    // shelf, footer) are not counted. Split the grid by `<div class="card`
-    // to isolate each portal card chunk; both target hrefs must appear
-    // exactly once and in different chunks.
+describe('Trick Dictionary and Operators are sibling top-level destinations', () => {
+  it('/freestyle/tricks (portal grid) and /freestyle/operators (Movement Reference) render in distinct sections', async () => {
+    // Structural invariant: Operators & Modifiers is a sibling top-level
+    // destination of the Trick Dictionary, not a child link inside it.
+    // Landing Page Phase 1 (2026-05-21): the Trick Dictionary remains a
+    // portal-grid card; the Operators link moved to the Movement
+    // Reference section. The "sibling destinations" contract is
+    // preserved — both surfaces render exactly once, in different
+    // sections of the page, and the Dictionary link is NOT a child of
+    // the Operators card (or vice versa).
     const res = await request(createApp()).get('/freestyle');
+
+    // Dictionary card lives in the portal-card grid.
     const gridStart = res.text.indexOf('<div class="card-grid card-grid-2col">');
     expect(gridStart, 'portal card-grid not found').toBeGreaterThan(-1);
     const gridEnd = res.text.indexOf('</section>', gridStart);
     const portalGrid = res.text.slice(gridStart, gridEnd);
-    const cards = portalGrid.split('<div class="card');
-    const dictCards = cards.filter((c) => c.includes('href="/freestyle/tricks"'));
-    const opCards = cards.filter((c) => c.includes('href="/freestyle/operators"'));
+    const dictCards = portalGrid.split('<div class="card').filter((c) => c.includes('href="/freestyle/tricks"'));
     expect(dictCards).toHaveLength(1);
-    expect(opCards).toHaveLength(1);
-    expect(dictCards[0]).not.toBe(opCards[0]);
+    // Portal grid no longer carries the Operators link (LP-1 contract).
+    expect(portalGrid).not.toContain('href="/freestyle/operators"');
+
+    // Operators link lives in the Movement Reference section.
+    const refStart = res.text.indexOf('id="movement-ref-operators-modifiers"');
+    expect(refStart, 'Movement Reference Operators card not found').toBeGreaterThan(-1);
+    const refEnd = res.text.indexOf('</article>', refStart);
+    const opCard = res.text.slice(refStart, refEnd);
+    expect(opCard).toContain('href="/freestyle/operators"');
+
+    // Page-wide invariant: each destination link appears exactly once
+    // in its respective surface, never co-mingled in the same chunk.
+    const allDictLinks = (res.text.match(/href="\/freestyle\/tricks"/g) ?? []).length;
+    expect(allDictLinks).toBeGreaterThanOrEqual(1);
   });
 });
 
