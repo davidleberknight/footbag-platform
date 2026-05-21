@@ -79,8 +79,17 @@ describe('Family invariant — content module', () => {
     expect(getFamilyInvariant('whirl')).toBe('leggy in dex > ss clipper');
   });
 
-  it('returns null for families without an entry (butterfly)', () => {
-    expect(getFamilyInvariant('butterfly')).toBeNull();
+  it('returns the Butterfly invariant text exactly (Dictionary Pedagogy Phase 1)', () => {
+    expect(getFamilyInvariant('butterfly')).toBe('hippy out dex > ss clipper');
+  });
+
+  it('returns null for families that remain without a curator entry', () => {
+    // Slice-I + Dictionary Pedagogy Phase 1 cover the six curator-named
+    // terminal-family candidates (whirl, rev-whirl, butterfly, mirage,
+    // osis, swirl). Non-terminal families and branch families remain
+    // without invariants and return null.
+    expect(getFamilyInvariant('torque')).toBeNull();
+    expect(getFamilyInvariant('drifter')).toBeNull();
   });
 
   it('returns null for unknown family slugs', () => {
@@ -133,14 +142,17 @@ describe('Family invariant — rendered on Family View', () => {
     expect(stackIdx).toBeGreaterThan(invariantIdx);
   });
 
-  it('does NOT render an invariant line for butterfly family (no curator entry)', async () => {
+  it('renders the Butterfly family invariant line (Dictionary Pedagogy Phase 1)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-butterfly"');
     expect(sectionStart).toBeGreaterThan(-1);
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    expect(sectionHtml).not.toContain('class="trick-family-shared-structure"');
+    expect(sectionHtml).toContain('class="trick-family-shared-structure"');
+    expect(sectionHtml).toMatch(
+      /Shared terminal structure: <code>hippy out dex &gt; ss clipper<\/code>/,
+    );
   });
 });
 

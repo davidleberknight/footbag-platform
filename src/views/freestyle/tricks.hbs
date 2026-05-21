@@ -99,6 +99,9 @@
 
   {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
   {{#if (eq content.activeView "add")}}
+  {{#if content.addViewIntro}}
+  <p class="browse-view-intro">{{content.addViewIntro}}</p>
+  {{/if}}
   {{#each content.addGroups}}
   <section class="content-section trick-add-group trick-group--registry" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
@@ -117,6 +120,9 @@
   {{! ── Family view — registry density.
       Cards are identical to ADD view; only grouping + family-anchor underline differs. }}
   {{#if (eq content.activeView "family")}}
+  {{#if content.familyViewIntro}}
+  <p class="browse-view-intro">{{content.familyViewIntro}}</p>
+  {{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group trick-group--registry" id="family-{{familySlug}}" data-anchor-style="solid">

@@ -7828,6 +7828,29 @@ a.dict-card-title:hover {
   }
 }
 
+/* Dictionary Pedagogy Phase 1 (2026-05-21): per-view pedagogical intro
+   paragraphs. Rendered at the top of each browse view (after the
+   dict-note row, before grids) to teach WHY tricks group the way they
+   do under that axis. Muted tone; max-width so the paragraph reads
+   like prose, not a banner. */
+.browse-view-intro {
+  max-width: 760px;
+  margin: 0.5rem 0 1.25rem;
+  padding: 10px 14px;
+  background: #f4f1ea;
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 0 4px 4px 0;
+  color: var(--text-primary, #1f2937);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+@media (max-width: 480px) {
+  .browse-view-intro {
+    font-size: 0.92rem;
+    padding: 8px 12px;
+  }
+}
+
 /* Standardized outward-link affordance (Glossary Architecture Phase 6).
    Single class controls placement + tone for all glossary→destination
    navigation: "View full ontology →", "Browse {Name} tricks →",

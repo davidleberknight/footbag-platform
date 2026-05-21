@@ -71,6 +71,31 @@ export const FAMILY_INVARIANTS: ReadonlyMap<string, string> = new Map([
   // family-invariant line is now the pedagogical anchor, not the
   // mechanical specification.
   ['rev-whirl', 'leggy out dex > ss clipper'],
+  // Dictionary Pedagogy Phase 1 (2026-05-21): extending the pilot from
+  // 2 to 6 terminal families. The four entries below are the remaining
+  // terminal-family candidates named in the freestyle-topology-governance
+  // skill description (whirl + rev-whirl already covered above).
+  // Structural-form lines follow the shallow-readable pedagogical
+  // convention established by the whirl / rev-whirl pair, not raw
+  // operational-notation columns.
+  //
+  // Butterfly — outward-hippy entry, ss-clipper terminal. Anchors the
+  // walking family (ripwalk, dimwalk, sidewalk, dada-curve, phoenix,
+  // matador).
+  ['butterfly', 'hippy out dex > ss clipper'],
+  // Mirage — inward-hippy entry, op-toe terminal. Anchors a deep
+  // cohort (paradox-mirage, atom-smasher, smear, blur, witchdoctor).
+  // The op-toe terminator distinguishes mirage from whirl/butterfly's
+  // ss-clipper terminal.
+  ['mirage', 'hippy in dex > op toe'],
+  // Osis — spin-entry, ss-clipper terminal. Anchors the rotational
+  // base cohort (spinning-osis, ducking-osis, blender, torque). The
+  // spin entry distinguishes osis from the leggy/hippy entries.
+  ['osis', 'spin > ss clipper'],
+  // Swirl — leggy-cross-body outward, ss-clipper terminal. The xbd
+  // qualifier distinguishes swirl from butterfly's straight hippy out;
+  // both share the ss-clipper terminator.
+  ['swirl', 'leggy xbd out dex > ss clipper'],
 ]);
 
 /**

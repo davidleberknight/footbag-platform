@@ -2043,6 +2043,15 @@ export interface FreestyleTricksIndexContent {
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
   relatedSetGroups: FreestyleRelatedSetLink[];
+  // Dictionary Pedagogy Phase 1 (2026-05-21): per-view pedagogical
+  // intros that teach WHY tricks group the way they do. Rendered at
+  // the top of the browse-view region (after dictNote, before grids).
+  // Each is a single short paragraph; absence = silence (template
+  // branches on truthy string). Movement-system view carries its own
+  // observationalNote inside movementSystemView — kept distinct
+  // because that surface has its own four-axis intro grammar.
+  familyViewIntro: string | null;
+  addViewIntro:    string | null;
 }
 
 export interface FreestyleFamilyGroup {
@@ -5452,6 +5461,21 @@ export const freestyleService = {
         dictNote:
           'This dictionary is being expanded and aligned with established freestyle notation. ' +
           'New entries are staged for review before publication.',
+        // Per-view pedagogical intros (Dictionary Pedagogy Phase 1).
+        familyViewIntro:
+          'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
+          'Members of a family share the same shallow structural skeleton (entry + dex + ' +
+          'terminator), even when they carry different modifiers or sit at different ADD ' +
+          'values. This is distinct from the ADD view (which clusters by structural difficulty ' +
+          'regardless of family) and the Movement System view (which clusters by the modifier ' +
+          'axes that transform a base). The shared terminal structure under each family ' +
+          'heading below is the invariant that makes the cohort cohere.',
+        addViewIntro:
+          'ADD groups cluster tricks by additive structural difficulty, not movement ' +
+          'similarity. Tricks at the same ADD may belong to entirely different families and ' +
+          'use entirely different modifier stacks; topology and ADD are orthogonal axes. ' +
+          'For family-cohesion grouping, use the By family view; for modifier-axis grouping, ' +
+          'use the By movement system view.',
       },
     };
   },
