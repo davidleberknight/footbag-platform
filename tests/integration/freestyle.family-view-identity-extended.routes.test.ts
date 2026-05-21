@@ -98,16 +98,25 @@ const TORQUE_PILOTS: Pilot[] = [
 const ALL_PILOTS = [...BUTTERFLY_PILOTS, ...MIRAGE_PILOTS, ...OSIS_PILOTS, ...TORQUE_PILOTS];
 
 // First-class tautological-chain slugs are excluded from the chain-visibility
-// assertion. For these slugs (paradox-mirage, symposium-mirage, atomic-
-// butterfly) the chain reading equals the canonical name (e.g. "paradox
-// mirage" on a card titled "paradox mirage") and is suppressed at the
-// shaping layer. The structural decomposition surfaces instead through
-// the first-class summary row (paradox(+1) + mirage(2) = 3 ADD), which
-// is the authoritative parity contract for first-class tricks. Non-
-// first-class compounds (paradox-whirl, spinning-osis, etc.) continue
-// to render their tautological chains per the Slice A2/A3 contract —
-// the role-colored tokens with glossary links remain useful there.
-const FIRST_CLASS_TAUTOLOGICAL = new Set(['paradox-mirage', 'symposium-mirage', 'atomic-butterfly']);
+// assertion. For these slugs the chain reading equals the canonical name
+// (e.g. "paradox mirage" on a card titled "paradox mirage") and is
+// suppressed at the shaping layer. The structural decomposition surfaces
+// instead through the first-class summary row (paradox(+1) + mirage(2) =
+// 3 ADD), which is the authoritative parity contract for first-class
+// tricks. Non-first-class compounds (paradox-whirl, spinning-osis, etc.)
+// continue to render their tautological chains per the Slice A2/A3
+// contract — the role-colored tokens with glossary links remain useful
+// there.
+//
+// Membership tracks FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2 in
+// src/services/freestyleService.ts. When a tautological-chain slug is
+// promoted into either tier, add it here.
+const FIRST_CLASS_TAUTOLOGICAL = new Set([
+  // Tier 2 original (2026-05-20):
+  'paradox-mirage', 'symposium-mirage', 'atomic-butterfly',
+  // Tier 2 expansion (2026-05-20):
+  'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
+]);
 const PILOTS_WITH_CHAINS = ALL_PILOTS
   .filter(p => p.firstReadingTokens.length > 0)
   .filter(p => !FIRST_CLASS_TAUTOLOGICAL.has(p.slug));

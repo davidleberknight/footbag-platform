@@ -251,11 +251,23 @@ describe('dictionary-trick-card — required slots', () => {
     // NCR-3, 2026-05-18): Tier-4 executable-accounting prose patterns
     // (xbody(N), dex(N), stall(N), spin(N), "= N ADD" results) render
     // ONLY on /freestyle/add-analysis, (future) trick-detail disclosure
-    // surfaces, AND — as of the FC pilot (2026-05-19) — the compact
-    // first-class secondary row on the 5 pilot browse cards. The
-    // dictionary card partial enforces tiers 1-3 for the general cohort;
-    // this regex sweep guards against leakage onto NON-first-class cards.
-    const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk'];
+    // surfaces, AND the compact first-class secondary row on the
+    // governed first-class cohort. The dictionary card partial enforces
+    // tiers 1-3 for the general cohort; this regex sweep guards against
+    // leakage onto NON-first-class cards.
+    //
+    // Cohort mirrors FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2 in
+    // src/services/freestyleService.ts. Update both together when the
+    // cohort changes.
+    const FIRST_CLASS_COHORT_SLUGS = [
+      // Tier 1 (12: 11 atoms + pendulum)
+      'osis', 'toe-stall', 'clipper-stall', 'mirage', 'whirl', 'butterfly',
+      'swirl', 'legover', 'pickup', 'illusion', 'around-the-world', 'pendulum',
+      // Tier 2 (9: 4 original + 5 new)
+      'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
+      'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
+      'eggbeater', 'paradox-symposium-whirl',
+    ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,
       /\bdex\(\d/,
@@ -265,7 +277,7 @@ describe('dictionary-trick-card — required slots', () => {
     ];
     const stripFirstClassCardRegions = (html: string): string => {
       let stripped = html;
-      for (const slug of FIRST_CLASS_PILOT_SLUGS) {
+      for (const slug of FIRST_CLASS_COHORT_SLUGS) {
         // Remove each first-class card's full <article>…</article> region
         // so the sweep below only inspects non-first-class card content.
         const re = new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g');

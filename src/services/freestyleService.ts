@@ -1810,7 +1810,7 @@ export interface DictionaryTrickCard {
   // applies. The compact partial renders this only as a fallback.
   coreAtomLabel:              string;
   // First-class display fields (FC polish slice). Populated only for
-  // slugs in PILOT_FIRST_CLASS_SLUGS. When isFirstClass=true the partial
+  // slugs in FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2. When isFirstClass=true the partial
   // renders a compact secondary row beneath the primary card content
   // showing the OPERATIONAL/JOB chain (when meaningful) + the ADD
   // breakdown. Empty fields suppress their corresponding row.
@@ -2746,21 +2746,85 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
   };
 }
 
-// ── First-class trick pilot ──────────────────────────────────────────────
+// ── First-class trick cohort ─────────────────────────────────────────────
 //
-// Pilot allow-list for the first-class trick page rollout. A trick is
-// promoted to first-class status only when it BOTH (a) passes the
-// convergence rule check (derivation == computed == official, no doctrine
-// blocker) AND (b) appears in this allow-list. The two-gate design lets
-// the rollout proceed on a hand-curated cohort until visual review of the
-// pilot pages completes; the allow-list dissolves in a later wave.
-const PILOT_FIRST_CLASS_SLUGS: ReadonlySet<string> = new Set([
-  'osis',
-  'paradox-mirage',
-  'symposium-mirage',
-  'atomic-butterfly',
-  'ripwalk',
+// First-class status is curator-governed via two explicit tiers. A trick
+// renders as first-class when it appears in either tier; the renderer uses
+// `isFirstClass(slug)` to check membership and `getFirstClassTier(slug)`
+// to differentiate visual/test-level behavior.
+//
+// Promotion criteria (apply to BOTH tiers):
+//   - passes assertFirstClassConvergence (derivation == computed ==
+//     official ADD, no doctrine blocker, notation populated)
+//   - stable canonical slug + display name
+//   - educational distinctiveness — adds a dimension not already covered
+//     (operator, family, folk-name equivalence, multi-operator chain)
+//   - not in DOCTRINE_BLOCKED_SLUGS
+//
+// Tier criteria:
+//   Tier 1 — JOB + ADD both curator-locked. Atoms with
+//     ATOMIC_FLAG_DECOMPOSITIONS entries (providing operationalChain +
+//     decomposition strings), or compounds with both curator-authored
+//     operational_notation AND a RESOLVED_FORMULAS_SPRINT_1 entry.
+//     Cards render at full osis-grade parity (both first-class rows
+//     populated, no incomplete-state line).
+//   Tier 2 — ADD curator-locked; Job notation genuinely absent upstream.
+//     RESOLVED_FORMULAS_SPRINT_1 entries whose operational_notation
+//     column is empty. Cards render the ADD breakdown plus the honest
+//     "JOB: notation pending" incomplete-state line.
+//
+// To promote a slug: verify the criteria above, add to the appropriate
+// tier with an inline comment naming the educational dimension it adds.
+// To demote: remove the entry; the renderer falls back to standard
+// dictionary-card rendering automatically.
+const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
+  // 11 atom singletons — full curator data via ATOMIC_FLAG_DECOMPOSITIONS.
+  // Orbit deliberately excluded: its base_trick is empty in the DB
+  // (it's a CORE_TRICK_SPEC atom but the convergence rule treats it as
+  // compound). Promote in a future slice when the classification is
+  // reconciled.
+  'osis',                // golden reference; double-pass rotational dex
+  'toe-stall',           // foundational stall — surface anchor
+  'clipper-stall',       // inside-shoe stall; clipper family root
+  'mirage',              // mirage family root; cross-body rotational dex
+  'whirl',               // whirl family root; rotational dex
+  'butterfly',           // butterfly family root; rotational dex on a different beat
+  'swirl',               // reverse-rotation dex atom
+  'legover',             // legover family root; dex over supporting leg
+  'pickup',              // pickup family root; dex catching from below
+  'illusion',            // dex with mid-flight rotation; mirror of mirage
+  'around-the-world',    // orbit-class atom (ATW)
+  // Compound with full curator data (op-notation + resolved formula).
+  'pendulum',            // swing-class compound; only first-class compound at full parity
 ]);
+
+const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
+  // Compounds with curator-published ADD derivation but no curator
+  // operational notation. Card renders the ADD breakdown + honest
+  // "JOB: notation pending" incomplete-state line. Cohort selected for
+  // distinct educational dimensions; no redundant siblings.
+  'paradox-mirage',          // paradox operator on mirage
+  'symposium-mirage',        // symposium operator on mirage
+  'atomic-butterfly',        // atomic operator on rotational base
+  'ripwalk',                 // folk-name resolution (≡ stepping butterfly)
+  'ducking-butterfly',       // ducking operator on rotational base
+  'spinning-butterfly',      // spinning operator on rotational base
+  'stepping-osis',           // stepping operator on osis (set-modifier showcase)
+  'eggbeater',               // folk-name resolution (≡ atomic legover)
+  'paradox-symposium-whirl', // multi-operator chain showcase
+]);
+
+/** True when `slug` is in either first-class tier. */
+export function isFirstClass(slug: string): boolean {
+  return FIRST_CLASS_TIER_1.has(slug) || FIRST_CLASS_TIER_2.has(slug);
+}
+
+/** Returns the first-class tier for `slug`, or null when not first-class. */
+export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
+  if (FIRST_CLASS_TIER_1.has(slug)) return 'tier-1';
+  if (FIRST_CLASS_TIER_2.has(slug)) return 'tier-2';
+  return null;
+}
 
 // Workbook governance status snapshot — slugs the workbook flags as
 // doctrine-blocked (wave2_blocked, add_disagreement, derived_add_mismatch,
@@ -2789,9 +2853,19 @@ const FIRST_CLASS_ROTATIONAL_BASES: ReadonlySet<string> = new Set([
 // Curator-published flag-component decompositions for atomic singletons.
 // Each atom's ADD value derives from the count of ATAM bracket-flags in
 // its operational notation (Add-Categories doctrine: every [BOD] / [DEX]
-// / [XBD] / [DEL] / [UNS] flag = 1 ADD). Pilot scope covers `osis`
-// only; future atoms enter the registry as curator-approves their
-// flag decompositions individually.
+// / [XBD] / [DEL] / [UNS] flag = 1 ADD).
+//
+// All entries transcribe verbatim from CORE_TRICK_SPEC.equivalences[1]
+// (the curator-locked accounting string) and CORE_TRICK_SPEC.
+// operationalNotation (the curator-authored movement-language chain).
+// To add a new atom: add to CORE_TRICK_SPEC first (the single source
+// of truth for atom content), then mirror the strings here. The map
+// stays explicit rather than computed from CORE_TRICK_SPEC to keep
+// the convergence-rule's H4 gate self-documenting.
+//
+// Orbit deliberately excluded: classified in CORE_TRICK_SPEC but
+// base_trick is empty in the DB; convergence rule (isAtomic check)
+// treats it as compound. Future slice should reconcile.
 interface AtomicFlagDecomposition {
   decomposition:    string;  // e.g. 'spin(1) + xbod(1) + stall(1) = 3 ADD'
   totalAdd:         number;
@@ -2802,10 +2876,60 @@ interface AtomicFlagDecomposition {
   operationalChain?: string;
 }
 const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> = new Map([
+  ['toe-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > toe',
+  }],
+  ['clipper-stall', {
+    decomposition:    'xbody(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > clipper',
+  }],
+  ['mirage', {
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > hippy in dex > op toe',
+  }],
+  ['legover', {
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > leggy out dex > ss toe',
+  }],
+  ['pickup', {
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > leggy in dex > ss toe',
+  }],
+  ['illusion', {
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > leggy out dex > op toe',
+  }],
+  ['whirl', {
+    decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
+    totalAdd:         3,
+    operationalChain: '[set] > leggy in dex > ss clipper',
+  }],
+  ['butterfly', {
+    decomposition:    'dex(1) + xbody(1) + stall(1) = 3 ADD',
+    totalAdd:         3,
+    operationalChain: '[set] > hippy out dex > ss clipper',
+  }],
+  ['swirl', {
+    decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
+    totalAdd:         3,
+    operationalChain: '[set] > leggy (xbd) out dex > ss clipper',
+  }],
   ['osis', {
     decomposition:    'spin(1) + xbod(1) + stall(1) = 3 ADD',
     totalAdd:         3,
     operationalChain: '[set] > (downtime) spin > ss clipper',
+  }],
+  ['around-the-world', {
+    decomposition:    'full-orbit dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'toe > ss(midtime) in dex > ss toe',
   }],
 ]);
 
@@ -3149,7 +3273,7 @@ function shapeDictionaryTrickCard(
   // adds no information. Curator-locked non-tautological readings (folk-
   // name resolutions like ripwalk → "stepping butterfly", torque →
   // "miraging osis") survive this filter unchanged for all slugs.
-  const isFirstClassForFilter = PILOT_FIRST_CLASS_SLUGS.has(indexRow.slug);
+  const isFirstClassForFilter = isFirstClass(indexRow.slug);
   const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
   const chain                = getSymbolicEquivalenceChain(indexRow.slug);
   const chainReadingsRaw     = chain ? [...chain.readings] : [];
@@ -3187,15 +3311,16 @@ function shapeDictionaryTrickCard(
       ? coreAtomSpec.equivalences[0]
       : '';
 
-  // First-class display fields. Populated only for slugs in the pilot
-  // allow-list. The browse-card secondary row shows the operational/Job
-  // chain (when meaningful — not equal to the trick name) and the
-  // published ADD breakdown. Curator-internal language never surfaces.
-  const isFirstClass = PILOT_FIRST_CLASS_SLUGS.has(indexRow.slug);
+  // First-class display fields. Populated only for slugs in
+  // FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2. The browse-card secondary
+  // row shows the operational/Job chain (when meaningful — not equal
+  // to the trick name) and the published ADD breakdown. Curator-internal
+  // language never surfaces.
+  const firstClassFlag = isFirstClass(indexRow.slug);
   let firstClassChainLabel: 'JOB' | 'OPERATIONAL' | null = null;
   let firstClassChainValue: string | null = null;
   let firstClassAddBreakdown: string | null = null;
-  if (isFirstClass) {
+  if (firstClassFlag) {
     const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(indexRow.slug);
     const published = RESOLVED_FORMULAS_BY_SLUG.get(indexRow.slug);
     const compactLower = (row.notation ?? indexRow.canonicalName).toLowerCase().trim();
@@ -3230,7 +3355,7 @@ function shapeDictionaryTrickCard(
   // op-notation in DB, no atomic flag-decomposition chain). Used by the
   // partial to render an honest "Job notation pending" line instead of
   // silently hiding the chain row.
-  const firstClassChainIncomplete = isFirstClass && firstClassChainLabel === null;
+  const firstClassChainIncomplete = firstClassFlag && firstClassChainLabel === null;
 
   return {
     kind:                       resolveTrickKind(indexRow.slug),
@@ -3254,7 +3379,7 @@ function shapeDictionaryTrickCard(
     trickFamily:                indexRow.trickFamily,
     pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
     coreAtomLabel,
-    isFirstClass,
+    isFirstClass:               firstClassFlag,
     firstClassChainLabel,
     firstClassChainValue,
     firstClassAddBreakdown,
@@ -4275,11 +4400,12 @@ export const freestyleService = {
               )
             : [],
           ...(() => {
-            // First-class trick pilot. Two gates: convergence-rule pass
-            // AND PILOT_FIRST_CLASS_SLUGS allow-list. addAnalysis (Phase B
-            // collapsed disclosure) is suppressed for first-class tricks
-            // so the comparativeNotation row doesn't double-render the
-            // ADD breakdown.
+            // First-class trick cohort. Two gates: convergence-rule pass
+            // AND cohort-tier membership (FIRST_CLASS_TIER_1 ∪
+            // FIRST_CLASS_TIER_2 via isFirstClass helper). addAnalysis
+            // (Phase B collapsed disclosure) is suppressed for first-class
+            // tricks so the comparativeNotation row doesn't double-render
+            // the ADD breakdown.
             const modifierBonusTable = new Map<string, { add_bonus: number; add_bonus_rotational: number }>();
             for (const row of allModifierRows) {
               modifierBonusTable.set(row.slug, {
@@ -4301,10 +4427,10 @@ export const freestyleService = {
               modifierBonusTable,
               baseAddNum,
             );
-            const isFirstClass =
+            const firstClassPasses =
               convergence.status === 'first-class'
-              && PILOT_FIRST_CLASS_SLUGS.has(slug);
-            const comparativeNotation = isFirstClass
+              && isFirstClass(slug);
+            const comparativeNotation = firstClassPasses
               ? shapeComparativeNotation(
                   slug,
                   dictRow ?? null,
@@ -4313,10 +4439,10 @@ export const freestyleService = {
                   demoMedia.length,
                 )
               : null;
-            const addAnalysis = isFirstClass
+            const addAnalysis = firstClassPasses
               ? null
               : shapeTrickAddAnalysis(slug);
-            return { isFirstClass, comparativeNotation, addAnalysis };
+            return { isFirstClass: firstClassPasses, comparativeNotation, addAnalysis };
           })(),
         };
       })(),
