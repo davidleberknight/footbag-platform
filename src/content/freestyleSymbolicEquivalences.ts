@@ -329,10 +329,14 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
 
   // ── Torque-family trivially-named compounds (Slice A3 of 2026-05) ─────
   // Torque is itself the named compound for miraging osis (existing
-  // chain); these stack one modifier onto torque. blurry-torque carries
-  // a second pt11-locked reading (Blurry = Stepping Paradox). spinal-tap
-  // deferred — folk-name compound whose structural decomposition is not
-  // yet curator-locked.
+  // chain); these stack one modifier onto torque. blurry-torque's
+  // alternative "stepping paradox torque" reading was retired per the
+  // Red 2026-05-20 adjudication ("Blurry just implies stepping; it does
+  // not imply paradox anymore"). The canonical ADD remains at 6 pending
+  // curator clarification on whether the value derives from stepping+
+  // torque + a hidden component or whether the row should re-rank.
+  // spinal-tap deferred — folk-name compound whose structural
+  // decomposition is not yet curator-locked.
   {
     slug:     'paradox-torque',
     readings: ['paradox torque'],
@@ -345,8 +349,8 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   {
     slug:     'blurry-torque',
-    readings: ['blurry torque', 'stepping paradox torque'],
-    curatorConfirmPending: false,   // pt11-locked: Blurry = Stepping Paradox
+    readings: ['blurry torque'],
+    curatorConfirmPending: true,   // Red 2026-05-20: blurry no longer implies paradox; structural decomposition under review
   },
 
   // ── Dada-curve (Slice A3 of 2026-05) ──────────────────────────────────
@@ -369,8 +373,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // already self-evident from the canonical name. curatorConfirmPending
   // is false because each reading is an identity transformation of the
   // canonical name (no decomposition claim beyond what the name asserts).
-  // blurry-whirl carries a second pt11-locked reading (Blurry = Stepping
-  // Paradox) for pedagogical compression.
+  // blurry-whirl's alternative "stepping paradox whirl" reading was
+  // retired per the Red 2026-05-20 adjudication ("Blurry just implies
+  // stepping; it does not imply paradox anymore"). Canonical ADD
+  // remains at 5 pending curator clarification on the decomposition.
   {
     slug:     'paradox-whirl',
     readings: ['paradox whirl'],
@@ -403,8 +409,8 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   {
     slug:     'blurry-whirl',
-    readings: ['blurry whirl', 'stepping paradox whirl'],
-    curatorConfirmPending: false,   // pt11-locked: Blurry = Stepping Paradox
+    readings: ['blurry whirl'],
+    curatorConfirmPending: true,   // Red 2026-05-20: blurry no longer implies paradox; structural decomposition under review
   },
   {
     slug:     'spinning-symposium-whirl',
