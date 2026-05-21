@@ -1,6 +1,6 @@
 # Red Resolved Canon
 
-Settled rulings as of 2026-05-14. Compiled from `RED_QUESTION_STATUS_MATRIX.csv` rows with status `resolved` or `resolved-indirectly`. Source-of-truth for all downstream synthesis.
+Settled rulings as of 2026-05-20. Compiled from `RED_QUESTION_STATUS_MATRIX.csv` rows with status `resolved` or `resolved-indirectly`. Source-of-truth for all downstream synthesis.
 
 Atomsmasher and the other ~50 historically-resolved items are listed below so future packets can cite the resolution rather than re-asking.
 
@@ -41,7 +41,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 | Atomic Torque (Silo) | atomic + torque (atomic +2 rot) | 6 | pt4 |
 | Barfly | nuclear ss butterfly | 5 (per pt11+pt12 SS) | pt10 + pt11 + pt12 |
 | Barrage | barraging set base | 3 | pt4 + 2026-04 followup |
-| Baroque (Barraging Osis) | barraging + osis (pt12 OPEN on rotational bonus) | 5 stated; 4 by flat formula | pt4 + pt12 |
+| Baroque (Barraging Osis) | barraging + osis (barraging = +2 two-dex set) | 5 | pt4 + 2026-05-20 |
 | Bigwalk | surging butterfly | 5 | pt2 |
 | Blender | whirling osis | 4 | pt11 |
 | Blur | stepping paradox mirage | 4 | pt11 (flat +1 model) |
@@ -86,7 +86,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 | Torque | miraging osis | 4 | pt11 |
 | Venom | surging barfly | 6 | pt2 |
 | Vortex | gyro drifter | 4 | pt1 + pt2 |
-| Witchdoctor | atomic symposium mirage | 4 stated; 5 by atomic-rot formula -- PT12 OPEN | pt2 + pt12 |
+| Witchdoctor | atom-smasher + symposium (composite-base reading: atom-smasher = 4 + symposium +1) | 5 | pt2 + 2026-05-20 |
 | Xbd Inside Stall family | various | 1 each | pt8 |
 
 ## B -- Confirmed operator semantics (NF-2A locked)
@@ -108,7 +108,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 - Quantum +1 (pt10; was historically toe-blur)
 - Atomic +1 non-rotational / +2 rotational (pt10)
 - Nuclear +2 (pt10; = Paradox Atomic set)
-- Blurry +1 flat (pt11; pt12 OPEN on rotational bases)
+- Blurry +1 flat (pt11; Red 2026-05-20: "Blurry just implies stepping; it does not imply paradox anymore" -- prior "stepping paradox X" expansion retired; pt12 OPEN on rotational-base ADD still applies)
 
 ### B.3 -- Compositional modifiers
 
@@ -116,7 +116,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 - Whirling +1 (pt11; = Whirl + Osis when applied to compatible bases)
 - Illusioning +1 (by analogy; not formally ruled)
 - Terraging +3 (pt6)
-- Barraging +1 (per IFPA modifier table; was Q4-blocked; corrected 2026-05-12)
+- Barraging +2 two-dex set (Red 2026-05-20; reclassified body→set; two dex steps inside the set are each count-bearing. Worked examples: barraging + osis = baroque = 5; barraging + legover = flurry = 4. Supersedes prior +1 entry corrected 2026-05-12)
 - Furious +2 rotational (pt6 fury derivation requires this); non-rotational case TBD
 - Surging stepping + spinning compression (pt1: surging = spinning + stepping = 2 ADDs)
 
@@ -162,6 +162,8 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 - Vortex = Gyro Drifter (pt1)
 - Spyro Gyro = Gyro Butterfly Swirl (pt2)
 - Nemesis = Furious Barfly (pt8)
+- Witchdoctor = Atom Smasher + Symposium (composite-base reading; Red 2026-05-20)
+- Baroque = Barraging Osis (barraging = +2 two-dex set; Red 2026-05-20)
 
 ### C.2 -- Names-and-aliases settled
 
@@ -190,7 +192,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 
 ## E -- What is explicitly NOT in scope of resolved canon
 
-- Pt12 open queue (blurry-transitive, witchdoctor-math): explicitly open.
+- Pt12 open queue: blurry-transitive (rotational-base ADD on blurry-whirl/blurry-torque) remains partially open after Red 2026-05-20's semantic clarification ("Blurry just implies stepping") -- the rotational +1 vs +2 question still needs adjudication. Witchdoctor-math CLOSED 2026-05-20 (composite-base reading).
 - Q4 batch (fairy, gyro, blazing, surging, railing, flailing, splicing, surfing, neutron, bubba, twinspinning, jolimont, smiling, spyro-as-modifier, dragon, spyro): not yet ruled; deferred to Q4 packet.
 - Recursive Sets (sailing, slaying, frantic, phasing, leaning, hyper, pogo, quasi, riffing, slicing): NF-2A scoring done; 5 advance candidates pending Red.
 - Positional operators ADD weight (far / near / op / os) beyond ss: by-analogy +0 currently; not formally adjudicated.
