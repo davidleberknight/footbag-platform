@@ -5763,6 +5763,7 @@ section.home-media { padding-top: 0; }
 .observed-source-strip-item--FM { background: #f4d8c0; color: #6a4226; }
 .observed-source-strip-item--SG { background: #cfe6d2; color: #295238; }
 .observed-source-strip-item--FF { background: #d0dff2; color: #234566; }
+.observed-source-strip-item--FB { background: #ecdfd0; color: #5a3a18; }   /* footbag.org */
 .observed-source-strip-item--OTHER { background: #e0e0e0; color: #555; }
 
 .observed-card-grid {
@@ -5806,6 +5807,7 @@ section.home-media { padding-top: 0; }
 .observed-card-source-badge--FM { background: #f4d8c0; color: #6a4226; }
 .observed-card-source-badge--SG { background: #cfe6d2; color: #295238; }
 .observed-card-source-badge--FF { background: #d0dff2; color: #234566; }
+.observed-card-source-badge--FB { background: #ecdfd0; color: #5a3a18; }   /* footbag.org */
 .observed-card-source-badge--OTHER { background: #e0e0e0; color: #555; }
 .observed-card-status-chip {
   display: inline-block;

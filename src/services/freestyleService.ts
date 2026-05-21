@@ -2445,9 +2445,11 @@ export interface FreestyleGlossaryContent {
 // cross into canonical surfaces; this view-model is the only place they
 // surface.
 /** Two-letter source badge for compact card rendering. PassBack=PB,
- *  FootbagMoves=FM, Shred Global=SG, Footbag Finland=FF, other=OTHER.
- *  fborg would map to FB if it appears in future ingestion. */
-export type ObservedSourceBadge = 'PB' | 'FM' | 'SG' | 'FF' | 'OTHER';
+ *  FootbagMoves=FM, Shred Global=SG, Footbag Finland=FF, footbag.org=FB,
+ *  other=OTHER. The FB badge surfaces structurally clean compounds from
+ *  the footbag.org /newmoves corpus that are awaiting curator promotion
+ *  to canonical. */
+export type ObservedSourceBadge = 'PB' | 'FM' | 'SG' | 'FF' | 'FB' | 'OTHER';
 
 /** Status-chip tone palette. Pre-shaped so the template never branches
  *  on the raw ObservationalStatus enum. */
@@ -2521,6 +2523,7 @@ const OBSERVED_SOURCE_BADGE: Record<ObservationalSourceLabel, ObservedSourceBadg
   'footbagmoves':     'FM',
   'shred-global':     'SG',
   'footbag-finland':  'FF',
+  'fborg':            'FB',
   'other':            'OTHER',
 };
 
@@ -2573,7 +2576,7 @@ function collectObservedSourceBadges(cards: readonly ObservedTrickCard[]): reado
   const seen = new Set<ObservedSourceBadge>();
   for (const c of cards) seen.add(c.sourceBadge);
   // Stable order matching OBSERVED_SOURCE_BADGE iteration.
-  const order: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'OTHER'];
+  const order: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'FB', 'OTHER'];
   return order.filter(b => seen.has(b));
 }
 

@@ -667,10 +667,11 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // Compact-card pattern (A2/A3/A4 redesign): the verbose
     // "observational · {sourceLabel}" prose is replaced by a 2-letter
     // source badge with title/aria-label carrying the full source
-    // citation. Badge variants are PB / FM / SG / FF / OTHER.
+    // citation. Badge variants are PB / FM / SG / FF / FB / OTHER
+    // (FB added 2026-05-20 for footbag.org /newmoves source).
     const res = await request(createApp()).get('/freestyle/observational');
     const badgeMatches = res.text.match(
-      /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|OTHER)</g,
+      /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|FB|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|FB|OTHER)</g,
     ) ?? [];
     // At least one PB badge present (PassBack is the dominant source).
     expect(badgeMatches.length).toBeGreaterThanOrEqual(1);

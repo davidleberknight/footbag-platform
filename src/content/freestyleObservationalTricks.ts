@@ -46,6 +46,7 @@ export type ObservationalSourceLabel =
   | 'footbagmoves'
   | 'shred-global'
   | 'footbag-finland'
+  | 'fborg'         // footbag.org /newmoves corpus; structurally clean compounds awaiting curator promotion
   | 'other';
 
 export type ObservationalStatus =
@@ -1001,6 +1002,168 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
     status:             'pending-review',
     curatorNote:        null,
+    unresolvedBlockers: [],
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // footbag.org /newmoves batch (2026-05-20). Twelve high-confidence
+  // structural compounds verbatim from the FB.org Paradox Moves listing,
+  // proposed for canonical promotion pending curator review. Each row
+  // uses Red-settled operators (paradox / spinning / inspinning /
+  // stepping / ducking / symposium) on Red-settled bases (mirage /
+  // illusion / whirl / legover / drifter / blender). ADD math agrees
+  // with FB.org per pure +1-stack arithmetic; no Wave 2 doctrine
+  // dependency.
+  //
+  // Source: exploration/fborg/paradoxMoves.txt + fundamentalmoves.txt.
+  // Provenance: FB.org /newmoves/list/{4..7} pages, 2003 corpus.
+  // Curator action on each: promote to canonical (move to
+  // legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv) +
+  // remove this observational entry. Follow
+  // [[feedback_observational_canonical_promotion_cleanup]].
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    folkSlug:           'inspinning-paradox-mirage',
+    displayName:        'Inspinning Paradox Mirage',
+    proposedReadings:   ['inspinning paradox mirage'],
+    proposedAddFormula: 'inspinning(+1) + paradox(+1) + mirage(2) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Inspinning is direction-distinct from Spinning per pt3; clean structural compound.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'inspinning-paradox-illusion',
+    displayName:        'Inspinning Paradox Illusion',
+    proposedReadings:   ['inspinning paradox illusion'],
+    proposedAddFormula: 'inspinning(+1) + paradox(+1) + illusion(2) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Sibling of inspinning-paradox-mirage; mirror dex direction.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'spinning-paradox-mirage',
+    displayName:        'Spinning Paradox Mirage',
+    proposedReadings:   ['spinning paradox mirage'],
+    proposedAddFormula: 'spinning(+1) + paradox(+1) + mirage(2) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Both operators settled; mirage is canonical 2-ADD atom.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'spinning-paradox-illusion',
+    displayName:        'Spinning Paradox Illusion',
+    proposedReadings:   ['spinning paradox illusion'],
+    proposedAddFormula: 'spinning(+1) + paradox(+1) + illusion(2) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Mirror of spinning-paradox-mirage on illusion base.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'spinning-paradox-whirl',
+    displayName:        'Spinning Paradox Whirl',
+    proposedReadings:   ['spinning paradox whirl'],
+    proposedAddFormula: 'spinning(+1) + paradox(+1) + whirl(3) = 5 ADD (proposed)',
+    proposedAddTotal:   5,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Rotational base (whirl); both operators non-rotational +1.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'paradox-double-leg-over',
+    displayName:        'Paradox Double Leg Over',
+    proposedReadings:   ['paradox double legover'],
+    proposedAddFormula: 'paradox(+1) + double-legover(3) = 4 ADD (proposed; equiv paradox(+1) + legover(2) + 1 extra dex)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003) — "Paradox Mirage with an extra legover at the end"',
+    status:             'pending-review',
+    curatorNote:        'Per FB.org description: "A paradox mirage with an extra leg over at the end."',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'paradox-barrage',
+    displayName:        'Paradox Barrage',
+    proposedReadings:   ['paradox barrage', 'paradox + two same-side dexes'],
+    proposedAddFormula: 'paradox(+1) + barrage(3) = 4 ADD (proposed; barrage settled pt12 SS resolution)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Barraging operator settled by pt12 (SS=+0); barrage base = 3 ADD.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'paradox-blizzard',
+    displayName:        'Paradox Blizzard',
+    proposedReadings:   ['paradox blizzard', 'paradox + stepping-paradox-illusion'],
+    proposedAddFormula: 'paradox(+1) + blizzard(3) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Composite of paradox + stepping-paradox-illusion (Blizzard). Requires Blizzard canonicalization first.',
+    unresolvedBlockers: ['blizzard not yet canonical'],
+  },
+  {
+    folkSlug:           'paradox-symposium-mirage',
+    displayName:        'Paradox Symposium Mirage',
+    proposedReadings:   ['paradox symposium mirage'],
+    proposedAddFormula: 'paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (proposed)',
+    proposedAddTotal:   4,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Multi-operator stack on mirage; both operators +1.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'paradox-high-plains-drifter',
+    displayName:        'Paradox High Plains Drifter',
+    proposedReadings:   ['paradox high-plains-drifter', 'paradox double drifter'],
+    proposedAddFormula: 'paradox(+1) + high-plains-drifter(4) = 5 ADD (proposed)',
+    proposedAddTotal:   5,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003) — alias "Paradox Double Drifter"',
+    status:             'pending-review',
+    curatorNote:        'Drifter resolved pt11 (miraging clipper); HPD is the double-dex variant.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'spinning-paradox-blender',
+    displayName:        'Spinning Paradox Blender',
+    proposedReadings:   ['spinning paradox blender'],
+    proposedAddFormula: 'spinning(+1) + paradox(+1) + blender(4) = 6 ADD (proposed)',
+    proposedAddTotal:   6,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Blender resolved pt11 (whirling osis); rotational base.',
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'stepping-ducking-paradox-blender',
+    displayName:        'Stepping Ducking Paradox Blender',
+    proposedReadings:   ['stepping ducking paradox blender'],
+    proposedAddFormula: 'stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (proposed)',
+    proposedAddTotal:   7,
+    sourceLabel:        'fborg',
+    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
+    status:             'pending-review',
+    curatorNote:        'Triple-operator stack on blender; highest-ADD compound in the FB.org corpus that decomposes cleanly via +1 arithmetic.',
     unresolvedBlockers: [],
   },
 ];
