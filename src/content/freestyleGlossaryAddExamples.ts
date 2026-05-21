@@ -62,7 +62,7 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     officialAdd:       5,
     derivation:        'gyro(+2 rotational) + torque(4) = 6 ADD [naïve computed]',
     status:            'doctrine-locked',
-    observationalNote: 'Naïve computed exceeds official by 1: when two rotational atoms share an unbroken rotational frame, the frame counts once (mechanism, not weight). The official 5 holds; the naïve 6 is preserved as a teaching artifact so the doctrine can be exhibited rather than narrated. Mobius is equivalent to spinning ss torque ≡ spinning ss miraging osis (three chain readings; all surface as alt-names on the trick page).',
+    observationalNote: 'Naïve computed exceeds official by 1; rotational-frame continuity is the mechanism. See the mobius doctrine note in §1 (Derivation atlas) for the full Reading A vs Reading B exhibition.',
   },
   {
     slug:              'nuclear',

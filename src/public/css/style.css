@@ -7828,6 +7828,33 @@ a.dict-card-title:hover {
   }
 }
 
+/* Standardized outward-link affordance (Glossary Architecture Phase 6).
+   Single class controls placement + tone for all glossary→destination
+   navigation: "View full ontology →", "Browse {Name} tricks →",
+   "Modifier reference →", etc. Forbidden phrasings ("See tricks using",
+   "Learn more about") retired. */
+.glossary-outward-link {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--accent, #6b7280);
+  text-decoration: none;
+  font-weight: 500;
+}
+.glossary-outward-link:hover,
+.glossary-outward-link:focus {
+  text-decoration: underline;
+  color: var(--accent-strong, #374151);
+}
+.glossary-family-card-outward {
+  margin: 0.75rem 0 0;
+  text-align: right;
+}
+.derivation-panel-outward {
+  margin: 0.75rem 0 0;
+  text-align: right;
+}
+
 /* §1 publication-states dl (glossary architecture overhaul Phase 1).
    Compact definition-list rendering the six publication-state vocab
    entries. Mirrors the §2 glossary-term-list tone. */

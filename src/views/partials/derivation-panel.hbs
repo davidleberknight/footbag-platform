@@ -36,7 +36,34 @@
   </header>
 
   <section class="derivation-panel-section derivation-panel-section--ladder" aria-label="Semantic-depth ladder">
-    {{> semantic-depth-ladder ladder=entry.ladder}}
+    {{! Phase 6 collapse tuning: compressed + semantic rungs render
+        visible; expanded + deep rungs collapse behind an [advanced]
+        details. Empty details suppress when no deep rungs exist. }}
+    <ol class="semantic-depth-ladder">
+      {{#each entry.ladder}}
+        {{#if (or (eq depth 'compressed') (eq depth 'semantic'))}}
+          <li class="semantic-depth-ladder-rung semantic-depth-ladder-rung--{{depth}}">
+            <span class="semantic-depth-ladder-chip">{{depth}}</span>
+            <span class="semantic-depth-ladder-text">{{text}}</span>
+          </li>
+        {{/if}}
+      {{/each}}
+    </ol>
+    {{#if entry.hasDeepRungs}}
+      <details class="derivation-panel-prose derivation-panel-prose--advanced">
+        <summary><span class="derivation-panel-prose-badge">advanced</span> deeper readings</summary>
+        <ol class="semantic-depth-ladder semantic-depth-ladder--deep">
+          {{#each entry.ladder}}
+            {{#if (or (eq depth 'expanded') (eq depth 'deep'))}}
+              <li class="semantic-depth-ladder-rung semantic-depth-ladder-rung--{{depth}}">
+                <span class="semantic-depth-ladder-chip">{{depth}}</span>
+                <span class="semantic-depth-ladder-text">{{text}}</span>
+              </li>
+            {{/if}}
+          {{/each}}
+        </ol>
+      </details>
+    {{/if}}
   </section>
 
   <section class="derivation-panel-section derivation-panel-section--operational" aria-label="Operational formula">
@@ -86,9 +113,14 @@
   </section>
 
   {{#if entry.equivalenceChains.length}}
+    {{! Phase 6 collapse tuning: equivalence chains are advanced
+        material; collapse by default. The headline summary stays
+        visible so readers know the section exists. }}
     <section class="derivation-panel-section derivation-panel-section--equivalence" aria-label="Equivalence chains">
-      <h4 class="derivation-panel-section-heading">Equivalence</h4>
-      {{> equivalence-chain chains=entry.equivalenceChains}}
+      <details class="derivation-panel-prose derivation-panel-prose--advanced">
+        <summary><span class="derivation-panel-prose-badge">advanced</span> equivalence chains</summary>
+        {{> equivalence-chain chains=entry.equivalenceChains}}
+      </details>
     </section>
   {{/if}}
 
@@ -111,4 +143,6 @@
       <p>{{entry.observationalProse}}</p>
     </details>
   {{/if}}
+
+  <p class="derivation-panel-outward"><a class="glossary-outward-link" href="/freestyle/tricks/{{entry.slug}}">View full ontology &rarr;</a></p>
 </article>

@@ -122,6 +122,61 @@ describe('GET /freestyle/glossary — derivation atlas section', () => {
   });
 });
 
+describe('GET /freestyle/glossary — derivation atlas Phase 6 collapse + outward-link', () => {
+  it('every atlas panel carries a "View full ontology →" outward link to its trick-detail page', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    // Each pilot slug links to /freestyle/tricks/{slug}. Pin the
+    // unified phrasing too.
+    expect(res.text).toContain('href="/freestyle/tricks/mobius"');
+    expect(res.text).toContain('href="/freestyle/tricks/blur"');
+    expect(res.text).toContain('href="/freestyle/tricks/paradox"');
+    expect(res.text).toContain('href="/freestyle/tricks/whirl"');
+    expect(res.text).toContain('href="/freestyle/tricks/flurry"');
+    expect(res.text).toMatch(/View full ontology\s*&rarr;/);
+  });
+
+  it('outward links use the standardized .glossary-outward-link class', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    // The class appears on the atlas outward links + family-card
+    // outward links + modifier feel-cards + connective panels.
+    expect(res.text).toMatch(/class="glossary-outward-link"/);
+  });
+
+  it('deep ladder rungs (expanded + deep) are wrapped in a collapsed <details>', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    // The "deeper readings" details summary is the affordance.
+    expect(res.text).toMatch(/<summary><span class="derivation-panel-prose-badge">advanced<\/span>\s*deeper readings<\/summary>/);
+    // The collapsed deep ladder still emits the rungs in the HTML
+    // (browser-decoded on open), but they sit inside <details>.
+    expect(res.text).toContain('semantic-depth-ladder--deep');
+  });
+
+  it('mobius deep rungs (expanded + deep) are inside the collapsed <details>, not in the visible ladder', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    // The visible ladder still contains compressed + semantic rungs:
+    //   compressed: mobius
+    //   semantic:   gyro torque
+    // The deep ladder carries the expanded + deep rungs. We assert by
+    // pinning the "deep" rung's containing <ol> class.
+    const deepLadderIdx = res.text.indexOf('semantic-depth-ladder--deep');
+    expect(deepLadderIdx).toBeGreaterThan(0);
+    const deepLadderEnd = res.text.indexOf('</ol>', deepLadderIdx);
+    const deepRegion = res.text.slice(deepLadderIdx, deepLadderEnd);
+    expect(deepRegion).toContain('spinning same-side torque');
+    expect(deepRegion).toContain('spinning same-side miraging osis');
+  });
+
+  it('equivalence chains are wrapped in a collapsed <details> with advanced badge', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toMatch(/<summary><span class="derivation-panel-prose-badge">advanced<\/span>\s*equivalence chains<\/summary>/);
+  });
+});
+
 describe('GET /freestyle/derivation-pilot — retired', () => {
   it('returns 404 (route removed; content now lives in glossary §1)', async () => {
     const app = await createApp();

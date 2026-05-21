@@ -520,3 +520,172 @@ unification, browse-view literacy, worked-examples deepening, UX
 collapsibles — waits for curator authorization.
 
 Restraint-first. Reversible by deletion. Curator-paced.
+
+---
+
+## 12. Phase 6 — Glossary ↔ Trick-Detail Convergence (ratified 2026-05-21)
+
+Phase 6 converges the glossary's card primitives and the trick-detail
+page into a coherent two-depth publication system. Where Phases 1–5
+shaped the glossary's interior, Phase 6 shapes the glossary's
+*relationship* with the rest of the public surface.
+
+### 12.1 Load-bearing doctrine statement
+
+> **The glossary is a curated conceptual overview layer, not an
+> exhaustive enumeration surface. Exhaustive ontology publication
+> belongs to per-trick expanded pages and dictionary browse systems.**
+
+This sentence is the architectural commitment that gates every
+subsequent decision about glossary content depth, card grammar, and
+outward navigation. When in doubt: summarize in the glossary; expand
+on the trick-detail page; enumerate in the dictionary.
+
+The doctrine resolves the "should this go in the glossary or on the
+trick-detail page?" question at the design layer. Cards that exceed
+the doctrine's bound (too much depth, too much enumeration, too much
+prose) are restructured toward the trick-detail page.
+
+### 12.2 Convergence audit (pre-Phase-6 state)
+
+**Five distinct primitive shapes for similar ontology objects:**
+
+| Primitive | Used in | Outward-link state | Convergence target |
+|---|---|---|---|
+| `derivation-panel.hbs` | §1 atlas | none | add "View full ontology →" |
+| `glossary-family-card.hbs` | §5 root + branch | "View family →" (browse) | add "View full ontology →" (trick-detail) + keep browse link |
+| `freestyle-modifier-reference.hbs` | §6 feel-cards | "See tricks using {Name} →" | normalize to "Browse {Name} tricks →" |
+| `glossary-add-example-card` (inline) | §8 worked-examples | none | doctrine-prose cleanup; cross-link only |
+| `glossary-connective-panel` (inline) | §11 neighborhoods | "Learn more about {displayName} →" | normalize to "Modifier reference →" (when modifierFamilyHref present) |
+
+### 12.3 Phase 6 sub-deliverables (this slice)
+
+**A. Outward-link convergence.** Single phrasing per destination type:
+
+| Destination | Phrasing |
+|---|---|
+| Family-anchor trick-detail page | "View full ontology →" |
+| Family browse view in dictionary | "View family →" (existing on family cards; preserve) |
+| Modifier browse view in dictionary | "Browse {Name} tricks →" (was "See tricks using {Name} →") |
+| Modifier family page | "Modifier reference →" (was "Learn more about {displayName} →") |
+
+Single CSS class `.glossary-outward-link` controls placement and tone.
+Forbidden variants retired: "See tricks using…", "Learn more about…",
+"Click here", or any phrasing not on the table above.
+
+**B. Collapse tuning on the derivation atlas.** The atlas panels
+currently render the full 4-rung ladder + equivalence chains +
+doctrine context all default-visible. Phase 6:
+
+- Expanded + deep ladder rungs → collapsed behind `[advanced]` `<details>`
+- Equivalence-chain section → collapsed behind `[advanced]` `<details>`
+- Doctrine-note context prose → collapsed (headline + reading-A / reading-B / mechanism / status stay visible; context paragraph moves to `<details>`)
+- Default-visible rows: compressed + semantic readings, operational notation, ADD ledger, family + inherits + related
+
+The "osis-level rendering quality" target (Principle 16) is preserved:
+canonical identity always visible, advanced layers progressively
+disclosed.
+
+**C. Doctrine-lighting cleanup.** §8 ADD worked-examples mobius card
+currently duplicates the §1 derivation-atlas doctrine-note prose
+about rotational-frame continuity. Phase 6 replaces the duplicate
+with a one-line summary + cross-link to §1. Other §8 worked-examples
+(blur, nuclear, quantum, baroque) are pedagogically distinct and
+remain unchanged.
+
+**D. Family-card ontology links.** Every `glossary-family-card.hbs`
+gains a "View full ontology →" link pointing at the family-anchor
+trick-detail page (`/freestyle/tricks/{slug}`). The existing browse-
+view link ("View family →") stays — the two affordances answer
+different questions ("teach me this anchor trick" vs "show me the
+family in the dictionary").
+
+**E. Phrasing normalization.** Modifier feel-cards (§6) and
+connective panels (§11) adopt the standardized phrasings from §12.3.A.
+
+### 12.4 Files changed (Phase 6)
+
+```
+modified  exploration/glossary-architecture-overhaul-2026-05-21/DESIGN.md
+            - this Phase 6 section (§12)
+modified  src/views/partials/derivation-panel.hbs
+            - collapse expanded/deep ladder rungs
+            - collapse equivalence-chain section
+            - collapse doctrine context prose
+            - add "View full ontology →" link
+modified  src/views/partials/semantic-depth-ladder.hbs (if present)
+            - split visible vs collapsed rungs
+modified  src/views/partials/glossary-family-card.hbs
+            - add "View full ontology →" link
+modified  src/views/partials/freestyle-modifier-reference.hbs
+            - "See tricks using {Name} →" → "Browse {Name} tricks →"
+modified  src/views/freestyle/glossary.hbs
+            - §11 connective panels: "Learn more about" → "Modifier reference →"
+            - §8 mobius observationalNote: doctrine prose → one-line + cross-link
+modified  src/content/freestyleGlossaryAddExamples.ts
+            - mobius observationalNote: doctrine prose → terse summary
+modified  src/public/css/style.css
+            - new .glossary-outward-link class
+            - collapsible affordances on derivation panel
+            - mobile (480px) media-query touches
+```
+
+### 12.5 Tests (Phase 6)
+
+```
+modified  tests/integration/freestyle.glossary-derivation-atlas.routes.test.ts
+            - assert "View full ontology →" present per atlas panel
+            - assert deep ladder rungs are default-collapsed (<details>)
+            - assert equivalence chains are default-collapsed
+            - assert doctrine context is default-collapsed; headline visible
+new       tests/integration/freestyle.glossary-outward-links.routes.test.ts
+            - assert "View full ontology →" appears on family cards + atlas panels
+            - assert "Browse {Name} tricks →" appears on modifier feel-cards
+            - assert forbidden phrasings ("See tricks using…", "Learn more about…") absent
+            - assert single .glossary-outward-link CSS class binds all standardized links
+```
+
+### 12.6 Non-goals for Phase 6
+
+- Not unifying the five primitives into one component (that's Phase 7+
+  — see §13 below). Phase 6 normalizes their *outputs* without merging
+  their *implementations*.
+- Not changing the derivation-atlas pilot membership (still 5 entries).
+- Not adding new trick-detail content. The "View full ontology →"
+  link points to the existing trick-detail page; trick-detail content
+  scope is governed elsewhere.
+- Not touching trick-detail render order or content; only adding
+  inbound links from the glossary.
+
+### 12.7 Acceptance gates for Phase 6
+
+- [x] Doctrine statement (§12.1) written
+- [ ] All five sub-deliverables (§12.3.A–E) shipped
+- [ ] Tests pin the unified outward-link contract + collapsed states
+- [ ] Build clean; focused sweep green
+- [ ] Mobile (480px) verified: collapse affordances usable, link targets ≥44px touch
+
+---
+
+## 13. Phase 7+ — Primitive Convergence (deferred, gate explicit)
+
+After Phase 6 normalizes the *outputs* of the five primitives, Phase 7
+could unify their *implementations* into a single
+`glossary-ontology-card.hbs` partial with a `kind` discriminator
+(`atlas-entry | family-card | modifier-card | add-example | connective-
+panel`). This would reduce the template surface ~40% and centralize
+the row vocabulary in one place.
+
+**Gate:** Phase 7 requires the curator to confirm that all five
+primitives' Phase-6 outputs have stabilized (≥4 weeks of no churn).
+Premature unification creates a single primitive with five conditional
+branches and is worse than the current five clean shapes.
+
+**Estimated scope:** ~300 lines of new partial + view-model
+normalization at the service layer; ~500 lines of deletions across
+the five existing partials/inline blocks; comprehensive integration
+test rewrite.
+
+**Restraint:** Phase 7 ships only if Phase 6 demonstrates that the
+five outputs are interchangeable. If they remain pedagogically
+distinct, the five primitives stay separate.

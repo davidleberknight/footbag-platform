@@ -105,6 +105,12 @@ export interface DerivationPanelEntry {
   /** Semantic-depth ladder rows. Always at least the compressed row.
    *  Order is shallowest-to-deepest (compressed → deep). */
   ladder:              readonly CompressionRung[];
+  /** Pre-shaped boolean indicating whether the ladder carries any
+   *  'expanded' or 'deep' rungs. Computed at module load by
+   *  `withDerivationPanelDerivedFields`. Drives the collapsible
+   *  "deeper readings" affordance on the derivation panel partial
+   *  (Phase 6 collapse tuning). */
+  hasDeepRungs:        boolean;
 
   /** Operational (Jobs-notation) formula. Curator-authored verbatim. */
   operational:         string;
@@ -132,9 +138,14 @@ export interface DerivationPanelEntry {
 
 // ─────────────────────────────────────────────────────────────────────────
 // The five pilot entries
+//
+// Raw curator-authored entries; the `hasDeepRungs` derived field is
+// computed at module export time so templates branch on pre-shaped data.
 // ─────────────────────────────────────────────────────────────────────────
 
-export const DERIVATION_PILOT_ENTRIES: readonly DerivationPanelEntry[] = [
+type RawDerivationPanelEntry = Omit<DerivationPanelEntry, 'hasDeepRungs'>;
+
+const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
   // ─── mobius ─────────────────────────────────────────────────────────
   {
     slug:           'mobius',
@@ -357,3 +368,16 @@ export const DERIVATION_PILOT_ENTRIES: readonly DerivationPanelEntry[] = [
       'Flurry is the canonical "all formulas, no prose" pilot entry. The semantic reading (double paradox legover), the operational formula, and the additive breakdown together describe the trick completely; no English explanation is needed. The structure IS the explanation.',
   },
 ];
+
+/**
+ * Public export: raw entries augmented with derived `hasDeepRungs`.
+ * Templates branch on `hasDeepRungs` per `template-conventions` rule
+ * "branching only on pre-shaped data".
+ */
+export const DERIVATION_PILOT_ENTRIES: readonly DerivationPanelEntry[] =
+  RAW_DERIVATION_PILOT_ENTRIES.map(entry => ({
+    ...entry,
+    hasDeepRungs: entry.ladder.some(
+      r => r.depth === 'expanded' || r.depth === 'deep',
+    ),
+  }));
