@@ -2252,7 +2252,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Barraging',
     glyph:       null,
     feel:        'Barraging puts two same-direction dexes on a single set.',
-    intuition:   'A count-bearing set primitive that structurally reads as (dex) + (dex); operator class under community review.',
+    intuition:   'A count-bearing set primitive that structurally reads as (dex) + (dex). The two dex steps are each ADD-bearing, giving the modifier a structural +2 weight.',
     example:     'Baroque = Barraging Osis; Flurry = Barraging Legover.',
     familyHint:  'Barraging anchors flurry, baroque, and the historical high-stepping cohort.',
     midtimeBody: false,
