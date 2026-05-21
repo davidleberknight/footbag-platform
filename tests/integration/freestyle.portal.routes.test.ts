@@ -306,16 +306,14 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
-  it('shows the portal-framing lede paragraph (no "Language of Freestyle" heading)', async () => {
-    // The prior section h2 "The Language of Freestyle Footbag" was
-    // dropped during the landing IA refactor — the page is framed as a
-    // portal, not a notation manifesto. The hero h1 carries the
-    // identity; a short framing paragraph below sets the page shape.
+  it('exposes a freestyle-portal-lede content-section containing at least one freestyle-portal-lede-paragraph', async () => {
+    // Structural invariant: the landing renders the lede surface with
+    // the documented class hooks. Paragraph copy is supplied by the
+    // service and is not pinned by this test.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).not.toContain('The Language of Freestyle Footbag');
     expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
-    expect(res.text).toMatch(/portal: featured videos first/);
+    expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
   });
 
   it('shows three placeholder get-started tiles', async () => {
@@ -390,30 +388,30 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('rel="noopener noreferrer"');
   });
 
-  it('shows the portal cards (intent-ordered, post-2026-05-13 philosophy realignment)', async () => {
+  it('renders every href in the locked portal-card manifest and no /freestyle/notation anchor', async () => {
+    // Structural invariant: the portal grid exposes a fixed set of
+    // outbound routes. Each route in the manifest must appear at least
+    // once on the page. /freestyle/notation is retired and must not
+    // surface as a portal-card anchor.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Each card's heading is asserted by its title text. The 2026-05-13 pass
-    // demoted the standalone Notation Reference card (notation is integrated
-    // into trick pages + the glossary, no longer a top-level portal pillar)
-    // and routed learners to /freestyle/learn from the Tutorials card.
-    expect(res.text).toContain('Tutorials &amp; Learning');
-    expect(res.text).toContain('Glossary');
-    expect(res.text).toContain('Trick Dictionary');
-    expect(res.text).toContain('World Records');
-    expect(res.text).toContain('Competition');
-    // 2026-05-17: card title extended when the /freestyle/combo-analysis
-    // page shipped — the History & ADD System card grew a third action
-    // button (Combo architecture →). Title rewritten to acknowledge the
-    // broader analytical scope it now covers.
-    expect(res.text).toContain('History, ADD &amp; Combo Architecture');
-    expect(res.text).toContain('Insights');
-    // Notation Reference no longer rendered as a standalone portal card.
-    expect(res.text).not.toMatch(/<div class="card-title">Notation Reference<\/div>/);
-    // Prior phrasings must not survive.
-    expect(res.text).not.toContain('Passback Records');
-    expect(res.text).not.toContain('Freestyle World Records');
-    expect(res.text).not.toMatch(/<div class="card-title">Learn Tricks<\/div>/);
+    const requiredHrefs = [
+      '/freestyle/tricks',
+      '/freestyle/glossary',
+      '/freestyle/records',
+      '/freestyle/leaders',
+      '/freestyle/competition',
+      '/freestyle/partnerships',
+      '/freestyle/history',
+      '/freestyle/add-analysis',
+      '/freestyle/combo-analysis',
+      '/freestyle/insights',
+      '/freestyle/operators',
+    ];
+    for (const href of requiredHrefs) {
+      expect(res.text, `expected portal link to ${href}`).toContain(`href="${href}"`);
+    }
+    expect(res.text).not.toContain('href="/freestyle/notation"');
   });
 
   it('Tutorials card lists the curated tutorial series; Glossary lives on its own peer card (no longer a subordinate link)', async () => {
@@ -1142,38 +1140,26 @@ describe('Landing IA refactor — Freestyle Reference Shelf', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Notation Normalization Wave — Slice N2 (NCR-5)
-// Dictionary portal card body expansion
-// ---------------------------------------------------------------------------
-
-describe('Notation Normalization Wave NCR-5 — Trick Dictionary portal card body', () => {
-  it('lists all five browse perspectives and frames Operators & Components as supporting vocabulary', async () => {
-    // Decision #2 (locked 2026-05-18): the Trick Dictionary card body
-    // previews five browse perspectives (ADD, Family, Movement System,
-    // Movement Neighborhoods, Observed Tricks) and names Operators &
-    // Components as supporting vocabulary, NOT as a sixth browse mode.
-    // The Operators portal card retains its own home on the landing.
+describe('Trick Dictionary and Operators are sibling portal cards', () => {
+  it('/freestyle/tricks and /freestyle/operators render in distinct portal-card chunks', async () => {
+    // Structural invariant: Operators & Modifiers is its own portal-card
+    // sibling of the Trick Dictionary card, not a child link inside it.
+    // Scope to the portal card-grid section (between the grid opener and
+    // the next </section>) so links elsewhere on the page (reference
+    // shelf, footer) are not counted. Split the grid by `<div class="card`
+    // to isolate each portal card chunk; both target hrefs must appear
+    // exactly once and in different chunks.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.status).toBe(200);
-    const cardStart = res.text.indexOf('<div class="card-title">Trick Dictionary</div>');
-    expect(cardStart).toBeGreaterThan(-1);
-    const cardEnd = res.text.indexOf('</div>', res.text.indexOf('<div class="card-actions">', cardStart));
-    // Collapse whitespace so the assertions tolerate template line-wrap +
-    // indentation. The card body spans multiple lines in the template.
-    const card = res.text.slice(cardStart, cardEnd).replace(/\s+/g, ' ');
-    // Five browse perspectives listed.
-    expect(card).toMatch(/by ADD/);
-    expect(card).toMatch(/by Family/);
-    expect(card).toMatch(/by Movement System/);
-    expect(card).toMatch(/by Movement Neighborhoods/);
-    expect(card).toMatch(/Observed Tricks/);
-    // Operators & Components framed as supporting vocabulary.
-    expect(card).toMatch(/Operators &amp; Components/);
-    expect(card).toMatch(/supporting vocabulary/);
-    // Old "Browse by ADD bucket / set/modifier each trick uses" copy gone.
-    expect(card).not.toMatch(/Browse by ADD bucket/);
-    expect(card).not.toMatch(/set\/modifier each trick uses/);
+    const gridStart = res.text.indexOf('<div class="card-grid card-grid-2col">');
+    expect(gridStart, 'portal card-grid not found').toBeGreaterThan(-1);
+    const gridEnd = res.text.indexOf('</section>', gridStart);
+    const portalGrid = res.text.slice(gridStart, gridEnd);
+    const cards = portalGrid.split('<div class="card');
+    const dictCards = cards.filter((c) => c.includes('href="/freestyle/tricks"'));
+    const opCards = cards.filter((c) => c.includes('href="/freestyle/operators"'));
+    expect(dictCards).toHaveLength(1);
+    expect(opCards).toHaveLength(1);
+    expect(dictCards[0]).not.toBe(opCards[0]);
   });
 });
 

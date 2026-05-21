@@ -1,10 +1,21 @@
-// Video facade: replace a thumbnail placeholder with an inline player on click.
-// Privacy- and performance-friendly: no third-party requests until the user
-// opts in. Supports three platforms via the data-platform attribute on the
-// facade element: youtube, vimeo, s3. The element should be an anchor so
-// no-JS users still get a fallback navigation.
+// Video facade: click-to-play with a single-active-player invariant.
+// On activation we replace the facade anchor with a YouTube/Vimeo iframe
+// or a native <video>. Activating any other facade tears down the prior
+// player first, so the page never holds more than one live decoder or
+// embed iframe -- the resource ceiling that triggers tab freezes when
+// galleries accumulate players.
+//
+// Progressive enhancement: every facade is a real <a href="..."> in the
+// template, so without JS, click opens the platform watch page (or the
+// raw .mp4 for s3) in a new tab. Modified clicks (cmd/ctrl/shift/alt,
+// non-primary buttons) fall through to the anchor here too.
 (function () {
   'use strict';
+
+  // At most one player is active per page.
+  //   host    : the live <iframe> or <video>
+  //   restore : the original facade anchor, detached, ready to swap back
+  var active = null;
 
   function buildIframe(src, title) {
     var iframe = document.createElement('iframe');
@@ -28,6 +39,28 @@
     return video;
   }
 
+  function teardown() {
+    if (!active) return;
+    var node = active.host;
+    var restore = active.restore;
+    try {
+      if (node.tagName === 'VIDEO') {
+        // Release the decoder synchronously rather than waiting for GC.
+        try { node.pause(); } catch (e) {}
+        node.removeAttribute('src');
+        try { node.load(); } catch (e) {}
+      } else if (node.tagName === 'IFRAME') {
+        // about:blank forces YouTube/Vimeo to release their player
+        // resources; bare removal leaves them lingering and is a known
+        // memory-leak path for embedded players.
+        try { node.setAttribute('src', 'about:blank'); } catch (e) {}
+      }
+    } finally {
+      if (node.parentNode) node.replaceWith(restore);
+      active = null;
+    }
+  }
+
   function activate(facade) {
     var platform = facade.getAttribute('data-platform') || 'youtube';
     var label    = facade.getAttribute('aria-label') || 'Video player';
@@ -37,14 +70,9 @@
 
     var replacement;
     if (platform === 'youtube') {
-      // Prefer an explicit data-embed-url when provided (gallery tiles); fall
-      // back to constructing the URL from data-youtube-id (the home hero
-      // facade uses the id-only attribute).
       var ytSrc = embedUrl
         || (ytId ? 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(ytId) + '?rel=0' : null);
       if (!ytSrc) return;
-      // YouTube needs an explicit autoplay parameter even when the iframe
-      // load is triggered by a user gesture. Append it if absent.
       if (ytSrc.indexOf('autoplay=') === -1) {
         ytSrc += (ytSrc.indexOf('?') === -1 ? '?' : '&') + 'autoplay=1';
       }
@@ -63,22 +91,28 @@
       return;
     }
 
+    teardown();
+    active = { host: replacement, restore: facade };
     facade.replaceWith(replacement);
+    try { replacement.focus(); } catch (e) {}
   }
 
-  function init() {
-    var facades = document.querySelectorAll('.video-facade');
-    for (var i = 0; i < facades.length; i++) {
-      facades[i].addEventListener('click', function (e) {
-        e.preventDefault();
-        activate(this);
-      });
+  function onClick(e) {
+    if (e.defaultPrevented) return;
+    if (e.button !== 0) return;
+    // Modified clicks open-in-new-tab / save-link; let the anchor work.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var t = e.target;
+    while (t && t.nodeType === 1 && !(t.classList && t.classList.contains('video-facade'))) {
+      t = t.parentNode;
     }
+    if (!t || t.nodeType !== 1) return;
+    e.preventDefault();
+    activate(t);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  document.addEventListener('click', onClick);
+  // Free decoder/iframe resources when the user navigates away. pagehide
+  // is the bfcache-friendly counterpart to unload; both fire reliably.
+  window.addEventListener('pagehide', teardown);
 })();

@@ -264,15 +264,19 @@ describe('Landing portal-card inbound link to combo-analysis (2026-05-17)', () =
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
   });
 
-  it('the History/ADD/Combo card carries all three analytical-surface actions', async () => {
+  it('the three analytical-surface hrefs co-locate inside exactly one portal card', async () => {
+    // Structural invariant: /freestyle/history, /freestyle/add-analysis,
+    // and /freestyle/combo-analysis are grouped into a single portal-card
+    // boundary on the landing. Splitting on `<div class="card` yields one
+    // chunk per card; exactly one chunk must contain all three hrefs.
     const res = await request(createApp()).get('/freestyle');
-    const cardIdx = res.text.indexOf('History, ADD &amp; Combo Architecture');
-    expect(cardIdx).toBeGreaterThan(0);
-    // Walk forward to find the close of the card-actions block.
-    const closeIdx = res.text.indexOf('</div>', res.text.indexOf('card-actions', cardIdx));
-    const slice = res.text.slice(cardIdx, closeIdx);
-    expect(slice).toContain('href="/freestyle/history"');
-    expect(slice).toContain('href="/freestyle/add-analysis"');
-    expect(slice).toContain('href="/freestyle/combo-analysis"');
+    const cards = res.text.split('<div class="card');
+    const cardsWithAllThree = cards.filter(
+      (c) =>
+        c.includes('href="/freestyle/history"') &&
+        c.includes('href="/freestyle/add-analysis"') &&
+        c.includes('href="/freestyle/combo-analysis"'),
+    );
+    expect(cardsWithAllThree).toHaveLength(1);
   });
 });

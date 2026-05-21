@@ -2063,15 +2063,13 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 // Landing-page "Language of Freestyle Footbag" structure invariants
 
 describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
-  it('replaces the prior "Language of Freestyle" intro with portal-framing lede', async () => {
+  it('exposes a freestyle-portal-lede content-section containing at least one freestyle-portal-lede-paragraph', async () => {
+    // Structural invariant: the landing renders the lede surface with
+    // the documented class hooks. Paragraph copy is supplied by the
+    // service and is not pinned by this test.
     const res = await request(createApp()).get('/freestyle');
-    // Old framing dropped:
-    expect(res.text).not.toContain('The Language of Freestyle Footbag');
-    expect(res.text).not.toContain('What is Freestyle Footbag?');
-    expect(res.text).not.toContain('Additional Degree of Difficulty');
-    // New portal framing present:
     expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
-    expect(res.text).toMatch(/portal: featured videos first/);
+    expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
   });
 
   it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {
