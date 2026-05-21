@@ -693,6 +693,63 @@ What is locked vs what is open as of 2026-05-15.
 
 ---
 
+## §12A. Historical divergence legitimacy (Red 2026-05-21)
+
+A governance/doctrine clarification batch received from Red Husted on
+2026-05-21, during the FB.org master-spreadsheet ingest phase. Not an
+ADD adjudication — it produces no resolved-canon rows. It clarifies the
+*historical* status of source divergence and conceptual evolution.
+Full ingest: `exploration/red-historical-ontology-2026-05-21/HISTORICAL_ONTOLOGY_DOCTRINE.md`.
+
+### Five clarifications adopted as doctrine
+
+1. **Historical divergence is expected and legitimate.** Older footbag
+   sites were never updated as understanding evolved; conflicting
+   notation across FB.org / FM / PassBack / IFPA is a historical
+   record, not a defect. Aggressive normalization erases history.
+
+2. **Compression becomes impractical for spoken naming.** Long-form
+   structural descriptions ("Stepping Diving Paradox Torque Screw")
+   cannot serve as callable names. Compressed spoken names and expanded
+   decompositions are intentionally different layers — direct
+   validation of the four-layer separation.
+
+3. **Blurry → stepping is conceptual evolution, not correction.**
+   `blurry` is historically-compressed vocabulary; `stepping` is the
+   later structurally-explicit reading of the same mechanic. Both
+   layers are legitimate and may coexist. This *frames* the §12 locked
+   delta "Blurry = stepping + paradox" — the delta is a structural-
+   reading equivalence; this adds the historical-layer framing around
+   it.
+
+4. **Historical ADD persistence.** ADD identity can survive conceptual
+   reinterpretation; most ADD values stayed stable as readings evolved.
+   The X-Dex family is the principal exception (reinterpreting hidden
+   cross-body structure moved ADD values — see §6 Case 5, Class 3).
+
+5. **Rooted-family stays doctrine-sensitive.** Rooted-style unique sets
+   are among the hardest structural ontology problems; no premature
+   topology hardening.
+
+### Effect on this doctrine
+
+- **Divergence-preservation policy is now Red-validated.** When sources
+  conflict: preserve per-source truth, preserve provenance, preserve
+  historical notation, never silently overwrite, mark
+  `doctrine_status='hedged'` on material divergence.
+- **§12 "Blurry = stepping + paradox" is unchanged** as a structural-
+  reading equivalence; §12A adds that `blurry` and `stepping` are *two
+  legitimate historical layers* of the same mechanic, not one-correct-
+  one-wrong.
+- **Publication principle (new).** A move may simultaneously carry a
+  compressed spoken name, an expanded structural explanation,
+  historically-evolved semantics, and a stable ADD identity — without
+  contradiction. Proposed as a seventh clause for
+  `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` (curator/Dave-owned;
+  not edited here).
+
+---
+
 ## §13. Cross-references
 
 - `PT12_ROUND2_SYNTHESIS.md` — pt12 integration + reclassified queue + Round-2 packet draft.
@@ -704,6 +761,7 @@ What is locked vs what is open as of 2026-05-15.
 - `feedback_reversible_content_governance.md` — prefer TypeScript content modules over SQL schema migrations during ontology refinement.
 - `feedback_frequency_not_authority.md` — corpus recurrence is evidence, not authority; used in operator-promotion decisions.
 - `docs/CANONICAL_TRICK_PUBLICATION_CONTRACT.md` — six requirements for canonical trick promotion; intersects with Layer A discipline.
+- `exploration/red-historical-ontology-2026-05-21/HISTORICAL_ONTOLOGY_DOCTRINE.md` — Red 2026-05-21 historical/governance batch; full ingest behind §12A.
 
 ---
 
