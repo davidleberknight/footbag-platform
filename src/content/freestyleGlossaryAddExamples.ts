@@ -61,8 +61,8 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     compactNotation:   'gyro torque',
     officialAdd:       5,
     derivation:        'gyro(+2 rotational) + torque(4) = 6 ADD [naïve computed]',
-    status:            'pending-doctrine',
-    observationalNote: 'Computed total exceeds official by 1 — the gyro-on-rotational doctrine has an open question. Mobius is equivalent to spinning ss torque ≡ spinning ss miraging osis (three chain readings; all surface as alt-names on the trick page).',
+    status:            'doctrine-locked',
+    observationalNote: 'Naïve computed exceeds official by 1: when two rotational atoms share an unbroken rotational frame, the frame counts once (mechanism, not weight). The official 5 holds; the naïve 6 is preserved as a teaching artifact so the doctrine can be exhibited rather than narrated. Mobius is equivalent to spinning ss torque ≡ spinning ss miraging osis (three chain readings; all surface as alt-names on the trick page).',
   },
   {
     slug:              'nuclear',
@@ -71,7 +71,7 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     officialAdd:       0,
     derivation:        'curator-pending — nuclear modifier composition awaiting Red ruling',
     status:            'pending-doctrine',
-    observationalNote: 'Nuclear shows up as an effective +2 modifier on multiple compounds (sumo, witchdoctor). The exact paradox+atomic decomposition is curator-pending and tracked in the Wave 3 supplement queue.',
+    observationalNote: 'Nuclear behaves as an effective +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). The exact paradox+atomic decomposition is curator-pending and tracked in the Wave 3 supplement queue.',
   },
   {
     slug:              'quantum',
