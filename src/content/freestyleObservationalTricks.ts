@@ -13,8 +13,9 @@
  *   - Observational entries NEVER appear on canonical surfaces
  *     (landing core-tricks grid, ADD analysis, glossary terms,
  *     trick-detail pages, family/movement-system/topology views).
- *   - Observational entries NEVER get a #-tag chip (the `#-tag`
- *     convention is canonical-only).
+ *   - Observational entries carry a visually distinct "tracked tag"
+ *     (#folk-slug, dashed style) for discoverability — NOT a canonical
+ *     hashtag chip. The distinct style must never imply official status.
  *   - Observational entries NEVER get media attachments (curator-gated).
  *   - Observational entries NEVER get a /freestyle/tricks/{slug} route
  *     (no trick-detail page).

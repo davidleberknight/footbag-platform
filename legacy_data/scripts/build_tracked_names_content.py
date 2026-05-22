@@ -98,7 +98,7 @@ def main() -> None:
         if key in seen:
             continue
         seen.add(key)
-        entry: dict[str, str] = {'displayName': name}
+        entry: dict[str, str] = {'displayName': name, 'slug': r['slug'].strip()}
         if key in notation:
             raw, prov, conf = notation[key]
             entry['operationalNotation'] = raw
@@ -134,6 +134,8 @@ def main() -> None:
         'export interface TrackedName {',
         '  /** Trick name as documented by the source. */',
         '  readonly displayName: string;',
+        '  /** Stable slug — the tag-like identity, shown as a #slug tracked tag. */',
+        '  readonly slug: string;',
         '  /** Symbolic / operational notation, verbatim from the reconciliation',
         '   *  master where one is already recorded. Absent when none exists. */',
         '  readonly operationalNotation?: string;',
@@ -159,7 +161,7 @@ def main() -> None:
         names = sorted(by_source[s], key=lambda e: e['displayName'].lower())
         lines.append(f"  {{ sourceLabel: '{esc(SOURCE_LABEL.get(s, s))}', names: [")
         for e in names:
-            parts = [f"displayName: '{esc(e['displayName'])}'"]
+            parts = [f"displayName: '{esc(e['displayName'])}'", f"slug: '{esc(e['slug'])}'"]
             if 'operationalNotation' in e:
                 parts.append(f"operationalNotation: '{esc(e['operationalNotation'])}'")
                 parts.append(f"formulaProvenance: '{esc(e['formulaProvenance'])}'")

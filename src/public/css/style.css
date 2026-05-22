@@ -6036,6 +6036,20 @@ section.home-media { padding-top: 0; }
   column-gap: 32px;
   font-size: 0.9rem;
 }
+/* Tracked tag — the tag identity for observational / tracked entries.
+   Deliberately distinct from the canonical #slug chip (dashed, italic,
+   muted) so a visible tag never implies official status. */
+.tracked-tag {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-style: italic;
+  white-space: nowrap;
+}
 .observational-tracked-list li {
   break-inside: avoid;
   margin-bottom: 5px;

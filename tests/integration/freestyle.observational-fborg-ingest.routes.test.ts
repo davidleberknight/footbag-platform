@@ -134,16 +134,16 @@ describe('FB.org observational ingest — layer-separation contract', () => {
     }
   });
 
-  it('fborg observational cards do NOT carry hashtag chips (#-tag is canonical-only)', async () => {
+  it('fborg observational cards carry a tracked-tag but no canonical trick-detail link', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
-    // Hashtag pattern would render as href="/freestyle/tricks/{slug}" with
-    // hero-hashtag class. None of the fborg slugs should appear in
-    // hashtag-style links on the observational page.
+    // Observed entries carry a visually distinct tracked-tag (a non-link
+    // #folk-slug span) — never a canonical trick-detail hyperlink.
     for (const entry of FBORG_BATCH) {
-      expect(res.text, `${entry.folkSlug} carries a hashtag chip`)
+      expect(res.text, `${entry.folkSlug} carries a canonical detail link`)
         .not.toMatch(new RegExp(`href="/freestyle/tricks/${entry.folkSlug}"`));
     }
+    expect(res.text).toMatch(/<span class="tracked-tag"[^>]*>#inspinning-paradox-mirage<\/span>/);
   });
 });
 
@@ -183,6 +183,13 @@ describe('/freestyle/observational — tracked-vocabulary section', () => {
     // assert no "N ADD" tier headings leaked into the block.
     const block = await trackedBlock();
     expect(block).not.toMatch(/<h3>\d+\s*ADD/);
+  });
+
+  it('renders a tracked-tag identity for tracked names', async () => {
+    // Every tracked name carries a #slug tracked-tag (the distinct,
+    // not-official tag identity).
+    const block = await trackedBlock();
+    expect(block).toContain('class="tracked-tag"');
   });
 
   it('renders an operational notation for entries that have one', async () => {
