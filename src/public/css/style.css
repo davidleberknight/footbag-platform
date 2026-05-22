@@ -6028,11 +6028,26 @@ section.home-media { padding-top: 0; }
   padding-top: 22px;
   border-top: 2px solid #e5e5e5;
 }
-.observational-tracked-names {
-  margin: 4px 0 18px 0;
+.observational-tracked-list {
+  margin: 6px 0 20px 0;
+  padding-left: 0;
+  list-style: none;
+  column-width: 24em;
+  column-gap: 32px;
   font-size: 0.9rem;
-  line-height: 1.9;
-  color: #555;
+}
+.observational-tracked-list li {
+  break-inside: avoid;
+  margin-bottom: 5px;
+  line-height: 1.5;
+  color: #444;
+}
+.observational-tracked-formula {
+  color: #888;
+}
+.observational-tracked-formula code {
+  font-size: 0.82rem;
+  color: #6a5d3f;
 }
 
 /* PassBack-vs-IFPA ADD framing — §3c subsection on /freestyle/add-analysis */

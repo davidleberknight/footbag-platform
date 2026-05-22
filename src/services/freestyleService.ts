@@ -2561,11 +2561,13 @@ export interface FreestyleObservationalContent {
   layerNote:            string;
   /** Cross-links to related canonical surfaces. */
   canonicalReferences:  readonly { label: string; href: string }[];
-  /** The wider tracked-but-unpublished name corpus — bare trick names
+  /** The wider tracked-but-unpublished name corpus — trick names
    *  documented across freestyle's source corpora that are not yet
-   *  canonically published, grouped by documenting source. A coverage
-   *  index, distinct from the detailed cards above. Grouped by source
-   *  (not ADD) per this page's no-ADD-claim-grouping contract. */
+   *  canonically published, grouped by documenting source. Each name
+   *  carries an optional operational notation where the reconciliation
+   *  master already records one. A coverage index, distinct from the
+   *  detailed cards above. Grouped by source (not ADD) per this page's
+   *  no-ADD-claim-grouping contract. */
   trackedNames:         readonly TrackedNameGroup[];
   trackedNamesTotal:    number;
   /** Honest, non-defensive framing prose for the tracked-names section. */
@@ -5967,7 +5969,8 @@ export const freestyleService = {
           "documented across freestyle's source corpora but are not yet " +
           'published in the canonical Trick Dictionary. They are known and ' +
           'tracked — staged for review, not omitted. Grouped by the source ' +
-          'that documents each name.',
+          'that documents each name; where a symbolic decomposition is ' +
+          'already on record, it is shown alongside the name.',
       },
     };
   },

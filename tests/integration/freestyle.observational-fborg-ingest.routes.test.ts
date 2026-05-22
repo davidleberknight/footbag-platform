@@ -159,28 +159,55 @@ describe('FB.org observational ingest — promotion-readiness signals', () => {
 });
 
 describe('/freestyle/observational — tracked-vocabulary section', () => {
-  it('renders the tracked-vocabulary section grouped by source', async () => {
+  // Returns just the tracked-vocabulary block of the rendered page.
+  async function trackedBlock(): Promise<string> {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    // Section anchor + heading.
-    expect(res.text).toContain('id="tracked-vocabulary"');
-    expect(res.text).toContain('Tracked vocabulary');
+    const start = res.text.indexOf('id="tracked-vocabulary"');
+    expect(start).toBeGreaterThan(-1);
+    return res.text.slice(start, res.text.indexOf('observational-footer', start));
+  }
+
+  it('renders the tracked-vocabulary section grouped by source', async () => {
+    const block = await trackedBlock();
+    expect(block).toContain('Tracked vocabulary');
     // Grouped by documenting source — the three source groups.
-    expect(res.text).toContain('FootbagMoves');
-    expect(res.text).toContain('footbag.org');
-    expect(res.text).toContain('PassBack');
+    expect(block).toContain('FootbagMoves');
+    expect(block).toContain('footbag.org');
+    expect(block).toContain('PassBack');
   });
 
   it('does NOT group the tracked list by an ADD claim', async () => {
-    // The observational page contract forbids ADD-claim grouping.
-    // The tracked section groups by source; assert no "N ADD" tier
-    // headings leaked into the tracked-vocabulary block.
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/observational');
-    const start = res.text.indexOf('id="tracked-vocabulary"');
-    expect(start).toBeGreaterThan(-1);
-    const block = res.text.slice(start, res.text.indexOf('observational-footer', start));
+    // The observational page contract forbids ADD-claim grouping;
+    // assert no "N ADD" tier headings leaked into the block.
+    const block = await trackedBlock();
     expect(block).not.toMatch(/<h3>\d+\s*ADD/);
+  });
+
+  it('renders an operational notation for entries that have one', async () => {
+    // Names with a symbolic_notation_raw on record show it after a ≡.
+    const block = await trackedBlock();
+    expect(block).toContain('observational-tracked-formula');
+    expect(block).toContain('&equiv;');
+  });
+
+  it('renders formula-less entries cleanly as plain list items', async () => {
+    // Many tracked names carry no notation (every PassBack name, plus
+    // others). They must still render as <li> items. More <li> than
+    // formula spans proves the formula-less entries render.
+    const block = await trackedBlock();
+    const items    = (block.match(/<li>/g) ?? []).length;
+    const formulas = (block.match(/observational-tracked-formula/g) ?? []).length;
+    expect(items).toBeGreaterThan(0);
+    expect(items).toBeGreaterThan(formulas);
+  });
+
+  it('does not promote tracked names to canonical (no trick-detail links)', async () => {
+    // The notation enrichment must not change canonical publication
+    // status: tracked names render as plain text, never as canonical
+    // /freestyle/tricks/{slug} detail links.
+    const block = await trackedBlock();
+    expect(block).not.toContain('href="/freestyle/tricks/');
   });
 });

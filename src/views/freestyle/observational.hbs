@@ -112,9 +112,11 @@
       <p class="text-muted">{{content.trackedNamesNote}}</p>
       {{#each content.trackedNames}}
       <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
-      <p class="observational-tracked-names">
-        {{#each names}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
-      </p>
+      <ul class="observational-tracked-list">
+        {{#each names}}
+        <li>{{displayName}}{{#if operationalNotation}} <span class="observational-tracked-formula">&equiv; <code>{{operationalNotation}}</code></span>{{/if}}</li>
+        {{/each}}
+      </ul>
       {{/each}}
     </div>
     {{/if}}
