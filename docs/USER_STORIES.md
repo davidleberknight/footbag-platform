@@ -49,6 +49,8 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_View_Club](#m_view_club)
   - [3.4 Event Participation](#34-event-participation)
     - [M_Register_For_Event](#m_register_for_event)
+    - [M_Upload_Routine_Music](#m_upload_routine_music)
+    - [M_Manage_Routine_Music_Library](#m_manage_routine_music_library)
     - [M_View_Event](#m_view_event)
   - [3.5 Payments](#35-payments)
     - [M_Donate](#m_donate)
@@ -74,6 +76,15 @@ This document is the Source of Truth for Functional Requirements, defining all U
   - [3.9 Email](#39-email)
     - [M_Manage_Email_Subscriptions](#m_manage_email_subscriptions)
     - [M_Send_Announce_Email](#m_send_announce_email)
+  - [3.10 Group Membership](#310-group-membership)
+    - [M_Browse_Groups_Directory](#m_browse_groups_directory)
+    - [M_View_Group](#m_view_group)
+    - [M_Join_Group](#m_join_group)
+    - [M_Leave_Group](#m_leave_group)
+    - [M_Email_Group](#m_email_group)
+    - [M_Upload_Group_File](#m_upload_group_file)
+    - [M_View_Group_Files](#m_view_group_files)
+    - [M_Delete_Own_Group_File](#m_delete_own_group_file)
 - [4. Event Organizer Stories](#4-event-organizer-stories)
   - [4.1 Event Lifecycle](#41-event-lifecycle)
     - [Event Status Lifecycle](#event-status-lifecycle)
@@ -85,10 +96,14 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [EO_View_Participants](#eo_view_participants)
     - [EO_Close_Registration](#eo_close_registration)
     - [EO_Export_Participants](#eo_export_participants)
+    - [EO_View_Registration_Summary](#eo_view_registration_summary)
+    - [EO_Export_Check_In_Template](#eo_export_check_in_template)
   - [4.3 Communication](#43-communication)
     - [EO_Email_Participants](#eo_email_participants)
   - [4.4 Results Publishing](#44-results-publishing)
     - [EO_Upload_Results](#eo_upload_results)
+  - [4.5 Music Operations](#45-music-operations)
+    - [EO_Play_Routine_Music](#eo_play_routine_music)
 - [5. Club Leader Stories](#5-club-leader-stories)
   - [5.1 Club Lifecycle](#51-club-lifecycle)
     - [M_Create_Club](#m_create_club)
@@ -97,11 +112,20 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [CL_Archive_Club](#cl_archive_club)
   - [5.2 Leadership Management](#52-leadership-management)
     - [CL_Manage_CoLeaders](#cl_manage_coleaders)
-- [6. Administrator Stories](#6-administrator-stories)
-  - [6.1 Event and Payments](#61-event-and-payments)
+- [6. Group Owner Stories](#6-group-owner-stories)
+  - [6.1 Group Management](#61-group-management)
+    - [GO_Edit_Group](#go_edit_group)
+    - [GO_Manage_Members](#go_manage_members)
+    - [GO_Manage_CoOwners](#go_manage_coowners)
+    - [GO_Configure_Email_Settings](#go_configure_email_settings)
+    - [GO_Moderate_Email_Queue](#go_moderate_email_queue)
+    - [GO_Delete_Any_Group_File](#go_delete_any_group_file)
+    - [GO_Leave_Group](#go_leave_group)
+- [7. Administrator Stories](#7-administrator-stories)
+  - [7.1 Event and Payments](#71-event-and-payments)
     - [A_Approve_Sanctioned_Event](#a_approve_sanctioned_event)
     - [A_Reconcile_Payments](#a_reconcile_payments)
-  - [6.2 Data Management](#62-data-management)
+  - [7.2 Data Management](#72-data-management)
     - [A_Override_Member_Data](#a_override_member_data)
     - [A_Grant_HoF_BAP_Board_Status](#a_grant_hof_bap_board_status)
     - [A_View_Member_History](#a_view_member_history)
@@ -113,36 +137,41 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
     - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
-  - [6.3 Content Moderation](#63-content-moderation)
+  - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
-  - [6.4 Vote Management](#64-vote-management)
+  - [7.4 Vote Management](#74-vote-management)
     - [A_Create_Vote](#a_create_vote)
     - [A_Publish_Vote_Results](#a_publish_vote_results)
     - [A_Cancel_Vote](#a_cancel_vote)
-  - [6.5 Email](#65-email)
+  - [7.5 Email](#75-email)
     - [A_Send_Mailing_List_Email](#a_send_mailing_list_email)
     - [A_Manage_Mailing_Lists](#a_manage_mailing_lists)
-  - [6.6 System Configuration](#66-system-configuration)
+  - [7.6 System Configuration](#76-system-configuration)
     - [A_View_Stripe_Config_And_Payments](#a_view_stripe_config_and_payments)
     - [A_Configure_System_Parameters](#a_configure_system_parameters)
     - [A_Manage_Admin_Role](#a_manage_admin_role)
-  - [6.7 Configurable Parameters](#67-configurable-parameters)
+  - [7.7 Configurable Parameters](#77-configurable-parameters)
     - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing-dues-ifpa-derived)
     - [Active Player Windows / Lifecycle](#active-player-windows-lifecycle)
     - [Email / Notifications / Outbox](#email-notifications-outbox)
     - [Auth / Security Tokens](#auth-security-tokens)
     - [Retention / Cleanup](#retention-cleanup)
-  - [6.8 Monitoring and Audit](#68-monitoring-and-audit)
+  - [7.8 Monitoring and Audit](#78-monitoring-and-audit)
     - [A_View_Dashboard](#a_view_dashboard)
     - [A_Resolve_Contact_IFPA_Admin_Request](#a_resolve_contact_ifpa_admin_request)
     - [A_View_System_Health](#a_view_system_health)
     - [A_View_Audit_Logs](#a_view_audit_logs)
     - [A_Acknowledge_Alarm](#a_acknowledge_alarm)
-- [7. Background System Jobs](#7-background-system-jobs)
+  - [7.9 Group Management](#79-group-management)
+    - [A_Create_Group](#a_create_group)
+    - [A_Edit_Group_Properties](#a_edit_group_properties)
+    - [A_Reassign_Group_Owner](#a_reassign_group_owner)
+    - [A_Archive_Group](#a_archive_group)
+- [8. Background System Jobs](#8-background-system-jobs)
     - [SYS_Check_Active_Player_Expiry](#sys_check_active_player_expiry)
     - [SYS_Send_Email](#sys_send_email)
     - [SYS_Open_Vote](#sys_open_vote)
@@ -158,7 +187,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [SYS_Nightly_Backup_Sync](#sys_nightly_backup_sync)
     - [SYS_Continuous_Database_Backup](#sys_continuous_database_backup)
     - [SYS_Cleanup_Static_Asset_Versions](#sys_cleanup_static_asset_versions)
-- [8. System Administrator Stories](#8-system-administrator-stories)
+- [9. System Administrator Stories](#9-system-administrator-stories)
 
 # 1. Global Behaviors
 
@@ -187,6 +216,8 @@ Historical imported people may appear in legacy event results and related read-o
 Imported legacy member accounts are stored as rows in the `legacy_members` table, created during the one-time migration from the legacy site. They are not `members` rows: they cannot log in, do not appear in member search results or any current-member surface, and do not affect normal registration or password-reset behavior. A legacy member who wants to connect their historical identity and data to a modern account must use the self-serve legacy claim flow while logged in; the claim links their modern `members` row to the `legacy_members` row rather than converting it.
 
 Moderation flows favor transparency and human oversight: when members flag content, flagged items remain visible until an administrator reviews and decides; no content is hidden or de-ranked automatically by secret algorithms.
+
+File upload safety model: the platform does not run an antivirus scanner on member-uploaded files. All accepted file formats are sanitized by construction: the upload is decoded, re-rendered, or re-encoded through a format-specific transformation tool, and only the transformed output is stored; the original upload is discarded. This malware-by-design approach eliminates non-payload bytes (metadata trailers, embedded scripts, polyglot tricks) at the cost of strict format whitelisting and accepted fidelity loss. Each upload story (`M_Upload_Photo`, `M_Submit_Video`, `M_Upload_Routine_Music`, `M_Upload_Group_File`) lists its own format whitelist and per-format sanitization pipeline.
 
 Unless explicitly stated otherwise, all numeric limits (counts, sizes), time windows (expiry/grace periods), reminder offsets, and security thresholds described in this document are defaults and are Administrator-configurable.
 
@@ -280,7 +311,7 @@ Glossary:
 Implementation notes used by stories below:
 
 - Membership tier and Active Player status are separate concepts; both must be queryable independently and shown distinguishably in any roster, report, or profile surface.
-- Membership tiers do not expire. Only Active Player status expires. Numeric defaults (price, duration, reminder offsets) live in §6.7 Configurable Parameters.
+- Membership tiers do not expire. Only Active Player status expires. Numeric defaults (price, duration, reminder offsets) live in §7.7 Configurable Parameters.
 - Canonical membership-tier database string values used in code and SQL: `tier0`, `tier1`, `tier2`, `tier3`. Display text ("Tier 1 IFPA Member", etc.) is formatted separately in UI templates. Active Player is represented by separate fields, not by a tier string.
 - Site Administrators (the platform admin role) must hold Tier 2 or Tier 3 status.
 - Feature access is controlled by membership tier, Active Player status where applicable, and contextual roles or flags (Event Organizer, Club Leader, Administrator, HoF, BAP). These values are fetched from the database on any authenticated request to check authorization rules; JWT tier or flag claims are cached for routing performance but are never authoritative for access control decisions.
@@ -778,7 +809,7 @@ Story: As a member, I can submit a structured contact request to the IFPA admini
 Success Criteria:
 
 - The profile edit page surfaces a "Contact IFPA admin" link next to the read-only identity block.
-- The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Identity-link issue, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
+- The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Identity-link issue, Group creation request, Vote creation request, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
 - On submit, the member sees a confirmation banner: "Your request has been sent to the IFPA administrator. We will reply by email."
 - Submitting writes one `work_queue_items` row with `queue_category='membership'`, `task_type='member_contact_request'`, `entity_type='member'`, `entity_id=<requesting_member_id>`, `status='open'`, `priority=5`, and `reason_text=<category-label>: <first 200 chars of message>`.
 - Submitting writes one `audit_entries` row with `actor_type='member'`, `action_type='support.contact_request_submitted'`, `category='support'`, `reason_text=<category-label>`, and `metadata_json` carrying the full message body and the category enum value.
@@ -898,6 +929,50 @@ Success Criteria:
 - For paid events, the member must complete the Stripe checkout process to be officially registered. Changes are applied only after webhook-confirmed success.
 - Event registration payments affect registration status only and do not directly change membership tier.
 - When the registered participant count reaches the event's (optional) capacity limit, the event status automatically changes to `registration_full`. Subsequent registration attempts receive the message: "This event has reached capacity and is no longer accepting registrations." No waitlist functionality exists.
+- If the registrant selects a category where the event organizer has set `requires_routine_music=true` (a new boolean on event categories, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
+- If the registrant has not uploaded the required routine music by the event registration deadline, the registration remains incomplete and is treated as not-confirmed for participant counts, exports, and check-in.
+- Registrants receive an email reminder at admin-configurable offsets before the deadline (`routine_music_reminder_days_1` default 7 days, `routine_music_reminder_days_2` default 1 day) when a required upload is missing.
+- For doubles or team routine categories, the registering member uploads on behalf of the entire entry; partners do not have independent upload access in Phase 1.
+
+### M_Upload_Routine_Music
+
+Access: Members registered in an event category with `requires_routine_music=true` can upload, attach, replace, detach, and play back their own routine-music files. Members manage their personal routine-music library outside any single event via `M_Manage_Routine_Music_Library`. For doubles or team routine entries, the non-uploading partner(s) can play back the attached track for verification but cannot upload, replace, detach, or delete.
+
+Story: As a freestyle competitor registered in a routine category, I can upload my routine music as an mp3 file so that the event organizer can play it during my performance, I can verify my upload before the event, and I can reuse the same track for future event registrations without re-uploading.
+
+Success Criteria:
+
+- The form is available to members with a registration in a category where `requires_routine_music=true`, and only before the event's registration deadline.
+- The form offers two paths: (a) upload a new mp3 file, or (b) attach an existing file from the member's personal routine-music library on S3 without re-uploading.
+- Accepted format (Phase 1): mp3 only. Other audio formats are rejected with a clear error message. Future-phase support for additional formats is admin-configurable.
+- Sanitization (per §1 file upload safety model): the audio is processed through FFmpeg with arguments `-map 0:a:0 -map_metadata -1 -c:a libmp3lame -b:a 128k -ar 44100`, which selects only the audio stream, drops all metadata and embedded album art, and re-encodes to a normalized 128 kbps / 44.1 kHz mp3. The re-encoded output is stored; the original upload is discarded. This eliminates any non-audio payload (id3-tag malware, trailers, polyglot tricks) by construction.
+- Future scope (proposed, not Phase 1): screen uploaded tracks against third-party copyright-block matchers (for example YouTube Content ID) and warn or reject uploads likely to trigger blocks when event video is later published.
+- Maximum file size is admin-configurable (`routine_music_max_size_mb`, default 20 MB), measured against the original upload before transcoding. Oversized files are rejected with a clear error message.
+- Files are stored in private object storage (S3) as durable member-owned media, on the same storage pipeline as member-uploaded photos. Files persist permanently in the member's library; there is no auto-purge.
+- Files are served via short-lived signed URLs only to (a) the uploading competitor at any time, (b) the non-uploading partner(s) on any joint registration the file is attached to, and (c) the event organizer(s) of any event the file is currently attached to via a registration entry, through and after event end. Files are never publicly accessible.
+- At upload, the member supplies a short library label (required, max 60 characters, for example "Worlds 2026 routine"). The label is stored on the library row as that file's default.
+- Each upload creates one row in the member's routine-music library. Attaching a library file to a registration entry creates a separate join row tying the file to that registration's (event_id, event_category_id) pair. A single library file may be attached to many registration entries across events. Event categories on attachment rows align with the EO-defined event categories from `M_Create_Event` and `EO_Edit_Event` (freeform per event, as the EO defines them).
+- At attachment time the member may override the library file's default label for that specific attachment. The override is stored on the attachment row; the library default is unchanged.
+- Within a single registration entry, replacement swaps which library file is attached; replacement does not delete the previously attached file from the member's library.
+- After the registration deadline closes, the competitor can no longer attach, replace, or detach the file for that event; the attachment is locked for the event.
+- Competitor can delete a library file at any time. Deletion removes the file from object storage and all attachment rows for past, current, and future events. Past-event registration records retain a tombstone reference noting the file was deleted by the competitor.
+- All upload, attach, replace, detach, delete actions are audit-logged with member ID, event ID (if applicable), event category ID (if applicable), file ID, action, timestamp.
+
+### M_Manage_Routine_Music_Library
+
+Access: Any member can view, play back, upload, label, and delete their own routine-music library files at any time.
+
+Story: As a member who uses routine music for footbag events, I can manage my personal routine-music library so that I can reuse tracks across events, replace stale uploads, update labels, and remove tracks I no longer want stored.
+
+Success Criteria:
+
+- Library view lists all routine-music files the member has uploaded, showing label, filename, file size, upload date, and the list of past/current attachments rendered as (event name, EO-defined event category) pairs.
+- Member can play back any library file via a short-lived signed URL.
+- Member can upload a new library file independent of any event registration, supplying a label at upload.
+- Member can edit a library file's default label at any time. Editing the default does not retroactively change per-attachment label overrides; those remain on the attachment rows.
+- Member can delete any library file. Deletion follows the cascade defined in `M_Upload_Routine_Music`: file removed globally, past-event registration records show a tombstone.
+- Library is private to the member. Not visible to other members. Event organizers see only files attached to events they organize, via `EO_Play_Routine_Music`. Doubles/team partners see only files attached to joint registrations they are also on.
+- All library actions are audit-logged with member ID, file ID, action, timestamp.
 
 ### M_View_Event
 
@@ -1255,6 +1330,143 @@ Success Criteria:
 - Rate limiting to prevent abuse (admin-configurable).  
 - All sends audit-logged (actor ID, subject, timestamp).
 
+## 3.10 Group Membership
+
+Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously, unlike clubs where membership is one-at-a-time. Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, alias keyword, and optional `parent_group_id` for subcommittees.
+
+Group operability rule: A group is considered non-operable if it has zero current owners. Non-operable groups are flagged into the admin work queue for remediation. Admin remediation options include assigning a new owner via `A_Reassign_Group_Owner` or archiving the group via `A_Archive_Group` if defunct.
+
+### M_Browse_Groups_Directory
+
+Access: Logged-in members can browse the directory of public groups. Visitors have no access.
+
+Story: As a member, I can browse a directory of public groups so that I can discover groups I might want to join or learn about.
+
+Success Criteria:
+
+- The directory lists all groups where `policy=public` AND `active=true`, regardless of whether the viewing member is a current member of those groups.
+- Each entry shows: group name, type label, official badge if `official=true`, short description, parent group name if `parent_group_id` is set, and aggregate member count.
+- Private groups never appear in this directory, even to current members of those private groups (private groups are reached via direct link or via the member's "My Groups" list).
+- Archived groups never appear.
+- Directory sortable alphabetically by name (default) or by type.
+- Directory is not visible to visitors. Unauthenticated access returns `V_Access_Denied`.
+
+### M_View_Group
+
+Access: All logged-in members can view a public group's page at a non-member view level. Only current group members and Admins can view a private group's page or see the member-only surfaces of a public group.
+
+Story: As a member, I can view a group's page so that I understand the group's purpose, leadership, membership, and active business.
+
+Success Criteria:
+
+- Public group, non-member viewer: page displays group name, type, official badge if applicable, description, current owner display name(s) and contact, parent group link if applicable, list of subcommittees (groups with `parent_group_id` pointing to this group) if any, and aggregate member count. Roster, files, email composition, and ballot capabilities are not exposed.
+- Private group, non-member viewer: returns `V_Access_Denied`. Private groups never appear in any directory.
+- Public or private group, current member viewer: page additionally displays full member roster (display name, current Active Player badge where applicable, special flags HoF/BAP/Board, city/country; email shown only if member has opted in to email visibility); link to `M_View_Group_Files`; link to `M_Email_Group` if email is enabled and the member is permitted to compose; group-scoped active or upcoming votes per `M_View_Vote_Options` eligibility.
+- Group owner viewing their own group: page additionally surfaces owner management actions (`GO_Edit_Group`, `GO_Manage_Members`, `GO_Manage_CoOwners`, `GO_Configure_Email_Settings`, `GO_Moderate_Email_Queue` count badge if any pending, `GO_Delete_Any_Group_File`).
+- Admin viewing any group: page additionally surfaces admin management actions (`A_Edit_Group_Properties`, `A_Reassign_Group_Owner`, `A_Archive_Group`).
+- The `active` flag, when false, displays a clear "This group is inactive" notice; inactive groups retain member access but are hidden from the public directory.
+- Member roster sorted alphabetically by display name.
+
+### M_Join_Group
+
+Access: Tier 1+ members can self-join groups where `restrict_membership=false` AND `active=true`.
+
+Story: As a member, I can self-join an open group so that I can participate in its activities and receive its communications.
+
+Success Criteria:
+
+- Join action is available only on groups where `restrict_membership=false` AND `active=true`.
+- On groups where `restrict_membership=true`, the group page shows an explanation that membership is managed by the group's owners or by Admins, and points the member to `M_Contact_IFPA_Admin` for inquiries.
+- Joining creates a `group_member_affiliations` row with `is_current=1`, `role='member'`, and timestamp.
+- If the group has an enabled `MailingList`, joining inserts a `MailingListSubscription` row in the auto-sync subtype for that list. The member cannot manually unsubscribe; unsubscription requires leaving the group via `M_Leave_Group`.
+- Joining sends a confirmation email to the joining member and a notification email to all current group owners.
+- Members may belong to an unlimited number of groups simultaneously. There is no per-member cap on group affiliations, unlike clubs.
+- Joining is audit-logged with member ID, group ID, timestamp, reason `member_self_join_group`.
+
+### M_Leave_Group
+
+Access: Any current group member can leave a group they currently belong to.
+
+Story: As a group member, I can leave a group so that I am removed from its roster and no longer receive its communications.
+
+Success Criteria:
+
+- Leaving sets the member's `group_member_affiliations.is_current=0` for the member-group pair.
+- A member who is the sole owner of the group cannot leave directly; the UI surfaces the constraint and routes the member to `GO_Manage_CoOwners` to promote a successor first.
+- Leaving a group where the member also held an owner or co-owner role removes that role row in the same transaction.
+- If the group has an enabled `MailingList`, leaving removes the member's auto-sync `MailingListSubscription` row.
+- Leaving sends a confirmation email to the leaving member and a notification email to all current group owners.
+- After leaving, the system re-evaluates group operability. If the group has zero owners after the leave, the system creates or updates a "Group Needs Owner" admin work queue item.
+- Leaving is audit-logged with actor identity, group ID, before and after affiliation state, timestamp.
+
+### M_Email_Group
+
+Access: Tier 1+ members can send a message to a group's email alias via web form, subject to the group's `restricted_sending` flag.
+
+Story: As a member, I can send an email to a group's alias so that I can communicate with the group's membership.
+
+Success Criteria:
+
+- The compose form is available only for groups with email enabled by Admin (`email_enabled=true`).
+- If `restricted_sending=true` (default for group lists), the compose form is shown only to current group members; non-members may see the alias address as informational on the group page but cannot compose.
+- If `restricted_sending=false`, the compose form is available to all Tier 1+ members.
+- Form includes: subject, message body, preview. Body is plain text (no HTML), consistent with `A_Send_Mailing_List_Email`.
+- If `moderated=true`, on submit the message enters a pending queue visible to group owners via `GO_Moderate_Email_Queue`. The sender sees a "Pending owner approval" confirmation. The message is dispatched only after owner approval; if rejected, the sender is notified by email with the owner's optional reason.
+- If `moderated=false`, the message is dispatched immediately via the outbox to all current group members (the auto-sync `MailingListSubscription` rows for the group's `MailingList`).
+- Outgoing subject is prefixed by `subject_prefix` if configured, in the form `[prefix] subject`.
+- Sender rate-limited per group, admin-configurable (`group_email_rate_limit_per_hour`, default 5 messages per group per member per hour).
+- Each dispatched message is archived per the existing `A_Send_Mailing_List_Email` archive rule (subject, body, sender, list, timestamp, recipient count) and browseable by group owners and Admins.
+- Bounce list, SES headers, and unsubscribe-link rules apply per existing mailing-list infrastructure. Auto-sync lists do not surface a per-member unsubscribe link; the link instead points to the group's page with a leave-group action.
+- All sends and moderation decisions are audit-logged with actor ID, group ID, message ID, action, timestamp.
+
+### M_Upload_Group_File
+
+Access: Any current member of the group can upload files to that group.
+
+Story: As a group member, I can upload a file to my group so that I share documents with the group's members.
+
+Success Criteria:
+
+- Upload form is available only to current group members on the group page.
+- Accepted formats (Phase 1): PDF, TXT, MD, PNG, JPEG. Office formats (DOCX, XLSX, PPTX) and other unlisted formats are rejected with a clear error message. Members convert Word and Excel documents to PDF before upload. Office formats are excluded because no free-tool transcoding pipeline preserves their editability while sanitizing macros; the platform keeps its malware-by-design posture by accepting only formats it can sanitize by construction.
+- Sanitization (per §1 file upload safety model):
+  - PDF: re-rendered through Ghostscript two-pass (PDF → PostScript 2 → PDF). PostScript 2 cannot carry JavaScript, embedded files, or launch actions, so the round-trip eliminates them by construction. Re-rendered PDF stored; original discarded.
+  - PNG / JPEG: re-encoded via the `sharp` library, which strips EXIF and embedded metadata by default. Re-encoded image stored; original discarded.
+  - TXT / MD: validated as UTF-8; invalid charset rejected. Stored as-validated.
+- File size cap: 25 MB per file (admin-configurable, `group_file_max_size_mb`), measured against the original upload before sanitization. Oversized files are rejected with a clear error message.
+- File is stored in private object storage (S3) and served via short-lived signed URLs only to current group members. The file is not addressable by visitors or by logged-in members who are not current members of the group.
+- Each upload creates a `group_files` row recording: group ID, uploader member ID, original filename, content type, size (post-sanitization), storage key, upload timestamp, optional caption (plain text, max 500 chars).
+- Member sees the uploaded file in the group's files list immediately after successful sanitization.
+- Upload rate-limited per group, admin-configurable (`group_file_upload_rate_limit_per_hour`, default 10 uploads per group per member per hour).
+- Upload action is audit-logged with member ID, group ID, file ID, filename, size, sanitization outcome, timestamp.
+
+### M_View_Group_Files
+
+Access: Only current members of the group can view its files.
+
+Story: As a group member, I can view and download files attached to the group so that I can access shared documents.
+
+Success Criteria:
+
+- Files list shows all current files for the group, with: filename, uploader display name, upload date, file size, optional caption.
+- List sortable by upload date (newest first by default), filename, or uploader.
+- Each row provides a download action that issues a short-lived signed URL.
+- Visitors and logged-in non-members of the group cannot access the files list or any individual file URL. Direct URL access by a non-member returns `V_Access_Denied`.
+- Files are not inherited to or from subcommittees. Each group's files are scoped to that group alone.
+
+### M_Delete_Own_Group_File
+
+Access: A group member can delete a file they originally uploaded to the group.
+
+Story: As a group member, I can delete a file I uploaded so that I control my own contributions.
+
+Success Criteria:
+
+- Delete action is available only on files where the uploader matches the current member.
+- Deletion permanently removes the file from object storage and the `group_files` row.
+- Group owners and Admins can delete any file via `GO_Delete_Any_Group_File`.
+- Deletion is audit-logged with actor member ID, group ID, file ID, original filename, timestamp.
+
 # 4. Event Organizer Stories
 
 Event Organizers are members who create events. Organizers can invite up to 4 co-organizers who share identical event management permissions. Members can organize multiple events simultaneously. Organizer permissions are event-scoped, meaning that being an organizer (or co-organizer) for one event grants permissions only for that event. Any EO can send bulk emails to registered participants, upload results, and the other functionality specified below.
@@ -1322,6 +1534,9 @@ Success Criteria:
 - All edits audit-logged with organizer ID, fields changed, old values, new values, timestamp.
 - Organizers see a clear success message when event is updated.
 - Organizer sees clear error messages for validation failures.
+- Organizers can mark any category on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that category is confirmed; after the first confirmed registration, changes to this flag for that category require admin override with a documented reason.
+- Organizers can add, rename, or remove categories on an existing event before the first registration in that category is confirmed. After the first confirmed registration, destructive changes to that specific category require admin override.
+- Organizers can enable or disable the event's online registration acceptance via a toggle that stops new registrations without changing event status. This is the granular alternative to `EO_Close_Registration`, which closes the entire registration window irreversibly.
 
 ### EO_Delete_Event
 
@@ -1411,6 +1626,35 @@ Success Criteria:
 - Export filename: eventname_participants_YYYYMMDD.csv
 - Participant list and exports include registration type (Competitor/Attendee-Supporter), selected categories (if competitor), and partner/team fields (if applicable).
 
+### EO_View_Registration_Summary
+
+Access: Event organizers can view a per-event registration summary dashboard for events they organize.
+
+Story: As an event organizer, I can view a registration summary dashboard for my event so that I can plan logistics, fees, t-shirts, and capacity at a glance.
+
+Success Criteria:
+
+- Dashboard is scoped to a single event and accessible only to that event's organizer(s) and Admins.
+- Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-category registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), capacity utilization vs configured capacity limit, registration timeline (count per day from registration open to current time).
+- Dashboard displays t-shirt size summary if the event collects t-shirt sizes.
+- For categories with `requires_routine_music=true`, dashboard displays a routine-music status summary: count of registrations with file uploaded vs missing.
+- Counts update via SQL query on demand; no caching beyond standard request scope.
+- Dashboard view is audit-logged with organizer ID, event ID, timestamp.
+
+### EO_Export_Check_In_Template
+
+Access: Event organizers can export a printable check-in template for their events.
+
+Story: As an event organizer, I can export a printable check-in template so that I can run on-site check-in with a paper or PDF roster.
+
+Success Criteria:
+
+- Export generates a print-styled HTML page or PDF, admin-configurable via `checkin_template_format` (default `html`). Distinct from the CSV produced by `EO_Export_Participants`.
+- Each row includes: participant display name, registration type, selected categories, partner or team info if applicable, payment status, a check-in checkbox column, and a notes column.
+- Rows are sorted alphabetically by participant display name (default) or by registration type.
+- Document title or filename format: `eventname_checkin_YYYYMMDD`.
+- Export action is audit-logged with organizer ID, event ID, format, timestamp.
+
 ## 4.3 Communication
 
 ### EO_Email_Participants
@@ -1452,6 +1696,26 @@ Success Criteria:
 Impact:
 
 For events officially registered through the IFPA website (including sanctioned events), uploading results triggers a two-step attendance confirmation process: Step 1: Automatic attendance for winners: any member accounts appearing in the uploaded results are automatically marked as "Attended". Step 2: Attendance confirmation for non-placing participants: after results upload completes, the system displays an attendance confirmation screen showing all registered participants (confirmed registrations) who do NOT appear in the uploaded results with checkboxes, allowing the organizer to verify additional attendees. For each confirmed Tier 0 attendee, the system grants or extends Active Player status for 730 days from the event end date (single-day event: event date; unknown end date: event start date). An older event must not shorten an existing later Active Player expiry date. For Tier 1, Tier 2, or Tier 3 attendees, attendance is recorded but no Active Player grant occurs because Active Player applies only to Tier 0; attendance never changes membership tier. All attendance confirmations and resulting Active Player grants/extensions are audit-logged with: organizer member ID, affected member ID, event ID, old Active Player expiry, new Active Player expiry, timestamp, reason "official_event_attendance". Tier 0 members who receive or extend Active Player status are sent a notification email explaining they received Active Player status for participating in Event Name, including the new expiry date and a brief explanation of Tier 1 benefits while Active Player status is current.
+
+## 4.5 Music Operations
+
+Organizer-side audio operations during events. Phase 1 scope is routine-music playback; the subsection's scope is expected to broaden over time to cover other tournament operations (bracket draws, judging sheets, live scoring, projection control) when those features are added.
+
+### EO_Play_Routine_Music
+
+Access: Event organizers can list, play, and download routine-music files attached to registrations in events they organize.
+
+Story: As an event organizer, I can list and play the routine-music files for my event so that I can play the correct music during each competitor's performance.
+
+Success Criteria:
+
+- List shows all routine-music files currently attached to confirmed registrations in the event, grouped by event category and sorted alphabetically by competitor display name within each category.
+- Each entry shows: competitor display name, partner or team info if applicable, event category, the per-attachment label (the attachment's override if set, otherwise the library default), original filename, file size, upload timestamp.
+- Organizer can play any attached file directly in the browser via short-lived signed URLs; playback is HTML5 audio with standard controls (play, pause, seek, volume).
+- Organizer can download any attached file for offline use during the event.
+- Files persist indefinitely on the member's S3 library (see `M_Upload_Routine_Music`); organizer access is gated by the attachment row remaining present and the organizer being assigned to the event.
+- If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, category, competitor identity, label) is preserved for audit and historical reference.
+- All listing, play, and download actions are audit-logged with organizer ID, event ID, file ID, action, timestamp.
 
 # 5. Club Leader Stories
 
@@ -1546,11 +1810,121 @@ Success Criteria:
 - The user interface hides remove-self functionality (button or link) when the current authenticated user is the sole leader of the club.
 - After any leadership change, the system re-evaluates club operability. If the club has zero leaders, the system creates or updates a “Club Needs Leader” admin work queue item. If the club has no contact email, the system creates or updates a “Club Needs Contact” admin work queue item.
 
-# 6. Administrator Stories
+# 6. Group Owner Stories
+
+Group Owners are members designated by an Admin at group creation time. Owners can invite up to 4 co-owners who share identical group management permissions. Owner permissions are group-scoped: owning one group grants permissions only for that group. Members may own multiple groups simultaneously.
+
+The group lifecycle (create, archive) is Admin-controlled and lives in `A_Create_Group` and `A_Archive_Group`. Owners do not create or archive groups. Owners can leave the group they own via `GO_Leave_Group` subject to the sole-owner promotion-first rule.
+
+## 6.1 Group Management
+
+### GO_Edit_Group
+
+Access: Group owners (including co-owners) and Admins can edit the owner-managed group fields.
+
+Story: As a group owner, I can edit my group's description and member-facing notes so that I keep the group's purpose and announcements current.
+
+Success Criteria:
+
+- Owner can edit: description (long-form text) and short member-facing notes (e.g., next meeting time, agenda link).
+- Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, alias_keyword, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
+- Co-owners can edit all owner-editable fields.
+- All edits are audit-logged with actor identity, fields changed, old values, new values, timestamp.
+- Owner sees a clear success message on save and clear validation errors otherwise.
+
+### GO_Manage_Members
+
+Access: Group owners (including co-owners) and Admins can add or remove members of the group.
+
+Story: As a group owner, I can add or remove members of my group so that I maintain the group's roster.
+
+Success Criteria:
+
+- Owner can add any Tier 1+ member to the group by member ID or via member search.
+- Owner can remove any current member from the group, subject to the sole-owner protection (an owner cannot remove the only owner; a successor must be promoted first via `GO_Manage_CoOwners`).
+- Add and remove behavior applies regardless of the group's `restrict_membership` flag; the flag controls only self-join, not owner-driven adds.
+- If the group has an enabled `MailingList`, add/remove operations insert or remove the corresponding auto-sync `MailingListSubscription` row in the same transaction.
+- Adding a member sends a notification email to the added member and to all current owners.
+- Removing a member sends a notification email to the removed member and to all current owners.
+- All add and remove actions are audit-logged with actor identity, group ID, target member ID, action, timestamp.
+- After any roster change, the system re-evaluates group operability and creates or updates a "Group Needs Owner" admin work queue item if the owner count is zero.
+
+### GO_Manage_CoOwners
+
+Access: Any owner of a group can manage co-owners for that group.
+
+Story: As a group owner, I can add, view, and remove co-owners so that I share group management responsibility. A group owner cannot remove themself if the only owner; they must first promote someone else.
+
+Success Criteria:
+
+- Any owner can add up to 4 co-owners by member ID; co-owners must be Tier 1+ members (consistent with the Tier 1+ floor enforced for initial owners in `A_Create_Group` and for added members in `GO_Manage_Members`). Maximum 5 total owners per group.
+- System sends an email to a new co-owner with: group name, owner responsibilities.
+- Co-owner gains identical group management permissions as the original owner.
+- Owners can view the list of all current co-owners; list shows display name, date added.
+- Co-owner can opt out of the owner role via the member dashboard.
+- The UI hides the remove-self action when the current authenticated owner is the sole owner of the group.
+- All co-owner actions are audit-logged.
+- After any owner-roster change, the system re-evaluates group operability and creates or updates a "Group Needs Owner" admin work queue item if the count is zero.
+
+### GO_Configure_Email_Settings
+
+Access: Group owners (including co-owners) and Admins can configure the group's mailing-list behavior, when email is enabled by Admin.
+
+Story: As a group owner, I can configure the email-handling behavior for my group's alias so that group communications match the group's working style.
+
+Success Criteria:
+
+- Configuration view is available only when the group has email enabled by Admin (`email_enabled=true`).
+- Owner can toggle `moderated` (bool, default false). When true, outgoing messages from `M_Email_Group` enter a pending queue for owner approval via `GO_Moderate_Email_Queue`.
+- Owner can toggle `restricted_sending` (bool, default true for group lists). When true, only current group members can compose messages to the alias via `M_Email_Group`. When false, any Tier 1+ member may compose.
+- Owner can set `subject_prefix` (string, max 32 chars, may be empty). When non-empty, prepended to outgoing subjects in the form `[prefix] subject`.
+- Owner cannot enable or disable the alias itself, nor change the alias keyword. Those are Admin-only via `A_Edit_Group_Properties`.
+- All configuration changes are audit-logged with actor identity, group ID, field changed, old value, new value, timestamp.
+
+### GO_Moderate_Email_Queue
+
+Access: Group owners (including co-owners) and Admins can review the moderated message queue for the group when `moderated=true`.
+
+Story: As a group owner, I can review pending moderated messages to my group's alias so that I approve appropriate communications and reject inappropriate ones.
+
+Success Criteria:
+
+- Queue is visible only when the group's `moderated=true`.
+- Each pending entry shows: sender display name, subject, full message body, submission timestamp.
+- Approve dispatches the message via the outbox to all current group members and creates the standard archive record per `A_Send_Mailing_List_Email`.
+- Reject does not dispatch the message; the sender is notified by email with the owner's optional reason text.
+- Approve and reject actions are audit-logged with actor identity, message ID, decision, optional reason, timestamp.
+- Pending messages older than an admin-configurable threshold (`group_email_moderation_expiry_days`, default 30 days) are auto-rejected with a system reason and the sender is notified.
+
+### GO_Delete_Any_Group_File
+
+Access: Group owners (including co-owners) and Admins can delete any file in the group.
+
+Story: As a group owner, I can delete any file in my group so that I can remove inappropriate or obsolete documents.
+
+Success Criteria:
+
+- Owner-initiated deletion permanently removes the file from object storage and the `group_files` row.
+- Deletion sends an email notification to the original uploader (if the uploader was not the deleting owner) with the filename, owner identity, and optional owner-provided reason.
+- Deletion is audit-logged with actor member ID, group ID, file ID, original filename, original uploader member ID, timestamp, reason.
+
+### GO_Leave_Group
+
+Access: A group owner can leave the group they own, subject to the sole-owner promotion-first rule.
+
+Story: As a group owner, I can leave my group so that I am removed from it. If I am the sole owner, I must first promote a successor via `GO_Manage_CoOwners`.
+
+Success Criteria:
+
+- If the owner is the sole owner of the group, the leave action is disabled with an explanation pointing to `GO_Manage_CoOwners`.
+- If the owner has co-owners, the leave action proceeds with the same semantics as `M_Leave_Group` and additionally removes the owner role row in the same transaction.
+- All actions are audit-logged.
+
+# 7. Administrator Stories
 
 Administrators are member volunteers with elevated privileges for platform operations, content moderation, and system configuration. Administrators are assigned manually and must be IFPA members with Tier 2 or Tier 3 status. All admin actions that modify data are audit-logged with admin ID, action type, reason, and timestamp. There is no UI for becoming an Admin, as this is done usually by another Admin, but could be done also by a System Administrator (a developer role not a user role) in order to grant system privileges.
 
-## 6.1 Event and Payments
+## 7.1 Event and Payments
 
 ### A_Approve_Sanctioned_Event
 
@@ -1590,7 +1964,7 @@ Success Criteria:
 - The Reconciliation Issues view includes a status filter with options: Outstanding (default) / Resolved / All. Resolved reconciliation issues show: admin who resolved the issue, resolution timestamp, resolution note explaining action taken. This allows multiple administrators to see what reconciliation issues have already been handled and by whom.
 - A periodic summary is sent to admins at the configured cadence (default: every 7 days, keyed by `reconciliation_summary_interval_days`) with a digest of outstanding or recently resolved reconciliation issues.
 
-## 6.2 Data Management
+## 7.2 Data Management
 
 ### A_Override_Member_Data
 
@@ -1819,7 +2193,7 @@ Success Criteria; Predicate refinement loop:
 
 - When the residue queue accumulates more than 50 `legacy_person_club_affiliations` rows that the automated predicates could not classify, the queue surfaces a "predicate refinement needed" indicator. Implementation owners revise the automatic predicate set per the story-extension rule above; previously-unclassified rows re-classify on the next automated run.
 
-## 6.3 Content Moderation
+## 7.3 Content Moderation
 
 ### A_Moderate_Media
 
@@ -1937,7 +2311,7 @@ Success Criteria:
 - Preserves club data for 7 years per retention policy.
 - Records an audit log entry.
 
-## 6.4 Vote Management
+## 7.4 Vote Management
 
 **Vote Status Lifecycle**
 
@@ -1958,14 +2332,17 @@ Story: As an Administrator, I can create a vote (election or issue vote) so that
 Success Criteria:
 
 - Admin defines: title, description, vote type (Election / Issue), nomination window (optional), voting window, ballot type (single-choice / multi-choice), and background materials (text + links/attachments).
-- Admin defines eligibility rules using member attributes and flags (Tier status, HoF, BAP, Board flags) or an explicit inclusion list.
+- Admin defines eligibility rules using member attributes and flags (Tier status, HoF, BAP, Board flags) or an explicit inclusion list. The eligibility rule set also includes `members_of_group(group_id)`: when this rule is configured, eligible voters are members where `group_member_affiliations.group_id = group_id AND is_current = 1`, evaluated and snapshotted at vote-open time. Eligibility predicates can be combined (for example: Tier 2 AND `members_of_group(finance_committee)`).
 - System validates: date ordering, required fields, and that eligibility rules are internally consistent.
 - System generates a unique vote ID and audit-log record of creation.
 - For HoF elections, any member can submit nominations during the nomination window, but to be included in the ballot, the nominated candidates must provide an affidavit that explains their qualifications, basically their footbag career achievements. This information will be included as part of the vote’s background materials.
 - Eligibility for candidates/options is enforced by the vote’s configured rules.
 - At ballot open, the set of options is locked.
 - Eligibility Changes: Members cannot gain or lose eligibility after vote opens, ensuring fairness.
-- Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot_base`. Members retain voting rights for the full voting window even if their tier or flags change while the vote is open.
+- Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot_base`. Members retain voting rights for the full voting window even if their tier, flags, or group membership change while the vote is open.
+- Group-scoped votes follow the same encryption, receipt-token, decrypt-audit, and tally rules as all other votes; there is no lightweight or non-encrypted variant.
+- If the referenced group in a `members_of_group` rule is archived after the vote opens but before the vote closes, the open vote continues to completion using the frozen snapshot; the system creates an admin notification but does not cancel the vote automatically.
+- Members may request a vote via `M_Contact_IFPA_Admin` using the "Vote creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the vote through this story if approved.
 
 ### A_Publish_Vote_Results
 
@@ -2000,23 +2377,24 @@ Success Criteria:
 - Cancellation reason is required (free-text field, mandatory) and is audit-logged with admin ID, vote ID, reason, and timestamp.
 - canceled votes are visible in vote history with status `canceled` and the cancellation reason displayed.
 
-## 6.5 Email
+## 7.5 Email
 
 ### A_Send_Mailing_List_Email
 
-Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email.
+Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Group-scoped alias sending is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated auto-sync `MailingList` via this story for exceptional platform-level notifications.
 
 Story: As an admin, I can send announcements to a platform-configured mailing list so that I communicate with the community.
 
 Success Criteria:
 
-- Admin composes email and selects target list (newsletter, announcements, board-updates).
+- Admin composes email and selects target list (newsletter, announcements, board-updates, and group auto-sync lists in exceptional cases).
 - Organization-wide announce list is retained; only Admins may send to general mailing lists through this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member via M_Send_Announce_Email; the Admin-only rule applies to all other mailing lists managed through this story.
+- Group-scoped alias sending is the responsibility of `M_Email_Group`, including the `restricted_sending`, `moderated`, and `subject_prefix` behaviors. Admin sends via this story to a group's auto-sync `MailingList` bypass owner moderation and `restricted_sending` and are intended for critical platform notifications that must reach the group regardless of owner moderation state. Such admin overrides are audit-logged with admin ID, group ID, list ID, subject, recipient count, and timestamp.
 - System enumerates recipients from MailingListSubscription records for the chosen MailingList, applying subscription status.
 - Sends to all subscribed members via outbox pattern.
 - Email delivery respects bounce list.
 - All sends logged to audit trail.
-- All bulk emails include unsubscribe or preferences links.
+- All bulk emails include unsubscribe or preferences links. For auto-sync lists, the unsubscribe link routes to the group's page with a leave-group action rather than to a per-list unsubscribe page.
 - Delivery status visible: senders see sent, bounced, and suppressed counts.
 - Each mailing list has a configurable outbound alias/from-identity (e.g., directors@…, sanctioning@…). This can be set to no-reply, a special case.
 - Each sent mailing list email is archived (subject/body/sender/list/timestamp/recipient count) and browseable by admins.
@@ -2037,8 +2415,13 @@ Success Criteria:
 - Admins can change a MailingList’s status to archived so that it no longer appears in member subscription controls or new email send flows, while all historical mailing data and subscriptions remain preserved for audit and reporting.
 - For member-manageable lists, subscription/unsubscription is primarily controlled by the member from their profile page; admins can only make limited manual adjustments in exceptional cases (for example to handle bounced or complaint states), and all such manual changes are audit-logged with admin identity, timestamp, and reason.
 - For admin-only lists (for example admin-alerts), subscriptions are controlled by admin configuration or system roles rather than member toggles, and the rules for who is subscribed are clearly documented in the list metadata.
+- `MailingList` records support three admin-configurable behavior fields: `subject_prefix` (string, max 32 chars, default empty; when non-empty, prepended to outgoing subjects in the form `[prefix] subject`); `moderated` (bool, default false; when true, outgoing messages are queued for owner approval via `GO_Moderate_Email_Queue`); and `restricted_sending` (bool, default false for general lists and default true for group-auto-sync lists; when true, only the configured allowed-sender population may compose).
+- `MailingList` records support an `auto_sync_by_group` mode. When set to a group ID, the list's `MailingListSubscription` rows are managed automatically by the group membership system (`M_Join_Group`, `M_Leave_Group`, `GO_Manage_Members`, `A_Reassign_Group_Owner`). Manual subscription edits by members or by admins on auto-sync lists are blocked except for bounce or complaint state handling.
+- Auto-sync `MailingList` records are excluded from the member-facing `M_Manage_Email_Subscriptions` view because the member cannot unilaterally unsubscribe; the member leaves the group to be removed from the list.
+- When an Admin enables email on a group via `A_Create_Group` or `A_Edit_Group_Properties`, the system creates the associated `MailingList` in `auto_sync_by_group=<group_id>` mode and seeds the subscription rows from current group membership.
+- When an Admin disables email on a group, the associated `MailingList` is archived per the existing archive semantics and accepts no further sends.
 
-## 6.6 System Configuration
+## 7.6 System Configuration
 
 ### A_View_Stripe_Config_And_Payments
 
@@ -2092,7 +2475,7 @@ Success Criteria:
 - Granting the admin role automatically subscribes the member to the Admin mailing list used for admin alerts.
 - Revoking the admin role automatically unsubscribes the member from the Admin mailing list, without changing any of their other email subscriptions.
 
-## 6.7 Configurable Parameters
+## 7.7 Configurable Parameters
 
 Seed these defaults into the database-backed configuration store during initial database creation. Admins may change values only within validated ranges; all changes must be audit-logged. Story text may reference these defaults but must not redefine them. IFPA-derived values reflect the IFPA Memberships document (authoritative source). For membership pricing, the keys below are `system_config.config_key` literals.
 
@@ -2151,7 +2534,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
 - `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)
 
-## 6.8 Monitoring and Audit
+## 7.8 Monitoring and Audit
 
 ### A_View_Dashboard
 
@@ -2231,7 +2614,74 @@ Success Criteria:
 - Alarms include at least: Abnormally high email bounce or complaint rates. Backup failures or missed runs. Approaching or exceeding monthly cost thresholds.
 - When an alarm is acknowledged, the system records: Who acknowledged it. When it was acknowledged. An optional note describing actions taken.
 
-# 7. Background System Jobs
+## 7.9 Group Management
+
+### A_Create_Group
+
+Access: Only Admins can create groups, regardless of type. Members may request group creation via `M_Contact_IFPA_Admin` using the "Group creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the group through this story if approved.
+
+Story: As an Admin, I can create a group with all configurable properties and assign its initial owner so that I provision IFPA governance, working, and social groups.
+
+Success Criteria:
+
+- Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); alias_keyword (required and unique if `email_enabled=true`, max 32 chars, lowercase alphanumeric and hyphen; resulting email address is `<alias_keyword>@groups.footbag.org`); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
+- If `email_enabled=true`, the system creates an associated `MailingList` in `auto_sync_by_group=<group_id>` mode with the configured `alias_keyword` resolved to `<alias_keyword>@groups.footbag.org`, applies admin-set defaults for `subject_prefix`, `moderated`, and `restricted_sending`, and seeds the subscription with the initial owner.
+- The initial owner receives an email notification with the group name, type, and owner responsibilities.
+- Admin sees a clear success message and a link to the newly created group's page.
+- Validation errors (e.g., alias keyword collision, invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.
+- Creation is audit-logged with admin ID, group ID, all property values, initial owner ID, timestamp.
+
+### A_Edit_Group_Properties
+
+Access: Only Admins can edit admin-controlled group properties.
+
+Story: As an Admin, I can edit admin-controlled group properties so that I can adjust governance settings, rename groups, toggle the official flag, change visibility, enable or disable email, change membership restriction, and reparent subcommittees.
+
+Success Criteria:
+
+- Admin can edit: name, type, official, policy (public/private), restrict_membership, email_enabled, alias_keyword (when email_enabled), active, parent_group_id.
+- Admin cannot edit owner-editable fields (description, member-facing notes) via this story; those are managed in `GO_Edit_Group`. An Admin who is also a group owner can edit both surfaces via their respective routes.
+- Enabling email on a previously disabled group creates the associated `MailingList` and seeds the subscription from current group membership.
+- Disabling email on a previously enabled group archives the associated `MailingList`.
+- Setting `active=false` hides the group from `M_Browse_Groups_Directory` but preserves member access via direct URL. Setting `active=true` restores directory visibility.
+- Changing `restrict_membership` from false to true does not remove existing members but blocks future self-joins via `M_Join_Group`.
+- Changing `parent_group_id` does not move members, files, ballots, or email; the change is navigational only.
+- Renaming the group preserves the existing member set, files, ballots, mailing list, and audit history. Changing the `alias_keyword` requires email to be enabled; the rename takes effect for future outgoing messages.
+- All edits are audit-logged with admin ID, group ID, fields changed, old values, new values, timestamp.
+
+### A_Reassign_Group_Owner
+
+Access: Only Admins can reassign group ownership and remediate "Group Needs Owner" admin work-queue items.
+
+Story: As an Admin, I have full control over group owner rosters so that groups remain operable when leadership breaks down.
+
+Success Criteria:
+
+- Admin can assign a group owner from the Tier 1+ member base (audit-logged).
+- Admin can demote a group owner or co-owner back to ordinary group member, or remove their affiliation entirely (audit-logged with mandatory reason text).
+- Admin can change a member's role between owner and co-owner within a group, subject to the sole-owner-promotion-first invariant.
+- Admin can override the application-level 5-owner cap when adding a new owner, with an explicit `cap-override` reason recorded in the audit row.
+- Groups with zero owners are flagged "Group Needs Owner" and appear in an admin work queue.
+- Admin can resolve a "Group Needs Owner" item by assigning a new owner via this story, or by archiving the group via `A_Archive_Group` if defunct.
+- All admin owner-management actions are audit-logged with actor identity, timestamp, before and after values, and reason text.
+
+### A_Archive_Group
+
+Access: Only Admins can archive a group.
+
+Story: As an Admin, I can archive a defunct group so that I can remove it from active operation while preserving historical record.
+
+Success Criteria:
+
+- Archiving sets the group's status to `archived`. Group records are never permanently deleted and do not use the soft-delete (`deleted_at`) pattern.
+- Archived groups are excluded from `M_Browse_Groups_Directory`, from `M_View_Group` access for non-admins, and from all email send flows. Admins retain read access to archived groups for audit purposes.
+- Each remaining `group_member_affiliations` row for the archived group has `is_current` set to 0. Rows are preserved so historical affiliation is recoverable.
+- The associated `MailingList` (if any) is archived in the same transaction per the existing archive semantics.
+- Subcommittees of the archived group (rows with `parent_group_id` pointing to the archived group) are not auto-archived; the Admin must archive them separately if appropriate. The `parent_group_id` reference remains valid for historical navigation, even though the parent is archived.
+- Group-scoped active votes (per `A_Create_Vote` with `members_of_group(group_id)` eligibility) are not canceled automatically; the system creates an admin notification recommending review via `A_Cancel_Vote`.
+- Archive action is audit-logged with admin ID, group ID, reason, timestamp.
+
+# 8. Background System Jobs
 
 System jobs are not User Stories. Instead they represent automated processes that execute on schedules (a DevOps concern), or in response to system events (webhooks). All system job actions are logged so that they can be viewed via the admin dashboard. These jobs are required in order to ensure the success criteria for the User Stories given above are met.
 
@@ -2458,7 +2908,7 @@ Success Criteria:
 
 The job deletes obsolete content-hash asset versions older than the configured retention window (default: 90 days) to preserve rollback capability while controlling storage growth and cost. All deletions are logged and failures raise alarms. Retention window (default: 90 days) is admin-configurable.
 
-# 8. System Administrator Stories
+# 9. System Administrator Stories
 
 System Administrator stories are not application User Stories, but instead they are DevOps actions performed by technical staff with access to the AWS console, CLI, and related operational tooling. This summary is not an exhaustive list, but it clarifies the boundary between what an Application Administrator (user-role) can do and what must be handled by a System Administrator (developer role) responsible for infrastructure provisioning, deployment operations, and ongoing platform maintenance. All System Administrator AWS actions are logged via CloudTrail.
 

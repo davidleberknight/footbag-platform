@@ -141,14 +141,22 @@ describe('memberOnboardingService.startTaskList', () => {
 });
 
 describe('memberOnboardingService.skipTask', () => {
-  it('transitions a pending task to skipped and the row stays in the widget', () => {
+  it('transitions a pending task to skipped and surfaces it in the dashboard widget skipped bucket (not in the in-sequence wizard advance set)', () => {
     svc.startTaskList(MEMBER_SKIP);
     svc.skipTask(MEMBER_SKIP, 'legacy_claim');
 
-    const widget = svc.getTaskWidget(MEMBER_SKIP);
-    const legacy = widget.find((t) => t.taskType === 'legacy_claim');
+    // In-sequence wizard advance: skipped tasks are intentionally excluded so
+    // the live wizard sequence does not loop the member back into a task they
+    // deliberately bypassed.
+    const advanceSet = svc.getTaskWidget(MEMBER_SKIP);
+    expect(advanceSet.find((t) => t.taskType === 'legacy_claim')).toBeUndefined();
+
+    // Dashboard widget: skipped is its own bucket, still actionable.
+    const dashboard = svc.getDashboardTaskWidget(MEMBER_SKIP);
+    const legacy = dashboard.skipped.find((t) => t.taskType === 'legacy_claim');
     expect(legacy).toBeDefined();
     expect(legacy!.state).toBe('skipped');
+    expect(legacy!.ctaHref).toBe('/register/wizard/legacy_claim');
   });
 
   it('emits one audit row with action_type=onboarding_task_skipped', () => {

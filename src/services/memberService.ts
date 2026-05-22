@@ -286,6 +286,7 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     region:               row.region,
     country:              row.country,
     isHistoricalOnly: false,
+    firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
   };
 }
 

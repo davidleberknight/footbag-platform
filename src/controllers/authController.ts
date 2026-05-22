@@ -217,6 +217,18 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   } satisfies PageViewModel<CheckEmailContent>);
 }
 
+// GET /logout: render a tiny page that immediately POSTs the logout, so that
+// bookmarks, accidental address-bar typing, or any link that hits /logout
+// via GET still logs the user out instead of 404-ing. The page never appears
+// to a user under normal use; it auto-submits on load.
+function getLogout(_req: Request, res: Response): void {
+  res.status(200).render('auth/logout-bridge', {
+    seo:  { title: 'Logging out' },
+    page: { sectionKey: 'account', pageKey: 'logout_bridge', title: 'Logging out' },
+    content: {},
+  });
+}
+
 function postLogout(req: Request, res: Response): void {
   // Match the attributes used when the cookie was set so RFC 6265-strict
   // browsers (and proxies that enforce attribute parity on clear) honor
@@ -383,5 +395,6 @@ export const authController = {
   getPasswordReset,
   postPasswordReset,
   postLogout,
+  getLogout,
   getReportIncorrectLink,
 };

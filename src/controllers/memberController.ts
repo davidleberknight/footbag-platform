@@ -3,6 +3,7 @@ import Busboy from 'busboy';
 import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
@@ -147,6 +148,15 @@ export const memberController = {
       };
       try {
         memberService.updateOwnProfile(memberKey, input);
+        // Profile-edit covers the same fields as the wizard's optional-metadata
+        // tasks; saving here completes the corresponding wizard task so the
+        // dashboard widget doesn't keep prompting for work the member just did.
+        // The submit always carries firstCompetitionYear (blank or value) and
+        // showCompetitiveResults (hidden + checkbox), so both tasks always
+        // count as "decided" after a profile-edit save.
+        const memberId = req.user!.userId;
+        memberOnboardingService.completeTaskIfOutstanding(memberId, 'first_competition_year');
+        memberOnboardingService.completeTaskIfOutstanding(memberId, 'show_competitive_results');
         res.redirect(303, `/members/${memberKey}`);
       } catch (err) {
         if (err instanceof ValidationError) {

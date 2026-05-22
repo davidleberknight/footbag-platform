@@ -6,18 +6,28 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.resolvedNotice}}
+      <p class="form-success-banner" role="status">
+        {{#if (eq content.resolvedNotice.decision 'confirm')}}Confirmed {{content.resolvedNotice.clubName}}.{{/if}}
+        {{#if (eq content.resolvedNotice.decision 'decline')}}Marked {{content.resolvedNotice.clubName}} as not yours.{{/if}}
+        {{#if (eq content.resolvedNotice.decision 'correct')}}Noted that the {{content.resolvedNotice.clubName}} record needs correction.{{/if}}
+      </p>
+    {{/if}}
+
     {{#if content.formError}}
       <p class="form-notice" role="alert">{{content.formError}}</p>
     {{/if}}
 
-    {{#unless content.card}}
-      <p>You have no clubs to confirm right now.</p>
-      <form method="POST" action="{{content.skipHref}}" class="mt-6">
-        <button type="submit" class="btn btn-primary">Continue</button>
-      </form>
-    {{/unless}}
-
     {{#if content.card}}
+      {{#if (gt content.cardsRemaining 1)}}
+        <p class="text-muted fs-sm">{{content.cardsRemaining}} clubs to review.</p>
+      {{/if}}
+      {{#if (eq content.cardsRemaining 1)}}
+        {{#if (gt content.cardsTotal 1)}}
+          <p class="text-muted fs-sm">Last one.</p>
+        {{/if}}
+      {{/if}}
+
       {{#if (eq content.card.kind 'membership')}}
         <h2>Were you a member of {{content.card.clubName}}?</h2>
         <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
@@ -43,15 +53,16 @@
         <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
         <button type="submit" name="userDecision" value="confirm" class="btn btn-primary">Yes</button>
         <button type="submit" name="userDecision" value="decline" class="btn btn-secondary">No</button>
-        <button type="submit" name="userDecision" value="correct" class="btn btn-outline">Wrong, let me correct</button>
       </form>
 
       <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
-    {{/if}}
 
-    <form method="POST" action="{{content.skipHref}}" class="mt-6">
-      <button type="submit" class="btn-link text-muted">Skip for now</button>
-    </form>
+      <form method="POST" action="{{content.skipHref}}" class="mt-6">
+        <button type="submit" class="btn-link text-muted">Skip remaining clubs for now</button>
+      </form>
+    {{else}}
+      <p>You have no club affiliations to confirm.</p>
+    {{/if}}
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>

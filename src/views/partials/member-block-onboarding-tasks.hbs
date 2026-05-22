@@ -1,4 +1,4 @@
-{{#if this}}
+{{#if this.hasOutstanding}}
 <section class="onboarding-task-widget">
   <div class="section-heading">
     <h2>Onboarding</h2>
@@ -26,13 +26,16 @@
     </ul>
   {{/if}}
 
-  {{#if this.completed.length}}
-    <p class="onboarding-task-review text-muted fs-sm">
-      Review past decisions:
-      {{#each this.completed}}
-        <a href="{{ctaHref}}">{{taskLabel}}</a>{{#unless @last}} &middot; {{/unless}}
+  {{#if this.skipped.length}}
+    <p class="text-muted fs-sm mt-4">You skipped these. Reopen any time:</p>
+    <ul class="onboarding-task-list onboarding-task-list-skipped">
+      {{#each this.skipped}}
+        <li class="onboarding-task-row onboarding-task-row-skipped">
+          <span class="onboarding-task-label text-muted">{{taskLabel}}</span>
+          <a href="{{ctaHref}}" class="btn btn-outline onboarding-task-cta">{{ctaLabel}}</a>
+        </li>
       {{/each}}
-    </p>
+    </ul>
   {{/if}}
 </section>
 {{/if}}

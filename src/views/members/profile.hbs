@@ -44,11 +44,12 @@
 
         {{> member-block-quick-actions content.quickActions}}
 
-        {{#if content.showCompetitiveResults}}
         <div class="profile-section">
           {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear}}
+          {{#unless content.showCompetitiveResults}}
+            <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
+          {{/unless}}
         </div>
-        {{/if}}
 
         {{> member-block-search content.search}}
 

@@ -3,6 +3,7 @@ import {
   identityAccessService,
   ClaimHpConfirmContent,
 } from '../services/identityAccessService';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 import { ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
@@ -97,7 +98,7 @@ export const claimController = {
       return;
     }
     try {
-      identityAccessService.claimHistoricalPerson(req.user!.userId, personId);
+      memberOnboardingService.claimHistoricalPersonAndCompleteTask(req.user!.userId, personId);
       res.redirect(303, `/members/${req.user!.slug}`);
     } catch (err) {
       if (err instanceof ValidationError) {

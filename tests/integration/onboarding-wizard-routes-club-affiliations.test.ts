@@ -167,13 +167,17 @@ function readTaskState(memberId: string): string | null {
 }
 
 describe('GET /register/wizard/club_affiliations — card listing', () => {
-  it('member with no candidates -> empty-state copy + Continue button', async () => {
+  it('member with no candidates -> task auto-transitions to not_applicable and 303-redirects to next task', async () => {
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_EMPTY));
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('You have no clubs to confirm');
-    expect(res.text).toContain('Continue');
+    // A member with zero possible cards is moved to not_applicable so the
+    // wizard does not render a meaningless "no clubs to confirm" page with a
+    // skip-as-Continue button. The dashboard widget drops not_applicable rows
+    // entirely, so the task disappears from view.
+    expect(res.status).toBe(303);
+    expect(res.headers.location).not.toBe('/register/wizard/club_affiliations');
+    expect(readTaskState(MEMBER_EMPTY)).toBe('not_applicable');
   });
 
   it('member with one membership candidate -> renders the membership card with the confidence band', async () => {

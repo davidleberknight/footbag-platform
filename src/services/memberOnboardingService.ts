@@ -76,7 +76,9 @@ export interface DashboardTaskItem {
 export interface DashboardTaskWidget {
   pending:   DashboardTaskItem[];
   paused:    DashboardTaskItem[];
+  skipped:   DashboardTaskItem[];
   completed: DashboardTaskItem[];
+  hasOutstanding: boolean;
   hasAny:    boolean;
 }
 
@@ -146,9 +148,12 @@ function transitionTask(
 }
 
 function getTaskWidget(memberId: string): OnboardingTaskView[] {
+  // In-sequence advance set: tasks the wizard should still push the member through.
+  // Excludes `skipped` (the dashboard surfaces those; the live wizard sequence
+  // does not loop the user back into a task they deliberately bypassed).
   const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
   return rows
-    .filter((r) => r.state === 'pending' || r.state === 'skipped')
+    .filter((r) => r.state === 'pending')
     .map((r) => ({
       taskType: r.task_type as OnboardingTaskType,
       state: r.state as OnboardingTaskState,
@@ -193,6 +198,66 @@ function skipTask(memberId: string, taskType: string): void {
 
 function completeTask(memberId: string, taskType: string): void {
   transitionTask(memberId, taskType, 'completed', 'onboarding_task_completed');
+}
+
+function markTaskNotApplicable(memberId: string, taskType: string): void {
+  transitionTask(memberId, taskType, 'not_applicable', 'onboarding_task_not_applicable');
+}
+
+/**
+ * Cross-service hook: called when a member completes the underlying state of
+ * a task outside the wizard surface (profile-edit saving first_competition_year,
+ * direct HP claim succeeding, etc.). Idempotent: a no-op for tasks that are
+ * already in a terminal state (completed, not_applicable). When called for an
+ * unmaterialized task, the task row is created in the target state directly.
+ */
+function completeTaskIfOutstanding(memberId: string, taskType: OnboardingTaskType): void {
+  const existing = memberOnboarding.findByMemberAndType.get(memberId, taskType) as
+    | MemberOnboardingTaskRow
+    | undefined;
+  if (existing && (existing.state === 'completed' || existing.state === 'not_applicable')) {
+    return;
+  }
+  completeTask(memberId, taskType);
+}
+
+/**
+ * Auto-transition `legacy_claim` to `completed` when the underlying state
+ * shows the member is already linked. Returns true if a transition occurred.
+ * Called from the wizard GET to keep the widget honest when an out-of-wizard
+ * link succeeded before this slice's cross-service hooks landed, or when the
+ * member arrived via a side channel.
+ */
+function ensureLegacyClaimReflectsState(memberId: string): boolean {
+  const row = memberOnboarding.findByMemberAndType.get(memberId, 'legacy_claim') as
+    | MemberOnboardingTaskRow
+    | undefined;
+  if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
+  const links = account.findLegacyAndHpIdsById.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null }
+    | undefined;
+  if (!links) return false;
+  if (links.legacy_member_id || links.historical_person_id) {
+    completeTask(memberId, 'legacy_claim');
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Auto-transition `club_affiliations` to `not_applicable` when the member
+ * has no possible cards to act on (no linked legacy identity, or linked
+ * legacy with zero pending cards). Returns true if a transition occurred.
+ */
+function ensureClubAffiliationsReflectsState(memberId: string): boolean {
+  const row = memberOnboarding.findByMemberAndType.get(memberId, 'club_affiliations') as
+    | MemberOnboardingTaskRow
+    | undefined;
+  if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
+  const cards = listWizardCardsForMember(memberId);
+  if (cards.length > 0) return false;
+  markTaskNotApplicable(memberId, 'club_affiliations');
+  return true;
 }
 
 /**
@@ -251,40 +316,49 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   }
   const rows = memberOnboarding.listForMemberWithDetourMeta.all(memberId) as WidgetRow[];
 
-  const widget: DashboardTaskWidget = { pending: [], paused: [], completed: [], hasAny: false };
+  const widget: DashboardTaskWidget = {
+    pending: [], paused: [], skipped: [], completed: [],
+    hasOutstanding: false, hasAny: false,
+  };
   for (const r of rows) {
     const taskType = r.task_type as OnboardingTaskType;
     if (!(taskType in TASK_TYPE_INDEX)) continue;
+    const state = r.state as OnboardingTaskState;
+    // `not_applicable` rows exist for audit/state purposes but never surface
+    // on the dashboard; the widget treats them as if they did not exist.
+    if (state === 'not_applicable') continue;
+
     let resumeUrl:   string | null = null;
     let targetStory: string | null = null;
     let sourceCard:  string | null = null;
-    if (r.state === 'in_progress_paused' && r.detour_metadata_json) {
+    if (state === 'in_progress_paused' && r.detour_metadata_json) {
       try {
         const meta = JSON.parse(r.detour_metadata_json) as {
           target_story?: string; source_card?: string;
         };
         targetStory = meta.target_story ?? null;
         sourceCard  = meta.source_card  ?? null;
-        const cardParam = sourceCard ? `&card=${encodeURIComponent(sourceCard)}` : '';
-        resumeUrl = `/onboarding-wizard?task=${encodeURIComponent(taskType)}${cardParam}`;
-      } catch { /* malformed metadata leaves resumeUrl null; widget still renders */ }
+      } catch { /* malformed metadata leaves resume context null */ }
     }
-    // CTA shape per USER_STORIES line 733: paused -> "Resume onboarding"
-    // pointing at the source card; pending/skipped -> "Continue onboarding"
-    // pointing at the task GET; completed -> no CTA.
-    const state = r.state as OnboardingTaskState;
+    // Paused tasks resume at the wizard task GET. The legacy `source_card`
+    // anchor (`?card=`) is not consumed today; emitting the bare task URL
+    // matches the only route shape the wizard actually registers.
+    if (state === 'in_progress_paused') {
+      resumeUrl = `/register/wizard/${taskType}`;
+    }
+
     let ctaLabel: string = '';
     let ctaHref:  string | null = null;
     if (state === 'in_progress_paused') {
       ctaLabel = 'Resume onboarding';
-      ctaHref  = resumeUrl ?? `/register/wizard/${taskType}`;
-    } else if (state === 'pending' || state === 'skipped') {
+      ctaHref  = resumeUrl;
+    } else if (state === 'pending') {
       ctaLabel = 'Continue onboarding';
       ctaHref  = `/register/wizard/${taskType}`;
+    } else if (state === 'skipped') {
+      ctaLabel = 'Resume task';
+      ctaHref  = `/register/wizard/${taskType}`;
     } else if (state === 'completed') {
-      // Completed tasks render as a muted "Review past decisions" footer
-      // under the active widget, not as action rows. The href is the same
-      // per-task wizard GET; the template formats these inline.
       ctaLabel = 'Review';
       ctaHref  = `/register/wizard/${taskType}`;
     }
@@ -299,17 +373,22 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
       ctaLabel,
       ctaHref,
     };
-    if (state === 'completed')             widget.completed.push(item);
+    if      (state === 'completed')          widget.completed.push(item);
     else if (state === 'in_progress_paused') widget.paused.push(item);
-    else if (state === 'pending' || state === 'skipped') widget.pending.push(item);
+    else if (state === 'skipped')            widget.skipped.push(item);
+    else if (state === 'pending')            widget.pending.push(item);
   }
 
   const sortByCatalog = (a: DashboardTaskItem, b: DashboardTaskItem) =>
     TASK_TYPE_INDEX[a.taskType] - TASK_TYPE_INDEX[b.taskType];
   widget.pending.sort(sortByCatalog);
   widget.paused.sort(sortByCatalog);
+  widget.skipped.sort(sortByCatalog);
   widget.completed.sort(sortByCatalog);
-  widget.hasAny = widget.pending.length + widget.paused.length + widget.completed.length > 0;
+  widget.hasOutstanding =
+    widget.pending.length + widget.paused.length + widget.skipped.length > 0;
+  widget.hasAny =
+    widget.hasOutstanding || widget.completed.length > 0;
   return widget;
 }
 
@@ -744,7 +823,11 @@ export type WizardFlash =
       kind: 'WIZARD_LEGACY_CLAIM_RESULT';
       payload: { hpPersonId: string | null; sinceIndex: number | null };
     }
-  | { kind: 'WIZARD_AUTO_LINK_DRIFT' };
+  | { kind: 'WIZARD_AUTO_LINK_DRIFT' }
+  | {
+      kind: 'WIZARD_CLUB_CARD_RESOLVED';
+      payload: { clubName: string; decision: 'confirm' | 'correct' | 'decline' };
+    };
 
 // Per-method `formState` shapes carried in the `validation_error` arm
 // of `WizardActionResult`. Each shape is typed-per-method so controllers
@@ -964,6 +1047,27 @@ function processTaskSkip(
   return advanceAfter(memberId, taskType);
 }
 
+/**
+ * Cross-surface HP claim: invoked by the out-of-wizard claim route
+ * (`/history/:personId/claim/confirm`). Runs the merge and the wizard task
+ * transition in one transaction so the dashboard widget can never disagree
+ * with the underlying link state.
+ *
+ * Idempotent on the wizard side: completeTaskIfOutstanding is a no-op for
+ * tasks already in a terminal state. Propagates ValidationError from the
+ * underlying claim so the caller can re-render the form with a user-safe
+ * message.
+ */
+function claimHistoricalPersonAndCompleteTask(
+  memberId: string,
+  personId: string,
+): void {
+  transaction(() => {
+    identityAccessService.claimHistoricalPersonInTx(memberId, personId);
+    completeTaskIfOutstanding(memberId, 'legacy_claim');
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Wizard club_affiliations dispatcher (controller-facing).
 //
@@ -1041,11 +1145,24 @@ function processClubAffiliationsSubmit(
 
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
+  // Capture the resolved card's club name BEFORE submission so the success
+  // banner on the next render can name what the member just decided. Falls
+  // back to a generic label if the card was already gone (idempotent re-submit).
+  const cardsBefore = listWizardCardsForMember(memberId);
+  const resolvedCard = cardsBefore.find((c) => c.candidateId === candidateId);
+  const clubName = resolvedCard?.clubName ?? 'that club';
+
   const result = submitClubAffiliationsResponse(memberId, body);
   if (result.taskState === 'completed') {
     return advanceAfter(memberId, 'club_affiliations');
   }
-  return { kind: 'retry_same', flash: null };
+  return {
+    kind: 'retry_same',
+    flash: {
+      kind: 'WIZARD_CLUB_CARD_RESOLVED',
+      payload: { clubName, decision: userDecision },
+    },
+  };
 }
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
@@ -1057,6 +1174,10 @@ export const memberOnboardingService = {
   startTask,
   skipTask,
   completeTask,
+  completeTaskIfOutstanding,
+  markTaskNotApplicable,
+  ensureLegacyClaimReflectsState,
+  ensureClubAffiliationsReflectsState,
   transitionToDetourPaused,
   submitTaskResponse,
   submitClubAffiliationsResponse,
@@ -1068,4 +1189,5 @@ export const memberOnboardingService = {
   processFirstCompetitionYearSubmit,
   processShowCompetitiveResultsSubmit,
   processTaskSkip,
+  claimHistoricalPersonAndCompleteTask,
 };

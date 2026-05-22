@@ -3749,6 +3749,16 @@ export const account = {
        AND personal_data_purged_at IS NULL
   `); },
 
+  // Used by the onboarding wizard to decide whether the legacy_claim task is
+  // already satisfied. Either link being non-null counts as "linked" because
+  // the merge writes both together when the legacy row carries an HP back-link.
+  get findLegacyAndHpIdsById() { return db.prepare(`
+    SELECT legacy_member_id, historical_person_id
+      FROM members_active
+     WHERE id = ?
+       AND personal_data_purged_at IS NULL
+  `); },
+
   // Used by support-flow email replies: fetch the member's login email + slug
   // for resolution notifications. Excludes purged members.
   get findContactInfoById() { return db.prepare(`

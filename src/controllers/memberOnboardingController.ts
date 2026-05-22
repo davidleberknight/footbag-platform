@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import {
   identityAccessService,
-  AutoLinkConfirmContent,
   ClaimConfirmContent,
   LinkHistoryContent,
 } from '../services/identityAccessService';
@@ -48,11 +47,14 @@ const EMPTY_FLASH = {
 } as const;
 
 interface ClubAffiliationsCardContent {
-  dashboardHref: string;
-  submitHref:    string;
-  skipHref:      string;
-  card:          WizardCard | null;
-  formError:     string | null;
+  dashboardHref:   string;
+  submitHref:      string;
+  skipHref:        string;
+  card:            WizardCard | null;
+  cardsTotal:      number;
+  cardsRemaining:  number;
+  resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline' } | null;
+  formError:       string | null;
 }
 
 interface FirstCompetitionYearContent {
@@ -90,6 +92,16 @@ function taskUrlFor(taskType: OnboardingTaskType): string {
   return `/register/wizard/${taskType}`;
 }
 
+function nextPendingTask(memberId: string): OnboardingTaskType | null {
+  const pending = memberOnboardingService.getTaskWidget(memberId);
+  return pending.length > 0 ? pending[0].taskType : null;
+}
+
+function nextPendingHref(memberId: string): string {
+  const next = nextPendingTask(memberId);
+  return next ? taskUrlFor(next) : WIZARD_COMPLETE_URL;
+}
+
 function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void {
   if (flash.kind === 'WIZARD_LEGACY_CLAIM_RESULT') {
     writeFlash(res, req, FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT, JSON.stringify(flash.payload));
@@ -97,6 +109,10 @@ function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void
   }
   if (flash.kind === 'WIZARD_AUTO_LINK_DRIFT') {
     writeFlash(res, req, FLASH_KIND.WIZARD_AUTO_LINK_DRIFT);
+    return;
+  }
+  if (flash.kind === 'WIZARD_CLUB_CARD_RESOLVED') {
+    writeFlash(res, req, FLASH_KIND.WIZARD_CLUB_CARD_RESOLVED, JSON.stringify(flash.payload));
   }
 }
 
@@ -137,6 +153,7 @@ async function renderLegacyClaim(
   res: Response,
   state: WizardFlashState,
   statusOverride?: number,
+  validationMessage?: string,
 ): Promise<void> {
   const memberId = req.user!.userId;
   const data = await identityAccessService.getLinkHistoryViewForWizard(memberId, {
@@ -150,12 +167,30 @@ async function renderLegacyClaim(
     return;
   }
   data.dashboardHref = dashboardHrefFor(req);
-  data.skipHref = null;
+  if (validationMessage) data.validationMessage = validationMessage;
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find your past records and clubs' },
     page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find your past records and clubs' },
     content: data,
   } satisfies PageViewModel<LinkHistoryContent>);
+}
+
+function readClubResolvedFlash(
+  req: Request,
+  res: Response,
+): { clubName: string; decision: 'confirm' | 'correct' | 'decline' } | null {
+  const flash = readFlash(req);
+  if (!flash) return null;
+  if (flash.kind !== FLASH_KIND.WIZARD_CLUB_CARD_RESOLVED) return null;
+  clearFlash(res, req);
+  try {
+    const payload = JSON.parse(flash.payload ?? '{}');
+    if (typeof payload.clubName === 'string' &&
+        (payload.decision === 'confirm' || payload.decision === 'correct' || payload.decision === 'decline')) {
+      return { clubName: payload.clubName, decision: payload.decision };
+    }
+  } catch { /* garbage payload: drop the notice */ }
+  return null;
 }
 
 function renderClubAffiliationsCard(
@@ -165,15 +200,25 @@ function renderClubAffiliationsCard(
 ): void {
   const memberId = req.user!.userId;
   const cards = memberOnboardingService.listWizardCardsForMember(memberId);
+  const resolvedNotice = readClubResolvedFlash(req, res);
+  // cardsTotal is best-effort: when a notice is present we know the user just
+  // resolved one card, so the original total was cards.length + 1. Otherwise
+  // (fresh wizard load), cardsTotal = cards.length. The template renders
+  // "Card N of M" only when M > 1.
+  const cardsRemaining = cards.length;
+  const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Confirm your clubs' },
     page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Confirm your clubs' },
     content: {
-      dashboardHref: dashboardHrefFor(req),
-      submitHref:    '/register/wizard/club_affiliations/submit',
-      skipHref:      '/register/wizard/club_affiliations/skip',
-      card:          cards.length > 0 ? cards[0] : null,
-      formError:     opts.formError ?? null,
+      dashboardHref:  dashboardHrefFor(req),
+      submitHref:     '/register/wizard/club_affiliations/submit',
+      skipHref:       '/register/wizard/club_affiliations/skip',
+      card:           cards.length > 0 ? cards[0] : null,
+      cardsTotal,
+      cardsRemaining,
+      resolvedNotice,
+      formError:      opts.formError ?? null,
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
@@ -232,14 +277,21 @@ async function renderTaskByType(
   res: Response,
   taskType: OnboardingTaskType,
 ): Promise<void> {
-  if (taskType === 'legacy_claim') {
-    const state = readWizardFlashState(req, res);
-    await renderLegacyClaim(req, res, state);
-    return;
+  switch (taskType) {
+    case 'legacy_claim': {
+      const state = readWizardFlashState(req, res);
+      await renderLegacyClaim(req, res, state);
+      return;
+    }
+    case 'club_affiliations':        renderClubAffiliationsCard(req, res); return;
+    case 'first_competition_year':   renderFirstCompetitionYear(req, res); return;
+    case 'show_competitive_results': renderShowCompetitiveResults(req, res); return;
+    default: {
+      const _exhaustive: never = taskType;
+      void _exhaustive;
+      renderNotFound(res);
+    }
   }
-  if (taskType === 'club_affiliations')        { renderClubAffiliationsCard(req, res); return; }
-  if (taskType === 'first_competition_year')   { renderFirstCompetitionYear(req, res); return; }
-  if (taskType === 'show_competitive_results') { renderShowCompetitiveResults(req, res); return; }
 }
 
 interface DispatchOpts<TFormState> {
@@ -290,7 +342,26 @@ export const memberOnboardingController = {
         renderNotFound(res);
         return;
       }
-      memberOnboardingService.startTaskList(req.user!.userId);
+      const memberId = req.user!.userId;
+      memberOnboardingService.startTaskList(memberId);
+
+      // Reconcile task state with underlying reality before render. If the
+      // underlying state shows the task is already done or moot, transition
+      // it now and 303 to the next pending task (or /complete). Keeps the
+      // wizard from rendering a search page for an already-linked account
+      // or a "no clubs to confirm" empty state for a member who can never
+      // have cards.
+      let transitioned = false;
+      if (taskType === 'legacy_claim') {
+        transitioned = memberOnboardingService.ensureLegacyClaimReflectsState(memberId);
+      } else if (taskType === 'club_affiliations') {
+        transitioned = memberOnboardingService.ensureClubAffiliationsReflectsState(memberId);
+      }
+      if (transitioned) {
+        const nextHref = nextPendingHref(memberId);
+        res.redirect(303, nextHref);
+        return;
+      }
       await renderTaskByType(req, res, taskType);
     } catch (err) {
       logger.error('onboarding getTask error', { error: err instanceof Error ? err.message : String(err) });
@@ -300,6 +371,14 @@ export const memberOnboardingController = {
 
   getComplete(req: Request, res: Response, next: NextFunction): void {
     try {
+      const memberId = req.user!.userId;
+      // Don't lie: if any pending tasks remain, route the member to the next
+      // one instead of telling them everything is handled.
+      const upcoming = nextPendingTask(memberId);
+      if (upcoming) {
+        res.redirect(303, taskUrlFor(upcoming));
+        return;
+      }
       renderComplete(req, res);
     } catch (err) {
       logger.error('onboarding getComplete error', { error: err instanceof Error ? err.message : String(err) });
@@ -322,11 +401,15 @@ export const memberOnboardingController = {
     const identifier = String(req.body.identifier ?? '').trim();
     await dispatch(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimSubmit(req.user!.userId, identifier, req.ip ?? 'unknown'),
-      renderValidationError: async () => {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422);
+      renderValidationError: async (result) => {
+        // Surface the validation message inline (e.g. "Enter an identifier to
+        // search.") instead of silently reloading the page — D4: empty
+        // submits used to look like the click did nothing.
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
       },
       renderRateLimited: async () => {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429);
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429,
+          'Too many search attempts. Please wait and try again.');
       },
     });
   },
@@ -335,19 +418,17 @@ export const memberOnboardingController = {
     const personId = String(req.body.personId ?? '').trim();
     await dispatch<LegacyClaimAutoLinkConfirmFormState>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimAutoLinkConfirm(req.user!.userId, personId),
-      renderValidationError: (result) => {
-        const fs = result.formState;
-        res.status(422).render('history/auto-link-confirm', {
-          seo:  { title: 'We found a match' },
-          page: { sectionKey: 'members', pageKey: 'auto_link_confirm', title: 'We found a match' },
-          content: {
-            personId:    fs?.personId,
-            personName:  fs?.personName,
-            confidence:  fs?.confidence,
-            error:       result.message,
-            declineHref: dashboardHrefFor(req),
-          },
-        } satisfies PageViewModel<AutoLinkConfirmContent>);
+      renderValidationError: (_result) => {
+        // Per DD §5.2: state-changing POSTs always 303 to the receiving GET
+        // and carry transient state via signed flash. The auto-link validation
+        // error (surname mismatch, HP already claimed by another member, etc.)
+        // matches the user-facing semantics of classifier drift: "the auto-
+        // link attempt didn't go through; pick another candidate." Reuse the
+        // drift flash so the next GET renders the standing autoLinkDriftNotice
+        // banner inside the wizard chrome rather than dropping the member
+        // onto the standalone history/auto-link-confirm template.
+        writeWizardFlash(req, res, { kind: 'WIZARD_AUTO_LINK_DRIFT' });
+        res.redirect(303, taskUrlFor('legacy_claim'));
       },
     });
   },

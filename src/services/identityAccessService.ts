@@ -324,6 +324,13 @@ export interface LinkHistoryContent {
    */
   autoLinkDriftNotice: boolean;
   /**
+   * Inline form-validation message (e.g. "Enter an identifier to search.")
+   * surfaced as a banner when the legacy_claim search POST returns a
+   * validation_error. Threaded through by the controller; null/undefined
+   * when no validation message applies.
+   */
+  validationMessage?: string;
+  /**
    * Static "Your clubs (coming soon)" placeholder per
    * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
    * surfaces actual suggestions is not built yet; this is a placeholder.
@@ -909,12 +916,15 @@ function getLinkHistoryView(
   }
 
   // 4. Already-linked badges last (visually less prominent than the
-  // actionable cards above).
+  // actionable cards above). Provenance is a real label (not "Linked.") so
+  // the card reads e.g. "Your old footbag.org user account / Legacy account"
+  // and the linked-since line carries the date when available; the template
+  // does not render a second "Linked." badge on top of the provenance line.
   if (legacyLinked) {
     candidates.push({
       claimMode: 'already_linked',
       displayName: 'Your old footbag.org user account',
-      provenanceLabel: 'Linked.',
+      provenanceLabel: 'Legacy account.',
       legacyMemberId: links?.legacy_member_id ?? null,
       personId: null,
       country: null,
@@ -927,7 +937,7 @@ function getLinkHistoryView(
     candidates.push({
       claimMode: 'already_linked',
       displayName: links?.historical_person_name ?? 'Your competition record',
-      provenanceLabel: 'Linked.',
+      provenanceLabel: 'Historical-person record.',
       legacyMemberId: null,
       personId: links?.historical_person_id ?? null,
       country: null,
@@ -963,7 +973,14 @@ function getLinkHistoryView(
     },
     noMatchNotice: opts.noMatchNotice,
     noMatchTried: opts.noMatchTried,
-    lowConfidenceBanner: !legacyLinked && (opts.fromRegister || opts.reasonIsLowConfidence),
+    // Low-confidence banner is only meaningful when we have NO actionable
+    // candidate to offer. Once a candidate appears (manual-id search hit, an
+    // auto-link suggestion, a name-variant HP review) the banner contradicts
+    // the card the user can act on, so suppress it.
+    lowConfidenceBanner:
+      !legacyLinked
+      && (opts.fromRegister || opts.reasonIsLowConfidence)
+      && !candidates.some((c) => c.claimMode !== 'already_linked'),
     autoLinkDriftNotice: false,
     showClubsComingSoon: true,
   };

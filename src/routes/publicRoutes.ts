@@ -192,4 +192,5 @@ publicRouter.get('/password/forgot',        authController.getPasswordForgot);
 publicRouter.post('/password/forgot',       authController.postPasswordForgot);
 publicRouter.get('/password/reset/:token',  authController.getPasswordReset);
 publicRouter.post('/password/reset/:token', authController.postPasswordReset);
+publicRouter.get('/logout',                 authController.getLogout);
 publicRouter.post('/logout',                authController.postLogout);

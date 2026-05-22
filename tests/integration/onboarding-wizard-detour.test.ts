@@ -115,7 +115,10 @@ describe('memberOnboardingService.transitionToDetourPaused', () => {
 describe('memberOnboardingService.getDashboardTaskWidget', () => {
   it('returns empty buckets for a member with no tasks', () => {
     const widget = svc.getDashboardTaskWidget('non-existent-member');
-    expect(widget).toEqual({ pending: [], paused: [], completed: [], hasAny: false });
+    expect(widget).toEqual({
+      pending: [], paused: [], skipped: [], completed: [],
+      hasOutstanding: false, hasAny: false,
+    });
   });
 
   it('splits a member tasks into pending / paused / completed with resumeUrl on paused', () => {
@@ -141,15 +144,15 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.state).toBe('in_progress_paused');
     expect(paused.targetStory).toBe('M_Create_Club');
     expect(paused.sourceCard).toBe('card_club_affiliations');
-    expect(paused.resumeUrl).toBe(
-      '/onboarding-wizard?task=club_affiliations&card=card_club_affiliations',
-    );
+    // Resume routes to the wizard task GET. The source-card anchor (?card=)
+    // is preserved on the view-model (targetStory/sourceCard) for callers
+    // that want it, but the resumeUrl is the bare task URL since that is
+    // the only route the wizard actually registers.
+    expect(paused.resumeUrl).toBe('/register/wizard/club_affiliations');
     // Slice 2 view-shape: pre-shaped label + CTA fields for the partial.
     expect(paused.taskLabel).toBe('Confirm your clubs');
     expect(paused.ctaLabel).toBe('Resume onboarding');
-    expect(paused.ctaHref).toBe(
-      '/onboarding-wizard?task=club_affiliations&card=card_club_affiliations',
-    );
+    expect(paused.ctaHref).toBe('/register/wizard/club_affiliations');
 
     const completed = widget.completed.find((t) => t.taskType === 'first_competition_year')!;
     expect(completed.taskLabel).toBe('Set your first competition year');
@@ -187,7 +190,7 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.sourceCard).toBe('card_second');
   });
 
-  it('malformed JSON in detour metadata: widget renders with resumeUrl=null instead of crashing (D3)', () => {
+  it('malformed JSON in detour metadata: widget renders without crashing; resumeUrl falls back to bare task URL (D3)', () => {
     const MEMBER_MALFORMED = 'member-detour-malformed';
     const db = new BetterSqlite3(dbPath);
     insertMember(db, {
@@ -236,13 +239,15 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     `).run(MEMBER_MALFORMED, taskRow.id);
     dbw.close();
 
-    // Widget call MUST NOT throw; paused task is reported with resumeUrl=null
-    // (the JSON.parse catch swallows; targetStory and sourceCard remain null).
+    // Widget call MUST NOT throw. The JSON.parse catch swallows the bad
+    // metadata so targetStory and sourceCard remain null; resumeUrl still
+    // points at the bare task GET so the Resume CTA lands somewhere real
+    // even when the detour context is unreadable.
     const widget = svc.getDashboardTaskWidget(MEMBER_MALFORMED);
     const paused = widget.paused.find((t) => t.taskType === 'club_affiliations')!;
     expect(paused).toBeDefined();
     expect(paused.state).toBe('in_progress_paused');
-    expect(paused.resumeUrl).toBeNull();
+    expect(paused.resumeUrl).toBe('/register/wizard/club_affiliations');
     expect(paused.targetStory).toBeNull();
     expect(paused.sourceCard).toBeNull();
   });

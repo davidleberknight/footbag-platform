@@ -8,8 +8,12 @@
   <section>
     <p>Match your account to your past on footbag.org. Pick a record below or search by id.</p>
 
+    {{#if content.validationMessage}}
+      <p class="form-notice" role="alert">{{content.validationMessage}}</p>
+    {{/if}}
+
     {{#if content.lowConfidenceBanner}}
-      <p class="form-notice" role="status">We searched for a confident match and didn't find one. Pick a candidate below or search by id.</p>
+      <p class="form-notice" role="status">We searched for a confident match and didn't find one. Try searching by your old footbag.org member id, username, email, or historical-record id.</p>
     {{/if}}
 
     {{#if content.autoLinkDriftNotice}}
@@ -58,7 +62,9 @@
             {{else if (eq this.claimMode 'hp_review_page')}}
               <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Review and link</a></p>
             {{else if (eq this.claimMode 'already_linked')}}
-              <p class="candidate-card-linked">Linked{{#if this.alreadyLinkedSinceDisplay}} {{this.alreadyLinkedSinceDisplay}}{{/if}}.</p>
+              {{#if this.alreadyLinkedSinceDisplay}}
+                <p class="candidate-card-linked">Linked {{this.alreadyLinkedSinceDisplay}}.</p>
+              {{/if}}
             {{/if}}
           </li>
         {{/each}}

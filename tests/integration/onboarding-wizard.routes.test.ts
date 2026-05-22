@@ -98,16 +98,22 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     expect(res.status).toBe(404);
   });
 
-  it('renders each known taskType', async () => {
+  it('renders each known taskType (club_affiliations 303-transitions when the member has zero possible cards)', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_eachtask_${stamp}`, login_email: `wiz-each-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
-    for (const taskType of ['legacy_claim', 'club_affiliations', 'first_competition_year', 'show_competitive_results']) {
+    for (const taskType of ['legacy_claim', 'first_competition_year', 'show_competitive_results']) {
       const res = await request(createApp())
         .get(`/register/wizard/${taskType}`)
         .set('Cookie', cookie);
       expect(res.status, `taskType=${taskType}`).toBe(200);
     }
+    // club_affiliations with no legacy linkage auto-transitions to
+    // not_applicable on GET, and 303-redirects to the next pending task.
+    const ca = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookie);
+    expect(ca.status).toBe(303);
   });
 
   it('GET /register/wizard/complete renders the completion page', async () => {
@@ -137,13 +143,14 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('skipped');
     expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(beforeAudits + 1);
+    // Member has no legacy_member_id linkage -> listWizardCardsForMember
+    // returns []; the GET handler auto-transitions club_affiliations to
+    // not_applicable and 303-redirects to the next pending task.
     const followUp = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
-    expect(followUp.status).toBe(200);
-    // Member has no legacy_member_id linkage -> listWizardCardsForMember
-    // returns []; the card-renderer surfaces the empty-state copy.
-    expect(followUp.text).toContain('You have no clubs to confirm');
+    expect(followUp.status).toBe(303);
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
   });
 
   it('skipping all four tasks in sequence lands on /register/wizard/complete', async () => {

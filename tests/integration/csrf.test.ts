@@ -124,9 +124,11 @@ describe('CSRF — verb discipline', () => {
     const sessionCookie = cookies.find((c) => c.startsWith('footbag_session='))!
       .split(';')[0];
 
-    // GET /logout is not a defined route; it must not clear the session.
+    // GET /logout renders a bridge page that auto-submits POST /logout, but
+    // MUST NOT clear the session itself — GET is the safe verb. Only POST
+    // /logout performs the state change.
     const res = await request(app).get('/logout').set('Cookie', sessionCookie);
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(200);
     // No clear-cookie directive on GET.
     const respCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
     expect(respCookies.some((c) => /footbag_session=\s*;/.test(c))).toBe(false);
