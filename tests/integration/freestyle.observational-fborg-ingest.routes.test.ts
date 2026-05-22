@@ -157,3 +157,30 @@ describe('FB.org observational ingest — promotion-readiness signals', () => {
     expect(res.text).toMatch(/observed-card-status-chip--neutral/);
   });
 });
+
+describe('/freestyle/observational — tracked-vocabulary section', () => {
+  it('renders the tracked-vocabulary section grouped by source', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/observational');
+    expect(res.status).toBe(200);
+    // Section anchor + heading.
+    expect(res.text).toContain('id="tracked-vocabulary"');
+    expect(res.text).toContain('Tracked vocabulary');
+    // Grouped by documenting source — the three source groups.
+    expect(res.text).toContain('FootbagMoves');
+    expect(res.text).toContain('footbag.org');
+    expect(res.text).toContain('PassBack');
+  });
+
+  it('does NOT group the tracked list by an ADD claim', async () => {
+    // The observational page contract forbids ADD-claim grouping.
+    // The tracked section groups by source; assert no "N ADD" tier
+    // headings leaked into the tracked-vocabulary block.
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/observational');
+    const start = res.text.indexOf('id="tracked-vocabulary"');
+    expect(start).toBeGreaterThan(-1);
+    const block = res.text.slice(start, res.text.indexOf('observational-footer', start));
+    expect(block).not.toMatch(/<h3>\d+\s*ADD/);
+  });
+});

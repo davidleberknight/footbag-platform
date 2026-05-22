@@ -106,6 +106,19 @@
     </p>
     {{/if}}
 
+    {{#if content.trackedNames.length}}
+    <div id="tracked-vocabulary" class="observational-tracked">
+      <h2>Tracked vocabulary &mdash; {{content.trackedNamesTotal}} more documented names</h2>
+      <p class="text-muted">{{content.trackedNamesNote}}</p>
+      {{#each content.trackedNames}}
+      <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
+      <p class="observational-tracked-names">
+        {{#each names}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
+      </p>
+      {{/each}}
+    </div>
+    {{/if}}
+
     <p class="observational-footer">
       Curated canonical trick definitions remain authoritative. See the
       <a href="/freestyle/tricks">Trick Dictionary</a>,

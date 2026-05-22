@@ -117,6 +117,11 @@ import {
   type ObservationalStatus,
 } from '../content/freestyleObservationalTricks';
 import {
+  TRACKED_UNPUBLISHED_NAMES,
+  TRACKED_UNPUBLISHED_TOTAL,
+  type TrackedNameGroup,
+} from '../content/freestyleTrackedNames';
+import {
   DERIVATION_PILOT_ENTRIES,
   type DerivationPanelEntry,
 } from '../content/freestyleDerivationPilot';
@@ -2556,6 +2561,15 @@ export interface FreestyleObservationalContent {
   layerNote:            string;
   /** Cross-links to related canonical surfaces. */
   canonicalReferences:  readonly { label: string; href: string }[];
+  /** The wider tracked-but-unpublished name corpus — bare trick names
+   *  documented across freestyle's source corpora that are not yet
+   *  canonically published, grouped by documenting source. A coverage
+   *  index, distinct from the detailed cards above. Grouped by source
+   *  (not ADD) per this page's no-ADD-claim-grouping contract. */
+  trackedNames:         readonly TrackedNameGroup[];
+  trackedNamesTotal:    number;
+  /** Honest, non-defensive framing prose for the tracked-names section. */
+  trackedNamesNote:     string;
 }
 
 // ── Observational view-model shaping helpers ─────────────────────────────
@@ -5946,6 +5960,14 @@ export const freestyleService = {
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
           { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
         ],
+        trackedNames:      TRACKED_UNPUBLISHED_NAMES,
+        trackedNamesTotal: TRACKED_UNPUBLISHED_TOTAL,
+        trackedNamesNote:
+          'Beyond the detailed entries above, these trick names are ' +
+          "documented across freestyle's source corpora but are not yet " +
+          'published in the canonical Trick Dictionary. They are known and ' +
+          'tracked — staged for review, not omitted. Grouped by the source ' +
+          'that documents each name.',
       },
     };
   },
