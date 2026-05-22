@@ -80,9 +80,9 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
   it('renders the editorial-truth rule + incompleteness callouts', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toMatch(/editorial-truth rule/i);
-    expect(res.text).toMatch(/stated value is canonical/);
+    expect(res.text).toMatch(/stated value is the official one/);
     expect(res.text).toMatch(/Honest incompleteness/i);
-    expect(res.text).toMatch(/pending decomposition refinement/);
+    expect(res.text).toMatch(/pending breakdown refinement/);
   });
 });
 
@@ -259,10 +259,10 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toMatch(/atomic \+2-rotational/i);
   });
 
-  it('operator-axis rows are labeled as pedagogical organizing convention, not canonical taxonomy', async () => {
+  it('operator-axis rows are labeled as a pedagogical organizing convention, not an official grouping', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // The four-axis grouping must be flagged as observational pedagogy.
-    expect(res.text).toMatch(/pedagogical axis, not canonical taxonomy/i);
+    // The four-axis grouping must be flagged as pedagogical, not official.
+    expect(res.text).toMatch(/pedagogical axis, not an official grouping/i);
   });
 
   it('Mirage worked-example no longer describes mirage as "rotational"', async () => {
@@ -280,7 +280,7 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toContain('Cross-body traversal (xbody primitive)');
     // The accounting-primitive framing prose must be present.
     expect(res.text).toMatch(/accounting primitive illustrated via clipper motion/i);
-    expect(res.text).toMatch(/not a canonical named trick/i);
+    expect(res.text).toMatch(/not an official named trick/i);
     // The xbody insight remains: clipper-stall still exists below as a
     // canonical trick + xbody is still a recognized accounting primitive.
     expect(res.text).toContain('href="/freestyle/tricks/clipper-stall"');
@@ -320,13 +320,13 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toMatch(/stopping-depth equivalence is a foundational property/i);
   });
 
-  it('Section 3 intro reframes compression cases as the ontology working as intended, not real disagreements', async () => {
+  it('Section 3 intro reframes compression cases as the movement structure working as intended, not real disagreements', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const startIdx = res.text.indexOf('id="discrepancies"');
     const endIdx = res.text.indexOf('class="add-analysis-discrepancy-cases"', startIdx);
     const region = res.text.slice(startIdx, endIdx);
     expect(region).toMatch(/Multi-depth readings are not real disagreements/i);
-    expect(region).toMatch(/compositional ontology[\s\S]{0,40}working as intended/i);
+    expect(region).toMatch(/movement structure[\s\S]{0,40}working as intended/i);
     expect(region).toMatch(/Stopping-depth equivalence is foundational/i);
   });
 

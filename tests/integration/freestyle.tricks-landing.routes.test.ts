@@ -125,13 +125,16 @@ describe('GET /freestyle/tricks — dictionary landing surface', () => {
     return html.slice(start, end);
   }
 
-  it('cards 4 + 5 (Movement Neighborhoods + Observed Tricks) carry the observational badge', async () => {
+  it('only the Observed Tricks card carries the observational badge (Movement Neighborhoods does not)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    for (const slug of ['neighborhoods', 'observed']) {
-      const card = sliceCard(res.text, slug);
-      expect(card).toContain('symbolic-layer-badge');
-      expect(card).toContain('landing-card--observational');
-    }
+    const observed = sliceCard(res.text, 'observed');
+    expect(observed).toContain('symbolic-layer-badge');
+    expect(observed).toContain('landing-card--observational');
+    // Movement Neighborhoods is a movement-feel grouping, not the
+    // observational staging layer — it carries no badge.
+    const neighborhoods = sliceCard(res.text, 'neighborhoods');
+    expect(neighborhoods).not.toContain('symbolic-layer-badge');
+    expect(neighborhoods).not.toContain('landing-card--observational');
   });
 
   it('canonical cards (ADD, Family, Movement System, Operators) do NOT carry the observational badge', async () => {
@@ -190,14 +193,14 @@ describe('GET /freestyle/tricks — dictionary landing surface', () => {
     expect(res.text).not.toMatch(/release notes?/i);
   });
 
-  it('stat row renders three chips with non-zero canonical + modifier counts', async () => {
+  it('stat row renders three chips with non-zero official + modifier counts', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     const stripStart = res.text.indexOf('class="landing-stat-strip"');
     expect(stripStart).toBeGreaterThan(-1);
     const stripEnd = res.text.indexOf('</section>', stripStart);
     const strip = res.text.slice(stripStart, stripEnd);
-    expect(strip).toContain('canonical tricks');
-    expect(strip).toContain('observational');
+    expect(strip).toContain('official tricks');
+    expect(strip).toContain('documented');
     expect(strip).toContain('modifiers');
     // 3 chip wrappers total.
     const chipMatches = strip.match(/class="landing-stat-chip"/g) ?? [];

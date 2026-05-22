@@ -5391,7 +5391,7 @@ export const freestyleService = {
     const topologyView: TopologyBrowseView = {
       layerSource:       'observational',
       observationalNote:
-        'Movement Neighborhoods are observational groupings — they describe how tricks share embodied movement feel: hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are observed, not canonical; the dictionary\'s family classifications remain the canonical structure.',
+        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families: hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
       groups: TOPOLOGY_GROUPS
         .map(buildTopologyGroup)
         .filter(g => g.memberCount > 0),
@@ -5440,11 +5440,11 @@ export const freestyleService = {
 
     const movementSystemView: MovementSystemBrowseView = {
       observationalNote:
-        'Four canonical axes for navigating the freestyle movement language: how the set initiates ' +
+        'Four axes for navigating the freestyle movement language: how the set initiates ' +
         '(Set / Uptime), how the body enters (Entry Topologies), what the body does during the dex ' +
         '(Midtime Body), and discipline around plant and landing (No-Plant & Suspension). ' +
         'Each axis groups tricks by the modifiers they carry. Compounds may appear under multiple ' +
-        'modifier headings within an axis — this is intentional.',
+        'modifier headings within an axis; this is intentional.',
       axes: MOVEMENT_SYSTEM_AXES
         .map(axis => ({
           axisKey:        axis.axisKey,

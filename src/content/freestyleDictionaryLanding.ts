@@ -17,8 +17,7 @@
  *   - One paragraph for notation philosophy (no examples on landing).
  *   - Glossary-primer callout is small; placed adjacent to the
  *     operators/components card.
- *   - Observational badge applies to cards 4 + 5 only (Movement
- *     Neighborhoods + Observed Tricks).
+ *   - Observational badge applies to card 5 only (Observed Tricks).
  */
 
 export interface DictionaryLandingCard {
@@ -31,9 +30,8 @@ export interface DictionaryLandingCard {
   useWhen:         string;
   href:            string;
   /**
-   * True for cards that link to observational layers (Movement
-   * Neighborhoods, Observed Tricks). Drives the observational badge
-   * render. Per skill doctrine A (observational ≠ canonical).
+   * True for the card that links to the observational staging layer
+   * (Observed Tricks). Drives the observational badge render.
    */
   isObservational: boolean;
   /**
@@ -52,14 +50,14 @@ export interface DictionaryLandingGlossaryPrimer {
 
 /** Static editorial content for the dictionary landing surface. */
 export const DICTIONARY_LANDING_FRAMING: string =
-  'Canonical trick names, structural decompositions, and the observational ' +
-  'layer. Choose how to browse below.';
+  'Official trick names, structural decompositions, and the wider tracked ' +
+  'vocabulary. Choose how to browse below.';
 
 export const DICTIONARY_LANDING_NOTATION_PHILOSOPHY: string =
   'Notation in this dictionary follows a symbolic-first approach: ' +
   'structural readings (the ≡ lines on each trick card) describe the ' +
-  'canonical decomposition, with operational notation as fallback for ' +
-  'tricks whose canonical reading is still being authored. Cards without ' +
+  'official decomposition, with operational notation as fallback for ' +
+  'tricks whose official reading is still being authored. Cards without ' +
   'either render their name and ADD value only — the absence is ' +
   'honest, not a placeholder.';
 
@@ -78,8 +76,8 @@ export const DICTIONARY_LANDING_PRIMER: DictionaryLandingGlossaryPrimer = {
  * 'set-uptime' plus the 'movement-axis-' prefix applied at
  * freestyleService.ts:4379.
  *
- * Cards 4 + 5 carry isObservational=true per skill doctrine A; the
- * observational badge renders on these only.
+ * Card 5 (Observed Tricks) carries isObservational=true; the
+ * observational badge renders on it only.
  */
 export const DICTIONARY_LANDING_CARDS: readonly DictionaryLandingCard[] = [
   {
@@ -95,8 +93,8 @@ export const DICTIONARY_LANDING_CARDS: readonly DictionaryLandingCard[] = [
   {
     slug:            'family',
     title:           'By Family',
-    subtitle:        'Canonical trick lineages',
-    body:            'Browse canonical structural anchors. Whirl, butterfly, torque, mirage, osis.',
+    subtitle:        'Structural trick families',
+    body:            'Browse the structural anchors. Whirl, butterfly, torque, mirage, osis.',
     useWhen:         'When you know the family and want every variant in one place.',
     href:            '/freestyle/tricks?view=family',
     isObservational: false,
@@ -118,18 +116,18 @@ export const DICTIONARY_LANDING_CARDS: readonly DictionaryLandingCard[] = [
   {
     slug:            'neighborhoods',
     title:           'Movement Neighborhoods',
-    subtitle:        'Observational groupings by shared movement feel',
-    body:            'Tricks that share embodied feel. Hippy-downtime-dex, leggy-uptime-dex, X-dex compounds.',
+    subtitle:        'Shared movement feel, timing, and structure across families',
+    body:            'Tricks that move alike even when their families differ. Hippy-downtime-dex, leggy-uptime-dex, X-dex compounds.',
     useWhen:         'When you want to discover tricks that move like one you already know.',
     href:            '/freestyle/tricks?view=topology',
-    isObservational: true,
+    isObservational: false,
     subLink:         null,
   },
   {
     slug:            'observed',
     title:           'Observed Tricks',
-    subtitle:        'Community-observed, staged before canonical promotion',
-    body:            'Tricks named in tutorials, records, and other ecosystems that haven’t yet entered canonical review. Curated for transparency.',
+    subtitle:        'Community-documented, staged before official review',
+    body:            'Tricks named in tutorials, records, and other ecosystems that haven’t yet entered official review. Curated for transparency.',
     useWhen:         'When you’ve heard a name we haven’t formally adopted yet.',
     href:            '/freestyle/observational',
     isObservational: true,

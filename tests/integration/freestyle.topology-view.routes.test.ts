@@ -121,32 +121,33 @@ describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 2. Observational-layer attribution
+// 2. Movement Neighborhoods framing
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('topology view — observational-layer attribution', () => {
-  it('renders the observational badge at the top of the page', async () => {
+describe('topology view — Movement Neighborhoods framing', () => {
+  it('renders the Movement Neighborhoods note without an observational badge', async () => {
+    // Movement Neighborhoods is a movement-feel grouping, NOT the
+    // observational staging layer — it carries no observational badge.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toContain('class="topology-view-note"');
-    expect(res.text).toContain('class="symbolic-layer-badge"');
-    expect(res.text.toLowerCase()).toContain('observational');
+    expect(res.text).not.toContain('class="symbolic-layer-badge"');
   });
 
-  it('renders an observational footer with cross-reference to the canonical family view', async () => {
+  it('renders a footer cross-referencing the By family view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toContain('class="symbolic-layer-footer"');
-    expect(res.text).toMatch(/do not override canonical/i);
+    expect(res.text).toMatch(/not an official family classification/i);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
   });
 
-  it('the framing prose names "Movement Neighborhoods" and declares observational status', async () => {
-    // CR-6 of dictionary-coherence-2026-05-18: user-facing label renamed
-    // from "Topology" / "symbolic-grammar layer" to "Movement
-    // Neighborhoods". Backend slug + URL parameter ?view=topology
-    // preserved for URL stability.
+  it('the framing names "Movement Neighborhoods" and frames it as shared movement feel', async () => {
+    // CR-6 of dictionary-coherence-2026-05-18: user-facing label is
+    // "Movement Neighborhoods"; backend slug + URL parameter
+    // ?view=topology preserved for URL stability. The surface is a
+    // movement-feel grouping, not the observational staging layer.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/Movement Neighborhoods/);
-    expect(res.text).toMatch(/observed, not canonical/i);
+    expect(res.text).toMatch(/share a movement feel/i);
   });
 });
 

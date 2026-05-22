@@ -50,7 +50,7 @@
   <section id="worked-examples" class="content-section">
     <div class="section-heading">
       <h2>2. Worked examples</h2>
-      <p class="section-intro">Foundational atoms first (1-3 ADD), then compounds. Each shows components, the explicit additive derivation, and a one-line why. The derivation line is the central pedagogy &mdash; it makes visible where each ADD comes from.</p>
+      <p class="section-intro">Foundational atoms first (1-3 ADD), then compounds. Each shows components, the explicit additive breakdown, and a one-line why. The breakdown line is the central pedagogy &mdash; it makes visible where each ADD comes from.</p>
     </div>
 
     <ol class="add-analysis-worked-examples">
@@ -61,7 +61,7 @@
           <span class="add-analysis-add-label">&middot; {{addLabel}}</span>
         </h3>
         <p class="add-analysis-components-line"><strong>Components:</strong> {{components}}</p>
-        <p class="add-analysis-derivation-line"><strong>Derivation:</strong> <code>{{derivation}}</code></p>
+        <p class="add-analysis-derivation-line"><strong>Breakdown:</strong> <code>{{derivation}}</code></p>
         <p class="add-analysis-why-line">{{whyNote}}</p>
       </li>
       {{/each}}
@@ -81,7 +81,7 @@
       <thead>
         <tr>
           <th scope="col">Trick</th>
-          <th scope="col">Derivation</th>
+          <th scope="col">Breakdown</th>
           <th scope="col">ADD</th>
           <th scope="col">Provenance</th>
         </tr>
@@ -109,12 +109,12 @@
         &mdash; each with the IFPA reading, the external reading, and the
         mechanical interpretation that changes the count. None of these mean
         any source is &ldquo;wrong&rdquo; &mdash; they are differing
-        interpretations or decomposition assumptions.
+        interpretations or structural assumptions.
       </p>
       <p class="section-intro">
         <strong>Multi-depth readings are not real disagreements.</strong>
         Cases DC-04 through DC-07 below are not discrepancies in the
-        differing-source sense &mdash; they are the compositional ontology
+        differing-source sense &mdash; they are the movement structure
         working as intended. A compressed folk name (<em>blurry whirl</em>,
         <em>food processor</em>, <em>mobius</em>) and one or more deeper
         expansions (<em>stepping paradox whirl</em>, <em>spinning ss
@@ -137,7 +137,7 @@
           <dd>{{ifpaAdd}} ADD</dd>
           <dt>{{externalSourceLabel}}</dt>
           <dd>{{externalAdd}} ADD</dd>
-          <dt>Decomposition difference</dt>
+          <dt>Breakdown difference</dt>
           <dd>{{decompositionDifference}}</dd>
           <dt>Pattern</dt>
           <dd>{{pattern}}</dd>
@@ -190,7 +190,7 @@
             <td><a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a></td>
             <td>{{#if ifpaFormula}}<code>{{ifpaFormula}}</code>{{else}}<em class="passback-add-no-formula">&mdash;</em>{{/if}}</td>
             <td class="passback-add-claim-cell">{{passbackAdd}}</td>
-            <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">PB dex count; IFPA structural ADD per canonical row</em>{{/if}}</td>
+            <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">PB dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>
           </tr>
           {{/each}}
         </tbody>
