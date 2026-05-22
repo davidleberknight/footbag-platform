@@ -1335,16 +1335,22 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Breadcrumb ──────────────────────────────────────────────── */
-.breadcrumb {
+/* Two class spellings exist in markup (.breadcrumb on loop-driven crumbs,
+   .breadcrumbs on hand-written hero crumbs); both are the same component
+   and must style identically. */
+.breadcrumb,
+.breadcrumbs {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-.breadcrumb a {
+.breadcrumb a,
+.breadcrumbs a {
   color: var(--text-muted);
   text-decoration: none;
 }
-.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb a:hover,
+.breadcrumbs a:hover { text-decoration: underline; }
 .breadcrumb-sep {
   margin: 0 4px;
   opacity: 0.5;
@@ -1352,10 +1358,14 @@ section.home-media { padding-top: 0; }
 /* Hero has a dark gradient — breadcrumb must use white */
 .hero .breadcrumb,
 .hero .breadcrumb a,
-.hero .breadcrumb span {
-  color: rgba(255, 255, 255, 0.75);
+.hero .breadcrumb span,
+.hero .breadcrumbs,
+.hero .breadcrumbs a,
+.hero .breadcrumbs span {
+  color: rgba(255, 255, 255, 0.92);
 }
-.hero .breadcrumb a:hover {
+.hero .breadcrumb a:hover,
+.hero .breadcrumbs a:hover {
   color: #fff;
 }
 .hero .breadcrumb-sep {
@@ -8176,6 +8186,11 @@ a.dict-card-title:hover {
 .hero-cross-link a:hover,
 .hero-cross-link a:focus {
   text-decoration: underline;
+}
+/* On the dark hero gradient the muted accent green is near-invisible;
+   the cross-link must render white. */
+.hero .hero-cross-link a {
+  color: #fff;
 }
 
 /* Slice X Phase 1 — ADD Accounting & Analysis page (/freestyle/add-analysis).
