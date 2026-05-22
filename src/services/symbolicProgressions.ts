@@ -189,8 +189,8 @@ export function buildWalkingFamilyProgression(
     pageIntro:
       'The walking family is a cluster of tricks built on butterfly’s outside-wing motion with cross-body clipper recovery. ' +
       'Each step below extends the previous one by adding or swapping a single modifier discipline. ' +
-      'Same topology throughout; modifier choices vary. This page is observational — it surfaces mechanical similarity ' +
-      'and does not change canonical IFPA family classifications.',
+      'Same topology throughout; modifier choices vary. It surfaces mechanical similarity ' +
+      'and does not change the official IFPA family classifications.',
     topologyGroupId:     'butterfly-wing-topology',
     topologyDisplayName: 'Butterfly wing topology',
     steps,
