@@ -43,8 +43,8 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
 
   it('renders the page title + intro', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toContain('ADD Accounting &amp; Analysis');
-    expect(res.text).toMatch(/How freestyle.s difficulty system is constructed/);
+    expect(res.text).toContain('ADD Analysis');
+    expect(res.text).toMatch(/How freestyle players describe trick difficulty/);
   });
 
   it('renders the philosophy paragraph (Slice Z statement)', async () => {
@@ -53,13 +53,13 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
     expect(res.text).toMatch(/movement language explainable/);
   });
 
-  it('renders all 4 section h2 headings in canonical order', async () => {
+  it('renders all 4 section anchors in canonical order', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const sections = [
-      '1. How ADD is built',
-      '2. Worked examples',
-      '3. ADD discrepancies',
-      '4. Interpretation notes',
+      'id="how-add-is-built"',
+      'id="worked-examples"',
+      'id="discrepancies"',
+      'id="interpretation-notes"',
     ];
     let lastIdx = -1;
     for (const heading of sections) {

@@ -501,11 +501,14 @@ describe('public dictionary presentation', () => {
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">/);
   });
 
-  it('renders the dictionary expansion note', async () => {
+  it('renders the plain-language dictionary intro (no governance note)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('being expanded and aligned with established freestyle notation');
+    expect(res.text).toMatch(/class="browse-view-intro"/);
+    expect(res.text).toMatch(/vast and growing movement vocabulary/);
+    // The retired publication-state expansion note must not return.
+    expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });
 });
 
@@ -998,15 +1001,13 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).not.toContain('Description pending');
   });
 
-  it('renders the coverage summary with counts and the transparency note', async () => {
+  it('does not render the retired coverage / governance block', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('canonical tricks');
-    expect(res.text).toContain('External-source placeholders are shown for transparency and coverage tracking');
-    // sources loaded: footbag.org always declared
-    expect(res.text).toContain('footbag.org');
-    // sources unavailable: footbagmoves.com note
-    expect(res.text).toContain('footbagmoves.com');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="trick-coverage-summary"');
+    expect(res.text).not.toContain('External-source placeholders are shown for transparency');
+    expect(res.text).not.toMatch(/\d+\s+canonical tricks/);
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {

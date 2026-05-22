@@ -2,31 +2,25 @@
 
 <div class="hero hero-sm">
   <div>
-    <h1>{{page.title}}</h1>
-    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
-    {{#if content.totalRecords}}
-    <div class="hero-stats">
-      <span>{{content.totalRecords}} records</span>
-      <span>{{content.totalHolders}} holders</span>
-    </div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
     {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
 </div>
 
 <div class="wrapper">
 
-  {{#if navigation.breadcrumbs}}
-  <nav class="breadcrumb" aria-label="Breadcrumb">
-    {{#each navigation.breadcrumbs}}
-      {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
-    {{/each}}
-  </nav>
-  {{/if}}
-
-  <p class="source-note">
-    Records sourced from the freestyle passback video archive.
-    Dates marked <em>approx.</em> are confirmed only to the month or year.
-    Records shown with a disclaimer are probable but not independently verified.
+  <p>
+    A consecutive record is the most times a player has landed a single
+    trick in a row without a miss &mdash; a test of focus and endurance as
+    much as skill. The records below are the documented bests, grouped by
+    type.
   </p>
 
   {{#if content.groups}}
@@ -98,5 +92,13 @@
   {{else}}
   <div class="empty-state">No records found.</div>
   {{/if}}
+
+  <p class="source-note">
+    These records are drawn from documented freestyle video archives and
+    community tracking; historical coverage is incomplete and keeps growing.
+    Dates marked <em>approx.</em> are confirmed only to the month or year,
+    and records shown with a disclaimer are probable but not independently
+    verified.
+  </p>
 
 </div>

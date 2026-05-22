@@ -1,28 +1,13 @@
 /**
- * Integration tests for the dictionary landing surface on /freestyle/tricks
- * (CR-1 of exploration/dictionary-coherence-2026-05-18/).
+ * Integration tests for the default trick-dictionary surface at
+ * /freestyle/tricks.
  *
- * Surface contract under test:
- *   - GET /freestyle/tricks (no ?view=, no ?family=) renders the
- *     landing template (NOT the browse-view chain).
- *   - All six browse cards render (ADD / Family / Movement System /
- *     Movement Neighborhoods / Observed Tricks / Operators & Components).
- *   - Cards 4 + 5 (Movement Neighborhoods + Observed Tricks) carry the
- *     observational badge; cards 1-3 + 6 do not.
- *   - Movement System card (card 3) carries the Footbag Sets sub-link
- *     deep-linking to the movement-axis-set-uptime anchor.
- *   - Observed Tricks card (card 5) hrefs to /freestyle/observational.
- *   - Glossary primer callout ("New to the notation?") renders adjacent
- *     to the operators card.
- *   - Notation philosophy paragraph renders.
- *   - Stat row renders 3 chips: canonical / observational / modifiers.
- *   - "Back to Dictionary" link prepended to the view-toggle row on
- *     browse views (regression check that the landing is reachable from
- *     any browse view).
- *   - GET /freestyle/tricks?view=add still renders the ADD browse view
- *     (regression on the controller branch).
- *   - GET /freestyle/tricks?family=whirl still renders the family-
- *     filtered browse view (no landing inadvertently triggered).
+ * Phase D (2026-05-22): the prior six-card browse-mode "gate" was
+ * removed. /freestyle/tricks now opens directly on the By ADD ladder —
+ * real tricks immediately. Advanced browse modes (Family, Movement
+ * System, Movement Neighborhoods, Operators, Observed Tricks) are
+ * reachable from a secondary view-toggle, not a gate. There is no
+ * coverage / governance block and no publication-state stat strip.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -45,10 +30,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Minimal seed: two active tricks + one modifier so the stat row has
-  // non-zero counts. The landing renders independently of trick volume;
-  // these exist so the controller branch test (?view=add) below
-  // produces a non-empty page.
+  // Two active tricks at different ADD values + one modifier.
   insertFreestyleTrick(db, {
     slug:           'mirage',
     canonical_name: 'mirage',
@@ -78,164 +60,91 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/tricks — dictionary landing surface', () => {
-  it('returns 200 and renders the landing markup (not the browse-view chain)', async () => {
+describe('GET /freestyle/tricks — default By ADD ladder', () => {
+  it('returns 200 and opens directly on the ADD browse view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    // Landing-specific container (composed with .wrapper).
-    expect(res.text).toContain('dictionary-landing');
-    // Landing-only structural surfaces.
-    expect(res.text).toContain('class="landing-card-grid"');
-    expect(res.text).toContain('class="landing-stat-strip"');
-    expect(res.text).toContain('class="landing-primer-callout"');
-    expect(res.text).toContain('class="notation-philosophy"');
-    // Browse-view scaffolding does NOT render on landing.
-    expect(res.text).not.toContain('class="trick-view-toggle"');
-    expect(res.text).not.toContain('data-trick-slug=');
+    // The browse-view chain renders immediately — no gate.
+    expect(res.text).toContain('class="trick-view-toggle"');
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
+    // Real tricks shown immediately as dictionary cards.
+    expect(res.text).toContain('data-trick-slug=');
   });
 
-  it('renders all six browse cards in order', async () => {
+  it('does not render the retired browse-mode gate', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    const expectedOrder = ['add', 'family', 'movement-system', 'neighborhoods', 'observed', 'operators'];
-    const positions = expectedOrder.map(slug =>
-      res.text.indexOf(`data-card-slug="${slug}"`),
-    );
-    // Every card found.
-    for (let i = 0; i < expectedOrder.length; i++) {
-      expect(positions[i], `card '${expectedOrder[i]}' not found`).toBeGreaterThan(0);
-    }
-    // Strict ascending order.
-    for (let i = 1; i < positions.length; i++) {
-      expect(positions[i]!).toBeGreaterThan(positions[i - 1]!);
-    }
+    expect(res.text).not.toContain('class="landing-card-grid"');
+    expect(res.text).not.toContain('class="landing-stat-strip"');
+    expect(res.text).not.toContain('class="landing-primer-callout"');
+    expect(res.text).not.toContain('data-card-slug=');
   });
 
-  // Helper: slice the markup of a single card by data-card-slug. The
-  // card wrapper is a <div>; ending slice at the NEXT data-card-slug=
-  // (or end-of-section) gives the full card including the optional
-  // sub-link sibling anchor.
-  function sliceCard(html: string, slug: string): string {
-    const start = html.indexOf(`data-card-slug="${slug}"`);
-    if (start < 0) return '';
-    const nextSlug = html.indexOf('data-card-slug=', start + 1);
-    const sectionEnd = html.indexOf('</section>', start);
-    const end = nextSlug > 0 && (sectionEnd < 0 || nextSlug < sectionEnd)
-      ? nextSlug
-      : (sectionEnd > 0 ? sectionEnd : html.length);
-    return html.slice(start, end);
-  }
-
-  it('only the Observed Tricks card carries the observational badge (Movement Neighborhoods does not)', async () => {
+  it('opens with the plain movement-first dictionary intro + glossary link', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    const observed = sliceCard(res.text, 'observed');
-    expect(observed).toContain('symbolic-layer-badge');
-    expect(observed).toContain('landing-card--observational');
-    // Movement Neighborhoods is a movement-feel grouping, not the
-    // observational staging layer — it carries no badge.
-    const neighborhoods = sliceCard(res.text, 'neighborhoods');
-    expect(neighborhoods).not.toContain('symbolic-layer-badge');
-    expect(neighborhoods).not.toContain('landing-card--observational');
+    expect(res.text).toContain('class="browse-view-intro"');
+    expect(res.text).toMatch(/vast and growing movement vocabulary/);
+    expect(res.text).toContain('class="dictionary-intro-glossary-link"');
+    expect(res.text).toContain('href="/freestyle/glossary"');
   });
 
-  it('canonical cards (ADD, Family, Movement System, Operators) do NOT carry the observational badge', async () => {
+  it('does not render the coverage / governance block or a lead count', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    for (const slug of ['add', 'family', 'movement-system', 'operators']) {
-      const card = sliceCard(res.text, slug);
-      expect(card, `${slug} card should not carry observational badge`).not.toContain('symbolic-layer-badge');
-      expect(card).not.toContain('landing-card--observational');
-    }
+    expect(res.text).not.toContain('class="trick-coverage-summary"');
+    expect(res.text).not.toContain('class="dict-note"');
+    expect(res.text).not.toContain('shown for transparency');
+    expect(res.text).not.toMatch(/\d+\s+canonical tricks/);
   });
 
-  it('Movement System card carries the Footbag Sets sub-link deep-linking to the Set/Uptime axis', async () => {
+  it('the view-toggle offers every browse system as secondary navigation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    const card = sliceCard(res.text, 'movement-system');
-    expect(card).toContain('landing-card-sub-link');
-    expect(card).toContain('Footbag Sets');
+    const navStart = res.text.indexOf('class="trick-view-toggle"');
+    const navEnd = res.text.indexOf('</nav>', navStart);
+    expect(navStart).toBeGreaterThan(-1);
+    const nav = res.text.slice(navStart, navEnd);
+    expect(nav).toContain('By ADD');
+    expect(nav).toContain('By family');
+    expect(nav).toContain('By movement system');
+    expect(nav).toContain('Movement Neighborhoods');
+    expect(nav).toContain('href="/freestyle/operators"');
+    expect(nav).toContain('href="/freestyle/observational"');
+    // The retired "‹ Dictionary" back-link is gone.
+    expect(nav).not.toContain('trick-view-toggle-back');
   });
 
-  it('Movement System card href targets ?view=movement-system; sub-link targets the axis anchor', async () => {
-    // Handlebars HTML-escapes `=` to `&#x3D;` in attribute output. The
-    // accept-both regex matches the rendered form regardless.
-    const eq = '(?:=|&#x3D;)';
+  it('groups tricks by ADD value, with the gentlest first', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(new RegExp(`href="/freestyle/tricks\\?view${eq}movement-system"`));
-    expect(res.text).toMatch(new RegExp(`href="/freestyle/tricks\\?view${eq}movement-system#movement-axis-set-uptime"`));
-  });
-
-  it('Observed Tricks card hrefs to /freestyle/observational (NOT a renamed route)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    const card = sliceCard(res.text, 'observed');
-    expect(card).toContain('href="/freestyle/observational"');
-  });
-
-  it('Operators & Components card hrefs to /freestyle/operators (canonical reference home)', async () => {
-    // LP2 audit (2026-05-20): Card 6's main link targets the canonical
-    // operator reference page, not the broader glossary. The glossary
-    // primer callout below the card grid still surfaces broader-
-    // glossary discoverability via its own href.
-    const res = await request(createApp()).get('/freestyle/tricks');
-    const card = sliceCard(res.text, 'operators');
-    expect(card).toContain('href="/freestyle/operators"');
-    expect(card).not.toContain('href="/freestyle/glossary"');
-  });
-
-  it('glossary primer callout renders with the locked headline and a glossary anchor link', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toContain('class="landing-primer-callout"');
-    expect(res.text).toMatch(/New to the notation\?/);
-    expect(res.text).toContain('href="/freestyle/glossary#notation"');
-  });
-
-  it('does NOT render any "What\'s new" / churn-panel content (locked decision: timeless landing)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).not.toMatch(/what['’]s new/i);
-    expect(res.text).not.toMatch(/recently added/i);
-    expect(res.text).not.toMatch(/release notes?/i);
-  });
-
-  it('stat row renders three chips with non-zero official + modifier counts', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    const stripStart = res.text.indexOf('class="landing-stat-strip"');
-    expect(stripStart).toBeGreaterThan(-1);
-    const stripEnd = res.text.indexOf('</section>', stripStart);
-    const strip = res.text.slice(stripStart, stripEnd);
-    expect(strip).toContain('official tricks');
-    expect(strip).toContain('documented');
-    expect(strip).toContain('modifiers');
-    // 3 chip wrappers total.
-    const chipMatches = strip.match(/class="landing-stat-chip"/g) ?? [];
-    expect(chipMatches.length).toBe(3);
-  });
-
-  it('notation philosophy paragraph appears below the card grid', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    const gridIdx = res.text.indexOf('class="landing-card-grid"');
-    const philosophyIdx = res.text.indexOf('class="notation-philosophy"');
-    expect(gridIdx).toBeGreaterThan(-1);
-    expect(philosophyIdx).toBeGreaterThan(gridIdx);
-    expect(res.text).toMatch(/symbolic-first approach/);
+    const twoIdx   = res.text.indexOf('2 ADD');
+    const threeIdx = res.text.indexOf('3 ADD');
+    expect(twoIdx).toBeGreaterThan(-1);
+    expect(threeIdx).toBeGreaterThan(twoIdx);
+    expect(res.text).toContain('data-trick-slug="mirage"');
+    expect(res.text).toContain('data-trick-slug="whirl"');
   });
 });
 
-describe('GET /freestyle/tricks — controller branching regression', () => {
-  it('?view=add bypasses the landing and renders the ADD browse view', async () => {
+describe('GET /freestyle/tricks — browse views', () => {
+  it('?view=add renders the same ADD ladder', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="dictionary-landing"');
-    expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
   });
 
-  it('?family= alone bypasses the landing (defaults to family-filtered ADD)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?family=whirl');
+  it('?view=family renders the family browse view', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="dictionary-landing"');
-    expect(res.text).toContain('class="trick-view-toggle"');
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By family</);
   });
 
-  it('"Back to Dictionary" link renders on browse views, hrefing to /freestyle/tricks', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('class="trick-view-toggle-back"');
-    expect(res.text).toMatch(/<a class="trick-view-toggle-back" href="\/freestyle\/tricks">/);
+  it('?family= renders the family-filtered view', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?family=whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="trick-view-toggle"');
+    expect(res.text).toContain('family-filter-pill');
+  });
+
+  it('an unknown ?view= falls back to the ADD ladder', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=nonsense');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
   });
 });

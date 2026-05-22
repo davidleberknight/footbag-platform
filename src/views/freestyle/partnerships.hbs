@@ -2,17 +2,15 @@
 
 <div class="hero hero-sm">
   <div>
+    {{#if navigation.breadcrumbs}}
     <nav class="breadcrumb" aria-label="Breadcrumb">
-      <a href="/freestyle">Freestyle</a> <span class="breadcrumb-sep">/</span>
-      <span>Partnerships</span>
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
     </nav>
+    {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
-    {{#if content.totalShown}}
-    <div class="hero-stats">
-      <span>{{content.totalShown}} partnerships shown</span>
-    </div>
-    {{/if}}
   </div>
 </div>
 

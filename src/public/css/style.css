@@ -1335,22 +1335,18 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Breadcrumb ──────────────────────────────────────────────── */
-/* Two class spellings exist in markup (.breadcrumb on loop-driven crumbs,
-   .breadcrumbs on hand-written hero crumbs); both are the same component
-   and must style identically. */
-.breadcrumb,
-.breadcrumbs {
+/* Breadcrumb — one consistent component across every page. Rendered from
+   navigation.breadcrumbs as loop-driven crumbs with .breadcrumb-sep. */
+.breadcrumb {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-.breadcrumb a,
-.breadcrumbs a {
+.breadcrumb a {
   color: var(--text-muted);
   text-decoration: none;
 }
-.breadcrumb a:hover,
-.breadcrumbs a:hover { text-decoration: underline; }
+.breadcrumb a:hover { text-decoration: underline; }
 .breadcrumb-sep {
   margin: 0 4px;
   opacity: 0.5;
@@ -1358,14 +1354,10 @@ section.home-media { padding-top: 0; }
 /* Hero has a dark gradient — breadcrumb must use white */
 .hero .breadcrumb,
 .hero .breadcrumb a,
-.hero .breadcrumb span,
-.hero .breadcrumbs,
-.hero .breadcrumbs a,
-.hero .breadcrumbs span {
+.hero .breadcrumb span {
   color: rgba(255, 255, 255, 0.92);
 }
-.hero .breadcrumb a:hover,
-.hero .breadcrumbs a:hover {
+.hero .breadcrumb a:hover {
   color: #fff;
 }
 .hero .breadcrumb-sep {
@@ -2324,44 +2316,6 @@ section.home-media { padding-top: 0; }
 .trick-view-toggle a:hover { text-decoration: underline; }
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
-
-/* Post-Slice-L-polish stabilization (2026-05-16): visually demote the
-   legacy / advanced browse modes (By category, By component, Movement
-   Neighborhoods) so By ADD and By family read as the primary surfaces.
-   The "— more views:" italic label separates the two tiers. */
-.trick-view-toggle-secondary-label {
-  margin: 0 0.5rem 0 0.7rem;
-  font-size: 0.82rem;
-  font-style: italic;
-  color: var(--text-subtle);
-}
-.trick-view-toggle-secondary {
-  font-size: 0.88rem;
-  opacity: 0.72;
-}
-.trick-view-toggle-secondary a {
-  color: var(--text-subtle);
-}
-.trick-view-toggle-secondary a:hover {
-  color: var(--primary);
-}
-.trick-view-toggle-secondary .trick-view-toggle-active {
-  /* Active state restores full weight even within the secondary tier so
-     the current-view marker stays legible. */
-  opacity: 1;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.trick-coverage-summary {
-  margin: 4px 0 16px;
-  padding: 8px 12px;
-  background-color: #fafafa;
-  border-left: 3px solid var(--border, #e5e5e5);
-  border-radius: 2px;
-}
-.trick-coverage-counts { margin: 0; font-size: 0.88rem; color: var(--text); }
-.trick-coverage-note   { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
 
 .trick-add-group { margin-bottom: 28px; }
 .trick-set-group { margin-bottom: 28px; }
@@ -4510,17 +4464,27 @@ section.home-media { padding-top: 0; }
 .glossary-sidebar {
   margin: 0 0 20px 0;
   padding: 12px 14px;
-  background: #fcfaf3;
-  border: 1px solid #ece6d4;
+  background: #f6f8f9;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 6px;
 }
-.glossary-sidebar-heading {
-  margin: 0 0 6px 0;
-  font-size: 0.74rem;
+.glossary-sidebar-tier {
+  margin: 14px 0 4px 0;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #8a7a40;
+  color: var(--secondary, #0b5e6b);
   text-transform: uppercase;
+}
+.glossary-sidebar-tier:first-child {
+  margin-top: 0;
+}
+.glossary-sidebar-group {
+  display: block;
+  margin: 4px 0 2px 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text, #1f2937);
 }
 .glossary-sidebar-list {
   margin: 0;
@@ -4539,7 +4503,7 @@ section.home-media { padding-top: 0; }
   border-radius: 3px;
 }
 .glossary-sidebar-list a:hover {
-  background: #ece6d4;
+  background: #e6ebee;
   padding-left: 6px;
 }
 .glossary-main-column {
@@ -4574,7 +4538,7 @@ section.home-media { padding-top: 0; }
   .glossary-sidebar-list a {
     padding: 3px 8px;
     background: #fff;
-    border: 1px solid #ece6d4;
+    border: 1px solid var(--border, #e2e8f0);
     border-radius: 3px;
     font-size: 0.82rem;
   }
@@ -6670,173 +6634,6 @@ a.dict-card-title:hover {
   color: #5a4f3c;
 }
 
-/* ─── Dictionary landing surface (CR-1 dictionary-coherence-2026-05-18) ───
- * Renders at /freestyle/tricks when no ?view= and no ?family= params.
- * Six browse cards, stat row, ontology framing, glossary primer, notation
- * philosophy paragraph. Restraint doctrine D: no animation, no interaction-
- * heavy affordances, static layout only. */
-.dictionary-landing {
-  padding-top: 8px;
-  padding-bottom: 32px;
-}
-.landing-stat-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  align-items: baseline;
-  margin: 16px 0 28px 0;
-  padding: 12px 0;
-  border-top: 1px solid #e6e3d8;
-  border-bottom: 1px solid #e6e3d8;
-}
-.landing-stat-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.landing-stat-value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #2d2a22;
-}
-.landing-stat-label {
-  font-size: 0.88rem;
-  color: #5a5447;
-}
-
-.landing-card-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin: 0 0 28px 0;
-}
-.landing-card {
-  display: flex;
-  flex-direction: column;
-  background: #fafaf7;
-  border: 1px solid #e0ddd0;
-  border-radius: 6px;
-  transition: border-color 0.12s ease;
-}
-.landing-card:hover,
-.landing-card:focus-within {
-  border-color: #c9a85a;
-}
-.landing-card-main {
-  display: flex;
-  flex-direction: column;
-  padding: 16px 18px;
-  text-decoration: none;
-  color: inherit;
-}
-.landing-card-main:focus {
-  outline: none;
-}
-.landing-card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.landing-card-title {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: #2d2a22;
-}
-.landing-card-subtitle {
-  margin: 0 0 8px 0;
-  font-size: 0.86rem;
-  color: #6b6553;
-  font-style: italic;
-}
-.landing-card-body {
-  margin: 0 0 10px 0;
-  font-size: 0.94rem;
-  line-height: 1.45;
-  color: #3a3326;
-}
-.landing-card-use-when {
-  margin: 0;
-  font-size: 0.84rem;
-  color: #5a5447;
-}
-.landing-card-use-when em {
-  font-style: italic;
-}
-.landing-card-sub-link {
-  display: block;
-  margin: 0 18px 14px 18px;
-  padding-top: 8px;
-  border-top: 1px solid #ebe8de;
-  font-size: 0.86rem;
-  color: #5a4f3c;
-  text-decoration: none;
-}
-.landing-card-sub-link:hover {
-  text-decoration: underline;
-}
-.landing-card-sub-link-arrow {
-  color: #c9a85a;
-  margin-right: 4px;
-}
-.landing-card--observational {
-  background: #faf8f0;
-}
-
-.landing-primer-callout {
-  margin: 0 0 24px 0;
-  padding: 12px 16px;
-  background: #f7f4ea;
-  border-left: 3px solid #c9a85a;
-  border-radius: 0 4px 4px 0;
-}
-.landing-primer-headline {
-  margin: 0 0 4px 0;
-  font-size: 0.94rem;
-  font-weight: 600;
-  color: #3a3326;
-}
-.landing-primer-body {
-  margin: 0;
-  font-size: 0.88rem;
-  color: #5a5447;
-}
-
-.notation-philosophy {
-  margin: 0;
-  padding: 14px 0 0 0;
-  border-top: 1px solid #ebe8de;
-}
-.notation-philosophy p {
-  margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: #4a4338;
-}
-
-.trick-view-toggle-back {
-  font-weight: 500;
-}
-
-/* Tablet: 2-column landing card grid. */
-@media (max-width: 900px) {
-  .landing-card-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Phone: single-column landing card grid + stack stat strip. */
-@media (max-width: 480px) {
-  .landing-card-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .landing-stat-strip {
-    flex-direction: column;
-    gap: 6px;
-  }
-}
 .component-view-note {
   margin: 8px 0 16px 0;
   padding: 10px 14px;
@@ -7150,91 +6947,6 @@ a.dict-card-title:hover {
   color: var(--text-muted, #555);
 }
 
-/* Movement Reference — unified six-card section that replaces the prior
-   Reference Shelf <details> stack AND the duplicated standalone
-   "Operators & Modifiers" portal card. Landing Page Phase 1
-   (2026-05-21). Six uniform teaser cards in a 3-column grid; each
-   card carries title + summary + optional preview chips + single
-   outbound CTA. Cards adopt the muted-tone cohort treatment used by
-   .browse-view-intro + .trick-family-anchor-callout so the section
-   reads as a single visual cohort. */
-.freestyle-movement-reference {
-  margin: 32px 0 28px 0;
-}
-.freestyle-movement-reference-title {
-  margin: 0 0 6px 0;
-  font-size: 1.25rem;
-  color: var(--text-primary, #1f2937);
-}
-.freestyle-movement-reference-lede {
-  margin: 0 0 18px 0;
-  font-size: 0.95rem;
-  line-height: 1.55;
-  color: var(--text-muted, #555);
-  max-width: 720px;
-}
-.freestyle-movement-reference-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-.freestyle-movement-reference-card {
-  background: #f4f1ea;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 6px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-}
-.freestyle-movement-reference-card-title {
-  margin: 0 0 8px 0;
-  font-size: 1.02rem;
-  font-weight: 600;
-  color: var(--text-primary, #1f2937);
-}
-.freestyle-movement-reference-card-summary {
-  margin: 0 0 10px 0;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: var(--text-primary, #1f2937);
-  flex-grow: 1;
-}
-.freestyle-movement-reference-card-chips {
-  margin: 0 0 8px 0;
-  font-size: 0.85rem;
-}
-.freestyle-movement-reference-chip {
-  display: inline-block;
-  padding: 1px 8px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.82rem;
-  color: #3b3b3b;
-  background: #ece6dc;
-  border: 1px solid #d8d2c4;
-  border-radius: 3px;
-}
-.freestyle-movement-reference-chip-sep {
-  color: #b0b0b0;
-}
-.freestyle-movement-reference-card-cta {
-  margin: 4px 0 0 0;
-  font-size: 0.9rem;
-}
-@media (max-width: 760px) {
-  .freestyle-movement-reference-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 480px) {
-  .freestyle-movement-reference-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .freestyle-movement-reference-card {
-    padding: 12px 14px;
-  }
-}
-
 /* Basic Components grid ------------------------------------------------- */
 .freestyle-basic-components-grid {
   display: grid;
@@ -7458,31 +7170,6 @@ a.dict-card-title:hover {
 .freestyle-top-reference-link:focus-visible {
   background: #ede9d8;
   color: #3f3f3f;
-}
-
-/* Under-hero jump nav (Phase 1 / K) -----------------------------------
-   Lightweight non-sticky in-page nav. Anchors the four primary landing
-   sections; breaks the linear essay flow without intervening in the read.
-   (The fifth "Where next" anchor was retired in Slice K, 2026-05-16.) */
-.page-jump-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  font-size: 0.85rem;
-  padding: 10px 0 0 0;
-  margin: 0 0 4px 0;
-  border-bottom: 1px solid var(--surface-2, #e2e8f0);
-  padding-bottom: 10px;
-}
-.page-jump-nav a {
-  color: var(--text-muted, #64748b);
-  text-decoration: none;
-  border-bottom: 1px dotted transparent;
-}
-.page-jump-nav a:hover,
-.page-jump-nav a:focus-visible {
-  color: var(--text, #0f172a);
-  border-bottom-color: currentColor;
 }
 
 /* Narrow viewports ------------------------------------------------------ */
@@ -7950,12 +7637,21 @@ a.dict-card-title:hover {
   max-width: 760px;
   margin: 0.5rem 0 1.25rem;
   padding: 10px 14px;
-  background: #f4f1ea;
-  border-left: 3px solid var(--border, #e2e8f0);
+  background: #f5f7f8;
+  border-left: 3px solid var(--secondary, #0b5e6b);
   border-radius: 0 4px 4px 0;
   color: var(--text-primary, #1f2937);
   font-size: 0.95rem;
   line-height: 1.5;
+}
+.dictionary-intro-glossary-link {
+  color: var(--primary, #1bb36b);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dictionary-intro-glossary-link:hover,
+.dictionary-intro-glossary-link:focus-visible {
+  text-decoration: underline;
 }
 @media (max-width: 480px) {
   .browse-view-intro {

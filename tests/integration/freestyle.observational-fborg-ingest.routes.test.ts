@@ -171,7 +171,7 @@ describe('/freestyle/observational — tracked-vocabulary section', () => {
 
   it('renders the tracked-vocabulary section grouped by source', async () => {
     const block = await trackedBlock();
-    expect(block).toContain('Tracked vocabulary');
+    expect(block).toContain('more documented names');
     // Grouped by documenting source — the three source groups.
     expect(block).toContain('FootbagMoves');
     expect(block).toContain('footbag.org');

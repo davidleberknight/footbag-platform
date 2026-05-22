@@ -183,37 +183,22 @@ describe('Glossary §12 — named source families (Slice C)', () => {
   });
 });
 
-describe('Landing page — Educational Pathways chip removed (Slice C)', () => {
-  it('does NOT render the "Educational pathways" chip on the landing Tutorials card', async () => {
-    // Slice C (2026-05): the Educational-pathways chip was removed from
-    // the Tutorials card. Landing Page Phase 1 (2026-05-21) lifted the
-    // Learning Path shelf panel into the Movement Reference section as
-    // a flat card pointing at /freestyle/learn — structurally different
-    // from the Tutorials card chip — but the original invariant (the
-    // chip text isn't in the Tutorials card anymore) must hold.
+describe('Landing page — Watch & Learn card (Slice C lineage)', () => {
+  it('does not render the retired "Educational pathways" chip', async () => {
+    // Slice C (2026-05) removed the Educational-pathways chip from the
+    // landing tutorials card. The two-band landing rebuild (Phase C,
+    // 2026-05-22) renamed that card to "Watch & Learn"; the chip must
+    // not return.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.status).toBe(200);
-    // Old chip text is gone.
     expect(res.text).not.toContain('Educational pathways &rarr;');
-    // The /freestyle/learn link still appears, but only inside the
-    // Movement Reference Learning Path card — not on the Tutorials card.
-    const tutorialsCardIdx = res.text.indexOf('Tutorials &amp; Learning');
-    const tutorialsEndIdx  = res.text.indexOf('</div>', res.text.indexOf('</div>', tutorialsCardIdx) + 1);
-    const tutorialsCard    = res.text.slice(tutorialsCardIdx, tutorialsEndIdx);
-    expect(tutorialsCard).not.toContain('/freestyle/learn');
-    // Confirm the Movement Reference Learning Path card does exist
-    // (separate surface).
-    const cardStart = res.text.indexOf('id="movement-ref-learning-path"');
-    expect(cardStart).toBeGreaterThan(0);
-    expect(res.text.slice(cardStart, res.text.indexOf('</article>', cardStart))).toContain('href="/freestyle/learn"');
   });
 
-  it('still renders the curated-tutorial chips on the landing Tutorials card', async () => {
-    // Regression guard: removing the Educational pathways chip must not
-    // disturb the surrounding curated-tutorial-series chips.
+  it('the Watch & Learn card lists the curated tutorial galleries', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('<div class="card-title">Watch &amp; Learn</div>');
     expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
     expect(res.text).toContain('/media/gallery_passback_tutorials');
     expect(res.text).toContain('/media/gallery_anz_trikz');

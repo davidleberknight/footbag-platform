@@ -1,4 +1,6 @@
-{{! /freestyle — portal landing page }}
+{{! /freestyle — landing page. Two-band structure: What is Freestyle? →
+    Start Here (beginner paths) → Go Deeper (reference / archive / analysis)
+    → Featured videos. }}
 
 <div class="hero hero-sm hero-with-mascot">
   <div class="hero-text">
@@ -10,10 +12,7 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! Portal lede + optional demo video. Replaces the prior "Language of
-      Freestyle Footbag" intro: no h2 banner, just framing prose that
-      explains the page is a portal (videos first, then learning paths,
-      then optional reference panels). }}
+  {{! ── What is Freestyle? — plain intro + demo video ───────────────────── }}
   {{#if content.intro.paragraphs.length}}
   <section class="content-section freestyle-portal-lede">
     {{#if content.intro.heading}}<h2>{{content.intro.heading}}</h2>{{/if}}
@@ -32,28 +31,19 @@
   </section>
   {{/if}}
 
-  {{! Under-hero jump nav. Two anchors: Featured (videos) + Movement
-      Reference (the six-card freestyle-language section). Landing Page
-      Phase 1 (2026-05-21) consolidated the prior #reference-shelf
-      anchor into #movement-reference at the top of the page flow. }}
-  <nav class="page-jump-nav" aria-label="On this page">
-    <a href="#featured">Featured</a>
-    <a href="#movement-reference">Movement reference</a>
-  </nav>
-
-  {{! Portal cards. Landing Page Phase 1 (2026-05-21): the standalone
-      "Operators & Modifiers" portal card was removed; the Operators &
-      Modifiers entry now lives in the unified Movement Reference
-      section below alongside Basic Components, Core Tricks, ADD &
-      Scoring, Notation, and Learning Path. The full operator material
-      remains on /freestyle/operators. }}
+  {{! ── Start Here — beginner paths ──────────────────────────────────────── }}
   <section class="content-section">
+    <div class="section-heading">
+      <h2>Start Here</h2>
+      <p class="section-intro">New to freestyle? These are the best places to begin.</p>
+    </div>
     <div class="card-grid card-grid-2col">
 
       <div class="card">
-        <div class="card-title">Tutorials &amp; Learning</div>
+        <div class="card-title">Watch &amp; Learn</div>
         <p>
-          Tutorials and demonstrations from the global freestyle community.
+          See freestyle footbag in motion. Video tutorials and demonstrations
+          from players around the world.
         </p>
         <div class="card-actions">
           <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
@@ -67,10 +57,8 @@
       <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
         <div class="card-title">Trick Dictionary</div>
         <p>
-          Reference for every named freestyle trick. Browse by ADD difficulty, by
-          family lineage, by movement type, or by similarity. You can also scan
-          community-named tricks that haven't been formalized yet. The component
-          vocabulary (sets, dexes, surfaces, body modifiers) is explained as you go.
+          Every freestyle trick has a name. Browse them, see how they fit
+          together, and find the moves to learn next.
         </p>
         {{#if content.totalTricks}}
         <div class="card-actions">
@@ -84,25 +72,46 @@
       <div class="card">
         <div class="card-title">Glossary</div>
         <p>
-          Beginner-friendly explanations of freestyle vocabulary: judging terms,
-          components of a trick, set / modifier / catch concepts, and the abbreviations
-          you'll encounter in tutorials and contests.
+          New to the words? Plain-language explanations of the terms, moves,
+          and abbreviations you'll hear in tutorials and at contests.
         </p>
         <div class="card-actions">
-          <a href="/freestyle/glossary" class="btn btn-outline">Open glossary &rarr;</a>
+          <a href="/freestyle/glossary" class="btn btn-outline">Open the glossary &rarr;</a>
         </div>
       </div>
 
-      <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
-        <div class="card-title">World Records</div>
+      <div class="card">
+        <div class="card-title">The Story of Freestyle</div>
         <p>
-          Per-trick consecutive completion records from the freestyle Passback
-          community. Browse by trick, or see the all-time leaderboard.
+          How freestyle footbag grew from kicking circles in the 1980s into a
+          technical, creative sport played around the world.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/history" class="btn btn-outline">Freestyle history &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  {{! ── Go Deeper — reference, archive & analysis ────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Go Deeper</h2>
+      <p class="section-intro">Records, competition history, and the deeper analysis behind elite freestyle.</p>
+    </div>
+    <div class="card-grid card-grid-2col">
+
+      <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
+        <div class="card-title">Trick Records</div>
+        <p>
+          Documented freestyle trick achievements and consecutive-completion
+          records &mdash; how many times in a row a trick has been landed.
         </p>
         {{#if content.totalRecords}}
         <div class="card-actions">
-          <a href="/freestyle/records" class="btn btn-outline">View records &rarr;</a>
-          <a href="/freestyle/leaders" class="btn btn-outline">Leaderboard &rarr;</a>
+          <a href="/freestyle/records" class="btn btn-outline">Trick records &rarr;</a>
+          <a href="/freestyle/leaders" class="btn btn-outline">Record leaders &rarr;</a>
         </div>
         {{else}}
         <span class="badge badge-coming-soon">Coming soon</span>
@@ -112,9 +121,8 @@
       <div class="card">
         <div class="card-title">Competition</div>
         <p>
-          Top competitors, podium counts, and event history across documented
-          freestyle events, 1980 to present. Includes solo and partnership
-          records.
+          Decades of documented freestyle events and results, plus the doubles
+          partnerships that shaped the sport.
         </p>
         <div class="card-actions">
           <a href="/freestyle/competition" class="btn btn-outline">Competition history &rarr;</a>
@@ -123,67 +131,54 @@
       </div>
 
       <div class="card">
-        <div class="card-title">History, ADD &amp; Combos</div>
+        <div class="card-title">Scoring &amp; Combos</div>
         <p>
-          How freestyle's vocabulary and scoring evolved, from the foundational
-          1980s clipper-and-mirage era through modifier stacking in the 2000s and
-          the modern European-led refinement. The trick-level ADD system and the
-          sequence-level patterns that shape long combos.
+          How freestyle measures trick difficulty, and how single tricks link
+          into longer flowing combinations and runs.
         </p>
         <div class="card-actions">
-          <a href="/freestyle/history" class="btn btn-outline">Full history &rarr;</a>
           <a href="/freestyle/add-analysis" class="btn btn-outline">ADD analysis &rarr;</a>
           <a href="/freestyle/combo-analysis" class="btn btn-outline">Combo analysis &rarr;</a>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Insights</div>
+        <div class="card-title">Operators &amp; Modifiers</div>
         <p>
-          Data-driven sequence analysis across decades of competitive freestyle:
-          how trick combinations evolved, which modifiers anchored each era, and
-          the patterns visible in the historical record.
+          The movement ideas that transform one trick into many related
+          variations.
         </p>
         <div class="card-actions">
-          <a href="/freestyle/insights" class="btn btn-outline">Insights &rarr;</a>
+          <a href="/freestyle/operators" class="btn btn-outline">Operators &amp; modifiers &rarr;</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Insights</div>
+        <p>
+          Patterns drawn from decades of documented competitive freestyle
+          &mdash; the tricks and combinations that defined each era.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/insights" class="btn btn-outline">Freestyle insights &rarr;</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Observed Tricks</div>
+        <p>
+          Trick names documented from the wider community that haven't been
+          fully reviewed yet.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/observational" class="btn btn-outline">Observed tricks &rarr;</a>
         </div>
       </div>
 
     </div>
   </section>
 
-  {{! Movement Reference — six uniform teaser cards (Basic Components,
-      Core Tricks, Operators & Modifiers, ADD & Scoring, Notation,
-      Learning Path). Replaces the prior standalone Operators portal
-      card AND the lower Reference Shelf <details> stack with a single
-      cohort of uniformly-formatted cards. Each is a porch: title +
-      one-line summary + optional preview chips + single outbound CTA;
-      depth lives on the destination page. Landing Page Phase 1
-      (2026-05-21). }}
-  <section class="content-section freestyle-movement-reference" id="movement-reference" aria-label="Movement reference">
-    <h2 class="freestyle-movement-reference-title">{{content.movementReference.title}}</h2>
-    <p class="freestyle-movement-reference-lede">{{content.movementReference.lede}}</p>
-    <div class="freestyle-movement-reference-grid">
-      {{#each content.movementReference.cards}}
-      <article class="freestyle-movement-reference-card" id="movement-ref-{{slug}}">
-        <h3 class="freestyle-movement-reference-card-title">{{title}}</h3>
-        <p class="freestyle-movement-reference-card-summary">{{summary}}</p>
-        {{#if examples.length}}
-        <p class="freestyle-movement-reference-card-chips" aria-label="Example operators">
-          {{#each examples}}<span class="freestyle-movement-reference-chip" data-token-slug="{{slug}}">{{label}}</span>{{#unless @last}} <span class="freestyle-movement-reference-chip-sep" aria-hidden="true">&middot;</span> {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-        <p class="freestyle-movement-reference-card-cta">
-          <a class="glossary-outward-link" href="{{linkOutHref}}">{{linkOutLabel}} &rarr;</a>
-        </p>
-      </article>
-      {{/each}}
-    </div>
-  </section>
-
-  {{! Featured — merged Competition Formats + Demonstrations strip. One
-      compact grid; format names (Routine / Circle / Sick 3 / Shred 30)
-      preserved as card titles; curated demonstrations carry hashtag chips. }}
+  {{! ── Featured — competition formats + curated demonstrations ──────────── }}
   {{#if content.featured.length}}
   <section class="content-section freestyle-featured" id="featured">
     <h2>Featured</h2>
@@ -201,18 +196,5 @@
     </div>
   </section>
   {{/if}}
-
-  {{! Get started tiles (placeholders). }}
-  <section class="content-section">
-    <h2>Get Started</h2>
-    <div class="card-grid card-grid-3col get-started-tiles">
-      {{#each content.getStartedTiles}}
-      <a class="card card-tile{{#if comingSoon}} card-coming-soon{{/if}}" href="{{href}}">
-        <div class="card-title">{{label}}</div>
-        {{#if comingSoon}}<span class="badge badge-coming-soon">Coming soon</span>{{/if}}
-      </a>
-      {{/each}}
-    </div>
-  </section>
 
 </div>

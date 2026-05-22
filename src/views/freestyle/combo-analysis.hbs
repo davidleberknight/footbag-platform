@@ -1,5 +1,5 @@
 {{!--
-  /freestyle/combo-analysis — Combo & Run Architecture.
+  /freestyle/combo-analysis — Combo Analysis.
 
   Educational page operating at the sequence level above the trick
   dictionary. Pure curator content via FREESTYLE_COMBO_ANALYSIS_CONTENT;
@@ -9,17 +9,32 @@
   proposed_combo_analysis_page_structure.md.
 --}}
 
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
 <div class="wrapper combo-analysis-page">
 
-  <header class="page-hero">
-    <h1>{{page.title}}</h1>
-    <p class="page-intro">{{page.intro}}</p>
-  </header>
+  <p>
+    Freestyle isn't only single tricks &mdash; players link them into longer,
+    flowing runs. This page looks at how those sequences are built: what turns
+    a string of tricks into a combo worth watching.
+  </p>
 
-  {{!-- §1 — Philosophy ────────────────────────────────────────────────── --}}
+  {{!-- Philosophy ─────────────────────────────────────────────────────── --}}
   <section id="philosophy" class="content-section">
     <div class="section-heading">
-      <h2>1. Philosophy</h2>
+      <h2>Philosophy</h2>
     </div>
     {{#each content.philosophyParagraphs}}
     <p>{{this}}</p>
@@ -29,7 +44,7 @@
   {{!-- §2 — Run-quality terminology ───────────────────────────────────── --}}
   <section id="run-quality" class="content-section">
     <div class="section-heading">
-      <h2>2. Run-quality terminology</h2>
+      <h2>Run-quality terminology</h2>
       <p class="section-intro">{{content.runQualityIntro}}</p>
     </div>
 
@@ -71,9 +86,9 @@
   {{!-- §5 — Worked examples ───────────────────────────────────────────── --}}
   <section id="worked-examples" class="content-section">
     <div class="section-heading">
-      <h2>5. Worked examples</h2>
+      <h2>Worked examples</h2>
       <p class="section-intro">
-        Five vignettes, ordered from canonical to extreme. Each grounds a real
+        Five vignettes, ordered from standard to extreme. Each grounds a real
         corpus pattern in the §3 / §4 vocabulary.
       </p>
     </div>
@@ -106,7 +121,7 @@
   {{!-- §6 — Transition topology ───────────────────────────────────────── --}}
   <section id="transition-topology" class="content-section">
     <div class="section-heading">
-      <h2>6. Transition topology</h2>
+      <h2>Transition topology</h2>
       <p class="section-intro">{{content.topologyIntro}}</p>
     </div>
 
@@ -121,7 +136,7 @@
   {{!-- §7 — Caveats ───────────────────────────────────────────────────── --}}
   <section id="caveats" class="content-section">
     <div class="section-heading">
-      <h2>7. Honesty &amp; uncertainty</h2>
+      <h2>Honesty &amp; uncertainty</h2>
       <p class="section-intro">
         What the documented patterns describe &mdash; and what they don&rsquo;t.
       </p>

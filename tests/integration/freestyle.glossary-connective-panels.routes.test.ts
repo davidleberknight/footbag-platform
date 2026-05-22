@@ -69,25 +69,23 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/glossary — connective panels section', () => {
   it('renders the Family & Topology Concepts section heading and anchor', async () => {
-    // Landing IA refactor (2026-05-19): the connective panels moved from
-    // §9 "Movement Neighborhoods" to §11 "Family & Topology Concepts"
-    // when the glossary section spine reorganized around 14 sections.
     // The id="connective-panels" anchor is preserved (anchor-preservation
-    // forever-rule).
+    // forever-rule). Phase E (2026-05-22) re-tiered the glossary and
+    // dropped numeric section prefixes from headings.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/11\.\s+Family &amp; Topology Concepts/);
+    expect(res.text).toMatch(/Family &amp; Topology Concepts/);
     expect(res.text).toContain('id="connective-panels"');
   });
 
   it('preserves the primer + reference sections above and below the panels', async () => {
-    // 14-section spine (2026-05-19): §1 Core Concepts leads; §8 ADD
-    // Accounting holds the per-trick ADD definition; §14 Sources closes.
+    // Phase E re-tier: §1 reframed as "Movement Basics"; ADD Accounting
+    // holds the per-trick ADD definition; Sources closes the glossary.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/1\.\s+Core Concepts/);
-    expect(res.text).toMatch(/8\.\s+ADD Accounting/);
+    expect(res.text).toMatch(/Movement Basics/);
+    expect(res.text).toMatch(/ADD Accounting/);
     expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);
-    expect(res.text).toMatch(/14\.\s+Sources/);
+    expect(res.text).toContain('id="section-sources"');
   });
 
   it('renders all 6 panels with correct anchor IDs', async () => {
@@ -189,37 +187,37 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 describe('GET /freestyle/glossary — connective panels do not break existing content', () => {
   it('glossary intro still renders alongside the connective panels (smoke check)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // 14-section IA refactor (2026-05-19): the language-of-freestyle intro
-    // dropped in favor of a portal-framing lede.
-    expect(res.text).toMatch(/movement-language reference for freestyle footbag/);
+    // Phase E re-tier: §1 reframed as a welcoming "Movement Basics" intro.
+    expect(res.text).toMatch(/the language of freestyle footbag/);
   });
 
-  it('renders the 14-section spine in order (post 2026-05-19 IA refactor)', async () => {
-    // 14-section contract: §1 Core Concepts / §2 Surfaces / §3 Dexterities
-    // / §4 Timing / §5 Families / §6 Modifiers / §7 Notation / §8 ADD
-    // Accounting / §9 Composition / §10 Run Architecture / §11 Topology /
-    // §12 Community / §13 Historical / §14 Sources. Monotonic ordering.
+  it('renders the glossary section spine in re-tiered order', async () => {
+    // Phase E (2026-05-22) re-tier: section anchors in progressive-disclosure
+    // order, with the relocated "Advanced Reference Concepts" section between
+    // Family & Topology Concepts and Community Vocabulary. Section ids are
+    // unique, so monotonic ordering on the anchors is a robust spine check.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const orderedHeadings = [
-      '1. Core Concepts',
-      '2. Contact Surfaces',
-      '3. Dexterities',
-      '4. Timing',
-      '5. Core Trick Families',
-      '6. Modifiers',
-      '7. Jobs / Operational Notation',
-      '8. ADD Accounting',
-      '9. Symbolic Composition',
-      '10. Run Architecture',
-      '11. Family',
-      '12. Community',
-      '13. Historical',
-      '14. Sources',
+    const orderedAnchors = [
+      'id="section-core-concepts"',
+      'id="section-surfaces"',
+      'id="section-dexterities"',
+      'id="section-timing-sets"',
+      'id="section-families"',
+      'id="section-modifiers"',
+      'id="section-notation"',
+      'id="section-add-accounting"',
+      'id="section-composition"',
+      'id="section-run-architecture"',
+      'id="connective-panels"',
+      'id="section-advanced-reference"',
+      'id="section-community"',
+      'id="section-historical"',
+      'id="section-sources"',
     ];
     let lastIdx = -1;
-    for (const heading of orderedHeadings) {
-      const idx = res.text.indexOf(heading);
-      expect(idx, `heading "${heading}" not in monotonic order`).toBeGreaterThan(lastIdx);
+    for (const anchor of orderedAnchors) {
+      const idx = res.text.indexOf(anchor);
+      expect(idx, `anchor ${anchor} not in monotonic order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
     }
   });

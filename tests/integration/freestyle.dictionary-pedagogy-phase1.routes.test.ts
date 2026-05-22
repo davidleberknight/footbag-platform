@@ -95,23 +95,24 @@ describe('Dictionary Pedagogy Phase 1 — family-view intro paragraph', () => {
   });
 });
 
-describe('Dictionary Pedagogy Phase 1 — ADD-view intro paragraph', () => {
-  it('renders the addViewIntro at the top of the ADD browse view', async () => {
+describe('Dictionary — plain-language intro paragraph', () => {
+  it('renders the dictionary intro at the top of the ADD browse view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
   });
 
-  it('addViewIntro frames ADD and topology as orthogonal axes', async () => {
+  it('the intro explains ADD in plain, movement-first language', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/orthogonal/i);
-    expect(res.text).toMatch(/topology and ADD/i);
-    expect(res.text).toMatch(/structural difficulty/i);
+    expect(res.text).toMatch(/movement vocabulary/i);
+    expect(res.text).toMatch(/difficulty score/i);
+    // No ontology jargon in the beginner intro.
+    expect(res.text).not.toMatch(/orthogonal/i);
   });
 
-  it('addViewIntro does NOT appear on the family view', async () => {
-    const familyRes = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(familyRes.text).not.toMatch(/orthogonal axes/i);
+  it('the dictionary intro is page-level — it also shows on the family view', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toMatch(/movement vocabulary/i);
   });
 });
 

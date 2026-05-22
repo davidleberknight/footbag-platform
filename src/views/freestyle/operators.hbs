@@ -11,10 +11,13 @@
 --}}
 <div class="hero hero-sm">
   <div>
-    <nav class="breadcrumbs" aria-label="Breadcrumb">
-      <a href="/freestyle">Freestyle</a> &rsaquo;
-      <span aria-current="page">Operators &amp; Modifiers</span>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
     </nav>
+    {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
@@ -23,13 +26,12 @@
 <div class="wrapper freestyle-operators">
   <section class="content-section">
     <p class="freestyle-operators-orientation">
-      Below: feel cards for the most common modifiers, then the structural
-      decomposition reference. To browse tricks that use a given modifier,
-      open the <a href="/freestyle/tricks?view=movement-system">By Movement
-      System</a> view in the trick dictionary. For ADD construction across
-      modifiers, see <a href="/freestyle/add-analysis">ADD Analysis</a>.
-      External-source trick names not yet curator-confirmed appear on the
-      <a href="/freestyle/observational">Observed Tricks</a> page.
+      Modifiers are the movement ideas that transform one trick into many
+      &mdash; a spin, a duck, a paradox layered onto a base trick. Below: how
+      each common modifier feels, then a structural reference for how they
+      combine. To browse the tricks that use a given modifier, open the
+      <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
+      view in the trick dictionary.
     </p>
 
     {{> freestyle-modifier-reference}}

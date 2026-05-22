@@ -27,13 +27,14 @@
 --}}
 <div class="hero hero-sm">
   <div>
-    <nav class="breadcrumbs" aria-label="Breadcrumb">
-      <a href="/freestyle">Freestyle</a> &rsaquo;
-      <span aria-current="page">Observed Tricks</span>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
     </nav>
-    <h1>{{page.title}}
-      <span class="symbolic-layer-badge" title="Observational layer — external-source documented, not canonical">observational</span>
-    </h1>
+    {{/if}}
+    <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
 </div>
@@ -43,7 +44,7 @@
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
     <p class="observational-canonical-refs">
-      Canonical references:
+      Where the official tricks live:
       {{#each content.canonicalReferences}}
         {{#unless @first}} &middot; {{/unless}}<a href="{{href}}">{{label}}</a>
       {{/each}}
@@ -68,7 +69,7 @@
             <span class="observed-card-status-chip observed-card-status-chip--{{statusChip.tone}}">{{statusChip.label}}</span>
           </header>
           <p class="observed-card-meta">
-            <span class="tracked-tag" aria-label="Tracked tag — documented, not yet official">#{{folkSlug}}</span>
+            <span class="tracked-tag" aria-label="Documented name, not yet reviewed">#{{folkSlug}}</span>
             {{#if shortReading}}<span class="observed-card-reading"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{shortReading}}</span>{{/if}}
             {{#if externalClaimLabel}}<span class="observed-card-external-claim">{{externalClaimLabel}}</span>{{/if}}
           </p>
@@ -110,7 +111,7 @@
 
     {{#if content.trackedNames.length}}
     <div id="tracked-vocabulary" class="observational-tracked">
-      <h2>Tracked vocabulary &mdash; {{content.trackedNamesTotal}} more documented names</h2>
+      <h2>{{content.trackedNamesTotal}} more documented names</h2>
       <p class="text-muted">{{content.trackedNamesNote}}</p>
       {{#each content.trackedNames}}
       <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
@@ -124,11 +125,11 @@
     {{/if}}
 
     <p class="observational-footer">
-      Curated canonical trick definitions remain authoritative. See the
+      The official trick definitions live in the
       <a href="/freestyle/tricks">Trick Dictionary</a>,
       <a href="/freestyle/operators">Operators &amp; Modifiers</a>,
-      and <a href="/freestyle/glossary">Glossary</a> for the
-      curator-confirmed reference.
+      and <a href="/freestyle/glossary">Glossary</a>. The entries here are
+      documented but not yet reviewed.
     </p>
   </section>
 </div>

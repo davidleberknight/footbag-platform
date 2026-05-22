@@ -517,22 +517,15 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
   });
 
-  it('landing page surfaces Operators & Modifiers as a Movement Reference card with a single CTA', async () => {
-    // Landing Page Phase 1 (2026-05-21): the prior reference-shelf
-    // operators-modifiers panel was merged into the unified Movement
-    // Reference section. The entry now renders as a flat card with
-    // title + summary + preview chips + single outbound CTA pointing
-    // at /freestyle/operators. The legacy dual-CTA footer (Operator
-    // reference + Full set notation reference) is retired; no embedded
-    // operator-board on the landing surface.
+  it('landing page surfaces Operators & Modifiers as a Go Deeper card linking to /freestyle/operators', async () => {
+    // Phase C (2026-05-22): the two-band landing carries an "Operators &
+    // Modifiers" card in the Go Deeper band with a single outbound CTA to
+    // /freestyle/operators. No embedded operator-board on the landing.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('id="movement-ref-operators-modifiers"');
-    // No embedded operator-board grid on the landing surface.
-    expect(res.text).not.toContain('class="operator-board ');
-    // Single canonical CTA — no /freestyle/sets sibling.
+    expect(res.text).toContain('<div class="card-title">Operators &amp; Modifiers</div>');
     expect(res.text).toContain('href="/freestyle/operators"');
-    expect(res.text).not.toContain('href="/freestyle/sets"');
+    expect(res.text).not.toContain('class="operator-board ');
     expect(res.text).not.toContain('class="operator-board-footer-link"');
   });
 });
@@ -601,7 +594,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('renders the observational layer note + canonical references', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.text).toContain('class="observational-layer-note"');
-    expect(res.text).toMatch(/canonical references/i);
+    expect(res.text).toMatch(/where the official tricks live/i);
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).toContain('href="/freestyle/add-analysis"');
@@ -878,10 +871,10 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 });
 
-describe('GET /freestyle/operators — cross-link to observational layer', () => {
-  it('orientation lede cross-links to /freestyle/observational', async () => {
+describe('GET /freestyle/operators — orientation lede', () => {
+  it('orientation lede cross-links to the By Movement System dictionary view', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
-    expect(res.text).toContain('href="/freestyle/observational"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 });
 
@@ -1007,8 +1000,8 @@ describe('GET /freestyle/glossary — operator board is NOT rendered in §3 (aut
     // content without the operator-board visual taxonomy.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    const sec6Idx = res.text.indexOf('6. Modifiers');
-    const sec7Idx = res.text.indexOf('7. Jobs / Operational Notation');
+    const sec6Idx = res.text.indexOf('id="section-modifiers"');
+    const sec7Idx = res.text.indexOf('id="section-notation"');
     expect(sec6Idx).toBeGreaterThan(0);
     expect(sec7Idx).toBeGreaterThan(sec6Idx);
   });
@@ -1548,9 +1541,9 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     // renumbered to §14. The trick-level ADD definition is preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/8\.\s+ADD Accounting/);
-    expect(res.text).toMatch(/12\.\s+Community/);
-    expect(res.text).toMatch(/14\.\s+Sources/);
+    expect(res.text).toContain('id="section-add-accounting"');
+    expect(res.text).toContain('id="section-community"');
+    expect(res.text).toContain('id="section-sources"');
   });
 });
 
@@ -1573,7 +1566,7 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
     // §10 Run Architecture is the new explicit anchor section for run-
     // level material; its cross-link to combo-analysis must also exist.
-    expect(res.text).toMatch(/10\.\s+Run Architecture/);
+    expect(res.text).toContain('id="section-run-architecture"');
   });
 
   it('history page deep-links to the live #run-quality anchor on combo-analysis', async () => {
@@ -1684,8 +1677,8 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/modifier weights have varied historically/);
     // Cross-link to add-analysis from §6 (one of several inbound surfaces).
-    const sec6Idx = res.text.indexOf('6. Modifiers');
-    const sec7Idx = res.text.indexOf('7. Jobs / Operational Notation');
+    const sec6Idx = res.text.indexOf('id="section-modifiers"');
+    const sec7Idx = res.text.indexOf('id="section-notation"');
     const slice = res.text.slice(sec6Idx, sec7Idx);
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
@@ -1954,7 +1947,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('Browse the trick dictionary');
-    expect(res.text).toContain('Open glossary');
+    expect(res.text).toContain('Open the glossary');
     // /freestyle/sets is no longer linked from the landing (the dual-CTA
     // operator-board footer was retired in the second-pass cleanup,
     // 2026-05-20). The canonical reference lives on /freestyle/operators.
@@ -1998,7 +1991,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     // 14-section IA refactor (2026-05-19): §5 renamed from "Core Trick
     // Structures" to "Core Trick Families". Content + anchors preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec5Heading = res.text.indexOf('5. Core Trick Families');
+    const sec5Heading = res.text.indexOf('id="section-families"');
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
     expect(sec5Heading).toBeGreaterThan(0);
     expect(setModSection).toBeGreaterThan(sec5Heading);
@@ -2086,40 +2079,25 @@ describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
 });
 
 // Basic Components (C-1) + Core Tricks (C-2) landing-grid contracts
-// retired by Landing Page Phase 1 (2026-05-21). The rich grids no
-// longer render on /freestyle; the Movement Reference section carries
-// flat teaser cards that link to the destinations where the content
-// lives canonically:
-//   - Basic Components → /freestyle/glossary#section-surfaces (and the
-//     §3 Dexterities / §4 Timing & Sets adjacent sections)
-//   - Core Tricks → /freestyle/tricks?view=family (where family-anchor
-//     atoms surface with the DP-1 family invariants)
-// The four-tier rendering hierarchy (NCR-3 Tier-2 operational notation
-// + Tier-1 descriptive prose) still applies on destination pages and
-// is tested in the first-class pilot + derivation-atlas suites.
+// retired. The rich grids no longer render on /freestyle; the two-band
+// landing (Phase C, 2026-05-22) carries Start Here / Go Deeper portal
+// cards. The component + core-trick content lives canonically on the
+// glossary and the trick dictionary.
 
-describe('Landing Page Phase 1 — legacy landing grids retired', () => {
-  it('Basic Components grid does NOT render on /freestyle (moved to glossary §2-§4)', async () => {
+describe('Landing — legacy landing grids retired', () => {
+  it('Basic Components grid does NOT render on /freestyle', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).not.toContain('class="freestyle-basic-components-grid"');
     expect(res.text).not.toContain('class="freestyle-component-card"');
     expect(res.text).not.toContain('id="component-dex"');
-    // The Movement Reference Basic Components teaser exists and links
-    // to the glossary destination.
-    expect(res.text).toContain('id="movement-ref-basic-components"');
-    expect(res.text).toContain('/freestyle/glossary#section-surfaces');
   });
 
-  it('Core Tricks grid does NOT render on /freestyle (moved to /freestyle/tricks?view=family)', async () => {
+  it('Core Tricks grid does NOT render on /freestyle', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).not.toContain('class="freestyle-core-trick-grid"');
     expect(res.text).not.toContain('class="core-trick-object"');
     expect(res.text).not.toContain('id="core-trick-whirl"');
     expect(res.text).not.toContain('id="core-trick-mirage"');
-    // The Movement Reference Core Tricks teaser exists and links to
-    // the family-view destination.
-    expect(res.text).toContain('id="movement-ref-core-tricks"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view&#x3D;family"/);
   });
 });
 
@@ -2181,15 +2159,12 @@ describe('Freestyle glossary — [PDX] component-flag definition', () => {
 });
 
 describe('Freestyle glossary — Batch 3: intro philosophy (C-3-B)', () => {
-  it('renders the portal-framing lede + compositional language framing', async () => {
-    // 14-section IA refactor (2026-05-19): the "teaches how the freestyle
-    // language works" prose was replaced by a portal-framing lede. The
-    // "symbolic and compositional" + "shortest readable form" phrases
-    // moved to the §1 Core Concepts lede.
+  it('renders the welcoming Movement Basics intro + compositional framing', async () => {
+    // Phase E re-tier: §1 reframed as a welcoming "Movement Basics" intro.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/movement-language reference for freestyle footbag/);
-    expect(res.text).toMatch(/symbolic and compositional/);
-    expect(res.text).toMatch(/shortest readable form wins/);
+    expect(res.text).toMatch(/the language of freestyle footbag/);
+    expect(res.text).toMatch(/vocabulary is compositional/);
+    expect(res.text).toMatch(/shortest clear name/);
   });
 });
 
@@ -2198,7 +2173,7 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
     // 14-section IA refactor (2026-05-19): §7 renamed from "Symbolic
     // Notation" to "Jobs / Operational Notation". Thesis sentence preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/7\.\s+Jobs \/ Operational Notation/);
+    expect(res.text).toContain('id="section-notation"');
     expect(res.text).toMatch(
       /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
     );
@@ -2220,7 +2195,7 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
     // Family & Topology Concepts. Anchor preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('11. Family &amp; Topology Concepts');
+    const topologyIdx = res.text.indexOf('id="connective-panels"');
     expect(flowIdx).toBeGreaterThan(0);
     expect(topologyIdx).toBeGreaterThan(flowIdx);
   });
@@ -2228,7 +2203,7 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
   it('renders the compact one-row equivalence (no per-step cards)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('11. Family &amp; Topology Concepts');
+    const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
     // One-liner: mobius = gyro torque = spinning same-side torque
     expect(slice).toContain('class="glossary-compression-one-liner"');
@@ -2247,7 +2222,7 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
     // readers to /freestyle/add-analysis instead of stacking three cards.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('11. Family &amp; Topology Concepts');
+    const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
@@ -2255,7 +2230,7 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
   it('keeps explanatory prose minimal — single short paragraph with the deep-link', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('11. Family &amp; Topology Concepts');
+    const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
     expect(slice).toMatch(/Three names\.\s+One trick\./);
     expect(slice).toMatch(/either\s+expanded\s+reading\s+is\s+no\s+less\s+correct/);
@@ -2311,9 +2286,9 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   it('Execution mechanics subsection sits inside §6, above §7', async () => {
     // execution-mechanics is a §6 subsection (modifiers/operators).
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec6Idx     = res.text.indexOf('6. Modifiers');
+    const sec6Idx     = res.text.indexOf('id="section-modifiers"');
     const execIdx     = res.text.indexOf('id="execution-mechanics"');
-    const sec7Idx     = res.text.indexOf('7. Jobs / Operational Notation');
+    const sec7Idx     = res.text.indexOf('id="section-notation"');
     expect(sec6Idx).toBeGreaterThan(0);
     expect(execIdx).toBeGreaterThan(sec6Idx);
     expect(sec7Idx).toBeGreaterThan(execIdx);
@@ -2330,7 +2305,7 @@ describe('Freestyle glossary — §11 Family & Topology Concepts (connective pan
     const panelIdx = res.text.indexOf('id="connective-panels"');
     expect(panelIdx).toBeGreaterThan(0);
     const slice = res.text.slice(panelIdx, panelIdx + 2000);
-    expect(slice).toMatch(/11\.\s+Family &amp; Topology Concepts/);
+    expect(slice).toMatch(/Family &amp; Topology Concepts/);
     expect(slice).toContain('symbolic-layer-badge');
     expect(slice).toMatch(/observational/);
     expect(slice).toMatch(/intentionally incomplete|representative selection/i);
@@ -2350,10 +2325,12 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                with semantic-depth ladders, ADD breakdowns,
     //                equivalence chains, and an inline doctrine note).
     //                Structured reference content; not prose drift.
+    //   175K → 182K  Phase E re-tier: "How to read" relocated into a new
+    //                "Advanced Reference Concepts" section + tier framing.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(175_000);
+    expect(res.text.length).toBeLessThan(182_000);
   });
 });
 
