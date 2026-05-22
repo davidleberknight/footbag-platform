@@ -11,6 +11,7 @@
  * the route reaches the public side, nothing without the secret can publish.
  */
 import { Request, Response, NextFunction } from 'express';
+import * as crypto from 'crypto';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { publishJobEvent, type JobEventState } from '../services/jobEventBus';
@@ -29,7 +30,9 @@ export const ipcController = {
         res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });
         return;
       }
-      if (req.header(SECRET_HEADER) !== secret) {
+      const provided = Buffer.from(req.header(SECRET_HEADER) ?? '');
+      const expected = Buffer.from(secret);
+      if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
         res.status(401).json({ error: 'unauthorized' });
         return;
       }

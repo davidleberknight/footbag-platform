@@ -37,6 +37,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [5.8 SESSION_SECRET rotation runbook](#58-session_secret-rotation-runbook)
   - [5.9 Origin-verify shared-secret rotation runbook](#59-origin-verify-shared-secret-rotation-runbook)
   - [5.10 Safe Browsing API key rotation runbook](#510-safe-browsing-api-key-rotation-runbook)
+  - [5.11 Host env verification](#511-host-env-verification)
 - [6. Terraform and Infrastructure Change Control](#6-terraform-and-infrastructure-change-control)
   - [6.1 Terraform authority](#61-terraform-authority)
   - [6.1.1 Manual bootstrap boundary](#611-manual-bootstrap-boundary)
@@ -760,6 +761,48 @@ Bootstrap lives in DEV_ONBOARDING §4.10. This section covers recurring rotation
 - Smoke reports `bootstrap placeholder ("TODO-...")`: step 3 was skipped or pointed at the wrong env. Rerun with the correct profile and parameter path.
 - Validator returns "URL could not be reached" instead of Safe Browsing rejection: the reachability check (preceding gate) is failing first; not a Safe Browsing wiring issue.
 - Quota errors (HTTP 429): rate limit exceeded. Check daily lookup volume in GCP Console; back off and retry. If sustained, application traffic exceeds the free tier; reduce or upgrade the GCP billing tier.
+
+### 5.11 Host env verification
+
+`/srv/footbag/env` on each Lightsail host is operator-managed plain text (root:root 0600) and is not reconciled by Terraform automatically. `scripts/verify-staging-env.sh` reads the host env file over ssh and compares it against the terraform-output contract (KMS JWT key ARN, SES sender identity, media bucket name) plus the production-hardening invariants enforced by `src/config/env.ts` (NODE_ENV cross-invariant, SESSION_SECRET length and non-placeholder shape, internal-event secret non-default, image worker URL non-localhost, dev-shortcut posture per target).
+
+#### When to run
+
+- before any deploy to staging or production
+- after any change to `/srv/footbag/env` on a deployed host
+- after `terraform apply` changes a value the host env references (KMS key rotation, SES identity change, media bucket rename)
+- after the dev-shortcuts subsystem changes shape (a new `FOOTBAG_DEV_*` env var is added)
+
+#### Procedure
+
+1. From the operator workstation, run against the target host:
+   ```
+   ./scripts/verify-staging-env.sh --target staging
+   ./scripts/verify-staging-env.sh --target production
+   ```
+   The ssh alias defaults to `footbag-<target>` (overridable with `--ssh-alias <name>`). The script uses `ssh -t` + interactive sudo to read `/srv/footbag/env` (which is root-owned 0600); you will be prompted for your sudo password on the local terminal once per invocation. The password is typed directly into sudo's noecho prompt; the script does not capture, echo, or log it.
+2. Read the report. Each invariant is reported as `PASS`, `FAIL`, or `WARN`.
+3. Fix any `FAIL` lines before deploying. `WARN` lines are advisory.
+4. Re-run until the script exits 0 with the "All critical invariants passed" summary line.
+
+#### Required verification
+
+- The script exits 0 with the summary `All critical invariants passed`.
+- Any `WARN` entries are reviewed; advisory items (e.g. `TRUST_PROXY` unset on a CloudFront-fronted host, `SES_SANDBOX_MODE` off on staging) are either intentional or remediated in the host env file.
+
+#### Failure modes and recovery
+
+- `failed to stage /srv/footbag/env on <alias>`: the ssh alias is missing from `~/.ssh/config`, the sudo password was entered incorrectly or canceled, `/srv/footbag/env` does not exist (host bootstrap incomplete), or the operator user lacks general sudo access on the host. See §3.5 for operator shell access.
+- `required terraform outputs are empty`: `terraform apply` has not run for the target environment, or the operator is not in the project root. Run `terraform -chdir=terraform/<target> output` to confirm.
+- `JWT KMS key ARN matches terraform: FAIL`: the host env file references a different KMS key than the latest terraform state. Either terraform has been re-applied with a new key (update `/srv/footbag/env` to match) or the env file was hand-edited (compare against §5.6).
+- `SESSION_SECRET contains 'changeme'` or `is N chars (need >= 32)`: the host env file still carries the bootstrap placeholder. Generate with `openssl rand -hex 32` per §5.4 / §5.8 and overwrite the value on the host.
+- `INTERNAL_EVENT_SECRET is the dev-default literal`: the operator copied a dev `.env` to the host. Generate a fresh value with `openssl rand -hex 32` and update `/srv/footbag/env`.
+- `IMAGE_PROCESSOR_URL references localhost`: the host env still carries the dev fallback. Set to the docker-compose service name (e.g. `http://image-worker:4000`).
+- `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID` or similar dev-shortcut var present on a production host env: remove the line. The env-config boot guard refuses to start the container with these set on production, so the deploy would also fail at container boot; the script catches the misconfiguration earlier.
+
+#### Synthetic mode
+
+`tests/integration/verify-staging-env.script.test.ts` exercises the script's check logic against synthetic env files via the `--env-file <path>` flag plus the `TF_JWT_KMS_KEY_ARN` / `TF_SES_SENDER` / `TF_MEDIA_BUCKET` env vars. Operators never set these flags directly; the synthetic mode exists so the script's invariant matrix is regression-tested in CI without a live staging host.
 
 ---
 

@@ -3,7 +3,7 @@ import { outbox, mailingListSubscriptions, type OutboxRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { readIntConfig } from './configReader';
-import { ValidationError } from './serviceErrors';
+import { ServiceError, ServiceUnavailableError, ValidationError } from './serviceErrors';
 import { SesAdapter, getSesAdapter } from '../adapters/sesAdapter';
 
 export interface EnqueueEmailInput {
@@ -44,6 +44,20 @@ export interface ProcessBatchResult {
 
 export interface CommunicationService {
   enqueueEmail(input: EnqueueEmailInput): EnqueueResult;
+  /**
+   * Strict variant of enqueueEmail: never silently swallows transport-layer
+   * failures. ValidationError (bad input) and ConflictError (idempotency-key
+   * mismatch on a different row) still propagate as their own classes;
+   * everything else is wrapped in ServiceUnavailableError so the controller
+   * layer can map it to HTTP 503 + an actionable error message.
+   *
+   * Use this in any flow where a missing notification is itself a security
+   * signal (password change confirmation, account-claim merge notification,
+   * auto-link revert acknowledgement). The plain `enqueueEmail` remains for
+   * paths where best-effort semantics are explicitly intended; callers MUST
+   * NOT wrap calls to this helper in a try/catch that swallows the error.
+   */
+  enqueueEmailOrFail(input: EnqueueEmailInput): EnqueueResult;
   enqueueMailingListEmail(input: EnqueueMailingListEmailInput): MailingListEnqueueResult;
   processSendQueue(opts?: { limit?: number }): Promise<ProcessBatchResult>;
 }
@@ -96,6 +110,26 @@ export function createCommunicationService(
           return { id: existing?.id ?? id, status: 'duplicate' };
         }
         throw err;
+      }
+    },
+
+    enqueueEmailOrFail(input) {
+      try {
+        return service.enqueueEmail(input);
+      } catch (err) {
+        // ServiceError subclasses (ValidationError, ConflictError, etc.)
+        // re-throw unchanged so the controller layer's existing 4xx mapping
+        // applies. Everything else is a transport-layer surprise (SQLite
+        // busy, schema mismatch, OOM) and is mapped to ServiceUnavailableError.
+        if (err instanceof ServiceError) throw err;
+        logger.error('enqueueEmailOrFail: outbox enqueue failed', {
+          idempotencyKey: input.idempotencyKey,
+          recipientMemberId: input.recipientMemberId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw new ServiceUnavailableError(
+          'Could not enqueue the notification email. The underlying operation is committed; retry the notification path or use the related recovery flow.',
+        );
       }
     },
 
@@ -219,4 +253,16 @@ export function getCommunicationService(): CommunicationService {
 
 export function resetCommunicationServiceForTests(): void {
   singleton = null;
+}
+
+/**
+ * Inject a custom CommunicationService for the duration of a test. Mirrors
+ * the pattern in jwtSigningAdapter / imageProcessingAdapter. Tests that
+ * exercise outbox-enqueue failure code paths (e.g. password-change
+ * confirmation enqueue throwing under SQLite busy) use this entry point to
+ * install a hand-rolled service; the test's afterEach should call
+ * resetCommunicationServiceForTests to clear it.
+ */
+export function setCommunicationServiceForTests(svc: CommunicationService): void {
+  singleton = svc;
 }

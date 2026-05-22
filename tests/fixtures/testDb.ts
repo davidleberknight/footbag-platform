@@ -21,6 +21,7 @@
  */
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 /**
@@ -34,8 +35,14 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
   // collides under millisecond clock granularity and one worker's schema
   // load races the other's, surfacing as flaky "table X already exists" or
   // "no such table: events" errors.
+  // Temp DBs land in os.tmpdir(), NOT process.cwd(). The project root is
+  // the wrong location for transient files — leaks (from worker timeout,
+  // OOM, SIGKILL, or WAL-checkpoint races against afterAll) accumulate in
+  // the working tree and pollute `ls`. The OS cleans /tmp on reboot or via
+  // tmpwatch; the project root is forever. The `footbag-test-` prefix
+  // makes leaks findable and avoids /tmp collisions with other projects.
   const uniq = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
-  const dbPath = path.join(process.cwd(), `test-${port}-${Date.now()}-${uniq}.db`);
+  const dbPath = path.join(os.tmpdir(), `footbag-test-${port}-${Date.now()}-${uniq}.db`);
   const sessionSecret = `test-secret-${port}`;
 
   process.env.FOOTBAG_DB_PATH = dbPath;

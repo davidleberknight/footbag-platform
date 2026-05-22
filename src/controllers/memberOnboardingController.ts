@@ -111,7 +111,7 @@ function readWizardFlashState(req: Request, res: Response): WizardFlashState {
   const flash = readFlash(req);
   if (!flash) return { ...EMPTY_FLASH };
   if (flash.kind === FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT) {
-    clearFlash(res);
+    clearFlash(res, req);
     let hpPersonId: string | null = null;
     let sinceIndex: number | null = null;
     try {
@@ -124,7 +124,7 @@ function readWizardFlashState(req: Request, res: Response): WizardFlashState {
     return { submitted: true, hpPersonId, sinceIndex, autoLinkDrift: false };
   }
   if (flash.kind === FLASH_KIND.WIZARD_AUTO_LINK_DRIFT) {
-    clearFlash(res);
+    clearFlash(res, req);
     return { submitted: false, hpPersonId: null, sinceIndex: null, autoLinkDrift: true };
   }
   // Foreign flash kind (e.g., LOGOUT, AVATAR_UPLOADED): leave it intact for

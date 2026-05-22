@@ -65,7 +65,7 @@ export const contactRequestController = {
       let successFlag = false;
       if (flash?.kind === FLASH_KIND.CONTACT_SUBMITTED) {
         successFlag = true;
-        clearFlash(res);
+        clearFlash(res, req);
       }
       const vm = buildViewModel(req, { successFlag });
       res.render('members/contact-admin', vm);

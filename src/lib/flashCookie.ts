@@ -59,18 +59,14 @@ export function readFlash(
   return { kind: kind as FlashKind, payload };
 }
 
-export function clearFlash(res: Response, req?: Request): void {
+export function clearFlash(res: Response, req: Request): void {
   // RFC 6265-strict browsers require the clear cookie's attributes
-  // (path, httpOnly, sameSite, secure) to match the set; pass the same
-  // shape as writeFlash above so the clear is honored everywhere. `secure`
-  // is derived from the request context when available so the clear matches
-  // the cookie that was set; when req is omitted (legacy callers) we fall
-  // back to the same conservative posture as before.
-  const secure = req ? Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https') : false;
+  // (path, httpOnly, sameSite, secure) to match the set, so this mirrors
+  // writeFlash's secure derivation.
   res.clearCookie(FLASH_COOKIE, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    secure,
+    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
   });
 }

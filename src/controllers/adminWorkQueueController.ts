@@ -12,7 +12,7 @@ export const adminWorkQueueController = {
       let resolvedFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         resolvedFlag = true;
-        clearFlash(res);
+        clearFlash(res, req);
       }
       res.render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ resolvedFlag }));
     } catch (err) {

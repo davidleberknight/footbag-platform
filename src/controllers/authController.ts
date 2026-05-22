@@ -12,7 +12,8 @@ import {
   PasswordForgotSentContent,
   PasswordResetContent,
 } from '../services/identityAccessService';
-import { RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { RateLimitedError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
+import { renderServiceUnavailable } from '../lib/controllerErrors';
 import { simulatedEmailService } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
@@ -118,6 +119,15 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
   } catch (err) {
     if (err instanceof ValidationError) {
       renderError(err.message);
+      return;
+    }
+    if (err instanceof ServiceUnavailableError) {
+      // Verify-email enqueue failed AFTER the member row committed (per
+      // identityAccessService.issueAndEnqueueVerifyEmail's enqueueEmailOrFail
+      // call). The member can self-recover via /verify/resend once outbox
+      // / SES is healthy; the audit row in identityAccessService records
+      // the failure for operator triage.
+      renderServiceUnavailable(res);
       return;
     }
     next(err);

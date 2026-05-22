@@ -153,6 +153,51 @@ describe('enqueueEmail', () => {
   });
 });
 
+describe('enqueueEmailOrFail', () => {
+  it('delegates to enqueueEmail and returns the same EnqueueResult shape on success', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueEmailOrFail({
+      recipientEmail: 'must-succeed@example.com',
+      subject: 'Hi',
+      bodyText: 'hello',
+    });
+    expect(result.status).toBe('enqueued');
+    expect(typeof result.id).toBe('string');
+    const row = readRow(result.id);
+    expect(row.status).toBe('pending');
+  });
+
+  it('re-throws ValidationError unchanged (preserves the 422 controller mapping)', async () => {
+    const { ValidationError } = await import('../../src/services/serviceErrors');
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    expect(() => svc.enqueueEmailOrFail({
+      recipientEmail: '',
+      subject: 'Hi',
+      bodyText: 'hello',
+    })).toThrow(ValidationError);
+  });
+
+  it('wraps non-ServiceError throws as ServiceUnavailableError', async () => {
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    // Monkey-patch the underlying enqueue path so the helper's wrapping
+    // branch is exercised. This stands in for a transport-layer surprise
+    // (SQLite busy, schema mismatch, OOM) that the operational code path
+    // would otherwise surface to the caller as a bare Error.
+    svc.enqueueEmail = () => {
+      throw new Error('synthetic outbox-insert failure');
+    };
+    expect(() => svc.enqueueEmailOrFail({
+      recipientEmail: 'wrapped@example.com',
+      subject: 'Hi',
+      bodyText: 'hello',
+    })).toThrow(ServiceUnavailableError);
+  });
+});
+
 describe('processSendQueue', () => {
   it('drains pending → sent via adapter', async () => {
     const stub = createStubSesAdapter();

@@ -11,6 +11,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
 const { dbPath } = setTestEnv('3069');
 
@@ -121,6 +122,7 @@ describe('GET /verify/:token', () => {
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
+    assertSecureSessionCookie(res.headers['set-cookie']);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const m = db.prepare(

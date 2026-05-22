@@ -704,6 +704,81 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
   });
 });
 
+describe('env config: FOOTBAG_ENV ↔ NODE_ENV cross-invariant', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('throws when FOOTBAG_ENV=staging with NODE_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'staging';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV=staging requires NODE_ENV=production/,
+    );
+  });
+
+  it('throws when FOOTBAG_ENV=production with NODE_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'production';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV=production requires NODE_ENV=production/,
+    );
+  });
+
+  it('throws when FOOTBAG_ENV=staging with NODE_ENV=test', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'test';
+    process.env.FOOTBAG_ENV = 'staging';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV=staging requires NODE_ENV=production/,
+    );
+  });
+
+  it('accepts FOOTBAG_ENV=staging with NODE_ENV=production (positive boundary)', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.FOOTBAG_ENV = 'staging';
+    const { config } = await import('../../src/config/env');
+    expect(config.footbagEnv).toBe('staging');
+    expect(config.nodeEnv).toBe('production');
+  });
+
+  it('accepts FOOTBAG_ENV=development with NODE_ENV=test (positive boundary for dev path)', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'test';
+    process.env.FOOTBAG_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.footbagEnv).toBe('development');
+    expect(config.nodeEnv).toBe('test');
+  });
+
+  it('accepts FOOTBAG_ENV unset with any NODE_ENV (no cross-invariant when env unset)', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_ENV;
+    const { config } = await import('../../src/config/env');
+    expect(config.footbagEnv).toBeUndefined();
+  });
+});
+
 describe('env config: MEDIA_STORAGE_*', () => {
   let snap: EnvSnapshot;
   beforeEach(() => {

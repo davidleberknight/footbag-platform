@@ -252,6 +252,19 @@ function loadConfig(): AppConfig {
     );
   }
 
+  // Cross-invariant: production-grade FOOTBAG_ENV values require
+  // NODE_ENV=production. Without this, a staging boot that retains
+  // NODE_ENV=development silently collapses the entire production-hardening
+  // surface in one go (TRUST_PROXY=0, weak SESSION_SECRET accepted,
+  // INTERNAL_EVENT_SECRET defaulted to a known-public literal,
+  // MEDIA_STORAGE_ADAPTER defaulted to local, IMAGE_PROCESSOR_URL defaulted
+  // to localhost). One assertion catches the cluster.
+  if ((footbagEnv === 'staging' || footbagEnv === 'production') && !isProd) {
+    throw new Error(
+      `FOOTBAG_ENV=${footbagEnv} requires NODE_ENV=production (got NODE_ENV=${nodeEnv}). Mixed envs collapse production hardening (TRUST_PROXY, SESSION_SECRET strength, INTERNAL_EVENT_SECRET defaults).`,
+    );
+  }
+
   // CUTOVER-REMOVE: fail-fast guard for the dev autologin bypass.
   // Current: a process with FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID set outside
   //   development is mis-configured and must not start. Per-request gate in

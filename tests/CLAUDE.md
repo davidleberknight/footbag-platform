@@ -38,6 +38,8 @@ Insert only the rows a given test suite needs. Do not assume rows from other tes
 
 Each test file sets `FOOTBAG_DB_PATH` to a unique temp path **before any module import**, so `db.ts` opens the test database. `beforeAll` builds the schema from `database/schema.sql` and inserts test data using factories. `afterAll` removes the temp DB and WAL sidecars.
 
+Temp paths MUST live in `os.tmpdir()`, NOT `process.cwd()`. The shared `setTestEnv` helper uses the `footbag-test-` prefix correctly; rolling your own `path.join(process.cwd(), …)` is forbidden — worker timeouts / OOM / WAL races against `afterAll` leak files into the working tree.
+
 New integration tests should use the shared helper in `tests/fixtures/testDb.ts`:
 
 ```typescript

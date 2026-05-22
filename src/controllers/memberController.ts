@@ -6,7 +6,7 @@ import { identityAccessService } from '../services/identityAccessService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
-import { RateLimitedError, ValidationError, NotFoundError } from '../services/serviceErrors';
+import { RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
@@ -111,7 +111,7 @@ export const memberController = {
           ? flash.payload.slice(0, FLASH_NAME_MAX_LEN)
           : null;
         avatarSuccess = name ? `Avatar updated: ${name}` : 'Avatar updated.';
-        clearFlash(res);
+        clearFlash(res, req);
       }
       const vm = memberService.getProfileEditPage(
         req.params.memberKey,
@@ -301,8 +301,32 @@ export const memberController = {
       // Re-issue the JWT cookie under the new passwordVersion so this browser
       // stays authenticated. Other sessions (older passwordVersion) are rejected
       // by the auth middleware's per-request DB check.
+      //
+      // Failure mode (KMS Sign error, IAM regression, KMS key rotation mid-flight):
+      // the password change already committed at the DB layer (password_version
+      // incremented). All existing sessions are now invalid by the per-request
+      // password_version check. If we let the signing error fall through to the
+      // 500 handler, the member sees a generic error and is locked out with no
+      // recovery path visible. Catch and surface an actionable message pointing
+      // at password reset (which goes through a separate JWT issuance flow).
       const role = req.user!.role;
-      const cookieValue = await createSessionJwt(result.memberId, role, result.newPasswordVersion);
+      let cookieValue: string;
+      try {
+        cookieValue = await createSessionJwt(result.memberId, role, result.newPasswordVersion);
+      } catch (jwtErr) {
+        logger.error('password change: session reissue failed after password_version commit', {
+          memberId: result.memberId,
+          error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
+        });
+        renderForm({
+          error:
+            'Your password was changed, but we could not re-issue your session. ' +
+            'All existing sessions (including this one) are now invalid. ' +
+            'Please use the Forgot password? link on the login page to reset and sign in again.',
+          status: 503,
+        });
+        return;
+      }
       issueSessionCookie(res, cookieValue, req);
       renderForm({ success: true });
     } catch (err) {
@@ -313,6 +337,21 @@ export const memberController = {
       }
       if (err instanceof ValidationError) {
         renderForm({ error: err.message, status: 422 });
+        return;
+      }
+      if (err instanceof ServiceUnavailableError) {
+        // Confirmation-email enqueue failed AFTER the password_version
+        // increment committed (per identityAccessService.changePassword's
+        // enqueueEmailOrFail call). All existing sessions are now invalid
+        // by the per-request password_version check; the member must use
+        // the password-reset flow to issue a fresh session.
+        renderForm({
+          error:
+            'Your password was changed, but we could not enqueue the confirmation email and your session was not re-issued. ' +
+            'All existing sessions (including this one) are now invalid. ' +
+            'Please use the Forgot password? link on the login page to reset and sign in again.',
+          status: 503,
+        });
         return;
       }
       next(err);

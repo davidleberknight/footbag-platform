@@ -344,17 +344,35 @@ check_canonical_freshness() {
   [[ -d "$ci_dir" ]] || return 0
 
   local ci_oldest
-  ci_oldest=$(find "$ci_dir" -maxdepth 1 -name '*.csv' -printf '%T@\n' 2>/dev/null | sort -n | head -1)
+  # SIGPIPE-safe "first line" idiom — do NOT replace `awk 'NR==1'` with
+  # `head -1`.
+  #
+  # `head -N` closes its stdin after reading N lines. If the upstream
+  # producer (`sort` here) is still writing — which can happen on slow
+  # filesystems, under heavy parallel load, or non-deterministically at
+  # large fan-in — the producer's next write receives SIGPIPE. With
+  # `set -o pipefail` active, the pipeline's exit code becomes the
+  # SIGPIPE exit (128 + 13 = 141), `set -e` aborts the script, and the
+  # `[[ -n "$ci_oldest" ]]` empty-check below never runs.
+  #
+  # `awk 'NR==1'` reads stdin to EOF (printing only the first line as a
+  # side effect), so the upstream never SIGPIPEs. Output is identical;
+  # the only cost is reading the rest of the (small) input. Do NOT swap
+  # in `awk 'NR==1 {print; exit}'` — `exit` reintroduces the same
+  # early-close race. If you need the LAST line instead, GNU `tail -N`
+  # is safe because it buffers and reads stdin to EOF before emitting.
+  ci_oldest=$(find "$ci_dir" -maxdepth 1 -name '*.csv' -printf '%T@\n' 2>/dev/null | sort -n | awk 'NR==1')
   [[ -n "$ci_oldest" ]] || return 0
 
   local inputs_latest
+  # See sibling pipeline above for the awk-vs-head rationale.
   inputs_latest=$({
     find "${REPO_ROOT}/legacy_data/pipeline" -name '*.py' -type f -printf '%T@\n' 2>/dev/null
     find "${REPO_ROOT}/legacy_data/overrides" -type f -printf '%T@\n' 2>/dev/null
     find "${REPO_ROOT}/legacy_data/inputs/curated" -type f -printf '%T@\n' 2>/dev/null
     find "${REPO_ROOT}/legacy_data/inputs/identity_lock" -type f -printf '%T@\n' 2>/dev/null
     stat -c '%Y' "${REPO_ROOT}/legacy_data/inputs/canonical_discipline_fixes.csv" 2>/dev/null
-  } | sort -rn | head -1)
+  } | sort -rn | awk 'NR==1')
   [[ -n "$inputs_latest" ]] || return 0
 
   if awk -v a="$inputs_latest" -v b="$ci_oldest" 'BEGIN{exit !(a > b)}'; then

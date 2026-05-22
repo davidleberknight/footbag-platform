@@ -638,20 +638,41 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
   });
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   const verifyUrl = `${baseUrl}/verify/${rawToken}`;
-  getCommunicationService().enqueueEmail({
-    // tokenRowId is the natural single-use key: re-issuing on a worker
-    // restart between SES-send and outbox-mark-sent collapses to the same
-    // outbox row instead of double-delivering.
-    idempotencyKey: `verify:${tokenRowId}`,
-    recipientEmail,
-    recipientMemberId: memberId,
-    subject: 'Verify your IFPA Footbag account',
-    bodyText:
-      'Welcome to IFPA Footbag.\n\n' +
-      'Please confirm your email address by opening the link below. The link expires in 24 hours.\n\n' +
-      `${verifyUrl}\n\n` +
-      'If you did not request this account, you can ignore this message.',
-  });
+  try {
+    getCommunicationService().enqueueEmailOrFail({
+      // tokenRowId is the natural single-use key: re-issuing on a worker
+      // restart between SES-send and outbox-mark-sent collapses to the same
+      // outbox row instead of double-delivering.
+      idempotencyKey: `verify:${tokenRowId}`,
+      recipientEmail,
+      recipientMemberId: memberId,
+      subject: 'Verify your IFPA Footbag account',
+      bodyText:
+        'Welcome to IFPA Footbag.\n\n' +
+        'Please confirm your email address by opening the link below. The link expires in 24 hours.\n\n' +
+        `${verifyUrl}\n\n` +
+        'If you did not request this account, you can ignore this message.',
+    });
+  } catch (err) {
+    // High-priority audit row: the member row (or, for resend, the existing
+    // unverified member) committed but no verify email was queued. Operator
+    // review should treat this as a possible outbox / SES degradation signal;
+    // the affected member can self-recover via /verify/resend.
+    appendAuditEntry({
+      actionType: 'auth.register_notification_failed',
+      category: 'auth',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: memberId,
+      reasonText: 'Member row committed but verify-email enqueue failed.',
+      metadata: {
+        tokenRowId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    });
+    throw err;
+  }
 }
 
 /**
@@ -1428,7 +1449,7 @@ function confirmAutoLinkCard(memberId: string): { status: 'confirmed' | 'no_card
   if (!card) return { status: 'no_card' };
   transaction(() => {
     const now = new Date().toISOString();
-    pendingAutoLinkCard.clearForMember.run(now, memberId, memberId);
+    pendingAutoLinkCard.clearForMember.run(now, 'auto_link_confirmed', memberId);
     appendAuditEntry({
       actionType:    'legacy.auto_link_confirmed',
       category:      'identity',
@@ -1448,7 +1469,7 @@ function confirmAutoLinkCard(memberId: string): { status: 'confirmed' | 'no_card
 
 function dismissAutoLinkCard(memberId: string): { status: 'dismissed' | 'no_card' } {
   const now = new Date().toISOString();
-  const result = pendingAutoLinkCard.markDismissed.run(now, now, memberId, memberId);
+  const result = pendingAutoLinkCard.markDismissed.run(now, now, 'auto_link_dismissed', memberId);
   if (result.changes === 0) return { status: 'no_card' };
   return { status: 'dismissed' };
 }
@@ -1627,19 +1648,43 @@ function initiateLegacyClaim(
   });
   const baseUrl    = config.publicBaseUrl.replace(/\/+$/, '');
   const confirmUrl = `${baseUrl}/register/wizard/legacy_claim/claim/confirm/${rawToken}`;
-  getCommunicationService().enqueueEmail({
-    idempotencyKey:    `claim:${tokenRowId}`,
-    recipientEmail:    row.legacy_email,
-    recipientMemberId: requestingMemberId,
-    subject:           'Confirm your IFPA legacy account claim',
-    bodyText:
-      'Hello,\n\n' +
-      'A claim request was submitted on your legacy IFPA account. ' +
-      'Open the link below to review and confirm the link to your current account. ' +
-      `The link expires in ${claimTokenTtlHours()} hours.\n\n` +
-      `${confirmUrl}\n\n` +
-      'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
-  });
+  try {
+    getCommunicationService().enqueueEmailOrFail({
+      idempotencyKey:    `claim:${tokenRowId}`,
+      recipientEmail:    row.legacy_email,
+      recipientMemberId: requestingMemberId,
+      subject:           'Confirm your IFPA legacy account claim',
+      bodyText:
+        'Hello,\n\n' +
+        'A claim request was submitted on your legacy IFPA account. ' +
+        'Open the link below to review and confirm the link to your current account. ' +
+        `The link expires in ${claimTokenTtlHours()} hours.\n\n` +
+        `${confirmUrl}\n\n` +
+        'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
+    });
+  } catch (err) {
+    // High-priority audit row: the account_claim token is already committed
+    // by accountTokenService.issueToken but no confirmation email was queued.
+    // The token will sit in account_tokens until TTL expiry; operator review
+    // should treat this as an outbox / SES degradation signal. Re-throw so
+    // the controller maps to 503 rather than returning the `enqueued` kind,
+    // which would lie to the caller about delivery.
+    appendAuditEntry({
+      actionType:    'legacy.claim_initiate_notification_failed',
+      category:      'identity',
+      actorType:     'system',
+      actorMemberId: null,
+      entityType:    'member',
+      entityId:      requestingMemberId,
+      reasonText:    'Legacy-claim initiation token committed but confirmation-email enqueue failed.',
+      metadata: {
+        tokenRowId,
+        legacyMemberId: row.legacy_member_id,
+        error:          err instanceof Error ? err.message : String(err),
+      },
+    });
+    throw err;
+  }
   return { kind: 'enqueued' };
 }
 
@@ -2005,14 +2050,19 @@ async function changePassword(
     entityId: memberId,
   });
 
-  // Confirmation email. Best-effort: enqueue failures must not unwind
-  // the password change.
-  try {
-    const member = auth.findMemberForSessionAfterVerify.get(memberId) as
-      | { login_email: string | null }
-      | undefined;
-    if (member?.login_email) {
-      getCommunicationService().enqueueEmail({
+  // Confirmation email. Uses the strict enqueueEmailOrFail helper because a
+  // silent loss of the password-change notification is itself a security
+  // signal (an attacker doing account takeover plus a degraded email path
+  // would otherwise leave the legitimate owner unaware). The
+  // password_version increment is already committed above; if the enqueue
+  // fails the caller surfaces an actionable 503 and the member uses
+  // password reset to recover (per memberController.postPasswordEdit).
+  const member = auth.findMemberForSessionAfterVerify.get(memberId) as
+    | { login_email: string | null }
+    | undefined;
+  if (member?.login_email) {
+    try {
+      getCommunicationService().enqueueEmailOrFail({
         // No token row for password-change notifications; use the new
         // password_version as the per-event key so re-emit on worker
         // restart between SES-send and outbox-mark-sent collapses to the
@@ -2025,9 +2075,27 @@ async function changePassword(
           'This is a confirmation that the password for your IFPA Footbag account was just changed.\n\n' +
           'If this was not you, please reset your password immediately and contact admin@footbag.org.',
       });
+    } catch (err) {
+      // High-priority audit row: the password change committed but the
+      // member never got their notification. Operator review should treat
+      // this as a possible account-takeover signal that coincided with an
+      // email-pipeline degradation.
+      appendAuditEntry({
+        actionType: 'auth.password_change_notification_failed',
+        category: 'auth',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'member',
+        entityId: memberId,
+        reasonText:
+          'Password change committed but confirmation-email enqueue failed.',
+        metadata: {
+          newPasswordVersion: row.password_version + 1,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      });
+      throw err;
     }
-  } catch {
-    // Swallow: the password change itself already committed.
   }
 
   return { memberId, newPasswordVersion: row.password_version + 1 };

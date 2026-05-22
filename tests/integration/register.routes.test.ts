@@ -6,16 +6,17 @@
  *   POST /register        — valid registration, duplicate email, short password,
  *                           mismatched passwords, missing display name
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
-const TEST_DB_PATH      = path.join(process.cwd(), `test-register-${Date.now()}.db`);
-const TEST_ADMIN_FILE   = path.join(process.cwd(), `test-initial-admins-${Date.now()}.txt`);
+const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-register-${Date.now()}.db`);
+const TEST_ADMIN_FILE   = path.join(os.tmpdir(), `footbag-test-initial-admins-${Date.now()}.txt`);
 
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
 process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
@@ -472,6 +473,94 @@ describe('POST /register — initial-admin bootstrap', () => {
 
     expect(member!.is_admin).toBe(0);
     expect(auditCount.n).toBe(0);
+  });
+});
+
+// ── Verify-email enqueue failure (B3 regression) ────────────────────────────
+//
+// When `enqueueEmailOrFail` throws after the member row commits, the member
+// row stays committed, an `auth.register_notification_failed` audit row is
+// written, and the controller renders a 503. The legitimate registrant can
+// self-recover via /verify/resend once the outbox is healthy again.
+
+describe('POST /register — verify-email enqueue failure', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let commsMod: typeof import('../../src/services/communicationService');
+
+  beforeAll(async () => {
+    commsMod = await import('../../src/services/communicationService');
+  });
+
+  afterEach(() => {
+    commsMod.resetCommunicationServiceForTests();
+  });
+
+  it('enqueueEmailOrFail throws → 503 + member row committed + audit row + no outbox row', async () => {
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    commsMod.setCommunicationServiceForTests({
+      enqueueEmail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure');
+      },
+      enqueueEmailOrFail: () => {
+        throw new ServiceUnavailableError(
+          'synthetic enqueueEmailOrFail failure for verify-email enqueue',
+        );
+      },
+      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+      }),
+    });
+
+    const targetEmail = 'enqueue-fail@example.com';
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Enqueue Fail',
+        email: targetEmail,
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+
+    expect(res.status).toBe(503);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const member = db.prepare(
+      `SELECT id, slug, login_email_normalized, password_hash, email_verified_at
+         FROM members WHERE login_email_normalized = ?`,
+    ).get(targetEmail) as
+      | { id: string; slug: string; login_email_normalized: string;
+          password_hash: string | null; email_verified_at: string | null }
+      | undefined;
+    const auditRow = db.prepare(
+      `SELECT action_type, category, actor_type, entity_id FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(member?.id ?? '') as
+      | { action_type: string; category: string; actor_type: string; entity_id: string }
+      | undefined;
+    const outboxRows = db.prepare(
+      `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
+    ).all(targetEmail) as Array<{ id: string }>;
+    db.close();
+
+    // Member row committed despite the enqueue failure (R4 pattern: the
+    // mutation is committed before the strict enqueue helper runs).
+    expect(member).toBeDefined();
+    expect(member!.password_hash).toBeTruthy();
+    expect(member!.email_verified_at).toBeNull();
+
+    // High-priority audit row was written from the catch block.
+    expect(auditRow).toBeDefined();
+    expect(auditRow!.action_type).toBe('auth.register_notification_failed');
+    expect(auditRow!.category).toBe('auth');
+    expect(auditRow!.actor_type).toBe('system');
+    expect(auditRow!.entity_id).toBe(member!.id);
+
+    // The strict helper threw before any outbox row was committed.
+    expect(outboxRows).toHaveLength(0);
   });
 });
 

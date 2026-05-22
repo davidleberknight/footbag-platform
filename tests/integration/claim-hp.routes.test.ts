@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -20,7 +21,7 @@ import {
   createTestSessionJwt,
 } from '../fixtures/factories';
 
-const TEST_DB_PATH = path.join(process.cwd(), `test-claim-hp-${Date.now()}.db`);
+const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-claim-hp-${Date.now()}.db`);
 
 process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
 process.env.PORT            = '3097';

@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -24,7 +25,7 @@ import {
   createTestSessionJwt,
 } from '../fixtures/factories';
 
-const TEST_DB_PATH      = path.join(process.cwd(), `test-member-profile-${Date.now()}.db`);
+const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-member-profile-${Date.now()}.db`);
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).

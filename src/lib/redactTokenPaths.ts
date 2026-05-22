@@ -7,5 +7,13 @@
 export function redactTokenPaths(url: string): string {
   return url
     .replace(/^\/verify\/[^/?#]+/, '/verify/[redacted]')
-    .replace(/^\/password\/reset\/[^/?#]+/, '/password/reset/[redacted]');
+    .replace(/^\/password\/reset\/[^/?#]+/, '/password/reset/[redacted]')
+    .replace(
+      /^\/auto-link\/report-incorrect\/[^/?#]+/,
+      '/auto-link/report-incorrect/[redacted]',
+    )
+    .replace(
+      /^\/register\/wizard\/legacy_claim\/claim\/confirm\/[^/?#]+/,
+      '/register/wizard/legacy_claim/claim/confirm/[redacted]',
+    );
 }

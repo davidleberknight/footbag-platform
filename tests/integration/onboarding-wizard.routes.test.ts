@@ -7,7 +7,7 @@
  * GET consumes; validation errors re-render inline at 422; rate-limit
  * re-renders at 429 with Retry-After.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -289,6 +289,99 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       .set('Cookie', cookieFor(memberId));
     expect(followUp.text).toContain('Wiz HP Target');
     expect(followUp.text).toContain(`href="/history/${hpId}/claim"`);
+  });
+
+  // ── B5 regression: confirmation-email enqueue failure ────────────────────
+  //
+  // initiateLegacyClaim used to call bare enqueueEmail then return
+  // `{ kind: 'enqueued' }` regardless of outcome. R4 pattern (mirrored from
+  // changePassword): use enqueueEmailOrFail wrapped in try/catch; on catch,
+  // append a `legacy.claim_initiate_notification_failed` audit row and
+  // re-throw so the controller maps to 503 via handleControllerError.
+  describe('enqueueEmailOrFail failure', () => {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    let commsMod: typeof import('../../src/services/communicationService');
+
+    beforeAll(async () => {
+      commsMod = await import('../../src/services/communicationService');
+    });
+
+    afterEach(() => {
+      commsMod.resetCommunicationServiceForTests();
+    });
+
+    it('throws → 503 + token committed + audit row + no outbox row', async () => {
+      const stamp = Date.now() + 200;
+      const targetEmail = `wiz-enq-fail-${stamp}@oldsite.example`;
+      const legacyId = `LM-WIZ-ENQFAIL-${stamp}`;
+      insertLegacyMember(testDb, {
+        legacy_member_id: legacyId,
+        real_name: 'Wiz EnqFail Target',
+        legacy_email: targetEmail,
+      });
+      const memberId = insertMember(testDb, {
+        slug: `wiz_enqfail_${stamp}`,
+        login_email: `wiz-enqfail-req-${stamp}@example.com`,
+      });
+
+      const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+      commsMod.setCommunicationServiceForTests({
+        enqueueEmail: () => {
+          throw new ServiceUnavailableError('synthetic enqueue failure');
+        },
+        enqueueEmailOrFail: () => {
+          throw new ServiceUnavailableError(
+            'synthetic enqueueEmailOrFail failure for legacy-claim initiation',
+          );
+        },
+        enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+        processSendQueue: async () => ({
+          claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        }),
+      });
+
+      const res = await request(createApp())
+        .post('/register/wizard/legacy_claim/find')
+        .set('Cookie', cookieFor(memberId))
+        .type('form')
+        .send({ identifier: targetEmail });
+
+      expect(res.status).toBe(503);
+
+      // The account_claim token was committed by accountTokenService.issueToken
+      // before the enqueueEmailOrFail call. Confirm row presence keyed on the
+      // requesting member and target legacy id.
+      const tokenRow = testDb.prepare(
+        `SELECT id, target_legacy_member_id FROM account_tokens
+           WHERE member_id = ? AND token_type = 'account_claim'
+           ORDER BY created_at DESC LIMIT 1`,
+      ).get(memberId) as
+        | { id: string; target_legacy_member_id: string | null }
+        | undefined;
+      expect(tokenRow).toBeDefined();
+      expect(tokenRow!.target_legacy_member_id).toBe(legacyId);
+
+      // Catch-block audit row exists and carries the expected shape.
+      const auditRow = testDb.prepare(
+        `SELECT action_type, category, actor_type, entity_id FROM audit_entries
+           WHERE entity_id = ?
+             AND action_type = 'legacy.claim_initiate_notification_failed'
+           ORDER BY created_at DESC LIMIT 1`,
+      ).get(memberId) as
+        | { action_type: string; category: string; actor_type: string; entity_id: string }
+        | undefined;
+      expect(auditRow).toBeDefined();
+      expect(auditRow!.action_type).toBe('legacy.claim_initiate_notification_failed');
+      expect(auditRow!.category).toBe('identity');
+      expect(auditRow!.actor_type).toBe('system');
+      expect(auditRow!.entity_id).toBe(memberId);
+
+      // The strict helper threw before any outbox row could land.
+      const outboxRows = testDb.prepare(
+        `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
+      ).all(targetEmail) as Array<{ id: string }>;
+      expect(outboxRows).toHaveLength(0);
+    });
   });
 
   it('per-member rate-limit exhaustion returns 429 with Retry-After', async () => {

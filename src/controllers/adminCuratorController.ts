@@ -42,7 +42,7 @@ type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);
   if (flash?.kind !== FLASH_KIND.MEDIA_SAVED) return null;
-  clearFlash(res);
+  clearFlash(res, req);
   const p = flash.payload;
   if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
   return null;

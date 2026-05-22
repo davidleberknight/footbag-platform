@@ -222,17 +222,31 @@ describe('POST /members/:slug/contact-admin', () => {
   it('adversarial: HTML in message body persists in audit metadata; escaped when rendered back', async () => {
     const app = createApp();
     const payload = '<script>alert(1)</script>';
+    // Snapshot existing audit-entry ids BEFORE the POST. Prior tests in this
+    // file write `support.contact_request_submitted` rows for OWNER_ID with
+    // millisecond-resolution created_at (per src/services/auditService.ts).
+    // Under parallel-load timestamp ties, ORDER BY created_at DESC LIMIT 1
+    // is non-deterministic; snapshot-diff picks the row this test inserted.
+    const dbSnap = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeIds = new Set(
+      (dbSnap
+        .prepare(`SELECT id FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted'`)
+        .all(OWNER_ID) as Array<{ id: string }>).map((r) => r.id),
+    );
+    dbSnap.close();
     await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie())
       .type('form')
       .send({ category: 'other', message: payload });
     const db = new BetterSqlite3(dbPath);
-    const meta = db
-      .prepare(`SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted' ORDER BY created_at DESC LIMIT 1`)
-      .get(OWNER_ID) as { metadata_json: string } | undefined;
-    expect(meta).toBeDefined();
-    const parsed = JSON.parse(meta!.metadata_json);
+    const newRow = (db
+      .prepare(`SELECT id, metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted'`)
+      .all(OWNER_ID) as Array<{ id: string; metadata_json: string }>).find(
+      (r) => !beforeIds.has(r.id),
+    );
+    expect(newRow).toBeDefined();
+    const parsed = JSON.parse(newRow!.metadata_json);
     expect(parsed.message).toBe(payload);
     db.close();
   });

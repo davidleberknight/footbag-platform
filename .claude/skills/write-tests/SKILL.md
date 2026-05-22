@@ -128,6 +128,8 @@ describe('GET /events', () => {
 
 Use factories from `tests/fixtures/factories.ts`. Insert only what the tests need. Use `insertMember()` overrides for edge cases (e.g., `{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`).
 
+Do NOT roll your own temp path with `path.join(process.cwd(), …)`. `setTestEnv` puts DBs in `os.tmpdir()` so leaks (worker timeout, OOM, WAL race) land where the OS cleans up. Applies to allowlist files and any other transient test artifact.
+
 ## Step 6: Run and report
 
 ```bash

@@ -257,7 +257,7 @@ export function createApp(): express.Application {
       // the cookie on the 303 response before the banner ever surfaces.
       const origRender = res.render.bind(res);
       res.render = ((...args: Parameters<typeof origRender>) => {
-        clearFlash(res);
+        clearFlash(res, req);
         return origRender(...args);
       }) as typeof res.render;
     }

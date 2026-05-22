@@ -27,6 +27,11 @@ const SAFE_BROWSING_ENDPOINT =
 const CLIENT_ID = 'footbag-platform';
 const CLIENT_VERSION = '1.0.0';
 
+// Bound the outbound fetch so a slow / hung Google endpoint cannot tie up an
+// Express request worker for the duration of the Node default fetch timeout.
+// Mirrors `httpReachabilityAdapter`'s TOTAL_BUDGET_MS.
+const TOTAL_BUDGET_MS = 10_000;
+
 const THREAT_TYPES = [
   'MALWARE',
   'SOCIAL_ENGINEERING',
@@ -109,14 +114,29 @@ export function createLiveSafeBrowsingAdapter(opts: {
           threatEntries: [{ url }],
         },
       };
-      const res = await httpFetch(
-        `${SAFE_BROWSING_ENDPOINT}?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      );
+      const controller = new AbortController();
+      const deadline = setTimeout(() => controller.abort(), TOTAL_BUDGET_MS);
+      let res: Response;
+      try {
+        res = await httpFetch(
+          `${SAFE_BROWSING_ENDPOINT}?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          },
+        );
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error(
+            `Safe Browsing API timed out after ${TOTAL_BUDGET_MS}ms`,
+          );
+        }
+        throw err;
+      } finally {
+        clearTimeout(deadline);
+      }
       if (!res.ok) {
         throw new Error(
           `Safe Browsing API returned HTTP ${res.status}`,

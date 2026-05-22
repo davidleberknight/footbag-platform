@@ -151,7 +151,7 @@ Once the STRIDE table is filled, each applicable threat category and each derive
 
 - *Equivalence partitioning plus boundary value analysis* for input-shaped threats (Tampering, malicious input). Partition the input space into equivalence classes (valid, malformed, oversized, wrong type, unicode mischief, injection attempt). Test one representative per class plus the boundary between classes (empty, single, max length, max plus one, unicode normalization edges, timezone edges, leap year, NULL). Do not enumerate within a class; one representative is sufficient.
 - *Pairwise or combinatorial coverage* for matrix-shaped threats (Spoofing, Elevation of Privilege). Where the surface depends on role times route times method times auth-state (or a similar multi-dimensional matrix), use all-pairs coverage rather than full Cartesian product. All-pairs catches the large majority of defects at O(N squared) rather than O(N to the fourth) cost. Tool: any pairwise generator (PICT, ACTS, or equivalent), or hand-derive for small matrices.
-- *Property-based testing* for invariant-shaped threats (Information Disclosure invariants, idempotency, CSRF presence on every state-changing verb). Where the claim is "for all inputs, property P holds", state P as a property and let the property tester generate cases. Target tool: fast-check (see §15.3 tooling appendix).
+- *Property-based testing* for invariant-shaped threats (Information Disclosure invariants, idempotency, CSRF presence on every state-changing verb). Where the claim is "for all inputs, property P holds", state P as a property and let the property tester generate cases. Target tool: fast-check (see §15.3 tooling appendix). For finite-enumerable input spaces (the route table, the verb set), a scenario test that iterates the enumeration via a shared helper satisfies the property-style assertion at Rigor 3; the fast-check formulation is the Rigor 4 promotion.
 - *Scenario tests with explicit state transitions* for state-machine-shaped threats (Repudiation, partial failure, concurrency). Where the surface has state machines (multi-step wizard, lifecycle of a token, audit-log emission on state-changing paths), write scenario tests that drive the state machine through transitions and assert at each step. Add property tests for invariants that must hold across all transitions ("audit log emits on every state-changing path").
 - *Selective fuzzing* for parsers, validators, and complex input handlers. Targeted at the specific module, not the whole surface.
 - *Rate-limit and resource-bound assertions* for Denial of Service threats. Assert that the rate limit fires at the configured threshold, that resource bounds (request size, response size, worker concurrency) are enforced. Load testing is deferred (§14); this dimension is configuration verification, not throughput.
@@ -350,11 +350,13 @@ A class, not a folder. Lives wherever the derived assertion most efficiently liv
 
 - Anti-enumeration property tests
 - Auth-gate and role-gate enforcement assertions
-- CSRF presence on every state-changing verb (property test)
+- CSRF presence on every state-changing verb (scenario test reused per state-changing route via shared helper; property-test formulation is the Rigor 4 promotion)
 - Rate-limit boundary assertions
 - Session cookie attribute assertions
 - Secret and PII leakage regression tests (see §10)
 - Testing-shortcut regression tests (§7.5)
+
+Cross-cutting regression classes (cookie attributes, CSRF presence on every state-changing verb, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes. The shared-helper shape keeps the per-route assertion cheap (one line per route) while preserving the property: a future refactor that mounts a sub-router outside the perimeter, or changes the cookie-issuance helper to drop a flag, fails the route's own test rather than only a centralized middleware test.
 
 ### 5.7 Testing-shortcut regression tests
 

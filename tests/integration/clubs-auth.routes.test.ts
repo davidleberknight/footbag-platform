@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -21,7 +22,7 @@ import {
   createTestSessionJwt,
 } from '../fixtures/factories';
 
-const TEST_DB_PATH      = path.join(process.cwd(), `test-clubs-auth-${Date.now()}.db`);
+const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-clubs-auth-${Date.now()}.db`);
 
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
 process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;

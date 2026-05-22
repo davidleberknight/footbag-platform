@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     testTimeout: 15_000,
     setupFiles: ['./tests/setup-env.ts'],
+    // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
+    // start and end. Per-test afterAll() handles the happy path; this hook
+    // is the safety net for worker timeouts / OOM / SIGKILL / WAL-races
+    // that leave per-test cleanup unrun. See tests/global-setup.ts.
+    globalSetup: './tests/global-setup.ts',
     // Smoke (tests/smoke/) and e2e (tests/e2e/) are filtered out by the
     // `--exclude` flags on the `npm test` and `npm run test:coverage`
     // scripts in package.json. Putting them in the global config exclude

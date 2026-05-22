@@ -14,11 +14,12 @@ import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import { insertMember } from '../fixtures/factories';
 
-const TEST_DB_PATH       = path.join(process.cwd(), 'test-footbag-auth.db');
+const TEST_DB_PATH       = path.join(os.tmpdir(), 'footbag-test-auth-routes.db');
 const TEST_PASSWORD      = 'test-password-123';
 const TEST_MEMBER_EMAIL  = 'test-member@example.com';
 const FOOTBAG_PASSWORD   = process.env.STUB_PASSWORD!;

@@ -261,3 +261,14 @@ export function getJwtSigningAdapter(): JwtSigningAdapter {
 export function resetJwtSigningAdapterForTests(): void {
   singleton = null;
 }
+
+/**
+ * Inject a custom JwtSigningAdapter for the duration of a test. Mirrors the
+ * pattern in imageProcessingAdapter / mediaStorageAdapter. Tests that exercise
+ * adapter-failure code paths (e.g. KMS Sign throwing during password-change
+ * session reissue) use this entry point to install a hand-rolled adapter; the
+ * test's afterEach should call resetJwtSigningAdapterForTests to clear it.
+ */
+export function setJwtSigningAdapterForTests(adapter: JwtSigningAdapter): void {
+  singleton = adapter;
+}

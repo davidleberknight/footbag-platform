@@ -7,6 +7,7 @@ import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
 const { dbPath } = setTestEnv('3070');
 
@@ -124,6 +125,7 @@ describe('POST /password/reset/:token', () => {
     expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
+    assertSecureSessionCookie(res.headers['set-cookie']);
 
     // DB: password_version should be 2.
     const db = new BetterSqlite3(dbPath, { readonly: true });

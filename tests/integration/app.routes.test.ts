@@ -12,6 +12,7 @@ import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -36,7 +37,7 @@ const DRAFT_EVENT_KEY    = 'event_2026_draft_event';
 const ALICE_ID = 'person-alice-001';
 const BOB_ID   = 'person-bob-001';
 
-const TEST_DB_PATH       = path.join(process.cwd(), 'test-footbag.db');
+const TEST_DB_PATH       = path.join(os.tmpdir(), 'footbag-test-app-routes.db');
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
@@ -51,6 +52,7 @@ process.env.SESSION_SECRET          = 'test-secret-for-integration-tests';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
 import { createTestSessionJwt } from '../fixtures/factories';
+import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
 function validAuthCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: 'test-user', role: 'admin' })}`;
@@ -1037,6 +1039,7 @@ describe('POST /login', () => {
       ? res.headers['set-cookie']
       : [res.headers['set-cookie']];
     expect(cookies.some((c: string) => c.startsWith('footbag_session='))).toBe(true);
+    assertSecureSessionCookie(res.headers['set-cookie']);
   });
 
   it('returns 200 with error message on wrong password', async () => {
@@ -1139,6 +1142,33 @@ describe('POST /logout', () => {
 
     const next = await request(app).get('/');
     expect(next.text).not.toContain('You have been logged out.');
+  });
+
+  it('clearFlash mirrors writeFlash Secure attribute under HTTPS', async () => {
+    const app = createApp();
+    const logoutRes = await request(app)
+      .post('/logout')
+      .set('Cookie', validAuthCookie())
+      .set('x-forwarded-proto', 'https');
+    const logoutCookies: string[] = Array.isArray(logoutRes.headers['set-cookie'])
+      ? logoutRes.headers['set-cookie']
+      : [logoutRes.headers['set-cookie'] ?? ''];
+    const flashCookie = logoutCookies.find((c: string) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+    expect(flashCookie).toMatch(/;\s*Secure\b/i);
+    const flashValue = flashCookie!.split(';')[0];
+
+    const landing = await request(app)
+      .get('/')
+      .set('Cookie', flashValue)
+      .set('x-forwarded-proto', 'https');
+    expect(landing.status).toBe(200);
+    const landingCookies: string[] = Array.isArray(landing.headers['set-cookie'])
+      ? landing.headers['set-cookie']
+      : [landing.headers['set-cookie'] ?? ''];
+    const clearedFlash = landingCookies.find((c: string) => c.startsWith('footbag_flash='));
+    expect(clearedFlash).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
+    expect(clearedFlash).toMatch(/;\s*Secure\b/i);
   });
 });
 

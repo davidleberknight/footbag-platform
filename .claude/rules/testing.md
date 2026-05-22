@@ -79,6 +79,7 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 - **No silent skips.** `.skip`, `.todo`, `xit` are forbidden in committed code. If a test can't land, the feature can't either.
 - **No "tested manually" as a substitute.** Manual verification is for UI/visual checks. Logic is tested by the suite.
 - **No tests that run on the dev DB.** Tests always use `setTestEnv` + `createTestDb` from `tests/fixtures/testDb.ts`.
+- **No test artifacts under the project root.** Temp DBs, WAL sidecars, admin-allowlist files, scratch fixtures — all in `os.tmpdir()` with a `footbag-test-` prefix (the shared `setTestEnv` helper does this). Project-root leaks survive worker timeouts / OOM / WAL races against `afterAll`; `/tmp` leaks the OS cleans.
 
 ## Coverage floor
 
