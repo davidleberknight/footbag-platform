@@ -362,6 +362,7 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('<div class="card-title">Operators &amp; Modifiers</div>');
     expect(res.text).toContain('<div class="card-title">Insights</div>');
     expect(res.text).toContain('<div class="card-title">Observed Tricks</div>');
+    expect(res.text).toContain('<div class="card-title">About Freestyle Footbag</div>');
   });
 
   it('Go Deeper cards link to the reference / archive destinations', async () => {
@@ -376,6 +377,7 @@ describe('GET /freestyle — two-band landing', () => {
       '/freestyle/operators',
       '/freestyle/insights',
       '/freestyle/observational',
+      '/freestyle/about',
     ]) {
       expect(res.text, `Go Deeper href ${href}`).toContain(`href="${href}"`);
     }
