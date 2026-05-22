@@ -6134,7 +6134,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'Learn the movements, watch the sport, and explore the trick vocabulary.',
+        intro: 'Freestyle turns a small footbag into movement, rhythm, and control.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',

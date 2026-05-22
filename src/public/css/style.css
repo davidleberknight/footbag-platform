@@ -932,7 +932,6 @@ section.home-media { padding-top: 0; }
 .reference-media-tile > .video-facade-video {
   aspect-ratio: 16 / 9;
   border-radius: 6px;
-  height: auto;
 }
 
 /* Reference Media grid — compact thumbnails (UX3 QC follow-up 2026-05-11).
@@ -1335,22 +1334,19 @@ section.home-media { padding-top: 0; }
   margin: 0 auto;
 }
 
-/* Two class spellings exist in markup (.breadcrumb on loop-driven crumbs,
-   .breadcrumbs on hand-written hero crumbs); both are the same component
-   and must style identically. */
-.breadcrumb,
-.breadcrumbs {
+/* ── Breadcrumb ──────────────────────────────────────────────── */
+/* Breadcrumb — one consistent component across every page. Rendered from
+   navigation.breadcrumbs as loop-driven crumbs with .breadcrumb-sep. */
+.breadcrumb {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-.breadcrumb a,
-.breadcrumbs a {
+.breadcrumb a {
   color: var(--text-muted);
   text-decoration: none;
 }
-.breadcrumb a:hover,
-.breadcrumbs a:hover { text-decoration: underline; }
+.breadcrumb a:hover { text-decoration: underline; }
 .breadcrumb-sep {
   margin: 0 4px;
   opacity: 0.5;
@@ -1358,14 +1354,10 @@ section.home-media { padding-top: 0; }
 /* Hero has a dark gradient — breadcrumb must use white */
 .hero .breadcrumb,
 .hero .breadcrumb a,
-.hero .breadcrumb span,
-.hero .breadcrumbs,
-.hero .breadcrumbs a,
-.hero .breadcrumbs span {
+.hero .breadcrumb span {
   color: rgba(255, 255, 255, 0.92);
 }
-.hero .breadcrumb a:hover,
-.hero .breadcrumbs a:hover {
+.hero .breadcrumb a:hover {
   color: #fff;
 }
 .hero .breadcrumb-sep {
@@ -3615,12 +3607,7 @@ section.home-media { padding-top: 0; }
 /* Browse-card secondary row — surfaces the OPERATIONAL/JOB chain +
    ADD breakdown beneath the primary card content for pilot first-class
    slugs only. Compact + neutral; sits below the primary card body
-   without competing with non-first-class siblings on the same view.
-   Layout: row-direction flex so JOB and ADD sit side-by-side on wide
-   screens (one compact strip instead of two stacked blocks). In the
-   registry-density grid context the wrapper spans all columns so its
-   contents don't collapse into a single narrow grid cell. Stacks back
-   to vertical on narrow widths via the 520px media query below. */
+   without competing with non-first-class siblings on the same view. */
 .dict-card-first-class-row {
   margin: 6px 0 0 0;
   padding: 6px 0 0 0;
@@ -3628,16 +3615,9 @@ section.home-media { padding-top: 0; }
   font-size: 0.78rem;
   line-height: 1.4;
   color: #4a4232;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 20px;
-}
-.dict-card--registry .dict-card-first-class-row {
-  grid-column: 1 / -1;
 }
 .dict-card-first-class-line {
-  margin: 0;
+  margin: 2px 0;
   display: flex;
   gap: 6px;
   align-items: baseline;
@@ -3674,15 +3654,6 @@ section.home-media { padding-top: 0; }
   font-style: italic;
   color: #9a9078;
   letter-spacing: 0.01em;
-}
-/* On narrow widths the side-by-side JOB/ADD strip stacks back to a
-   two-line block so the value can't squeeze; the side-by-side layout
-   above already wraps naturally on mid widths via flex-wrap. */
-@media (max-width: 520px) {
-  .dict-card-first-class-row {
-    flex-direction: column;
-    gap: 2px;
-  }
 }
 
 /* Trick-detail vertical compression. Tighten section spacing across
@@ -4322,11 +4293,6 @@ section.home-media { padding-top: 0; }
 .trick-hero-meta-chip-modifier {
   background: rgba(255, 245, 200, 0.22);
   font-weight: 600;
-}
-.trick-hero-meta-chip-tag {
-  font-family: "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.82rem;
-  letter-spacing: 0.02em;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
