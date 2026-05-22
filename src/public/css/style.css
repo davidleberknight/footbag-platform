@@ -6285,6 +6285,25 @@ a.dict-card-title:hover {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* Tag identity chip — every dictionary card surfaces its #slug. */
+.dict-card-hashtag {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* External-source rows: a visually distinct "tracked tag" — dashed,
+   not solid — so a visible tag never implies official status. */
+.dict-card--external-placeholder .dict-card-hashtag {
+  color: var(--text-subtle);
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-style: italic;
+}
 .dict-card-add--unrated {
   color: var(--text-subtle);
   border-color: transparent;
