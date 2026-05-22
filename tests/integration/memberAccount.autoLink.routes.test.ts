@@ -181,6 +181,34 @@ describe('silent auto-link card lifecycle', () => {
     expect(row.historical_person_id).toBeNull();
     expect(row.pending_auto_link_card_json).toBeNull();
   });
+
+  it('POST /members/me/auto-link/report-incorrect ignores body-supplied claimAuditId; derives server-side from card', async () => {
+    // Forensic-integrity regression. A malicious body could otherwise plant
+    // an attacker-chosen audit id into audit_entries.metadata_json and the
+    // work_queue_items description, misdirecting admin triage.
+    const { claimAuditId } = await freshSilentClaim();
+    const app = createApp();
+    const forgedId = 'audit_id_forged_by_attacker_pointing_at_someone_else';
+    const res = await request(app)
+      .post('/members/me/auto-link/report-incorrect')
+      .type('form')
+      .send({ claimAuditId: forgedId })
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const audit = db.prepare(
+      `SELECT metadata_json FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'legacy.auto_link_revert'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(MEM_ID) as { metadata_json: string } | undefined;
+    db.close();
+    expect(audit).toBeDefined();
+    const meta = JSON.parse(audit!.metadata_json) as Record<string, unknown>;
+    // Server-derived value lands in the audit row; forged body value is discarded.
+    expect(meta.original_claim_audit_id).toBe(claimAuditId);
+    expect(meta.original_claim_audit_id).not.toBe(forgedId);
+  });
 });
 
 describe('tokened report-incorrect GET /auto-link/report-incorrect/:token', () => {

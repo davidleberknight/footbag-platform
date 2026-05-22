@@ -141,6 +141,16 @@ export interface AppConfig {
   //   undefined. Boot-time guard refuses non-development start.
   // Target: remove after production cutover makes dev autologin unnecessary.
   devAutologinMemberId: string | undefined;
+  // Test-only override for container memory-utilization readings. When set,
+  // OperationsPlatformService.readContainerMemoryUsedPercent returns this
+  // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
+  // can drive readiness gating without manipulating real cgroup state.
+  //   - undefined: no override (read real cgroup)
+  //   - null:      simulates "cgroup unavailable"
+  //   - number:    simulates that utilization percent
+  // Boot-time guard refuses production start with this var set; an env
+  // injection in production must not be able to forge readiness state.
+  testMemoryPercent: number | null | undefined;
 }
 
 function requireEnv(name: string): string {
@@ -548,6 +558,31 @@ function loadConfig(): AppConfig {
     trustProxy = rawTrustProxy;
   }
 
+  // Test-only override for container memory-utilization readings. Refuses
+  // production start with this var set; otherwise an attacker with env
+  // injection in production could forge readiness (anonymous /health/ready
+  // is a liveness gate).
+  const rawTestMemoryPercent = process.env.FOOTBAG_TEST_MEMORY_PERCENT;
+  let testMemoryPercent: number | null | undefined;
+  if (rawTestMemoryPercent === undefined || rawTestMemoryPercent === '') {
+    testMemoryPercent = undefined;
+  } else if (rawTestMemoryPercent === 'null') {
+    testMemoryPercent = null;
+  } else {
+    const parsed = Number(rawTestMemoryPercent);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(
+        `FOOTBAG_TEST_MEMORY_PERCENT must be a finite number, 'null', or unset, got: ${rawTestMemoryPercent}`,
+      );
+    }
+    testMemoryPercent = parsed;
+  }
+  if (testMemoryPercent !== undefined && footbagEnv === 'production') {
+    throw new Error(
+      `FOOTBAG_TEST_MEMORY_PERCENT is dev/staging-only; refusing production start (got FOOTBAG_ENV=production). Production readiness must reflect real cgroup state, not an injected override.`,
+    );
+  }
+
   const sessionSecret = requireEnv('SESSION_SECRET');
   if (isProd) {
     if (sessionSecret.length < 32) {
@@ -606,6 +641,7 @@ function loadConfig(): AppConfig {
     devAdminSkipClaimEmail,
     devAdminGrantTier2,
     devAutologinMemberId,
+    testMemoryPercent,
   };
 }
 

@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
+import { readFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFile } from 'fs/promises';
 import { join, parse } from 'path';
 import { ValidationError } from '../services/serviceErrors';
 
@@ -38,14 +39,14 @@ export function readSidecar(dirPath: string, sourceFilename: string): CuratorSid
   return validateSidecarShape(parsed, sourceFilename);
 }
 
-export function writeSidecar(
+export async function writeSidecar(
   dirPath: string,
   sourceFilename: string,
   data: CuratorSidecar,
-): void {
+): Promise<void> {
   const validated = validateSidecarShape(data, sourceFilename);
   const sidecarPath = join(dirPath, sidecarPathForSource(sourceFilename));
-  writeFileSync(sidecarPath, JSON.stringify(validated, null, 2) + '\n', 'utf-8');
+  await writeFile(sidecarPath, JSON.stringify(validated, null, 2) + '\n', 'utf-8');
 }
 
 export function deleteSidecar(dirPath: string, sourceFilename: string): void {

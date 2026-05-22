@@ -256,4 +256,39 @@ describe('member per-item media edit routes', () => {
     const tags = findMediaTags(mediaId);
     expect(tags).toEqual([`#by_${OWNER_SLUG}`]);
   });
+
+  // Regression for B13: per-item media edit was unlimited per session,
+  // allowing Safe Browsing / DNS / HTTP reachability quota exhaustion via
+  // repeated externalUrl validation.
+  it('POST exceeding media-edit rate-limit → 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'media_edit_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-media-edit-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const mediaId = insertOwnerMedia('owner-rl.jpg');
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(createApp())
+          .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+          .set('Cookie', cookieFor(OWNER_ID))
+          .type('form')
+          .send({ caption: `pass-${i}`, tags: '', externalUrl: '' });
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+        .set('Cookie', cookieFor(OWNER_ID))
+        .type('form')
+        .send({ caption: 'blocked', tags: '', externalUrl: '' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
 });

@@ -16,13 +16,20 @@ export const healthController = {
    * Readiness probe. Delegates to OperationsPlatformService, which composes
    * the database probe and the container-memory pressure check. Returns
    * 200 if ready, 503 if not.
+   *
+   * Anonymous response carries only `{ ok, check }`. Per-check detail
+   * (DB readiness, memory utilization percent) is deliberately omitted:
+   * the endpoint is public (no auth gate; mounted before requireAuth),
+   * and host telemetry surfaced to anonymous callers assists timing
+   * attacks targeting peak-load windows. Operators rely on CloudWatch
+   * (CWAgent publishes `mem_used_percent` as a host metric; the
+   * readiness threshold aligns with it) for the same signal.
    */
   ready(_req: Request, res: Response): void {
     const status = operationsPlatformService.checkReadiness();
     res.status(status.isReady ? 200 : 503).json({
       ok: status.isReady,
       check: 'ready',
-      checks: status.checks,
     });
   },
 };

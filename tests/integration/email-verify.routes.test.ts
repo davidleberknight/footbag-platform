@@ -343,6 +343,72 @@ describe('POST /verify/resend', () => {
   });
 });
 
+describe('POST /verify/resend — verify-email enqueue failure', () => {
+  // Regression for B21: ServiceUnavailableError previously fell through to the
+  // 500 handler because postVerifyResend only called next(err). The 503 page
+  // is the truthful surface — outbox/SES degradation is a dependency outage,
+  // not an unexpected exception.
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let commsMod: typeof import('../../src/services/communicationService');
+
+  beforeAll(async () => {
+    commsMod = await import('../../src/services/communicationService');
+  });
+
+  afterEach(() => {
+    commsMod.resetCommunicationServiceForTests();
+  });
+
+  it('enqueueEmailOrFail throws → 503 + audit row (recovers via /verify/resend after outbox heals)', async () => {
+    expectLoggedError('audit: auth.register_notification_failed');
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+
+    // Seed a fresh unverified member through a real registration first, while
+    // comms is still healthy; otherwise the registration itself 503s.
+    const app = createApp();
+    const targetEmail = 'resend-enqueue-fail@example.com';
+    const registerRes = await request(app).post('/register').type('form').send({
+      realName: 'Resend Fail',
+      email: targetEmail,
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    expect(registerRes.status).toBe(303);
+
+    // Now break enqueueEmailOrFail and exercise the resend path.
+    commsMod.setCommunicationServiceForTests({
+      enqueueEmail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure');
+      },
+      enqueueEmailOrFail: () => {
+        throw new ServiceUnavailableError(
+          'synthetic enqueueEmailOrFail failure for verify-resend',
+        );
+      },
+      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+      }),
+    });
+
+    const res = await request(app).post('/verify/resend').type('form').send({ email: targetEmail });
+    expect(res.status).toBe(503);
+
+    // Audit row records the failure for operator triage.
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const member = db.prepare(
+      `SELECT id FROM members WHERE login_email_normalized = ?`,
+    ).get(targetEmail) as { id: string } | undefined;
+    const auditRow = member ? db.prepare(
+      `SELECT action_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(member.id) as { action_type: string } | undefined : undefined;
+    db.close();
+    expect(auditRow).toBeDefined();
+  });
+});
+
 describe('Authenticated member search excludes unverified rows', () => {
   it('an unverified member is not in members_searchable and not in /members?q=', async () => {
     const app = createApp();

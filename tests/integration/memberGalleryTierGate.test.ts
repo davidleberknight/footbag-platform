@@ -11,7 +11,6 @@
  * are covered by dedicated unit and service-level test suites.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import {
@@ -60,6 +59,18 @@ function cookieFor(memberId: string): string {
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'tg_admin', is_admin: 1 });
+  // System (Footbag Hacky) member: curatorMediaService.createGallery eagerly
+  // resolves the system member id to compute the FH-owned-vs-member-owned
+  // branch, even for purely member-owned creates. Production seeds this row
+  // at platform epoch; tests must seed it explicitly or createGallery throws
+  // `Configuration error: no system member row found`.
+  insertMember(db, {
+    id: 'member_footbag_hacky_tg',
+    slug: 'fh_tg',
+    display_name: 'Footbag Hacky',
+    real_name: 'Footbag Hacky',
+    is_system: 1,
+  });
   for (const f of FIXTURES) {
     insertMember(db, { id: f.id, slug: f.slug });
   }
@@ -94,26 +105,39 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('POST /members/:memberKey/galleries — tier gate', () => {
+  // Each fixture uses a distinct gallery name to avoid UNIQUE(owner, name)
+  // conflicts across the it.each iterations.
   it.each(FIXTURES)('$label → gated: $expectGated', async (f) => {
-    if (!f.expectGated) {
-      // Existing test surfaces an underlying gallery-create failure that
-      // had been silent: this test only asserts the gate (status !== 403),
-      // so the create-error and unhandled-error log lines were unnoticed.
-      // Opting them in here preserves prior behavior; a separate slice
-      // will tighten the assertion to require successful gallery creation.
-      expectLoggedError('member gallery create error');
-      expectLoggedError('unhandled error');
-    }
+    const name = `Try-${f.label}`;
     const res = await request(createApp())
       .post(`/members/${f.slug}/galleries`)
       .set('Cookie', cookieFor(f.id))
       .type('form')
-      .send({ name: 'Try', description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
+      .send({ name, description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
     if (f.expectGated) {
       expect(res.status).toBe(403);
       expect(res.text).toContain('403');
+      // Gate fires before service: no gallery row was inserted.
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const row = db
+        .prepare(`SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?`)
+        .get(f.id, name) as { id: string } | undefined;
+      db.close();
+      expect(row).toBeUndefined();
     } else {
-      expect(res.status).not.toBe(403);
+      // Tighter assertion than the prior `not.toBe(403)`: the create must
+      // actually succeed (303 PRG redirect to the gallery list) and a fresh
+      // `member_galleries` row must exist for this owner. The previous
+      // loose check was passing for both 200/303 and 500.
+      expect(res.status).toBe(303);
+      expect(res.headers.location).toBe(`/members/${f.slug}/galleries`);
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const row = db
+        .prepare(`SELECT id, owner_member_id, name FROM member_galleries WHERE owner_member_id = ? AND name = ?`)
+        .get(f.id, name) as { id: string; owner_member_id: string; name: string } | undefined;
+      db.close();
+      expect(row).toBeDefined();
+      expect(row!.owner_member_id).toBe(f.id);
     }
   });
 });

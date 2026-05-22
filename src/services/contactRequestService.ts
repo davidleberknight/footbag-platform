@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { workQueue, account, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { getCommunicationService } from './communicationService';
+import { recordOperationalError } from './operationalErrors';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 
@@ -181,10 +182,10 @@ export const contactRequestService = {
       : trimmed;
     const reasonText = `${categoryLabel}: ${summary}`;
 
-    // The work_queue_items INSERT and the admin-alerts mailing-list notification
-    // commit in one transaction: a rollback cannot leave a dangling alert or
-    // an alertless queue item. Notification body carries task_type and
-    // entity_id only. (DD §5.4, US §198)
+    // The work_queue_items INSERT, the submission audit row, and the admin-
+    // alerts mailing-list notification commit in one transaction: a rollback
+    // cannot leave a dangling alert, an alertless queue item, or a queue
+    // item without its corresponding audit-trail entry. (DD §5.4, US §198)
     transaction(() => {
       workQueue.insertItem.run(
         id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
@@ -196,27 +197,26 @@ export const contactRequestService = {
         nowIso,
         reasonText,
       );
+      appendAuditEntry({
+        actionType:    'support.contact_request_submitted',
+        category:      'support',
+        actorType:     'member',
+        actorMemberId: input.requestingMemberId,
+        entityType:    'member',
+        entityId:      input.requestingMemberId,
+        reasonText:    categoryLabel,
+        metadata:      {
+          queue_item_id: id,
+          category,
+          message: trimmed,
+        },
+      });
       getCommunicationService().enqueueMailingListEmail({
         mailingListSlug:      'admin-alerts',
         subject:              `New admin queue item: ${TASK_TYPE}`,
         bodyText:             `Task type: ${TASK_TYPE}\nEntity ID: ${id}`,
         idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
       });
-    });
-
-    appendAuditEntry({
-      actionType:    'support.contact_request_submitted',
-      category:      'support',
-      actorType:     'member',
-      actorMemberId: input.requestingMemberId,
-      entityType:    'member',
-      entityId:      input.requestingMemberId,
-      reasonText:    categoryLabel,
-      metadata:      {
-        queue_item_id: id,
-        category,
-        message: trimmed,
-      },
     });
 
     return { id };
@@ -249,33 +249,39 @@ export const contactRequestService = {
     }
 
     const nowIso = new Date().toISOString();
-    const result = workQueue.resolve.run(
-      nowIso,
-      input.adminMemberId,
-      decisionLabel,
-      note.slice(0, MAX_RESOLUTION_NOTE),
-      nowIso,
-      input.adminMemberId,
-      input.queueItemId,
-    );
-    if (result.changes === 0) {
-      throw new NotFoundError(`Open contact request not found: ${input.queueItemId}`);
-    }
-
-    appendAuditEntry({
-      actionType:    'support.contact_request_resolved',
-      category:      'support',
-      actorType:     'admin',
-      actorMemberId: input.adminMemberId,
-      entityType:    'member',
-      entityId:      row.entity_id,
-      reasonText:    decisionLabel,
-      metadata:      {
-        queue_item_id: input.queueItemId,
-        decision_label: decisionLabel,
-        resolution_note: note,
-        original_reason_text: row.reason_text,
-      },
+    // The work_queue_items UPDATE and the resolution audit row commit in one
+    // transaction: a rollback cannot leave a resolved queue row without the
+    // corresponding audit entry. NotFoundError on a no-op resolve rolls back
+    // before any audit row could be written (no-op anyway, but the throw
+    // shape is consistent with other service paths).
+    transaction(() => {
+      const result = workQueue.resolve.run(
+        nowIso,
+        input.adminMemberId,
+        decisionLabel,
+        note.slice(0, MAX_RESOLUTION_NOTE),
+        nowIso,
+        input.adminMemberId,
+        input.queueItemId,
+      );
+      if (result.changes === 0) {
+        throw new NotFoundError(`Open contact request not found: ${input.queueItemId}`);
+      }
+      appendAuditEntry({
+        actionType:    'support.contact_request_resolved',
+        category:      'support',
+        actorType:     'admin',
+        actorMemberId: input.adminMemberId,
+        entityType:    'member',
+        entityId:      row.entity_id,
+        reasonText:    decisionLabel,
+        metadata:      {
+          queue_item_id: input.queueItemId,
+          decision_label: decisionLabel,
+          resolution_note: note,
+          original_reason_text: row.reason_text,
+        },
+      });
     });
 
     const member = account.findContactInfoById.get(row.entity_id) as
@@ -299,16 +305,35 @@ export const contactRequestService = {
         '— International Footbag Players Association',
       ].join('\n');
 
-      // Enqueue via outbox so SES is never called synchronously inside a
-      // request or transaction boundary. Terminal-state idempotency key:
-      // re-resolving the same queue item produces no second email.
-      getCommunicationService().enqueueEmail({
-        recipientEmail:    member.login_email,
-        recipientMemberId: member.id,
-        subject,
-        bodyText,
-        idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
-      });
+      // Strict enqueue (R4 pattern): an outbox failure after the resolve
+      // committed must surface to the admin as a 503 rather than silently
+      // drop the member's resolution notification. The queue row stays
+      // resolved + the audit row is in place; recordOperationalError pairs
+      // a *_notification_failed audit row with a logger.error marker for
+      // operator triage. Terminal-state idempotency key collapses re-
+      // enqueue attempts.
+      try {
+        getCommunicationService().enqueueEmailOrFail({
+          recipientEmail:    member.login_email,
+          recipientMemberId: member.id,
+          subject,
+          bodyText,
+          idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
+        });
+      } catch (err) {
+        recordOperationalError({
+          actionType:    'support.contact_request_resolve_notification_failed',
+          category:      'support',
+          actorType:     'admin',
+          actorMemberId: input.adminMemberId,
+          entityType:    'member',
+          entityId:      member.id,
+          reasonText:    'Queue resolve committed but resolve-notification enqueue failed.',
+          cause:         err,
+          metadata:      { queue_item_id: input.queueItemId },
+        });
+        throw err;
+      }
     }
   },
 

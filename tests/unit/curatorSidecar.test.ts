@@ -141,33 +141,33 @@ describe('readSidecar', () => {
 });
 
 describe('writeSidecar', () => {
-  it('round-trips through readSidecar', () => {
-    writeSidecar(tmp, 'demo.mp4', { caption: 'A demo', tags: ['#demo'], poster: 'demo-poster.jpg' });
+  it('round-trips through readSidecar', async () => {
+    await writeSidecar(tmp, 'demo.mp4', { caption: 'A demo', tags: ['#demo'], poster: 'demo-poster.jpg' });
     const result = readSidecar(tmp, 'demo.mp4');
     expect(result.caption).toBe('A demo');
     expect(result.tags).toEqual(['#demo']);
     expect(result.poster).toBe('demo-poster.jpg');
   });
 
-  it('rejects malformed input at write time (defensive)', () => {
-    expect(() =>
+  it('rejects malformed input at write time (defensive)', async () => {
+    await expect(
       writeSidecar(tmp, 'demo.jpg', {
         caption: 'x'.repeat(SIDECAR_CAPTION_MAX_LEN + 1),
         tags: [],
       }),
-    ).toThrow(/caption exceeds/);
+    ).rejects.toThrow(/caption exceeds/);
   });
 
-  it('emits trailing newline for editor friendliness', () => {
-    writeSidecar(tmp, 'a.jpg', { caption: null, tags: [] });
+  it('emits trailing newline for editor friendliness', async () => {
+    await writeSidecar(tmp, 'a.jpg', { caption: null, tags: [] });
     const raw = readFileSync(join(tmp, 'a.meta.json'), 'utf-8');
     expect(raw.endsWith('\n')).toBe(true);
   });
 });
 
 describe('deleteSidecar', () => {
-  it('removes the sidecar file', () => {
-    writeSidecar(tmp, 'a.jpg', { caption: null, tags: [] });
+  it('removes the sidecar file', async () => {
+    await writeSidecar(tmp, 'a.jpg', { caption: null, tags: [] });
     expect(existsSync(join(tmp, 'a.meta.json'))).toBe(true);
     deleteSidecar(tmp, 'a.jpg');
     expect(existsSync(join(tmp, 'a.meta.json'))).toBe(false);

@@ -1057,7 +1057,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const categoryDir = path.join(curatedRootDir, input.category);
         await fsp.mkdir(categoryDir, { recursive: true });
         await fsp.writeFile(path.join(categoryDir, binaryName), input.photoBuffer);
-        writeSidecar(categoryDir, binaryName, {
+        await writeSidecar(categoryDir, binaryName, {
           caption: input.caption,
           tags: input.tags,
           ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
@@ -1168,7 +1168,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         await fsp.mkdir(categoryDir, { recursive: true });
         await fsp.writeFile(path.join(categoryDir, binaryName), input.videoBuffer);
         await fsp.writeFile(path.join(categoryDir, posterName), input.posterBuffer);
-        writeSidecar(categoryDir, binaryName, {
+        await writeSidecar(categoryDir, binaryName, {
           caption: input.caption,
           tags: input.tags,
           poster: posterName,

@@ -353,6 +353,42 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
   });
+
+  // Regression for B6: profile edit was unlimited per session, allowing DB
+  // write amplification + audit-table inflation. Limit gates the controller
+  // entry before any service work; tunable via system_config_current.
+  it('member exceeding profile-edit rate-limit → 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'profile_edit_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-profile-edit-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const validBody = { bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' };
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post(`/members/${OWN_SLUG}/edit`)
+          .set('Cookie', ownCookie())
+          .type('form')
+          .send(validBody);
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post(`/members/${OWN_SLUG}/edit`)
+        .set('Cookie', ownCookie())
+        .type('form')
+        .send(validBody);
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
 });
 
 // ── GET /members/:memberKey/:section — stub pages ───────────────────────────────

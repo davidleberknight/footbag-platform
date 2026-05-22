@@ -79,4 +79,52 @@ describe('redactTokenPaths', () => {
     expect(redactTokenPaths('/register/wizard/legacy_claim/claim/confirm/tok%C3%A9n'))
       .toBe('/register/wizard/legacy_claim/claim/confirm/[redacted]');
   });
+
+  // Regression for B16: member-search query strings were logged verbatim, so a
+  // reader of debug-level CloudWatch logs could observe who searched for whom.
+  // DATA_GOVERNANCE §9 requires anonymization before persistence.
+  describe('PII query-string redaction', () => {
+    it('redacts q= as the first query parameter', () => {
+      expect(redactTokenPaths('/members/alice?q=Jane'))
+        .toBe('/members/alice?q=[redacted]');
+    });
+
+    it('redacts q= when preceded by another query parameter', () => {
+      expect(redactTokenPaths('/members/alice?page=2&q=Jane+Smith'))
+        .toBe('/members/alice?page=2&q=[redacted]');
+    });
+
+    it('preserves the parameter name and surrounding query string', () => {
+      expect(redactTokenPaths('/members?q=Jane&page=2'))
+        .toBe('/members?q=[redacted]&page=2');
+    });
+
+    it('redacts a URL-encoded q value', () => {
+      expect(redactTokenPaths('/members?q=Jane%20Smith'))
+        .toBe('/members?q=[redacted]');
+    });
+
+    it('leaves an empty q value redacted (the parameter is present)', () => {
+      // Empty value is still a query-shape signal worth normalizing.
+      expect(redactTokenPaths('/members?q=')).toBe('/members?q=[redacted]');
+    });
+
+    it('does not redact other query parameters that happen to share a prefix', () => {
+      // Only `q=`, not `query=` or `qid=`.
+      expect(redactTokenPaths('/members?query=Jane'))
+        .toBe('/members?query=Jane');
+      expect(redactTokenPaths('/members?qid=42'))
+        .toBe('/members?qid=42');
+    });
+
+    it('redacts q= even on a token-bearing route after path redaction', () => {
+      expect(redactTokenPaths('/verify/abc123?q=Jane'))
+        .toBe('/verify/[redacted]?q=[redacted]');
+    });
+
+    it('leaves the fragment untouched after q= redaction', () => {
+      expect(redactTokenPaths('/members?q=Jane#hash'))
+        .toBe('/members?q=[redacted]#hash');
+    });
+  });
 });

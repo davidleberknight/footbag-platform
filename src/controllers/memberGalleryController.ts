@@ -21,7 +21,9 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import { getDefaultCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX, buildExternalLinkSlots } from '../services/curatorMediaService';
 import { detectImageType } from '../lib/imageProcessing';
-import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { hit as rateLimitHit } from '../services/rateLimitService';
+import { readIntConfig } from '../services/configReader';
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
@@ -89,6 +91,51 @@ function listHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
 
+function renderListWithError(
+  req: Request,
+  res: Response,
+  status: number,
+  errorMessage: string,
+): void {
+  const memberKey = req.params.memberKey;
+  const memberId = req.user!.userId;
+  const svc = buildSvc();
+  const summaries = svc.listGalleriesForOwner(memberId);
+  const galleries = summaries.map((g) => ({
+    id: g.id,
+    name: g.name,
+    description: g.description,
+    sortOrder: g.sortOrder,
+    criteriaTags: g.criteriaTags,
+    excludeTags: g.excludeTags,
+    itemCount: g.itemCount,
+    editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
+    deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
+  }));
+  res.status(status).render('members/galleries/list', {
+    seo: { title: 'My Galleries' },
+    page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
+    content: {
+      galleries,
+      newGalleryHref: `/members/${memberKey}/galleries/new`,
+      uploadMediaHref: `/members/${memberKey}/media/upload`,
+      errorMessage,
+    },
+  });
+}
+
+function enforceGalleryWriteLimit(req: Request): RateLimitedError | null {
+  if (req.user?.role === 'admin') return null;
+  const memberId = req.user!.userId;
+  const max = readIntConfig('gallery_write_rate_limit_per_hour', 30);
+  const rl = rateLimitHit(`gallery-write:${memberId}`, max, 60);
+  if (rl.allowed) return null;
+  return new RateLimitedError(
+    `Too many gallery operations. Try again in ${rl.retryAfterSeconds} seconds.`,
+    rl.retryAfterSeconds,
+  );
+}
+
 export const memberGalleryController = {
   /** GET /members/:memberKey/galleries — list this member's own galleries. */
   getList(req: Request, res: Response, next: NextFunction): void {
@@ -154,6 +201,22 @@ export const memberGalleryController = {
   async postCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnRoute(req)) {
       renderNotFound(res);
+      return;
+    }
+    const rlErr = enforceGalleryWriteLimit(req);
+    if (rlErr) {
+      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
+      const memberKey = req.params.memberKey;
+      res.status(429).render('members/galleries/new', {
+        seo: { title: 'Create Gallery' },
+        page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
+        formAction: listHref(memberKey),
+        errorMessage: rlErr.message,
+        gallery: { name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
+        cancelHref: listHref(memberKey),
+        uploadTags: '',
+        externalLinkSlots: buildExternalLinkSlots(null, []),
+      });
       return;
     }
     if (req.is('multipart/form-data')) {
@@ -278,6 +341,12 @@ export const memberGalleryController = {
       renderNotFound(res);
       return;
     }
+    const rlErr = enforceGalleryWriteLimit(req);
+    if (rlErr) {
+      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
+      renderListWithError(req, res, 429, rlErr.message);
+      return;
+    }
     if (req.is('multipart/form-data')) {
       handleMultipartUpdate(req, res, next);
       return;
@@ -356,6 +425,12 @@ export const memberGalleryController = {
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnRoute(req)) {
       renderNotFound(res);
+      return;
+    }
+    const rlErr = enforceGalleryWriteLimit(req);
+    if (rlErr) {
+      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
+      renderListWithError(req, res, 429, rlErr.message);
       return;
     }
     try {

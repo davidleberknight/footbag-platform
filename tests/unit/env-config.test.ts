@@ -570,6 +570,85 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
+  // Regression for B9: FOOTBAG_TEST_MEMORY_PERCENT was read via process.env
+  // inside operationsPlatformService, ungated. An env injection in production
+  // could forge anonymous /health/ready readings. The new boot-time guard
+  // refuses production start when this var is set; tests and staging
+  // operators retain the override.
+
+  it('parses FOOTBAG_TEST_MEMORY_PERCENT as a number under FOOTBAG_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'development';
+    process.env.FOOTBAG_TEST_MEMORY_PERCENT = '42';
+    const { config } = await import('../../src/config/env');
+    expect(config.testMemoryPercent).toBe(42);
+  });
+
+  it("parses FOOTBAG_TEST_MEMORY_PERCENT='null' to null", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_TEST_MEMORY_PERCENT = 'null';
+    const { config } = await import('../../src/config/env');
+    expect(config.testMemoryPercent).toBeNull();
+  });
+
+  it('defaults FOOTBAG_TEST_MEMORY_PERCENT to undefined when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_TEST_MEMORY_PERCENT;
+    const { config } = await import('../../src/config/env');
+    expect(config.testMemoryPercent).toBeUndefined();
+  });
+
+  it('rejects FOOTBAG_TEST_MEMORY_PERCENT with a non-numeric value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_TEST_MEMORY_PERCENT = 'not-a-number';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_TEST_MEMORY_PERCENT must be a finite number/,
+    );
+  });
+
+  it('throws when FOOTBAG_TEST_MEMORY_PERCENT is set with FOOTBAG_ENV=production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.FOOTBAG_TEST_MEMORY_PERCENT = '5';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_TEST_MEMORY_PERCENT is dev\/staging-only; refusing production start/,
+    );
+  });
+
+  it('accepts FOOTBAG_TEST_MEMORY_PERCENT under FOOTBAG_ENV=staging', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.FOOTBAG_TEST_MEMORY_PERCENT = '85';
+    const { config } = await import('../../src/config/env');
+    expect(config.testMemoryPercent).toBe(85);
+  });
+
   // Production-env fail-fast for every dev-only flag. The staging-env cases
   // above cover the dev/staging boundary; these cases lock production as the
   // highest-stakes refusal. A regression that quietly removed any of these

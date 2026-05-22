@@ -25,6 +25,8 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { hit as rateLimitHit } from '../services/rateLimitService';
+import { readIntConfig } from '../services/configReader';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function isOwnRoute(req: Request): boolean {
@@ -131,6 +133,23 @@ export const memberMediaEditController = {
     const mediaId = req.params.mediaId;
     const memberId = req.user!.userId;
     const slug = req.user!.slug;
+
+    if (req.user?.role !== 'admin') {
+      const max = readIntConfig('media_edit_rate_limit_per_hour', 15);
+      const rl = rateLimitHit(`media-edit:${memberId}`, max, 60);
+      if (!rl.allowed) {
+        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+        renderForm(res, memberKey, mediaId, {
+          caption: String(req.body?.caption ?? ''),
+          tags: String(req.body?.tags ?? ''),
+          externalUrl: String(req.body?.externalUrl ?? ''),
+        }, {
+          status: 429,
+          errorMessage: `Too many media edits. Try again in ${rl.retryAfterSeconds} seconds.`,
+        });
+        return;
+      }
+    }
 
     const captionRaw = String(req.body?.caption ?? '').trim();
     const caption: string | null = captionRaw.length === 0 ? null : captionRaw;

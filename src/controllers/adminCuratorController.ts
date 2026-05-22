@@ -21,6 +21,8 @@ import {
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
+import { hit as rateLimitHit } from '../services/rateLimitService';
+import { readIntConfig } from '../services/configReader';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import {
   parseExternalLinkInputs,
@@ -38,6 +40,20 @@ import { randomUUID } from 'node:crypto';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
+
+// Per-admin rate-limit. Compromised-admin is the threat model; admin role
+// does not bypass. Bucket key uses session-derived admin id.
+function enforceCuratorWriteLimit(req: Request, res: Response): boolean {
+  const adminMemberId = req.user!.userId;
+  const max = readIntConfig('curator_write_rate_limit_per_hour', 60);
+  const rl = rateLimitHit(`curator-write:${adminMemberId}`, max, 60);
+  if (rl.allowed) return true;
+  if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+  res.status(429)
+    .type('text/plain')
+    .send(`Too many curator operations. Try again in ${rl.retryAfterSeconds} seconds.`);
+  return false;
+}
 
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);
@@ -169,6 +185,7 @@ export const adminCuratorController = {
    * bytes, caption length, and tag shape.
    */
   postUpload(req: Request, res: Response, next: NextFunction): void {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     const adminMemberId = req.user!.userId;
 
     const fields: Record<string, string> = {};
@@ -592,6 +609,7 @@ export const adminCuratorController = {
   },
 
   async postEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;
@@ -875,6 +893,7 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/media/:id/delete — hard delete + S3 cleanup. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;

@@ -205,6 +205,13 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   try {
     await identityAccessService.resendVerifyEmail(email ?? '');
   } catch (err) {
+    if (err instanceof ServiceUnavailableError) {
+      // Verify-email enqueue failed (outbox / SES degradation). Surface 503
+      // truthfully instead of falling through to the 500 handler; the audit
+      // row in identityAccessService records the failure for operator triage.
+      renderServiceUnavailable(res);
+      return;
+    }
     next(err);
     return;
   }

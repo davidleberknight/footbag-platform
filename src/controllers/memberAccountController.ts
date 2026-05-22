@@ -34,21 +34,14 @@ function postAutoLinkDismiss(req: Request, res: Response, next: NextFunction): v
 }
 
 function postAutoLinkReportIncorrect(req: Request, res: Response, next: NextFunction): void {
-  const claimAuditId = typeof req.body?.claimAuditId === 'string' ? req.body.claimAuditId : '';
+  // claimAuditId is always derived server-side from the member's pending card;
+  // any value in the request body is ignored to prevent forensic-record forgery
+  // (a malicious body could otherwise plant another member's audit id into
+  // the revert audit row and the resulting work-queue item).
   try {
-    if (!claimAuditId) {
-      // Fall back to the card-bound audit id if the form omitted it (the
-      // dashboard card always includes it). A missing id means there is no
-      // actionable revert target; redirect back without state change.
-      const card = identityAccessService.getPendingAutoLinkCard(req.user!.userId);
-      if (card) {
-        identityAccessService.revertAutoLink(req.user!.userId, card.claimAuditId, {
-          actorType:     'member',
-          actorMemberId: req.user!.userId,
-        });
-      }
-    } else {
-      identityAccessService.revertAutoLink(req.user!.userId, claimAuditId, {
+    const card = identityAccessService.getPendingAutoLinkCard(req.user!.userId);
+    if (card) {
+      identityAccessService.revertAutoLink(req.user!.userId, card.claimAuditId, {
         actorType:     'member',
         actorMemberId: req.user!.userId,
       });

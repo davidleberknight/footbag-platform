@@ -7,7 +7,7 @@
  * that db.ts opens the test database. beforeAll builds the schema and inserts
  * test data via factories. afterAll removes the temp DB and WAL sidecars.
  */
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
@@ -300,12 +300,15 @@ describe('GET /health/ready', () => {
     expect(res.headers['content-type']).toMatch(/application\/json/);
   });
 
-  it('includes checks.database.isReady in response body', async () => {
+  it('does not leak per-check detail in the anonymous response (regression for B19)', async () => {
+    // Anonymous /health/ready must not surface container memory % or
+    // per-check booleans to public callers. CWAgent publishes
+    // mem_used_percent as a host metric; operators read it from
+    // CloudWatch, not from this endpoint.
     const app = createApp();
     const res = await request(app).get('/health/ready');
-    expect(res.body).toMatchObject({
-      checks: { database: { isReady: true } },
-    });
+    expect(res.body).toEqual({ ok: true, check: 'ready' });
+    expect(res.body.checks).toBeUndefined();
   });
 
   it('is accessible without authentication', async () => {
@@ -315,43 +318,52 @@ describe('GET /health/ready', () => {
   });
 
   describe('memory-pressure gating', () => {
-    afterEach(() => {
-      delete process.env.FOOTBAG_TEST_MEMORY_PERCENT;
+    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    let opsMod: typeof import('../../src/services/operationsPlatformService');
+
+    afterEach(async () => {
+      if (!opsMod) opsMod = await import('../../src/services/operationsPlatformService');
+      opsMod.resetTestMemoryPercentForTests();
     });
 
-    it('returns 200 with memory.isReady true when usage is under 90 percent', async () => {
-      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '50';
+    async function setMem(value: number | null): Promise<void> {
+      if (!opsMod) opsMod = await import('../../src/services/operationsPlatformService');
+      opsMod.setTestMemoryPercentForTests(value);
+    }
+
+    // Threshold-logic tests assert the gate fires via status + ok. Per-check
+    // detail is intentionally absent from the anonymous response (B19).
+
+    it('returns 200 + ok=true when usage is under 90 percent', async () => {
+      await setMem(50);
       const app = createApp();
       const res = await request(app).get('/health/ready');
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
-      expect(res.body.checks.memory).toEqual({ isReady: true, usedPercent: 50 });
     });
 
-    it('returns 503 at the 90 percent boundary', async () => {
-      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '90';
+    it('returns 503 + ok=false at the 90 percent boundary', async () => {
+      await setMem(90);
       const app = createApp();
       const res = await request(app).get('/health/ready');
       expect(res.status).toBe(503);
       expect(res.body.ok).toBe(false);
-      expect(res.body.checks.memory).toEqual({ isReady: false, usedPercent: 90 });
     });
 
-    it('returns 503 with memory.isReady false above 90 percent', async () => {
-      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '95';
+    it('returns 503 + ok=false above 90 percent', async () => {
+      await setMem(95);
       const app = createApp();
       const res = await request(app).get('/health/ready');
       expect(res.status).toBe(503);
       expect(res.body.ok).toBe(false);
-      expect(res.body.checks.memory).toEqual({ isReady: false, usedPercent: 95 });
     });
 
     it('treats missing cgroup data as ready', async () => {
-      process.env.FOOTBAG_TEST_MEMORY_PERCENT = 'null';
+      await setMem(null);
       const app = createApp();
       const res = await request(app).get('/health/ready');
       expect(res.status).toBe(200);
-      expect(res.body.checks.memory).toEqual({ isReady: true, usedPercent: null });
+      expect(res.body.ok).toBe(true);
     });
   });
 });
@@ -1241,6 +1253,65 @@ describe('GET /nonexistent-route', () => {
     const app = createApp();
     const res = await request(app).get('/this-route-does-not-exist');
     expect(res.text).toContain('Page Not Found');
+  });
+});
+
+// Regression for B20: /csp-report previously logged the wholesale request
+// body, so an attacker could inflate CloudWatch log volume by POSTing
+// arbitrarily-structured JSON up to the body-parser cap. Fix narrows the
+// logged payload to the standard `csp-report` key only.
+describe('POST /csp-report', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let loggerMod: typeof import('../../src/config/logger');
+  let warnSpy: ReturnType<typeof vi.spyOn> | undefined;
+
+  beforeAll(async () => {
+    loggerMod = await import('../../src/config/logger');
+  });
+
+  afterEach(() => {
+    warnSpy?.mockRestore();
+    warnSpy = undefined;
+  });
+
+  it('logs only the standard csp-report key, not the full body', async () => {
+    warnSpy = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined);
+    const app = createApp();
+    const realViolation = {
+      'csp-report': {
+        'document-uri': 'https://example.com/page',
+        'violated-directive': 'script-src',
+        'blocked-uri': 'inline',
+      },
+    };
+    // Attacker-controlled extra keys at the top level must not reach the log.
+    const inflatedBody = {
+      ...realViolation,
+      'attacker-padding': 'x'.repeat(50000),
+      'another-key': { nested: 'y'.repeat(20000) },
+    };
+    const res = await request(app)
+      .post('/csp-report')
+      .set('Content-Type', 'application/csp-report')
+      .send(JSON.stringify(inflatedBody));
+    expect(res.status).toBe(204);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const logged = warnSpy.mock.calls[0]![1] as Record<string, unknown>;
+    expect(logged.cspReport).toEqual(realViolation['csp-report']);
+    // No top-level field carries the inflated keys.
+    expect(JSON.stringify(logged)).not.toContain('attacker-padding');
+    expect(JSON.stringify(logged)).not.toContain('another-key');
+  });
+
+  it('accepts application/reports+json (modern Reporting API)', async () => {
+    warnSpy = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined);
+    const app = createApp();
+    const res = await request(app)
+      .post('/csp-report')
+      .set('Content-Type', 'application/reports+json')
+      .send(JSON.stringify({ 'csp-report': { 'violated-directive': 'frame-src' } }));
+    expect(res.status).toBe(204);
+    expect(warnSpy).toHaveBeenCalledOnce();
   });
 });
 

@@ -63,7 +63,6 @@ fi
 # Allowlisted exceptions:
 #   - src/dev-shortcuts/**                  dev-only tooling; not production code
 #   - src/imageWorker.ts                          separate-process entry-point with its own env bootstrap (per file header)
-#   - src/services/operationsPlatformService.ts   test-only override (FOOTBAG_TEST_MEMORY_PERCENT) mocking cgroup reads; never set in production
 #
 # Comment-only mentions (lines whose match is inside a // comment) are
 # filtered so src/server.ts and src/transcodeWorker.ts pass without an
@@ -74,7 +73,6 @@ hits=$(grep -rn --include='*.ts' 'process\.env' src/ \
   | grep -v '^src/config/env\.ts:' \
   | grep -v '^src/dev-shortcuts/' \
   | grep -v '^src/imageWorker\.ts:' \
-  | grep -v '^src/services/operationsPlatformService\.ts:' \
   || true)
 if [ -n "$hits" ]; then
   echo "$hits" >&2

@@ -1,9 +1,8 @@
 import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerPartnerRow,
-         publicPlayers, freestyleRecords, account, legacyClaim } from '../db/db';
+         publicPlayers, freestyleRecords, legacyClaim } from '../db/db';
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
@@ -120,19 +119,7 @@ export const historyService = {
       return { action: 'requireAuth' };
     }
 
-    let avatarThumbUrl: string | null = null;
-
-    if (linkedRow?.slug) {
-      const memberRow = runSqliteRead('findMemberBySlugForAvatar', () =>
-        account.findMemberBySlug.get(linkedRow.slug),
-      ) as { avatar_thumb_key: string | null; avatar_media_id: string | null } | undefined;
-      if (memberRow?.avatar_thumb_key) {
-        const base = getMediaStorageAdapter().constructURL(memberRow.avatar_thumb_key);
-        avatarThumbUrl = memberRow.avatar_media_id
-          ? `${base}?v=${encodeURIComponent(memberRow.avatar_media_id)}`
-          : base;
-      }
-    }
+    const avatarThumbUrl: string | null = null;
 
     const heroData: PlayerHeroData = {
       displayName:       player.personName,

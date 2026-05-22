@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -187,5 +188,179 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .type('form')
       .send({ decision_label: 'corrected', resolution_note: 'ok' });
     expect(res.status).toBe(403);
+  });
+
+  // Regression for B15: resolve-notification email was sent via the plain
+  // enqueueEmail helper which silently swallows outbox write failures. After
+  // R4-pattern migration to enqueueEmailOrFail, an outbox failure surfaces
+  // as a truthful 503. The queue row stays resolved + the audit row stays
+  // written (both committed inside the resolve transaction before the
+  // enqueue runs, per B10 fix); the operator sees a 503 banner driven by
+  // handleControllerError's ServiceUnavailableError → 503 mapping.
+  describe('enqueueEmailOrFail failure on resolve', () => {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    let commsMod: typeof import('../../src/services/communicationService');
+
+    beforeAll(async () => {
+      commsMod = await import('../../src/services/communicationService');
+    });
+
+    afterEach(() => {
+      commsMod.resetCommunicationServiceForTests();
+    });
+
+    it('enqueueEmailOrFail throws → 503 + queue resolved + audit row + notification_failed audit + no outbox row', async () => {
+      expectLoggedError('audit: support.contact_request_resolve_notification_failed');
+      const app = createApp();
+      const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+
+      // Break enqueueEmailOrFail only; leave enqueueMailingListEmail / plain
+      // enqueueEmail intact so the submit path that already ran isn't
+      // implicated.
+      const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+      commsMod.setCommunicationServiceForTests({
+        enqueueEmail: () => undefined,
+        enqueueEmailOrFail: () => {
+          throw new ServiceUnavailableError(
+            'synthetic enqueueEmailOrFail failure for contact-request-resolve',
+          );
+        },
+        enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+        processSendQueue: async () => ({
+          claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+        }),
+      });
+
+      const res = await request(app)
+        .post(`/admin/work-queue/${queueId}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'corrected', resolution_note: 'Fixed your display name.' });
+      expect(res.status).toBe(503);
+
+      const db = new BetterSqlite3(dbPath);
+      try {
+        // Queue row resolved despite the enqueue failure (mutation committed
+        // before the strict enqueue ran).
+        const queueRow = db
+          .prepare(`SELECT status, decision_label FROM work_queue_items WHERE id = ?`)
+          .get(queueId) as { status: string; decision_label: string } | undefined;
+        expect(queueRow).toBeDefined();
+        expect(queueRow!.status).toBe('resolved');
+
+        // Audit row written inside the same transaction as the resolve.
+        const resolvedAudit = db
+          .prepare(`SELECT id FROM audit_entries WHERE action_type = 'support.contact_request_resolved' AND entity_id = ?`)
+          .get(MEMBER_ID) as { id: string } | undefined;
+        expect(resolvedAudit).toBeDefined();
+
+        // R4 operational-error audit row: persistent forensic record paired
+        // with the logger.error marker so operators can triage outbox / SES
+        // degradation.
+        const failedAudit = db
+          .prepare(`SELECT id FROM audit_entries WHERE action_type = 'support.contact_request_resolve_notification_failed' AND entity_id = ?`)
+          .get(MEMBER_ID) as { id: string } | undefined;
+        expect(failedAudit).toBeDefined();
+
+        // No outbox row for the resolve-notification: the strict enqueue
+        // threw before any outbox row could land.
+        const outbox = db
+          .prepare(`SELECT id FROM outbox_emails WHERE idempotency_key = ?`)
+          .get(`contact-request-resolve:${queueId}`) as { id: string } | undefined;
+        expect(outbox).toBeUndefined();
+      } finally {
+        db.close();
+      }
+    });
+
+    it('member with no email address skips the enqueue entirely → 303 + no outbox row', async () => {
+      // Defensive regression: if member.login_email is empty, resolve must
+      // not attempt the enqueue (no synthetic 503 from a missing recipient).
+      const db = new BetterSqlite3(dbPath);
+      db.prepare(`UPDATE members SET login_email = '', login_email_normalized = '' WHERE id = ?`).run(MEMBER_ID);
+      db.close();
+      try {
+        const app = createApp();
+        const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+
+        // Pre-arm a faulty enqueueEmailOrFail; if resolve calls it, the test
+        // fails because the enqueue would throw. The empty-email guard
+        // skips the call entirely.
+        const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+        commsMod.setCommunicationServiceForTests({
+          enqueueEmail: () => undefined,
+          enqueueEmailOrFail: () => {
+            throw new ServiceUnavailableError('should not be called when member has no email');
+          },
+          enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+          processSendQueue: async () => ({
+            claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+          }),
+        });
+
+        const res = await request(app)
+          .post(`/admin/work-queue/${queueId}/resolve`)
+          .set('Cookie', adminCookie())
+          .type('form')
+          .send({ decision_label: 'corrected', resolution_note: 'ok' });
+        expect(res.status).toBe(303);
+      } finally {
+        // Restore the member's email for later tests in the file.
+        const restore = new BetterSqlite3(dbPath);
+        restore.prepare(`UPDATE members SET login_email = ?, login_email_normalized = ? WHERE id = ?`)
+          .run('wq-member@example.com', 'wq-member@example.com', MEMBER_ID);
+        restore.close();
+      }
+    });
+  });
+
+  // Regression for B18: work-queue resolve was unlimited per admin session.
+  // A compromised admin could resolve many items rapidly before detection.
+  // The limit applies to admins (compromised-admin is the threat model).
+  it('admin exceeding work-queue-resolve rate-limit → 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(dbPath);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'work_queue_resolve_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-wq-resolve-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const q1 = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+      // postOneOpenRequest may submit, but the resolve bucket is independent.
+      // Reset after the open-request seeding to be safe.
+      rlMod.resetRateLimitForTests();
+
+      const r1 = await request(app)
+        .post(`/admin/work-queue/${q1}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'corrected', resolution_note: 'ok 1' });
+      expect(r1.status).toBe(303);
+
+      // Need a fresh open queue row to resolve next; reuse fixture creator.
+      const q2 = await postOneOpenRequest(app, OTHER_ID, 'wq_other');
+      const r2 = await request(app)
+        .post(`/admin/work-queue/${q2}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'corrected', resolution_note: 'ok 2' });
+      expect(r2.status).toBe(303);
+
+      // Third resolve attempt - any id, even bogus, should 429 before
+      // reaching the service since the bucket is exhausted.
+      const blocked = await request(app)
+        .post(`/admin/work-queue/wq_anything/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'corrected', resolution_note: 'blocked' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
   });
 });

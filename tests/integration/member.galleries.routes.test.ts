@@ -884,3 +884,34 @@ describe('gallery edit current-items display + uploadTags', () => {
     expect(findGalleryIdByName('No File')).toBeTruthy();
   });
 });
+
+// Regression for B8: gallery create / edit / delete state-changing endpoints
+// were unlimited per member, allowing image-worker resource exhaustion and
+// DB contention on gallery-tag junction tables. The bucket is shared across
+// the three write operations (`gallery-write:${memberId}`), so a member can
+// distribute the abuse across all three handlers but the aggregate limit
+// still fires.
+describe('POST /members/:memberKey/galleries — rate limit', () => {
+  it('member exceeding gallery-write rate-limit → 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'gallery_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-gallery-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      for (let i = 0; i < 2; i++) {
+        const ok = await createGalleryViaApi(`RL Gallery ${i}`, '#rl');
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await createGalleryViaApi('RL Gallery Blocked', '#rl');
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+});

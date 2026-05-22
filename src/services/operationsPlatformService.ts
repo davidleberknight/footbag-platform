@@ -4,6 +4,7 @@ import { health, systemJobRuns, workQueue, batchAutoLink, transaction } from '..
 import { runSqliteRead } from './sqliteRetry';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { readIntConfig } from './configReader';
+import { config } from '../config/env';
 import { logger } from '../config/logger';
 import {
   runDailyPass as runActivePlayerExpiryDailyPass,
@@ -32,13 +33,26 @@ export interface ReadinessStatus {
 
 const MEMORY_PRESSURE_THRESHOLD_PERCENT = 90;
 
+// Mutable test seam over the immutable config-derived value. Boot reads
+// FOOTBAG_TEST_MEMORY_PERCENT once via src/config/env.ts (which fail-fasts
+// in production); tests use setTestMemoryPercentForTests / reset...ForTests
+// to drive readiness gating per-case without manipulating real cgroup state.
+let testMemoryPercentOverride: number | null | undefined = config.testMemoryPercent;
+
+export function setTestMemoryPercentForTests(value: number | null | undefined): void {
+  testMemoryPercentOverride = value;
+}
+
+export function resetTestMemoryPercentForTests(): void {
+  testMemoryPercentOverride = config.testMemoryPercent;
+}
+
 // memory.current includes page cache by design; this matches the value
 // CWAgent emits as mem_used_percent so the readiness gate aligns with the
 // host-side alarm threshold. Do not subtract cache.
 export function readContainerMemoryUsedPercent(): number | null {
-  const override = process.env.FOOTBAG_TEST_MEMORY_PERCENT;
-  if (override !== undefined) {
-    return override === 'null' ? null : Number(override);
+  if (testMemoryPercentOverride !== undefined) {
+    return testMemoryPercentOverride;
   }
   try {
     const max = readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();

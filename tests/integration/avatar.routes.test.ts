@@ -501,3 +501,41 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
     expect(v2).not.toBe(v1);
   });
 });
+
+// Regression for B7: avatar upload was unlimited per session, allowing
+// image-worker resource exhaustion + unbounded S3 write cost. Limit gates
+// the controller before busboy parses the multipart body.
+describe('POST /members/:memberKey/avatar -- rate limit', () => {
+  it('member exceeding avatar-upload rate-limit -> 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'avatar_upload_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-avatar-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const validJpeg = await sharp({
+        create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 200, b: 0 } },
+      }).jpeg().toBuffer();
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post(`/members/${OWN_SLUG}/avatar`)
+          .set('Cookie', ownCookie())
+          .attach('avatar', validJpeg, `r${i}.jpg`);
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post(`/members/${OWN_SLUG}/avatar`)
+        .set('Cookie', ownCookie())
+        .attach('avatar', validJpeg, 'r3.jpg');
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+});

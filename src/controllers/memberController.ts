@@ -8,6 +8,8 @@ import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
+import { hit as rateLimitHit } from '../services/rateLimitService';
+import { readIntConfig } from '../services/configReader';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
@@ -134,8 +136,22 @@ export const memberController = {
       renderNotFound(res);
       return;
     }
+    const memberKey = req.params.memberKey;
+    const memberId = req.user!.userId;
+    if (req.user?.role !== 'admin') {
+      const max = readIntConfig('profile_edit_rate_limit_per_hour', 20);
+      const rl = rateLimitHit(`profile-edit:${memberId}`, max, 60);
+      if (!rl.allowed) {
+        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+        const vm = memberService.getProfileEditPage(
+          memberKey,
+          `Too many profile edits. Try again in ${rl.retryAfterSeconds} seconds.`,
+        );
+        res.status(429).render('members/profile-edit', vm);
+        return;
+      }
+    }
     try {
-      const memberKey = req.params.memberKey;
       const input: ProfileEditInput = {
         bio:             req.body.bio            ?? '',
         city:            req.body.city           ?? '',
@@ -154,7 +170,6 @@ export const memberController = {
         // The submit always carries firstCompetitionYear (blank or value) and
         // showCompetitiveResults (hidden + checkbox), so both tasks always
         // count as "decided" after a profile-edit save.
-        const memberId = req.user!.userId;
         memberOnboardingService.completeTaskIfOutstanding(memberId, 'first_competition_year');
         memberOnboardingService.completeTaskIfOutstanding(memberId, 'show_competitive_results');
         res.redirect(303, `/members/${memberKey}`);
@@ -182,10 +197,20 @@ export const memberController = {
     const memberKey = req.params.memberKey;
     const memberId = req.user!.userId;
 
-    const renderError = (msg: string) => {
+    const renderError = (msg: string, status = 422) => {
       const vm = memberService.getProfileEditPage(memberKey, undefined, msg);
-      res.status(422).render('members/profile-edit', vm);
+      res.status(status).render('members/profile-edit', vm);
     };
+
+    if (req.user?.role !== 'admin') {
+      const max = readIntConfig('avatar_upload_rate_limit_per_hour', 10);
+      const rl = rateLimitHit(`avatar-upload:${memberId}`, max, 60);
+      if (!rl.allowed) {
+        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+        renderError(`Too many avatar uploads. Try again in ${rl.retryAfterSeconds} seconds.`, 429);
+        return;
+      }
+    }
 
     const chunks: Buffer[] = [];
     let fileFound = false;

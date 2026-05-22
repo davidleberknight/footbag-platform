@@ -394,11 +394,22 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
   return mapped;
 }
 
-function getAdjacentArchiveYears(
+/**
+ * Resolve sibling-archive-year navigation for a given year. Exported for
+ * unit testing.
+ *
+ * `previousYear` is the year immediately older than `year`; `nextYear` is
+ * the year immediately newer. The helper sorts its input DESC internally
+ * so the result is independent of the caller's ordering. The current
+ * production caller is `listPublicArchiveYears()` which returns DESC, but
+ * a future change to ASC would otherwise silently invert previous/next.
+ */
+export function getAdjacentArchiveYears(
   archiveYears: number[],
   year: number,
 ): { previousYear: number | null; nextYear: number | null } {
-  const index = archiveYears.indexOf(year);
+  const sorted = [...archiveYears].sort((a, b) => b - a);
+  const index = sorted.indexOf(year);
 
   if (index === -1) {
     return {
@@ -408,8 +419,8 @@ function getAdjacentArchiveYears(
   }
 
   return {
-    previousYear: index < archiveYears.length - 1 ? archiveYears[index + 1] : null,
-    nextYear: index > 0 ? archiveYears[index - 1] : null,
+    previousYear: index < sorted.length - 1 ? sorted[index + 1] : null,
+    nextYear: index > 0 ? sorted[index - 1] : null,
   };
 }
 

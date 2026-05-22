@@ -16,6 +16,7 @@ import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
+import { formatDate } from './lib/handlebarsHelpers';
 import { ForbiddenError } from './services/serviceErrors';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
@@ -146,16 +147,7 @@ export function createApp(): express.Application {
         add: (a: unknown, b: unknown) => (a as number) + (b as number),
         not: (a: unknown) => !a,
         or:  (a: unknown, b: unknown) => Boolean(a) || Boolean(b),
-        formatDate: (iso: string) => {
-          const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-          const parts = String(iso).split('-');
-          const year  = parts[0];
-          const month = parseInt(parts[1], 10);
-          const day   = parseInt(parts[2], 10);
-          if (!parts[1]) return year;
-          if (!parts[2] || isNaN(day)) return `${months[month - 1]} ${year}`;
-          return `${day} ${months[month - 1]} ${year}`;
-        },
+        formatDate: (iso: string) => formatDate(iso),
         formatLocation: (city: unknown, region: unknown, country: unknown) => {
           const c = typeof city === 'string' ? city.trim() : '';
           const r = typeof region === 'string' ? region.trim() : '';
@@ -184,14 +176,20 @@ export function createApp(): express.Application {
   // other CSP directive is violated. Logged at warn level so operators
   // can spot regressions of HIGH-1 (frame-src) and HIGH-2 (inline attrs)
   // without manual template scanning. Mounted before auth so unauthenticated
-  // page renders that violate CSP still get reported. Body is unauthenticated
-  // input; the only consumer is the logger, which does its own redaction.
+  // page renders that violate CSP still get reported.
+  //
+  // Body is unauthenticated input bounded by the body-parser cap; only the
+  // standard `csp-report` key is forwarded to the logger so an attacker
+  // cannot inflate log volume by POSTing arbitrarily-structured JSON. The
+  // accepted content types are restricted to the two browser CSP-report
+  // shapes; `application/json` would otherwise admit any JSON payload.
   app.post(
     '/csp-report',
-    express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'] }),
+    express.json({ type: ['application/csp-report', 'application/reports+json'] }),
     (req, res) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
       logger.warn('csp violation reported', {
-        body: req.body,
+        cspReport: body['csp-report'],
         userAgent: req.get('User-Agent'),
       });
       res.status(204).end();

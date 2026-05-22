@@ -580,3 +580,47 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).not.toContain('seed_fh_curator.py');
   });
 });
+
+// Regression for B17: state-changing curator endpoints (upload / edit /
+// delete) were unlimited per admin session, so a compromised admin credential
+// could saturate S3 / delete rows in rapid succession before detection. The
+// limit applies even to admins (compromised-admin is the threat model). The
+// bucket is shared across upload/edit/delete; this test exercises the limit
+// via the edit endpoint since it's the simplest to drive without a fresh
+// upload each iteration.
+describe('admin curator state-change rate limit', () => {
+  it('admin exceeding curator-write rate-limit -> 429 with Retry-After', async () => {
+    const caption = `RL_FIXTURE_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mediaId = await uploadPhotoViaRoute(caption, []);
+
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'curator_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-curator-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post(`/admin/curator/media/${mediaId}/edit`)
+          .set('Cookie', adminCookie())
+          .type('form')
+          .send({ caption: `${caption}-pass-${i}`, tags: '' });
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post(`/admin/curator/media/${mediaId}/edit`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ caption: `${caption}-blocked`, tags: '' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+});
