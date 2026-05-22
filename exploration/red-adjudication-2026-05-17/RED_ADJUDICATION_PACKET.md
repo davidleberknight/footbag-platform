@@ -1,5 +1,11 @@
 # IFPA Freestyle Adjudication Packet for Red Husted
 
+> **SUPERSEDED 2026-05-21.** Do not send this packet. Most of its
+> questions were resolved by the 2026-05-15, 2026-05-20, and 2026-05-21
+> guidance batches; the remaining open items are consolidated into
+> `exploration/red-adjudication-2026-05-21/RED_PACKET_2026-05-21.md`.
+> Retained for historical reference only.
+
 **Date:** 2026-05-17
 **Purpose:** Movement-language clarification on open IFPA decomposition questions
 **Reviewer:** Red Husted
