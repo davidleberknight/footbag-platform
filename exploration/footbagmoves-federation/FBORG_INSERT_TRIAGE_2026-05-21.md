@@ -35,7 +35,7 @@ non-pilot rows. Low-risk, low-ambiguity.
 
 | Slug | Why |
 |---|---|
-| `clipper-kick` | The live DB already has `clipper` at 1 ADD — that *is* the kick form. The staging match missed it (slug `clipper-kick` ≠ `clipper`). Recommend recording "clipper kick" as an **alias of `clipper`**, not inserting a duplicate canonical row. |
+| `clipper-kick` | Already represented by the live DB's `clipper` row (the 1-ADD clipper kick — "Body kick into clipper position"). **Curator decision 2026-05-21: document-only** — no insert (would duplicate), no alias (`clipper` is an overloaded umbrella term). Kept as documented naming debt; see `CLIPPER_KICK_NAMING_NOTE_2026-05-21.md`. |
 
 ## 4. DEFER (77) — the core finding
 
@@ -112,8 +112,9 @@ not because the trick is doubtful.
    UPDATE loader used.
 3. For `defer` rows you want to advance: author prose, batch by
    family, promote via the SCALE-pilot process.
-4. For `clipper-kick`: add "clipper kick" to `freestyle_tricks.clipper`
-   `aliases_json` instead of inserting.
+4. For `clipper-kick`: **no action** — already canonical as the live
+   DB `clipper` row. Document-only per
+   `CLIPPER_KICK_NAMING_NOTE_2026-05-21.md`; do not insert, do not alias.
 
 ## Files
 
