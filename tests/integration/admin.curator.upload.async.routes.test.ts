@@ -29,6 +29,7 @@ process.env.INTERNAL_EVENT_SECRET = TEST_SECRET;
 process.env.SSE_HEARTBEAT_SECONDS = '5';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -639,6 +640,7 @@ describe('POST /admin/curator/upload/finalize', () => {
   });
 
   it('returns 502 when worker dispatch fails', async () => {
+    expectLoggedError('finalize: worker dispatch failed');
     const { jobId, videoKey, posterKey } = await signFor(adminACookie());
     writeLocalMediaFile(videoKey);
     writeLocalMediaFile(posterKey);

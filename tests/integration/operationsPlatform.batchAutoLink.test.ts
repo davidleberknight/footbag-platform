@@ -20,9 +20,10 @@
  *  - system_job_runs row is recorded with the counter struct in
  *    details_json (new shape: claimed_high / claimed_medium / queued_low / ...).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { expectLoggedError } from '../setup-env';
 import {
   insertMember,
   insertLegacyMember,
@@ -332,5 +333,118 @@ describe('runBatchAutoLink — silent claim + notification + card surface', () =
       skipped_none:                     expect.any(Number),
       skipped_error:                    expect.any(Number),
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// US ID:               M_Confirm_Auto_Linked_Identity
+// Derived assertion:   when the notification-email enqueue throws after the
+//                      silent-claim transaction commits, the claim is NOT
+//                      rolled back and a legacy.auto_link_notification_failed
+//                      audit row is persisted so the operator can re-enqueue.
+// Service methods:     identityAccessService.applyAutoLinkSilentClaim,
+//                      communicationService.enqueueEmailOrFail,
+//                      operationalErrors.recordOperationalError
+// STRIDE applicability:
+//   Information Disclosure: applicable (member not notified of identity link).
+//   Tampering:              applicable (claim committed without notification).
+// Technique:           scenario test with a CommunicationService whose
+//                      enqueueEmailOrFail throws ServiceUnavailableError.
+// Risk severity:       high.   ASVS level: L2.   Rigor reached: 3.
+
+describe('runBatchAutoLink — notification enqueue failure (B4)', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let commsMod: typeof import('../../src/services/communicationService');
+
+  beforeAll(async () => {
+    commsMod = await import('../../src/services/communicationService');
+  });
+
+  afterEach(() => {
+    commsMod.resetCommunicationServiceForTests();
+  });
+
+  it('outbox enqueue throws → claim NOT rolled back; legacy.auto_link_notification_failed audit row written; skipped_error incremented', async () => {
+    expectLoggedError('audit: legacy.auto_link_notification_failed');
+
+    const db = new BetterSqlite3(dbPath);
+    const email = `${nextId('fail')}@example.com`;
+    const legacyId = nextId('legmem-fail');
+    const personId = nextId('hp-fail');
+    const memberId = nextId('mem-fail');
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId, legacy_email: email,
+      real_name: 'Fail Tester', display_name: 'Fail Tester',
+    });
+    insertHistoricalPerson(db, {
+      person_id: personId, person_name: 'Fail Tester',
+      legacy_member_id: legacyId,
+    });
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: email, real_name: 'Fail Tester', display_name: 'Fail Tester',
+    });
+    db.close();
+
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    commsMod.setCommunicationServiceForTests({
+      enqueueEmail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure');
+      },
+      enqueueEmailOrFail: () => {
+        throw new ServiceUnavailableError(
+          'synthetic enqueueEmailOrFail failure for auto-link silent-claim notification',
+        );
+      },
+      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+      }),
+    });
+
+    const result = await ops.operationsPlatformService.runBatchAutoLink();
+
+    // The batch caller catches the re-thrown error and counts it as skipped_error.
+    expect(result.skipped_error).toBeGreaterThanOrEqual(1);
+
+    // B4 derived assertion (primary): claim is NOT rolled back.
+    const mem = memberRow(memberId);
+    expect(mem.legacy_member_id).toBe(legacyId);
+    expect(mem.historical_person_id).toBe(personId);
+    const lm = legacyRow(legacyId);
+    expect(lm.claimed_by_member_id).toBe(memberId);
+
+    // Tier grant from the silent claim is committed.
+    const grants = tierGrants(memberId);
+    expect(grants.length).toBeGreaterThanOrEqual(1);
+    expect(grants[0].reason_code).toBe('legacy.claim_tier_grant');
+
+    // The silent-claim audit row is persisted (proves the transaction committed).
+    const claimAudits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    expect(claimAudits).toHaveLength(1);
+
+    // The _failed audit row is persisted with the operational-error shape.
+    const dbRo = openRO();
+    const failRow = dbRo.prepare(`
+      SELECT action_type, category, actor_type, metadata_json
+      FROM audit_entries
+      WHERE entity_type = 'member' AND entity_id = ?
+        AND action_type = 'legacy.auto_link_notification_failed'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(memberId) as
+      | { action_type: string; category: string; actor_type: string; metadata_json: string }
+      | undefined;
+    dbRo.close();
+    expect(failRow).toBeDefined();
+    expect(failRow!.category).toBe('identity');
+    expect(failRow!.actor_type).toBe('system');
+    const failMeta = JSON.parse(failRow!.metadata_json) as Record<string, unknown>;
+    expect(failMeta.claimAuditId).toBe(claimAudits[0].id);
+    expect(failMeta.legacyMemberId).toBe(legacyId);
+    expect(typeof failMeta.error).toBe('string');
+
+    // No outbox row was persisted for this notification (the throw fired before insert).
+    const outbox = outboxRows(`auto_link_notification:${claimAudits[0].id}`);
+    expect(outbox).toHaveLength(0);
   });
 });

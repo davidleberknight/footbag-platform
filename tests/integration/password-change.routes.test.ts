@@ -2,6 +2,7 @@
  * Integration tests for GET/POST /members/:slug/edit/password.
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
@@ -230,6 +231,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
   });
 
   it('signJwt failure after password_version commit → 503, no Set-Cookie, DB committed, actionable error', async () => {
+    expectLoggedError('password change: session reissue failed');
     // Restore a deterministic starting state: prior tests in this file mutate
     // password_hash and password_version, so seed from scratch.
     const hash = await argon2.hash(OLD_PASSWORD);
@@ -335,6 +337,7 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
   });
 
   it('enqueueEmailOrFail throws → 503 + actionable error + audit row + DB committed + no Set-Cookie', async () => {
+    expectLoggedError('audit: auth.password_change_notification_failed');
     // Restore deterministic starting state.
     const hash = await argon2.hash(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);

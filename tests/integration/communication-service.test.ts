@@ -3,6 +3,7 @@
  * dead-letter, and admin pause.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
@@ -180,6 +181,7 @@ describe('enqueueEmailOrFail', () => {
   });
 
   it('wraps non-ServiceError throws as ServiceUnavailableError', async () => {
+    expectLoggedError('enqueueEmailOrFail: outbox enqueue failed');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
@@ -249,6 +251,7 @@ describe('processSendQueue', () => {
   });
 
   it('moves to dead_letter on last allowed retry', async () => {
+    expectLoggedError('outbox dead-letter');
     // outbox_max_retry_attempts default is 5; fail 5 times in a row.
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);

@@ -1565,6 +1565,7 @@ Required rules:
 - Stripe webhook failures
 - SES bounce/complaint thresholds
 - dead-letter / outbox failure growth
+- any `logger.error()` line in the app log group — a CloudWatch log metric filter on `{ $.level = "error" }` increments a count routed through SNS to the admin email. Every error worth logging surfaces to an operator automatically.
 
 #### Administrator-visible summaries
 

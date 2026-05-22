@@ -8,6 +8,7 @@
  *     token consumption)
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import argon2 from 'argon2';
@@ -116,6 +117,7 @@ describe('Oversized payloads', () => {
   });
 
   it('oversized request body is rejected; server stays responsive afterward', async () => {
+    expectLoggedError('unhandled error');
     const app = createApp();
     const huge = 'x'.repeat(200 * 1024); // 200KB, over Express default 100kb
     const res = await request(app)

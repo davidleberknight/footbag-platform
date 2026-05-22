@@ -34,11 +34,15 @@
  *   - JWT payload embeds password_version; bumping it invalidates all outstanding JWTs.
  *   - Deceased members cannot log in regardless of credentials.
  *   - Soft-deleted members within member_cleanup_grace_days get the restoration screen.
- *   - Silent auto-link claim, notification email enqueue, and report-incorrect
- *     token issuance all commit in one transaction; a failure on any step
- *     rolls the entire claim back. The notification email's idempotency key
- *     is bound to the claim audit row id so reruns of runBatchAutoLink
- *     collapse onto the existing outbox row.
+ *   - Silent auto-link claim, tier grant, audit row, pending-card write, and
+ *     report-incorrect token issuance commit in one transaction; the
+ *     notification email is enqueued AFTER the transaction commits via
+ *     enqueueEmailOrFail. An outbox failure leaves the claim committed and
+ *     records a legacy.auto_link_notification_failed audit row via
+ *     recordOperationalError; the caller (runBatchAutoLink) treats the
+ *     re-thrown error as skipped_error. The notification email's
+ *     idempotency key is bound to the claim audit row id so reruns of
+ *     runBatchAutoLink collapse onto the existing outbox row.
  *   - Auto-link revert (member-initiated, from card or tokened email link) is
  *     idempotent: a second revert returns `already_reverted` without state
  *     change. Pending card rows are cleared as part of every revert so the
@@ -88,6 +92,7 @@ import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
+import { recordOperationalError } from './operationalErrors';
 import { applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx } from './membershipTieringService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
@@ -149,6 +154,7 @@ export interface CheckEmailContent {
 
 export interface VerifyResultContent {
   ok: boolean;
+  signInPrompt?: boolean;
 }
 
 export type PasswordForgotContent = Record<string, never>;
@@ -654,22 +660,18 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
         'If you did not request this account, you can ignore this message.',
     });
   } catch (err) {
-    // High-priority audit row: the member row (or, for resend, the existing
-    // unverified member) committed but no verify email was queued. Operator
-    // review should treat this as a possible outbox / SES degradation signal;
-    // the affected member can self-recover via /verify/resend.
-    appendAuditEntry({
+    // Member row (or, for resend, the existing unverified member) committed
+    // but no verify email was queued. Operator review should treat this as
+    // a possible outbox / SES degradation signal; the affected member can
+    // self-recover via /verify/resend.
+    recordOperationalError({
       actionType: 'auth.register_notification_failed',
       category: 'auth',
-      actorType: 'system',
-      actorMemberId: null,
       entityType: 'member',
       entityId: memberId,
       reasonText: 'Member row committed but verify-email enqueue failed.',
-      metadata: {
-        tokenRowId,
-        error: err instanceof Error ? err.message : String(err),
-      },
+      cause: err,
+      metadata: { tokenRowId },
     });
     throw err;
   }
@@ -1293,14 +1295,20 @@ function applyAutoLinkSilentClaim(
     return { status: 'skipped_no_email' };
   }
 
-  // The notification body and the audit row live inside the transaction so a
-  // failure rolls back claim + tier grant + card + outbox row together.
-  return transaction(() => {
+  // Claim, tier grant, audit row, pending-card write, and report-incorrect
+  // token commit atomically. The notification email is enqueued AFTER the
+  // transaction commits so an outbox failure does not lose the claim;
+  // recordOperationalError persists a legacy.auto_link_notification_failed
+  // row and the re-thrown error becomes skipped_error in runBatchAutoLink.
+  const txnResult = transaction(() => {
     const now = new Date().toISOString();
 
     const marked = legacyMembers.markClaimed.run(memberId, now, lm.legacy_member_id);
     if (marked.changes === 0) {
-      return { status: 'skipped_legacy_claimed_by_other' as const };
+      return {
+        kind:   'skipped' as const,
+        result: { status: 'skipped_legacy_claimed_by_other' as const },
+      };
     }
 
     legacyClaim.transferLegacyFields.run(
@@ -1398,7 +1406,7 @@ function applyAutoLinkSilentClaim(
     const hofFlagText = hasHof ? '\n\nThis record is recognized as a Hall of Fame member.' : '';
     const bapFlagText = hasBap ? '\n\nThis record is recognized as a Big Add Posse member.' : '';
 
-    getCommunicationService().enqueueEmail({
+    const emailPayload = {
       idempotencyKey:    `auto_link_notification:${claimAuditId}`,
       recipientEmail,
       recipientMemberId: memberId,
@@ -1410,14 +1418,36 @@ function applyAutoLinkSilentClaim(
         `If this link is not correct, please tell us:\n${reportIncorrectUrl}\n\n` +
         `You can also review and manage linked legacy accounts from your profile settings.\n\n` +
         `-- IFPA`,
-    });
+    };
 
     return {
-      status:     'claimed' as const,
-      confidence: classification.confidence,
-      claimAuditId,
+      kind:   'claimed' as const,
+      result: { status: 'claimed' as const, confidence: classification.confidence, claimAuditId },
+      emailPayload,
     };
   });
+
+  if (txnResult.kind === 'skipped') return txnResult.result;
+
+  try {
+    getCommunicationService().enqueueEmailOrFail(txnResult.emailPayload);
+  } catch (err) {
+    recordOperationalError({
+      actionType: 'legacy.auto_link_notification_failed',
+      category:   'identity',
+      entityType: 'member',
+      entityId:   memberId,
+      reasonText: 'Auto-link silent claim committed but notification-email enqueue failed.',
+      cause:      err,
+      metadata: {
+        claimAuditId:   txnResult.result.claimAuditId,
+        legacyMemberId: lm.legacy_member_id,
+      },
+    });
+    throw err;
+  }
+
+  return txnResult.result;
 }
 
 export interface PendingAutoLinkCardView {
@@ -1663,24 +1693,21 @@ function initiateLegacyClaim(
         'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
     });
   } catch (err) {
-    // High-priority audit row: the account_claim token is already committed
-    // by accountTokenService.issueToken but no confirmation email was queued.
-    // The token will sit in account_tokens until TTL expiry; operator review
-    // should treat this as an outbox / SES degradation signal. Re-throw so
-    // the controller maps to 503 rather than returning the `enqueued` kind,
-    // which would lie to the caller about delivery.
-    appendAuditEntry({
-      actionType:    'legacy.claim_initiate_notification_failed',
-      category:      'identity',
-      actorType:     'system',
-      actorMemberId: null,
-      entityType:    'member',
-      entityId:      requestingMemberId,
-      reasonText:    'Legacy-claim initiation token committed but confirmation-email enqueue failed.',
+    // The account_claim token is already committed by issueToken but no
+    // confirmation email was queued. The token will sit in account_tokens
+    // until TTL expiry; operator review should treat this as an outbox /
+    // SES degradation. Re-throw so the controller maps to 503 rather than
+    // returning `enqueued`, which would lie to the caller about delivery.
+    recordOperationalError({
+      actionType: 'legacy.claim_initiate_notification_failed',
+      category:   'identity',
+      entityType: 'member',
+      entityId:   requestingMemberId,
+      reasonText: 'Legacy-claim initiation token committed but confirmation-email enqueue failed.',
+      cause:      err,
       metadata: {
         tokenRowId,
         legacyMemberId: row.legacy_member_id,
-        error:          err instanceof Error ? err.message : String(err),
       },
     });
     throw err;
@@ -2080,19 +2107,15 @@ async function changePassword(
       // member never got their notification. Operator review should treat
       // this as a possible account-takeover signal that coincided with an
       // email-pipeline degradation.
-      appendAuditEntry({
+      recordOperationalError({
         actionType: 'auth.password_change_notification_failed',
         category: 'auth',
-        actorType: 'system',
-        actorMemberId: null,
         entityType: 'member',
         entityId: memberId,
         reasonText:
           'Password change committed but confirmation-email enqueue failed.',
-        metadata: {
-          newPasswordVersion: row.password_version + 1,
-          error: err instanceof Error ? err.message : String(err),
-        },
+        cause: err,
+        metadata: { newPasswordVersion: row.password_version + 1 },
       });
       throw err;
     }
@@ -2128,17 +2151,41 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   });
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   const resetUrl = `${baseUrl}/password/reset/${rawToken}`;
-  getCommunicationService().enqueueEmail({
-    idempotencyKey: `pwreset:${tokenRowId}`,
-    recipientEmail: email.trim(),
-    recipientMemberId: row.id,
-    subject: 'Reset your IFPA Footbag password',
-    bodyText:
-      'A password reset was requested for your IFPA Footbag account.\n\n' +
-      `Open the link below within ${ttlHours} hour${ttlHours === 1 ? '' : 's'} to set a new password:\n\n` +
-      `${resetUrl}\n\n` +
-      'If you did not request this, you can ignore this message. Your current password remains in effect.',
-  });
+  // Anti-enumeration contract: the exists-vs-not-exists branches of this
+  // method must produce identical responses to the caller. If the outbox
+  // enqueue fails (SQLite BUSY, schema mismatch, adapter outage), letting the
+  // exception propagate would make the exists branch return 500 while the
+  // not-exists branch still returns 200 — leaking account existence to any
+  // observer of HTTP status codes. Catch the failure here, write a
+  // high-priority audit row so operators can correlate the resulting orphan
+  // token in account_tokens with the email-pipeline degradation, and still
+  // return responseSent so the caller renders the uniform sent page.
+  try {
+    getCommunicationService().enqueueEmailOrFail({
+      idempotencyKey: `pwreset:${tokenRowId}`,
+      recipientEmail: email.trim(),
+      recipientMemberId: row.id,
+      subject: 'Reset your IFPA Footbag password',
+      bodyText:
+        'A password reset was requested for your IFPA Footbag account.\n\n' +
+        `Open the link below within ${ttlHours} hour${ttlHours === 1 ? '' : 's'} to set a new password:\n\n` +
+        `${resetUrl}\n\n` +
+        'If you did not request this, you can ignore this message. Your current password remains in effect.',
+    });
+  } catch (err) {
+    // Swallow (do not re-throw) to preserve the anti-enumeration contract:
+    // the exists/not-exists branches must return identical UX to the caller.
+    recordOperationalError({
+      actionType: 'auth.password_reset_notification_failed',
+      category: 'auth',
+      entityType: 'member',
+      entityId: row.id,
+      reasonText:
+        'Password-reset token issued but notification-email enqueue failed; anti-enumeration response preserved.',
+      cause: err,
+      metadata: { tokenRowId },
+    });
+  }
   return { responseSent: true };
 }
 

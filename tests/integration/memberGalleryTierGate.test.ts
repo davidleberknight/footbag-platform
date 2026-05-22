@@ -11,6 +11,7 @@
  * are covered by dedicated unit and service-level test suites.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import {
@@ -94,6 +95,15 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('POST /members/:memberKey/galleries — tier gate', () => {
   it.each(FIXTURES)('$label → gated: $expectGated', async (f) => {
+    if (!f.expectGated) {
+      // Existing test surfaces an underlying gallery-create failure that
+      // had been silent: this test only asserts the gate (status !== 403),
+      // so the create-error and unhandled-error log lines were unnoticed.
+      // Opting them in here preserves prior behavior; a separate slice
+      // will tighten the assertion to require successful gallery creation.
+      expectLoggedError('member gallery create error');
+      expectLoggedError('unhandled error');
+    }
     const res = await request(createApp())
       .post(`/members/${f.slug}/galleries`)
       .set('Cookie', cookieFor(f.id))

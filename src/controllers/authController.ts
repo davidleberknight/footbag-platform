@@ -17,6 +17,7 @@ import { renderServiceUnavailable } from '../lib/controllerErrors';
 import { simulatedEmailService } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { logger } from '../config/logger';
 
 function isSafePath(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
@@ -163,7 +164,27 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       return;
     }
     const role = result.isAdmin ? 'admin' : 'member';
-    const cookieValue = await createSessionJwt(result.memberId, role, result.passwordVersion);
+    // Failure mode (KMS Sign error, IAM regression, KMS key rotation
+    // mid-flight): verification already committed (token consumed, member
+    // marked verified). Letting the signing error fall through to the 500
+    // handler would block the new member from logging in despite a working
+    // password and a verified email. Render a 503 that surfaces the
+    // sign-in path; the member's registration password is still valid.
+    let cookieValue: string;
+    try {
+      cookieValue = await createSessionJwt(result.memberId, role, result.passwordVersion);
+    } catch (jwtErr) {
+      logger.error('email verify: session issue failed after token consumed and verification commit', {
+        memberId: result.memberId,
+        error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
+      });
+      res.status(503).render('auth/verify-result', {
+        seo: { title: 'Verification' },
+        page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
+        content: { ok: false, signInPrompt: true },
+      } satisfies PageViewModel<VerifyResultContent>);
+      return;
+    }
     issueSessionCookie(res, cookieValue, req);
     // Land newly-verified members on the onboarding wizard's first task. The
     // wizard renders the same candidate list and manual-id input regardless
@@ -303,7 +324,35 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       newPassword ?? '',
       confirmPassword ?? '',
     );
-    const cookieValue = await createSessionJwt(result.memberId, result.role, result.newPasswordVersion);
+    // Failure mode (KMS Sign error, IAM regression, KMS key rotation
+    // mid-flight): the reset already committed (password_version bumped,
+    // single-use token consumed). All prior sessions are invalid by the
+    // per-request password_version check. Letting the signing error fall
+    // through to the 500 handler would lock the member out with no recovery
+    // path visible. Render a 503 with an actionable message — the new
+    // password is already active, so the recovery path is the login page,
+    // not another forgot-password round trip.
+    let cookieValue: string;
+    try {
+      cookieValue = await createSessionJwt(result.memberId, result.role, result.newPasswordVersion);
+    } catch (jwtErr) {
+      logger.error('password reset: session issue failed after token consumed and password_version commit', {
+        memberId: result.memberId,
+        error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
+      });
+      setNoStore(res);
+      res.status(503).render('auth/password-reset', {
+        seo: { title: 'Set a New Password' },
+        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+        content: {
+          token: undefined,
+          error:
+            'Your password was reset, but we could not sign you in. ' +
+            'Please go to the login page and sign in with your new password.',
+        },
+      } satisfies PageViewModel<PasswordResetContent>);
+      return;
+    }
     issueSessionCookie(res, cookieValue, req);
     // Redirect to the member's own profile to match the login and verify flows.
     res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);

@@ -21,6 +21,7 @@
  * Bug B (controllers route ImageProcessingError through 503) together.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 
@@ -63,6 +64,7 @@ async function tinyJpeg(): Promise<Buffer> {
 
 describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
   it('image worker reachable but returns 503 -> web returns 503 + unavailable page', async () => {
+    expectLoggedError('avatar upload: image worker unavailable');
     // Mirrors the production wire shape: HTTP fetch to the worker, worker
     // replies with 503 + JSON body. createHttpImageAdapter converts to
     // ImageProcessingError; the controller must surface it as a 503 page.
@@ -91,6 +93,7 @@ describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
   });
 
   it('image worker unreachable (ECONNREFUSED) -> 503 + unavailable page', async () => {
+    expectLoggedError('avatar upload: image worker unavailable');
     const fakeFetch: typeof fetch = async () => {
       const err = new Error('connect ECONNREFUSED 127.0.0.1:4001');
       throw err;
@@ -113,6 +116,8 @@ describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
   });
 
   it('generic non-ImageProcessingError from adapter -> 500 + page shows "500"', async () => {
+    expectLoggedError('avatar upload error');
+    expectLoggedError('unhandled error');
     // A bug in the adapter or service (not a worker availability problem)
     // should still produce a friendly error page, and the page MUST report
     // "500", not "503". This is the Bug A regression test: the template

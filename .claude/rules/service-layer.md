@@ -43,6 +43,10 @@ All thrown errors are subclasses of `ServiceError` from `src/services/serviceErr
 
 Bare `throw new Error(...)` is reserved for internal invariant assertions ("this should never happen") -- configuration bugs, retry-loop exhaustion, ID-collision exhaustion. These crash to 500 with a stack trace; ServiceError subclasses are the contract with controllers for user-facing HTTP responses.
 
+## Operational errors
+
+When a catch block writes a `*_failed` audit row, it uses `recordOperationalError(...)` from `src/services/operationalErrors.ts`, not `appendAuditEntry` directly. The helper pairs the audit row with a `logger.error()` line — same call drives the staging/prod CloudWatch alarm and the in-test guard. The helper does not throw or swallow; the caller decides per its contract.
+
 ## Discriminated-union return shapes
 
 State-transition methods return discriminated unions, not booleans or thrown errors:

@@ -30,7 +30,11 @@ Every test, every helper, every staging script, every Playwright artifact treats
 - Real member PII does not appear in committed test fixtures, factories, seed data, snapshots, screenshots, traces, or any other committed artifact. Synthetic data only. Where operator-controlled access to real legacy data is genuinely required for migration validation (per `docs/MIGRATION_PLAN.md`), the data is minimized, gitignored, access-controlled, and redacted in output.
 - `docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) governs what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
 
-### 2.2 The doc applies to humans and AI agents equally
+### 2.2 logger.error is the operator-alert signal
+
+Any `logger.error()` call in service or controller code is treated as "an operator must see this." The same call drives two enforcement mechanisms: (1) a global test-suite spy in `tests/setup-env.ts` that fails any test producing an unexpected `logger.error()` (opt in deliberately via `expectLoggedError(pattern)`); and (2) a CloudWatch log metric filter in staging/prod that fans out to the admin SNS topic. Service catch blocks that pair an audit row with the alert use the `recordOperationalError(...)` helper at `src/services/operationalErrors.ts` rather than writing the audit row alone.
+
+### 2.3 The doc applies to humans and AI agents equally
 
 When an AI agent (Claude Code or any other) writes or reviews tests for this codebase, the agent applies this document the same way a human contributor does: read the user story verbatim, extract derived assertions, classify the risk severity, model STRIDE per surface, apply the technique selector, document any skip rationale, produce a traceability entry, and submit for human review. §13 expands these obligations into the AI-assisted testing governance rules.
 

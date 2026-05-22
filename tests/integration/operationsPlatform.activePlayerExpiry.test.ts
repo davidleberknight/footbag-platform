@@ -9,6 +9,7 @@
  *   - propagates the worker's return value to the caller
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 
@@ -113,6 +114,7 @@ describe('OperationsPlatformService.getActivePlayerExpiryIntervalMs', () => {
 
 describe('OperationsPlatformService.recordJobRun — failure path', () => {
   it('on throw, marks the row failed with the error message and re-throws', async () => {
+    expectLoggedError('SYS_Check_Active_Player_Expiry: failed');
     const before = countJobRuns();
     await expect(
       ops.operationsPlatformService.recordJobRun('SYS_Check_Active_Player_Expiry', () => {

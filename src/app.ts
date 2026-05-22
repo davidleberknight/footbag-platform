@@ -301,7 +301,7 @@ export function createApp(): express.Application {
   app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error('unhandled error', {
       method: req.method,
-      url: req.url,
+      url: redactTokenPaths(req.url),
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).render('errors/unavailable', {

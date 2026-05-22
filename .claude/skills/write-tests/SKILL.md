@@ -130,6 +130,19 @@ Use factories from `tests/fixtures/factories.ts`. Insert only what the tests nee
 
 Do NOT roll your own temp path with `path.join(process.cwd(), …)`. `setTestEnv` puts DBs in `os.tmpdir()` so leaks (worker timeout, OOM, WAL race) land where the OS cleans up. Applies to allowlist files and any other transient test artifact.
 
+### `logger.error()` opt-in
+
+Any test that deliberately exercises an error path producing `logger.error()` calls `expectLoggedError(pattern)` from `tests/setup-env.ts` before the action that triggers it. A substring or RegExp matches the message arg. Without the opt-in, the global afterEach guard fails the test.
+
+```typescript
+import { expectLoggedError } from '../setup-env';
+
+it('outbox failure → 503 + audit row', async () => {
+  expectLoggedError('audit: auth.password_change_notification_failed');
+  // ... action that throws inside the catch block
+});
+```
+
 ## Step 6: Run and report
 
 ```bash

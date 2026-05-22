@@ -1,7 +1,8 @@
 /**
  * Integration tests for the password-reset flow + confirmation emails.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
@@ -206,6 +207,149 @@ describe('POST /password/reset/:token', () => {
     const r = await request(app).get(`/members/${MEMBER_SLUG}/edit`).set('Cookie', stale);
     expect(r.status).toBe(302);
     expect(r.headers.location).toContain('/login');
+  });
+});
+
+describe('POST /password/forgot — outbox failure does not leak via 500', () => {
+  it('enqueue throws → uniform 200 sent page, audit row written, anti-enumeration preserved', async () => {
+    expectLoggedError('audit: auth.password_reset_notification_failed');
+    const commsMod = await import('../../src/services/communicationService');
+    const commService = commsMod.getCommunicationService();
+    const enqueueSpy = vi
+      .spyOn(commService, 'enqueueEmailOrFail')
+      .mockImplementation(() => {
+        throw new Error('SQLITE_BUSY: database is locked');
+      });
+
+    try {
+      const app = createApp();
+      const res = await request(app)
+        .post('/password/forgot')
+        .type('form')
+        .send({ email: MEMBER_EMAIL });
+
+      // Anti-enumeration contract: identical UX to the not-exists branch.
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('If an account exists');
+
+      // A high-priority audit row records the failure for operator review.
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const row = db.prepare(
+        `SELECT action_type, category, entity_type, entity_id FROM audit_entries
+         WHERE action_type = 'auth.password_reset_notification_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+      ).get() as
+        | { action_type: string; category: string; entity_type: string; entity_id: string }
+        | undefined;
+      db.close();
+      expect(row).toBeDefined();
+      expect(row!.category).toBe('auth');
+      expect(row!.entity_type).toBe('member');
+      expect(row!.entity_id).toBe(MEMBER_ID);
+    } finally {
+      enqueueSpy.mockRestore();
+    }
+  });
+
+  it('unknown email + enqueue throws → still 200 sent page, no audit row, no orphan token', async () => {
+    const commsMod = await import('../../src/services/communicationService');
+    const commService = commsMod.getCommunicationService();
+    // The unknown-email branch returns before reaching enqueue, so this spy
+    // should not be invoked; the assertion is symmetric with the exists path
+    // to prove the anti-enum contract holds end-to-end.
+    const enqueueSpy = vi
+      .spyOn(commService, 'enqueueEmailOrFail')
+      .mockImplementation(() => {
+        throw new Error('SQLITE_BUSY: database is locked');
+      });
+
+    try {
+      const app = createApp();
+      const res = await request(app)
+        .post('/password/forgot')
+        .type('form')
+        .send({ email: 'nobody-here@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('If an account exists');
+      expect(enqueueSpy).not.toHaveBeenCalled();
+    } finally {
+      enqueueSpy.mockRestore();
+    }
+  });
+});
+
+describe('POST /password/reset/:token — session reissue failure', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let adapterMod: typeof import('../../src/adapters/jwtSigningAdapter');
+  let realAdapter: import('../../src/adapters/jwtSigningAdapter').JwtSigningAdapter;
+
+  beforeAll(async () => {
+    adapterMod = await import('../../src/adapters/jwtSigningAdapter');
+    // Capture the real adapter before injection so verifyJwt continues to
+    // work for any other request that runs in parallel; only signJwt fails.
+    realAdapter = adapterMod.getJwtSigningAdapter();
+  });
+
+  afterEach(() => {
+    adapterMod.resetJwtSigningAdapterForTests();
+  });
+
+  it('signJwt failure after token consumed and password_version commit → 503, no Set-Cookie, DB committed, actionable error', async () => {
+    expectLoggedError('password reset: session issue failed');
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+
+    adapterMod.setJwtSigningAdapterForTests({
+      signJwt: async () => {
+        // Mirrors a real KMS Sign rejection wire shape (the AWS SDK throws an
+        // Error subclass with name='AccessDeniedException' on IAM regression).
+        const err = new Error('KMS Sign failed: AccessDeniedException');
+        err.name = 'KMSAccessDenied';
+        throw err;
+      },
+      verifyJwt: (t) => realAdapter.verifyJwt(t),
+    });
+
+    const res = await request(app)
+      .post(`/password/reset/${token}`)
+      .type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+
+    expect(res.status).toBe(503);
+    expect(res.text).toContain('Your password was reset');
+    expect(res.text).toContain('could not sign you in');
+    expect(res.text).toContain('login page');
+
+    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const sessionCookieIssued = cookies?.some((c) =>
+      c.startsWith('footbag_session=') &&
+      !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
+    );
+    expect(sessionCookieIssued).toBeFalsy();
+
+    // password_version was 1 at the start of the test (beforeEach restores
+    // it); a successful commit before the failed signing lands it at 2.
+    const dbCheck = new BetterSqlite3(dbPath, { readonly: true });
+    const row = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
+      .get(MEMBER_ID) as { password_version: number };
+    expect(row.password_version).toBe(2);
+
+    // Token was consumed; replay must yield 422.
+    const replay = await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: 'Another!9', confirmPassword: 'Another!9',
+    });
+    dbCheck.close();
+    expect(replay.status).toBe(422);
+
+    expect(res.headers['cache-control']).toMatch(/no-store/);
+
+    // Simulate KMS recovery: a fresh login with the new password works.
+    adapterMod.resetJwtSigningAdapterForTests();
+    const login = await request(app).post('/login').type('form').send({
+      email: MEMBER_EMAIL, password: NEW_PASSWORD,
+    });
+    expect(login.status).toBe(303);
   });
 });
 

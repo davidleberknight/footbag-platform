@@ -7,6 +7,7 @@
  *                           mismatched passwords, missing display name
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
@@ -496,6 +497,7 @@ describe('POST /register — verify-email enqueue failure', () => {
   });
 
   it('enqueueEmailOrFail throws → 503 + member row committed + audit row + no outbox row', async () => {
+    expectLoggedError('audit: auth.register_notification_failed');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     commsMod.setCommunicationServiceForTests({
       enqueueEmail: () => {

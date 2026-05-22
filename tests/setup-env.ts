@@ -12,7 +12,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { threadId } from 'node:worker_threads';
-import { beforeEach } from 'vitest';
+import { vi, beforeEach, afterEach } from 'vitest';
 
 // Worker threads share a process.pid, so use threadId to keep each vitest
 // worker's keypair file distinct. Falls back to pid when threadId is 0
@@ -55,4 +55,55 @@ process.env.STUB_PASSWORD           ??= 'test-stub-password-do-not-use-in-prod';
 beforeEach(async () => {
   const mod = await import('../src/services/rateLimitService');
   mod.resetRateLimitForTests();
+});
+
+// ── logger.error() guard ────────────────────────────────────────────────────
+//
+// logger.error() is the project's "something went wrong that an operator
+// must see" signal. Two rules follow:
+//   1. In tests, any unexpected logger.error() call fails the test. Tests
+//      that deliberately exercise an error path call expectLoggedError(...)
+//      before the action that triggers it.
+//   2. In staging/prod, the same call lands in CloudWatch and an alarm
+//      surfaces it to the operator (separate terraform wiring).
+//
+// Logger import is dynamic and deferred to beforeEach (not beforeAll) so
+// that any test-file beforeAll that mutates process.env (e.g.
+// PUBLIC_BASE_URL in tests/unit/requireOriginPin.test.ts) has already run
+// before src/config/env.loadConfig() reads from process.env. Setup-file
+// beforeAll hooks fire before test-file beforeAll hooks, so installing
+// the spy in beforeAll would lock in stale env values for tests that
+// override them. beforeEach runs after all beforeAll hooks; the
+// idempotent guard ensures the spy is installed exactly once per worker.
+let errorSpy: ReturnType<typeof vi.spyOn> | undefined;
+const expectedErrorPatterns: Array<string | RegExp> = [];
+
+export function expectLoggedError(pattern: string | RegExp): void {
+  expectedErrorPatterns.push(pattern);
+}
+
+beforeEach(async () => {
+  if (errorSpy) return;
+  const { logger } = await import('../src/config/logger');
+  errorSpy = vi.spyOn(logger, 'error');
+});
+
+afterEach((ctx) => {
+  if (!errorSpy) return;
+  const unexpected = errorSpy.mock.calls.filter((args) => {
+    const msg = String(args[0]);
+    return !expectedErrorPatterns.some((p) =>
+      typeof p === 'string' ? msg.includes(p) : p.test(msg),
+    );
+  });
+  errorSpy.mockClear();
+  expectedErrorPatterns.length = 0;
+  if (unexpected.length === 0) return;
+  const summary = unexpected
+    .map((args) => `  - ${String(args[0])}`)
+    .join('\n');
+  throw new Error(
+    `${ctx.task.name}: ${unexpected.length} unexpected logger.error() call(s):\n` +
+    `${summary}\n\nCall expectLoggedError(pattern) in the test if deliberate.`,
+  );
 });

@@ -17,6 +17,7 @@ Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.
 2. **Every new feature includes edge-case coverage.** Not just the happy path. The set of edge cases below is the minimum starting point for every feature.
 3. **Every service contract change includes shape assertions.** New method, changed return shape, new error class, new validation — each gets an explicit test against the new shape.
 4. **Tests land in the same change as the code they cover.** Not "add tests later." Not "will add in a follow-up PR." Not "TODO: test this." In the same diff.
+5. **Tests fail on unexpected `logger.error()`.** A global spy in `tests/setup-env.ts` fails any test that produces a `logger.error()` not opted in via `expectLoggedError(pattern)`. The same `logger.error()` line drives the staging/prod CloudWatch admin alarm.
 
 Do not ask whether to add tests. Add them.
 

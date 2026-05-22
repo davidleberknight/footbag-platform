@@ -8,6 +8,7 @@
  * re-renders at 429 with Retry-After.
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -311,6 +312,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     });
 
     it('throws → 503 + token committed + audit row + no outbox row', async () => {
+      expectLoggedError('audit: legacy.claim_initiate_notification_failed');
       const stamp = Date.now() + 200;
       const targetEmail = `wiz-enq-fail-${stamp}@oldsite.example`;
       const legacyId = `LM-WIZ-ENQFAIL-${stamp}`;

@@ -6,7 +6,8 @@
  * rate-limited, and unverified members cannot log in and do not appear in
  * authenticated member search.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -153,6 +154,106 @@ describe('GET /verify/:token', () => {
     const res = await request(app).get('/verify/bogus-token-xxx');
     expect(res.status).toBe(400);
     expect(res.text).toContain('invalid, expired, or already used');
+  });
+});
+
+describe('GET /verify/:token — 500 handler redacts the raw token from logs', () => {
+  it('an unhandled service error on a token-bearing GET logs the URL with the token redacted', async () => {
+    const identityAccessMod = await import('../../src/services/identityAccessService');
+    const logMod = await import('../../src/config/logger');
+
+    const errorSpy = vi.spyOn(logMod.logger, 'error').mockImplementation(() => undefined);
+    const verifySpy = vi
+      .spyOn(identityAccessMod.identityAccessService, 'verifyEmailByToken')
+      .mockRejectedValue(new Error('database connection refused'));
+
+    try {
+      const app = createApp();
+      const res = await request(app).get('/verify/SECRET_RAW_TOKEN_xyz123');
+
+      expect(res.status).toBe(500);
+
+      const unhandled = errorSpy.mock.calls.find((args) => args[0] === 'unhandled error');
+      expect(unhandled).toBeDefined();
+      const payload = unhandled![1] as { url: string };
+      expect(payload.url).toBe('/verify/[redacted]');
+      expect(payload.url).not.toContain('SECRET_RAW_TOKEN_xyz123');
+    } finally {
+      verifySpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+describe('GET /verify/:token — session reissue failure', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let adapterMod: typeof import('../../src/adapters/jwtSigningAdapter');
+  let realAdapter: import('../../src/adapters/jwtSigningAdapter').JwtSigningAdapter;
+
+  beforeAll(async () => {
+    adapterMod = await import('../../src/adapters/jwtSigningAdapter');
+    realAdapter = adapterMod.getJwtSigningAdapter();
+  });
+
+  afterEach(() => {
+    adapterMod.resetJwtSigningAdapterForTests();
+  });
+
+  it('signJwt failure after verification commit → 503, no Set-Cookie, email is verified, login with registration password still works', async () => {
+    expectLoggedError('email verify: session issue failed');
+    const app = createApp();
+    await request(app).post('/register').type('form').send({
+      realName: 'Verify KmsFail',
+      email: 'verify-kmsfail@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    const token = tokenFromOutbox('verify-kmsfail@example.com');
+
+    adapterMod.setJwtSigningAdapterForTests({
+      signJwt: async () => {
+        const err = new Error('KMS Sign failed: AccessDeniedException');
+        err.name = 'KMSAccessDenied';
+        throw err;
+      },
+      verifyJwt: (t) => realAdapter.verifyJwt(t),
+    });
+
+    const res = await request(app).get(`/verify/${token}`);
+
+    expect(res.status).toBe(503);
+    expect(res.text).toContain('email is verified');
+    expect(res.text).toContain('could not sign you in');
+    expect(res.text).toContain('Sign in');
+
+    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    const sessionCookieIssued = cookies?.some((c) =>
+      c.startsWith('footbag_session=') &&
+      !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
+    );
+    expect(sessionCookieIssued).toBeFalsy();
+
+    // Verification was committed: email_verified_at is set despite the
+    // failed signing.
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const m = db.prepare(
+      `SELECT email_verified_at FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-kmsfail@example.com') as { email_verified_at: string | null };
+    db.close();
+    expect(m.email_verified_at).not.toBeNull();
+
+    // Replay of the consumed token yields the standard "invalid / already used" branch.
+    const replay = await request(app).get(`/verify/${token}`);
+    expect(replay.status).toBe(400);
+    expect(replay.text).toContain('invalid, expired, or already used');
+
+    // Simulate KMS recovery: the registration password still works at /login.
+    adapterMod.resetJwtSigningAdapterForTests();
+    const login = await request(app).post('/login').type('form').send({
+      email: 'verify-kmsfail@example.com',
+      password: 'verifypass!1',
+    });
+    expect(login.status).toBe(303);
   });
 });
 

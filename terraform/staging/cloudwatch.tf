@@ -19,6 +19,40 @@ resource "aws_cloudwatch_log_group" "worker" {
   retention_in_days = 30
 }
 
+# ── Application error alarm ──────────────────────────────────────────────────
+# logger.error() in src/config/logger.ts emits a JSON line with level="error".
+# The metric filter increments AppErrorCount once per matching line; the alarm
+# fires on any non-zero count within a 60s window and routes to the existing
+# SNS topic, which has an email subscription to var.alarm_email. This is the
+# only application-level operator alert today; any new operator-visible
+# failure mode adds itself via logger.error() and is surfaced automatically.
+
+resource "aws_cloudwatch_log_metric_filter" "app_errors" {
+  name           = "${local.prefix}-app-errors"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.level = \"error\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "AppErrorCount"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "app_errors" {
+  alarm_name          = "${local.prefix}-app-errors"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "AppErrorCount"
+  namespace           = "Footbag/${var.environment}"
+  statistic           = "Sum"
+  period              = 60
+  threshold           = 1
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "One or more logger.error() calls observed in the app log within the last minute."
+}
+
 # ── Alarms ────────────────────────────────────────────────────────────────────
 # Lightsail does not natively push metrics to CloudWatch.
 # TODO: Install the CloudWatch agent on the Lightsail instance and configure

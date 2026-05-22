@@ -4,6 +4,7 @@
  * failure event emission, and boot-time orphan recovery.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
@@ -166,6 +167,7 @@ describe('POST /transcode/dispatch — happy path', () => {
   });
 
   it('cannot be double-claimed: second dispatch returns 409', async () => {
+    expectLoggedError('transcodeWorker: finalize failed');
     const events: CapturedEvent[] = [];
     let resolveFinalize: (() => void) | null = null;
     const w = makeWorker({
@@ -196,6 +198,7 @@ describe('POST /transcode/dispatch — happy path', () => {
 
 describe('POST /transcode/dispatch — failure path', () => {
   it('emits failed event and writes failed state when finalize throws', async () => {
+    expectLoggedError('transcodeWorker: finalize failed');
     const events: CapturedEvent[] = [];
     const w = makeWorker({
       finalize: async () => {
