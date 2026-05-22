@@ -12,8 +12,8 @@
     - No "what's new" panel.
     - No token soup, AST visuals, or interactive symbolic UI.
     - Static affordances only; no JS.
-    - Cards 4 + 5 (Movement Neighborhoods + Observed Tricks) carry the
-      observational badge; cards 1-3 + 6 are canonical.
+    - Card 5 (Observed Tricks) carries the observational badge;
+      cards 1-4 + 6 do not.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -32,11 +32,11 @@
   <section class="landing-stat-strip" aria-label="Dictionary coverage">
     <span class="landing-stat-chip">
       <span class="landing-stat-value">{{content.stats.canonicalCount}}</span>
-      <span class="landing-stat-label">canonical tricks</span>
+      <span class="landing-stat-label">official tricks</span>
     </span>
     <span class="landing-stat-chip">
       <span class="landing-stat-value">{{content.stats.observationalCount}}</span>
-      <span class="landing-stat-label">observational</span>
+      <span class="landing-stat-label">documented</span>
     </span>
     <span class="landing-stat-chip">
       <span class="landing-stat-value">{{content.stats.modifierCount}}</span>
@@ -57,7 +57,7 @@
         <div class="landing-card-header">
           <h2 class="landing-card-title">{{title}}</h2>
           {{#if isObservational}}
-          <span class="symbolic-layer-badge" title="Observational layer — curator interpretation, not canonical">observational</span>
+          <span class="symbolic-layer-badge" title="Documented entries staged for review, not yet official">observational</span>
           {{/if}}
         </div>
         <p class="landing-card-subtitle">{{subtitle}}</p>

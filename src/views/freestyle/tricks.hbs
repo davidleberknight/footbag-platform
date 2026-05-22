@@ -265,13 +265,11 @@
   {{/if}}
 
   {{! ── Movement Neighborhoods view (CR-6 of dictionary-coherence-2026-05-18;
-       public label renamed from "Topology"). Observational layer; the
-       backend slug + URL parameter `?view=topology` are preserved for
-       URL stability. ── }}
+       public label renamed from "Topology"). The backend slug + URL
+       parameter `?view=topology` are preserved for URL stability. ── }}
   {{#if (eq content.activeView "topology")}}
   <p class="topology-view-note">
     {{content.topologyView.observationalNote}}
-    <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
   </p>
 
   {{#if content.topologyView.groups.length}}
@@ -298,7 +296,7 @@
   </section>
   {{/if}}
 
-  <p class="symbolic-layer-footer">Movement Neighborhoods are observational groupings. These surface embodied movement feel across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
+  <p class="symbolic-layer-footer">Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families. They are a way to explore similarity, not an official family classification. The <a href="/freestyle/tricks?view=family">By family</a> view remains the structural reference.</p>
   {{/if}}
 
   {{! ── Movement System view ──────────────────────────────────────────────

@@ -189,6 +189,13 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
   });
 
+  it('renders the #slug tag-identity chip on every card', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#ripwalk</span>');
+    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#mobius</span>');
+    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#montage</span>');
+  });
+
   it('renders ADD label slot for every seeded trick', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);

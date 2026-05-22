@@ -38,6 +38,7 @@
     {{else}}
       <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
     {{/if}}
+    <span class="dict-card-hashtag" aria-label="Tag identity">#{{slug}}</span>
 
     {{#if tokenizedEquivalences.length}}
       <span class="core-trick-equivalence dict-card-equivalence dict-card-equivalence--inline">
@@ -81,6 +82,7 @@
     {{else}}
       <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
     {{/if}}
+    <span class="dict-card-hashtag" aria-label="Tag identity">#{{slug}}</span>
 
     {{#if tokenizedEquivalences.length}}
       {{#each tokenizedEquivalences}}

@@ -130,11 +130,11 @@ const PHILOSOPHY_PARAGRAPH =
   'Some readings are exact — settled by community rulings over many years. ' +
   'Some are approximate — readable through known operator vocabulary but ' +
   'not yet curator-locked. Some are observational — names the community ' +
-  'uses for tricks whose decomposition is still under discussion. Many ' +
+  'uses for tricks whose breakdown is still under discussion. Many ' +
   'tricks admit multiple valid structural readings at different stopping ' +
   'depths — the compressed folk name and one or more deeper expansions ' +
   'all describing the same trick. Stopping-depth equivalence is a ' +
-  'foundational property of the compositional language, not a discrepancy. ' +
+  'foundational property of the movement language system, not a discrepancy. ' +
   'The goal is not to fabricate certainty. The goal is to make the movement ' +
   "language explainable: when a trick is here, we say what we think it's " +
   "made of, and when we're unsure, we say that too.";
@@ -166,14 +166,14 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'the kick portion of a clipper; the body-cross in whirl',
   },
   {
-    componentClass: 'Spin flag — a rotational primitive in an atom’s flag decomposition',
+    componentClass: 'Spin flag — a rotational primitive in an atom’s flag breakdown',
     contribution:   '1 ADD',
     example:        'osis carries a spin flag (spin(1) + xbod(1) + stall(1) = 3 ADD). Distinct from the spinning body operator, which adds +1 atop a base, and from the rotational-character property of certain atoms, which triggers the atomic +2-rotational rule. Three different concepts; one accounting primitive lives here.',
   },
   {
-    componentClass: 'Specialized surface (head, shoulder, forehead, etc.)',
+    componentClass: 'Unusual surface — a catch on a body surface other than the standard toe / instep / outstep / knee',
     contribution:   '1 ADD',
-    example:        'head-stall, shoulder-stall',
+    example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall',
   },
   // Operator / modifier contributions — applied on top of a base
   // trick. Organized below by the four-axis operator-board grouping
@@ -182,19 +182,19 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // pedagogical / organizational convention — NOT a canonical
   // single-valued taxonomy. Wave-2-gated weightings are marked TBD.
   {
-    componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not canonical taxonomy)',
+    componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
     contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + atomic per pt10); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry-topology modifiers — paradox, symposium (pedagogical axis, not canonical taxonomy)',
+    componentClass: 'Entry-topology modifiers — paradox, symposium (pedagogical axis, not an official grouping)',
     contribution:   '+1 each. These modify the dex-entry position. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
     example:        'paradox + mirage (2) = 3 ADD',
   },
   {
-    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging (pedagogical axis, not canonical taxonomy)',
-    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases.',
-    example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD',
+    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not an official grouping)',
+    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases; flying +1 (the jump body-action — flying inside, flying outside, flying clipper).',
+    example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD; flying + clipper kick = flying clipper = 2 ADD',
   },
   {
     componentClass: 'Positional / directional cues — same-side (ss) / far / near / reverse / op',
@@ -205,13 +205,13 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
 
 const EDITORIAL_TRUTH_RULE =
   "When a trick's stated ADD differs from what straight addition produces, " +
-  'the stated value is canonical and the additive calculation is diagnostic. ' +
+  'the stated value is the official one and the additive calculation is diagnostic. ' +
   'This is the IFPA editorial contract.';
 
 const INCOMPLETENESS_NOTE =
   "Some compound tricks are folk-named — they exist in the community but their " +
-  "structural decomposition isn't yet curator-confirmed. Those rows carry a " +
-  '"pending decomposition refinement" indicator on their dictionary card. ' +
+  "structural breakdown isn't yet curator-confirmed. Those rows carry a " +
+  '"pending breakdown refinement" indicator on their dictionary card. ' +
   'They count as full tricks; their structural reading is what’s pending.';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -244,9 +244,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Cross-body traversal (xbody primitive)',
     trickSlug:  null,
     addLabel:   '1 ADD',
-    components: 'Accounting primitive illustrated via clipper motion — not a canonical named trick. One cross-body traversal in isolation, without a stall finish.',
+    components: 'Accounting primitive illustrated via clipper motion — not an official named trick. One cross-body traversal in isolation, without a stall finish.',
     derivation: 'xbody(1) = 1 ADD',
-    whyNote:    'Establishes xbody as a foundational accounting primitive. The bag crossing one plane around the body contributes 1 ADD wherever it appears — in clipper kicks, in whirl, in butterfly, in osis. Shown here in isolation so the primitive is legible; the canonical clipper-stall trick (xbody + stall = 2 ADD) appears below.',
+    whyNote:    'Establishes xbody as a foundational accounting primitive. The bag crossing one plane around the body contributes 1 ADD wherever it appears — in clipper kicks, in whirl, in butterfly, in osis. Shown here in isolation so the primitive is legible; the official clipper-stall trick (xbody + stall = 2 ADD) appears below.',
   },
 
   // ── 2 ADD foundational atoms (stall + one other primitive) ────────────
@@ -296,7 +296,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '2 ADD',
     components: 'Operational chain: toe > ss(midtime) in dex > ss toe. A single dex that traverses fully around the bag, finishing in a same-side toe stall.',
     derivation: 'full-orbit dex(1) + stall(1) = 2 ADD',
-    whyNote:    'A single dex takes the foot fully around the bag, finishing in a stall. Reverse ATW (positional reverse, +0) reaches the same 2 ADD; the "reverse" qualifier is a direction marker, not an ADD-additive operator. Orbit is the curator-confirmed alias for reverse ATW (pending canonicalization).',
+    whyNote:    'A single dex takes the foot fully around the bag, finishing in a stall. Reverse ATW (positional reverse, +0) reaches the same 2 ADD; the "reverse" qualifier is a direction marker, not an ADD-additive operator. Orbit is the curator-confirmed alias for reverse ATW (pending official adoption).',
   },
 
   // ── 3 ADD foundational atoms (three primitives) ───────────────────────
@@ -350,7 +350,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '4 ADD',
     components: 'Miraging operator (+1) on osis (3).',
     derivation: 'miraging(+1) + osis(3) = 4 ADD',
-    whyNote:    'Settled by pt11 as the canonical reading of "miraging osis". Anchors its own branch family (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
+    whyNote:    'Settled by pt11 as the official reading of "miraging osis". Anchors its own branch family (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
   },
   {
     trickName:  'Atom Smasher',
@@ -499,7 +499,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'footbagmoves',
     externalAdd:             '5',
     delta:                   '+1',
-    decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover (pt4); FM's name applies atomic recursively, IFPA's canonical math doesn't.",
+    decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover (pt4); FM's name applies atomic recursively, IFPA's official math doesn't.",
     pattern:                 'recursive operator application',
     ifpaStatusLine:          'settled by pt4 (eggbeater = atomic legover)',
   },
@@ -520,7 +520,7 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     trickName:  'Genesis (footbagmoves: Furious Whirl)',
     trickSlug:  null,
     ifpaAdd:    '5',
-    briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's canonical 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired in pt10 (rotational bases get a flat +1 per modifier rather than progressive scaling).",
+    briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's official 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired in pt10 (rotational bases get a flat +1 per modifier rather than progressive scaling).",
   },
 ];
 

@@ -591,12 +591,13 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
     expect(res.text).toMatch(/trick-pathway--watch[^"]*"[\s\S]*?\d+ record/);
   });
 
-  it('Watch pathway links to the in-page Passback Records anchor', async () => {
+  it('Watch pathway links to the in-page consecutive-records anchor', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');
-    // When records exist, the link target is #passback-records.
+    // When records exist, the link target is #passback-records (the
+    // anchor id is preserved for URL stability).
     expect(res.text).toMatch(/href="#passback-records"/);
-    // The Passback Records section carries the matching id anchor.
+    // The Consecutive Records section carries the matching id anchor.
     expect(res.text).toMatch(/<section id="passback-records"/);
   });
 
@@ -1090,7 +1091,7 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
   it('shows record section header', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');
-    expect(res.text).toContain('Passback Records');
+    expect(res.text).toContain('Consecutive Records');
   });
 
   it('shows About this trick section', async () => {
@@ -1114,10 +1115,10 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
     expect(res.text).toContain('maximum documented base ADD');
   });
 
-  it('does NOT show Passback Records section for dict-only trick', async () => {
+  it('does NOT show the Consecutive Records section for dict-only trick', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/blurriest');
-    expect(res.text).not.toContain('Passback Records');
+    expect(res.text).not.toContain('Consecutive Records');
   });
 
   it('shows modifier type for a modifier trick', async () => {

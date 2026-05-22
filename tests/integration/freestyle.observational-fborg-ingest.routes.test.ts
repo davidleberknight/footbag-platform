@@ -134,16 +134,16 @@ describe('FB.org observational ingest — layer-separation contract', () => {
     }
   });
 
-  it('fborg observational cards do NOT carry hashtag chips (#-tag is canonical-only)', async () => {
+  it('fborg observational cards carry a tracked-tag but no canonical trick-detail link', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
-    // Hashtag pattern would render as href="/freestyle/tricks/{slug}" with
-    // hero-hashtag class. None of the fborg slugs should appear in
-    // hashtag-style links on the observational page.
+    // Observed entries carry a visually distinct tracked-tag (a non-link
+    // #folk-slug span) — never a canonical trick-detail hyperlink.
     for (const entry of FBORG_BATCH) {
-      expect(res.text, `${entry.folkSlug} carries a hashtag chip`)
+      expect(res.text, `${entry.folkSlug} carries a canonical detail link`)
         .not.toMatch(new RegExp(`href="/freestyle/tricks/${entry.folkSlug}"`));
     }
+    expect(res.text).toMatch(/<span class="tracked-tag"[^>]*>#inspinning-paradox-mirage<\/span>/);
   });
 });
 
@@ -155,5 +155,66 @@ describe('FB.org observational ingest — promotion-readiness signals', () => {
     // We verify presence of the neutral chip class without claiming an
     // exact count (other source labels also use pending-review).
     expect(res.text).toMatch(/observed-card-status-chip--neutral/);
+  });
+});
+
+describe('/freestyle/observational — tracked-vocabulary section', () => {
+  // Returns just the tracked-vocabulary block of the rendered page.
+  async function trackedBlock(): Promise<string> {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/observational');
+    expect(res.status).toBe(200);
+    const start = res.text.indexOf('id="tracked-vocabulary"');
+    expect(start).toBeGreaterThan(-1);
+    return res.text.slice(start, res.text.indexOf('observational-footer', start));
+  }
+
+  it('renders the tracked-vocabulary section grouped by source', async () => {
+    const block = await trackedBlock();
+    expect(block).toContain('Tracked vocabulary');
+    // Grouped by documenting source — the three source groups.
+    expect(block).toContain('FootbagMoves');
+    expect(block).toContain('footbag.org');
+    expect(block).toContain('PassBack');
+  });
+
+  it('does NOT group the tracked list by an ADD claim', async () => {
+    // The observational page contract forbids ADD-claim grouping;
+    // assert no "N ADD" tier headings leaked into the block.
+    const block = await trackedBlock();
+    expect(block).not.toMatch(/<h3>\d+\s*ADD/);
+  });
+
+  it('renders a tracked-tag identity for tracked names', async () => {
+    // Every tracked name carries a #slug tracked-tag (the distinct,
+    // not-official tag identity).
+    const block = await trackedBlock();
+    expect(block).toContain('class="tracked-tag"');
+  });
+
+  it('renders an operational notation for entries that have one', async () => {
+    // Names with a symbolic_notation_raw on record show it after a ≡.
+    const block = await trackedBlock();
+    expect(block).toContain('observational-tracked-formula');
+    expect(block).toContain('&equiv;');
+  });
+
+  it('renders formula-less entries cleanly as plain list items', async () => {
+    // Many tracked names carry no notation (every PassBack name, plus
+    // others). They must still render as <li> items. More <li> than
+    // formula spans proves the formula-less entries render.
+    const block = await trackedBlock();
+    const items    = (block.match(/<li>/g) ?? []).length;
+    const formulas = (block.match(/observational-tracked-formula/g) ?? []).length;
+    expect(items).toBeGreaterThan(0);
+    expect(items).toBeGreaterThan(formulas);
+  });
+
+  it('does not promote tracked names to canonical (no trick-detail links)', async () => {
+    // The notation enrichment must not change canonical publication
+    // status: tracked names render as plain text, never as canonical
+    // /freestyle/tricks/{slug} detail links.
+    const block = await trackedBlock();
+    expect(block).not.toContain('href="/freestyle/tricks/');
   });
 });

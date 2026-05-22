@@ -6,7 +6,8 @@
   curated_vs_observational_boundary.md):
 
     - Cards on this surface are visually distinct from canonical cards
-      (no hashtag chip, no canonical ADD chip, no trick-detail link).
+      (a distinct "tracked tag" rather than a canonical hashtag chip,
+      no canonical ADD chip, no trick-detail link).
     - Each card carries a source badge with tooltip attribution.
     - Status chip surfaces curator-review state.
     - NO links to /freestyle/tricks/{folkSlug} (these entries have no
@@ -67,6 +68,7 @@
             <span class="observed-card-status-chip observed-card-status-chip--{{statusChip.tone}}">{{statusChip.label}}</span>
           </header>
           <p class="observed-card-meta">
+            <span class="tracked-tag" aria-label="Tracked tag — documented, not yet official">#{{folkSlug}}</span>
             {{#if shortReading}}<span class="observed-card-reading"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{shortReading}}</span>{{/if}}
             {{#if externalClaimLabel}}<span class="observed-card-external-claim">{{externalClaimLabel}}</span>{{/if}}
           </p>
@@ -104,6 +106,21 @@
       <a href="/freestyle/tricks">trick dictionary</a> carries the
       canonical curated set.
     </p>
+    {{/if}}
+
+    {{#if content.trackedNames.length}}
+    <div id="tracked-vocabulary" class="observational-tracked">
+      <h2>Tracked vocabulary &mdash; {{content.trackedNamesTotal}} more documented names</h2>
+      <p class="text-muted">{{content.trackedNamesNote}}</p>
+      {{#each content.trackedNames}}
+      <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
+      <ul class="observational-tracked-list">
+        {{#each names}}
+        <li>{{displayName}} <span class="tracked-tag">#{{slug}}</span>{{#if operationalNotation}} <span class="observational-tracked-formula">&equiv; <code>{{operationalNotation}}</code></span>{{/if}}</li>
+        {{/each}}
+      </ul>
+      {{/each}}
+    </div>
     {{/if}}
 
     <p class="observational-footer">
