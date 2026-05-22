@@ -171,9 +171,9 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'osis carries a spin flag (spin(1) + xbod(1) + stall(1) = 3 ADD). Distinct from the spinning body operator, which adds +1 atop a base, and from the rotational-character property of certain atoms, which triggers the atomic +2-rotational rule. Three different concepts; one accounting primitive lives here.',
   },
   {
-    componentClass: 'Specialized surface (head, shoulder, forehead, etc.)',
+    componentClass: 'Unusual surface — a catch on a body surface other than the standard toe / instep / outstep / knee',
     contribution:   '1 ADD',
-    example:        'head-stall, shoulder-stall',
+    example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall',
   },
   // Operator / modifier contributions — applied on top of a base
   // trick. Organized below by the four-axis operator-board grouping
@@ -192,9 +192,9 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'paradox + mirage (2) = 3 ADD',
   },
   {
-    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging (pedagogical axis, not canonical taxonomy)',
-    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases.',
-    example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD',
+    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not canonical taxonomy)',
+    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases; flying +1 (the jump body-action — flying inside, flying outside, flying clipper).',
+    example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD; flying + clipper kick = flying clipper = 2 ADD',
   },
   {
     componentClass: 'Positional / directional cues — same-side (ss) / far / near / reverse / op',

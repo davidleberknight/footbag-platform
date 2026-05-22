@@ -104,7 +104,7 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
       'Dexterity (dex)',
       'Cross-body traversal (xbody)',
       'Spin flag',
-      'Specialized surface',
+      'Unusual surface',
       // 4 operator-board axes (pedagogical organizing convention)
       'Set / Uptime modifiers',
       'Entry-topology modifiers',
