@@ -65,6 +65,12 @@ export interface ResolvedFormula {
   derivation:  string;
   /** Settlement provenance (pt-ruling / Red-date / canonical-inventory). */
   provenance:  string;
+  /** Curator-authored operational notation (JOB form), when published.
+   *  Overrides freestyle_tricks.operational_notation at shape time for
+   *  trick-detail + dictionary browse cards. Use only for entries whose
+   *  operational form is curator-settled. Leave null/undefined when no
+   *  JOB notation has been authored — the DB column stays authoritative. */
+  operationalNotation?: string | null;
 }
 
 export const RESOLVED_FORMULAS_FRAMING_PROSE =
@@ -382,10 +388,11 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // can land. The chain reading for pendulum stays implicit; the
   // freestyle_tricks.notation field carries the structural form.
   //
-  // Flying-modifier: the `flying` body component contributes +1 to the
-  // base trick's ADD. flying-clipper = flying(+1) + clipper(1) = 2 ADD,
-  // matching the DB row. flying-inside and flying-outside are NOT
-  // included here — they are 1 ADD body primitives where the flying
+  // Flying-modifier: the `flying` body component is a body-modifier
+  // bucket (BOD) contributing +1 ADD to the base trick. ADD accounting
+  // renders as BOD(1) — flying-clipper = BOD(1) + clipper(1) = 2 ADD,
+  // matching the DB row's adds=2. flying-inside and flying-outside are
+  // NOT included here — they are 1 ADD body primitives where the flying
   // motion IS the trick (irreducible; no compound +1 stack), parallel
   // to spin / double-spin / hop-over.
 
@@ -406,8 +413,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'clipper',
     baseAdd:     1,
     totalAdd:    2,
-    derivation:  'flying(+1) + clipper(1) = 2 ADD',
-    provenance:  'Curator-locked flying-modifier doctrine 2026-05-19: flying-X = flying(+1) + base trick. The `flying` body component contributes +1 ADD to the base trick. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
+    derivation:  'BOD(1) + clipper(1) = 2 ADD',
+    provenance:  'Curator-locked flying-modifier doctrine 2026-05-19: flying-X = flying body modifier (BOD bucket; +1 ADD) + base trick. ADD accounting renders as BOD(1) per the body-modifier bucket convention. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
   },
 
   // ─── Sprint 6 (2026-05-19) — rake (direction-variant companion to pendulum) ─
@@ -426,6 +433,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     1,
     totalAdd:    2,
     derivation:  'swing(1) + toe(1) = 2 ADD',
+    operationalNotation: 'SET > SWING TOE [DEL]',
     provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine (Red review pending).',
   },
 
@@ -1123,5 +1131,34 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'stepping(+1) + legover(2) = 3 ADD',
     provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Wave 7 doctrine-divergence pilot 2026-05-23, Red Q7.',
+  },
+
+  // ── 2026-05-23 — productive-multiplicity base entries (DATW + DLO) ─────
+  // Top-level JOB + ADD entries for the two community-stabilized
+  // productive-multiplicity compounds (per freestyle-dictionary skill's
+  // productive multiplicity exception list). Both base operational forms
+  // come from the footbag.org corpus; ADD breakdown decomposes through
+  // dex events and stall delay.
+  {
+    slug:        'double-around-the-world',
+    name:        'double around the world',
+    operator:    'double',
+    base:        'around-the-world',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'dex(2) + stall(1) = 3 ADD',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
+    provenance:  'footbag.org corpus base operational form. Two same-side inside dex events into a same-side toe stall. ADD decomposes as two dex events (1 each) plus the terminal stall (1).',
+  },
+  {
+    slug:        'double-leg-over',
+    name:        'double leg over',
+    operator:    'double',
+    base:        'legover',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'dex(2) + stall(1) = 3 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
+    provenance:  'footbag.org corpus base operational form. Opposite-side inside dex into opposite-side outside dex into a same-side toe stall. ADD decomposes as two dex events (1 each) plus the terminal stall (1). Alias forms (double legover, dlo) collapse to the canonical double-leg-over slug.',
   },
 ];

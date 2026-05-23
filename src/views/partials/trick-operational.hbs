@@ -1,13 +1,18 @@
 {{!--
-  Operational notation block (warm palette). Renders only when
-  operationalNotation is non-null. Includes an optional source-provenance
-  note and a glossary deeplink.
+  Operational (JOB) notation block (warm palette). Renders the role-
+  classified tokens for the trick's operational notation chain.
+
+  Suppressed for first-class tricks because their JOB row is already
+  rendered by the trick-comparative-row notation summary card directly
+  below the hero. Non-first-class tricks still get the full tokenized
+  rendering here.
 --}}
 {{#if content.operationalNotation}}
-<section class="content-section operational-notation-display" aria-label="Set notation (operational)">
+{{#unless content.isFirstClass}}
+<section class="content-section operational-notation-display" aria-label="JOB notation">
   <div class="section-heading">
-    <h2>Set notation (operational)</h2>
-    <p class="section-intro">Execution mechanics -- how the body performs the trick. Independent of the semantic notation above.</p>
+    <h2>JOB notation</h2>
+    <p class="section-intro">Execution mechanics -- how the body performs the trick.</p>
   </div>
   <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
   {{#if content.operationalNotation.sourceNote}}
@@ -17,4 +22,5 @@
     <a href="/freestyle/glossary#operational-notation">Token reference &rarr;</a>
   </p>
 </section>
+{{/unless}}
 {{/if}}

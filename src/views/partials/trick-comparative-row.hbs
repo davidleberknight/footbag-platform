@@ -1,48 +1,48 @@
 {{!--
-  Notation summary card for first-class trick pages. Replaces the prior
-  loud gold metadata strip with a compact neutral reference card.
+  Notation summary card for first-class trick pages.
 
-  Visible rows (per first-class display contract):
-    - Compact          — content.comparativeNotation.compactNotation
-    - Operational      — content.comparativeNotation.jobLineage (label
-                         "Operational" for atomic source, "Job" for
-                         curator source). Hidden when tautological or
-                         absent.
-    - ADD breakdown    — content.comparativeNotation.addBreakdown
-    - Official         — content.comparativeNotation.officialAdd + " ADD"
-    - Video            — content.comparativeNotation.videoLabel
+  Renders the compact JOB / ADD / ALT formula cluster as a labeled
+  <dl> block.
 
-  Explicit absences:
-    - NO "First-class" public badge (the heading is the only signal)
-    - NO #slug title (redundant with hero h1)
-    - NO Job tautology (suppressed at the service layer)
-    - NO provenance / curator-internal language
+  Rows (per the formula display contract):
+    - JOB           — content.comparativeNotation.jobLineage
+                      (curator-authored operational notation or atomic
+                      flag-decomposition chain). Hidden when absent.
+    - ADD           — content.comparativeNotation.addBreakdown
+                      (curator-published derivation, or atomic flag-
+                      decomposition string). Always rendered when the
+                      summary card renders at all.
+    - ALT           — content.comparativeNotation.altFormula
+                      (alternate interpretive formula, currently the 5
+                      curator-locked rev(0) entries). Hidden when null.
 
-  Layer contract: this strip carries Tier-2 (operational/Job lineage) +
-  Tier-4 (ADD breakdown) patterns. Both are permitted on trick-detail
-  per the 4-tier rendering hierarchy contract.
+  The compound-description slot is NOT a separate dl row — for atomic
+  and simple tricks the JOB row carries the operational form on its
+  own and no human-readable compound description renders. Only when
+  the JOB row is genuinely empty does the slot collapse.
+
+  No "Compact", "Official", or "Video" rows here — they were Tier-other
+  metadata that diluted the formula focus; identity sits in the hero
+  ribbon (hashtag chip, ADD chip, family chip) and media indicators
+  sit in the media block.
 --}}
 {{#if content.isFirstClass}}
 {{#if content.comparativeNotation}}
 <section class="trick-notation-summary" aria-label="Notation summary">
   <h2 class="trick-notation-summary-heading">Notation summary</h2>
   <dl class="trick-notation-summary-fields">
-    <dt>Compact</dt>
-    <dd class="trick-notation-summary-compact">{{content.comparativeNotation.compactNotation}}</dd>
-
     {{#if content.comparativeNotation.jobLineage}}
-    <dt>{{#if (eq content.comparativeNotation.jobLineageSource 'atomic')}}Operational{{else}}Job{{/if}}</dt>
+    <dt>JOB</dt>
     <dd><code class="trick-notation-summary-chain">{{content.comparativeNotation.jobLineage}}</code></dd>
     {{/if}}
 
-    <dt>ADD breakdown</dt>
+    <dt>ADD</dt>
     <dd><code class="trick-notation-summary-derivation">{{content.comparativeNotation.addBreakdown}}</code></dd>
 
-    <dt>Official</dt>
-    <dd class="trick-notation-summary-official">{{content.comparativeNotation.officialAdd}} ADD</dd>
-
-    <dt>Video</dt>
-    <dd class="trick-notation-summary-video trick-notation-summary-video--{{content.comparativeNotation.videoState}}">{{content.comparativeNotation.videoLabel}}</dd>
+    {{#if content.comparativeNotation.altFormula}}
+    <dt>ALT</dt>
+    <dd><code class="trick-notation-summary-alt">{{content.comparativeNotation.altFormula}}</code></dd>
+    {{/if}}
   </dl>
 </section>
 {{/if}}

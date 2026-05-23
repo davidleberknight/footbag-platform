@@ -62,6 +62,16 @@ const MODIFIER_REFERENCE_TERMS: ReadonlySet<string> = new Set([
   'cross-body',
 ]);
 
+// Reference-section anchors for top-level glossary subsections that are
+// not term-keyed (id="term-{slug}") and not connective-panel-keyed
+// (id="glossary-panel-{slug}"). Deep links resolve to the bare anchor.
+const REFERENCE_SECTION_ANCHORS: ReadonlyMap<string, string> = new Map([
+  ['jobs-notation', 'jobs-notation'],
+  ['job-notation', 'jobs-notation'],
+  ['job notation', 'jobs-notation'],
+  ['jobs notation', 'jobs-notation'],
+]);
+
 /**
  * Map a glossary term to its deep-link URL on /freestyle/glossary.
  *
@@ -78,6 +88,10 @@ export function glossaryHrefForTerm(term: string): string {
     SET_MODIFIER_ANCHOR_TERMS.has(normalized)
   ) {
     return `/freestyle/glossary#term-${normalized}`;
+  }
+  const refAnchor = REFERENCE_SECTION_ANCHORS.get(normalized);
+  if (refAnchor) {
+    return `/freestyle/glossary#${refAnchor}`;
   }
   return '/freestyle/glossary';
 }

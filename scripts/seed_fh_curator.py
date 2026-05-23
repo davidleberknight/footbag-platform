@@ -1090,16 +1090,35 @@ def ensure_fh_named_galleries(
     print(f"  → Ensured {len(galleries)} FH-owned named gallery row(s).")
 
 
+URL_REF_SIDECAR_SUBDIRS = ("freestyle_tricks", "freestyle_tutorials")
+
+
 def seed_freestyle_tricks_sidecars(
     con: sqlite3.Connection, fh_id: str, source_dir: Path, ts: str
 ) -> int:
-    """Seed every /curated/freestyle_tricks/*.meta.json sidecar into
-    media_items + media_tags + media_sources. Returns count of sidecars seeded.
+    """Seed every URL-only sidecar from the curated subdirs in
+    URL_REF_SIDECAR_SUBDIRS into media_items + media_tags + media_sources.
+    Returns count of sidecars seeded.
+
+    Two subdirs share this URL-only loader path:
+      - freestyle_tricks/  — trick reference videos (the original home;
+                             tagged with trick slugs).
+      - freestyle_tutorials/ — tutorial videos (methodology, set anatomy,
+                               etc.; tagged with source slugs like
+                               #passback_tutorials). Same schema; the
+                               directory split is a semantic distinction
+                               between trick-reference and tutorial media.
+
+    Both subdirs are added to FILE_PAIRED_SUBDIR_BLOCKLIST so the generic
+    file-paired walker does not silently skip these URL-only sidecars
+    (which carry no companion binary).
     """
-    sidecar_dir = source_dir / "freestyle_tricks"
-    if not sidecar_dir.is_dir():
-        return 0
-    files = sorted(sidecar_dir.glob("*.meta.json"))
+    files: list[Path] = []
+    for subdir_name in URL_REF_SIDECAR_SUBDIRS:
+        subdir = source_dir / subdir_name
+        if subdir.is_dir():
+            files.extend(sorted(subdir.glob("*.meta.json")))
+    files = sorted(files)
     if not files:
         return 0
 
@@ -1115,7 +1134,8 @@ def seed_freestyle_tricks_sidecars(
         _, _, platform, url = _seed_one_sidecar(con, path, fh_id, ts, alias_map)
         seen_pairs.add((platform, url))
         n += 1
-    print(f"  → Seeded {n} freestyle reference video(s) from /curated/freestyle_tricks/")
+    subdir_label = " + ".join(f"/curated/{d}/" for d in URL_REF_SIDECAR_SUBDIRS)
+    print(f"  → Seeded {n} URL-ref video sidecar(s) from {subdir_label}")
 
     # Orphan cleanup: delete URL-ref rows whose sidecar is no longer on
     # disk. /curated/ is the source of truth; this is what makes admin
@@ -1139,15 +1159,16 @@ def seed_freestyle_tricks_sidecars(
 
 
 # Subdirectories that have their own bespoke seed pipelines and must NOT
-# be walked by the generic file-paired sidecar pass below. freestyle_tricks
-# carries url-reference sidecars (different schema; handled by
-# seed_freestyle_tricks_sidecars). galleries carries named-gallery sidecars
+# be walked by the generic file-paired sidecar pass below.
+# freestyle_tricks + freestyle_tutorials carry url-reference sidecars
+# (different schema; handled by seed_freestyle_tricks_sidecars via
+# URL_REF_SIDECAR_SUBDIRS). galleries carries named-gallery sidecars
 # (handled by _load_named_gallery_sidecars). Add new bespoke subdirs here
 # when they appear; everything else is treated as admin-uploaded
 # file-paired content matching the CuratorSidecar shape (caption, tags,
 # optional poster, optional externalUrl) — the same shape the admin
 # upload form writes when local-adapter mode supplies a category.
-FILE_PAIRED_SUBDIR_BLOCKLIST = {"freestyle_tricks", "galleries"}
+FILE_PAIRED_SUBDIR_BLOCKLIST = {*URL_REF_SIDECAR_SUBDIRS, "galleries"}
 
 # Binary extensions recognized as file-paired primaries. Mirrors the
 # enumerator in src/services/curatorSeedService.ts:enumerateMediaSources.

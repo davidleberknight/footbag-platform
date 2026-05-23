@@ -164,31 +164,40 @@ describe('First-class trick pilot — Notation summary card', () => {
     expect(res.text).not.toMatch(new RegExp(`class="trick-notation-summary-heading"[^>]*>\\s*#${slug}<`));
   });
 
-  it.each(PILOT_SLUGS)('Notation summary on %s carries the canonical labeled rows', async (slug) => {
+  it.each(PILOT_SLUGS)('Notation summary on %s carries the ADD row and the retired Compact/Official/Video rows are gone', async (slug) => {
+    // 2026-05-23 regression slice: the notation-summary card was
+    // reduced to the formula-only triplet JOB / ADD / ALT. Compact /
+    // Official / Video rows were dropped (Compact = title duplication;
+    // Official = redundant with hero ADD chip; Video = media indicator,
+    // not a formula row). JOB and ALT are conditional — JOB appears
+    // only when curator operational notation exists; ALT only for the
+    // 5 rev(0) entries. ADD is the one always-rendered row.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     const startIdx = res.text.indexOf('class="trick-notation-summary"');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/<dt>Compact<\/dt>/);
-    expect(region).toMatch(/<dt>ADD breakdown<\/dt>/);
-    expect(region).toMatch(/<dt>Official<\/dt>/);
-    expect(region).toMatch(/<dt>Video<\/dt>/);
+    expect(region).toMatch(/<dt>ADD<\/dt>/);
+    expect(region).not.toMatch(/<dt>Compact<\/dt>/);
+    expect(region).not.toMatch(/<dt>Official<\/dt>/);
+    expect(region).not.toMatch(/<dt>Video<\/dt>/);
   });
 
-  it('osis Notation summary uses "Operational" label (atomic source) — NOT "JOB: OSIS" tautology', async () => {
-    // FC polish slice: when the chain comes from the atomic flag-
-    // decomposition, the label is "Operational" not "Job". The
-    // uppercased canonical-name form ("OSIS") never appears as a
-    // tautological chain value.
+  it('osis Notation summary uses "JOB" label — NOT a tautological echo of the canonical name', async () => {
+    // Atomic flag-decomposition source still resolves to the JOB row
+    // (uniform label across atomic / curator sources). The uppercased
+    // canonical-name form ("OSIS") never appears as a tautological
+    // chain value because the JOB row carries the operational chain
+    // (e.g. "[set] > (downtime) spin > ss clipper").
     const res = await request(createApp()).get('/freestyle/tricks/osis');
     const startIdx = res.text.indexOf('class="trick-notation-summary"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/<dt>Operational<\/dt>/);
+    expect(region).toMatch(/<dt>JOB<\/dt>/);
     expect(region).toContain('[set] &gt; (downtime) spin &gt; ss clipper');
-    // Tautological-suppression invariants:
-    expect(region).not.toMatch(/<dt>Job<\/dt>[\s\S]{0,100}OSIS/);
+    // The legacy "Operational" / "Job" inline labels are gone.
+    expect(region).not.toMatch(/<dt>Operational<\/dt>/);
+    expect(region).not.toMatch(/<dt>Job<\/dt>/);
     expect(region).not.toMatch(/>\s*OSIS\s*</);
   });
 
@@ -208,14 +217,29 @@ describe('First-class trick pilot — Notation summary card', () => {
     expect(res.text).toContain('stepping(+1) + butterfly(3)');
   });
 
-  it('Official row renders the curator-locked numeric value with " ADD" suffix', async () => {
+  it('hero ADD chip carries the curator-locked numeric value (Official row was retired)', async () => {
+    // 2026-05-23: the dedicated "Official" dl row in the notation
+    // summary card was retired as redundant with the hero ADD chip.
+    // The hero's chip is the single source of truth for the numeric
+    // total on first-class trick pages.
     const res = await request(createApp()).get('/freestyle/tricks/atomic-butterfly');
-    expect(res.text).toMatch(/class="trick-notation-summary-official"[^>]*>4 ADD</);
+    expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-adds"[^>]*>4 ADD</);
+    expect(res.text).not.toMatch(/class="trick-notation-summary-official"/);
   });
 
-  it('Compact row renders the curator-authored compact form (lowercased)', async () => {
+  it('Compact row was retired from the notation-summary card', async () => {
+    // 2026-05-23: the "Compact" dl row was retired as duplicating
+    // the page title. (paradox-mirage has no curator-authored JOB
+    // notation yet, so the JOB row simply does not render; the ADD
+    // row carries the derivation.)
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(res.text).toMatch(/class="trick-notation-summary-compact"[^>]*>paradox mirage</);
+    const startIdx = res.text.indexOf('class="trick-notation-summary"');
+    expect(startIdx).toBeGreaterThan(0);
+    const endIdx = res.text.indexOf('</section>', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    expect(region).not.toMatch(/<dt>Compact<\/dt>/);
+    expect(region).not.toMatch(/class="trick-notation-summary-compact"/);
+    expect(region).toMatch(/<dt>ADD<\/dt>/);
   });
 });
 

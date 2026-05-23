@@ -127,12 +127,24 @@ describe('Part 1 — description column refinement', () => {
 });
 
 describe('Part 2 — reverse-pair transform overlay', () => {
-  it('renders the transform section on illusion (rev(0) + mirage)', async () => {
+  it('renders the transform section on illusion with the explainer (rev(0) + mirage)', async () => {
+    // 2026-05-23: the formula expression line was relocated to the
+    // notation-summary card's ALT row (curator-uniform JOB/ADD/ALT
+    // formula cluster). The transform overlay now carries only the
+    // shared explainer + base cross-link; the bare "Transform: rev(0)
+    // + mirage" line is intentionally retired.
     const res = await request(createApp()).get('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
-    expect(res.text).toMatch(/<span class="trick-transform-label">Transform:<\/span>/);
-    expect(res.text).toMatch(/<code class="trick-transform-expression">rev\(0\) \+ mirage<\/code>/);
+    expect(res.text).not.toMatch(/class="trick-transform-label"/);
+    expect(res.text).not.toMatch(/class="trick-transform-expression"/);
+    // ALT row in the notation-summary card carries the formula.
+    const summaryStart = res.text.indexOf('class="trick-notation-summary"');
+    expect(summaryStart).toBeGreaterThan(0);
+    const summaryEnd = res.text.indexOf('</section>', summaryStart);
+    const summary = res.text.slice(summaryStart, summaryEnd);
+    expect(summary).toMatch(/<dt>ALT<\/dt>/);
+    expect(summary).toMatch(/rev\(0\)\s*\+\s*mirage\(2\)/);
   });
 
   it('renders the locked rev(0) explainer on illusion (drift guard)', async () => {

@@ -704,19 +704,20 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(grids.length).toBe(1);
   });
 
-  it('orders cards alphabetically by display name within the flat grid', async () => {
+  it('orders cards by the source claim numeric (asc), with displayName as the tiebreak', async () => {
+    // 2026-05-23 regression slice: observational cards now sort by
+    // the source's numeric claim (proposedAddTotal) ascending, with
+    // entries lacking a claim sorting last and displayName tiebreaking
+    // within an equal-claim bucket. Use two known fixture rows:
+    //   - 'Big Orange' has proposedAddTotal=1
+    //   - 'Bladerunner' has proposedAddTotal=3
+    // Big Orange must precede Bladerunner under claim-asc.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Pull all observed-card-name h3 occurrences; their order should be
-    // alphabetical (case-insensitive, locale-aware).
-    const nameRegex = /class="observed-card-name"[^>]*>\s*([^<]+?)\s*</g;
-    const names: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = nameRegex.exec(res.text)) !== null) {
-      names.push(m[1]);
-    }
-    expect(names.length).toBeGreaterThanOrEqual(50);
-    const sorted = [...names].sort((a, b) => a.localeCompare(b));
-    expect(names).toEqual(sorted);
+    const orangeIdx = res.text.indexOf('Big Orange');
+    const bladeIdx  = res.text.indexOf('Bladerunner');
+    expect(orangeIdx).toBeGreaterThan(0);
+    expect(bladeIdx).toBeGreaterThan(0);
+    expect(orangeIdx).toBeLessThan(bladeIdx);
   });
 
   it('cards with extra readings or notes render a <details> expansion', async () => {
@@ -1315,9 +1316,13 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
-    // Section wrapper present
+    // Section wrapper present. 2026-05-23: section heading was
+    // renamed from "Set notation (operational)" to "JOB notation" to
+    // match the brief's vocabulary; the section is rendered only for
+    // non-first-class tricks (the trick-notation-summary card carries
+    // the JOB row on first-class pages).
     expect(res.text).toContain('class="content-section operational-notation-display"');
-    expect(res.text).toContain('<h2>Set notation (operational)</h2>');
+    expect(res.text).toContain('<h2>JOB notation</h2>');
     // O1b: each token rendered as a span with role class. O1c refined the
     // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
     // the generic "Plant or landing surface").
@@ -1335,7 +1340,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const res = await request(app).get('/freestyle/tricks/op-notation-empty');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('operational-notation-display');
-    expect(res.text).not.toContain('Set notation (operational)');
+    expect(res.text).not.toContain('JOB notation');
   });
 
   it('places the operational section between Notation and the structural-decomposition diagnostic', async () => {
@@ -2337,10 +2342,17 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                onboarding band: twelve core-trick-atom cards with
     //                movement-physical leads + foundational notes.
     //                Curator-locked educational expansion; not prose drift.
+    //   192K → 200K  2026-05-23 Jobs notation reference section: a
+    //                dedicated #jobs-notation subsection quoting Ben
+    //                Job's 1995 article (canonical formula + six
+    //                example tricks + extension-token list), with a
+    //                cite to the in-repo archive at
+    //                exploration/fborg/JobsNotation.txt. The historical
+    //                source-of-truth surface for the grammar lineage.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(192_000);
+    expect(res.text.length).toBeLessThan(200_000);
   });
 });
 

@@ -1169,6 +1169,13 @@ export interface ComparativeNotationRow {
   /** 'tutorial' / 'demo' / 'available' / 'none-yet'. */
   videoState:         'tutorial' | 'demo' | 'available' | 'none-yet';
   videoLabel:         string;
+  /** Alternate interpretive formula (the ALT row). Populated only when
+   *  a transform expression exists for this slug (the 5 curator-locked
+   *  rev(0) entries: illusion / pickup / rev-whirl / rev-swirl / orbit).
+   *  rev(+0) belongs in this row, not in the ADD calculation, so the
+   *  reverse-pair interpretation stays separate from the direct ADD
+   *  derivation. */
+  altFormula:         string | null;
 }
 
 /** Curator-published ADD derivation surfaced under a collapsed disclosure
@@ -2438,9 +2445,11 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
   operationalTokens: [
     { short: 'DEX',  meaning: 'Dexterity component. The foot circles the bag.' },
     { short: 'XBD',  meaning: 'Cross-body component. Active foot crosses the body’s centerline.' },
-    { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, or paradox pose change.' },
+    { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, flying, or paradox pose change. Carries +1 ADD in body-modifier accounting (e.g. BOD(1) + clipper(1) for flying clipper).' },
     { short: 'CLIP', meaning: 'Clipper — inside-arch shoe surface.' },
     { short: 'TOE',  meaning: 'Toe surface — top of the shoe.' },
+    { short: 'UNS',  meaning: 'Unusual surface. Non-standard delay or kick surface (sole, cloud, knee-front, etc.). Carries 1 ADD in surface-anchor accounting (e.g. UNS(1) = 1 ADD for sole-kick / cloud-kick).' },
+    { short: 'DEL',  meaning: 'Delay / terminal stall component closing a JOB-notation chain.' },
   ],
 };
 
@@ -2593,6 +2602,12 @@ export interface ObservedTrickCard {
    *  and the displayed number is often a relative modifier delta, not
    *  a canonical difficulty class. */
   externalClaimLabel: string | null;
+  /** Numeric form of the source's ADD claim (null when source publishes
+   *  no number). Used as the primary sort key on the observational page
+   *  so readers see source-claimed difficulty order; never rendered as
+   *  a canonical-ADD value (the labeled string above carries source
+   *  attribution). */
+  claimNumeric: number | null;
   /** True when at least one of: additionalReadings, formula,
    *  curatorNote, blockers is non-empty. Template uses this to gate
    *  the <details> element. */
@@ -2601,12 +2616,11 @@ export interface ObservedTrickCard {
 }
 
 export interface FreestyleObservationalContent {
-  /** Flat alphabetical list of observed-trick cards. Sorted A-Z by
-   *  displayName. NO grouping by external ADD claim — observed tricks
-   *  are NOT canonical resolved tricks; grouping by claimed ADD would
-   *  imply canonical difficulty classification the layer does not have
-   *  the authority to assert. Cards carry their external-claim labels
-   *  inline (e.g. 'PB claim: 4') with explicit source attribution. */
+  /** Observed-trick cards sorted by the source's numeric ADD claim
+   *  ascending (entries with no claim sort last), with displayName as
+   *  secondary tiebreak. Cards still carry per-source external-claim
+   *  labels (e.g. 'PB claim: 4'); the labels remain source-attributed
+   *  and NEVER framed as canonical ADD. */
   cards:                readonly ObservedTrickCard[];
   totalEntries:         number;
   /** Unique source badges represented (e.g. ['PB','FM']) for the page
@@ -2670,6 +2684,7 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
     statusChip:       OBSERVED_STATUS_CHIP[t.status],
     shortReading:     first ?? null,
     externalClaimLabel,
+    claimNumeric:     t.proposedAddTotal,
     hasDetails,
     detailExpansion: {
       additionalReadings,
@@ -2681,8 +2696,19 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
   };
 }
 
-function sortObservedCardsAlphabetical(cards: readonly ObservedTrickCard[]): readonly ObservedTrickCard[] {
-  return [...cards].sort((a, b) => a.displayName.localeCompare(b.displayName));
+function sortObservedCardsByClaim(cards: readonly ObservedTrickCard[]): readonly ObservedTrickCard[] {
+  return [...cards].sort((a, b) => {
+    const aNum = a.claimNumeric;
+    const bNum = b.claimNumeric;
+    if (aNum !== null && bNum !== null) {
+      if (aNum !== bNum) return aNum - bNum;
+    } else if (aNum !== null) {
+      return -1;
+    } else if (bNum !== null) {
+      return 1;
+    }
+    return a.displayName.localeCompare(b.displayName);
+  });
 }
 
 function collectObservedSourceBadges(cards: readonly ObservedTrickCard[]): readonly ObservedSourceBadge[] {
@@ -2847,6 +2873,25 @@ const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
   }
   return map;
 })();
+
+/** Resolve the curator-authored JOB operational notation for a slug.
+ *  Lookup order: CoreTrickSpec (12 atoms) → RESOLVED_FORMULAS_SPRINT_1
+ *  (curator-published compounds carrying operationalNotation) → DB row's
+ *  operational_notation column. Returns null when no source has a value.
+ *
+ *  This is the single source-of-truth path for JOB notation shaping.
+ *  Both shapeDictionaryTrickCard (browse) and the trick-detail builder
+ *  consult it so card + detail page stay in sync. */
+function resolveOperationalNotationRaw(
+  slug: string,
+  dbRaw: string | null | undefined,
+): string | null {
+  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === slug);
+  if (coreAtomSpec?.operationalNotation) return coreAtomSpec.operationalNotation;
+  const resolved = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  if (resolved?.operationalNotation) return resolved.operationalNotation;
+  return dbRaw ?? null;
+}
 
 /** Resolve the Tier-4 ADD-analysis disclosure for a trick slug. Returns
  *  null when the slug has no curator-published resolved formula —
@@ -3295,12 +3340,12 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > shoulder',
   }],
   ['sole-kick', {
-    decomposition:    'unusual surface(1) = 1 ADD',
+    decomposition:    'UNS(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > sole kick',
   }],
   ['cloud-kick', {
-    decomposition:    'unusual surface(1) = 1 ADD',
+    decomposition:    'UNS(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: '[set] > cloud kick',
   }],
@@ -3650,16 +3695,19 @@ function shapeComparativeNotation(
   const compactNotation = (dictRow.notation ?? '').trim().toLowerCase()
     || (dictRow.canonical_name ?? slug).trim().toLowerCase();
 
-  // Operational / Job row — prefer curator-authored operational notation
-  // (DB column) → fall back to atomic flag-decomposition's curator-authored
-  // movement-language chain → otherwise absent. The atomic 'OSIS' uppercase
-  // fallback is gone: tautological-suppression rules out re-rendering the
-  // compact form as if it were operational lineage.
+  // Operational / Job row — pick the highest-priority curator source:
+  // resolveOperationalNotationRaw consults CoreTrickSpec (12 atoms) →
+  // RESOLVED_FORMULAS_SPRINT_1 overrides → DB operational_notation
+  // column. When all three are empty, fall back to atomic-flag
+  // decomposition's curator-authored movement chain; otherwise absent.
+  // Tautological-suppression below filters out the uppercase compact-
+  // form echo for atom singletons.
   const atomicDecompForOp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
+  const resolvedOpRaw = resolveOperationalNotationRaw(slug, dictRow.operational_notation);
   let jobLineage: string;
   let jobLineageSource: ComparativeNotationRow['jobLineageSource'];
-  if (dictRow.operational_notation && dictRow.operational_notation.trim()) {
-    jobLineage = dictRow.operational_notation;
+  if (resolvedOpRaw && resolvedOpRaw.trim()) {
+    jobLineage = resolvedOpRaw;
     jobLineageSource = 'curator';
   } else if (atomicDecompForOp?.operationalChain) {
     jobLineage = atomicDecompForOp.operationalChain;
@@ -3718,6 +3766,16 @@ function shapeComparativeNotation(
     videoLabel = 'No';
   }
 
+  // ALT row — alternate interpretive formula for the 5 curator-locked
+  // rev(0) entries (illusion, pickup, rev-whirl, rev-swirl, orbit). For
+  // any other slug, altFormula stays null. rev belongs in ALT, NOT in
+  // the ADD row — the direct ADD derivation (xbody/dex/stall buckets)
+  // stays uncluttered. rev(0) adds 0 ADD, so the total equals the base.
+  const transformEntry = getReversePairTransform(slug);
+  const altFormula: string | null = transformEntry
+    ? `rev(0) + ${transformEntry.baseName}(${officialAdd}) = ${officialAdd} ADD`
+    : null;
+
   return {
     trickTag,
     compactNotation,
@@ -3728,6 +3786,7 @@ function shapeComparativeNotation(
     officialAdd,
     videoState,
     videoLabel,
+    altFormula,
   };
 }
 
@@ -3819,7 +3878,7 @@ function shapeDictionaryTrickCard(
   // operational notation takes the visible slot; aliases remain
   // accessible on the trick-detail page + glossary.
   const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
-  const opNotationRaw = coreAtomSpec?.operationalNotation ?? row.operational_notation;
+  const opNotationRaw = resolveOperationalNotationRaw(indexRow.slug, row.operational_notation);
   const opDisplay = shapeOperationalNotationDisplay(opNotationRaw);
   const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
     ? row.operational_notation_source.trim()
@@ -4928,13 +4987,19 @@ export const freestyleService = {
             : null,
           operationalNotation: (() => {
             // O1a/O1b/O1d: shape into role-classified tokens for the trick-
-            // detail template. Null when the row has no operational_notation
-            // populated; section omits entirely. shapeOperationalNotationDisplay
-            // handles null/empty/whitespace-only input safely. O1d adds the
-            // optional curator-authored sourceNote (provenance/citation line);
-            // null when the operational_notation_source column is empty —
-            // the source-note <p> renders only when populated.
-            const display = shapeOperationalNotationDisplay(dictRow?.operational_notation);
+            // detail template. Null when no source carries operational
+            // notation; section omits entirely. Lookup chain: CoreTrickSpec
+            // (12 atoms) → RESOLVED_FORMULAS_SPRINT_1 (curator-published
+            // compound JOB overrides) → DB operational_notation column.
+            // shapeOperationalNotationDisplay handles null/empty/whitespace-
+            // only input safely. The optional curator-authored sourceNote
+            // (provenance/citation line) renders only when the
+            // operational_notation_source column is populated.
+            const opNotationRaw = resolveOperationalNotationRaw(
+              slug,
+              dictRow?.operational_notation ?? null,
+            );
+            const display = shapeOperationalNotationDisplay(opNotationRaw);
             if (!display) return null;
             const rawSource = dictRow?.operational_notation_source;
             const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
@@ -6371,7 +6436,7 @@ export const freestyleService = {
       .filter(t => t.status !== 'rejected')
       .map(shapeObservedTrickCard);
 
-    const cards = sortObservedCardsAlphabetical(cardsUnsorted);
+    const cards = sortObservedCardsByClaim(cardsUnsorted);
 
     const sources = collectObservedSourceBadges(cards);
 

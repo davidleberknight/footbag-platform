@@ -106,7 +106,10 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).toContain('By movement system');
     expect(nav).toContain('Movement Neighborhoods');
     expect(nav).toContain('href="/freestyle/operators"');
-    expect(nav).toContain('href="/freestyle/observational"');
+    // 2026-05-23: the duplicate Observed Tricks link was removed from
+    // the dictionary browse strip. Observed Tricks remains reachable
+    // from the freestyle landing's Go Deeper card.
+    expect(nav).not.toContain('href="/freestyle/observational"');
     // The retired "‹ Dictionary" back-link is gone.
     expect(nav).not.toContain('trick-view-toggle-back');
   });
