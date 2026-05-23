@@ -107,6 +107,12 @@ import {
   COMPOSITIONAL_AUDIT_ENTRIES,
 } from '../content/freestyleCompositionalSets';
 import {
+  getCompoundSemanticDescription,
+  isDescriptionRedundantWithNotation,
+  getReversePairTransform,
+  REV_ZERO_EXPLAINER,
+} from '../content/freestyleSemanticOverrides';
+import {
   isUnresolvedCompound,
 } from '../content/freestyleUnresolvedCompounds';
 import {
@@ -1094,6 +1100,24 @@ export interface FreestyleTrickContent {
   primitiveNote: {
     label:     string;
     explainer: string;
+  } | null;
+  // Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
+  // Populated only for the five curator-locked reverse-direction
+  // pairs (illusion, pickup, rev-whirl, rev-swirl, orbit). Surfaces
+  // a small "Transform" line below the canonical JOB notation so
+  // readers see the structural symmetry between the reverse trick
+  // and its base.
+  //
+  // FOREVER-RULE: deliberately scoped to these five entries; this
+  // overlay is an educational pedagogy layer, NOT a general
+  // symbolic algebra system. New transform operators or entries
+  // require explicit curator approval.
+  transform: {
+    expression:    string;  // e.g. "rev(0) + mirage"
+    baseSlug:      string;
+    baseName:      string;
+    baseHref:      string;
+    rev0Explainer: string;  // shared rev(0) operator explainer
   } | null;
 }
 
@@ -4049,12 +4073,27 @@ function shapeDictEntry(
 
   const addsNumeric = row.adds ? parseInt(row.adds, 10) : null;
 
+  // Part 1 — description refinement (semantic-notation slice, 2026-05-23).
+  // Three branches, in priority order:
+  //   1. Curator-authored compound semantic description (override) —
+  //      replaces a literal-notation echo with a compositional reading.
+  //   2. Redundant DB description (literal JOB-notation echo) — suppress.
+  //      Primitive trick pages stop rendering the "About" prose block
+  //      when the description merely repeats the notation below.
+  //   3. Genuine curator prose — pass through unchanged.
+  const refinedDescription = (() => {
+    const override = getCompoundSemanticDescription(row.slug);
+    if (override !== null) return override;
+    if (isDescriptionRedundantWithNotation(row.description, row.notation)) return null;
+    return row.description;
+  })();
+
   return {
     canonicalName:    row.canonical_name,
     adds:             row.adds,
     addsNumeric:      isNaN(addsNumeric ?? NaN) ? null : addsNumeric,
     category:         row.category,
-    description:      row.description,
+    description:      refinedDescription,
     aliases,
     baseTrick,
     baseTrickSlug,
@@ -5031,6 +5070,22 @@ export const freestyleService = {
             return {
               label:     'Core movement atom',
               explainer: 'Foundational primitive — functions as a compositional base rather than a recursively decomposed structure.',
+            };
+          })(),
+          transform: (() => {
+            // Reverse-pair transform overlay (semantic-notation slice,
+            // 2026-05-23). Populated only for the five curator-locked
+            // entries in REVERSE_PAIR_TRANSFORMS (illusion, pickup,
+            // rev-whirl, rev-swirl, orbit). See the content module
+            // for the forever-rule about scope.
+            const entry = getReversePairTransform(slug);
+            if (entry === null) return null;
+            return {
+              expression:    entry.expression,
+              baseSlug:      entry.baseSlug,
+              baseName:      entry.baseName,
+              baseHref:      `/freestyle/tricks/${entry.baseSlug}`,
+              rev0Explainer: REV_ZERO_EXPLAINER,
             };
           })(),
           familyAnchorContext: (() => {

@@ -1,0 +1,25 @@
+{{!--
+  Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
+  Renders only when content.transform is non-null — five curator-locked
+  entries (illusion, pickup, rev-whirl, rev-swirl, orbit). Compact
+  pedagogical line surfacing structural symmetry with the reverse-pair
+  base trick.
+
+  Layer separation: this is an EDUCATIONAL OVERLAY only — it does NOT
+  replace JOB notation, operational notation, or ADD accounting. The
+  rev(0) operator is the only transform in use; deliberately scoped
+  to the five entries (forever-rule lives in
+  src/content/freestyleSemanticOverrides.ts).
+--}}
+{{#if content.transform}}
+<section class="content-section trick-transform" aria-label="Transform notation">
+  <p class="trick-transform-line">
+    <span class="trick-transform-label">Transform:</span>
+    <code class="trick-transform-expression">{{content.transform.expression}}</code>
+  </p>
+  <p class="trick-transform-explainer">
+    {{content.transform.rev0Explainer}}
+    Cross-link: <a href="{{content.transform.baseHref}}">{{content.transform.baseName}}</a>.
+  </p>
+</section>
+{{/if}}
