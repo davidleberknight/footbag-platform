@@ -115,6 +115,9 @@ beforeAll(async () => {
   // stall (per curator 2026-05-22); it's a flying dex knee kick.
   // bod(1) + xbody(1) = 2 ADD via ATOMIC_FLAG_DECOMPOSITIONS.
   insertFreestyleTrick(db, { slug: 'knee-clipper',  canonical_name: 'knee-clipper',   adds: '2', base_trick: 'knee-clipper',   trick_family: 'knee-clipper',   category: 'body',    notation: 'KNEE-CLIPPER STALL', operational_notation: '[set] > knee-clipper' });
+  // Doctrine-hold release: guay resolved 2026-05-22 as pickup-pattern
+  // dex primitive ending in inside-stall. dex(1) + stall(1) = 2 ADD.
+  insertFreestyleTrick(db, { slug: 'guay',          canonical_name: 'guay',           adds: '2', base_trick: 'guay',           trick_family: 'guay',           category: 'dex',     notation: 'GUAY',                operational_notation: '[set] > leggy in dex > ss inside' });
 
   db.close();
   createApp = await importApp();
@@ -365,8 +368,9 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'flying-inside', 'flying-outside', 'double-knee',
       // Tier 1 — 3 foundational 2-ADD primitives (pedagogical ADD-bucket
       // normalization 2026-05-22) + knee-clipper folk-name resolution
+      // + guay doctrine-hold release
       'cloud-stall', 'dragonfly-kick', 'flying-clipper',
-      'knee-clipper',
+      'knee-clipper', 'guay',
       // Tier 2 (9: 4 existing + 5 new)
       'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
       'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',

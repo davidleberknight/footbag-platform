@@ -179,7 +179,7 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
   it.each([
     'nemesis', 'sumo', 'bullwhip', 'double-down', 'terrage', 'datw',
     'omelette', 'fury', 'surging', 'sailing', 'shooting',
-    'jani-walker', 'guay', 'reaper', 'refraction', 'blistering', 'nuclear',
+    'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
   ])('%s remains governance-blocked via DOCTRINE_BLOCKED_SLUGS', (slug) => {
     const result = assertFirstClassConvergence(
       slug,
@@ -229,6 +229,25 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
       modifierTable,
       3,
     );
+    expect(result.diagnostic).not.toBe('workbook doctrine blocker');
+  });
+
+  it('guay is NOT in DOCTRINE_BLOCKED_SLUGS anymore (curator resolution 2026-05-22)', () => {
+    // Released from curator_hold and promoted to first-class with
+    // pickup-pattern dex + inside-stall decomposition.
+    const result = assertFirstClassConvergence(
+      'guay',
+      {
+        canonical_name: 'guay',
+        adds: 2,
+        base_trick: 'guay',
+        notation: 'GUAY',
+      },
+      [],
+      modifierTable,
+      2,
+    );
+    expect(result.status).not.toBe('governance-blocked');
     expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 });

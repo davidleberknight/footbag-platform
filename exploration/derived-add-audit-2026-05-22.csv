@@ -47,7 +47,7 @@ fury,fury,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,in DOCTRINE_BLOCKE
 fusion,fusion,5,,,,missing-notation,,,0,
 gauntlet,gauntlet,7,,7,stepping(+1) + ducking(+1) + paradox(+1) + torque(4) = 7 ADD,exact,,,1,
 grave-digger,grave digger,5,,,,missing-notation,,,0,
-guay,guay,2,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
+guay,guay,2,[set] > leggy in dex > ss inside,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 hatchet,hatchet,4,CLIP >> DIVE [BOD] > SAME FRONT WHIRL [DEX] > OP CLIP [XBD] [DEL],4,diving(+1) + whirl(3) = 4 ADD,exact,,,1,
 haze,haze,4,,,,missing-notation,,,0,
 head-stall,head stall,1,[set] > head,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class

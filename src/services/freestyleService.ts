@@ -2784,6 +2784,10 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   //    (bod + xbody = 2 ADD). Added to the foundational band so the
   //    audit/parser classification no longer trips on KNEE-CLIPPER STALL.
   'knee-clipper',        // 2-ADD flying dex knee kick (folk-name resolution)
+  // ── guay: 2-ADD pickup-pattern dex primitive ending in inside-stall
+  //    (sibling structure to pickup / legover / illusion / mirage).
+  //    Released from DOCTRINE_BLOCKED_SLUGS curator_hold 2026-05-22.
+  'guay',                // 2-ADD dex + stall primitive; inside-stall terminus variant of pickup
 ]);
 
 const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
@@ -2845,7 +2849,9 @@ const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // add_disagreement (open; not doctrine-locked)
   'omelette', 'fury', 'surging', 'sailing', 'shooting',
   // curator_hold
-  'jani-walker', 'guay', 'reaper', 'refraction', 'blistering', 'nuclear',
+  // guay released 2026-05-22: curator resolved as pickup-pattern dex
+  // primitive with inside-stall terminus; promoted to first-class.
+  'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
 ]);
 
 // Rotational base tricks for ADD math. Mirrors ROTATIONAL_BASES used in
@@ -3058,6 +3064,14 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     decomposition:    'bod(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > knee-clipper',
+  }],
+  // ── guay: pickup-pattern dex primitive ending in inside-stall.
+  //    Curator resolution 2026-05-22 (released from DOCTRINE_BLOCKED
+  //    curator_hold in the same slice).
+  ['guay', {
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > leggy in dex > ss inside',
   }],
 ]);
 
