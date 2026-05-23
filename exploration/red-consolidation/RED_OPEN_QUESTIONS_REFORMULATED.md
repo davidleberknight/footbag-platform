@@ -159,6 +159,27 @@ Whichever reading wins, the analyzer needs to encode it. The current formula tab
 
 This unblocks Walk-Over (resolved pt8 as 1-ADD body element with no clear decomposition) and the down-family entries from staying parser-confused.
 
+## Question Set 9 -- Inspinning ADD weight revisit (curator-flagged 2026-05-23)
+
+**Reframed:** Red previously ruled Inspinning as +0 directional (pt3 + pt7; "reverse-spin direction" per pt7 "Spinning variants are stacking modifiers"). Two FB.org /newmoves (2003) compounds use Inspinning as a structural operator on Paradox compounds:
+
+- `inspinning-paradox-mirage` -- official ADD 4
+- `inspinning-paradox-illusion` -- official ADD 4
+
+If Inspinning carries +0 (current ruling), the derivation is `0 + paradox(+1) + base(2) = 3` -- one short of official ADD 4 on both compounds, a systematic mismatch.
+
+If Inspinning carries +1 (the curator's revisit suggestion 2026-05-23), the derivation closes: `inspinning(+1) + paradox(+1) + base(2) = 4 ADD` matches official on both compounds and lets them promote out of the observational corpus.
+
+**Curator-2026-05-23 note (James):** the prior +0 ruling may have been a misunderstanding; Inspinning likely carries +1 ADD in the same way Spinning does, with the directional distinction being orthogonal to ADD weight (similar to how Whirl and Swirl both carry the same +1 modifier weights despite being reverse-direction siblings).
+
+**Q9:** is Inspinning +0 directional (current pt3+pt7 ruling) or +1 body modifier (curator revisit; matches FB.org compound officials)?
+
+If +1: update `freestyle_trick_modifiers` row + `freestyleOperatorReference.ts` inspinning entry; promote both FB.org compounds to canonical via the standard observational→canonical pattern.
+
+If +0 (current ruling stands): the two FB.org compounds either (a) have wrong official ADDs in the FB.org source and the audit's mismatch reading is correct, or (b) involve an implicit operator IFPA reads that PassBack's literal formula doesn't capture (the same systemic-gap pattern as Q7's Atomic-set polysemy hypothesis).
+
+Surfaced by the Wave 5 / inspinning composite-framework slice 2026-05-23. Both compounds remain in `OBSERVATIONAL_TRICKS` pending Red's revisit.
+
 ## Out of scope (NOT in this reformulation)
 
 - Pt1 era resolved items (atomsmasher, eclipse, spyro, etc.) -- documented in `RED_RESOLVED_CANON.md`.
