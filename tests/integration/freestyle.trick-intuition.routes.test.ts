@@ -1,0 +1,110 @@
+/**
+ * Integration tests for the trick-detail movement-intuition enrichment
+ * (2026-05-23). Six curator-locked flagship pages (mirage, whirl,
+ * butterfly, osis, illusion, mobius) render a "Movement intuition"
+ * section between the About block and the Notation block. All other
+ * pages do NOT render the section.
+ *
+ * Wording is locked at the content-module layer; this test asserts
+ * verbatim presence so future drift is caught before shipping.
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+
+import {
+  setTestEnv,
+  createTestDb,
+  cleanupTestDb,
+  importApp,
+} from '../fixtures/testDb';
+import { insertFreestyleTrick } from '../fixtures/factories';
+
+const { dbPath } = setTestEnv('3207');
+
+let createApp: Awaited<ReturnType<typeof importApp>>;
+
+beforeAll(async () => {
+  const db = createTestDb(dbPath);
+
+  // Six flagship slugs + one negative-control (whirling is a modifier-
+  // family slug not in the intuition map).
+  for (const seed of [
+    { slug: 'mirage',    canonical_name: 'mirage',    adds: '2', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound', notation: '[set] > hippy in dex > op toe', is_active: 1 },
+    { slug: 'whirl',     canonical_name: 'whirl',     adds: '3', base_trick: 'whirl',     trick_family: 'whirl',     category: 'compound', notation: '[set] > leggy in dex > ss clipper', is_active: 1 },
+    { slug: 'butterfly', canonical_name: 'butterfly', adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound', notation: '[set] > leggy out dex > op clip', is_active: 1 },
+    { slug: 'osis',      canonical_name: 'osis',      adds: '3', base_trick: 'osis',      trick_family: 'osis',      category: 'compound', notation: '[set] > back spin bod > ss clip', is_active: 1 },
+    { slug: 'illusion',  canonical_name: 'illusion',  adds: '2', base_trick: 'illusion',  trick_family: 'illusion',  category: 'compound', notation: '[set] > leggy out dex > op toe', is_active: 1 },
+    { slug: 'mobius',    canonical_name: 'mobius',    adds: '5', base_trick: 'torque',    trick_family: 'torque',    category: 'compound', notation: '[clip] > spin bod > leggy in dex > spin bod > op clip', is_active: 1 },
+    { slug: 'whirling',  canonical_name: 'whirling',  adds: 'modifier', base_trick: 'whirling', trick_family: 'whirl', category: 'modifier', notation: 'whirling', is_active: 1 },
+  ]) {
+    insertFreestyleTrick(db, seed);
+  }
+
+  db.close();
+  createApp = await importApp();
+});
+
+afterAll(() => cleanupTestDb(dbPath));
+
+describe('Movement intuition — flagship pages render the section', () => {
+  it('mirage renders the section with prose + fb.org attribution', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/<h2>Movement intuition<\/h2>/);
+    // Prose substring (whitespace tolerant; HTML may wrap).
+    expect(res.text).toMatch(/swing the support leg from in to out over the footbag/);
+    // Attribution renders.
+    expect(res.text).toMatch(/Per fb\.org \/newmoves description/);
+  });
+
+  it('whirl renders the section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/whirl');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/circle the footbag from the front up and over the footbag/);
+  });
+
+  it('butterfly renders the section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/butterfly');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/A leg over straight to a clipper delay/);
+  });
+
+  it('osis renders the section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/osis');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/Spin into a clipper delay/);
+  });
+
+  it('illusion renders the section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/illusion');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/a reverse miraging motion/);
+  });
+
+  it('mobius renders the section with compositional reading attribution', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/mobius');
+    expect(res.text).toContain('class="content-section trick-intuition"');
+    expect(res.text).toMatch(/spin into a right-leg mirage/);
+    expect(res.text).toMatch(/compositional reading per pt11/);
+  });
+});
+
+describe('Movement intuition — non-flagship pages omit the section', () => {
+  it('whirling (modifier; not in intuition map) does NOT render the section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/whirling');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="content-section trick-intuition"');
+  });
+});
+
+describe('Movement intuition — ordering invariant', () => {
+  it('intuition section renders BEFORE the notation section on flagship pages', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
+    const notationIdx  = res.text.indexOf('class="content-section notation-display"');
+    expect(intuitionIdx).toBeGreaterThan(0);
+    expect(notationIdx).toBeGreaterThan(0);
+    expect(intuitionIdx).toBeLessThan(notationIdx);
+  });
+});

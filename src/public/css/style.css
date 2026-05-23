@@ -3926,6 +3926,30 @@ section.home-media { padding-top: 0; }
   white-space: nowrap;
 }
 
+/* Movement-intuition prose section (trick-detail enrichment slice,
+   2026-05-23). Curator-locked flagship enrichments only. Reads as
+   the page's "feel" section between the compositional About block
+   and the symbolic Notation block. Restrained typography; the prose
+   is the visual lead, the attribution is a small muted line.
+   Movement-first design philosophy. */
+.trick-intuition .section-heading h2 {
+  margin: 0 0 0.5rem;
+}
+.trick-intuition-prose {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--text-strong, #1e293b);
+  max-width: 720px;
+}
+.trick-intuition-attribution {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  max-width: 720px;
+}
+
 /* Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
    Renders below the canonical JOB notation on 5 curator-locked trick
    pages (illusion / pickup / rev-whirl / rev-swirl / orbit). Compact,

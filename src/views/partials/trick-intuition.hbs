@@ -1,0 +1,20 @@
+{{!--
+  Movement-intuition prose (trick-detail enrichment slice, 2026-05-23).
+  Renders only when content.intuition is non-null — curator-locked
+  flagship pages only. Source attribution rendered below the prose
+  in a small muted line.
+
+  Layer separation: prose only; never replaces notation, ADD
+  accounting, or any ontology field. Inserts between trick-about
+  (compositional reading) and trick-notation (symbolic structure)
+  so the page reads movement-first → structure-second.
+--}}
+{{#if content.intuition}}
+<section class="content-section trick-intuition" aria-label="Movement intuition">
+  <div class="section-heading">
+    <h2>Movement intuition</h2>
+  </div>
+  <p class="trick-intuition-prose">{{content.intuition.prose}}</p>
+  <p class="trick-intuition-attribution">{{content.intuition.attribution}}</p>
+</section>
+{{/if}}

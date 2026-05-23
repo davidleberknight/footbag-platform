@@ -113,6 +113,9 @@ import {
   REV_ZERO_EXPLAINER,
 } from '../content/freestyleSemanticOverrides';
 import {
+  getTrickIntuition,
+} from '../content/freestyleTrickIntuition';
+import {
   isUnresolvedCompound,
 } from '../content/freestyleUnresolvedCompounds';
 import {
@@ -1118,6 +1121,17 @@ export interface FreestyleTrickContent {
     baseName:      string;
     baseHref:      string;
     rev0Explainer: string;  // shared rev(0) operator explainer
+  } | null;
+  // Movement-intuition prose (trick-detail enrichment slice, 2026-05-23).
+  // Populated only for curator-locked flagship pages. Renders as a
+  // "Movement intuition" section between trick-about and trick-notation
+  // so the page reads movement-first → structure-second.
+  //
+  // Layer separation: prose only; never replaces notation, ADD
+  // accounting, or any ontology field.
+  intuition: {
+    prose:       string;
+    attribution: string;
   } | null;
 }
 
@@ -5086,6 +5100,20 @@ export const freestyleService = {
               baseName:      entry.baseName,
               baseHref:      `/freestyle/tricks/${entry.baseSlug}`,
               rev0Explainer: REV_ZERO_EXPLAINER,
+            };
+          })(),
+          intuition: (() => {
+            // Movement-intuition prose (trick-detail enrichment slice,
+            // 2026-05-23). Curator-locked flagship enrichments only;
+            // see freestyleTrickIntuition.ts for the authorship
+            // discipline locked in the JSDoc there. Initial set: the
+            // five core-atom flagships (mirage, whirl, butterfly, osis,
+            // illusion) and one compound flagship (mobius).
+            const entry = getTrickIntuition(slug);
+            if (entry === null) return null;
+            return {
+              prose:       entry.prose,
+              attribution: entry.attribution,
             };
           })(),
           familyAnchorContext: (() => {
