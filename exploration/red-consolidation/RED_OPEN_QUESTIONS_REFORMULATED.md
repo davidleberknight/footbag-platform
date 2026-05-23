@@ -120,33 +120,45 @@ If compressed: NF-2A documents the equivalence chain `Quantum = Toe + Miraging` 
 
 Either way no ADD value changes. The question is purely educational-layer: do we surface Quantum's Toe-Blur lineage to learners, or treat Quantum as the primitive form?
 
-## Question Set 6 -- Positional / directional operator ADD weight
+## Question Set 6 -- Positional / directional operator ADD weight  *(refined post Wave 7)*
 
-**Reframed:** ss is the only positional operator with a formal Red ruling (+0; pt12 2026-05-11). All other positionals (far, near, op, os, set) and the Reverse directional carry +0 by analogy. The ADD-conflict audit surfaced 11 PassBack rows where the `far` positional, in combination with various base + modifier compositions, produces a formula one less than IFPA stated.
+**Reframed:** ss is the only positional operator with a formal Red ruling (+0; pt12 2026-05-11). All other positionals (far, near, op, os, set) and the Reverse directional carry +0 by analogy. The ADD-conflict audit surfaced 11+ PassBack rows where IFPA-grammar derivations are systematically higher than PB-source totals; the original Q6.A hypothesis was that `far` might carry +1 implicitly, closing the gap.
 
-**Q6.A -- Does `far` carry +0 ADD universally?** If yes, document and lock; the 11 PassBack structural disagreements then point at an implicit operator elsewhere in IFPA's reading (Question Set 7).
+**Wave 7 evidence refinement (2026-05-23):** the doctrine-divergence pilot rows include three with positional tokens:
+- `blurrage` (`Stepping far Barrage`, PB 3, IFPA-derived 4, gap +1)
+- `predator` (`Atomic far DLO`, PB 3, IFPA-derived 4, gap +1)
+- `schmoe` (`Stepping near Legover`, PB 2, IFPA-derived 3, gap +1)
 
-If no, far weight = +1 per case; the 11 PB rows close arithmetically; the formula table widens.
+If `far`/`near` were +1, IFPA derivation would be one MORE (5/5/4 respectively), gap = +2 — does NOT close. If `far`/`near` are +0, IFPA derivation is 4/4/3 (the published canonicals), gap = +1 — does NOT close. **The gap survives independently of positional weight.** Q6.A's binary doesn't resolve the divergence; the source of the gap is elsewhere (Q7 / Q10 territory).
+
+**Q6.A -- Does `far` carry +0 ADD universally?** *Posture: likely yes (consistent with `ss` per pt12 + the Wave 7 evidence eliminating the +1 branch as the gap source). Lower-priority confirmation; near-resolved.*
 
 **Q6.B -- Reverse directional ADD.** Currently presumed +0 by analogy (Whirl / Rev-Whirl; Drifter / Rev-Drifter / Royale; Torque / Flux). Confirm or rule otherwise.
 
 **Q6.C -- Op / Os.** Two rare-occurring positionals. Currently +0 by analogy. Confirm.
 
-## Question Set 7 -- Atomic-set polysemy / implicit operator in IFPA readings
+## Question Set 7 -- IFPA implicit-operator gap (refined post Wave 7)
 
-**Reframed:** the audit surfaced a systemic +1 gap between PassBack literal decompositions and IFPA stated values across 11 named compounds (Atomsmasher, Blur, Drifter, Dada Curve, Flurry, Food Processor, Fury, Gauntlet, Montage, Spender, Sumo). The pattern is too consistent to be source error.
+**Reframed:** PassBack literal decompositions and IFPA stated values diverge systematically across 17+ compounds (the original 11 audit findings + the Wave 7 doctrine-divergence pilot rows blurrage / predator / schmoe). The pattern is too consistent to be source error. **Wave 7 evidence ELIMINATES hypothesis A (positional `far`=+1)** -- the gap survives under both positional-weight values, so positional weight is not the source.
 
-**Q7 (single high-leverage question):** what is the structural source of the +1 gap?
+**Q7 refined:** what is the structural source of the +1 gap that survives positional-weight neutralization?
 
-A. PassBack's `far` carries +1 ADD (closed by Q6.A if Red rules far=+1).
+~~A. PassBack's `far` carries +1 ADD~~ -- **ELIMINATED 2026-05-23 by Wave 7 evidence.** The 1-ADD gap on `blurrage`/`predator`/`schmoe` exists regardless of `far`/`near` weight.
 
-B. IFPA's `Atomic X` is read as `Paradox Atomic X` per pt10's nuclear-as-paradox-atomic-set framing. So atomic-set-as-modifier is functionally +2 in any IFPA composition (not just rotational bases). PassBack's `Atomic far X` is missing the implicit paradox.
+B. IFPA's `Atomic X` is read as `Paradox Atomic X` per pt10's nuclear-as-paradox-atomic-set framing. So atomic-set-as-modifier is functionally +2 in any IFPA composition (not just rotational bases). *Wave 7 partial support: `predator` (Atomic far DLO) fits this hypothesis cleanly. `blurrage` and `schmoe` use `stepping` not `atomic`, so (B) does NOT explain those two -- B is partial-fit only.*
 
-C. IFPA stated values include a 1-ADD "set" or "named-trick" baseline that the literal modifier formula doesn't capture. Stated values rest on dictionary-tier authority, not formula derivation.
+C. IFPA stated values include a 1-ADD "set" or "named-trick" baseline that the literal modifier formula doesn't capture. Stated values rest on dictionary-tier authority, not formula derivation. *Wave 7 strongest unifying hypothesis: applies uniformly to all three pilot rows -- each is a folk-named compound whose IFPA-canonical reading carries +1 above the literal stepping/atomic + base sum.*
 
-D. IFPA's `Atomic` reading varies by trick (Atomsmasher: atomic-as-rotational; Blur: stepping-paradox-mirage already; Drifter: miraging-clipper already). The pattern is incidental, not systemic.
+~~D. IFPA's `Atomic` reading varies by trick~~ -- **ELIMINATED 2026-05-23.** The 3-row consistency across stepping-base, atomic-base, and stepping-atom compounds rules out incidental variance.
 
-Whichever reading wins, the analyzer needs to encode it. The current formula table can't reproduce IFPA stated values for these 11 tricks. Reading B is the most consistent with the pt10 nuclear=paradox+atomic ruling and would also explain why Atomic-on-Mirage gives 4 (atomic-with-implicit-paradox = +2 → 2 + 2 = 4) rather than 3.
+E (new). PassBack uses a distinct scoring convention orthogonal to IFPA-grammar -- ADDs are uniformly 1 lower for some structural reason in PB. Not "wrong data"; a different system. *See Q11 for the meta-question.*
+
+**Strongest evidence rows for distinguishing hypotheses:**
+- **For B (atomic-implicit-paradox):** `predator` (Atomic far DLO, gap +1) -- the single cleanest 1-gap row with `atomic`.
+- **For C (named-trick baseline +1):** `blurrage`, `predator`, `schmoe` (all three pilot rows) -- consistency across different modifiers points at the folk-name itself as the +1 source.
+- **Against pure C:** if every folk-named compound carried +1 baseline, the 30+ already-promoted Tier-2 compounds with derived ADDs matching PB officials would themselves be 1 too low; they're not -- the audit closed those cleanly. So C might apply only to a *subset* of folk-named compounds with specific structural properties (gap>=2 cohort hints at this -- see Q10).
+
+Whichever reading wins, the analyzer needs to encode it. The DOCTRINE_DIVERGENCE_REGISTRY currently documents the divergence as `historical-divergence` with Q7-linked provenance; once Red rules, registered entries either revise their canonicalValue (if PB is right) or get updated provenance prose (if IFPA-derived stays canonical with a documented IFPA-baseline-policy).
 
 ## Question Set 8 -- Down-family canonicalization (followup-2026-05 open)
 
@@ -176,9 +188,58 @@ If Inspinning carries +1 (the curator's revisit suggestion 2026-05-23), the deri
 
 If +1: update `freestyle_trick_modifiers` row + `freestyleOperatorReference.ts` inspinning entry; promote both FB.org compounds to canonical via the standard observational→canonical pattern.
 
-If +0 (current ruling stands): the two FB.org compounds either (a) have wrong official ADDs in the FB.org source and the audit's mismatch reading is correct, or (b) involve an implicit operator IFPA reads that PassBack's literal formula doesn't capture (the same systemic-gap pattern as Q7's Atomic-set polysemy hypothesis).
+If +0 (current ruling stands): the two FB.org compounds either (a) have wrong official ADDs in the FB.org source and the audit's mismatch reading is correct, or (b) participate in the systemic Q7/Q10/Q11 divergence pattern -- IFPA reads an implicit operator OR PassBack/FB.org uses a different scoring convention. Wave 7 evidence (2026-05-23) eliminated the simple positional-weight branch of Q7; the implicit-operator / named-trick-baseline / different-scoring-convention hypotheses remain open and would apply equivalently to inspinning's two FB.org compounds.
 
 Surfaced by the Wave 5 / inspinning composite-framework slice 2026-05-23. Both compounds remain in `OBSERVATIONAL_TRICKS` pending Red's revisit.
+
+## Question Set 10 -- Multi-modifier compounding effects (new, Wave 7 evidence)
+
+**Reframed:** the PB semantic-ratification pass (Wave 6 finding) surfaced a pattern where the PassBack-vs-IFPA gap **widens with modifier count**, not staying flat at +1:
+
+| gap | row count | example readings |
+|---|---|---|
+| +1 | 3 | `Stepping far Barrage`, `Atomic far DLO`, `Stepping near Legover` |
+| +2 | 7 | `Symp. Whirling far Mirage`, `Gyro DLO`, `Gyro Pickup`, `Quantum near Butterfly` ... |
+| +3 | 6 | `Pixie Diving near Butterfly`, `Stepping Ducking far Symp. Eggbeater`, `Atomic far Whirl` ... |
+| +5 | 1 | `Spinning Diving near Symp. Whirl` (`colossus`; likely PB data error) |
+
+This is incompatible with a single uniform per-trick +1 baseline (Q7-C). If Q7-C applied to all folk-named compounds, every row would gap at +1; the gap-widens-with-modifier-count pattern requires a separate explanatory mechanism.
+
+**Q10 (split by hypothesis):**
+
+**Q10.A -- Modifier interaction in PB convention.** Does PassBack treat stacked modifiers with diminishing returns? E.g., 2 modifiers count as +1 (not +2), 3 modifiers as +1 (not +3). Mechanically would explain gap-widens-with-count uniformly: PB awards the named compound a flat +1-or-so above base; IFPA awards each modifier independently. *Evidence row: `darkwalk` (Pixie Diving near Butterfly, PB 2, IFPA 5, gap +3) -- 2 modifiers + 1 positional + base; if PB awarded just +0 above the butterfly base (3 ADD → 3, but PB says 2), the modifier-diminishing-returns hypothesis is too aggressive even for it.*
+
+**Q10.B -- Modifier-specific weight disagreement.** Does PassBack use a different add_bonus table than IFPA? E.g., gyro might be +0 in PB but +1 in IFPA, or quantum +0 vs +1. *Evidence rows: `gdlo` (Gyro DLO, PB 2, IFPA 4, gap +2) -- 1 modifier + base only, NO positionals; the gap cannot be Q6/Q7 positional/folk-name; it must be in the gyro modifier itself or in the dlo base value. Similarly `pandora-s-box` (Gyro Pickup, PB 1, IFPA 3, gap +2). Both involve `gyro` -- suggests gyro specifically might carry less weight in PB convention.*
+
+**Q10.C -- Folk-name atomicity (Q7-C extended).** The IFPA-canonical reading treats the folk name AS the trick; the decomposition is a teaching tool, not a scoring formula. PB's reading treats the formula as the score. *Evidence row: `colossus` (Spinning Diving near Symp. Whirl, PB 1, IFPA 6, gap +5) -- this is too extreme to be explained by modifier-interaction; either PB data error OR PB treats colossus as essentially atomic and assigns it a baseline 1 ADD regardless of the literal formula.*
+
+**Q10.D -- Combination of (B) and (C).** Multiple compounding effects: PB uses a different modifier-weight table AND treats folk names with atomicity. The gap widens with modifier count because each modifier contributes the disagreement; the folk-name baseline contributes the rest.
+
+**Strongest distinguishing rows for Q10:**
+- `pandora-s-box` (gap=2; 1 modifier + base; no positional) -- isolates gyro modifier weight from positional/folk-name effects
+- `gdlo` (gap=2; same shape) -- corroborates pandora-s-box
+- `darkwalk` (gap=3; 2 modifiers + 1 positional + base) -- tests modifier-stacking hypothesis
+- `reactor` (gap=3; 1 modifier + 1 positional + rotational base) -- tests atomic-on-rotational gap behavior
+
+## Question Set 11 -- PassBack-as-distinct-scoring-system (meta-question)
+
+**Reframed:** every single one of the 17 vocab-clean PB rows in the Wave 6 ratification cohort has the PB-claimed total LOWER than the IFPA-grammar-derived total. The gaps cluster in +1/+2/+3 buckets. **No row is the opposite direction.** This is statistically significant -- 17/17 same-direction divergence is incompatible with random source error.
+
+**Q11 (meta-question):** Is PassBack's scoring system a **different convention** from IFPA, rather than competing IFPA-grammar evidence?
+
+Hypotheses:
+
+- **A. PB-as-baseline.** PB ADDs reflect community-tournament scoring at the time the tricks were documented; IFPA-grammar derivations reflect a later, more granular accounting. Both are legitimate readings of "how difficult is this trick" within their respective frames. The architecture should treat PB ADDs as historical-source attribution (per the Wave 7 doctrine-divergence framework) and continue publishing IFPA-derived as canonical.
+
+- **B. PB-as-floor.** PB ADDs represent a minimum/conservative score; IFPA-grammar gives the maximum derivable score. Real-world scoring varies between the two depending on context. *Implication: published canonical should be IFPA-derived (current Wave 7 policy); PB-source is a documented floor in provenance notes.*
+
+- **C. PB-as-different-formula.** PB applies a different formula entirely -- different modifier weights, different operator semantics, different baseline. *Implication: the gap can't be closed by Red ruling on individual modifiers; it requires documenting PB's formula independently OR accepting the divergence permanently.*
+
+- **D. PB-as-stale-snapshot.** PB ADDs were correct at the time of publication but predate later IFPA refinements (pt8 / pt10 / pt12 rulings); the gap reflects doctrine evolution, not a parallel system. *Implication: the Wave 7 framework's `historical-divergence` label is exactly right; no future-Red-ruling closes the gap because it's already historical.*
+
+**The strategic value of Q11:** if Red endorses hypothesis A or D, the doctrine-divergence framework is the long-term resolution; no further Red consultation needed on the 17-row cohort. If Red endorses B or C, the framework needs an additional metadata field documenting which interpretation applies per slug. **This is the highest-leverage Red question of the post-Wave-7 frontier** -- a yes-A or yes-D ruling closes the entire PB-divergence question class.
+
+**Posture for the consultation packet:** Q11 is asked as an interpretive question, not a validation question. Red is being asked to help interpret two competing historical accounting conventions. The IFPA-derived system remains internally consistent; PB scores remain useful historical evidence; the question is which framing best describes the relationship between them.
 
 ## Out of scope (NOT in this reformulation)
 
