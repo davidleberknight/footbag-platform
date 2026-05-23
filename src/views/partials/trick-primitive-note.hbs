@@ -1,0 +1,25 @@
+{{!--
+  Primitive-note callout. Renders only when content.primitiveNote is
+  non-null (= the slug is one of the 12 core atoms per isCoreAtom).
+  Companion to the service-layer suppression of addAnalysis +
+  equivalenceTopology on atoms.
+
+  Wording is locked at the service layer (single source of truth across
+  all 12 atom pages). The doctrine framing lives in the glossary at
+  #primitives-and-compounds.
+
+  Constraints (preserved from the service-layer comment):
+  - never implies "simple" or "easy"
+  - never implies compounds are harder
+  - never implies ADD valuation
+  - never collapses movement semantics into scoring semantics
+--}}
+{{#if content.primitiveNote}}
+<section class="content-section trick-primitive-note" aria-label="Core movement atom">
+  <p class="trick-primitive-note-label">{{content.primitiveNote.label}}</p>
+  <p class="trick-primitive-note-explainer">
+    {{content.primitiveNote.explainer}}
+    <a class="trick-primitive-note-link" href="/freestyle/glossary#primitives-and-compounds">What this means &rarr;</a>
+  </p>
+</section>
+{{/if}}

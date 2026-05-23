@@ -1000,6 +1000,21 @@ export interface FreestyleTrickContent {
     provenanceNote:  string;
     visibility:      'public' | 'advanced';
   } | null;
+  // Primitive-note callout (post-Wave-7 editorial pass, 2026-05-23).
+  // Populated only when the slug is one of the 12 core atoms (per
+  // isCoreAtom). Surfaces a lightweight "Core movement atom" callout
+  // on atom trick-detail pages so readers understand the ontological
+  // role behind the suppressed compound-shaped sections (addAnalysis,
+  // equivalenceTopology).
+  //
+  // Doctrine: primitive vs compound is a structural distinction, not
+  // a difficulty claim or an ADD valuation. See the glossary's
+  // "Primitives and Compounds" section (#primitives-and-compounds)
+  // for the full doctrine framing.
+  primitiveNote: {
+    label:     string;
+    explainer: string;
+  } | null;
 }
 
 // Re-export the equivalence-topology entry type so consumers of the
@@ -4914,6 +4929,29 @@ export const freestyleService = {
             if (isCoreAtom(slug)) return null;
             const entry = getEquivalenceTopologyFor(slug);
             return entry && !entry.curatorConfirmPending ? entry : null;
+          })(),
+          primitiveNote: (() => {
+            // Primitive-note callout (post-Wave-7 ontology-clarification
+            // slice, 2026-05-23). The companion to the core-atom
+            // suppression rule above: where atoms suppress compound-
+            // shaped partials, this surfaces a small pedagogical note
+            // explaining the ontological role.
+            //
+            // Wording is locked here at the service layer (not in the
+            // template) so the doctrine framing stays consistent across
+            // all 12 atom pages. The glossary section
+            // #primitives-and-compounds carries the full doctrine.
+            //
+            // Constraints (do not relax without curator review):
+            // - never implies "simple" or "easy"
+            // - never implies compounds are harder
+            // - never implies ADD valuation
+            // - never collapses movement semantics into scoring semantics
+            if (!isCoreAtom(slug)) return null;
+            return {
+              label:     'Core movement atom',
+              explainer: 'Foundational primitive — functions as a compositional base rather than a recursively decomposed structure.',
+            };
           })(),
           familyAnchorContext: (() => {
             // Dictionary Pedagogy Phase 3 (2026-05-21). When the
