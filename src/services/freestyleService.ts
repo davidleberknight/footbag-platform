@@ -72,6 +72,9 @@ import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import {
+  CORE_ATOM_EDUCATIONAL,
+} from '../content/freestyleCoreAtomEducational';
+import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
 import {
@@ -2359,6 +2362,28 @@ export interface FreestyleGlossaryContent {
   // note). Demonstrates the compositional system upfront, before the
   // reference content begins.
   derivationAtlas:      readonly DerivationPanelEntry[];
+  // §1 Core trick atoms — twelve curator-authoritative atoms with
+  // movement-physical educational prose (curator 2026-05-22). Surfaces
+  // a beginner-facing pedagogical layer ABOVE the existing symbolic /
+  // structural reference content. Authoring principle: movement
+  // intuition + foundational/cultural significance lead; compositional
+  // pointers are explicitly secondary. Sourced from
+  // src/content/freestyleCoreAtomEducational.ts. Each card carries a
+  // detail-page href for navigation outward.
+  coreAtomEducationalCards: readonly LanguageOfFreestyleAtomCard[];
+}
+
+/** Glossary §1 pedagogical atom card shape. Distinct from
+ *  FreestyleCoreTrickCard (which is the symbolic / structural object
+ *  rendered in §10); this card carries beginner-facing prose. */
+export interface LanguageOfFreestyleAtomCard {
+  slug:             string;
+  displayName:      string;
+  adds:             string;        // pre-formatted, e.g. "2 ADD"
+  detailHref:       string;
+  lead:             string;        // movement-physical
+  foundationalNote: string;        // cultural / why-foundational
+  familyRole:       string;        // optional secondary; empty string ok
 }
 
 // /freestyle/observational view-model. Surfaces the observational-layer
@@ -5931,6 +5956,19 @@ export const freestyleService = {
         }),
         addWorkedExamples: ADD_WORKED_EXAMPLES,
         derivationAtlas:   DERIVATION_PILOT_ENTRIES,
+        // §1 Core trick atoms — beginner-facing pedagogical cards.
+        // Curator authoring principle (2026-05-22): movement intuition
+        // leads; compositional pointers are secondary. Sourced from
+        // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.
+        coreAtomEducationalCards: CORE_ATOM_EDUCATIONAL.map(c => ({
+          slug:             c.slug,
+          displayName:      c.displayName,
+          adds:             `${c.adds} ADD`,
+          detailHref:       `/freestyle/tricks/${c.slug}`,
+          lead:             c.lead,
+          foundationalNote: c.foundationalNote,
+          familyRole:       c.familyRole,
+        })),
       },
     };
   },
@@ -6210,6 +6248,15 @@ export const freestyleService = {
             'Freestyle footbag began with informal Hacky Sack kicking circles in the 1970s and 1980s, evolving from casual play into a technical sport. It is a discipline built on creativity, technical difficulty, and individual style. Freestyle footbag is a great way to exercise due to its versatility and fun, cooperative flow, plus it can be practiced anywhere and anytime.',
             'Players show off their skills by performing sequences of tricks, combining components such as spinning the body, ducking the bag with the head and neck, and dexterities (circling the bag with a leg).',
             'Tricks are linked naturally from one to the next to create flowing, free-form, and expressive strings and combos. The list of tricks is nearly endless and can be combined in any order, giving the sport a huge variety of styles.',
+            // Language-of-freestyle framing (curator 2026-05-22): explicit
+            // call-out that trick names are compositional. Per the landing-
+            // vs-reference boundary, the landing carries only this short
+            // framing paragraph; the glossary §1 "Language of Freestyle"
+            // band holds the foundational movements + twelve core trick
+            // atoms in depth. (Plain text — the freestyle-portal-lede
+            // template renders {{this}} with HTML-escape; the glossary is
+            // already reachable via the Start Here / Glossary card below.)
+            'And the names aren\'t random — most are compositional. "Paradox mirage" reads as "mirage performed with the paradox body operator." A small set of foundational movements and twelve core trick atoms anchor the whole vocabulary, and once you know them you can read most trick names without ever having seen the trick.',
             'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you start learning harder tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
           ],
         },

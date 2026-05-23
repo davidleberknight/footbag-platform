@@ -44,6 +44,50 @@
       <a href="/freestyle/history">freestyle history page</a> for the
       two-phase story.
     </p>
+
+    {{!-- ── Core trick atoms — pedagogical onboarding cards ───────────────
+         Curator-authoritative twelve atoms (2026-05-22). Each card leads
+         with movement-physical intuition + foundational/cultural note;
+         compositional / family-role pointers are explicitly secondary.
+         Distinct from §10's compact symbolic-object grid (same atoms,
+         different presentation). --}}
+    {{#if content.coreAtomEducationalCards.length}}
+    <div class="glossary-core-atoms-band" id="core-trick-atoms">
+      <h3 class="section-heading">The twelve core trick atoms</h3>
+      <p class="glossary-core-atoms-lede">
+        Every named freestyle trick is built on a small set of foundational
+        movements. These twelve are the curator-locked atoms &mdash; the
+        simplest tricks the rest of the vocabulary anchors on. Each card
+        below describes what the movement physically <em>is</em>, then why
+        it became part of the language.
+      </p>
+      <div class="glossary-core-atoms-grid">
+        {{#each content.coreAtomEducationalCards}}
+        <article class="glossary-core-atom-card" id="atom-{{slug}}" data-trick-slug="{{slug}}">
+          <header class="glossary-core-atom-header">
+            <h4 class="glossary-core-atom-name">
+              <a href="{{detailHref}}">{{displayName}}</a>
+            </h4>
+            <span class="glossary-core-atom-adds" aria-label="{{adds}}">{{adds}}</span>
+          </header>
+          <p class="glossary-core-atom-lead">{{lead}}</p>
+          <p class="glossary-core-atom-foundational">{{foundationalNote}}</p>
+          {{#if familyRole}}
+          <p class="glossary-core-atom-family-role">{{familyRole}}</p>
+          {{/if}}
+        </article>
+        {{/each}}
+      </div>
+      <p class="glossary-core-atoms-tail detail-muted">
+        Read these alongside the operator vocabulary &mdash; the
+        <a href="/freestyle/operators">operators and modifiers page</a>
+        lists the transformations that turn each of these atoms into the
+        hundreds of named tricks documented across the sport. The
+        <a href="#section-families">trick families</a> section below maps
+        which atoms anchor which family trees.
+      </p>
+    </div>
+    {{/if}}
   </section>
 
   <section class="content-section" id="section-surfaces">

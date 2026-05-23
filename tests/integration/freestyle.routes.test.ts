@@ -2327,10 +2327,14 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                Structured reference content; not prose drift.
     //   175K → 182K  Phase E re-tier: "How to read" relocated into a new
     //                "Advanced Reference Concepts" section + tier framing.
+    //   182K → 192K  2026-05-22 "Language of Freestyle" §1 pedagogical
+    //                onboarding band: twelve core-trick-atom cards with
+    //                movement-physical leads + foundational notes.
+    //                Curator-locked educational expansion; not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(182_000);
+    expect(res.text.length).toBeLessThan(192_000);
   });
 });
 

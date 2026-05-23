@@ -4531,6 +4531,93 @@ section.home-media { padding-top: 0; }
   /* Content column inside .glossary-page wrapper. The wrapper is
      .wrapper, which already constrains overall page width. */
 }
+
+/* ── Glossary §1 core trick atoms band ─────────────────────────────────
+   Pedagogical onboarding cards (curator 2026-05-22). Twelve foundational
+   atoms with movement-physical leads + foundational/cultural notes +
+   optional secondary family-role lines. Distinct from the §10 compact
+   symbolic-object grid (same atoms, different presentation). */
+.glossary-core-atoms-band {
+  margin-top: 28px;
+}
+.glossary-core-atoms-lede {
+  margin-top: 6px;
+  margin-bottom: 18px;
+  color: var(--text-secondary);
+}
+.glossary-core-atoms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.glossary-core-atom-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.glossary-core-atom-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+}
+.glossary-core-atom-name {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+.glossary-core-atom-name a {
+  color: var(--text);
+  text-decoration: none;
+}
+.glossary-core-atom-name a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.glossary-core-atom-adds {
+  font-family: monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+.glossary-core-atom-lead {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.glossary-core-atom-foundational {
+  margin: 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+.glossary-core-atom-family-role {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-subtle);
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+.glossary-core-atoms-tail {
+  margin-top: 16px;
+  font-size: 0.92rem;
+}
+@media (max-width: 520px) {
+  .glossary-core-atoms-grid {
+    grid-template-columns: 1fr;
+  }
+}
 @media (min-width: 1024px) {
   .glossary-page {
     display: grid;
