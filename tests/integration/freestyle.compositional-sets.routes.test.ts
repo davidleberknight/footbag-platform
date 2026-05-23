@@ -204,6 +204,62 @@ describe('/freestyle/compositional-sets — cross-links + sources', () => {
   });
 });
 
+describe('/freestyle/compositional-sets — §4 consistency audit', () => {
+  it('renders the audit section with summary counts', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.text).toContain('class="content-section compositional-sets-audit"');
+    expect(res.text).toContain('id="audit"');
+    expect(res.text).toMatch(/<h2[^>]*>Consistency audit<\/h2>/);
+    // Summary dl with four status categories.
+    expect(res.text).toContain('class="compositional-sets-audit-summary"');
+    expect(res.text).toMatch(/<dt>Aligned<\/dt>/);
+    expect(res.text).toMatch(/<dt>Partial fit<\/dt>/);
+    expect(res.text).toMatch(/<dt>Conflict<\/dt>/);
+    expect(res.text).toMatch(/<dt>Holden-only<\/dt>/);
+  });
+
+  it('audit posture is transparency-not-normalization (per slice constraints)', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.text).toMatch(/curatorial transparency,\s+not a normalization pass/);
+    expect(res.text).toMatch(/Holden-only entries are[\s\S]*?not[\s\S]*?promoted to canonical/);
+    expect(res.text).toMatch(/conflicts are[\s\S]*?not[\s\S]*?silently resolved/);
+  });
+
+  it('renders all four status categories among the headline rows', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    // Status modifier classes on the row wrappers.
+    expect(res.text).toContain('compositional-sets-audit-row--aligned');
+    expect(res.text).toContain('compositional-sets-audit-row--partial');
+    expect(res.text).toContain('compositional-sets-audit-row--conflict');
+    expect(res.text).toContain('compositional-sets-audit-row--holden-only');
+  });
+
+  it('headline rows include the documented divergences (atomic, nuclear, surging)', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    // Atomic — partial fit (ontological framing diverges).
+    expect(res.text).toMatch(/<span class="compositional-sets-audit-row-name">Atomic<\/span>/);
+    expect(res.text).toMatch(/Toe set Illusion/);
+    // Nuclear — partial fit (basic vs compound framing).
+    expect(res.text).toMatch(/<span class="compositional-sets-audit-row-name">Nuclear<\/span>/);
+    // Surging — the single conflict.
+    expect(res.text).toMatch(/<span class="compositional-sets-audit-row-name">Surging<\/span>/);
+  });
+
+  it('Holden-only headline rows render with platform-absent notation', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    // Bubba is Holden-only; the platform-absent variant of the platform-line renders.
+    expect(res.text).toMatch(/<span class="compositional-sets-audit-row-name">Bubba<\/span>/);
+    expect(res.text).toContain('compositional-sets-audit-row-platform--absent');
+    expect(res.text).toMatch(/no current entry/);
+  });
+
+  it('headline section includes Blurry as the strongest-alignment example', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.text).toMatch(/<span class="compositional-sets-audit-row-name">Blurry<\/span>/);
+    expect(res.text).toMatch(/Stepping Paradox/);
+  });
+});
+
 describe('/freestyle/sets — existing reference page unaffected', () => {
   it('continues to render 200 (sibling not replacement)', async () => {
     const res = await request(createApp()).get('/freestyle/sets');

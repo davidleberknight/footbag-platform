@@ -85,6 +85,49 @@ export interface CompositionalSetFamily {
   members: CompositionalSetCard[];
 }
 
+/**
+ * Audit-row status code.
+ *
+ *  - 'aligned'      Holden's notation and decomposition match a platform
+ *                   source (operator reference / resolved formulas /
+ *                   symbolic equivalences / movement systems) cleanly.
+ *  - 'partial'      Notation matches but framing diverges (e.g. Holden
+ *                   reads atomic as "Toe set Illusion" decomposition;
+ *                   the platform treats atomic as a +1 set primitive).
+ *  - 'conflict'     Decompositions substantively disagree (e.g. surging:
+ *                   Holden = spinning miraging; platform = spinning +
+ *                   stepping).
+ *  - 'holden-only'  Listed in Holden's compilation; no platform entry.
+ */
+export type CompositionalAuditStatus =
+  | 'aligned'
+  | 'partial'
+  | 'conflict'
+  | 'holden-only';
+
+export interface CompositionalAuditEntry {
+  /** Holden's display name (matches an entry in COMPOSITIONAL_SET_FAMILIES). */
+  holdenName: string;
+  /**
+   * Holden's reading — either the parenthetical structural folk-name
+   * ("Stepping Paradox") or a brief summary of the notation pattern.
+   */
+  holdenReading: string;
+  /**
+   * Platform reading — the equivalent decomposition or framing from
+   * platform content modules. Null when no platform entry exists
+   * (status: holden-only).
+   */
+  platformReading: string | null;
+  /** Status code (see above). */
+  status: CompositionalAuditStatus;
+  /**
+   * One-line specific note explaining the divergence or alignment.
+   * Public prose; never internal jargon. Null when no note adds value.
+   */
+  note: string | null;
+}
+
 export interface UptimeReinterpretationLadder {
   /** Set / system name (e.g. "miraging", "blurry", "surging"). */
   setName: string;
@@ -299,6 +342,167 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'Both readings share the SPIN [BOD] entry; they disagree on whether the terminal dex reads as miraging (SET-led) or stepping (CLIP-led).',
     ],
     sourceCitation:  'Holden\'s compilation + later platform analysis (see project memory: passback-dictionary-intake).',
-    conflictNote:    'Surfaced as a documented disagreement, not normalized. The full audit of Holden/platform divergences is the next slice.',
+    conflictNote:    'Surfaced as a documented disagreement, not normalized. See §4 (Consistency audit) below for the full Holden / platform comparison.',
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// §4  Consistency audit — Holden ⇄ platform
+//
+// Single source of truth for the audit table rendered on /freestyle/
+// compositional-sets §4. Full row-by-row evidence trail lives at
+// exploration/compositional-sets-audit-2026-05-23.md.
+//
+// Categorization discipline (locked):
+//   - Notation match + decomposition match           → 'aligned'
+//   - Notation match + decomposition framing differs → 'partial'
+//   - Notation OR decomposition substantively differs → 'conflict'
+//   - No platform entry at all                        → 'holden-only'
+//
+// The audit is curatorial transparency, NOT a normalization pass.
+// Holden-only entries are NOT promoted to canonical; conflicts are
+// NOT silently resolved.
+// ─────────────────────────────────────────────────────────────────────
+
+export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
+  // ── Aligned (notation + decomposition agree) ─────────────────────────
+  {
+    holdenName:      'Pixie',
+    holdenReading:   'Basic set: TOE > SAME IN [DEX] >',
+    platformReading: 'Same notation; +1 set primitive (operator reference, movement systems).',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Stepping',
+    holdenReading:   'Basic set: CLIP > OP IN [DEX] >',
+    platformReading: 'Same notation; +1 set primitive (resolved formulas, movement systems).',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Miraging',
+    holdenReading:   'Basic set: SET > OP IN [DEX] >',
+    platformReading: 'Same notation; uptime form of the mirage structural reading.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Quantum',
+    holdenReading:   'TOE > OP IN [DEX] > (op side component); Holden reads as: compressed atomic.',
+    platformReading: 'Same notation; operator reference frames as "compressed-atomic set". Decomposition aligns.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Blurry',
+    holdenReading:   'CLIP > OP IN [DEX] > OP OUT [DEX] >; Holden parenthetical: Stepping Paradox.',
+    platformReading: 'Same notation; platform tracks blurry = stepping paradox (the standing ruling on the compound).',
+    status:          'aligned',
+    note:            'Strong alignment — Holden\'s parenthetical and the platform\'s decomposition match exactly.',
+  },
+  {
+    holdenName:      'Barraging',
+    holdenReading:   'CLIP > OP IN [DEX] > SAME IN [DEX] >; Holden parenthetical: High Stepping.',
+    platformReading: 'Same notation; platform tracks barraging as the high-stepping multi-dex pattern.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Furious',
+    holdenReading:   'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >; Holden parenthetical: Barraging Paradox Miraging.',
+    platformReading: 'Same notation; platform tracks furious as a three-dex extension of barraging.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Terraging',
+    holdenReading:   'TOE > SAME IN [DEX] > SAME IN [DEX] >; Holden parenthetical: Double Pixie.',
+    platformReading: 'No standalone platform entry, but the "Double Pixie" structural reading is consistent with pixie\'s notation doubled.',
+    status:          'aligned',
+    note:            'Decomposition is mechanically aligned with Holden\'s parenthetical; the name itself is Holden\'s.',
+  },
+  {
+    holdenName:      'Pogo',
+    holdenReading:   'CLIP > (no plant while) OP IN [DEX] >; Holden parenthetical: Symposium Whirling.',
+    platformReading: 'Platform tracks pogo as a whirl-family no-plant variant; decomposition aligns.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Blistering',
+    holdenReading:   'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >; Holden parenthetical: Whirling Gyro.',
+    platformReading: 'Platform tracks blistering as a whirl-gyro compound; decomposition aligns.',
+    status:          'aligned',
+    note:            null,
+  },
+  {
+    holdenName:      'Whirling',
+    holdenReading:   'CLIP > OP IN [DEX] > (same side component).',
+    platformReading: 'Operator reference tracks whirling as a body modifier on whirl bases; notation reading consistent.',
+    status:          'aligned',
+    note:            null,
+  },
+
+  // ── Partial (notation matches; ontological framing diverges) ─────────
+  {
+    holdenName:      'Atomic',
+    holdenReading:   'TOE > OP OUT [DEX] > (op side component); Holden parenthetical: Toe set Illusion.',
+    platformReading: 'Same notation; operator reference treats atomic as a primitive +1 set with x-dex character — not as a compressed toe + illusion-class decomposition.',
+    status:          'partial',
+    note:            'Notation agrees. Holden offers a deeper structural reading (atomic IS a toe set followed by an illusion-class dex); the platform does not formalize that decomposition.',
+  },
+  {
+    holdenName:      'Nuclear',
+    holdenReading:   'CLIP > SAME OUT >; Holden lists as a basic single-dex set.',
+    platformReading: 'Operator reference frames nuclear as a +2 set modifier combining paradox\'s hip pivot with atomic\'s cross-body character.',
+    status:          'partial',
+    note:            'Notation matches. Holden treats nuclear as a basic; the platform treats it as a compound paradox + atomic stack.',
+  },
+
+  // ── Conflict (substantive decomposition disagreement) ────────────────
+  {
+    holdenName:      'Surging',
+    holdenReading:   'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >; Holden parenthetical: spinning miraging.',
+    platformReading: 'Movement-systems module records surging as "decomposes to spinning + stepping" (CLIP-led, not SET-led).',
+    status:          'conflict',
+    note:            'Both readings share a SPIN body modifier and an OP IN dex direction. They disagree on the entry surface (Holden: any set; platform: stepping\'s CLIP), and therefore on which named set anchors the decomposition.',
+  },
+
+  // ── Holden-only (no platform canonical or tracked entry) ─────────────
+  // Single-dex Holden basics with no platform entry
+  { holdenName: 'Slapping',         holdenReading: 'TOE > OP IN [DEX] > (same side component).',                                platformReading: null, status: 'holden-only', note: 'Same-side-component sibling of quantum. Community-cited; no current platform canonical.' },
+  { holdenName: 'Bubba',            holdenReading: 'CLIP > OP OUT [DEX] >.',                                                    platformReading: null, status: 'holden-only', note: 'Reverse-direction sibling of stepping. Community-cited; no current platform canonical.' },
+  { holdenName: 'Tapping',          holdenReading: 'TOE > OP OUT [DEX] (plant) > (same side component); Holden: Atomic same side.', platformReading: null, status: 'holden-only', note: null },
+  // Multi-dex Holden compounds with no platform entry
+  { holdenName: 'Sailing',          holdenReading: 'TOE > SAME IN [DEX] > OP OUT [DEX] >; Holden: Pixie Illusion.',              platformReading: null, status: 'holden-only', note: 'Structural decomposition reads cleanly as pixie + illusion-class second dex; not in current platform canonical.' },
+  { holdenName: 'Frantic',          holdenReading: 'TOE > SAME IN [DEX] > OP IN [DEX] >; Holden: pixie-quantum.',                platformReading: null, status: 'holden-only', note: 'Decomposes mechanically to pixie + quantum-direction second dex.' },
+  { holdenName: 'Flailing',         holdenReading: 'SET > (no plant while) OP OUT [BOD] [DEX] >; Holden: Symposium Reverse Miraging.', platformReading: null, status: 'holden-only', note: 'Unusual notation with explicit no-plant constraint.' },
+  { holdenName: 'Fairy Atomic',     holdenReading: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >.',                                    platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Shooting',         holdenReading: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >; Holden: Stepping Paradox Illusion.', platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Infracting',       holdenReading: 'opposite of a Refraction, done as a set.',                                  platformReading: null, status: 'holden-only', note: 'Inverse pattern, not a literal grammar string.' },
+  // Spinning family — all Holden-only
+  { holdenName: 'Sonic',            holdenReading: 'CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >; Holden: double spinning.',  platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Peeking',          holdenReading: 'SET > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >; Holden: double spinning (SET-led).', platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Leaning',          holdenReading: 'CLIP > OP IN [DEX] > (front) SPIN [BOD] >; Holden: stepping inspinning.',   platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Go-Go',            holdenReading: 'CLIP > OP IN [DEX] > (back) spin [bod] >; Holden: stepping backspinning.',  platformReading: null, status: 'holden-only', note: 'Directional sibling of Leaning.' },
+  { holdenName: 'Twinspinning',     holdenReading: 'CLIP > SAME OUT [DEX] > (FRONT) SPIN [BOD] >; Holden: nuclear inspinning.', platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Neutron',          holdenReading: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side); Holden: Atomic spin.',  platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Fairy Spinning',   holdenReading: 'TOE > SAME OUT [DEX] > (BACK) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Pixie Inspinning', holdenReading: 'TOE > SAME IN [DEX] > (FRONT) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
+  // Whirl/swirl variants — Holden-only naming distinctions
+  { holdenName: 'Blazing',          holdenReading: 'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',       platformReading: null, status: 'holden-only', note: 'Holden distinguishes blazing from whirling by terminal-component side; the platform does not separate them.' },
+  { holdenName: 'Scattered',        holdenReading: 'CLIP > OP OUT [DEX] > (same side); Holden: Reverse Whirling (same side).',  platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Shattered',        holdenReading: 'CLIP > OP OUT [DEX] > (op side); Holden: Reverse Whirling (op side).',      platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Broken',           holdenReading: 'CLIP > OP OUT [DEX] > (SAME); Holden: clipper reverse whirl.',              platformReading: 'Platform tracks rev-whirl as canonical; "Broken" itself is the Holden folk synonym.', status: 'holden-only', note: 'Asterisk in Holden\'s source. Name is folk; the underlying reverse-whirl shape is canonical.' },
+  // UNS sets — all Holden-only
+  { holdenName: 'Finchy',           holdenReading: 'PINCH > SAME OUT [DEX] >; Holden: Pinching Fairy set.',                     platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Pixie Pinching',   holdenReading: 'PINCH > SAME IN [DEX] >.',                                                  platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Twisted',          holdenReading: 'DRAGON > SAME FRONT SWIRL [DEX] > SAME IN/OUT [PDX][DEX] >; Holden: Dragon set Swirling Paradox.', platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Snapping',         holdenReading: 'DRAGON > SAME FRONT SWIRL [DEX] >; Holden: Dragon set Swirling.',           platformReading: null, status: 'holden-only', note: null },
+  { holdenName: 'Arctic',           holdenReading: 'FRIGIDOSIS > SAME IN [DEX] >; Holden: frigidosis Pixie.',                   platformReading: null, status: 'holden-only', note: null },
+  // Antisymposium — Holden-only conceptual notes
+  { holdenName: 'Rooting / Rooted', holdenReading: 'Movement constraint: the setting foot stays on the ground.',                platformReading: null, status: 'holden-only', note: 'Discipline-level note rather than a literal set notation.' },
+  { holdenName: 'Zoid',             holdenReading: 'rooted toe clipper set.',                                                   platformReading: null, status: 'holden-only', note: null },
+];
+

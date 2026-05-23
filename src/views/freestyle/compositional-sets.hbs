@@ -143,7 +143,56 @@
     {{/each}}
   </section>
 
-  {{!-- §4 — Sources & cross-links --}}
+  {{!-- §4 — Consistency audit (Holden ⇄ platform) --}}
+  <section class="content-section compositional-sets-audit" id="audit" aria-label="Holden and platform consistency audit">
+    <h2 class="section-heading">Consistency audit</h2>
+    <p class="compositional-sets-audit-intro">
+      How Holden's compilation aligns with the platform's other movement-language
+      sources (operator reference, resolved formulas, symbolic equivalences,
+      movement-systems classification). The audit is curatorial transparency,
+      not a normalization pass &mdash; Holden-only entries are <em>not</em>
+      promoted to canonical, and conflicts are <em>not</em> silently resolved.
+    </p>
+
+    <dl class="compositional-sets-audit-summary" aria-label="Audit summary counts">
+      <dt>Aligned</dt>
+      <dd>{{content.audit.summary.aligned}}<span class="compositional-sets-audit-summary-context"> &mdash; notation and decomposition agree</span></dd>
+      <dt>Partial fit</dt>
+      <dd>{{content.audit.summary.partial}}<span class="compositional-sets-audit-summary-context"> &mdash; notation matches; ontological framing diverges</span></dd>
+      <dt>Conflict</dt>
+      <dd>{{content.audit.summary.conflict}}<span class="compositional-sets-audit-summary-context"> &mdash; substantive decomposition disagreement</span></dd>
+      <dt>Holden-only</dt>
+      <dd>{{content.audit.summary.holdenOnly}}<span class="compositional-sets-audit-summary-context"> &mdash; community-cited; no platform entry</span></dd>
+    </dl>
+
+    <p class="compositional-sets-audit-headline-intro">
+      Headline rows below sample each category. Of {{content.audit.summary.total}} audited entries:
+    </p>
+
+    <ol class="compositional-sets-audit-rows">
+      {{#each content.audit.headlineRows}}
+        <li class="compositional-sets-audit-row compositional-sets-audit-row--{{this.status}}">
+          <div class="compositional-sets-audit-row-header">
+            <span class="compositional-sets-audit-row-name">{{this.holdenName}}</span>
+            <span class="compositional-sets-audit-status-badge compositional-sets-audit-status-badge--{{this.status}}">{{this.statusLabel}}</span>
+          </div>
+          <p class="compositional-sets-audit-row-holden"><span class="compositional-sets-audit-row-label">Holden:</span> {{this.holdenReading}}</p>
+          {{#if this.platformReading}}
+            <p class="compositional-sets-audit-row-platform"><span class="compositional-sets-audit-row-label">Platform:</span> {{this.platformReading}}</p>
+          {{else}}
+            <p class="compositional-sets-audit-row-platform compositional-sets-audit-row-platform--absent"><span class="compositional-sets-audit-row-label">Platform:</span> no current entry.</p>
+          {{/if}}
+          {{#if this.note}}
+            <p class="compositional-sets-audit-row-note">{{this.note}}</p>
+          {{/if}}
+        </li>
+      {{/each}}
+    </ol>
+
+    <p class="compositional-sets-audit-full-note">{{content.audit.fullAuditNote}}</p>
+  </section>
+
+  {{!-- §5 — Sources & cross-links --}}
   <section class="content-section compositional-sets-sources" aria-label="Sources and cross-links">
     <h2 class="section-heading">Sources &amp; attribution</h2>
     <p>

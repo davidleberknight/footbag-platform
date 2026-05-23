@@ -104,6 +104,7 @@ import {
 import {
   COMPOSITIONAL_SET_FAMILIES,
   UPTIME_REINTERPRETATION_LADDERS,
+  COMPOSITIONAL_AUDIT_ENTRIES,
 } from '../content/freestyleCompositionalSets';
 import {
   isUnresolvedCompound,
@@ -518,6 +519,24 @@ export interface UptimeReinterpretationLadderView {
   anchorId:         string;
 }
 
+export interface CompositionalAuditEntryView {
+  holdenName:      string;
+  holdenReading:   string;
+  platformReading: string | null;
+  status:          'aligned' | 'partial' | 'conflict' | 'holden-only';
+  statusLabel:     string;  // pre-shaped label for the badge ("Aligned", "Partial fit", etc.)
+  note:            string | null;
+}
+
+export interface CompositionalAuditSummary {
+  aligned:    number;
+  partial:    number;
+  conflict:   number;
+  holdenOnly: number;
+  /** Total entries audited. */
+  total:      number;
+}
+
 export interface FreestyleCompositionalSetsContent {
   premise: {
     canonicalFormula: string;
@@ -526,6 +545,16 @@ export interface FreestyleCompositionalSetsContent {
   };
   families: CompositionalSetFamilyView[];
   ladders:  UptimeReinterpretationLadderView[];
+  audit: {
+    summary:       CompositionalAuditSummary;
+    /** Curated headline entries (one per status category, plus a few additional). */
+    headlineRows:  CompositionalAuditEntryView[];
+    /**
+     * Exploration-doc cross-link. The full row-by-row audit lives there;
+     * the public surface stays compact.
+     */
+    fullAuditNote: string;
+  };
   crossLinks: {
     setsReferenceHref:    string;
     operatorsHref:        string;
@@ -6480,6 +6509,48 @@ export const freestyleService = {
       anchorId:         `ladder-${movesAnchorSlug(l.setName)}`,
     }));
 
+    // Audit summary + curated headline rows. Full row-by-row audit
+    // lives at exploration/compositional-sets-audit-2026-05-23.md;
+    // the public view surfaces only enough to make the categories
+    // legible. Counts are derived from the content module so they
+    // can never drift from the underlying data.
+    const auditStatusLabels: Record<CompositionalAuditEntryView['status'], string> = {
+      'aligned':     'Aligned',
+      'partial':     'Partial fit',
+      'conflict':    'Conflict',
+      'holden-only': 'Holden-only',
+    };
+    const auditSummary: CompositionalAuditSummary = {
+      aligned:    COMPOSITIONAL_AUDIT_ENTRIES.filter(e => e.status === 'aligned').length,
+      partial:    COMPOSITIONAL_AUDIT_ENTRIES.filter(e => e.status === 'partial').length,
+      conflict:   COMPOSITIONAL_AUDIT_ENTRIES.filter(e => e.status === 'conflict').length,
+      holdenOnly: COMPOSITIONAL_AUDIT_ENTRIES.filter(e => e.status === 'holden-only').length,
+      total:      COMPOSITIONAL_AUDIT_ENTRIES.length,
+    };
+    // Curated headline rows: 2 aligned (showing strong + structural
+    // alignment), 2 partial, the 1 conflict, 3 Holden-only (showing
+    // variety). Order: alignment → partial → conflict → Holden-only.
+    const headlineNames = new Set<string>([
+      'Blurry',       // aligned, strongest match (Holden parenthetical = platform doctrine)
+      'Terraging',    // aligned, decomposition-implied
+      'Atomic',       // partial, ontological framing diverges
+      'Nuclear',      // partial, basic-vs-compound framing
+      'Surging',      // conflict, the single substantive disagreement
+      'Bubba',        // Holden-only, structurally clean single-dex
+      'Sailing',      // Holden-only, multi-dex with rich decomposition
+      'Twisted',      // Holden-only, UNS category
+    ]);
+    const headlineRows: CompositionalAuditEntryView[] = COMPOSITIONAL_AUDIT_ENTRIES
+      .filter(e => headlineNames.has(e.holdenName))
+      .map(e => ({
+        holdenName:      e.holdenName,
+        holdenReading:   e.holdenReading,
+        platformReading: e.platformReading,
+        status:          e.status,
+        statusLabel:     auditStatusLabels[e.status],
+        note:            e.note,
+      }));
+
     // Premise examples — same four shown in the glossary primer, with
     // canonical-link resolution applied here so the view can render
     // each as an operator card with proper cross-link when present.
@@ -6527,6 +6598,16 @@ export const freestyleService = {
         },
         families,
         ladders,
+        audit: {
+          summary:      auditSummary,
+          headlineRows,
+          fullAuditNote:
+            'The headline rows above sample each category. The full row-by-row ' +
+            'audit — covering every entry in the corpus with source citations — ' +
+            'lives in the curator workspace alongside the platform\'s content ' +
+            'modules. It is reviewed before any Holden-only entry is promoted to ' +
+            'canonical or any conflict is resolved.',
+        },
         crossLinks: {
           setsReferenceHref:    '/freestyle/sets',
           operatorsHref:        '/freestyle/operators',
