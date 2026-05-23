@@ -164,3 +164,26 @@ export const CORE_ATOM_EDUCATIONAL_BY_SLUG: ReadonlyMap<string, CoreAtomEducatio
   for (const c of CORE_ATOM_EDUCATIONAL) m.set(c.slug, c);
   return m;
 })();
+
+/**
+ * Canonical core-atom slug set — single source of truth derived from
+ * CORE_ATOM_EDUCATIONAL. Service-layer rendering uses this set to
+ * suppress compound-shaped trick-detail partials (addAnalysis,
+ * equivalenceTopology) on atom pages. Atoms are the floor of
+ * decomposition; rendering compound-shaped sections on them produces
+ * placeholder content or false structural claims.
+ *
+ * See isCoreAtom() helper for the canonical membership predicate.
+ */
+export const CORE_ATOM_SLUGS: ReadonlySet<string> = new Set(
+  CORE_ATOM_EDUCATIONAL.map(c => c.slug),
+);
+
+/**
+ * Returns true when the slug is one of the 12 curator-locked core
+ * atoms. Use in service-layer rendering decisions; do NOT branch in
+ * templates on atom-vs-compound directly.
+ */
+export function isCoreAtom(slug: string): boolean {
+  return CORE_ATOM_SLUGS.has(slug);
+}

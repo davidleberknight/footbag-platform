@@ -160,6 +160,16 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'PIX + base — a compressed pre-base uptime set; tighter motion than stepping. ' +
     'Compounds: PIX + BUTTERFLY (dimwalk), PIX + MIRAGE (smear), PIX + DRIFTER (smoke).',
   ],
+  ['fairy',
+    'FAIRY + base — an alternate uptime path; the bag travels with illusion-style mechanics ' +
+    'rather than the standard pixie compression. ' +
+    'Compounds: FAIRY + MIRAGE, FAIRY + BUTTERFLY.',
+  ],
+  ['surging',
+    'SURGE + base — stepping foot relocation combined with spinning body rotation; ' +
+    'a high-energy pre-base treatment that decomposes to spinning + stepping. ' +
+    'Compounds: SURGE + WHIRL, SURGE + OSIS.',
+  ],
 ]);
 
 /**

@@ -122,10 +122,12 @@ describe('freestyleMovementSystems content module', () => {
   });
 });
 
-describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N curator content)', () => {
-  it('contains all 6 curator-authored pilot entries', () => {
-    expect(MODIFIER_COMPOSITION_GLOSSES.size).toBe(6);
-    for (const slug of ['paradox', 'spinning', 'ducking', 'symposium', 'stepping', 'pixie']) {
+describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N + post-Wave-7 editorial pass)', () => {
+  it('contains the 8 curator-authored pilot entries', () => {
+    // Slice M (paradox) + Slice N (spinning/ducking/symposium/stepping/pixie)
+    // + post-Wave-7 editorial pass (fairy + surging).
+    expect(MODIFIER_COMPOSITION_GLOSSES.size).toBe(8);
+    for (const slug of ['paradox', 'spinning', 'ducking', 'symposium', 'stepping', 'pixie', 'fairy', 'surging']) {
       expect(MODIFIER_COMPOSITION_GLOSSES.has(slug), `gloss expected for ${slug}`).toBe(true);
     }
   });
@@ -137,6 +139,8 @@ describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N curator content)', () 
     expect(resolveModifierCompositionGloss('symposium')).toMatch(/SYMP \+ base/);
     expect(resolveModifierCompositionGloss('stepping')).toMatch(/STEP \+ base/);
     expect(resolveModifierCompositionGloss('pixie')).toMatch(/PIX \+ base/);
+    expect(resolveModifierCompositionGloss('fairy')).toMatch(/FAIRY \+ base/);
+    expect(resolveModifierCompositionGloss('surging')).toMatch(/SURGE \+ base/);
   });
 
   it('paradox gloss carries the entry-shape line (Pre-Red sweep 2026-05-16)', () => {
@@ -152,8 +156,6 @@ describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N curator content)', () 
     // Pilot is deliberately small. The directive forbids autogeneration;
     // un-glossed modifiers stay un-rendered until curator authors them.
     expect(resolveModifierCompositionGloss('atomic')).toBeNull();
-    expect(resolveModifierCompositionGloss('fairy')).toBeNull();
-    expect(resolveModifierCompositionGloss('surging')).toBeNull();
     expect(resolveModifierCompositionGloss('diving')).toBeNull();
     expect(resolveModifierCompositionGloss('weaving')).toBeNull();
     expect(resolveModifierCompositionGloss('nonexistent')).toBeNull();

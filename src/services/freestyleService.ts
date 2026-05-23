@@ -73,6 +73,7 @@ import {
 } from '../content/freestyleLandingContent';
 import {
   CORE_ATOM_EDUCATIONAL,
+  isCoreAtom,
 } from '../content/freestyleCoreAtomEducational';
 import {
   getDoctrineDivergence,
@@ -4852,6 +4853,13 @@ export const freestyleService = {
             // (Phase B collapsed disclosure) is suppressed for first-class
             // tricks so the comparativeNotation row doesn't double-render
             // the ADD breakdown.
+            //
+            // Core-atom suppression rule (post-Wave-7 editorial pass):
+            // addAnalysis is also suppressed for any slug in
+            // CORE_ATOM_SLUGS. Atoms are the floor of decomposition;
+            // rendering a compositional ADD analysis on them implies
+            // a deeper reading that does not exist. See isCoreAtom()
+            // in freestyleCoreAtomEducational for the canonical set.
             const modifierBonusTable = new Map<string, { add_bonus: number; add_bonus_rotational: number }>();
             for (const row of allModifierRows) {
               modifierBonusTable.set(row.slug, {
@@ -4885,7 +4893,7 @@ export const freestyleService = {
                   demoMedia.length,
                 )
               : null;
-            const addAnalysis = firstClassPasses
+            const addAnalysis = (firstClassPasses || isCoreAtom(slug))
               ? null
               : shapeTrickAddAnalysis(slug);
             return { isFirstClass: firstClassPasses, comparativeNotation, addAnalysis };
@@ -4898,6 +4906,12 @@ export const freestyleService = {
             // template — the publication-semantics gate from
             // exploration/equivalence-topology-phase-1-2026-05-21/
             // DESIGN.md §6 lives at this seam.
+            //
+            // Core-atom suppression rule (post-Wave-7 editorial pass):
+            // atoms cannot carry an alternate-derivation entry; the
+            // "alternate" frame presupposes a primary decomposition,
+            // which atoms (by definition) lack.
+            if (isCoreAtom(slug)) return null;
             const entry = getEquivalenceTopologyFor(slug);
             return entry && !entry.curatorConfirmPending ? entry : null;
           })(),
