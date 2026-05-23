@@ -1328,7 +1328,7 @@ The legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5) is the curre
 
 14. **Parallel-role duration**: agree a hard end-date by which the legacy host's parallel role ends; default policy is not later than 12 months post-cutover, with longer durations requiring IFPA board sign-off. Items still required after the end-date must migrate to the new platform or be retired.
 
-15. **Zone authority and apex capability**: identify the registrar and the authoritative-DNS provider for `footbag.org`. Confirm the provider supports ALIAS or ANAME at apex (Route 53, Cloudflare DNS, NS1, and a few others qualify); a plain CNAME at apex is illegal per RFC 1034. If the current provider does not support apex ALIAS, the zone migrates to a capable provider before T-0.
+15. **Zone authority and apex capability**: identify the registrar and the authoritative-DNS provider for `footbag.org`. Confirm the provider supports ALIAS or ANAME at apex (Route 53, Cloudflare DNS, NS1, and a few others qualify); a plain CNAME at apex is illegal per RFC 1034. If the current provider does not support apex ALIAS, the zone migrates to a capable provider before T-0. **STATUS: OPEN. This is the most likely technical showstopper for CloudFront integration. The answer is knowable now (`dig footbag.org NS` + provider feature check). If the zone must migrate, the migration is a multi-day operation that changes who controls DNS for all of `*.footbag.org` and must be planned well ahead of cutover, not discovered at T-7d.**
 
 16. **Records-actor for cutover changes**: identify who applies the maintainer-supplied records to the zone at cutover. Three answers are acceptable: (a) the webmaster himself, (b) a named delegate, or (c) the registrar/DNS provider's self-serve portal with named credential owner. The maintainer supplies the values; the identified actor applies them. The records are: the apex and `www` swap to the production CloudFront distribution, the ACM validation CNAMEs (temporary, during issuance), the SES DKIM CNAMEs (permanent), and the `archive.footbag.org` ALIAS pointing at the archive distribution. MX disposition is settled under the "MX disposition" subsection of §29.12a (MX records remain at the legacy mail server through and beyond the parallel-role window; SES verification is at the DKIM-CNAME level).
 
@@ -1581,8 +1581,8 @@ Phase 4 activities:
 
 ### State 4: Phase 3 (production cutover)
 
-1. Legacy webmaster places legacy site in write freeze / maintenance mode
-2. Legacy webmaster produces final production export
+1. Legacy webmaster places legacy site in write freeze / maintenance mode. **Timing constraint:** write-freeze must be instantaneous (site goes read-only at a coordinated moment), not gradual. Any member writes between "maintenance announced" and "maintenance enforced" appear in the final export but were not expected. The coordinated moment and the user-facing notice text are settled under §19 item 10.
+2. Legacy webmaster produces final production export from the frozen database state
 3. New platform imports legacy account rows into `legacy_members`
 4. New platform runs the tier-mapping dry-run report: a preview of what `member_tier_grants` would be written if all unclaimed legacy accounts were claimed today. No `member_tier_grants` rows are written during cutover; the report is read-only. Actual tier grants are written later, one row per member-confirmed claim, when each member completes the wizard's claim task after step 12 opens sign-in.
 5. New platform creates bootstrapped `clubs` rows for approved candidates
@@ -1687,9 +1687,22 @@ Path B does not recover from systemic bugs in the candidate-staging step itself,
 
 **Rollback window:** 48 hours post-flip. After 48 hours the new platform is authoritative regardless of what surfaces; reversal requires explicit joint sign-off from the primary maintainer and the legacy-site webmaster, and is treated as a manual recovery exercise rather than a rollback.
 
+**Post-cutover monitoring posture (T+0 to T+48h).** The rollback window requires active monitoring, not passive waiting. No cutover-specific monitoring runbook exists yet; the following observables must be specified in `docs/DEVOPS_GUIDE.md` before cutover, with alert thresholds and escalation paths:
+
+- HTTP 5xx error rate on the CloudFront distribution (baseline: 0; alarm: sustained >1% of requests over 5 minutes).
+- Response latency at the origin (p95; alarm threshold TBD based on staging baseline).
+- SES bounce rate and complaint rate (alarm: bounce >5% or complaint >0.1% of daily volume; SES auto-suspends sending at higher thresholds).
+- Outbox queue depth: `outbox_emails` rows with `status='pending'` growing faster than the worker drains them (alarm: >50 pending rows sustained over 10 minutes).
+- Login success rate: failed logins as a fraction of attempts (detects auth-chain defects; alarm threshold TBD).
+- Claim-wizard conversion: candidates surfaced vs. claims initiated (no hard alarm; manual check at T+4h and T+24h to confirm the flow is working).
+- Retained-subdomain TLS health: per gate OR12, daily probe on every retained `*.footbag.org` subdomain; first probe runs at T+1h, not T+24h.
+- CloudFront cache-invalidation confirmation: verify `/*` invalidation completed within 60 seconds of T-0 (one-time check).
+
 **Legacy DB retention:** the legacy-site webmaster retains the legacy database for at least 30 days after cutover for reference and targeted manual recovery. This is sequential to and distinct from the 48-hour rollback window: retention enables one-off historical lookups by admin; rollback is the time-bounded path back to the legacy site as authority.
 
 **Member writes lost on restore:** any claim, registration, or club-affiliation write that lands between snapshot capture and rollback is lost on restore. The 48-hour window plus the platform's traffic profile bound the affected count; affected members re-do the action after the platform stabilizes.
+
+**Post-flip path A-prime, bounded business-logic defects:** admin-level data correction plus affected-member notification, without full platform rollback. Covers defects that corrupt a bounded set of records but do not meet the path B catastrophic threshold: incorrect tier-mapping for a subset of members, auto-link candidate staging that surfaces wrong matches for a subset of legacy accounts, club-bootstrap that assigns wrong leaders. The defect is in the data, not the schema or identity layer, and the affected population is enumerable. Remediation: admin identifies affected rows via the oversight feed (§13) or targeted query; applies per-record correction via admin tools; dispatches notification email to affected members explaining the correction. Path A-prime does not require DNS revert, DB restore, or write-freeze. Decision authority is the primary maintainer; if the affected count exceeds 1% of migrated accounts or the defect cannot be corrected by record-specific admin actions, escalate to path B evaluation.
 
 **No automated rollback** is provided after the DNS switch. Path B is operator-driven via the runbook in `docs/DEVOPS_GUIDE.md`.
 
@@ -1715,11 +1728,15 @@ Decisions gated on the webmaster's read of community dynamics rather than on tes
 
 ### MVP launch scope
 
-The new platform launches with a defined feature scope; legacy services not in MVP scope remain on the legacy host through the parallel-role window per §29.12a. The MVP feature scope itself is an open coordination item among the primary maintainer, the historical-pipeline maintainer, and the IFPA board, to be settled before §23 Phase 4. Items dependent on this decision:
+**STATUS: UNDECIDED. This is the single largest open dependency in the migration plan. No cutover date can be set, and §19 items 10, 13, 14, and 18 cannot be finalized, until the MVP feature list is locked. Resolution requires agreement among the primary maintainer, the historical-pipeline maintainer, the legacy-site webmaster, and the IFPA board.**
+
+The new platform launches with a defined feature scope; legacy services not in MVP scope remain on the legacy host through the parallel-role window per §29.12a. Items dependent on this decision:
 
 - §19 item 10: which legacy surfaces enter the write-freeze.
 - §19 item 13: which `*.footbag.org` subdomains stay alive at launch.
+- §19 item 14: parallel-window duration (cannot be bounded until the scope of retained legacy services is known).
 - §19 item 18: per-mailing-list allocation (legacy parallel, migrate, retire).
+- §29.12b: redirect-handler coverage (cannot be validated until the set of new-platform-handled URL patterns is enumerated).
 - Any platform feature scoped "post-MVP" defers to a later release.
 
 ### Standing consistency notes
@@ -1746,7 +1763,7 @@ Gate: a dedicated snapshot of the production SQLite DB is captured as State 4 st
 
 - Snapshot is written to the cross-region DR bucket (S3 Object Lock, `docs/DEVOPS_GUIDE.md` §10.3) under a path distinct from the routine backup stream, so the snapshot is not aged out by the routine retention policy.
 - Integrity verification is automated: snapshot SHA-256 is recorded, a `PRAGMA integrity_check` run against a temporary copy returns `ok`, and the row counts for `members`, `legacy_members`, `historical_persons`, `clubs`, `audit_entries` are recorded in the cutover audit trail.
-- A dry-run restore against staging has been completed end-to-end within the past 7 days, using the same restore procedure that will be invoked for path B. The dry-run runbook lives in `docs/DEVOPS_GUIDE.md` and includes the steps to re-point the app at the restored DB.
+- A dry-run restore against staging has been completed end-to-end within the past 7 days, using the same restore procedure that will be invoked for path B. The dry-run runbook lives in `docs/DEVOPS_GUIDE.md` and includes the steps to re-point the app at the restored DB. **STATUS: the runbook must exist before the dry-run can be executed, and the dry-run must succeed before cutover. This is a serial dependency: write runbook, then dry-run, then cutover. Schedule the runbook authoring and dry-run at least 2-3 weeks before any target cutover date, not 7 days.**
 - The snapshot's Object Lock retention is set to at least 60 days so the rollback window plus retention plus operator review headroom is comfortably covered.
 
 Procedure: `docs/DEVOPS_GUIDE.md` (snapshot creation + restore runbook).
@@ -1767,6 +1784,8 @@ Gate: `footbag-operator` removed from `AdministratorAccess` and moved to a least
 
 Gate: SES is out of sandbox with production access granted; `footbag.org` verified as an SES sender identity at the domain level via DKIM CNAMEs in the zone (per §29.12a MX disposition); an SNS topic subscribes to SES bounce and complaint events; the bounce/complaint webhook end-to-end has been tested with a synthetic bounce against `bounce@simulator.amazonses.com` and the resulting suppression-row write confirmed in the app; the application processes those events into hard-bounce suppression and complaint tracking; email-delivery smoke (validation gate G10) has passed end-to-end on a pre-cutover release. Procedure: `docs/DEV_ONBOARDING.md` Path I (activation).
 
+**STATUS: OPEN. The SES production-access ticket requires a stated daily send volume, but no estimate exists.** Sending surfaces at cutover include: transactional (verification, password reset, claim links on member sign-in), Active Player expiry reminders, admin contact-request resolution replies, and any cutover-day announcement to the announce list. If 200 members sign in on day one and each triggers 1-2 transactional emails, baseline is 200-400/day. A bulk "site is live" announcement to the full membership could add hundreds more. SES production default is 1 message/second (86,400/day); the outbox retry mechanism handles throttling, but queue depth and user-visible latency scale with the gap between send rate and burst volume. The production-access ticket should request at least 1,000 emails/day with a stated burst justification referencing the cutover scenario.
+
 ### 29.6 Scheduled maintenance jobs
 
 Gate: login rate-limit cooldown is wired to the `login_cooldown_minutes` setting; daily `account_tokens` cleanup job runs on the host and removes expired entries; job execution is observable via standard application logs or CloudWatch. Procedure: in-code + `docs/DEVOPS_GUIDE.md`.
@@ -1782,7 +1801,7 @@ Before Phase 4 cutover, the following staging-observability-only deviations must
 1. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical domain; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` to `noreply@footbag.org` (the FROM address) and switch the `OutboundEmail` IAM policy `Resource` ARN to the `footbag.org` SES domain identity ARN (per §29.12a MX disposition: domain-level verification, not email-address-level); restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
 2. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove any browser-SSH firewall opening (port 22 loosened beyond `operator_cidrs` during staging bring-up) and return to the `operator_cidrs`-constrained ingress documented in DEV_ONBOARDING Path D §4.4.
 3. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
-4. Production Terraform region fix: change the region default in `terraform/production/variables.tf` from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. The project runs in `us-east-1` (DEVOPS_GUIDE §4.2 networking and TLS); applying as-is would create cross-region production resources.
+4. Production Terraform region fix: change the region default in `terraform/production/variables.tf` from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. The project runs in `us-east-1` (DEVOPS_GUIDE §4.2 networking and TLS); applying as-is would create cross-region production resources. **Note: the wrong default implies no production Terraform has ever been applied.** All production infrastructure referenced by this plan (CloudFront distribution, ACM certs, Route 53 records, security groups, KMS keys) either does not exist yet or was created outside Terraform. A `terraform plan` against the production account should be run well before cutover to surface the full delta between desired state and actual state. Any manually created resources must be imported (`terraform import`) before `terraform apply` to avoid duplication or conflicts.
 5. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
 6. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 1) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
 7. Dev autologin revert. The dev-autologin mechanism (`FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID`) is a dev workstation surface gated by `FOOTBAG_ENV=development`. The boot-time `env.ts` guard refuses the marker outside development, so production is already protected against accidental activation. The cutover deploy should ship without the dev-only branch reachable from the production code path; remove it from `src/middleware/auth.ts` and the matching env-config guard before the final deploy. **Scope**: this item covers dev-autologin only. Dev-admin seeding (the registration-time admin allowlist and the `--seed-dev-admins` direct-insert path) is a separate concern, deleted entirely under PC7; production first-admin uses the SSM-token `/admin/bootstrap-claim` route (DD §2.9; operator runbook in DEVOPS_GUIDE §17.8).
@@ -1792,7 +1811,7 @@ Sign-off on this checklist is a prerequisite for §24 State 3 → State 4 transi
 
 ### 29.9 Production-specific prerequisites
 
-Gate: ACM certificate for `footbag.org` issued in `us-east-1` and attached to the production CloudFront distribution; production KMS asymmetric signing key, source-profile IAM user, and runtime role provisioned (production mirror of Path H §8.6–§8.9, per Path I §9.8); Stripe production live API keys and webhook secret stored in Parameter Store at `/footbag/production/stripe/*`; Stripe webhook endpoint URL registered in the Stripe Dashboard against the production domain; one end-to-end Stripe webhook delivery confirmed against the production endpoint before cutover, with the confirmation asserting that the `stripe-signature` header was validated by the app against the production webhook secret (e.g. by inspecting an audit row written by the signature-validation path on successful receipt) rather than only that the endpoint returned HTTP 200. Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation, §9.8 production KMS / runtime role, §9.13 Stripe production activation).
+Gate: ACM certificate for `footbag.org` issued in `us-east-1` and attached to the production CloudFront distribution; **ACM certificate for `archive.footbag.org` issued in `us-east-1` and attached to the archive CloudFront distribution** (separate cert, separate distribution, same Terraform pattern as the main cert; requires its own DNS validation CNAME published by the records-actor per §19 item 16); production KMS asymmetric signing key, source-profile IAM user, and runtime role provisioned (production mirror of Path H §8.6–§8.9, per Path I §9.8); Stripe production live API keys and webhook secret stored in Parameter Store at `/footbag/production/stripe/*`; Stripe webhook endpoint URL registered in the Stripe Dashboard against the production domain; one end-to-end Stripe webhook delivery confirmed against the production endpoint before cutover, with the confirmation asserting that the `stripe-signature` header was validated by the app against the production webhook secret (e.g. by inspecting an audit row written by the signature-validation path on successful receipt) rather than only that the endpoint returned HTTP 200. Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation, §9.8 production KMS / runtime role, §9.13 Stripe production activation).
 
 ### 29.10 Code governance
 
@@ -1819,7 +1838,7 @@ Cutover-specific timing (overrides the generic procedure's defaults):
 
 - T-7d minimum lead time. At T-7d the maintainer formally notifies the webmaster of the cutover window, hands over the records to be applied at cutover (apex / `www` swap, ACM validation CNAMEs, SES DKIM CNAMEs, `archive.footbag.org` ALIAS), and asks the records-actor named under §19 item 16 to confirm availability. The webmaster has 7 days to surface conflicts, schedule the actual TTL pre-shrink at T-48h, and align the secondary-contact coverage required under §19 item 17.
 - T-48h TTL on the legacy zone set to 300 seconds (longer than the §16.7 default of 60s so the slower-propagating legacy DNS host has margin).
-- T+48h rollback window: TTL stays at 300 seconds for the full 48h post-cutover; legacy site stays online read-only across this window (per §27). At T+48h, restore steady-state TTL and proceed with legacy-site retirement per §19 item 11 (30-day minimum retention).
+- T+48h rollback window: TTL stays at 300 seconds for the full 48h post-cutover; legacy site stays online read-only across this window (per §27). At T+48h, restore steady-state TTL to 3600 seconds (1 hour) for the apex and `www` records; this is the records-actor's action per §19 item 16. Note: after TTL restoration, any subsequent DNS change takes up to 1 hour to propagate (vs. 5 minutes during the rollback window). The fast-propagation safety net ends with the rollback window. Proceed with legacy-site retirement per §19 item 11 (30-day minimum retention).
 
 Coordination contract (per §19):
 
@@ -1846,6 +1865,12 @@ The legacy host persists in a parallel role beyond the §27 rollback window, und
 - The legacy host is operated by the legacy-site webmaster through the parallel window: patches, uptime, server-side configuration, and TLS on the retained subdomains remain his responsibility. This operational responsibility is server-side; DNS authority for `footbag.org` is settled separately under §19 item 15. If the zone migrates to a maintainer-controlled provider (Route 53 or equivalent) to satisfy apex-ALIAS capability, subdomain records under that zone are still applied at the webmaster's instruction (the maintainer holds zone-write access; the webmaster sources the record values for his subdomains); alternatively, the webmaster's subdomain names may be delegated back to a webmaster-controlled DNS zone via NS records, restoring full DNS authority for those names to him. The delegation-vs-managed choice is documented as part of item 15.
 - Every existing group, committee, and mailing-list function on the legacy site continues to operate at and after cutover. Allocation is per-function and negotiated with the webmaster per §19 item 18: each function either stays on the legacy parallel-role server (default), migrates to the new platform pre-cutover (requires a new-platform feature build, scoped as a separate effort outside this MP unless the negotiation surfaces a function that can't stay on the legacy server), or is retired with consent. No function goes dark at T-0.
 
+**Legacy host failure during the parallel window.** The webmaster's operational responsibility (constraint 4) does not include an uptime SLA. If the legacy host becomes unreachable and cannot be restored within a pre-agreed window, the following escalation path applies (to be confirmed with the webmaster before cutover as part of §19 item 14):
+
+- **0-4 hours:** webmaster attempts restore from backup; maintainer notified; retained subdomains and legacy-hosted mailing lists are unavailable.
+- **4-24 hours:** if restore is not feasible, the webmaster and maintainer jointly decide: (a) accelerate the parallel-window end-date and retire retained subdomains, removing their DNS records; (b) emergency-migrate the highest-priority retained functions to the new platform (scoped as an incident sprint, not a planned feature build).
+- **Inbound email impact:** if the legacy host also serves as the MX target (which it does per the MX disposition below), a legacy host outage silently drops all inbound `@footbag.org` mail. There is no automatic failover for inbound email. The maintainer should consider whether a backup MX record pointing to a mailbox-parking service is warranted during the parallel window.
+
 **Variables settled with the legacy-site webmaster (§19 items 13–16):**
 
 - Subdomain inventory (item 13): which `*.footbag.org` subdomains stay on the legacy host.
@@ -1855,6 +1880,12 @@ The legacy host persists in a parallel role beyond the §27 rollback window, und
 
 **MX disposition for `@footbag.org`:** SES sender identity is verified at the `footbag.org` domain level using the DKIM CNAMEs added under the records-actor item (§19 item 16). No inbound mailbox on the apex is required for SES verification. MX records for `footbag.org` remain at the legacy mail server through and beyond the parallel window; `brat@footbag.org`, `directors@`, and other apex role addresses continue to be delivered to the legacy mail server, which the webmaster operates. Cloudflare Email Routing is not used.
 
+**STATUS: OPEN. Three email concerns require resolution before cutover:**
+
+1. **Inbound mailbox inventory.** No enumeration exists of which `@footbag.org` addresses the legacy mail server handles, what role each serves, or which are actively used. An inventory is a prerequisite for §19 item 18 allocation decisions and for verifying inbound continuity post-cutover.
+2. **Mailing-list transition ambiguity.** USER_STORIES defines platform-managed mailing lists (newsletter, board-announcements, event-notifications, announce@footbag.org, group auto-sync lists) sent via SES. §19 item 18 allocates each legacy list to stay/migrate/retire. But no mapping exists between the US-defined lists and the lists the legacy server currently operates. At T-0, which lists does the platform manage vs. which stay on the legacy server? The `announce@footbag.org` list appears in both contexts.
+3. **Legacy mail server health during parallel window.** The webmaster operates the mail server through the parallel window (up to 12 months). No monitoring, uptime expectation, or escalation path exists if inbound MX delivery fails. A server outage silently drops all inbound `@footbag.org` mail, including replies to platform-sent transactional email and traffic to `admin@footbag.org` (the public contact address surfaced on `/legal`).
+
 ### 29.12b Legacy URL forwarding for in-flight emails
 
 Old footbag.org emails (account verification, forum-reply pointers, share-event links) reference legacy URL patterns like `/members/profile/{legacy_member_id}`, `/clubs/{slug}`, and various forum paths. After cutover, these emails continue circulating in inboxes for months or years.
@@ -1863,7 +1894,7 @@ Forwarding contract for the production app:
 
 - Member profile patterns: `/members/profile/:legacyMemberId` resolves in three branches: (a) if the legacy ID maps to a non-deleted live member via `members.legacy_member_id`, redirect 301 to the slug-based URL `/members/:slug`; (b) if the legacy ID matches an unclaimed `legacy_members.legacy_member_id`, render a soft-landing page that names the legacy account (display name only, no PII) and offers a CTA to claim it (if the visitor is authenticated) or to register first (if not); (c) if the legacy ID matches no row in either table, render the friendly "this legacy account is no longer routable" 404 page. The soft landing in branch (b) preserves the claim funnel for members who follow old links before completing claim.
 - Club patterns: legacy `/clubs/:slug` URLs resolve to the new club page if the slug survived normalization; otherwise to archive.footbag.org for the historical mirror or a 404 page when neither exists.
-- Forum patterns: legacy forum thread URLs redirect to archive.footbag.org where the post is preserved as a static mirror.
+- Forum patterns: legacy forum thread URLs redirect to archive.footbag.org where the post is preserved as a static mirror. **Volume note:** if the legacy forum has thousands of indexed thread URLs, all will 301-redirect through the production CloudFront distribution post-cutover. Search engine re-crawl of these redirects may generate a sustained burst of requests in the days after cutover. Verify the redirect handler does not trigger CloudFront request-rate alarms, and confirm `archive.footbag.org` can absorb the redirected traffic without creating redirect loops (relevant if archive is also behind CloudFront).
 - Unknown patterns: 404 with a generic legacy-URL message that directs the visitor to footbag.org.
 
 The legacy site stays online but read-only for the 48h rollback window (§29.12 T+0 to T+48h); after T+48h the legacy host's apex content-serving role ends and `footbag.org` apex and `www` are served entirely by the new platform. Retained `*.footbag.org` subdomains under the legacy host's parallel role per §29.12a continue to operate beyond T+48h until their bounded end-date per §19 item 14. Redirect-handler coverage in the production app must therefore cover every legacy URL pattern that meaningfully forwards to a new destination, validated at test load by replaying a stored sample of legacy URLs against the production app.
@@ -1907,6 +1938,8 @@ Gate: a periodic external probe (cron + curl, or equivalent) checks the TLS cert
 Rationale: the new-platform session cookie widens to `Domain=.footbag.org` per §29.15. A retained subdomain serving plain HTTP, or with a lapsed certificate, leaks the session token in cleartext on every request. The HTTPS constraint in §29.12a is a one-time pre-cutover check; this gate is the ongoing assurance across the bounded parallel-role window (§19 item 14).
 
 Procedure: probe runbook and alarm wiring documented in `docs/DEVOPS_GUIDE.md`; sunsets when the parallel-role window ends and the retained-subdomain inventory empties.
+
+**STATUS: OPEN. The probe must be automated (cron, not manual), and the alarm must fire without operator action.** The parallel window may last up to 12 months (§19 item 14). Let's Encrypt certificates expire every 90 days; a retained subdomain's cert will lapse at least once during a 12-month window unless the webmaster renews. A manual daily check will not be sustained for 12 months. The probe must be a scheduled job (cron on the Lightsail host or a CloudWatch Synthetics canary) with automated alarm delivery to both the maintainer and the webmaster's secondary contact (§19 item 17).
 
 ---
 
