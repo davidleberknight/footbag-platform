@@ -81,6 +81,37 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'eggbeater',               canonical_name: 'eggbeater',               adds: '3', base_trick: 'legover',    trick_family: 'legover',   category: 'compound' });
   insertFreestyleTrick(db, { slug: 'paradox-symposium-whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',      trick_family: 'whirl',     category: 'compound' });
 
+  // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
+  // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
+  // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
+  // entry (provides chain + ADD breakdown) and curator-locked notation
+  // (passes H2 + H4 of assertFirstClassConvergence).
+  insertFreestyleTrick(db, { slug: 'heel-stall',     canonical_name: 'heel stall',     adds: '1', base_trick: 'heel-stall',     trick_family: 'heel-stall',     category: 'surface', notation: 'HEEL STALL',     operational_notation: '[set] > heel' });
+  insertFreestyleTrick(db, { slug: 'inside-stall',   canonical_name: 'inside stall',   adds: '1', base_trick: 'inside-stall',   trick_family: 'inside-stall',   category: 'surface', notation: 'INSIDE STALL',   operational_notation: '[set] > inside' });
+  insertFreestyleTrick(db, { slug: 'outside-stall',  canonical_name: 'outside stall',  adds: '1', base_trick: 'outside-stall',  trick_family: 'outside-stall',  category: 'surface', notation: 'OUTSIDE STALL',  operational_notation: '[set] > outside' });
+  insertFreestyleTrick(db, { slug: 'head-stall',     canonical_name: 'head stall',     adds: '1', base_trick: 'head-stall',     trick_family: 'head-stall',     category: 'surface', notation: 'HEAD STALL',     operational_notation: '[set] > head' });
+  insertFreestyleTrick(db, { slug: 'forehead-stall', canonical_name: 'forehead stall', adds: '1', base_trick: 'forehead-stall', trick_family: 'forehead-stall', category: 'surface', notation: 'FOREHEAD STALL', operational_notation: '[set] > forehead' });
+  insertFreestyleTrick(db, { slug: 'neck-stall',     canonical_name: 'neck stall',     adds: '1', base_trick: 'neck-stall',     trick_family: 'neck-stall',     category: 'surface', notation: 'NECK STALL',     operational_notation: '[set] > neck' });
+  insertFreestyleTrick(db, { slug: 'knee-stall',     canonical_name: 'knee stall',     adds: '1', base_trick: 'knee-stall',     trick_family: 'knee-stall',     category: 'surface', notation: 'KNEE STALL',     operational_notation: '[set] > knee' });
+  insertFreestyleTrick(db, { slug: 'shoulder-stall', canonical_name: 'shoulder stall', adds: '1', base_trick: 'shoulder-stall', trick_family: 'shoulder-stall', category: 'surface', notation: 'SHOULDER STALL', operational_notation: '[set] > shoulder' });
+  insertFreestyleTrick(db, { slug: 'sole-kick',      canonical_name: 'sole kick',      adds: '1', base_trick: 'sole-kick',      trick_family: 'sole-kick',      category: 'body',    notation: 'SOLE KICK',      operational_notation: '[set] > sole kick' });
+  insertFreestyleTrick(db, { slug: 'cloud-kick',     canonical_name: 'cloud kick',     adds: '1', base_trick: 'cloud-kick',     trick_family: 'cloud-kick',     category: 'body',    notation: 'CLOUD KICK',     operational_notation: '[set] > cloud kick' });
+  insertFreestyleTrick(db, { slug: 'peak-delay',     canonical_name: 'peak delay',     adds: '1', base_trick: 'peak-delay',     trick_family: 'peak-delay',     category: 'surface', notation: 'PEAK DELAY',     operational_notation: '[set] > peak' });
+  insertFreestyleTrick(db, { slug: 'flying-inside',  canonical_name: 'flying inside',  adds: '1', base_trick: 'flying-inside',  trick_family: 'flying-inside',  category: 'body',    notation: 'FLYING INSIDE',  operational_notation: 'flying > inside' });
+  insertFreestyleTrick(db, { slug: 'flying-outside', canonical_name: 'flying outside', adds: '1', base_trick: 'flying-outside', trick_family: 'flying-outside', category: 'body',    notation: 'FLYING OUTSIDE', operational_notation: 'flying > outside' });
+  insertFreestyleTrick(db, { slug: 'double-knee',    canonical_name: 'double knee',    adds: '1', base_trick: 'double-knee',    trick_family: 'double-knee',    category: 'body',    notation: 'DOUBLE KNEE',    operational_notation: 'double knee' });
+
+  // ─── Tier 1: foundational 2-ADD primitives (added 2026-05-22) ───────
+  // Extend the foundational band upward to expose the unusual-surface,
+  // flying + dex, and flying + xbody bucket combinations explicitly.
+  // flying-clipper has base_trick='clipper' (not self) so it never passes
+  // the convergence-rule isAtomic gate; card-level first-class rendering
+  // is via slug-keyed ATOMIC_FLAG_DECOMPOSITIONS lookup and works
+  // regardless.
+  insertFreestyleTrick(db, { slug: 'cloud-stall',    canonical_name: 'cloud stall',    adds: '2', base_trick: 'cloud-stall',    trick_family: 'cloud-stall',    category: 'surface', notation: 'CLOUD STALL',    operational_notation: '[set] > cloud' });
+  insertFreestyleTrick(db, { slug: 'dragonfly-kick', canonical_name: 'dragonfly kick', adds: '2', base_trick: 'dragonfly-kick', trick_family: 'dragonfly-kick', category: 'body',    notation: 'DRAGONFLY KICK', operational_notation: 'flying > dragonfly' });
+  insertFreestyleTrick(db, { slug: 'flying-clipper', canonical_name: 'flying clipper', adds: '2', base_trick: 'clipper',        trick_family: 'clipper',        category: 'body',    notation: 'FLYING CLIPPER', operational_notation: 'flying > clipper' });
+
   db.close();
   createApp = await importApp();
 });
@@ -320,9 +351,17 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     const cohort = [
-      // Tier 1 (12: 11 atoms + pendulum)
+      // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe-stall', 'clipper-stall', 'mirage', 'whirl', 'butterfly',
       'swirl', 'legover', 'pickup', 'illusion', 'around-the-world', 'pendulum',
+      // Tier 1 — 14 foundational 1-ADD primitives (promoted 2026-05-22)
+      'heel-stall', 'inside-stall', 'outside-stall', 'head-stall',
+      'forehead-stall', 'neck-stall', 'knee-stall', 'shoulder-stall',
+      'sole-kick', 'cloud-kick', 'peak-delay',
+      'flying-inside', 'flying-outside', 'double-knee',
+      // Tier 1 — 3 foundational 2-ADD primitives (pedagogical ADD-bucket
+      // normalization 2026-05-22)
+      'cloud-stall', 'dragonfly-kick', 'flying-clipper',
       // Tier 2 (9: 4 existing + 5 new)
       'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
       'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',

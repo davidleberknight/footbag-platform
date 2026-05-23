@@ -3607,7 +3607,12 @@ section.home-media { padding-top: 0; }
 /* Browse-card secondary row — surfaces the OPERATIONAL/JOB chain +
    ADD breakdown beneath the primary card content for pilot first-class
    slugs only. Compact + neutral; sits below the primary card body
-   without competing with non-first-class siblings on the same view. */
+   without competing with non-first-class siblings on the same view.
+   Layout: row-direction flex so JOB and ADD sit side-by-side on wide
+   screens (one compact strip instead of two stacked blocks). In the
+   registry-density grid context the wrapper spans all columns so its
+   contents don't collapse into a single narrow grid cell. Stacks back
+   to vertical on narrow widths via the 520px media query below. */
 .dict-card-first-class-row {
   margin: 6px 0 0 0;
   padding: 6px 0 0 0;
@@ -3615,9 +3620,16 @@ section.home-media { padding-top: 0; }
   font-size: 0.78rem;
   line-height: 1.4;
   color: #4a4232;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 20px;
+}
+.dict-card--registry .dict-card-first-class-row {
+  grid-column: 1 / -1;
 }
 .dict-card-first-class-line {
-  margin: 2px 0;
+  margin: 0;
   display: flex;
   gap: 6px;
   align-items: baseline;
@@ -3654,6 +3666,15 @@ section.home-media { padding-top: 0; }
   font-style: italic;
   color: #9a9078;
   letter-spacing: 0.01em;
+}
+/* On narrow widths the side-by-side JOB/ADD strip stacks back to a
+   two-line block so the value can't squeeze; the side-by-side layout
+   above already wraps naturally on mid widths via flex-wrap. */
+@media (max-width: 520px) {
+  .dict-card-first-class-row {
+    flex-direction: column;
+    gap: 2px;
+  }
 }
 
 /* Trick-detail vertical compression. Tighten section spacing across

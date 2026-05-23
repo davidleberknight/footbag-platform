@@ -2690,12 +2690,28 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
 // `isFirstClass(slug)` to check membership and `getFirstClassTier(slug)`
 // to differentiate visual/test-level behavior.
 //
+// Semantic interpretation: "first-class" means FOUNDATIONAL +
+// PUBLICATION-QUALITY, NOT "elite" or "high-ADD". A trick earns the
+// secondary JOB/ADD strip when (a) its canonical structure is
+// curator-locked, (b) its display + slug are stable, and (c) the trick
+// plays a foundational pedagogical role — the 12 core atoms, the
+// foundational 1-ADD surface vocabulary (anatomical surface stalls,
+// unusual-surface kicks, folk-name surfaces), the operator-first
+// 1-ADD primitives (flying-family), and curator-handpicked compound
+// showcases. The semantic widened 2026-05-22 from an implicit
+// "elite-only" reading to this explicit foundational-band reading.
+//
 // Promotion criteria (apply to BOTH tiers):
 //   - passes assertFirstClassConvergence (derivation == computed ==
 //     official ADD, no doctrine blocker, notation populated)
 //   - stable canonical slug + display name
-//   - educational distinctiveness — adds a dimension not already covered
-//     (operator, family, folk-name equivalence, multi-operator chain)
+//   - foundational role OR publication-quality role — an atom of the
+//     movement vocabulary, a foundational primitive that introduces a
+//     learning dimension (surface family, unusual-surface ADD bucket,
+//     flying-operator decomposition, sui-generis self-token notation,
+//     …), OR a compound that adds an educational dimension not already
+//     covered (operator, family, folk-name equivalence, multi-operator
+//     chain)
 //   - not in DOCTRINE_BLOCKED_SLUGS
 //
 // Tier criteria:
@@ -2711,9 +2727,9 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
 //     "JOB: notation pending" incomplete-state line.
 //
 // To promote a slug: verify the criteria above, add to the appropriate
-// tier with an inline comment naming the educational dimension it adds.
-// To demote: remove the entry; the renderer falls back to standard
-// dictionary-card rendering automatically.
+// tier with an inline comment naming the foundational or educational
+// dimension it adds. To demote: remove the entry; the renderer falls
+// back to standard dictionary-card rendering automatically.
 const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   // 11 atom singletons — full curator data via ATOMIC_FLAG_DECOMPOSITIONS.
   // Orbit deliberately excluded: its base_trick is empty in the DB
@@ -2733,6 +2749,35 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   'around-the-world',    // orbit-class atom (ATW)
   // Compound with full curator data (op-notation + resolved formula).
   'pendulum',            // swing-class compound; only first-class compound at full parity
+  // ── Foundational 1-ADD surface vocabulary (atomic; passes convergence;
+  //    promoted 2026-05-22 to widen "first-class" from "elite" →
+  //    "foundational + publication-quality"). Each entry introduces a
+  //    distinct learning dimension. JOB sourced from curator DB
+  //    op-notation; ADD from ATOMIC_FLAG_DECOMPOSITIONS below.
+  'heel-stall',          // anatomical surface stall (heel); universal stall=1
+  'inside-stall',        // anatomical surface stall (inside-of-foot); base for clipper family
+  'outside-stall',       // anatomical surface stall (outside-of-foot)
+  'head-stall',          // anatomical surface stall (head)
+  'forehead-stall',      // anatomical surface stall (forehead)
+  'neck-stall',          // anatomical surface stall (neck)
+  'knee-stall',          // anatomical surface stall (knee)
+  'shoulder-stall',      // anatomical surface stall (shoulder)
+  'sole-kick',           // unusual-surface kick; introduces the unusual-surface ADD bucket
+  'cloud-kick',          // unusual-surface kick (cloud = back of calf/shin); same bucket as sole-kick + cloud-stall exception
+  'peak-delay',          // folk-name surface stall (peak = rim of ballcap); universal stall=1 applies to folk surfaces
+  // ── Foundational 1-ADD flying-operator primitives. Introduce the
+  //    operator-first chain decomposition at the 1-ADD level.
+  //    flying(1) = 1 ADD; the operator owns the ADD slot, the surface
+  //    is the terminal. See [[feedback_flying_operator_and_folk_surfaces]].
+  'flying-inside',       // flying-operator primitive; chain 'flying > inside'
+  'flying-outside',      // flying-operator primitive; chain 'flying > outside'
+  'double-knee',         // sui-generis self-token JOB ('double knee'); flying-derived ADD
+  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
+  //    ADD-bucket normalization slice). Extend the foundational band
+  //    upward; each exposes a core ADD bucket explicitly.
+  'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
+  'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches flying + dex buckets
+  'flying-clipper',      // 2-ADD flying primitive with xbody; teaches flying + xbody buckets
 ]);
 
 const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
@@ -2749,6 +2794,18 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
   'paradox-symposium-whirl', // multi-operator chain showcase
+]);
+
+// Sui-generis primitives whose curator-locked JOB notation IS the
+// canonical name itself (no decomposable set + terminator chain).
+// double-knee is the founding member (2026-05-22); pendulum mirrors the
+// pattern conceptually but carries '[DEL] [DEX]' in DB op-notation so
+// doesn't trigger the tautology guard. Slugs in this set are exempt
+// from the shapeDictionaryTrickCard tautological-JOB filter so the
+// self-token JOB renders honestly (e.g. "JOB: double knee") instead
+// of falling through to the muted "JOB: notation pending" line.
+const SUI_GENERIS_SELF_TOKEN_SLUGS: ReadonlySet<string> = new Set([
+  'double-knee',
 ]);
 
 /** True when `slug` is in either first-class tier. */
@@ -2869,9 +2926,118 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > (downtime) spin > ss clipper',
   }],
   ['around-the-world', {
-    decomposition:    'full-orbit dex(1) + stall(1) = 2 ADD',
+    // Pedagogical normalization 2026-05-22: foundational tricks teach the
+    // core ADD buckets directly. Prior 'full-orbit dex(1)' was
+    // unnecessarily specialized for a foundational entry; ATW is now read
+    // as plain dex + stall, matching the bucket vocabulary used by other
+    // foundational primitives.
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'toe > ss(midtime) in dex > ss toe',
+  }],
+  // ── Foundational 1-ADD surface vocabulary (added 2026-05-22 with the
+  //    foundational-band first-class widening). Anatomical surface stalls
+  //    + unusual-surface kicks + folk-name surfaces. ADD via the universal
+  //    stall=1 rule for stalls; via the unusual-surface bucket for the two
+  //    kicks. operationalChain mirrors the DB op-notation; ChainSource
+  //    falls back to atomic when DB is somehow stripped.
+  ['heel-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > heel',
+  }],
+  ['inside-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > inside',
+  }],
+  ['outside-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > outside',
+  }],
+  ['head-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > head',
+  }],
+  ['forehead-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > forehead',
+  }],
+  ['neck-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > neck',
+  }],
+  ['knee-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > knee',
+  }],
+  ['shoulder-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > shoulder',
+  }],
+  ['sole-kick', {
+    decomposition:    'unusual surface(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > sole kick',
+  }],
+  ['cloud-kick', {
+    decomposition:    'unusual surface(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > cloud kick',
+  }],
+  ['peak-delay', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > peak',
+  }],
+  // ── Foundational 1-ADD flying-operator primitives. Operator-first chain
+  //    form; flying owns the ADD slot (flying(1) = 1 ADD). double-knee is
+  //    sui-generis self-token (no [set] > prefix; exempt from the
+  //    tautological-JOB guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
+  ['flying-inside', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'flying > inside',
+  }],
+  ['flying-outside', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'flying > outside',
+  }],
+  ['double-knee', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'double knee',
+  }],
+  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
+  //    ADD-bucket normalization slice). Each exposes a core ADD bucket
+  //    in a foundational, publication-quality entry. cloud-stall teaches
+  //    the unusual-surface bucket pedagogically (parallel to sole-kick /
+  //    cloud-kick); dragonfly-kick + flying-clipper extend the flying-
+  //    operator pattern to the 2-ADD layer with explicit second buckets
+  //    (dex, xbody). flying-clipper's base_trick='clipper' (not self) so
+  //    the convergence-rule isAtomic gate doesn't fire; the card path
+  //    looks up by slug and renders correctly regardless.
+  ['cloud-stall', {
+    decomposition:    'unusual surface (shin)(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > cloud',
+  }],
+  ['dragonfly-kick', {
+    decomposition:    'flying(1) + dex(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'flying > dragonfly',
+  }],
+  ['flying-clipper', {
+    decomposition:    'flying(1) + xbody(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'flying > clipper',
   }],
 ]);
 
@@ -3364,7 +3530,13 @@ function shapeDictionaryTrickCard(
     }
     if (chainValue) {
       const chainLower = chainValue.toLowerCase().trim();
-      const tautological = chainLower === compactLower || chainLower === canonicalLower;
+      // Sui-generis self-token primitives (double-knee, …) carry a
+      // canonical JOB equal to the trick name itself. The tautology
+      // guard would otherwise mute that as "notation pending", which
+      // misrepresents curator intent — these slugs are exempted.
+      const isSelfTokenJob = SUI_GENERIS_SELF_TOKEN_SLUGS.has(indexRow.slug);
+      const tautological = !isSelfTokenJob
+        && (chainLower === compactLower || chainLower === canonicalLower);
       if (!tautological) {
         firstClassChainLabel = chainSource === 'atomic' ? 'OPERATIONAL' : 'JOB';
         firstClassChainValue = chainValue;
