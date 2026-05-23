@@ -36,6 +36,9 @@ Classification statuses:
   doctrine-sensitive mismatch where slug ∈ DOCTRINE_BLOCKED_SLUGS
   unsupported-token  parser hit an unknown token (grammar gap)
   self-token         notation is a bare self-token (sui-generis primitive)
+  context-dependent  leading token is in CONTEXT_DEPENDENT_TOKENS (e.g.
+                     `double`) — universal +1 rule does not apply;
+                     curator-published per-trick decomposition required
 
 Promotion candidates: status='exact' AND not doctrine-blocked AND not
 yet first-class. These are the safe-to-promote next-batch.
@@ -168,8 +171,68 @@ def parse_int_add(raw):
 
 
 # Operational-notation bracket flags (ATAM convention; one ADD each).
+# Case-insensitive — some op_notation entries use lowercase ([xbd] etc.).
 ATAM_FLAGS = ("BOD", "DEX", "XBD", "DEL", "UNS")
-BRACKET_FLAG_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX)\]")
+BRACKET_FLAG_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX)\]", re.IGNORECASE)
+
+
+# ── Parser vocabulary maps (curator-governed; expand cautiously) ─────────
+# These four small maps encode parser-side knowledge that isn't (or
+# shouldn't be) carried by the freestyle_trick_modifiers table. They're
+# kept here rather than in the DB so the audit stays inspectable and the
+# rules are easy to review.
+
+# Token alias map: parser-side normalization for shouty-form tokens that
+# aren't canonical modifier-table slugs. Resolves variant spellings to
+# their canonical bucket/modifier slug for lookup.
+MODIFIER_TOKEN_ALIASES = {
+    # Curator 2026-05-22: cross-body normalizes to the xbody bucket for
+    # parser/audit purposes (cross-body-sole-stall → xbody + sole-stall).
+    'cross-body': 'xbody',
+}
+
+# Bucket-token weights: tokens that carry an ADD weight (the core
+# foundational buckets — stall, dex, xbody, unusual surface, flying) but
+# are NOT rows in freestyle_trick_modifiers. They appear inside curator
+# decomposition strings (e.g. 'xbody(1) + stall(1) = 2 ADD') and in
+# shouty notation as token-level annotations. Each = 1 ADD universally
+# (no rotational/non-rotational distinction; the rotational distinction
+# is for modifier-table modifiers only).
+BUCKET_TOKEN_WEIGHTS = {
+    'xbody': 1,
+    'xbod':  1,  # alt spelling seen in osis decomposition
+}
+
+# Directional / alternate-notation tokens: descriptive markers that
+# carry NO ADD weight by themselves. Recognized as zero-ADD in compound
+# parses so the rest of the notation can derive cleanly; appear in the
+# breakdown as `[directional: ...]` for transparency. Curator 2026-05-22:
+# rev/reverse are alternate directional notation, not ADD operators —
+# any ADD impact is already captured in the host trick's official total.
+DIRECTIONAL_TOKENS = {
+    'rev',
+    'reverse',
+}
+
+# Context-dependent tokens: when present as a leading modifier, the
+# trick requires a curator-published per-trick decomposition rather
+# than a universal +1 rule. Curator 2026-05-22: `double` reads as
+# multiplier / repeated / composite-marker depending on the host trick
+# (double-leg-over is mirage+legover style, double-spin is rotation
+# count, double-fairy may follow an equivalence). Parser refuses to
+# invent a number and classifies as context-dependent for review.
+CONTEXT_DEPENDENT_TOKENS = {
+    'double',
+}
+
+
+def normalize_token(token: str, alias_map: dict) -> str:
+    """Slugify a raw shouty-form token and walk parser-side + DB alias
+    maps to its canonical lookup form."""
+    s = slugify(token)
+    s = MODIFIER_TOKEN_ALIASES.get(s, s)
+    s = alias_map.get(s, s)
+    return s
 
 
 def strip_bracket_noise(text: str) -> str:
@@ -224,6 +287,25 @@ def parse_notation_compound(
     real_compound = None
     self_tautology = None
     unsupported_partial = None
+    context_dependent = None  # leading tokens include a context-dependent token (e.g. DOUBLE)
+
+    def _classify_leading(leading_slugs):
+        """Return (all_recognized, has_context_dependent) for a leading
+        slug list. A slug is recognized if it's a modifier-table entry,
+        a bucket-weighted token (xbody etc.), or a directional token
+        (rev/reverse, zero ADD)."""
+        if not leading_slugs:
+            return False, False
+        has_cd = any(s in CONTEXT_DEPENDENT_TOKENS for s in leading_slugs)
+        if has_cd:
+            return False, True
+        all_ok = all(
+            (s in modifier_table)
+            or (s in BUCKET_TOKEN_WEIGHTS)
+            or (s in DIRECTIONAL_TOKENS)
+            for s in leading_slugs
+        )
+        return all_ok, False
 
     for take in (1, 2):
         if len(raw_tokens) < take:
@@ -237,10 +319,14 @@ def parse_notation_compound(
             continue
 
         leading = raw_tokens[:-take]
-        leading_slugs = [alias_map.get(slugify(t), slugify(t)) for t in leading]
-        all_modifiers = leading and all(s in modifier_table for s in leading_slugs)
+        leading_slugs = [normalize_token(t, alias_map) for t in leading]
+        all_recognized, has_cd = _classify_leading(leading_slugs)
 
-        if all_modifiers:
+        if has_cd and context_dependent is None:
+            context_dependent = (cand, cand_adds, leading, leading_slugs)
+            continue  # do not accept; try the other take or fall through
+
+        if all_recognized:
             real_compound = (cand, cand_adds, leading, leading_slugs)
             break  # shortest-base real compound wins; stop searching
         if not leading and self_tautology is None:
@@ -254,12 +340,32 @@ def parse_notation_compound(
         total = base_adds
         breakdown_parts = []
         for mod_slug in leading_slugs:
-            ab, ab_rot = modifier_table[mod_slug]
-            bonus = ab_rot if is_rotational else ab
-            total += bonus
-            breakdown_parts.append(f"{mod_slug}(+{bonus})")
+            if mod_slug in modifier_table:
+                ab, ab_rot = modifier_table[mod_slug]
+                bonus = ab_rot if is_rotational else ab
+                total += bonus
+                breakdown_parts.append(f"{mod_slug}(+{bonus})")
+            elif mod_slug in BUCKET_TOKEN_WEIGHTS:
+                bonus = BUCKET_TOKEN_WEIGHTS[mod_slug]
+                total += bonus
+                breakdown_parts.append(f"{mod_slug}(+{bonus})")
+            else:  # DIRECTIONAL_TOKENS — recognized, zero ADD
+                breakdown_parts.append(f"[directional: {mod_slug}]")
         breakdown = " + ".join(breakdown_parts + [f"{base_slug}({base_adds})"]) + f" = {total} ADD"
         return total, breakdown, [], base_slug
+
+    if context_dependent:
+        # A leading token (currently `double`) is context-dependent.
+        # Per curator policy: do NOT invent a derivation; surface as
+        # needing curator-published per-trick decomposition.
+        cand, cand_adds, leading, leading_slugs = context_dependent
+        cd_tokens = sorted(set(s for s in leading_slugs if s in CONTEXT_DEPENDENT_TOKENS))
+        breakdown = (
+            f"context-dependent token(s) in leading: {','.join(cd_tokens)}"
+            f" — needs curator-published per-trick decomposition"
+        )
+        # Sentinel: caller detects breakdown prefix to classify.
+        return None, breakdown, [], cand
 
     if self_tautology:
         # Notation equals own slug with no modifiers — not a real
@@ -272,10 +378,13 @@ def parse_notation_compound(
         unsupported = [
             tok for tok, slug in zip(leading, leading_slugs)
             if slug not in modifier_table
+                and slug not in BUCKET_TOKEN_WEIGHTS
+                and slug not in DIRECTIONAL_TOKENS
+                and slug not in CONTEXT_DEPENDENT_TOKENS
         ]
         breakdown = (
             " + ".join(
-                [f"{s}(?)" if s not in modifier_table else f"{s}(+?)" for s in leading_slugs]
+                [f"{s}(?)" for s in leading_slugs]
                 + [f"{base_slug}({base_adds})"]
             )
             + f"  [unsupported: {','.join(unsupported)}]"
@@ -338,6 +447,8 @@ def classify(row, ts_state, canonical_adds, modifier_table, alias_map):
         )
         if derived_add is not None and not unsupported:
             status = "exact" if derived_add == official_add else "mismatch"
+        elif breakdown.startswith("context-dependent"):
+            status = "context-dependent"
 
     # ── Precedence 3: ATAM bracket-flag count on operational_notation ────
     # Each [BOD]/[DEX]/[XBD]/[DEL]/[UNS]/[PDX] flag = 1 ADD per the atom
@@ -437,7 +548,8 @@ def print_summary(rows, ts_state):
     print(f"  Already first-class:          {already_fc}")
     print()
     for st in ["exact", "missing-notation", "mismatch",
-               "doctrine-sensitive", "unsupported-token", "self-token"]:
+               "doctrine-sensitive", "unsupported-token",
+               "self-token", "context-dependent"]:
         print(f"  {st:24s} {statuses.get(st, 0):5d}")
     print()
     print(f"Promotion candidates (exact + not blocked + not already FC): {promotion_count}")

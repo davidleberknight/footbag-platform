@@ -2777,8 +2777,13 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   //    ADD-bucket normalization slice). Extend the foundational band
   //    upward; each exposes a core ADD bucket explicitly.
   'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
-  'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches flying + dex buckets
-  'flying-clipper',      // 2-ADD flying primitive with xbody; teaches flying + xbody buckets
+  'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches bod + dex buckets
+  'flying-clipper',      // 2-ADD flying primitive with xbody; teaches bod + xbody buckets
+  // ── knee-clipper: folk name, not a literal clipper-surface stall;
+  //    curator clarified 2026-05-22 it reads as a flying dex knee kick
+  //    (bod + xbody = 2 ADD). Added to the foundational band so the
+  //    audit/parser classification no longer trips on KNEE-CLIPPER STALL.
+  'knee-clipper',        // 2-ADD flying dex knee kick (folk-name resolution)
 ]);
 
 const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
@@ -2997,22 +3002,25 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         1,
     operationalChain: '[set] > peak',
   }],
-  // ── Foundational 1-ADD flying-operator primitives. Operator-first chain
-  //    form; flying owns the ADD slot (flying(1) = 1 ADD). double-knee is
-  //    sui-generis self-token (no [set] > prefix; exempt from the
-  //    tautological-JOB guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
+  // ── Foundational 1-ADD flying-operator primitives. Operator-first
+  //    chain form; flying owns the JOB operator slot. ADD bucket is BOD
+  //    (curator 2026-05-22: in ADD accounting, flying-operator primitives
+  //    count under the body/BOD bucket; the movement-language operator
+  //    "flying" still names the JOB chain). double-knee is sui-generis
+  //    self-token (no [set] > prefix; exempt from the tautological-JOB
+  //    guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
   ['flying-inside', {
-    decomposition:    'flying(1) = 1 ADD',
+    decomposition:    'bod(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > inside',
   }],
   ['flying-outside', {
-    decomposition:    'flying(1) = 1 ADD',
+    decomposition:    'bod(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > outside',
   }],
   ['double-knee', {
-    decomposition:    'flying(1) = 1 ADD',
+    decomposition:    'bod(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'double knee',
   }],
@@ -3031,14 +3039,25 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > cloud',
   }],
   ['dragonfly-kick', {
-    decomposition:    'flying(1) + dex(1) = 2 ADD',
+    decomposition:    'bod(1) + dex(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > dragonfly',
   }],
   ['flying-clipper', {
-    decomposition:    'flying(1) + xbody(1) = 2 ADD',
+    decomposition:    'bod(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > clipper',
+  }],
+  // ── knee-clipper: curator clarification 2026-05-22 — folk name, not a
+  //    literal clipper-surface stall. Reads as a flying dexterity knee
+  //    kick: bod(1) + xbody(1) = 2 ADD. JOB chain kept as the DB
+  //    op_notation '[set] > knee-clipper' for now; the flying-family
+  //    operator-first form ('flying > knee-clipper') would be a
+  //    follow-up alignment.
+  ['knee-clipper', {
+    decomposition:    'bod(1) + xbody(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > knee-clipper',
   }],
 ]);
 

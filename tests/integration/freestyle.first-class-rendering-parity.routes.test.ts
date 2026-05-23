@@ -111,6 +111,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'cloud-stall',    canonical_name: 'cloud stall',    adds: '2', base_trick: 'cloud-stall',    trick_family: 'cloud-stall',    category: 'surface', notation: 'CLOUD STALL',    operational_notation: '[set] > cloud' });
   insertFreestyleTrick(db, { slug: 'dragonfly-kick', canonical_name: 'dragonfly kick', adds: '2', base_trick: 'dragonfly-kick', trick_family: 'dragonfly-kick', category: 'body',    notation: 'DRAGONFLY KICK', operational_notation: 'flying > dragonfly' });
   insertFreestyleTrick(db, { slug: 'flying-clipper', canonical_name: 'flying clipper', adds: '2', base_trick: 'clipper',        trick_family: 'clipper',        category: 'body',    notation: 'FLYING CLIPPER', operational_notation: 'flying > clipper' });
+  // Folk-name resolution: knee-clipper is NOT a literal clipper-surface
+  // stall (per curator 2026-05-22); it's a flying dex knee kick.
+  // bod(1) + xbody(1) = 2 ADD via ATOMIC_FLAG_DECOMPOSITIONS.
+  insertFreestyleTrick(db, { slug: 'knee-clipper',  canonical_name: 'knee-clipper',   adds: '2', base_trick: 'knee-clipper',   trick_family: 'knee-clipper',   category: 'body',    notation: 'KNEE-CLIPPER STALL', operational_notation: '[set] > knee-clipper' });
 
   db.close();
   createApp = await importApp();
@@ -360,8 +364,9 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'sole-kick', 'cloud-kick', 'peak-delay',
       'flying-inside', 'flying-outside', 'double-knee',
       // Tier 1 — 3 foundational 2-ADD primitives (pedagogical ADD-bucket
-      // normalization 2026-05-22)
+      // normalization 2026-05-22) + knee-clipper folk-name resolution
       'cloud-stall', 'dragonfly-kick', 'flying-clipper',
+      'knee-clipper',
       // Tier 2 (9: 4 existing + 5 new)
       'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
       'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',

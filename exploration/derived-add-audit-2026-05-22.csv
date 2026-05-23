@@ -19,12 +19,12 @@ butterfly,butterfly,3,,3,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=3,exact,,,0,alrea
 clipper-stall,clipper stall,2,[set] > clipper,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 cloud-kick,cloud kick,1,[set] > cloud kick,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 cloud-stall,cloud stall,2,[set] > cloud,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
-cross-body-sole-stall,cross-body sole stall,3,[set] > sole [xbd],,self-token: CROSS-BODY SOLE STALL,self-token,,,0,
+cross-body-sole-stall,cross-body sole stall,3,[set] > sole [xbd],3,xbody(+1) + sole-stall(2) = 3 ADD,exact,,,1,
 dada-curve,dada curve,4,,,,missing-notation,,,0,
 dimwalk,dimwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
 double-around-the-world,double around the world,3,,,,missing-notation,,,0,
 double-knee,double knee,1,double knee,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
-double-leg-over,double leg over,3,,,double(?) + legover(2)  [unsupported: DOUBLE],unsupported-token,DOUBLE,,0,
+double-leg-over,double leg over,3,,,context-dependent token(s) in leading: double — needs curator-published per-trick decomposition,context-dependent,,,0,
 dragonfly-kick,dragonfly kick,2,flying > dragonfly,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 drifter,drifter,3,,,self-token: DRIFTER,self-token,,,0,
 ducking-butterfly,ducking butterfly,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
@@ -57,7 +57,7 @@ hop-over,hop over,2,,,self-token: HOP OVER,self-token,,,0,
 illusion,illusion,2,,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 inside-stall,inside stall,1,[set] > inside,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 jani-walker,jani walker,5,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
-knee-clipper,knee-clipper,2,[set] > knee-clipper,,"unknown base from tokens: ['KNEE-CLIPPER', 'STALL']",unsupported-token,STALL,,0,
+knee-clipper,knee-clipper,2,[set] > knee-clipper,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 knee-stall,knee stall,1,[set] > knee,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 legeater,legeater,3,TOE > OP IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],3,quantum(+1) + pickup(2) = 3 ADD,exact,,,1,
 legover,legover,2,,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
@@ -97,7 +97,7 @@ reaper,reaper,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 refraction,refraction,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 rev-up,rev up,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
 rev-whirl,rev whirl,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
-reverse-drifter,reverse-drifter,3,,,rev(?) + drifter(3)  [unsupported: REV],unsupported-token,REV,,0,
+reverse-drifter,reverse-drifter,3,,3,[directional: rev] + drifter(3) = 3 ADD,exact,,,1,
 ripstein,ripstein,4,,,self-token: RIPSTEIN,self-token,,,0,
 ripwalk,ripwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 royale,royale,4,,,,missing-notation,,,0,
