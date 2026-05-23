@@ -615,20 +615,22 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     const res = await request(createApp()).get('/freestyle/observational');
     // Spot-check from the Batch B observational-safe expansion cohort
     // (2026-05-18; big-apple + mantis + nova + haze + assassin already-
-    // canonical; Wave 5 also moved the 4 original seeds out).
+    // canonical; Wave 5 also moved the 4 original seeds out; Wave 7
+    // moved blurrage / predator / schmoe out via the doctrine-
+    // divergence framework).
     // Covers multi-reading, all-uppercase displayName, apostrophe-
     // bearing displayName, single-token name, parenthetical-prefixed
     // reading, and the merged Bladerunner entry.
     for (const name of [
       'Anonymous', 'Bladerunner', 'Bling Blang',
       'GDLO', 'GYBAS', 'Ghost', 'Johnny Vodka', 'Kiwi',
-      'Pandora’s Box', 'Schmoe', 'Trixie', 'Your Mom',
+      'Pandora’s Box', 'Trixie', 'Your Mom',
     ]) {
       const probe = name.split(/[’']/)[0];
       expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
     }
     const cards = res.text.match(/class="observed-card"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(63);
+    expect(cards.length).toBeGreaterThanOrEqual(60);
   });
 
   it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {

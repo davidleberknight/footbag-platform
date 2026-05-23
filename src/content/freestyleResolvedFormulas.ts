@@ -1085,4 +1085,43 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'paradox(+1) + blizzard(3) = 4 ADD',
     provenance:  'paradox = +1 body modifier; blizzard = 3 ADD compound (canonicalized in this slice; was stepping illusion). Stepwise dependency resolved 2026-05-22 within Wave 5. FB.org /newmoves (2003).',
   },
+
+  // ── Wave 7 doctrine-divergence pilot batch (2026-05-23). Three rows
+  //    promoted from the observational corpus under the doctrine-
+  //    divergence framework. Each row's IFPA-grammar derivation
+  //    differs from PassBack's source claim by +1 ADD; the published
+  //    canonical value matches the IFPA derivation, and the
+  //    divergence is documented as historical-divergence in
+  //    DOCTRINE_DIVERGENCE_REGISTRY. Linked to Red queue Q7
+  //    (implicit-operator hypothesis).
+  {
+    slug:        'blurrage',
+    name:        'blurrage',
+    operator:    'stepping',
+    base:        'barrage',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'stepping(+1) + barrage(3) = 4 ADD',
+    provenance:  'stepping = +1 body modifier; barrage = 3 ADD compound (Wave 3 promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (Wave 7 doctrine-divergence pilot 2026-05-23).',
+  },
+  {
+    slug:        'predator',
+    name:        'predator',
+    operator:    'atomic',
+    base:        'double-leg-over',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'atomic(+1 non-rotational) + dlo(3) = 4 ADD',
+    provenance:  'atomic = +1 non-rotational set modifier; double-leg-over (dlo) = 3 ADD compound base (dlo not in FIRST_CLASS_ROTATIONAL_BASES). PassBack source claims 3 ADD; the +1 gap may reflect pt10\'s implicit paradox-atomic framing per Red Q7. Wave 7 doctrine-divergence pilot.',
+  },
+  {
+    slug:        'schmoe',
+    name:        'schmoe',
+    operator:    'stepping',
+    base:        'legover',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'stepping(+1) + legover(2) = 3 ADD',
+    provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Wave 7 doctrine-divergence pilot 2026-05-23, Red Q7.',
+  },
 ];

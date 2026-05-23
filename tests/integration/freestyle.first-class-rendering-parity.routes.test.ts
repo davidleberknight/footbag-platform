@@ -187,6 +187,13 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'stepping-ducking-paradox-blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
   insertFreestyleTrick(db, { slug: 'paradox-blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
 
+  // ─── Tier 2 Wave 7: doctrine-divergence pilot (2026-05-23).
+  // Three rows with PB-vs-IFPA gap=1; published with IFPA-canonical
+  // ADD; divergence documented in DOCTRINE_DIVERGENCE_REGISTRY.
+  insertFreestyleTrick(db, { slug: 'blurrage', canonical_name: 'blurrage', adds: '4', base_trick: 'barrage',         trick_family: 'barrage',         category: 'compound', notation: 'STEPPING BARRAGE' });
+  insertFreestyleTrick(db, { slug: 'predator', canonical_name: 'predator', adds: '4', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound', notation: 'ATOMIC DLO' });
+  insertFreestyleTrick(db, { slug: 'schmoe',   canonical_name: 'schmoe',   adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'STEPPING LEGOVER' });
+
   // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
@@ -512,6 +519,8 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'paradox-barrage', 'paradox-symposium-mirage',
       'paradox-high-plains-drifter', 'spinning-paradox-blender',
       'stepping-ducking-paradox-blender', 'paradox-blizzard',
+      // Wave 7 doctrine-divergence pilot 2026-05-23 (3)
+      'blurrage', 'predator', 'schmoe',
     ];
     for (const slug of cohort) {
       const card = cardFor(slug, res.text);

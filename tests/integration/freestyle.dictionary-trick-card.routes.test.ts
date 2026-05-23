@@ -311,6 +311,8 @@ describe('dictionary-trick-card — required slots', () => {
       'paradox-barrage', 'paradox-symposium-mirage',
       'paradox-high-plains-drifter', 'spinning-paradox-blender',
       'stepping-ducking-paradox-blender', 'paradox-blizzard',
+      // Tier 2 — Wave 7 doctrine-divergence pilot (3; 2026-05-23)
+      'blurrage', 'predator', 'schmoe',
     ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,

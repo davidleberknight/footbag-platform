@@ -14,6 +14,7 @@ blaze,blaze,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first
 blender,blender,4,,,self-token: BLENDER,self-token,,,0,
 blizzard,blizzard,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 blur,blur,4,CLIP > OP IN [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL],4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
+blurrage,blurrage,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,in DOCTRINE_DIVERGENCE_REGISTRY (historical-divergence),0,already_first_class;doctrine_divergence_registered
 blurriest,blurriest,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
 blurry-torque,blurry torque,6,,,,missing-notation,,,0,
 blurry-whirl,blurry whirl,5,,,,missing-notation,,,0,
@@ -100,6 +101,7 @@ phoenix,phoenix,5,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [X
 pickup,pickup,2,,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 pigbeater,pigbeater,4,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 plasma,plasma,5,,,,missing-notation,,,0,
+predator,predator,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,in DOCTRINE_DIVERGENCE_REGISTRY (historical-divergence),0,already_first_class;doctrine_divergence_registered
 rake,rake,2,,2,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=2,exact,,,0,already_first_class
 reaper,reaper,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 refraction,refraction,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
@@ -109,6 +111,7 @@ reverse-drifter,reverse-drifter,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exa
 ripstein,ripstein,4,,,self-token: RIPSTEIN,self-token,,,0,
 ripwalk,ripwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 royale,royale,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
+schmoe,schmoe,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,in DOCTRINE_DIVERGENCE_REGISTRY (historical-divergence),0,already_first_class;doctrine_divergence_registered
 scrambled-eggbeater,scrambled eggbeater,3,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME TOE [DEL],3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 shoulder-stall,shoulder stall,1,[set] > shoulder,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 sidewalk,sidewalk,4,,,self-token: SIDEWALK,self-token,,,0,

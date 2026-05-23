@@ -75,6 +75,9 @@ import {
   CORE_ATOM_EDUCATIONAL,
 } from '../content/freestyleCoreAtomEducational';
 import {
+  getDoctrineDivergence,
+} from '../content/freestyleTrickDoctrine';
+import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
 import {
@@ -979,6 +982,22 @@ export interface FreestyleTrickContent {
     invariant:         string;       // e.g. "leggy in dex > ss clipper"
     familyName:        string;       // e.g. "Whirl"
     familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
+  } | null;
+  // Doctrine-divergence scoring note (Wave 7). Populated from
+  // DOCTRINE_DIVERGENCE_REGISTRY when the slug carries documented
+  // divergence between IFPA-grammar derivation and a community/
+  // external source. Per the doctrine-divergence framework
+  // (exploration/doctrine_divergence_framework_2026-05-23.md): renders
+  // on trick-detail ONLY (NEVER on browse cards); tone is factual +
+  // source-attributed + brief. Null when no public-facing divergence
+  // applies (~99% of canonical slugs).
+  scoringNote: {
+    category:        'historical-divergence' | 'doctrine-sensitive' | 'alternate-accounting';
+    sourceSystem:    string | null;
+    sourceClaim:     number | null;
+    canonicalValue:  number;
+    provenanceNote:  string;
+    visibility:      'public' | 'advanced';
   } | null;
 }
 
@@ -2944,6 +2963,14 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning-paradox-blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
   'stepping-ducking-paradox-blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
   'paradox-blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
+  // ── Wave 7 doctrine-divergence pilot batch (2026-05-23). First
+  //    registered rows of DOCTRINE_DIVERGENCE_REGISTRY. Each carries a
+  //    +1 gap between IFPA-grammar derivation (canonical) and PassBack
+  //    source claim; documented as historical-divergence with public
+  //    scoring-notes rendering on trick-detail pages.
+  'blurrage',                // stepping(+1) + barrage(3) = 4 ADD (PB-source: 3)
+  'predator',                // atomic(+1) + dlo(3) = 4 ADD (PB-source: 3)
+  'schmoe',                  // stepping(+1) + legover(2) = 3 ADD (PB-source: 2)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
@@ -4891,6 +4918,25 @@ export const freestyleService = {
               invariant,
               familyName,
               familyBrowseHref: `/freestyle/tricks?view=family#family-${dictRow.trick_family}`,
+            };
+          })(),
+          scoringNote: (() => {
+            // Wave 7 doctrine-divergence rendering. Consult the
+            // DOCTRINE_DIVERGENCE_REGISTRY for documented divergence
+            // between the IFPA-grammar-derived ADD and a community/
+            // external source. Renders on trick-detail ONLY per the
+            // framework's placement policy (browse cards stay clean).
+            const entry = getDoctrineDivergence(slug);
+            if (!entry) return null;
+            if (entry.status !== 'published') return null;
+            if (entry.noteVisibility === 'curator-only') return null;
+            return {
+              category:       entry.category,
+              sourceSystem:   entry.sourceSystem,
+              sourceClaim:    entry.sourceClaim,
+              canonicalValue: entry.canonicalValue,
+              provenanceNote: entry.provenanceNote,
+              visibility:     entry.noteVisibility,
             };
           })(),
         };

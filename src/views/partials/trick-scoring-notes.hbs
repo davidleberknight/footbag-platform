@@ -1,0 +1,55 @@
+{{!--
+  Doctrine-divergence scoring notes partial (Wave 7, 2026-05-23).
+
+  Renders ONLY when content.scoringNote is populated — gated at the
+  service layer via DOCTRINE_DIVERGENCE_REGISTRY. Per the framework's
+  placement policy (exploration/doctrine_divergence_framework_2026-
+  05-23.md §3): trick-detail surface ONLY. NEVER on browse cards;
+  NEVER on glossary; NEVER on landing.
+
+  Tone (per framework §3 tone guidelines):
+   - factual, source-attributed
+   - one or two sentences max
+   - neutral on which scoring system is "right" — the canonical
+     published value reflects the IFPA-grammar derivation; this note
+     contextualizes the divergence
+   - forward-pointing when a Red question would resolve
+
+  Visibility:
+   - 'public'   — section always visible
+   - 'advanced' — collapsed by default via <details>; reveal on demand
+   - 'curator-only' — gated at the service layer; partial never sees it
+
+  The partial is logic-light per template-conventions.md: branching is
+  on pre-shaped fields only (visibility, category).
+--}}
+
+{{#if content.scoringNote}}
+<section class="content-section trick-scoring-notes" aria-label="Scoring notes">
+  {{#if (eq content.scoringNote.visibility "advanced")}}
+  <details class="trick-scoring-notes-details">
+    <summary class="trick-scoring-notes-summary">Scoring notes</summary>
+    <div class="trick-scoring-notes-body">
+      <p class="trick-scoring-notes-prose">{{content.scoringNote.provenanceNote}}</p>
+      {{#if content.scoringNote.sourceClaim}}
+      <p class="trick-scoring-notes-claim detail-muted">
+        Source claim ({{content.scoringNote.sourceSystem}}): {{content.scoringNote.sourceClaim}} ADD.
+        Published canonical value: {{content.scoringNote.canonicalValue}} ADD.
+      </p>
+      {{/if}}
+    </div>
+  </details>
+  {{else}}
+  <div class="section-heading">
+    <h2 class="trick-scoring-notes-heading">Scoring notes</h2>
+  </div>
+  <p class="trick-scoring-notes-prose">{{content.scoringNote.provenanceNote}}</p>
+  {{#if content.scoringNote.sourceClaim}}
+  <p class="trick-scoring-notes-claim detail-muted">
+    Source claim ({{content.scoringNote.sourceSystem}}): {{content.scoringNote.sourceClaim}} ADD.
+    Published canonical value: {{content.scoringNote.canonicalValue}} ADD.
+  </p>
+  {{/if}}
+  {{/if}}
+</section>
+{{/if}}

@@ -176,18 +176,10 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'blurrage',
-    displayName:        'Blurrage',
-    proposedReadings:   ['Stepping far Barrage'],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'blurrage' removed 2026-05-23 — promoted to canonical via Wave 7
+  // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
+  // PB-source claim 3 documented as historical-divergence in
+  // DOCTRINE_DIVERGENCE_REGISTRY (linked to Red Q7).
   {
     folkSlug:           'blurrier',
     displayName:        'Blurrier',
@@ -628,18 +620,11 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'predator',
-    displayName:        'Predator',
-    proposedReadings:   ['Atomic far DLO'],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'predator' removed 2026-05-23 — promoted to canonical via Wave 7
+  // doctrine-divergence pilot. IFPA-derived ADD 4 (atomic + dlo);
+  // PB-source claim 3 documented as historical-divergence (strongest
+  // single-row evidence for Q7 hypothesis B: pt10 implicit paradox-
+  // atomic framing).
   {
     folkSlug:           'reactor',
     displayName:        'Reactor',
@@ -709,18 +694,9 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'schmoe',
-    displayName:        'Schmoe',
-    proposedReadings:   ['Stepping near Legover'],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'schmoe' removed 2026-05-23 — promoted to canonical via Wave 7
+  // doctrine-divergence pilot. IFPA-derived ADD 3 (stepping + legover);
+  // PB-source claim 2 documented as historical-divergence.
   {
     folkSlug:           'scorpion-s-tail',
     displayName:        'Scorpion\'s Tail',

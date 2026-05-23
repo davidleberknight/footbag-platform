@@ -60,6 +60,7 @@ DEFAULT_DB = REPO_ROOT / "database" / "footbag.db"
 FREESTYLE_SERVICE_TS = REPO_ROOT / "src" / "services" / "freestyleService.ts"
 RESOLVED_FORMULAS_TS = REPO_ROOT / "src" / "content" / "freestyleResolvedFormulas.ts"
 KIND_OVERRIDES_TS = REPO_ROOT / "src" / "content" / "freestyleTrickKindOverrides.ts"
+DOCTRINE_TS = REPO_ROOT / "src" / "content" / "freestyleTrickDoctrine.ts"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "exploration"
 
 
@@ -100,10 +101,26 @@ def extract_resolved_formulas(content: str) -> dict:
     return {slug: int(adds) for slug, adds in entries}
 
 
+def extract_doctrine_divergence_slugs(content: str) -> set:
+    """Extract slugs from DOCTRINE_DIVERGENCE_REGISTRY map entries with
+    status='published'. Each registry entry is shaped
+        ['slug', { ... status: 'published' / 'pending' / 'retired' ... }]
+    The Wave 7 framework treats published registry-tagged slugs as
+    `exact` for audit purposes (the publishable ADD equals derived; the
+    divergence is documented provenance, not a parser/data error)."""
+    pattern = r"\['([a-z0-9-]+)',\s*\{[\s\S]*?status:\s*'published'"
+    return set(re.findall(pattern, content))
+
+
 def load_ts_state() -> dict:
     fs = FREESTYLE_SERVICE_TS.read_text(encoding="utf-8")
     rf = RESOLVED_FORMULAS_TS.read_text(encoding="utf-8")
     ko = KIND_OVERRIDES_TS.read_text(encoding="utf-8")
+    doctrine_published = set()
+    if DOCTRINE_TS.exists():
+        doctrine_published = extract_doctrine_divergence_slugs(
+            DOCTRINE_TS.read_text(encoding="utf-8")
+        )
     return {
         "first_class_tier_1":   extract_set_literal(fs, "FIRST_CLASS_TIER_1"),
         "first_class_tier_2":   extract_set_literal(fs, "FIRST_CLASS_TIER_2"),
@@ -116,6 +133,7 @@ def load_ts_state() -> dict:
         "operator_slugs":       extract_set_literal(ko, "OPERATOR_SLUGS"),
         "surface_slugs":        extract_set_literal(ko, "SURFACE_SLUGS"),
         "pending_review":       extract_set_literal(ko, "PENDING_REVIEW_SLUGS"),
+        "doctrine_divergent":   doctrine_published,  # Wave 7
     }
 
 
@@ -488,14 +506,24 @@ def classify(row, ts_state, canonical_adds, modifier_table, alias_map):
     if in_doctrine_blocked and status == "mismatch":
         status = "doctrine-sensitive"
 
+    # Wave 7: doctrine-divergence registry tagging. When a slug is
+    # registered as `historical-divergence` (status: published), the
+    # publishable ADD equals derived ADD (matches `exact` from the
+    # parser's POV); the divergence with an external source is
+    # documented provenance, not an audit failure. Surfaced as a
+    # notes-column tag for QC visibility.
+    in_doctrine_divergent = slug in ts_state.get("doctrine_divergent", set())
+
     return _build_row(slug, canonical_name, official_add, op_notation,
                       derived_add, breakdown, status, unsupported,
-                      in_doctrine_blocked, in_first_class)
+                      in_doctrine_blocked, in_first_class,
+                      in_doctrine_divergent=in_doctrine_divergent)
 
 
 def _build_row(slug, canonical_name, official_add, op_notation,
                derived_add, breakdown, status, unsupported,
-               in_doctrine_blocked, in_first_class):
+               in_doctrine_blocked, in_first_class,
+               in_doctrine_divergent=False):
     promotion_candidate = (
         status == "exact"
         and not in_doctrine_blocked
@@ -504,6 +532,13 @@ def _build_row(slug, canonical_name, official_add, op_notation,
     notes = []
     if in_first_class:
         notes.append("already_first_class")
+    if in_doctrine_divergent:
+        notes.append("doctrine_divergence_registered")
+    doctrine_tag = ""
+    if in_doctrine_blocked:
+        doctrine_tag = "in DOCTRINE_BLOCKED_SLUGS"
+    elif in_doctrine_divergent:
+        doctrine_tag = "in DOCTRINE_DIVERGENCE_REGISTRY (historical-divergence)"
     return {
         "slug": slug,
         "canonical_name": canonical_name,
@@ -513,7 +548,7 @@ def _build_row(slug, canonical_name, official_add, op_notation,
         "derived_breakdown": breakdown,
         "status": status,
         "unsupported_tokens": ",".join(unsupported),
-        "doctrine_note": "in DOCTRINE_BLOCKED_SLUGS" if in_doctrine_blocked else "",
+        "doctrine_note": doctrine_tag,
         "promotion_candidate": "1" if promotion_candidate else "0",
         "notes": ";".join(notes),
     }
@@ -539,6 +574,7 @@ def print_summary(rows, ts_state):
     statuses = Counter(r["status"] for r in rows)
     already_fc = sum(1 for r in rows if "already_first_class" in r["notes"])
     promotion_count = sum(1 for r in rows if r["promotion_candidate"] == "1")
+    doctrine_divergent = sum(1 for r in rows if "doctrine_divergence_registered" in r["notes"])
 
     print()
     print("=" * 72)
@@ -546,6 +582,7 @@ def print_summary(rows, ts_state):
     print("=" * 72)
     print(f"Total trick rows audited:       {len(rows)}")
     print(f"  Already first-class:          {already_fc}")
+    print(f"  Doctrine-divergence tagged:   {doctrine_divergent}")
     print()
     for st in ["exact", "missing-notation", "mismatch",
                "doctrine-sensitive", "unsupported-token",
@@ -615,6 +652,7 @@ def main():
     print(f"  ATOMIC_FLAG_DECOMPOSITIONS:   {len(ts_state['atomic'])}")
     print(f"  RESOLVED_FORMULAS_SPRINT_1:   {len(ts_state['resolved'])}")
     print(f"  DOCTRINE_BLOCKED_SLUGS:       {len(ts_state['doctrine_blocked'])}")
+    print(f"  DOCTRINE_DIVERGENCE (pub):    {len(ts_state['doctrine_divergent'])}")
     print(f"  FIRST_CLASS_ROTATIONAL_BASES: {len(ts_state['rotational_bases'])}")
     print(f"  SUI_GENERIS_SELF_TOKEN_SLUGS: {len(ts_state['sui_generis'])}")
     print(f"  MODIFIER_SLUGS:               {len(ts_state['modifier_slugs'])}")
