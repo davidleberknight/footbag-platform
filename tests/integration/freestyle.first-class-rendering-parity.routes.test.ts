@@ -170,6 +170,23 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'big-apple',    canonical_name: 'big apple',    adds: '6', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'GYRO SYMPOSIUM TORQUE' });
   insertFreestyleTrick(db, { slug: 'sole-stall',   canonical_name: 'sole stall',   adds: '2', base_trick: 'sole-stall',      trick_family: 'sole-stall',      category: 'surface',  notation: 'SOLE STALL', operational_notation: '[set] > sole' });
 
+  // ─── Tier 2 Wave 5: observational→canonical promotions (2026-05-22). 4 PB
+  // + 9 FB.org direct + 1 stepwise FB.org (paradox-blizzard via blizzard).
+  insertFreestyleTrick(db, { slug: 'blizzard',                         canonical_name: 'blizzard',                         adds: '3', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'STEPPING ILLUSION' });
+  insertFreestyleTrick(db, { slug: 'blaze',                            canonical_name: 'blaze',                            adds: '3', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'WHIRLING MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'bedwetter',                        canonical_name: 'bedwetter',                        adds: '4', base_trick: 'eggbeater',           trick_family: 'eggbeater',           category: 'compound', notation: 'STEPPING EGGBEATER' });
+  insertFreestyleTrick(db, { slug: 'sole-survivor',                    canonical_name: 'sole survivor',                    adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING SYMPOSIUM WHIRL' });
+  insertFreestyleTrick(db, { slug: 'spinning-paradox-mirage',          canonical_name: 'spinning paradox mirage',          adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'SPINNING PARADOX MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'spinning-paradox-illusion',        canonical_name: 'spinning paradox illusion',        adds: '4', base_trick: 'illusion',            trick_family: 'illusion',            category: 'compound', notation: 'SPINNING PARADOX ILLUSION' });
+  insertFreestyleTrick(db, { slug: 'spinning-paradox-whirl',           canonical_name: 'spinning paradox whirl',           adds: '5', base_trick: 'whirl',               trick_family: 'whirl',               category: 'compound', notation: 'SPINNING PARADOX WHIRL' });
+  insertFreestyleTrick(db, { slug: 'paradox-double-leg-over',          canonical_name: 'paradox double leg over',          adds: '4', base_trick: 'double-leg-over',     trick_family: 'double-leg-over',     category: 'compound', notation: 'PARADOX DLO' });
+  insertFreestyleTrick(db, { slug: 'paradox-barrage',                  canonical_name: 'paradox barrage',                  adds: '4', base_trick: 'barrage',             trick_family: 'barrage',             category: 'compound', notation: 'PARADOX BARRAGE' });
+  insertFreestyleTrick(db, { slug: 'paradox-symposium-mirage',         canonical_name: 'paradox symposium mirage',         adds: '4', base_trick: 'mirage',              trick_family: 'mirage',              category: 'compound', notation: 'PARADOX SYMPOSIUM MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'paradox-high-plains-drifter',      canonical_name: 'paradox high-plains-drifter',      adds: '5', base_trick: 'high-plains-drifter', trick_family: 'high-plains-drifter', category: 'compound', notation: 'PARADOX HIGH-PLAINS-DRIFTER' });
+  insertFreestyleTrick(db, { slug: 'spinning-paradox-blender',         canonical_name: 'spinning paradox blender',         adds: '6', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'SPINNING PARADOX BLENDER' });
+  insertFreestyleTrick(db, { slug: 'stepping-ducking-paradox-blender', canonical_name: 'stepping ducking paradox blender', adds: '7', base_trick: 'blender',             trick_family: 'blender',             category: 'compound', notation: 'STEPPING DUCKING PARADOX BLENDER' });
+  insertFreestyleTrick(db, { slug: 'paradox-blizzard',                 canonical_name: 'paradox blizzard',                 adds: '4', base_trick: 'blizzard',            trick_family: 'blizzard',            category: 'compound', notation: 'PARADOX BLIZZARD' });
+
   // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
@@ -488,6 +505,13 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave-digger', 'tomahawk', 'big-apple',
       'sole-stall',
+      // Wave 5 observational→canonical promotions 2026-05-22 (14)
+      'blizzard', 'blaze', 'bedwetter', 'sole-survivor',
+      'spinning-paradox-mirage', 'spinning-paradox-illusion',
+      'spinning-paradox-whirl', 'paradox-double-leg-over',
+      'paradox-barrage', 'paradox-symposium-mirage',
+      'paradox-high-plains-drifter', 'spinning-paradox-blender',
+      'stepping-ducking-paradox-blender', 'paradox-blizzard',
     ];
     for (const slug of cohort) {
       const card = cardFor(slug, res.text);

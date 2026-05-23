@@ -2924,6 +2924,26 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
   // Foundational 2-ADD primitive parallel to cloud-stall:
   'sole-stall',              // unusual surface(1) + stall(1) = 2 ADD via ATOMIC
+  // ── Wave 5 observational→canonical promotions (2026-05-22). 14 entries
+  //    moved from OBSERVATIONAL_TRICKS module into canonical via
+  //    audit-validated derivations. 9 FB.org + 4 PassBack + 1 stepwise
+  //    FB.org (paradox-blizzard depends on blizzard, both promoted
+  //    same slice). Per feedback_observational_canonical_promotion_cleanup,
+  //    each row's observational entry is removed in the same change-set.
+  'blizzard',                // stepping(+1) + illusion(2) = 3 ADD (PB)
+  'blaze',                   // whirling(+1) + mirage(2) = 3 ADD (PB)
+  'bedwetter',               // stepping(+1) + eggbeater(3) = 4 ADD (PB)
+  'sole-survivor',           // spinning(+1) + symposium(+1) + whirl(3) = 5 ADD (PB)
+  'spinning-paradox-mirage', // spinning(+1) + paradox(+1) + mirage(2) = 4 ADD (FB.org)
+  'spinning-paradox-illusion', // spinning(+1) + paradox(+1) + illusion(2) = 4 ADD (FB.org)
+  'spinning-paradox-whirl',  // spinning(+1) + paradox(+1) + whirl(3) = 5 ADD (FB.org)
+  'paradox-double-leg-over', // paradox(+1) + dlo(3) = 4 ADD (FB.org)
+  'paradox-barrage',         // paradox(+1) + barrage(3) = 4 ADD (FB.org)
+  'paradox-symposium-mirage', // paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (FB.org)
+  'paradox-high-plains-drifter', // paradox(+1) + HPD(4) = 5 ADD (FB.org)
+  'spinning-paradox-blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
+  'stepping-ducking-paradox-blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
+  'paradox-blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the

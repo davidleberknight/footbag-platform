@@ -43,19 +43,17 @@ const { dbPath } = setTestEnv('3158');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
+// Wave 5 observational→canonical promotions 2026-05-22: 10 of the original
+// 12 FB.org observational entries were moved to canonical freestyle_tricks
+// rows with FIRST_CLASS_TIER_2 membership (spinning-paradox-* /
+// paradox-double-leg-over / paradox-barrage / paradox-blizzard /
+// paradox-symposium-mirage / paradox-high-plains-drifter / spinning-paradox-
+// blender / stepping-ducking-paradox-blender). The 2 inspinning-paradox-*
+// entries remain observational pending the `inspinning` modifier-vocabulary
+// decision (composite-framework slice).
 const FBORG_BATCH = [
   { folkSlug: 'inspinning-paradox-mirage',         displayName: 'Inspinning Paradox Mirage',         add: 4 },
   { folkSlug: 'inspinning-paradox-illusion',       displayName: 'Inspinning Paradox Illusion',       add: 4 },
-  { folkSlug: 'spinning-paradox-mirage',           displayName: 'Spinning Paradox Mirage',           add: 4 },
-  { folkSlug: 'spinning-paradox-illusion',         displayName: 'Spinning Paradox Illusion',         add: 4 },
-  { folkSlug: 'spinning-paradox-whirl',            displayName: 'Spinning Paradox Whirl',            add: 5 },
-  { folkSlug: 'paradox-double-leg-over',           displayName: 'Paradox Double Leg Over',           add: 4 },
-  { folkSlug: 'paradox-barrage',                   displayName: 'Paradox Barrage',                   add: 4 },
-  { folkSlug: 'paradox-blizzard',                  displayName: 'Paradox Blizzard',                  add: 4 },
-  { folkSlug: 'paradox-symposium-mirage',          displayName: 'Paradox Symposium Mirage',          add: 4 },
-  { folkSlug: 'paradox-high-plains-drifter',       displayName: 'Paradox High Plains Drifter',       add: 5 },
-  { folkSlug: 'spinning-paradox-blender',          displayName: 'Spinning Paradox Blender',          add: 6 },
-  { folkSlug: 'stepping-ducking-paradox-blender',  displayName: 'Stepping Ducking Paradox Blender',  add: 7 },
 ];
 
 beforeAll(async () => {
@@ -70,7 +68,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('FB.org observational ingest — surface visibility', () => {
-  it('all 12 fborg entries render on /freestyle/observational by displayName', async () => {
+  it('all remaining fborg entries render on /freestyle/observational by displayName', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
     expect(res.status).toBe(200);
@@ -82,9 +80,11 @@ describe('FB.org observational ingest — surface visibility', () => {
   it('fborg entries render with the FB source badge (sourceLabel=fborg → badge=FB)', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
-    // At least 12 FB-badge instances (one per fborg entry).
+    // At least FBORG_BATCH.length FB-badge instances (one per remaining
+    // fborg observational entry). 2026-05-22: Wave 5 promoted 10 of the
+    // original 12; the 2 inspinning-* entries remain.
     const fbBadgeMatches = res.text.match(/observed-card-source-badge--FB/g) ?? [];
-    expect(fbBadgeMatches.length).toBeGreaterThanOrEqual(12);
+    expect(fbBadgeMatches.length).toBeGreaterThanOrEqual(FBORG_BATCH.length);
   });
 
   it('source-strip at the page head lists FB as a represented source', async () => {

@@ -304,6 +304,13 @@ describe('dictionary-trick-card — required slots', () => {
       'smog', 'smoke', 'tapdown', 'tombstone',
       'blurriest', 'grave-digger', 'tomahawk', 'big-apple',
       'sole-stall',
+      // Tier 2 — Wave 5 observational→canonical promotions (14; 2026-05-22)
+      'blizzard', 'blaze', 'bedwetter', 'sole-survivor',
+      'spinning-paradox-mirage', 'spinning-paradox-illusion',
+      'spinning-paradox-whirl', 'paradox-double-leg-over',
+      'paradox-barrage', 'paradox-symposium-mirage',
+      'paradox-high-plains-drifter', 'spinning-paradox-blender',
+      'stepping-ducking-paradox-blender', 'paradox-blizzard',
     ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,

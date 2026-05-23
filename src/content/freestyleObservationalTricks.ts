@@ -94,59 +94,18 @@ export interface ObservationalTrick {
 // ─────────────────────────────────────────────────────────────────────────
 
 export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
-  {
-    folkSlug:           'blizzard',
-    displayName:        'Blizzard',
-    proposedReadings:   ['Stepping far Illusion'],
-    proposedAddFormula: 'stepping(+1) + illusion(2) = 3 ADD (proposed)',
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'blaze',
-    displayName:        'Blaze',
-    proposedReadings:   ['Whirling far Mirage'],
-    proposedAddFormula: 'whirling(+1) + mirage(2) = 3 ADD (proposed)',
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        'Whirling operator added to Movement System axes 2026-05-18 (post-inheritance); reading uses post-inheritance vocabulary.',
-    unresolvedBlockers: [],
-  },
   // 'assassin' removed 2026-05-18 — promoted to canonical via FM Slice X
   // Path B pilot canonical 2026-05-17 (slug='assassin' in freestyle_tricks
   // with adds=4, base_trick='mirage'). The observational entry was stale
   // because the promotion process did not include the documented
   // observational-removal step.
-  {
-    folkSlug:           'bedwetter',
-    displayName:        'Bedwetter',
-    proposedReadings:   ['Stepping far Eggbeater', 'stepping atomic legover (per pt4 eggbeater decomposition)'],
-    proposedAddFormula: 'stepping(+1) + eggbeater(3) = 4 ADD (proposed; eggbeater per pt4 = atomic legover)',
-    proposedAddTotal:   4,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        'Eggbeater decomposition settled by pt4 (atomic legover); Bedwetter stacks stepping on top.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'sole-survivor',
-    displayName:        'Sole Survivor',
-    proposedReadings:   ['Spinning far Symp. Whirl'],
-    proposedAddFormula: 'spinning(+1) + symposium(+1) + whirl(3) = 5 ADD (proposed)',
-    proposedAddTotal:   5,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  //
+  // Wave 5 observational→canonical promotions 2026-05-22: blizzard, blaze,
+  // bedwetter, sole-survivor (PassBack folk-name resolutions) moved to
+  // canonical freestyle_tricks rows with curator-locked RESOLVED_FORMULAS
+  // derivations and FIRST_CLASS_TIER_2 membership. Per
+  // feedback_observational_canonical_promotion_cleanup the observational
+  // entries are removed in the same change-set.
   // ─────────────────────────────────────────────────────────────────────────
   // Batch B observational-safe expansion (2026-05-18). 65 entries from
   // exploration/freestyle-public-coherence-wave-2026-05-18/
@@ -1047,126 +1006,19 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        'Sibling of inspinning-paradox-mirage; mirror dex direction.',
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'spinning-paradox-mirage',
-    displayName:        'Spinning Paradox Mirage',
-    proposedReadings:   ['spinning paradox mirage'],
-    proposedAddFormula: 'spinning(+1) + paradox(+1) + mirage(2) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Both operators settled; mirage is canonical 2-ADD atom.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'spinning-paradox-illusion',
-    displayName:        'Spinning Paradox Illusion',
-    proposedReadings:   ['spinning paradox illusion'],
-    proposedAddFormula: 'spinning(+1) + paradox(+1) + illusion(2) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Mirror of spinning-paradox-mirage on illusion base.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'spinning-paradox-whirl',
-    displayName:        'Spinning Paradox Whirl',
-    proposedReadings:   ['spinning paradox whirl'],
-    proposedAddFormula: 'spinning(+1) + paradox(+1) + whirl(3) = 5 ADD (proposed)',
-    proposedAddTotal:   5,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Rotational base (whirl); both operators non-rotational +1.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'paradox-double-leg-over',
-    displayName:        'Paradox Double Leg Over',
-    proposedReadings:   ['paradox double legover'],
-    proposedAddFormula: 'paradox(+1) + double-legover(3) = 4 ADD (proposed; equiv paradox(+1) + legover(2) + 1 extra dex)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003) — "Paradox Mirage with an extra legover at the end"',
-    status:             'pending-review',
-    curatorNote:        'Per FB.org description: "A paradox mirage with an extra leg over at the end."',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'paradox-barrage',
-    displayName:        'Paradox Barrage',
-    proposedReadings:   ['paradox barrage', 'paradox + two same-side dexes'],
-    proposedAddFormula: 'paradox(+1) + barrage(3) = 4 ADD (proposed; barrage settled pt12 SS resolution)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Barraging operator settled by pt12 (SS=+0); barrage base = 3 ADD.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'paradox-blizzard',
-    displayName:        'Paradox Blizzard',
-    proposedReadings:   ['paradox blizzard', 'paradox + stepping-paradox-illusion'],
-    proposedAddFormula: 'paradox(+1) + blizzard(3) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Composite of paradox + stepping-paradox-illusion (Blizzard). Requires Blizzard canonicalization first.',
-    unresolvedBlockers: ['blizzard not yet canonical'],
-  },
-  {
-    folkSlug:           'paradox-symposium-mirage',
-    displayName:        'Paradox Symposium Mirage',
-    proposedReadings:   ['paradox symposium mirage'],
-    proposedAddFormula: 'paradox(+1) + symposium(+1) + mirage(2) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Multi-operator stack on mirage; both operators +1.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'paradox-high-plains-drifter',
-    displayName:        'Paradox High Plains Drifter',
-    proposedReadings:   ['paradox high-plains-drifter', 'paradox double drifter'],
-    proposedAddFormula: 'paradox(+1) + high-plains-drifter(4) = 5 ADD (proposed)',
-    proposedAddTotal:   5,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003) — alias "Paradox Double Drifter"',
-    status:             'pending-review',
-    curatorNote:        'Drifter resolved pt11 (miraging clipper); HPD is the double-dex variant.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'spinning-paradox-blender',
-    displayName:        'Spinning Paradox Blender',
-    proposedReadings:   ['spinning paradox blender'],
-    proposedAddFormula: 'spinning(+1) + paradox(+1) + blender(4) = 6 ADD (proposed)',
-    proposedAddTotal:   6,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Blender resolved pt11 (whirling osis); rotational base.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'stepping-ducking-paradox-blender',
-    displayName:        'Stepping Ducking Paradox Blender',
-    proposedReadings:   ['stepping ducking paradox blender'],
-    proposedAddFormula: 'stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (proposed)',
-    proposedAddTotal:   7,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Triple-operator stack on blender; highest-ADD compound in the FB.org corpus that decomposes cleanly via +1 arithmetic.',
-    unresolvedBlockers: [],
-  },
+  // Wave 5 observational→canonical promotions 2026-05-22: 10 FB.org
+  // entries (spinning-paradox-mirage / spinning-paradox-illusion /
+  // spinning-paradox-whirl / paradox-double-leg-over / paradox-barrage /
+  // paradox-blizzard / paradox-symposium-mirage / paradox-high-plains-
+  // drifter / spinning-paradox-blender / stepping-ducking-paradox-blender)
+  // moved to canonical freestyle_tricks rows with curator-locked
+  // RESOLVED_FORMULAS derivations and FIRST_CLASS_TIER_2 membership.
+  // paradox-blizzard's stepwise dependency (blizzard) is also promoted
+  // same slice. Per feedback_observational_canonical_promotion_cleanup
+  // the observational entries are removed in the same change-set.
+  //
+  // The 2 inspinning-paradox-* entries remain observational pending the
+  // `inspinning` modifier-vocabulary decision (composite-framework slice).
 ];
 
 /**

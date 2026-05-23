@@ -600,15 +600,22 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('renders curator-authored seed entries plus the Batch B expansion cohort (≥ 67 entries across ADD buckets)', async () => {
+  it('renders the Batch B observational-safe expansion cohort (≥ 63 entries across ADD buckets)', async () => {
+    // 2026-05-22 Wave 5: original curator-authored seed entries
+    // (Blizzard / Blaze / Bedwetter / Sole Survivor) plus 10 FB.org
+    // entries (spinning-paradox-* / paradox-double-leg-over /
+    // paradox-barrage / paradox-symposium-mirage / paradox-high-plains-
+    // drifter / spinning-paradox-blender / stepping-ducking-paradox-
+    // blender / paradox-blizzard) promoted to canonical
+    // freestyle_tricks rows + FIRST_CLASS_TIER_2. Total Batch-B-era
+    // observational cohort dropped from 67 → 63 (the 4 PB seed entries)
+    // and from 12 → 2 FB.org (only inspinning-paradox-* remain) =
+    // 63 observational + 2 = 65 expected; assertion floor 63 keeps the
+    // bound generous.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Original curator-authored seed entries that remain (assassin was
-    // removed 2026-05-18 after canonical promotion).
-    for (const name of ['Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor']) {
-      expect(res.text, `missing seed entry: ${name}`).toContain(name);
-    }
     // Spot-check from the Batch B observational-safe expansion cohort
-    // (2026-05-18; big-apple + mantis skipped as already-canonical).
+    // (2026-05-18; big-apple + mantis + nova + haze + assassin already-
+    // canonical; Wave 5 also moved the 4 original seeds out).
     // Covers multi-reading, all-uppercase displayName, apostrophe-
     // bearing displayName, single-token name, parenthetical-prefixed
     // reading, and the merged Bladerunner entry.
@@ -617,14 +624,11 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
       'GDLO', 'GYBAS', 'Ghost', 'Johnny Vodka', 'Kiwi',
       'Pandora’s Box', 'Schmoe', 'Trixie', 'Your Mom',
     ]) {
-      // displayName uses ASCII apostrophe \' but HTML may encode it as
-      // &#x27; or &#39; — use a relaxed substring check against the
-      // primary token instead.
       const probe = name.split(/[’']/)[0];
       expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
     }
     const cards = res.text.match(/class="observed-card"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(67);
+    expect(cards.length).toBeGreaterThanOrEqual(63);
   });
 
   it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
