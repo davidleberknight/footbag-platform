@@ -76,7 +76,7 @@ const PANEL_INPUTS: PanelInput[] = [
       { groupId: 'spinning-family' },
     ],
     notationHint:
-      'Canonical formula: <code>PDX &rarr; CLIP &gt; OP IN [DEX]</code> &mdash; clipper set, then a far in-out dex. Always paired with a cross-body set source.',
+      'Canonical formula: <code>PDX &rarr; CLIP &gt; OP IN [DEX]</code>, clipper set, then a far in-out dex. Always paired with a cross-body set source.',
     hasModifierFamilyPage: false,
   },
   {

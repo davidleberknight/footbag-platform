@@ -35,7 +35,7 @@
             <span class="badge badge-warn">unlinked</span>
           {{/if}}
         </td>
-        <td>{{#if extractedScore}}{{extractedScore}}{{else}}<em>—</em>{{/if}}</td>
+        <td>{{#if extractedScore}}{{extractedScore}}{{else}}<em>-</em>{{/if}}</td>
         <td>
           {{#if eventHref}}
             <a href="{{eventHref}}">{{#if eventTitle}}{{eventTitle}}{{else}}{{eventId}}{{/if}}</a>
@@ -44,7 +44,7 @@
           {{else if yearHint}}
             {{yearHint}}
           {{else}}
-            <em>—</em>
+            <em>-</em>
           {{/if}}
         </td>
         <td class="col-message">{{rawText}}</td>

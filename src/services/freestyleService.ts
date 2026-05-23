@@ -1663,7 +1663,7 @@ export type TrickMediaCoverage = 'tutorial' | 'demo' | 'none';
 export interface FreestyleTrickIndexRow {
   slug: string;
   canonicalName: string;
-  hashtag: string;              // derived presentation token: '#' + slug with hyphens stripped
+  hashtag: string;              // derived presentation token: '#' + slug with hyphens converted to underscores
   trickFamily: string | null;   // family slug; used as the target of the hashtag-filter link
   adds: string | null;
   category: string | null;
@@ -1720,10 +1720,11 @@ export interface DictionaryTrickCard {
   // freestyleTrickKindOverrides.ts. Slice A of 2026-05 normalization.
   kind:                       FreestyleTrickKind;
   slug:                       string;
+  hashtag:                    string;                        // '#' + slug (underscored)
   displayName:                string;                        // canonical_name
   href:                       string;                        // /freestyle/tricks/:slug ; suppressed when external-only placeholder
   adds:                       string | null;                 // numeric string for display; null when unrated
-  addsLabel:                  string;                        // pre-shaped: '4 ADD' / '— ADD' (never empty)
+  addsLabel:                  string;                        // pre-shaped: '4 ADD' / '? ADD' (never empty)
   // Symbolic-equivalence readings rendered as `≡ <reading>` lines above the
   // notation row. Merged from two sources, both curator-authored and
   // restraint-governed (no DB-data leakage):
@@ -3262,7 +3263,7 @@ function shapeComparativeNotation(
   const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
 
   // TRICK row — slug-tag identity form.
-  const trickTag = `#${slug}`;
+  const trickTag = slugToHashtag(slug);
 
   // COMPACT NOTATION row — curator-authored compact form (lowercased
   // for in-card readability; DB stores SHOUTY uppercase).
@@ -3559,10 +3560,11 @@ function shapeDictionaryTrickCard(
   return {
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
+    hashtag:                    indexRow.hashtag,
     displayName:                indexRow.canonicalName,
     href:                       indexRow.detailHref,
     adds:                       indexRow.adds,
-    addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '— ADD',
+    addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '? ADD',
     symbolicEquivalences,
     tokenizedEquivalences,
     operationalNotation,
@@ -3614,7 +3616,7 @@ function shapeTrickIndexRow(
   let statusBadge: string | null = null;
   let placeholderNote: string | null = null;
   if (isExternalOnly) {
-    statusBadge = 'External source — not yet adjudicated';
+    statusBadge = 'External source, not yet adjudicated';
     placeholderNote = EXTERNAL_PLACEHOLDER_NOTE;
   }
 

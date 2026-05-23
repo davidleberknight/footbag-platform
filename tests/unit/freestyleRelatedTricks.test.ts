@@ -158,12 +158,12 @@ describe('buildRelatedTricks — rule contracts', () => {
     expect(r3[0]!.slug).toBe('osis');
   });
 
-  it('hashtag derivation matches slugToHashtag (hyphens stripped, # prefix)', () => {
+  it('hashtag derivation matches slugToHashtag (hyphens to underscores, # prefix)', () => {
     const result = buildRelatedTricks(pick('atomic-torque'), FIXTURE);
     const map = Object.fromEntries(result.map(r => [r.slug, r.hashtag]));
     expect(map['mobius']).toBe('#mobius');
-    expect(map['atomic-butterfly']).toBe('#atomicbutterfly');
-    expect(map['blurry-torque']).toBe('#blurrytorque');
+    expect(map['atomic-butterfly']).toBe('#atomic_butterfly');
+    expect(map['blurry-torque']).toBe('#blurry_torque');
     expect(map['osis']).toBe('#osis');
   });
 
@@ -269,7 +269,7 @@ describe('buildNextTricks — Option (b) per-bucket sampling', () => {
     const first = result[0]!;
     expect(first.slug).toBe('paradox-mirage');
     expect(first.canonicalName).toBe('paradox mirage');
-    expect(first.hashtag).toBe('#paradoxmirage');
+    expect(first.hashtag).toBe('#paradox_mirage');
     expect(first.adds).toBe('3');
     expect(first.detailHref).toBe('/freestyle/tricks/paradox-mirage');
   });
@@ -367,7 +367,7 @@ describe('buildPreviousTricks — Option (b) sampling, DESC flatten, family-base
     const first = result[0]!;
     expect(first.slug).toBe('paradox-mirage');
     expect(first.canonicalName).toBe('paradox mirage');
-    expect(first.hashtag).toBe('#paradoxmirage');
+    expect(first.hashtag).toBe('#paradox_mirage');
     expect(first.adds).toBe('3');
     expect(first.detailHref).toBe('/freestyle/tricks/paradox-mirage');
   });

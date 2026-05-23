@@ -68,7 +68,7 @@ export interface ResolvedFormula {
 }
 
 export const RESOLVED_FORMULAS_FRAMING_PROSE =
-  "Mechanically-derivable compound formulas — pure +1 operator stacks, " +
+  "Mechanically-derivable compound formulas: pure +1 operator stacks, " +
   "pt-ruled compounds, positional modifiers (reverse=+0), folk-name " +
   "resolutions with curator-locked decomposition, and the first multi-" +
   "operator chain. Each row's derivation is verifiable from the " +
@@ -342,7 +342,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    3,
     derivation:  'reverse(+0) + whirl(3) = 3 ADD',
-    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); whirl = 3 ADD core atom. Curator note: rev-up and rev-whirl are distinct canonical rows in freestyle_tricks (both base=whirl, both ADD=3); the folk distinction is preserved at the row level. The decomposition reading published here is identical for both rows — if rev-up has a structurally distinct reading the curator should override',
+    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); whirl = 3 ADD core atom. Curator note: rev-up and rev-whirl are distinct canonical rows in freestyle_tricks (both base=whirl, both ADD=3); the folk distinction is preserved at the row level. The decomposition reading published here is identical for both rows; if rev-up has a structurally distinct reading the curator should override',
   },
 
   // ─── Sprint 4 (2026-05-19) — atomic-specific x-dex contribution ───────
@@ -426,7 +426,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     1,
     totalAdd:    2,
     derivation:  'swing(1) + toe(1) = 2 ADD',
-    provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine — Red review pending.',
+    provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine (Red review pending).',
   },
 
   // ─── Sprint 7 (2026-05-19) — fury + fog (Red pt6-locked folk compounds) ────

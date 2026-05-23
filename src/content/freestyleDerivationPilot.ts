@@ -161,11 +161,11 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
     add: {
       official:      5,
       naiveComputed: 6,
-      derivation:    'official 5 — rotational continuity reduces the naïve 6 by one (gyro and torque share a single continuous rotational frame)',
+      derivation:    'official 5, rotational continuity reduces the naïve 6 by one (gyro and torque share a single continuous rotational frame)',
       breakdown:     'gyro(+2 rotational) + torque(4) = 6 ADD [naïve computed]',
     },
     doctrine: {
-      title:    'mobius — rotational-continuity reading',
+      title:    'mobius: rotational-continuity reading',
       readingA: 'rotational atoms count once per continuous rotation; spin + osis share a single rotational frame',
       readingB: 'each ADD-bearing token contributes independently regardless of frame',
       mechanism: 'rotational-frame continuity, not token count',
@@ -321,7 +321,7 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
     equivalenceChains: [
       {
         left:   'whirl',
-        right:  '(foundational atom — not further compressible)',
+        right:  '(foundational atom, not further compressible)',
         source: 'structural',
         why:    'one of the 12 core atoms; no shallower reading exists.',
       },

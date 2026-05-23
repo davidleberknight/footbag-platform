@@ -26,7 +26,7 @@
       <tbody>
         {{#each results}}
           <tr>
-            <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">&mdash;</span>{{/if}}</td>
+            <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">-</span>{{/if}}</td>
             <td class="placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">
               {{placement}}
             </td>

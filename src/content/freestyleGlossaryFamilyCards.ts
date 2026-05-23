@@ -76,7 +76,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Whirl as central attractor',
-        body:  'Network analysis of 22 years of Sick3 sequences shows whirl as the central attractor of the freestyle trick network — sequences converge on it as a stable resolution point. Blurry whirl functions as the most common opening element; the transition blurry whirl → whirl is the most documented two-trick structure in the corpus.',
+        body:  'Network analysis of 22 years of Sick3 sequences shows whirl as the central attractor of the freestyle trick network: sequences converge on it as a stable resolution point. Blurry whirl functions as the most common opening element; the transition blurry whirl → whirl is the most documented two-trick structure in the corpus.',
       },
     ],
   },
@@ -141,7 +141,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Whirl ↔ rev-whirl mirror pair',
-        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling-terminal-family example — same structural anchor, mirror terminal mechanics.',
+        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling-terminal-family example, same structural anchor, mirror terminal mechanics.',
       },
     ],
   },

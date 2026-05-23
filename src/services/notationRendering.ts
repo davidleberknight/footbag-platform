@@ -99,7 +99,7 @@ const ROLE_LABELS: Record<NotationRole, string> = {
   footedness:       'Footedness indicator',
   multiplicity:     'Repetition prefix',
   suffix:           'Surface suffix',
-  unresolved:       'Unrecognized — community notation may be evolving',
+  unresolved:       'Unrecognized, community notation may be evolving',
 };
 
 // Per-token tooltip overrides (UX1 Phase A). Harmonized with operational
@@ -109,94 +109,94 @@ const ROLE_LABELS: Record<NotationRole, string> = {
 // lookup; bracket-form body-component flags handled separately below.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // ── Base trick families (core_family) ─────────────────────────────────
-  WHIRL:     'Whirl — base trick family (3 ADD)',
-  MIRAGE:    'Mirage — base trick family (2 ADD)',
-  OSIS:      'Osis — base trick family (3 ADD)',
-  TORQUE:    'Torque — base trick family (4 ADD; miraging osis)',
-  BUTTERFLY: 'Butterfly — base trick family (3 ADD)',
-  EGGBEATER: 'Eggbeater — base trick family (3 ADD; atomic legover)',
-  LEGOVER:   'Legover — base trick family (2 ADD)',
-  PICKUP:    'Pickup — base trick family (2 ADD)',
-  BLENDER:   'Blender — base trick family (4 ADD; whirling osis)',
-  DRIFTER:   'Drifter — base trick family (3 ADD; miraging clipper)',
-  BARFLY:    'Barfly — base trick family (4 ADD)',
-  SWIRL:     'Swirl — base trick family (3 ADD)',
+  WHIRL:     'Whirl, base trick family (3 ADD)',
+  MIRAGE:    'Mirage, base trick family (2 ADD)',
+  OSIS:      'Osis, base trick family (3 ADD)',
+  TORQUE:    'Torque, base trick family (4 ADD; miraging osis)',
+  BUTTERFLY: 'Butterfly, base trick family (3 ADD)',
+  EGGBEATER: 'Eggbeater, base trick family (3 ADD; atomic legover)',
+  LEGOVER:   'Legover, base trick family (2 ADD)',
+  PICKUP:    'Pickup, base trick family (2 ADD)',
+  BLENDER:   'Blender, base trick family (4 ADD; whirling osis)',
+  DRIFTER:   'Drifter, base trick family (3 ADD; miraging clipper)',
+  BARFLY:    'Barfly, base trick family (4 ADD)',
+  SWIRL:     'Swirl, base trick family (3 ADD)',
 
   // ── Body modifiers (modifier) ─────────────────────────────────────────
-  PARADOX:   'Paradox — body modifier (+1 ADD)',
-  SYMPOSIUM: 'Symposium — body modifier (+1 ADD)',
-  DUCKING:   'Ducking — body modifier (+1 ADD)',
-  STEPPING:  'Stepping — body modifier (+1 ADD)',
-  TAPPING:   'Tapping — body modifier (+1 ADD; distinct from Stepping)',
-  DIVING:    'Diving — body modifier (+1 ADD)',
-  BLAZING:   'Blazing — body modifier (+1 ADD)',
-  BARRAGING: 'Barraging — body modifier (+1 ADD; underlies Flurry)',
-  WEAVING:   'Weaving — body modifier (+1 ADD)',
-  MIRAGING:  'Miraging — body modifier (+1 ADD; underlies Torque, Drifter, DLO)',
-  BACKSIDE:  'Backside — body modifier (+1 ADD; Symposium-equivalent)',
-  TERRAGING: 'Terraging — body modifier (+3 ADD)',
-  XDEX:      'X-Dex — narrow modifier (+1 ADD; specific constructions)',
+  PARADOX:   'Paradox, body modifier (+1 ADD)',
+  SYMPOSIUM: 'Symposium, body modifier (+1 ADD)',
+  DUCKING:   'Ducking, body modifier (+1 ADD)',
+  STEPPING:  'Stepping, body modifier (+1 ADD)',
+  TAPPING:   'Tapping, body modifier (+1 ADD; distinct from Stepping)',
+  DIVING:    'Diving, body modifier (+1 ADD)',
+  BLAZING:   'Blazing, body modifier (+1 ADD)',
+  BARRAGING: 'Barraging, body modifier (+1 ADD; underlies Flurry)',
+  WEAVING:   'Weaving, body modifier (+1 ADD)',
+  MIRAGING:  'Miraging, body modifier (+1 ADD; underlies Torque, Drifter, DLO)',
+  BACKSIDE:  'Backside, body modifier (+1 ADD; Symposium-equivalent)',
+  TERRAGING: 'Terraging, body modifier (+3 ADD)',
+  XDEX:      'X-Dex, narrow modifier (+1 ADD; specific constructions)',
 
   // ── Rotation modifiers (rotation) ─────────────────────────────────────
-  SPINNING:   'Spinning — rotation modifier (+1 ADD)',
-  WHIRLING:   'Whirling — rotation modifier (+1 ADD; underlies Blender)',
-  SWIRLING:   'Swirling — rotation modifier (+1 ADD)',
-  INSPINNING: 'Inspinning — rotation modifier (distinct from Spinning)',
-  GYRO:       'Gyro — rotation modifier (+1 ADD; underlies Mobius)',
+  SPINNING:   'Spinning, rotation modifier (+1 ADD)',
+  WHIRLING:   'Whirling, rotation modifier (+1 ADD; underlies Blender)',
+  SWIRLING:   'Swirling, rotation modifier (+1 ADD)',
+  INSPINNING: 'Inspinning, rotation modifier (distinct from Spinning)',
+  GYRO:       'Gyro, rotation modifier (+1 ADD; underlies Mobius)',
 
   // ── Set modifiers (set) ───────────────────────────────────────────────
-  BLURRY:   'Blurry — set modifier (+1 ADD)',
-  ATOMIC:   'Atomic — set modifier (+1 / +2 on rotational base)',
-  NUCLEAR:  'Nuclear — set modifier (+2 ADD; Paradox + Atomic)',
-  QUANTUM:  'Quantum — set modifier (+1 ADD)',
-  PIXIE:    'Pixie — set modifier (+1 ADD)',
-  FAIRY:    'Fairy — set modifier (+1 ADD)',
-  FURIOUS:  'Furious — set modifier (+1 / +2 on rotational base)',
-  POGO:     'Pogo — set modifier (0 ADD; non-scoring)',
-  SHOOTING: 'Shooting — set modifier (+3 ADD)',
-  ROOTED:   'Rooted — set modifier (0 ADD; held position)',
+  BLURRY:   'Blurry, set modifier (+1 ADD)',
+  ATOMIC:   'Atomic, set modifier (+1 / +2 on rotational base)',
+  NUCLEAR:  'Nuclear, set modifier (+2 ADD; Paradox + Atomic)',
+  QUANTUM:  'Quantum, set modifier (+1 ADD)',
+  PIXIE:    'Pixie, set modifier (+1 ADD)',
+  FAIRY:    'Fairy, set modifier (+1 ADD)',
+  FURIOUS:  'Furious, set modifier (+1 / +2 on rotational base)',
+  POGO:     'Pogo, set modifier (0 ADD; non-scoring)',
+  SHOOTING: 'Shooting, set modifier (+3 ADD)',
+  ROOTED:   'Rooted, set modifier (0 ADD; held position)',
 
   // ── Delay surfaces ────────────────────────────────────────────────────
-  CLIPPER: 'Clipper — delay surface (foundational stall)',
-  TOE:     'Toe (semantic) — delay surface',
-  HEEL:    'Heel — delay surface',
-  INSIDE:  'Inside — delay surface',
-  OUTSIDE: 'Outside — delay surface',
+  CLIPPER: 'Clipper, delay surface (foundational stall)',
+  TOE:     'Toe (semantic), delay surface',
+  HEEL:    'Heel, delay surface',
+  INSIDE:  'Inside, delay surface',
+  OUTSIDE: 'Outside, delay surface',
 
   // ── Unusual surfaces ──────────────────────────────────────────────────
-  SOLE:     'Sole — unusual delay surface',
-  KNEE:     'Knee — unusual delay surface',
-  HEAD:     'Head — unusual delay surface',
-  CLOUD:    'Cloud — unusual delay surface (back of shin)',
-  NECK:     'Neck — unusual delay surface',
-  SHOULDER: 'Shoulder — unusual delay surface',
-  FOREHEAD: 'Forehead — unusual delay surface',
+  SOLE:     'Sole, unusual delay surface',
+  KNEE:     'Knee, unusual delay surface',
+  HEAD:     'Head, unusual delay surface',
+  CLOUD:    'Cloud, unusual delay surface (back of shin)',
+  NECK:     'Neck, unusual delay surface',
+  SHOULDER: 'Shoulder, unusual delay surface',
+  FOREHEAD: 'Forehead, unusual delay surface',
 
   // ── Direction prefixes ────────────────────────────────────────────────
-  REV:     'Rev — reverse-direction prefix',
-  REVERSE: 'Reverse — direction prefix',
+  REV:     'Rev, reverse-direction prefix',
+  REVERSE: 'Reverse, direction prefix',
 
-  // ── Footedness (semantic context — layer-disambiguated) ───────────────
-  SAME: 'Same (semantic) — same-foot indicator',
-  OP:   'Opposite (semantic) — opposite-foot indicator',
-  IN:   'In (semantic) — inward-arc indicator',
-  OUT:  'Out (semantic) — outward-arc indicator',
+  // ── Footedness (semantic context, layer-disambiguated) ───────────────
+  SAME: 'Same (semantic), same-foot indicator',
+  OP:   'Opposite (semantic), opposite-foot indicator',
+  IN:   'In (semantic), inward-arc indicator',
+  OUT:  'Out (semantic), outward-arc indicator',
 
   // ── Multiplicity prefixes ─────────────────────────────────────────────
-  DOUBLE:    'Double — repetition prefix (per pt8: stabilized examples only)',
-  TRIPLE:    'Triple — repetition prefix',
-  QUADRUPLE: 'Quadruple — repetition prefix',
-  QUINTUPLE: 'Quintuple — repetition prefix',
+  DOUBLE:    'Double, repetition prefix (per pt8: stabilized examples only)',
+  TRIPLE:    'Triple, repetition prefix',
+  QUADRUPLE: 'Quadruple, repetition prefix',
+  QUINTUPLE: 'Quintuple, repetition prefix',
 };
 
 // Body-component bracket flags (rare in semantic but possible).
 const BODY_COMPONENT_LABELS: Record<string, string> = {
-  '[DEX]':  'DEX — dexterity component (controlled flick)',
-  '[DEL]':  'DEL — delay component (stall landing)',
-  '[BOD]':  'BOD — body-position component',
-  '[XBD]':  'XBD — cross-body component',
-  '[PDX]':  'PDX — paradox-direction marker',
-  '[XDEX]': 'XDEX — X-Dex component',
+  '[DEX]':  'DEX, dexterity component (controlled flick)',
+  '[DEL]':  'DEL, delay component (stall landing)',
+  '[BOD]':  'BOD, body-position component',
+  '[XBD]':  'XBD, cross-body component',
+  '[PDX]':  'PDX, paradox-direction marker',
+  '[XDEX]': 'XDEX, X-Dex component',
 };
 
 // ── Caller-supplied lookup context ────────────────────────────────────────
@@ -231,7 +231,7 @@ function classifyToken(
   raw: string,
   ctx: NotationLookupContext,
 ): { role: NotationRole; resolvedName: string | null } {
-  // 1. Bracketed body component — single-token bracket pair (e.g. [DEX]).
+  // 1. Bracketed body component,single-token bracket pair (e.g. [DEX]).
   if (BODY_COMPONENT_RE.test(raw))            return { role: 'body_component',  resolvedName: null };
   // 2. Multiplicity prefix.
   if (MULTIPLICITY_TOKENS.has(raw))           return { role: 'multiplicity',    resolvedName: null };
@@ -241,7 +241,7 @@ function classifyToken(
   if (DIRECTION_TOKENS.has(raw))              return { role: 'directionality',  resolvedName: null };
   // 5. Surface-suffix (STALL, KICK).
   if (SUFFIX_TOKENS.has(raw))                 return { role: 'suffix',          resolvedName: null };
-  // 6. Rotation registry (must precede modifier — SPINNING wins as rotation).
+  // 6. Rotation registry (must precede modifier,SPINNING wins as rotation).
   if (ROTATION_TOKENS.has(raw))               return { role: 'rotation',        resolvedName: null };
   // 7. Delay surface registry.
   if (DELAY_SURFACE_TOKENS.has(raw))          return { role: 'delay_surface',   resolvedName: null };
@@ -298,10 +298,10 @@ export function shapeNotationDisplay(
   const tokens: NotationToken[] = rawTokens.map(text => {
     const { role, resolvedName } = classifyToken(text, ctx);
     // Per-token label preference order (UX1 Phase A):
-    //   1. WORD_TOKEN_LABELS[UPPER(text)] — per-token specific override
-    //   2. BODY_COMPONENT_LABELS[text]    — bracketed body-component flags
-    //   3. ROLE_LABELS[role] + resolved   — core_family with slug suffix
-    //   4. ROLE_LABELS[role]              — generic role fallback
+    //   1. WORD_TOKEN_LABELS[UPPER(text)],per-token specific override
+    //   2. BODY_COMPONENT_LABELS[text]   ,bracketed body-component flags
+    //   3. ROLE_LABELS[role] + resolved  ,core_family with slug suffix
+    //   4. ROLE_LABELS[role]             ,generic role fallback
     const upper = text.toUpperCase();
     const wordLabel = WORD_TOKEN_LABELS[upper];
     const bracketLabel = role === 'body_component' ? BODY_COMPONENT_LABELS[text] : undefined;

@@ -211,19 +211,19 @@
                 <span class="badge badge-warn">unlinked</span>
               {{/if}}
             </td>
-            <td>{{#if extractedScore}}{{extractedScore}}{{else}}<em>—</em>{{/if}}</td>
-            <td>{{#if roundHint}}{{roundHint}}{{else}}<em>—</em>{{/if}}</td>
+            <td>{{#if extractedScore}}{{extractedScore}}{{else}}<em>-</em>{{/if}}</td>
+            <td>{{#if roundHint}}{{roundHint}}{{else}}<em>-</em>{{/if}}</td>
             <td>
               {{#if eventHref}}
                 <a href="{{eventHref}}">{{#if eventTitle}}{{eventTitle}}{{else}}{{eventId}}{{/if}}</a>
               {{else if yearHint}}
                 {{yearHint}}
               {{else}}
-                <em>—</em>
+                <em>-</em>
               {{/if}}
             </td>
-            <td class="detail-muted">{{#if sourceFile}}{{sourceFile}}{{else}}<em>—</em>{{/if}}</td>
-            <td class="col-message">{{#if curatorNote}}{{curatorNote}}{{else}}<em>—</em>{{/if}}</td>
+            <td class="detail-muted">{{#if sourceFile}}{{sourceFile}}{{else}}<em>-</em>{{/if}}</td>
+            <td class="col-message">{{#if curatorNote}}{{curatorNote}}{{else}}<em>-</em>{{/if}}</td>
             <td class="detail-muted">{{curatedAt}}</td>
             <td><a href="{{candidateHref}}" class="btn-link">detail</a></td>
           </tr>

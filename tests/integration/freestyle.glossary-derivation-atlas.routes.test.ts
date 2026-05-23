@@ -86,7 +86,7 @@ describe('GET /freestyle/glossary — derivation atlas section', () => {
   it('renders the mobius doctrine note with policy-dependent status', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('mobius — rotational-continuity reading');
+    expect(res.text).toContain('mobius: rotational-continuity reading');
     expect(res.text).toContain('doctrine-note--policy-dependent');
   });
 

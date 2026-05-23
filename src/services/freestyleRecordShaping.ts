@@ -9,7 +9,7 @@ export function trickNameToSlug(name: string): string {
 }
 
 export function slugToHashtag(slug: string): string {
-  return '#' + slug.toLowerCase().replace(/-/g, '');
+  return '#' + slug.toLowerCase().replace(/-/g, '_');
 }
 
 export interface FreestyleRecordViewModel {

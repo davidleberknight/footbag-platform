@@ -18,8 +18,8 @@
     <dl class="club-detail-meta">
       <dt>Location</dt>
       <dd>
-        {{content.club.city}}{{#if content.club.region}}, {{content.club.region}}{{/if}}
-        &mdash; {{content.club.country}}
+        {{content.club.city}}{{#if content.club.region}}, {{content.club.region}}{{/if}},
+        {{content.club.country}}
       </dd>
       {{#if content.club.externalUrl}}
       <dt>Website</dt>
@@ -70,7 +70,7 @@
           {{else}}
             <span class="club-leader-name">{{displayName}}</span>
           {{/if}}
-          <span class="club-leader-role">&nbsp;&mdash;&nbsp;{{roleLabel}}</span>
+          <span class="club-leader-role">&nbsp;({{roleLabel}})</span>
           {{#if badgeLabel}}
             <span class="club-leader-badge">{{badgeLabel}}</span>
           {{/if}}

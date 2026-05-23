@@ -49,7 +49,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'set-uptime',
     axisName:       'Set / Uptime Systems',
     axisDefinition:
-      'Set primitives that initiate a trick — what the foot does before the base trick ' +
+      'Set primitives that initiate a trick: what the foot does before the base trick ' +
       'begins. Pre-base uptime treatments, compressed-set families, and Red-settled ' +
       'compound set modifiers (per pt10: nuclear = paradox + atomic, quantum = ' +
       'compressed atomic).',
@@ -61,7 +61,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'entry-topology',
     axisName:       'Entry Topologies',
     axisDefinition:
-      'How the body enters the trick — hip pivots between dexes and same-set side ' +
+      'How the body enters the trick: hip pivots between dexes and same-set side ' +
       'changes. The body changes sides without changing the set foot.',
     modifierSlugs:  ['paradox'],
   },
@@ -69,7 +69,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'midtime-body',
     axisName:       'Midtime Body Modifiers',
     axisDefinition:
-      'What the body does during the dex moment — rotation by tempo (spinning / gyro / ' +
+      'What the body does during the dex moment: rotation by tempo (spinning / gyro / ' +
       'whirling) or head dip / body arc (ducking / diving / weaving). Modifiers ' +
       'carried through the trick rather than applied at its boundaries.',
     // Order: spinning (full 360°) — gyro (half 180°) — whirling (distinct beat) —
@@ -80,7 +80,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'no-plant-suspension',
     axisName:       'No-Plant & Suspension',
     axisDefinition:
-      'Discipline modifiers around plant and landing — the support leg stays off the ' +
+      'Discipline modifiers around plant and landing: the support leg stays off the ' +
       'ground or the dex moment carries no plant.',
     modifierSlugs:  ['symposium'],
   },
