@@ -11,21 +11,82 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
-    <div class="hero-stats">
-      <span>{{content.totalEvents}} events</span>
-      <span>1980–present</span>
-    </div>
   </div>
 </div>
 
 <div class="wrapper">
 
-  {{! ── Top Competitors ─────────────────────────────────────────────────────── }}
+  <p>
+    Freestyle footbag has been competed for over four decades. The picture
+    below is compiled from documented historical events; coverage varies by
+    era, and the archive keeps improving as more results are recovered.
+  </p>
+
+  {{! ── Competition Through the Years — events by era + recent events ───── }}
   <section class="content-section">
     <div class="section-heading">
-      <h2>Top Freestyle Singles Competitors</h2>
+      <h2>Competition Through the Years</h2>
     </div>
-    <p class="section-intro">Ranked by gold medals, then total podium finishes. Covers all freestyle singles disciplines (Open, Intermediate, Women's).</p>
+    <p class="section-intro">
+      How documented freestyle competition has grown, decade by decade.
+    </p>
+
+    <h3 class="content-subheading">Events by Era</h3>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Decade</th>
+            <th class="col-num">Freestyle Events</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.eventsByEra}}
+          <tr>
+            <td>{{era}}</td>
+            <td class="col-num">{{events}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+
+    {{#if content.recentEvents}}
+    <h3 class="content-subheading">Recent Events</h3>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Location</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.recentEvents}}
+          <tr>
+            <td><a href="{{href}}">{{title}}</a></td>
+            <td class="detail-muted">{{city}}, {{country}}</td>
+            <td class="detail-muted">{{startDate}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{/if}}
+  </section>
+
+  {{! ── Documented Competitors — podium results, honestly framed ───────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Documented Competitors</h2>
+    </div>
+    <p class="section-intro">
+      Freestyle singles competitors with the most documented podium finishes
+      (Open, Intermediate, and Women's divisions), ranked by gold medals then
+      total podiums. Based on currently documented historical event results
+      &mdash; one view of the sport's history, not a definitive all-time ranking.
+    </p>
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
@@ -55,60 +116,6 @@
       </table>
     </div>
   </section>
-
-  {{! ── Events By Era ────────────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Events by Era</h2>
-    </div>
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
-        <thead>
-          <tr>
-            <th>Decade</th>
-            <th class="col-num">Freestyle Events</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.eventsByEra}}
-          <tr>
-            <td>{{era}}</td>
-            <td class="col-num">{{events}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  {{! ── Recent Events ───────────────────────────────────────────────────────── }}
-  {{#if content.recentEvents}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Recent Freestyle Events</h2>
-    </div>
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
-        <thead>
-          <tr>
-            <th>Event</th>
-            <th>Location</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.recentEvents}}
-          <tr>
-            <td><a href="{{href}}">{{title}}</a></td>
-            <td class="detail-muted">{{city}}, {{country}}</td>
-            <td class="detail-muted">{{startDate}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  {{/if}}
 
   <p class="source-note">{{content.dataNote}}</p>
 

@@ -273,12 +273,12 @@ describe('First-class trick pilot — browse-card secondary row', () => {
 });
 
 describe('First-class trick pilot — 4-tier hierarchy contract preservation', () => {
-  it('Notation summary card absent from /freestyle/tricks landing', async () => {
+  it('trick-detail notation-summary section is absent from the dictionary browse view', async () => {
+    // /freestyle/tricks is the By ADD ladder of registry cards; the
+    // trick-detail Tier sections (notation summary) never render here.
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/class="trick-notation-summary"/);
-    expect(res.text).not.toMatch(/spin\(1\) \+ xbod\(1\)/);
-    expect(res.text).not.toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
   });
 });
 

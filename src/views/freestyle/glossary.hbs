@@ -11,7 +11,6 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
-    <p class="hero-cross-link"><a href="/freestyle/tricks">Browse the trick dictionary &rarr;</a></p>
   </div>
 </div>
 
@@ -22,22 +21,19 @@
   <div class="glossary-main-column">
 
   <section class="content-section" id="section-core-concepts">
-    <h2 class="section-heading">
-      1. Core Concepts
-    </h2>
+    <h2 class="section-heading">Movement Basics</h2>
     <p>
-      This glossary is a movement-language reference for freestyle footbag:
-      surfaces, dexterities, modifiers, notation, and the trick families they
-      compose. Use the left sidebar to jump to any section; canonical
-      definitions are visible by default and advanced or observational
-      material is collapsed inline next to each definition.
+      Welcome to the language of freestyle footbag &mdash; the words players use
+      for the moves. This glossary names the surfaces you catch the bag on, the
+      leg-circles and body-turns that shape a trick, and the families those
+      tricks grow into. Start at the top and read down; each section builds on
+      the one before.
     </p>
     <p>
-      The language is symbolic and compositional. Recurring movement
-      structures compress into named operators; operators stack onto base
-      tricks to produce new ones. The same trick can usually be named at
-      several depths &mdash; shortest readable form wins. For the canonical
-      catalog of named tricks, see the
+      Freestyle's vocabulary is compositional: small movements combine into
+      named tricks, and tricks combine into longer runs. The same trick can
+      often be named at several depths &mdash; the shortest clear name is the
+      one players use. For the full catalog of named tricks, see the
       <a href="/freestyle/tricks">trick dictionary</a>; for set-notation
       reference, see <a href="/freestyle/sets">/freestyle/sets</a>.
     </p>
@@ -48,64 +44,11 @@
       <a href="/freestyle/history">freestyle history page</a> for the
       two-phase story.
     </p>
-
-    {{! ── How to read this glossary ────────────────────────────────────────
-        Reader-orientation subsection introduced in the 2026-05-21 glossary
-        architecture overhaul. Enumerates the publication-state vocabulary
-        the rest of the glossary uses (canonical / observational / doctrine /
-        historical / pending / equivalence-topology) so the reader can scan
-        any section knowing what kind of claim a given entry makes. }}
-    <h3 class="section-heading" id="how-to-read">How to read this glossary</h3>
-    <p>
-      The glossary mixes several kinds of claim. Canonical material is
-      authoritative; supplementary layers (observational, doctrine,
-      historical) surface alongside it with explicit labels. Knowing the
-      distinction lets a reader scan any section and know what kind of
-      claim a given entry makes.
-    </p>
-    <dl class="glossary-publication-states">
-      <dt>Canonical</dt>
-      <dd>Community-sanctioned; single-valued; authoritative. Default text style, no badge. Lives in the trick dictionary and in &sect;5 family cards.</dd>
-      <dt>Observational</dt>
-      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in &sect;11 and in expandable panels on family cards.</dd>
-      <dt>Doctrine-sensitive</dt>
-      <dd>A reading governed by a published doctrine (e.g. rotational continuity). The canonical ADD or decomposition holds; the doctrine explains <em>why</em>. Lives in &sect;8.7 and in the &sect;1 derivation atlas's doctrine notes.</dd>
-      <dt>Historical</dt>
-      <dd>An older or community interpretation preserved as context, not as a competing claim. Lives in &sect;13 and inside trick-detail &ldquo;Alternate derivations&rdquo; panels.</dd>
-      <dt>Alternate derivation (equivalence topology)</dt>
-      <dd>A different structural route to the same trick, reaching the same ADD. Both readings are pedagogically live. Lives in &sect;9 (concept), in trick-detail panels (per-trick), and explained in the &sect;9 worked examples.</dd>
-      <dt>Pending</dt>
-      <dd>Curator-confirm-pending; not yet ratified. Surfaces with an <em>advanced</em> badge or, on dictionary cards, a &ldquo;pending decomposition refinement&rdquo; pill. Never claimed as canonical.</dd>
-    </dl>
-    <p class="detail-muted">
-      The shortest readable form of a trick name is the one the
-      community uses; deeper readings remain available for readers who
-      want to see the structure. Multiple readings often coexist
-      legitimately. The glossary preserves all of them and marks which
-      kind each one is.
-    </p>
-
-    <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
-      Derivation atlas &mdash; five compositional examples
-    </h3>
-    <p class="glossary-derivation-atlas-intro">
-      Five entries demonstrating the compositional system in one place: a
-      root family (whirl), a modifier (paradox), a compound trick (flurry),
-      a symbolic-compression bridge (blur), and a rotational-doctrine
-      worked example (mobius). Each panel stacks five axes &mdash; formula,
-      family, ADD with breakdown, lineage, and shorthand &mdash; so they
-      read as one object.
-    </p>
-    <div class="glossary-derivation-atlas">
-      {{#each content.derivationAtlas}}
-        {{> derivation-panel entry=this}}
-      {{/each}}
-    </div>
   </section>
 
   <section class="content-section" id="section-surfaces">
     <h2 class="section-heading">
-      2. Contact Surfaces &amp; Delays
+      Contact Surfaces &amp; Delays
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
     </h2>
     <p>
@@ -168,7 +111,7 @@
 
   <section class="content-section" id="section-dexterities">
     <h2 class="section-heading">
-      3. Dexterities (Dex)
+      Dexterities (Dex)
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
     </h2>
     <p>
@@ -246,13 +189,14 @@
 
   <section class="content-section" id="section-timing-sets">
     <h2 class="section-heading">
-      4. Timing &amp; Sets
+      Timing &amp; Sets
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
     </h2>
     <p>
       A trick has a clock. The <strong>set</strong> positions the bag; the
-      bag rises, peaks, falls; the trick catches. Modifiers in &sect;6 are
-      classified by which beat they transform.
+      bag rises, peaks, falls; the trick catches. Modifiers (see the
+      Modifiers &amp; Operators section, below) are classified by which
+      beat they transform.
     </p>
 
     {{! ── Timing-clock visual ──────────────────────────────────────────
@@ -302,7 +246,7 @@
 
   <section class="content-section" id="section-families">
     <h2 class="section-heading">
-      5. Core Trick Families
+      Core Trick Families
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
@@ -410,16 +354,17 @@
 
   <section class="content-section" id="section-modifiers">
     <h2 class="section-heading">
-      6. Modifiers &amp; Operators
+      Modifiers &amp; Operators
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
       <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone &rarr;</a>
     </h2>
 
     {{> freestyle-modifier-reference}}
+  </section>
 
   <section class="content-section" id="section-notation">
     <h2 class="section-heading">
-      7. Jobs / Operational Notation
+      Trick Naming &amp; Notation
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p class="glossary-thesis">
@@ -526,7 +471,7 @@
       decompresses to &ldquo;spinning ss torque&rdquo;, and further to
       &ldquo;spinning ss miraging osis&rdquo;. All three forms are
       legitimate; the community uses the shortest readable one. See the
-      <a href="#symbolic-compression-flow">symbolic-compression flow in &sect;8</a>
+      <a href="#symbolic-compression-flow">symbolic-compression flow</a>
       for a worked example.
     </p>
     {{! Operator → named-compound block. Five compact compositions, all
@@ -736,7 +681,7 @@
 
   <section class="content-section" id="section-add-accounting">
     <h2 class="section-heading" id="traditional-reference">
-      8. ADD Accounting
+      ADD Accounting
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
 
@@ -898,13 +843,13 @@
       For run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
       Beastly, Godly, Genuine, BOP) and competitive formats (Sick3,
       Shred:30, Circle), see
-      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
+      <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
   </section>
 
   <section class="content-section" id="section-composition">
     <h2 class="section-heading">
-      9. Symbolic Composition
+      Symbolic Composition
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
@@ -921,6 +866,27 @@
       <li><strong>Density</strong>: average ADD per trick in a run.</li>
       <li><strong>Shred Circle</strong>: a group format where players take turns performing runs.</li>
     </ul>
+
+    {{! ── Derivation atlas — five compositional examples. Relocated here
+        (Phase E) from the glossary opening: it belongs after the reader
+        knows families, modifiers, notation, and ADD. The `derivation-atlas`
+        anchor is preserved for inbound deep-links. }}
+    <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
+      Derivation atlas &mdash; five compositional examples
+    </h3>
+    <p class="glossary-derivation-atlas-intro">
+      Five entries demonstrating the compositional system in one place: a
+      root family (whirl), a modifier (paradox), a compound trick (flurry),
+      a symbolic-compression bridge (blur), and a rotational-doctrine
+      worked example (mobius). Each panel stacks five axes &mdash; formula,
+      family, ADD with breakdown, lineage, and shorthand &mdash; so they
+      read as one object.
+    </p>
+    <div class="glossary-derivation-atlas">
+      {{#each content.derivationAtlas}}
+        {{> derivation-panel entry=this}}
+      {{/each}}
+    </div>
 
     {{! ── Symbolic compression — a worked example ──────────────────────────
         Anchor `symbolic-compression-flow` is preserved for inbound deep-links
@@ -1055,7 +1021,7 @@
     </ol>
     <p class="glossary-walking-family-note">
       One base, seven named branches. Each operator added is also defined
-      in &sect;6 (Modifiers &amp; Operators); each compound has its own
+      in the Modifiers &amp; Operators section; each compound has its own
       detail page with related-trick navigation back to the family.
     </p>
 
@@ -1075,7 +1041,7 @@
 
   <section class="content-section" id="section-run-architecture">
     <h2 class="section-heading">
-      10. Run Architecture
+      Run Architecture
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
@@ -1095,14 +1061,14 @@
       Full run-architecture reference (per-tier definitions, format
       specifications, combo-flow analysis, dropless/dropful classification,
       sequence-architecture observations) lives at
-      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
+      <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
   </section>
 
   {{#if content.connectivePanels.length}}
   <section class="content-section glossary-connective-section" id="connective-panels">
     <h2 class="section-heading">
-      11. Family &amp; Topology Concepts
+      Family &amp; Topology Concepts
       <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
@@ -1161,14 +1127,55 @@
   </section>
   {{/if}}
 
+  {{! ── Advanced Reference Concepts — the publication-state vocabulary,
+      relocated here (Phase E) from the glossary opening. It is reference
+      machinery, not onboarding; the `how-to-read` anchor is preserved for
+      inbound deep-links. }}
+  <section class="content-section" id="section-advanced-reference">
+    <h2 class="section-heading">Advanced Reference Concepts</h2>
+    <p>
+      The sections above use a small set of reference distinctions to mark
+      what kind of claim each entry makes. They matter for deep reference and
+      curation work &mdash; a first read of the glossary does not need them.
+    </p>
+    <h3 class="section-heading" id="how-to-read">How to read this glossary</h3>
+    <p>
+      The glossary mixes several kinds of claim. Canonical material is
+      authoritative; supplementary layers (observational, doctrine,
+      historical) surface alongside it with explicit labels. Knowing the
+      distinction lets a reader scan any section and know what kind of
+      claim a given entry makes.
+    </p>
+    <dl class="glossary-publication-states">
+      <dt>Canonical</dt>
+      <dd>Community-sanctioned; single-valued; authoritative. Default text style, no badge. Lives in the trick dictionary and in the family cards.</dd>
+      <dt>Observational</dt>
+      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in the Family &amp; Topology Concepts section and in expandable panels on family cards.</dd>
+      <dt>Doctrine-sensitive</dt>
+      <dd>A reading governed by a published doctrine (e.g. rotational continuity). The canonical ADD or decomposition holds; the doctrine explains <em>why</em>.</dd>
+      <dt>Historical</dt>
+      <dd>An older or community interpretation preserved as context, not as a competing claim. Lives in the Historical Terms section and inside trick-detail &ldquo;Alternate derivations&rdquo; panels.</dd>
+      <dt>Alternate derivation (equivalence topology)</dt>
+      <dd>A different structural route to the same trick, reaching the same ADD. Both readings are pedagogically live. Lives in the Symbolic Composition section and in trick-detail panels.</dd>
+      <dt>Pending</dt>
+      <dd>Curator-confirm-pending; not yet ratified. Surfaces with an <em>advanced</em> badge or, on dictionary cards, a &ldquo;pending decomposition refinement&rdquo; pill. Never claimed as canonical.</dd>
+    </dl>
+    <p class="detail-muted">
+      The shortest readable form of a trick name is the one the community
+      uses; deeper readings remain available for readers who want to see the
+      structure. Multiple readings often coexist legitimately. The glossary
+      preserves all of them and marks which kind each one is.
+    </p>
+  </section>
+
   <section class="content-section" id="section-community">
     <h2 class="section-heading">
-      12. Community Vocabulary
+      Community Vocabulary
       <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
     </h2>
     <p>
       Folk names and community variants still actively used in the modern
-      vocabulary. Canonical equivalents live in &sect;1&ndash;&sect;11.
+      vocabulary. Canonical equivalents live in the sections above.
     </p>
     <div class="moves-table-wrap">
       <table class="moves-table">
@@ -1188,7 +1195,7 @@
 
   <section class="content-section" id="section-historical">
     <h2 class="section-heading">
-      13. Historical Terms
+      Historical Terms
       <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
     </h2>
     <p>
@@ -1214,7 +1221,7 @@
   </section>
 
   <section class="content-section" id="section-sources">
-    <h2 class="section-heading">14. Sources</h2>
+    <h2 class="section-heading">Sources</h2>
     <p class="glossary-about-framing">
       This glossary records vocabulary the footbag community built informally over four decades. Authoritative trick-level definitions live in the <a href="/freestyle/tricks">Trick Dictionary</a>; the source families below contribute to the language documented here.
     </p>

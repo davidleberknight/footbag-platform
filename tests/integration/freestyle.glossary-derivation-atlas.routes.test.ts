@@ -106,8 +106,10 @@ describe('GET /freestyle/glossary — derivation atlas section', () => {
     // Jobs notation by name in §7.
     const atlasIdx = res.text.indexOf('id="derivation-atlas"');
     expect(atlasIdx).toBeGreaterThan(0);
-    // The atlas section runs to the end of section-core-concepts.
-    const sectionEndIdx = res.text.indexOf('id="section-surfaces"', atlasIdx);
+    // Phase E relocated the atlas into the Symbolic Composition section;
+    // it runs from its heading to the next §-sub-heading below it.
+    const sectionEndIdx = res.text.indexOf('id="symbolic-compression-flow"', atlasIdx);
+    expect(sectionEndIdx).toBeGreaterThan(atlasIdx);
     const atlasSection = res.text.slice(atlasIdx, sectionEndIdx);
     expect(atlasSection).not.toMatch(/\bRed\b/);
     expect(atlasSection).not.toMatch(/\bHusted\b/);

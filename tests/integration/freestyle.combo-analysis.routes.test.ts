@@ -47,21 +47,21 @@ describe('GET /freestyle/combo-analysis — route + page structure', () => {
 
   it('renders the page title + intro', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
-    expect(res.text).toContain('Combo &amp; Run Architecture');
-    expect(res.text).toMatch(/How freestyle sequences are built/);
+    expect(res.text).toContain('Combo Analysis');
+    expect(res.text).toMatch(/How freestyle tricks connect into longer flowing/);
   });
 
-  it('renders all 8 section h2 headings in canonical order', async () => {
+  it('renders all 8 sections in canonical order', async () => {
     const res = await request(createApp()).get('/freestyle/combo-analysis');
     const sections = [
-      '1. Philosophy',
-      '2. Run-quality terminology',
+      'id="philosophy"',
+      'id="run-quality"',
       'Sequence architecture',
       'Difficulty architecture',
-      '5. Worked examples',
-      '6. Transition topology',
-      '7. Honesty',
-      'Further reading',
+      'id="worked-examples"',
+      'id="transition-topology"',
+      'id="caveats"',
+      'id="further-reading"',
     ];
     let lastIdx = -1;
     for (const heading of sections) {
@@ -264,19 +264,19 @@ describe('Landing portal-card inbound link to combo-analysis (2026-05-17)', () =
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
   });
 
-  it('the three analytical-surface hrefs co-locate inside exactly one portal card', async () => {
-    // Structural invariant: /freestyle/history, /freestyle/add-analysis,
-    // and /freestyle/combo-analysis are grouped into a single portal-card
-    // boundary on the landing. Splitting on `<div class="card` yields one
-    // chunk per card; exactly one chunk must contain all three hrefs.
+  it('add-analysis and combo-analysis co-locate inside exactly one Go Deeper card', async () => {
+    // Structural invariant (Phase C, 2026-05-22): the two-band landing
+    // groups /freestyle/add-analysis and /freestyle/combo-analysis into a
+    // single "Scoring & Combos" Go Deeper card. Splitting on
+    // `<div class="card` yields one chunk per card; exactly one chunk
+    // must contain both hrefs.
     const res = await request(createApp()).get('/freestyle');
     const cards = res.text.split('<div class="card');
-    const cardsWithAllThree = cards.filter(
+    const cardsWithBoth = cards.filter(
       (c) =>
-        c.includes('href="/freestyle/history"') &&
         c.includes('href="/freestyle/add-analysis"') &&
         c.includes('href="/freestyle/combo-analysis"'),
     );
-    expect(cardsWithAllThree).toHaveLength(1);
+    expect(cardsWithBoth).toHaveLength(1);
   });
 });

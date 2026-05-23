@@ -120,11 +120,8 @@ export const freestyleController = {
     try {
       const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
       const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
-      if (!family && !view) {
-        const vm = freestyleService.getDictionaryLandingPage();
-        res.render('freestyle/tricks-landing', vm);
-        return;
-      }
+      // /freestyle/tricks opens directly on the By ADD ladder (the service
+      // defaults view to 'add'); there is no separate browse-mode gate.
       const vm = freestyleService.getFreestyleTricksIndexPage(family, view);
       res.render('freestyle/tricks', vm);
     } catch (err) {

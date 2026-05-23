@@ -11,15 +11,16 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
-    <div class="hero-stats">
-      <span>{{content.totalTricks}} canonical tricks</span>
-      {{#if content.coverage.externalOnlyCount}}<span>{{content.coverage.externalOnlyCount}} external placeholders</span>{{/if}}
-    </div>
-    <p class="hero-cross-link"><a href="/freestyle/glossary">Learn the language &rarr;</a></p>
   </div>
 </div>
 
 <div class="wrapper">
+
+  {{! ── Page intro — plain, movement-first. Shown on every browse view. ── }}
+  {{#if content.dictionaryIntro}}
+  <p class="browse-view-intro">{{content.dictionaryIntro}}
+    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
+  {{/if}}
 
   {{#if content.activeFamily}}
   <p class="family-filter-pill">
@@ -36,18 +37,10 @@
   {{/if}}
   {{/if}}
 
-  {{! ── View toggle (no JS; query-string driven) ───────────────────────────
-      Primary tier (ADD + Family) is the main browse surface; secondary tier
-      (Category, Component, Movement Neighborhoods) is visually demoted as
-      legacy / advanced browse modes. No JavaScript; view selected via ?view=
-      query param. }}
-  <nav class="trick-view-toggle" aria-label="Dictionary view">
-    {{! Back to landing (CR-1 of dictionary-coherence-2026-05-18). The
-        landing surface renders when no ?view= and no ?family= are
-        supplied; this link returns the visitor there from any browse
-        view. }}
-    <a class="trick-view-toggle-back" href="/freestyle/tricks">&lsaquo; Dictionary</a>
-    <span class="trick-view-toggle-sep">·</span>
+  {{! ── Browse navigation. "By ADD" is the default; the other systems are
+      secondary ways to navigate the same movement universe. No JavaScript;
+      view selected via the ?view= query param. ── }}
+  <nav class="trick-view-toggle" aria-label="Browse the dictionary">
     {{#if (eq content.activeView "add")}}
       <span class="trick-view-toggle-active">By ADD</span>
     {{else}}
@@ -65,43 +58,20 @@
     {{else}}
       <a href="/freestyle/tricks?view=movement-system">By movement system</a>
     {{/if}}
-    <span class="trick-view-toggle-secondary-label" aria-hidden="true">&mdash; more views:</span>
-    <span class="trick-view-toggle-secondary">
-      {{! Category view soft-retired (see exploration/
-          dictionary-coherence-2026-05-18/category_view_retirement_review.md).
-          Toggle entry removed; URL still resolves for bookmarks, with a
-          retirement notice rendered above the view body when reached
-          directly. Family + Movement System are the canonical replacements.
-          Component view soft-retired 2026-05-18 (see exploration/
-          freestyle-public-coherence-wave-2026-05-18/component_view_retirement_audit.md). }}
-      {{#if (eq content.activeView "topology")}}
-        <span class="trick-view-toggle-active">Movement Neighborhoods</span>
-      {{else}}
-        <a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
-      {{/if}}
-    </span>
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "topology")}}
+      <span class="trick-view-toggle-active">Movement Neighborhoods</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
+    {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    <a href="/freestyle/operators">Operators &amp; Modifiers</a>
+    <span class="trick-view-toggle-sep">·</span>
+    <a href="/freestyle/observational">Observed Tricks</a>
   </nav>
-
-  {{! ── Coverage summary ─────────────────────────────────────────────────── }}
-  <section class="trick-coverage-summary" aria-label="Coverage summary">
-    <p class="trick-coverage-counts">
-      <strong>{{content.coverage.canonicalCount}}</strong> canonical tricks
-      {{#if content.coverage.externalOnlyCount}} · <strong>{{content.coverage.externalOnlyCount}}</strong> external-only placeholders{{/if}}
-      {{#if content.coverage.sourcesLoaded.length}} · sources loaded: {{#each content.coverage.sourcesLoaded}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}{{/if}}
-      {{#if content.coverage.sourcesUnavailable.length}} · sources unavailable: {{#each content.coverage.sourcesUnavailable}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}{{/if}}
-    </p>
-    <p class="trick-coverage-note"><em>{{content.coverage.transparencyNote}}</em></p>
-  </section>
-
-  {{#if content.dictNote}}
-  <p class="detail-muted dict-note"><em>{{content.dictNote}}</em></p>
-  {{/if}}
 
   {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
   {{#if (eq content.activeView "add")}}
-  {{#if content.addViewIntro}}
-  <p class="browse-view-intro">{{content.addViewIntro}}</p>
-  {{/if}}
   {{#each content.addGroups}}
   <section class="content-section trick-add-group trick-group--registry" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
@@ -360,7 +330,7 @@
     see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a> for
     a step-by-step walkthrough of how totals are constructed, with worked
     examples and discrepancy case studies.
-    Tricks with passback records are linked to their record pages.
+    Tricks with documented records are linked to their record pages.
   </p>
 
 </div>

@@ -69,7 +69,6 @@ import {
   OPERATOR_REFERENCE_ENTRIES,
 } from '../content/freestyleOperatorReference';
 import {
-  BASIC_COMPONENTS,
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
 import {
@@ -138,14 +137,6 @@ import {
   getEquivalenceTopologyFor,
   type EquivalenceTopologyEntry,
 } from '../content/freestyleEquivalenceTopology';
-import {
-  DICTIONARY_LANDING_CARDS,
-  DICTIONARY_LANDING_FRAMING,
-  DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
-  DICTIONARY_LANDING_PRIMER,
-  type DictionaryLandingCard,
-  type DictionaryLandingGlossaryPrimer,
-} from '../content/freestyleDictionaryLanding';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -301,68 +292,10 @@ export interface FreestyleLandingExplainer {
   paragraphs: string[];
 }
 
-/** Movement Reference card surfaced between the portal-card grid and
- *  the Featured-videos block (Landing Page Phase 1, 2026-05-21). Each
- *  card is a uniform teaser: title + one-line summary + optional
- *  preview chips + single outbound CTA. Replaces the prior collapsed
- *  `<details>` shelf and the duplicated standalone "Operators &
- *  Modifiers" portal card. The card is a porch; depth lives on the
- *  destination page. */
-export interface FreestyleMovementReferenceChip {
-  slug:  string;   // 'pixie' — drives anchor + identity
-  label: string;   // visible chip text (e.g. 'pixie')
-}
-
-export interface FreestyleMovementReferenceCard {
-  slug:           'basic-components' | 'core-tricks' | 'operators-modifiers'
-                | 'add-scoring' | 'notation-basics' | 'learning-path';
-  title:          string;
-  summary:        string;
-  linkOutHref:    string;
-  linkOutLabel:   string;
-  /** Optional non-interactive preview chips rendered inside the card.
-   *  Currently used only by the operators-modifiers card to surface a
-   *  tiny taste of the operator vocabulary without duplicating the
-   *  full /freestyle/operators reference. */
-  examples?:      ReadonlyArray<FreestyleMovementReferenceChip>;
-}
-
-export interface FreestyleMovementReference {
-  title:    string;
-  lede:     string;
-  cards:    readonly FreestyleMovementReferenceCard[];
-}
-
-export interface FreestyleGetStartedTile {
-  label: string;
-  href: string;
-  comingSoon: boolean;
-}
-
 export interface FreestyleDemoVideo {
   mp4Url: string;
   posterUrl: string;
   caption: string;
-}
-
-// ── The Language of Freestyle Footbag — landing intro structure ───────────
-// Per the IA realignment plan, the landing intro replaces a prose paragraph
-// block with a Basic Components grid (Contact / Set / Dex / Spin / Duck /
-// Delay) and a Core Tricks grid (twelve irreducible base tricks rendered as
-// compact symbolic objects). The shapes below are view-model types only; the
-// canonical sources are PassBack glossary (Basic Components labels + Dex
-// sub-fields) and `freestyle_tricks` / `freestyle_trick_aliases` (Core
-// Tricks data).
-export interface FreestyleBasicComponentSubfield {
-  label:  string;     // e.g. "Direction"
-  values: string[];   // e.g. ["in-out", "out-in"]
-}
-
-export interface FreestyleBasicComponent {
-  key:         string;                              // slug-form, e.g. "dex"
-  name:        string;                              // display, e.g. "Dex"
-  description: string;                              // concise PB-adapted definition
-  subfields:   FreestyleBasicComponentSubfield[];   // empty when no sub-fields
 }
 
 // Core Tricks compact symbolic object — see PART H-pre of the IA plan.
@@ -410,33 +343,16 @@ export interface MediaTagDisplay {
 export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
-  /** Hero-lede paragraphs rendered directly under the hero (no h2).
-   *  Sets the portal framing: videos first, then learning paths, then
-   *  optional reference panels. */
+  /** "What is Freestyle?" intro — heading + paragraphs, rendered as the
+   *  first section under the hero, ahead of the demo video. */
   intro: FreestyleLandingExplainer;
   demoVideo: FreestyleDemoVideo | null;
-  // Three structured surfaces consumed by the reference shelf:
-  basicComponents: FreestyleBasicComponent[];
-  coreTricks:      FreestyleCoreTrickCard[];
-  // Merged Featured strip — formats + curated demonstrations rendered in
-  // one compact grid. Empty array hides the section content.
-  featured:        FreestyleFeaturedItem[];
-  /** Grouped expandable reference shelf rendered after Featured. Each
-   *  Movement Reference section (Landing Page Phase 1, 2026-05-21).
-   *  Replaces the prior collapsed Reference Shelf + duplicated
-   *  standalone "Operators & Modifiers" portal card. Six uniform
-   *  teaser cards (Basic Components / Core Tricks / Operators &
-   *  Modifiers / ADD & Scoring / Notation Basics / Learning Path);
-   *  each carries a single CTA pointing at the destination page where
-   *  depth lives. */
-  movementReference:  FreestyleMovementReference;
-  getStartedTiles: FreestyleGetStartedTile[];
+  // Featured strip — competition formats + curated demonstrations rendered
+  // in one compact grid. Empty array hides the section content.
+  featured: FreestyleFeaturedItem[];
+  // Coming-soon gating for the Start Here / Go Deeper portal cards.
+  totalTricks: number;
   totalRecords: number;
-  recordTypes: number;
-  topHolders: FreestyleLeaderViewModel[];
-  recentRecords: FreestyleRecordViewModel[];
-  totalTricks: number;    // count of tricks in dictionary
-  totalEvents: number;    // count of freestyle events from canonical results
 }
 
 // ── Operator Board ──────────────────────────────────────────────────────
@@ -1865,15 +1781,6 @@ export interface DictionaryTrickCard {
   firstClassChainIncomplete:   boolean;
 }
 
-export interface FreestyleTricksCoverageSummary {
-  canonicalCount: number;          // active rows (review_status != 'pending')
-  pendingInternalCount: number;    // is_active=0 rows authored internally; reserved for future
-  externalOnlyCount: number;       // is_active=0 + review_status='pending' (external placeholders)
-  sourcesLoaded: string[];         // human-readable source names with local data
-  sourcesUnavailable: string[];    // human-readable source names not yet loaded
-  transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
-}
-
 export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system';
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
@@ -2007,36 +1914,9 @@ export interface MovementSystemBrowseView {
   axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
 }
 
-/**
- * Dictionary landing surface (CR-1 of dictionary-coherence-2026-05-18).
- *
- * Renders on /freestyle/tricks when no ?view= parameter is supplied (and
- * no ?family= filter). When either is present, the existing browse-view
- * shaping path runs unchanged.
- *
- * stats counts are pulled at shape time from the DB and the
- * OBSERVATIONAL_TRICKS content module. Card structure + framing +
- * primer + philosophy prose live in
- * src/content/freestyleDictionaryLanding.ts (reversible curator content).
- */
-export interface DictionaryLandingStats {
-  canonicalCount:     number;   // active freestyle_tricks rows with kind='trick'
-  observationalCount: number;   // OBSERVATIONAL_TRICKS row count
-  modifierCount:      number;   // freestyle_trick_modifiers row count
-}
-
-export interface DictionaryLandingContent {
-  framing:            string;
-  stats:              DictionaryLandingStats;
-  cards:              readonly DictionaryLandingCard[];
-  glossaryPrimer:     DictionaryLandingGlossaryPrimer;
-  notationPhilosophy: string;
-}
-
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
-  coverage: FreestyleTricksCoverageSummary;
   activeView: FreestyleTricksActiveView;
 
   // Existing category-grouped view, preserved for ?view=category.
@@ -2059,19 +1939,15 @@ export interface FreestyleTricksIndexContent {
   movementSystemView: MovementSystemBrowseView;
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
-  dictNote: string;                      // small subtle note rendered above the categories
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
   relatedSetGroups: FreestyleRelatedSetLink[];
-  // Dictionary Pedagogy Phase 1 (2026-05-21): per-view pedagogical
-  // intros that teach WHY tricks group the way they do. Rendered at
-  // the top of the browse-view region (after dictNote, before grids).
-  // Each is a single short paragraph; absence = silence (template
-  // branches on truthy string). Movement-system view carries its own
-  // observationalNote inside movementSystemView — kept distinct
-  // because that surface has its own four-axis intro grammar.
+  // dictionaryIntro: plain-language intro rendered once below the hero on
+  // every browse view. familyViewIntro: per-view context note for the
+  // advanced family browse view. Absence = silence (template branches on
+  // truthy string).
+  dictionaryIntro: string | null;
   familyViewIntro: string | null;
-  addViewIntro:    string | null;
 }
 
 export interface FreestyleFamilyGroup {
@@ -2814,12 +2690,28 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
 // `isFirstClass(slug)` to check membership and `getFirstClassTier(slug)`
 // to differentiate visual/test-level behavior.
 //
+// Semantic interpretation: "first-class" means FOUNDATIONAL +
+// PUBLICATION-QUALITY, NOT "elite" or "high-ADD". A trick earns the
+// secondary JOB/ADD strip when (a) its canonical structure is
+// curator-locked, (b) its display + slug are stable, and (c) the trick
+// plays a foundational pedagogical role — the 12 core atoms, the
+// foundational 1-ADD surface vocabulary (anatomical surface stalls,
+// unusual-surface kicks, folk-name surfaces), the operator-first
+// 1-ADD primitives (flying-family), and curator-handpicked compound
+// showcases. The semantic widened 2026-05-22 from an implicit
+// "elite-only" reading to this explicit foundational-band reading.
+//
 // Promotion criteria (apply to BOTH tiers):
 //   - passes assertFirstClassConvergence (derivation == computed ==
 //     official ADD, no doctrine blocker, notation populated)
 //   - stable canonical slug + display name
-//   - educational distinctiveness — adds a dimension not already covered
-//     (operator, family, folk-name equivalence, multi-operator chain)
+//   - foundational role OR publication-quality role — an atom of the
+//     movement vocabulary, a foundational primitive that introduces a
+//     learning dimension (surface family, unusual-surface ADD bucket,
+//     flying-operator decomposition, sui-generis self-token notation,
+//     …), OR a compound that adds an educational dimension not already
+//     covered (operator, family, folk-name equivalence, multi-operator
+//     chain)
 //   - not in DOCTRINE_BLOCKED_SLUGS
 //
 // Tier criteria:
@@ -2835,9 +2727,9 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
 //     "JOB: notation pending" incomplete-state line.
 //
 // To promote a slug: verify the criteria above, add to the appropriate
-// tier with an inline comment naming the educational dimension it adds.
-// To demote: remove the entry; the renderer falls back to standard
-// dictionary-card rendering automatically.
+// tier with an inline comment naming the foundational or educational
+// dimension it adds. To demote: remove the entry; the renderer falls
+// back to standard dictionary-card rendering automatically.
 const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   // 11 atom singletons — full curator data via ATOMIC_FLAG_DECOMPOSITIONS.
   // Orbit deliberately excluded: its base_trick is empty in the DB
@@ -2857,6 +2749,35 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   'around-the-world',    // orbit-class atom (ATW)
   // Compound with full curator data (op-notation + resolved formula).
   'pendulum',            // swing-class compound; only first-class compound at full parity
+  // ── Foundational 1-ADD surface vocabulary (atomic; passes convergence;
+  //    promoted 2026-05-22 to widen "first-class" from "elite" →
+  //    "foundational + publication-quality"). Each entry introduces a
+  //    distinct learning dimension. JOB sourced from curator DB
+  //    op-notation; ADD from ATOMIC_FLAG_DECOMPOSITIONS below.
+  'heel-stall',          // anatomical surface stall (heel); universal stall=1
+  'inside-stall',        // anatomical surface stall (inside-of-foot); base for clipper family
+  'outside-stall',       // anatomical surface stall (outside-of-foot)
+  'head-stall',          // anatomical surface stall (head)
+  'forehead-stall',      // anatomical surface stall (forehead)
+  'neck-stall',          // anatomical surface stall (neck)
+  'knee-stall',          // anatomical surface stall (knee)
+  'shoulder-stall',      // anatomical surface stall (shoulder)
+  'sole-kick',           // unusual-surface kick; introduces the unusual-surface ADD bucket
+  'cloud-kick',          // unusual-surface kick (cloud = back of calf/shin); same bucket as sole-kick + cloud-stall exception
+  'peak-delay',          // folk-name surface stall (peak = rim of ballcap); universal stall=1 applies to folk surfaces
+  // ── Foundational 1-ADD flying-operator primitives. Introduce the
+  //    operator-first chain decomposition at the 1-ADD level.
+  //    flying(1) = 1 ADD; the operator owns the ADD slot, the surface
+  //    is the terminal. See [[feedback_flying_operator_and_folk_surfaces]].
+  'flying-inside',       // flying-operator primitive; chain 'flying > inside'
+  'flying-outside',      // flying-operator primitive; chain 'flying > outside'
+  'double-knee',         // sui-generis self-token JOB ('double knee'); flying-derived ADD
+  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
+  //    ADD-bucket normalization slice). Extend the foundational band
+  //    upward; each exposes a core ADD bucket explicitly.
+  'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
+  'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches flying + dex buckets
+  'flying-clipper',      // 2-ADD flying primitive with xbody; teaches flying + xbody buckets
 ]);
 
 const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
@@ -2873,6 +2794,18 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
   'paradox-symposium-whirl', // multi-operator chain showcase
+]);
+
+// Sui-generis primitives whose curator-locked JOB notation IS the
+// canonical name itself (no decomposable set + terminator chain).
+// double-knee is the founding member (2026-05-22); pendulum mirrors the
+// pattern conceptually but carries '[DEL] [DEX]' in DB op-notation so
+// doesn't trigger the tautology guard. Slugs in this set are exempt
+// from the shapeDictionaryTrickCard tautological-JOB filter so the
+// self-token JOB renders honestly (e.g. "JOB: double knee") instead
+// of falling through to the muted "JOB: notation pending" line.
+const SUI_GENERIS_SELF_TOKEN_SLUGS: ReadonlySet<string> = new Set([
+  'double-knee',
 ]);
 
 /** True when `slug` is in either first-class tier. */
@@ -2993,9 +2926,118 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > (downtime) spin > ss clipper',
   }],
   ['around-the-world', {
-    decomposition:    'full-orbit dex(1) + stall(1) = 2 ADD',
+    // Pedagogical normalization 2026-05-22: foundational tricks teach the
+    // core ADD buckets directly. Prior 'full-orbit dex(1)' was
+    // unnecessarily specialized for a foundational entry; ATW is now read
+    // as plain dex + stall, matching the bucket vocabulary used by other
+    // foundational primitives.
+    decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'toe > ss(midtime) in dex > ss toe',
+  }],
+  // ── Foundational 1-ADD surface vocabulary (added 2026-05-22 with the
+  //    foundational-band first-class widening). Anatomical surface stalls
+  //    + unusual-surface kicks + folk-name surfaces. ADD via the universal
+  //    stall=1 rule for stalls; via the unusual-surface bucket for the two
+  //    kicks. operationalChain mirrors the DB op-notation; ChainSource
+  //    falls back to atomic when DB is somehow stripped.
+  ['heel-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > heel',
+  }],
+  ['inside-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > inside',
+  }],
+  ['outside-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > outside',
+  }],
+  ['head-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > head',
+  }],
+  ['forehead-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > forehead',
+  }],
+  ['neck-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > neck',
+  }],
+  ['knee-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > knee',
+  }],
+  ['shoulder-stall', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > shoulder',
+  }],
+  ['sole-kick', {
+    decomposition:    'unusual surface(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > sole kick',
+  }],
+  ['cloud-kick', {
+    decomposition:    'unusual surface(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > cloud kick',
+  }],
+  ['peak-delay', {
+    decomposition:    'stall(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: '[set] > peak',
+  }],
+  // ── Foundational 1-ADD flying-operator primitives. Operator-first chain
+  //    form; flying owns the ADD slot (flying(1) = 1 ADD). double-knee is
+  //    sui-generis self-token (no [set] > prefix; exempt from the
+  //    tautological-JOB guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
+  ['flying-inside', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'flying > inside',
+  }],
+  ['flying-outside', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'flying > outside',
+  }],
+  ['double-knee', {
+    decomposition:    'flying(1) = 1 ADD',
+    totalAdd:         1,
+    operationalChain: 'double knee',
+  }],
+  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
+  //    ADD-bucket normalization slice). Each exposes a core ADD bucket
+  //    in a foundational, publication-quality entry. cloud-stall teaches
+  //    the unusual-surface bucket pedagogically (parallel to sole-kick /
+  //    cloud-kick); dragonfly-kick + flying-clipper extend the flying-
+  //    operator pattern to the 2-ADD layer with explicit second buckets
+  //    (dex, xbody). flying-clipper's base_trick='clipper' (not self) so
+  //    the convergence-rule isAtomic gate doesn't fire; the card path
+  //    looks up by slug and renders correctly regardless.
+  ['cloud-stall', {
+    decomposition:    'unusual surface (shin)(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > cloud',
+  }],
+  ['dragonfly-kick', {
+    decomposition:    'flying(1) + dex(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'flying > dragonfly',
+  }],
+  ['flying-clipper', {
+    decomposition:    'flying(1) + xbody(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'flying > clipper',
   }],
 ]);
 
@@ -3488,7 +3530,13 @@ function shapeDictionaryTrickCard(
     }
     if (chainValue) {
       const chainLower = chainValue.toLowerCase().trim();
-      const tautological = chainLower === compactLower || chainLower === canonicalLower;
+      // Sui-generis self-token primitives (double-knee, …) carry a
+      // canonical JOB equal to the trick name itself. The tautology
+      // guard would otherwise mute that as "notation pending", which
+      // misrepresents curator intent — these slugs are exempted.
+      const isSelfTokenJob = SUI_GENERIS_SELF_TOKEN_SLUGS.has(indexRow.slug);
+      const tautological = !isSelfTokenJob
+        && (chainLower === compactLower || chainLower === canonicalLower);
       if (!tautological) {
         firstClassChainLabel = chainSource === 'atomic' ? 'OPERATIONAL' : 'JOB';
         firstClassChainValue = chainValue;
@@ -4201,22 +4249,20 @@ export const freestyleService = {
 
     return {
       seo: {
-        title: 'Freestyle Records',
+        title: 'Trick Records',
         description:
-          'Per-trick consecutive records from the freestyle footbag passback community.',
+          'Documented freestyle footbag trick achievements — the most consecutive completions of a trick, on record.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_records',
-        title:      'Freestyle Records',
-        intro:
-          'Best known per-trick consecutive completions from the freestyle community. ' +
-          'Records sourced from the passback video archive.',
+        title:      'Trick Records',
+        intro:      'Some freestyle tricks have been landed hundreds of times in a row.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Records' },
+          { label: 'Trick Records' },
         ],
       },
       content: {
@@ -4237,19 +4283,19 @@ export const freestyleService = {
 
     return {
       seo: {
-        title: 'Freestyle Leaders',
-        description: 'Rankings by number of per-trick consecutive records held.',
+        title: 'Record Leaders',
+        description: 'The players who hold the most documented freestyle trick records.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_leaders',
-        title:      'Freestyle Leaders',
-        intro:      'Players ranked by number of current per-trick consecutive records held.',
+        title:      'Record Leaders',
+        intro:      'Players with the most documented trick records.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Leaders' },
+          { label: 'Record Leaders' },
         ],
       },
       content: {
@@ -4672,16 +4718,16 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Competition',
         description:
-          `Freestyle footbag competition history — top competitors, podium counts, ` +
-          `and event records from ${totalEvents} documented events (1980–present).`,
+          'Freestyle footbag competition history — the events, eras, and documented ' +
+          'results that have shaped the sport since 1980.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_competition',
         title:      'Freestyle Competition',
         intro:
-          `Competition history derived from ${totalEvents} documented freestyle events ` +
-          `(1980–present). Podium counts reflect all freestyle singles formats.`,
+          'Freestyle competition has evolved through decades of events, routines, ' +
+          'and documented results.',
       },
       navigation: {
         breadcrumbs: [
@@ -4755,6 +4801,12 @@ export const freestyleService = {
         title:      'Freestyle Partnerships',
         intro:      'The most significant doubles partnerships in freestyle footbag, ranked by competitive appearances.',
       },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Partnerships' },
+        ],
+      },
       content: {
         buckets,
         allRanked,
@@ -4776,9 +4828,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_history',
         title:      'Freestyle History',
-        intro:
-          'From the early clipper-based vocabulary of the 1980s to the technical plateau of the ' +
-          '2000s and the modern European era. Based on analysis of 774 documented competitive events (1980–2026).',
+        intro:      'Four decades of freestyle footbag: how the moves, the names, and the competitive sport took shape.',
       },
       navigation: {
         breadcrumbs: [
@@ -5145,28 +5195,11 @@ export const freestyleService = {
       addGroups.push(buildGroup(null, 'Unrated / unresolved', addBuckets.get(null) ?? []));
     }
 
-    // ---- Coverage summary --------------------------------------------
-    // Counts mirror what the ADD view actually shows: modifiers are excluded
-    // from the listing, so excluding them from the summary keeps the two
-    // numbers consistent for visitors.
+    // Trick count drives the totalTricks view-model field (used for
+    // view-model completeness; never surfaced as a lead stat).
     const canonicalCount = allRows.filter(
       r => r.is_active === 1 && isTrickRow(r),
     ).length;
-    const externalOnlyCount = allRows.filter(
-      r =>
-        r.is_active === 0 &&
-        r.review_status === 'pending' &&
-        isTrickRow(r),
-    ).length;
-    const coverage: FreestyleTricksCoverageSummary = {
-      canonicalCount,
-      pendingInternalCount: 0,
-      externalOnlyCount,
-      sourcesLoaded: ['footbag.org'],
-      sourcesUnavailable: ['footbagmoves.com (corpus not yet loaded)'],
-      transparencyNote:
-        'External-source placeholders are shown for transparency and coverage tracking.',
-    };
 
     // ---- View toggle --------------------------------------------------
     // DSC-2 slice 3A: ?view=sets is an alias of ?view=component. Both
@@ -5477,16 +5510,14 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Trick Dictionary',
         description:
-          'Reference guide to freestyle footbag tricks — ADD values, categories, ' +
-          'descriptions, and aliases for 70+ documented tricks.',
+          'The freestyle footbag trick dictionary — hundreds of named tricks, ' +
+          'browsable by difficulty, family, and movement system.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_tricks_index',
         title:      'Trick Dictionary',
-        intro:
-          'Browse freestyle tricks by ADD difficulty. Each trick includes notation, ' +
-          'aliases, family, and available media.',
+        intro:      'The movement vocabulary of freestyle footbag.',
       },
       navigation: {
         breadcrumbs: [
@@ -5496,7 +5527,6 @@ export const freestyleService = {
       },
       content: {
         addGroups,
-        coverage,
         activeView,
         groups,
         familyGroups,
@@ -5508,10 +5538,12 @@ export const freestyleService = {
         activeFamily,
         relatedSetGroups,
         totalTricks: canonicalCount,
-        dictNote:
-          'This dictionary is being expanded and aligned with established freestyle notation. ' +
-          'New entries are staged for review before publication.',
-        // Per-view pedagogical intros (Dictionary Pedagogy Phase 1).
+        dictionaryIntro:
+          'Freestyle footbag has a vast and growing movement vocabulary — hundreds of ' +
+          'named tricks. Here they are grouped by ADD, a simple difficulty score: the ' +
+          'more a trick asks of you, the higher its ADD. Start with the gentlest tricks ' +
+          'and explore upward, or switch to another way of browsing below.',
+        // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
           'Members of a family share the same shallow structural skeleton (entry + dex + ' +
@@ -5520,77 +5552,6 @@ export const freestyleService = {
           'regardless of family) and the Movement System view (which clusters by the modifier ' +
           'axes that transform a base). The shared terminal structure under each family ' +
           'heading below is the invariant that makes the cohort cohere.',
-        addViewIntro:
-          'ADD groups cluster tricks by additive structural difficulty, not movement ' +
-          'similarity. Tricks at the same ADD may belong to entirely different families and ' +
-          'use entirely different modifier stacks; topology and ADD are orthogonal axes. ' +
-          'For family-cohesion grouping, use the By family view; for modifier-axis grouping, ' +
-          'use the By movement system view.',
-      },
-    };
-  },
-
-  /**
-   * GET /freestyle/tricks (when no ?view= parameter is supplied AND no
-   * ?family= filter — otherwise getFreestyleTricksIndexPage handles).
-   *
-   * CR-1 of exploration/dictionary-coherence-2026-05-18/. Orients
-   * first-time visitors across the six browse axes before they pick
-   * one. Six cards (ADD / Family / Movement System / Movement
-   * Neighborhoods / Observed Tricks / Operators & Components), a
-   * 3-chip stat row, ontology framing, glossary primer callout, and
-   * one paragraph on notation philosophy.
-   *
-   * Content (cards + framing + primer + philosophy) is curator-authored
-   * in src/content/freestyleDictionaryLanding.ts. Stats counts are
-   * joined from DB + OBSERVATIONAL_TRICKS content module at shape time.
-   *
-   * Observational/canonical separation preserved: cards 4 + 5
-   * (Movement Neighborhoods + Observed Tricks) carry isObservational=true
-   * which drives the observational badge in the template; no
-   * observational rows inlined into canonical browse views per skill
-   * doctrine A.
-   */
-  getDictionaryLandingPage(): PageViewModel<DictionaryLandingContent> {
-    const activeRows = runSqliteRead('freestyleTricks.listAll', () =>
-      freestyleTricks.listAll.all() as FreestyleTrickRow[],
-    );
-    const canonicalCount = activeRows.filter(r => resolveTrickKind(r.slug) === 'trick').length;
-
-    const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
-      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
-    );
-
-    const stats: DictionaryLandingStats = {
-      canonicalCount,
-      observationalCount: OBSERVATIONAL_TRICKS.length,
-      modifierCount:      modifierRows.length,
-    };
-
-    return {
-      seo: {
-        title:       'Freestyle Trick Dictionary',
-        description:
-          'Choose how to browse the freestyle trick dictionary: by ADD, by family, by movement system, by movement neighborhood, or browse observed tricks staged before canonical promotion.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_tricks_landing',
-        title:      'Trick Dictionary',
-        eyebrow:    'Freestyle',
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Trick Dictionary' },
-        ],
-      },
-      content: {
-        framing:            DICTIONARY_LANDING_FRAMING,
-        stats,
-        cards:              DICTIONARY_LANDING_CARDS,
-        glossaryPrimer:     DICTIONARY_LANDING_PRIMER,
-        notationPhilosophy: DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
       },
     };
   },
@@ -5600,16 +5561,14 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Insights',
         description:
-          'Data-driven insights into freestyle footbag: most-used tricks, difficulty trends, ' +
-          'top transitions, and sequence analysis from 774 documented competitive events.',
+          'Patterns across decades of documented competitive freestyle footbag — the tricks, ' +
+          'transitions, and difficulty trends visible in the historical record.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_insights',
         title:      'Freestyle Insights',
-        intro:
-          'Trick and sequence analysis derived from 774 documented competitive events (1980–2026) ' +
-          'and 395 Sick3 format sequences spanning 22 years of ADD-scored competition.',
+        intro:      'Patterns across decades of documented competitive freestyle.',
       },
       navigation: {
         breadcrumbs: [
@@ -5641,16 +5600,15 @@ export const freestyleService = {
   getAddAnalysisPage(): PageViewModel<AddAnalysisContent> {
     return {
       seo: {
-        title:       'ADD Accounting & Analysis — Freestyle',
+        title:       'ADD Analysis — Freestyle',
         description:
           'How freestyle’s difficulty system is constructed, where its components come from, and why sources sometimes count the same trick differently.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_add_analysis',
-        title:      'ADD Accounting & Analysis',
-        intro:
-          'How freestyle’s difficulty system is constructed, where its components come from, and why sources sometimes count the same trick differently.',
+        title:      'ADD Analysis',
+        intro:      'How freestyle players describe trick difficulty, structure, and scoring.',
       },
       navigation: {
         breadcrumbs: [
@@ -5679,21 +5637,20 @@ export const freestyleService = {
   getComboAnalysisPage(): PageViewModel<ComboAnalysisContent> {
     return {
       seo: {
-        title:       'Combo & Run Architecture — Freestyle',
+        title:       'Combo Analysis — Freestyle',
         description:
-          'How freestyle sequences are built: setup tricks, resolution tricks, recovery patterns, concentration vs breadth, transition topology. The patterns that distinguish a memorable combo from a random list of tricks.',
+          'How freestyle tricks connect into longer flowing combinations and runs — setup tricks, resolution tricks, recovery patterns, and the transitions that hold a run together.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_combo_analysis',
-        title:      'Combo & Run Architecture',
-        intro:
-          'How freestyle sequences are built. The vocabulary of setup tricks and resolution tricks; concentration and breadth; recovery and stacking. The patterns that distinguish a memorable combo from a random list of tricks.',
+        title:      'Combo Analysis',
+        intro:      'How freestyle tricks connect into longer flowing combinations and runs.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Combo & Run Architecture' },
+          { label: 'Combo Analysis' },
         ],
       },
       content: FREESTYLE_COMBO_ANALYSIS_CONTENT,
@@ -5924,21 +5881,16 @@ export const freestyleService = {
 
     return {
       seo: {
-        title: 'Observed Tricks (Pending Curator Review)',
+        title: 'Observed Tricks',
         description:
-          'Observational layer: tricks documented in external corpora ' +
-          '(PassBack, FootbagMoves, Shred Global, Footbag Finland) that ' +
-          'are not yet curator-confirmed canonical. Surfaces only — no ' +
-          'hashtag identity, no media, no canonical detail pages.',
+          'Freestyle trick names and movement patterns documented by the wider ' +
+          'community that have not yet been fully reviewed for the official dictionary.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Observed Tricks',
-        intro:
-          'Trick names documented in external corpora that the curator ' +
-          'has NOT yet promoted to canonical status. Source-attributed; ' +
-          'pending review.',
+        intro:      'Documented trick names and movement patterns that have not yet been fully reviewed.',
       },
       navigation: {
         breadcrumbs: [
@@ -5951,12 +5903,10 @@ export const freestyleService = {
         totalEntries:        cards.length,
         sources,
         layerNote:
-          'These entries observe what external sources document. They do not ' +
-          'override or extend the canonical curated set. Promotion to ' +
-          'canonical requires curator review against the Curated Trick ' +
-          'Publication Contract (V1 + V2). Cards on this surface deliberately ' +
-          'lack hashtag chips and trick-detail pages — those are canonical-only ' +
-          'affordances.',
+          'These are trick names and movement patterns documented by the wider ' +
+          'freestyle community. They are tracked here while a curator reviews ' +
+          'them; until that review is complete they are not part of the ' +
+          'official trick dictionary, so they carry no tag identity or detail page.',
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
@@ -5991,9 +5941,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_operators',
         title:      'Operators & Modifiers',
-        intro:
-          'The freestyle modifier vocabulary in one place — what each operator ' +
-          'feels like, how it decomposes structurally, and which tricks use it.',
+        intro:      'The movement ideas that transform one trick into many related variations.',
       },
       navigation: {
         breadcrumbs: [
@@ -6168,35 +6116,22 @@ export const freestyleService = {
       freestyleRecords.countPublicByType.all() as { record_type: string; n: number }[],
     );
 
-    const leaderRows = runSqliteRead('freestyleRecords.listLeaders', () =>
-      freestyleRecords.listLeaders.all() as FreestyleLeaderRow[],
-    );
-
-    const recentRows = runSqliteRead('freestyleRecords.listRecentPublic', () =>
-      freestyleRecords.listRecentPublic.all() as FreestyleRecordRow[],
-    );
-
     const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
     );
 
-    const eraRows = runSqliteRead('freestyleCompetition.listEventsByEra', () =>
-      freestyleCompetition.listEventsByEra.all() as FreestyleEraRow[],
-    );
-
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
-    const totalEvents  = eraRows.reduce((sum, r) => sum + r.events, 0);
 
     return {
       seo: {
         title: 'Freestyle',
-        description: 'Freestyle footbag — competition history, passback records, trick dictionary, and history.',
+        description: 'Freestyle footbag — what it is, how to start, and the records, competition, and history behind the sport.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'Learn the movements, watch the sport, and explore the trick vocabulary.',
+        intro: 'Freestyle turns a small footbag into movement, rhythm, and control.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',
@@ -6207,18 +6142,10 @@ export const freestyleService = {
             'Freestyle footbag began with informal Hacky Sack kicking circles in the 1970s and 1980s, evolving from casual play into a technical sport. It is a discipline built on creativity, technical difficulty, and individual style. Freestyle footbag is a great way to exercise due to its versatility and fun, cooperative flow, plus it can be practiced anywhere and anytime.',
             'Players show off their skills by performing sequences of tricks, combining components such as spinning the body, ducking the bag with the head and neck, and dexterities (circling the bag with a leg).',
             'Tricks are linked naturally from one to the next to create flowing, free-form, and expressive strings and combos. The list of tricks is nearly endless and can be combined in any order, giving the sport a huge variety of styles.',
-            'The ADD (Additional Degree of Difficulty) system assigns a numerical value to each trick, enabling objective difficulty scoring alongside subjective judging of execution. The core vocabulary was established by the early 1990s and continues to evolve as players innovate.',
             'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you start learning harder tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
-        basicComponents: BASIC_COMPONENTS.map(c => ({
-          key:         c.key,
-          name:        c.name,
-          description: c.description,
-          subfields:   c.subfields.map(sf => ({ label: sf.label, values: [...sf.values] })),
-        })),
-        coreTricks: shapeCoreTricks(trickRows),
         // Merged Featured strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C):
         // Competition Formats (4) + Demonstrations (2) rendered as one
         // compact curated grid. Formats lead because they're conceptual
@@ -6290,70 +6217,8 @@ export const freestyleService = {
                      ),
           },
         ],
-        movementReference: {
-          title: 'Movement Reference',
-          lede:  'The freestyle language — components, operators, notation, and scoring. Six entry points into the vocabulary behind the dictionary. Each card teases the concept; depth lives on the destination page.',
-          cards: [
-            {
-              slug:         'basic-components',
-              title:        'Basic Components',
-              summary:      'The foundational components — contact surfaces, dexterities, sets, body modifiers — that every trick decomposes into.',
-              linkOutHref:  '/freestyle/glossary#section-surfaces',
-              linkOutLabel: 'Components in the glossary',
-            },
-            {
-              slug:         'core-tricks',
-              title:        'Core Tricks',
-              summary:      'The twelve irreducible base tricks. Most named tricks descend from one of these family-anchor atoms.',
-              linkOutHref:  '/freestyle/tricks?view=family',
-              linkOutLabel: 'Browse by family',
-            },
-            {
-              slug:         'operators-modifiers',
-              title:        'Operators & Modifiers',
-              summary:      'The trick-modifier vocabulary in one place: how each common modifier feels, how it changes a trick, and how modifiers stack to build the names you see in the dictionary.',
-              examples: [
-                { slug: 'pixie',    label: 'pixie'    },
-                { slug: 'spinning', label: 'spinning' },
-                { slug: 'paradox',  label: 'paradox'  },
-              ],
-              linkOutHref:  '/freestyle/operators',
-              linkOutLabel: 'Operator reference',
-            },
-            {
-              slug:         'add-scoring',
-              title:        'ADD & Scoring Basics',
-              summary:      'How ADD measures structural difficulty: each atomic-flag primitive contributes 1, and modifier stacks accumulate above the base trick value.',
-              linkOutHref:  '/freestyle/add-analysis',
-              linkOutLabel: 'ADD analysis',
-            },
-            {
-              slug:         'notation-basics',
-              title:        'Notation Basics',
-              summary:      'A short primer on the compact, operational, and equivalence-chain notation conventions used across the trick pages.',
-              linkOutHref:  '/freestyle/glossary#section-notation',
-              linkOutLabel: 'Notation in the glossary',
-            },
-            {
-              slug:         'learning-path',
-              title:        'Learning Path',
-              summary:      'A curated sequence for readers new to the vocabulary: start with the components, scan the core tricks, then read a compound trick page end-to-end.',
-              linkOutHref:  '/freestyle/learn',
-              linkOutLabel: 'Open the learning surface',
-            },
-          ],
-        },
-        getStartedTiles: [
-          { label: 'Where to buy footbags', href: '#', comingSoon: true },
-          { label: 'Where to buy shoes',    href: '#', comingSoon: true },
-          { label: 'Beginner tutorials',    href: '#', comingSoon: true },
-        ],
+        totalTricks:  trickRows.length,
         totalRecords,
-        recordTypes:   typeCounts.length,
-        topHolders:    shapeLeaders(leaderRows).slice(0, 5),
-        recentRecords: recentRows.map(shapeFreestyleRecord),
-        totalTricks:   trickRows.length,
-        totalEvents,
       },
     };
   },

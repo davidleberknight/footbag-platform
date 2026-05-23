@@ -105,7 +105,7 @@ export function buildSymbolicLearnIndex(operatorBoard: OperatorBoardData): Symbo
   return {
     pageHeading: 'Educational pathways through freestyle footbag',
     pageIntro:
-      'These surfaces sit beside the canonical trick dictionary as an observational educational layer. They teach freestyle physically and mechanically — how a modifier feels, how a family of tricks builds up step by step, how a glossary term shows up across the catalog. The dictionary remains the canonical reference; the surfaces below are companions for learning.',
+      'Guided progression paths for exploring freestyle movement — how a modifier feels, how a family of tricks builds up step by step, how a glossary term shows up across the catalog. The trick dictionary remains the main reference; these are companions for learning.',
     operatorBoard,
     sections: [
       PROGRESSIONS_SECTION,

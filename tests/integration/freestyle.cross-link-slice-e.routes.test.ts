@@ -15,8 +15,10 @@
  *   2. Each glossary §6 modifier-feel card carries a "See tricks using X
  *      →" deep-link to /freestyle/tricks?view=component#component-{slug}.
  *
- *   3. /freestyle/glossary hero carries a "Browse the trick dictionary →"
- *      CTA; /freestyle/tricks hero carries a "Learn the language →" CTA.
+ *   3. Freestyle heroes are breadcrumb + title + subhead only — no
+ *      cross-link CTA inside the hero. The glossary body still
+ *      references the trick dictionary in prose; in-content
+ *      dictionary↔glossary linking is rebuilt in later phases.
  *
  * Four-layer compliance: glossaryAnchor is a NAVIGATION reference (layer
  * 3 → layer 4 jump), not a content collapse. Token text / role / slug
@@ -220,24 +222,24 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
   });
 });
 
-describe('Page-hero cross-link CTAs', () => {
-  it('renders "Browse the trick dictionary →" CTA on the glossary hero', async () => {
+describe('Freestyle heroes carry no cross-link CTA clutter', () => {
+  it('glossary hero no longer carries a hero-cross-link CTA', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="hero-cross-link"');
-    expect(res.text).toMatch(
-      /<a href="\/freestyle\/tricks">Browse the trick dictionary &rarr;<\/a>/,
-    );
+    expect(res.text).not.toContain('class="hero-cross-link"');
   });
 
-  it('renders "Learn the language →" CTA on the trick-dictionary hero', async () => {
+  it('trick-dictionary hero no longer carries a hero-cross-link CTA', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="hero-cross-link"');
-    expect(res.text).toMatch(
-      /<a href="\/freestyle\/glossary">Learn the language &rarr;<\/a>/,
-    );
+    expect(res.text).not.toContain('class="hero-cross-link"');
+  });
+
+  it('the glossary still cross-references the trick dictionary in its body', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });

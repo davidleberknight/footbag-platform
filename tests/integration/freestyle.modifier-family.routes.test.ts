@@ -177,12 +177,10 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     expect(res.text).toContain('symposium');
   });
 
-  it('observational-layer badge and footer rendered', async () => {
+  it('disclaimer footer rendered', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/spinning');
-    expect(res.text).toContain('symbolic-layer-badge');
-    expect(res.text.toLowerCase()).toContain('observational');
     expect(res.text).toContain('symbolic-layer-footer');
-    expect(res.text).toMatch(/does not change canonical IFPA family classifications/i);
+    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders glossary link deep-linking to the §13 spinning connective panel', async () => {
@@ -257,11 +255,10 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
     expect(res.text).toContain('stepping');
   });
 
-  it('observational-layer badge and footer rendered', async () => {
+  it('disclaimer footer rendered', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/paradox');
-    expect(res.text).toContain('symbolic-layer-badge');
-    expect(res.text.toLowerCase()).toContain('observational');
     expect(res.text).toContain('symbolic-layer-footer');
+    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {
@@ -342,11 +339,10 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
     expect(res.text).toContain('alpine');
   });
 
-  it('observational-layer badge and footer rendered', async () => {
+  it('disclaimer footer rendered', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/ducking');
-    expect(res.text).toContain('symbolic-layer-badge');
-    expect(res.text.toLowerCase()).toContain('observational');
     expect(res.text).toContain('symbolic-layer-footer');
+    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {

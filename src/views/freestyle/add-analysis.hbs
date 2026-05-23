@@ -6,17 +6,27 @@
   via FREESTYLE_ADD_ANALYSIS_CONTENT; logic-light template; no client JS.
 --}}
 
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
 <div class="wrapper add-analysis-page">
 
-  <header class="page-hero">
-    <h1>{{page.title}}</h1>
-    <p class="page-intro">{{page.intro}}</p>
-    <p class="page-philosophy">{{content.philosophyParagraph}}</p>
-  </header>
+  <p class="page-philosophy">{{content.philosophyParagraph}}</p>
 
   <section id="how-add-is-built" class="content-section">
     <div class="section-heading">
-      <h2>1. How ADD is built</h2>
+      <h2>How ADD is built</h2>
       <p class="section-intro">
         The ADD (Additional Degree of Difficulty) score measures how
         structurally demanding a trick is. It isn&rsquo;t a stylistic rating
@@ -49,7 +59,7 @@
 
   <section id="worked-examples" class="content-section">
     <div class="section-heading">
-      <h2>2. Worked examples</h2>
+      <h2>Worked examples</h2>
       <p class="section-intro">Foundational atoms first (1-3 ADD), then compounds. Each shows components, the explicit additive breakdown, and a one-line why. The breakdown line is the central pedagogy &mdash; it makes visible where each ADD comes from.</p>
     </div>
 
@@ -74,7 +84,7 @@
   {{#if content.resolvedFormulas.length}}
   <section id="resolved-formulas" class="content-section">
     <div class="section-heading">
-      <h2>2b. Settled compound formula reference</h2>
+      <h2>Settled compound formula reference</h2>
       <p class="section-intro">{{content.resolvedFormulasFraming}}</p>
     </div>
     <table class="resolved-formulas-table">
@@ -102,7 +112,7 @@
 
   <section id="discrepancies" class="content-section">
     <div class="section-heading">
-      <h2>3. ADD discrepancies &amp; why they happen</h2>
+      <h2>ADD discrepancies &mdash; why they happen</h2>
       <p class="section-intro">
         Different sources count the same trick differently. The reasons fall
         into a small number of recognizable patterns. Below are real cases
@@ -201,7 +211,7 @@
 
   <section id="interpretation-notes" class="content-section">
     <div class="section-heading">
-      <h2>4. Interpretation notes</h2>
+      <h2>Interpretation notes</h2>
     </div>
 
     {{#each content.closingParagraphs}}

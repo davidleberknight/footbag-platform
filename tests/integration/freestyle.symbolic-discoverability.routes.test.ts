@@ -89,10 +89,10 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).not.toContain('learn-entry-status');
   });
 
-  it('renders the observational-layer badge', async () => {
+  it('learn hero carries no layer badge (page-standard cleanup)', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
-    expect(res.text).toContain('symbolic-layer-badge');
-    expect(res.text.toLowerCase()).toContain('observational');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('symbolic-layer-badge');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {

@@ -130,11 +130,10 @@ describe('GET /freestyle/progression/walking-family', () => {
     expect(fragmentLinks.length).toBeGreaterThanOrEqual(7);
   });
 
-  it('observational-layer attribution rendered', async () => {
+  it('disclaimer footer rendered', async () => {
     const res = await request(createApp()).get('/freestyle/progression/walking-family');
-    expect(res.text).toContain('symbolic-layer-badge');
-    expect(res.text.toLowerCase()).toContain('observational');
-    expect(res.text).toMatch(/does not change canonical IFPA family classifications/i);
+    expect(res.text).toContain('symbolic-layer-footer');
+    expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
   it('breadcrumb back to /freestyle', async () => {

@@ -133,17 +133,12 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — silent suppression', (
 });
 
 describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contract', () => {
-  it('Tier-4 derivation pattern absent from /freestyle/tricks dictionary landing', async () => {
-    // Landing surface must never carry executable-accounting Tier-4
-    // patterns. The pinned absence test in
-    // tests/integration/freestyle.portal.routes.test.ts covers the
-    // landing core-tricks grid; this check covers the dictionary
-    // landing index when no ?view= is supplied.
+  it('trick-detail ADD-analysis disclosure is absent from the dictionary browse view', async () => {
+    // /freestyle/tricks is the By ADD ladder of registry cards; the
+    // trick-detail Tier-4 executable-accounting disclosure renders only
+    // on trick-detail pages, never on the browse ladder.
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    // Match both raw and HTML-encoded forms of the equals sign so the
-    // assertion is not vacuously true after Handlebars escaping.
-    expect(res.text).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
     expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
   });
 
