@@ -81,6 +81,38 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'eggbeater',               canonical_name: 'eggbeater',               adds: '3', base_trick: 'legover',    trick_family: 'legover',   category: 'compound' });
   insertFreestyleTrick(db, { slug: 'paradox-symposium-whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',      trick_family: 'whirl',     category: 'compound' });
 
+  // ─── Tier 2 Wave 1: audit-derived promotions (2026-05-22) ────────────
+  // Mechanical modifier × base derivations; ADD curator-locked via
+  // RESOLVED_FORMULAS_SPRINT_1, JOB chain pending upstream.
+  insertFreestyleTrick(db, { slug: 'atomic-torque',   canonical_name: 'atomic torque',   adds: '6', base_trick: 'torque',  trick_family: 'torque',  category: 'compound', notation: 'ATOMIC TORQUE' });
+  insertFreestyleTrick(db, { slug: 'ducking-mirage',  canonical_name: 'ducking mirage',  adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound', notation: 'DUCKING MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'paradox-drifter', canonical_name: 'paradox drifter', adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound', notation: 'PARADOX DRIFTER' });
+  insertFreestyleTrick(db, { slug: 'spinning-pickup', canonical_name: 'spinning pickup', adds: '3', base_trick: 'pickup',  trick_family: 'pickup',  category: 'compound', notation: 'SPINNING PICKUP' });
+  insertFreestyleTrick(db, { slug: 'tapping-whirl',   canonical_name: 'tapping whirl',   adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound', notation: 'TAPPING WHIRL' });
+
+  // ─── Tier 2 Wave 2: existing RESOLVED_FORMULAS entries promoted into
+  // TIER membership (2026-05-22). 19 slugs already carrying curator-
+  // published derivations; promotion is mechanical (set membership).
+  insertFreestyleTrick(db, { slug: 'atom-smasher',     canonical_name: 'atom smasher',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'dimwalk',          canonical_name: 'dimwalk',          adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-clipper',  canonical_name: 'ducking clipper',  adds: '3', base_trick: 'clipper-stall',   trick_family: 'clipper-stall',   category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-osis',     canonical_name: 'ducking osis',     adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-whirl',    canonical_name: 'ducking whirl',    adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'fog',              canonical_name: 'fog',              adds: '5', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'orbit',            canonical_name: 'orbit',            adds: '2', base_trick: 'orbit',           trick_family: 'orbit',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-blender',  canonical_name: 'paradox blender',  adds: '5', base_trick: 'blender',         trick_family: 'blender',         category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-torque',   canonical_name: 'paradox torque',   adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'rake',             canonical_name: 'rake',             adds: '2', base_trick: 'rake',            trick_family: 'rake',            category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'rev-up',           canonical_name: 'rev up',           adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'rev-whirl',        canonical_name: 'rev whirl',        adds: '3', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'smear',            canonical_name: 'smear',            adds: '3', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'spinning-clipper', canonical_name: 'spinning clipper', adds: '3', base_trick: 'clipper-stall',   trick_family: 'clipper-stall',   category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning-osis',    canonical_name: 'spinning osis',    adds: '4', base_trick: 'osis',            trick_family: 'osis',            category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning-torque',  canonical_name: 'spinning torque',  adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'stepping-whirl',   canonical_name: 'stepping whirl',   adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'symposium-whirl',  canonical_name: 'symposium whirl',  adds: '4', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'whirling-swirl',   canonical_name: 'whirling swirl',   adds: '4', base_trick: 'swirl',           trick_family: 'swirl',           category: 'compound' });
+
   // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
@@ -371,10 +403,19 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       // + guay doctrine-hold release
       'cloud-stall', 'dragonfly-kick', 'flying-clipper',
       'knee-clipper', 'guay',
-      // Tier 2 (9: 4 existing + 5 new)
+      // Tier 2 (9 original + 5 Wave 1 + 19 Wave 2 = 33)
       'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
       'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
       'eggbeater', 'paradox-symposium-whirl',
+      // Wave 1 audit-derived 2026-05-22
+      'atomic-torque', 'ducking-mirage', 'paradox-drifter',
+      'spinning-pickup', 'tapping-whirl',
+      // Wave 2 RESOLVED_FORMULAS promotions 2026-05-22
+      'atom-smasher', 'dimwalk', 'ducking-clipper', 'ducking-osis',
+      'ducking-whirl', 'fog', 'orbit', 'paradox-blender', 'paradox-torque',
+      'rake', 'rev-up', 'rev-whirl', 'smear', 'spinning-clipper',
+      'spinning-osis', 'spinning-torque', 'stepping-whirl',
+      'symposium-whirl', 'whirling-swirl',
     ];
     for (const slug of cohort) {
       const card = cardFor(slug, res.text);

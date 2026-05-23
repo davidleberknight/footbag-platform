@@ -2804,6 +2804,38 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
   'paradox-symposium-whirl', // multi-operator chain showcase
+  // ── Wave 1 audit-derived promotions (2026-05-22). Each fully
+  //    converges with official ADD via mechanical modifier × base
+  //    derivation; no composite-modifier expansion, no doctrine block.
+  'atomic-torque',           // atomic(+2 rot) + torque(4) = 6 ADD
+  'ducking-mirage',          // ducking(+1) + mirage(2) = 3 ADD
+  'paradox-drifter',         // paradox(+1) + drifter(3) = 4 ADD
+  'spinning-pickup',         // spinning(+1) + pickup(2) = 3 ADD
+  'tapping-whirl',           // tapping(+1) + whirl(3) = 4 ADD
+  // ── Wave 2 promotions (2026-05-22): 19 slugs already carrying
+  //    curator-published derivations in RESOLVED_FORMULAS_SPRINT_1
+  //    but never explicitly added to a tier set. Each row's derivation
+  //    is settled; promotion is mechanical (set membership only).
+  //    Audit converges for every row before this batch.
+  'atom-smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
+  'dimwalk',                 // stepping(+1) + butterfly(3) = 4 ADD
+  'ducking-clipper',         // ducking(+1) + clipper-stall(2) = 3 ADD
+  'ducking-osis',            // ducking(+1) + osis(3) = 4 ADD
+  'ducking-whirl',           // ducking(+1) + whirl(3) = 4 ADD
+  'fog',                     // stepping(+1) + paradox(+1) + dlo(3) = 5 ADD
+  'orbit',                   // orbit-class atom
+  'paradox-blender',         // paradox(+1) + blender(4) = 5 ADD
+  'paradox-torque',          // paradox(+1) + torque(4) = 5 ADD
+  'rake',                    // 2-ADD primitive
+  'rev-up',                  // 3-ADD whirl-family primitive
+  'rev-whirl',               // 3-ADD whirl-family primitive
+  'smear',                   // pixie(+1) + mirage(2) = 3 ADD
+  'spinning-clipper',        // spinning(+1) + clipper-stall(2) = 3 ADD
+  'spinning-osis',           // spinning(+1) + osis(3) = 4 ADD
+  'spinning-torque',         // spinning(+1) + torque(4) = 5 ADD
+  'stepping-whirl',          // stepping(+1) + whirl(3) = 4 ADD
+  'symposium-whirl',         // symposium(+1) + whirl(3) = 4 ADD
+  'whirling-swirl',          // whirling(+1) + swirl(3) = 4 ADD
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the

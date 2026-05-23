@@ -46,10 +46,19 @@ const { dbPath } = setTestEnv('3101');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
+// symposium-whirl removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
+// (Wave 2 RESOLVED_FORMULAS promotion). For first-class compounds the
+// tautological chain reading is suppressed AND the inline notation is
+// absent (no curator op_notation populated), so the "formula" slot
+// position no longer falls between title and ADD chip — the structural
+// decomposition surfaces in the first-class secondary row below the
+// status badges instead. The other 3 pilots remain non-first-class
+// (paradox-whirl + spinning-whirl are parser-derivable promotion
+// candidates; dimwalk's chain reading "stepping butterfly" is folk-name
+// resolution, not tautological, and still renders normally).
 const PILOTS = [
   { slug: 'paradox-whirl',   name: 'paradox whirl',   family: 'whirl',     adds: '4' },
   { slug: 'spinning-whirl',  name: 'spinning whirl',  family: 'whirl',     adds: '4' },
-  { slug: 'symposium-whirl', name: 'symposium whirl', family: 'whirl',     adds: '4' },
   { slug: 'dimwalk',         name: 'dimwalk',         family: 'butterfly', adds: '4' },
 ];
 

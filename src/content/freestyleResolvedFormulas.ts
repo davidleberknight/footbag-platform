@@ -463,4 +463,60 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'stepping(+1) + paradox(+1) + dlo(3) = 5 ADD',
     provenance:  'Red pt6 2026-05-04 MODEL_CHANGE: Fog does NOT contain an eggbeater (Bedwetter does). Decomposition is stepping+paradox+dlo with double-leg-over as the 3-ADD base. Folk aliases blurry dlo and blurry dim walk preserved on DB row.',
   },
+
+  // ── Wave 1 low-risk compound promotions (2026-05-22). Each derivation
+  //    is mechanically verifiable from the modifier × base ADD table.
+  //    No composite-modifier expansion, no doctrine block, no folk-name
+  //    ambiguity. Promoted into FIRST_CLASS_TIER_2 (JOB chain pending;
+  //    ADD curator-locked).
+  {
+    slug:        'atomic-torque',
+    name:        'atomic torque',
+    operator:    'atomic',
+    base:        'torque',
+    baseAdd:     4,
+    totalAdd:    6,
+    derivation:  'atomic(+2 rotational) + torque(4) = 6 ADD',
+    provenance:  'atomic = +1 non-rotational / +2 rotational set modifier; torque = 4 ADD rotational compound base. Wave 1 audit derivation 2026-05-22.',
+  },
+  {
+    slug:        'ducking-mirage',
+    name:        'ducking mirage',
+    operator:    'ducking',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'ducking(+1) + mirage(2) = 3 ADD',
+    provenance:  'ducking = +1 midtime body modifier; mirage = 2 ADD core atom (rotational). Wave 1 audit derivation 2026-05-22.',
+  },
+  {
+    slug:        'paradox-drifter',
+    name:        'paradox drifter',
+    operator:    'paradox',
+    base:        'drifter',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'paradox(+1) + drifter(3) = 4 ADD',
+    provenance:  'paradox = +1 body modifier; drifter = 3 ADD rotational compound base. Wave 1 audit derivation 2026-05-22.',
+  },
+  {
+    slug:        'spinning-pickup',
+    name:        'spinning pickup',
+    operator:    'spinning',
+    base:        'pickup',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'spinning(+1) + pickup(2) = 3 ADD',
+    provenance:  'spinning = +1 midtime body modifier; pickup = 2 ADD core atom (non-rotational). Wave 1 audit derivation 2026-05-22.',
+  },
+  {
+    slug:        'tapping-whirl',
+    name:        'tapping whirl',
+    operator:    'tapping',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'tapping(+1) + whirl(3) = 4 ADD',
+    provenance:  'tapping = +1 body modifier; whirl = 3 ADD core atom (rotational). Wave 1 audit derivation 2026-05-22.',
+  },
 ];

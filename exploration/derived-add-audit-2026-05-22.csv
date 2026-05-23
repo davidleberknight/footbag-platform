@@ -1,9 +1,9 @@
 slug,canonical_name,official_add,operational_notation,derived_add,derived_breakdown,status,unsupported_tokens,doctrine_note,promotion_candidate,notes
 around-the-world,around the world,2,,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 assassin,assassin,4,,,,missing-notation,,,0,
-atom-smasher,atom smasher,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+atom-smasher,atom smasher,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 atomic-butterfly,atomic butterfly,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
-atomic-torque,atomic torque,6,,,,missing-notation,,,0,
+atomic-torque,atomic torque,6,,6,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=6,exact,,,0,already_first_class
 barfly,barfly,4,CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],4,[ATAM bracket-flag count] [DEX] + [DEX] + [DEL] + [XBD] = 4 ADD,exact,,,1,
 barrage,barrage,3,CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],3,[ATAM bracket-flag count] [DEX] + [DEX] + [DEL] = 3 ADD,exact,,,1,
 barraging-osis,barraging osis,5,CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],5,[ATAM bracket-flag count] [DEX] + [DEX] + [BOD] + [XBD] + [DEL] = 5 ADD,exact,,,1,
@@ -21,17 +21,17 @@ cloud-kick,cloud kick,1,[set] > cloud kick,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalA
 cloud-stall,cloud stall,2,[set] > cloud,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 cross-body-sole-stall,cross-body sole stall,3,[set] > sole [xbd],3,xbody(+1) + sole-stall(2) = 3 ADD,exact,,,1,
 dada-curve,dada curve,4,,,,missing-notation,,,0,
-dimwalk,dimwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+dimwalk,dimwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 double-around-the-world,double around the world,3,,,,missing-notation,,,0,
 double-knee,double knee,1,double knee,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 double-leg-over,double leg over,3,,,context-dependent token(s) in leading: double — needs curator-published per-trick decomposition,context-dependent,,,0,
 dragonfly-kick,dragonfly kick,2,flying > dragonfly,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 drifter,drifter,3,,,self-token: DRIFTER,self-token,,,0,
 ducking-butterfly,ducking butterfly,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
-ducking-clipper,ducking clipper,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
-ducking-mirage,ducking mirage,3,,,,missing-notation,,,0,
-ducking-osis,ducking osis,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
-ducking-whirl,ducking whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+ducking-clipper,ducking clipper,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
+ducking-mirage,ducking mirage,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
+ducking-osis,ducking osis,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
+ducking-whirl,ducking whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 dyno,dyno,4,,,self-token: DYNO,self-token,,,0,
 eclipse,eclipse,3,,,self-token: ECLIPSE,self-token,,,0,
 eggbeater,eggbeater,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
@@ -40,7 +40,7 @@ flurry,flurry,4,,,,missing-notation,,,0,
 flying-clipper,flying clipper,2,flying > clipper,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 flying-inside,flying inside,1,flying > inside,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 flying-outside,flying outside,1,flying > outside,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
-fog,fog,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,1,
+fog,fog,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
 food-processor,food processor,6,,,,missing-notation,,,0,
 forehead-stall,forehead stall,1,[set] > forehead,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 fury,fury,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,in DOCTRINE_BLOCKED_SLUGS,0,
@@ -74,15 +74,15 @@ neck-stall,neck stall,1,[set] > neck,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,e
 nemesis,nemesis,6,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 nova,nova,4,,,,missing-notation,,,0,
 omelette,omelette,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
-orbit,orbit,2,,2,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=2,exact,,,1,
+orbit,orbit,2,,2,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=2,exact,,,0,already_first_class
 osis,osis,3,,3,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=3,exact,,,0,already_first_class
 outside-stall,outside stall,1,[set] > outside,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 paradon,paradon,4,TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],4,[ATAM bracket-flag count] [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD,exact,,,1,
-paradox-blender,paradox blender,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,1,
-paradox-drifter,paradox drifter,4,,,,missing-notation,,,0,
+paradox-blender,paradox blender,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
+paradox-drifter,paradox drifter,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 paradox-mirage,paradox mirage,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 paradox-symposium-whirl,paradox symposium whirl,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
-paradox-torque,paradox torque,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,1,
+paradox-torque,paradox torque,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
 paradox-whirl,paradox whirl,4,,4,paradox(+1) + whirl(3) = 4 ADD,exact,,,1,
 parkwalk,parkwalk,4,,,,missing-notation,,,0,
 paste,paste,3,TOE > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],3,pixie(+1) + pickup(2) = 3 ADD,exact,,,1,
@@ -92,11 +92,11 @@ phoenix,phoenix,5,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [X
 pickup,pickup,2,,2,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=2,exact,,,0,already_first_class
 pigbeater,pigbeater,4,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],4,pixie(+1) + eggbeater(3) = 4 ADD,exact,,,1,
 plasma,plasma,5,,,,missing-notation,,,0,
-rake,rake,2,,2,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=2,exact,,,1,
+rake,rake,2,,2,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=2,exact,,,0,already_first_class
 reaper,reaper,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 refraction,refraction,3,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
-rev-up,rev up,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
-rev-whirl,rev whirl,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
+rev-up,rev up,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
+rev-whirl,rev whirl,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 reverse-drifter,reverse-drifter,3,,3,[directional: rev] + drifter(3) = 3 ADD,exact,,,1,
 ripstein,ripstein,4,,,self-token: RIPSTEIN,self-token,,,0,
 ripwalk,ripwalk,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
@@ -104,7 +104,7 @@ royale,royale,4,,,,missing-notation,,,0,
 scrambled-eggbeater,scrambled eggbeater,3,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME TOE [DEL],3,atomic(+1) + pickup(2) = 3 ADD,exact,,,1,
 shoulder-stall,shoulder stall,1,[set] > shoulder,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 sidewalk,sidewalk,4,,,self-token: SIDEWALK,self-token,,,0,
-smear,smear,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
+smear,smear,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 smog,smog,4,,,,missing-notation,,,0,
 smoke,smoke,4,,,,missing-notation,,,0,
 smudge,smudge,3,,,,missing-notation,,,0,
@@ -113,15 +113,15 @@ sole-stall,sole stall,2,[set] > sole,,,missing-notation,,,0,
 spender,spender,6,CLIP >> (BACK) SPIN [BOD] >> OP FRONT WHIRL [DEX] [PDX] > (BACK) SPIN [BOD] > SAME CLIP [XBD] [DEL],6,spinning(+1) + paradox(+1) + blender(4) = 6 ADD,exact,,,1,
 spinal-tap,spinal tap,5,TOE > OP OUT [DEX] >> SAME IN [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL],5,tapping(+1) + torque(4) = 5 ADD,exact,,,1,
 spinning-butterfly,spinning butterfly,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
-spinning-clipper,spinning clipper,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,1,
-spinning-osis,spinning osis,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
-spinning-pickup,spinning pickup,3,,,,missing-notation,,,0,
+spinning-clipper,spinning clipper,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
+spinning-osis,spinning osis,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
+spinning-pickup,spinning pickup,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
 spinning-symposium-whirl,spinning symposium whirl,5,,5,spinning(+1) + symposium(+1) + whirl(3) = 5 ADD,exact,,,1,
-spinning-torque,spinning torque,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,1,
+spinning-torque,spinning torque,5,,5,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=5,exact,,,0,already_first_class
 spinning-whirl,spinning whirl,4,,4,spinning(+1) + whirl(3) = 4 ADD,exact,,,1,
 squeeze,squeeze,2,[UNS] [DEL],2,[ATAM bracket-flag count] [UNS] + [DEL] = 2 ADD,exact,,,1,
 stepping-osis,stepping osis,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
-stepping-whirl,stepping whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+stepping-whirl,stepping whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 sumo,sumo,5,,,self-token: SUMO,self-token,,in DOCTRINE_BLOCKED_SLUGS,0,
 superfly,superfly,5,,,self-token: SUPERFLY,self-token,,,0,
 surge,surge,5,,,,missing-notation,,,0,
@@ -129,10 +129,10 @@ surgery,surgery,6,,,,missing-notation,,,0,
 surreal,surreal,6,,,,missing-notation,,,0,
 swirl,swirl,3,,3,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=3,exact,,,0,already_first_class
 symposium-mirage,symposium mirage,3,,3,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=3,exact,,,0,already_first_class
-symposium-whirl,symposium whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+symposium-whirl,symposium whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 tap,tap,3,TOE > OP OUT [DEX] >> SAME IN [DEX] > OP TOE [DEL],3,tapping(+1) + mirage(2) = 3 ADD,exact,,,1,
 tapdown,tapdown,4,,,,missing-notation,,,0,
-tapping-whirl,tapping whirl,4,,,,missing-notation,,,0,
+tapping-whirl,tapping whirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 terrage,terrage,4,,,,missing-notation,,in DOCTRINE_BLOCKED_SLUGS,0,
 toe-stall,toe stall,1,[set] > toe,1,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=1,exact,,,0,already_first_class
 tomahawk,tomahawk,5,,,,missing-notation,,,0,
@@ -143,5 +143,5 @@ venom,venom,6,,,,missing-notation,,,0,
 vortex,vortex,4,,,self-token: VORTEX,self-token,,,0,
 walk-over,walk over,2,,,self-token: WALK OVER,self-token,,,0,
 whirl,whirl,3,,3,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=3,exact,,,0,already_first_class
-whirling-swirl,whirling swirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,1,
+whirling-swirl,whirling swirl,4,,4,[RESOLVED_FORMULAS_SPRINT_1] totalAdd=4,exact,,,0,already_first_class
 witchdoctor,witchdoctor,5,,5,[ATOMIC_FLAG_DECOMPOSITIONS] totalAdd=5,exact,,,1,

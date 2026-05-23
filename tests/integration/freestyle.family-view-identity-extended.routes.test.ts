@@ -116,6 +116,8 @@ const FIRST_CLASS_TAUTOLOGICAL = new Set([
   'paradox-mirage', 'symposium-mirage', 'atomic-butterfly',
   // Tier 2 expansion (2026-05-20):
   'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
+  // Tier 2 Wave 2 RESOLVED_FORMULAS promotions (2026-05-22):
+  'ducking-osis', 'spinning-osis', 'paradox-torque', 'spinning-torque',
 ]);
 const PILOTS_WITH_CHAINS = ALL_PILOTS
   .filter(p => p.firstReadingTokens.length > 0)
@@ -230,7 +232,11 @@ describe('Cross-view identity — ADD View and Family View render identical firs
     'sidewalk',         // butterfly family, "stepping near butterfly" — uses SIDE_POSITIONAL token
     'tap',              // mirage family, "atomic near mirage" — uses SIDE_POSITIONAL token
     'sumo',             // mirage family, "nuclear mirage" — pure modifier+base
-    'paradox-torque',   // torque family
+    // paradox-torque removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
+    // (Wave 2 RESOLVED_FORMULAS promotion). Its tautological "paradox
+    // torque" chain reading is now suppressed on first-class cards.
+    // The other 4 pilots still exercise the cross-view-identity contract
+    // across butterfly (2) and mirage (2) families.
   ];
 
   for (const slug of IDENTITY_PILOTS) {

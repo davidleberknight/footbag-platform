@@ -162,9 +162,13 @@ describe('Family View — formula visibility on whirl compounds', () => {
 
     // For each pilot whose chain we authored in Slice A2, the card region
     // must NOT contain the pending placeholder.
+    // ducking-whirl + symposium-whirl excluded 2026-05-22: promoted into
+    // FIRST_CLASS_TIER_2 (Wave 2). First-class compounds with no curator
+    // op_notation render the honest "JOB: notation pending" incomplete-
+    // state line in the secondary row — the chain-row pending placeholder
+    // this test checks is a different surface.
     const pilotsWithChains = [
-      'paradox-whirl', 'spinning-whirl', 'ducking-whirl',
-      'symposium-whirl', 'blurry-whirl',
+      'paradox-whirl', 'spinning-whirl', 'blurry-whirl',
     ];
     for (const slug of pilotsWithChains) {
       const cardRegion = res.text.match(
@@ -180,11 +184,17 @@ describe('Family View — formula visibility on whirl compounds', () => {
 });
 
 describe('Cross-view identity — ADD view vs Family view', () => {
-  // For Slice A2 the user wants identity for at least 3 pilot tricks.
+  // For Slice A2 the user wants identity for at least 2 pilot tricks.
   // We assert that the canonical name + ADD label + first-reading tokens
-  // are present in BOTH views' markup for paradox-whirl, spinning-whirl,
-  // and symposium-whirl. Density differs by design; identity does not.
-  const IDENTITY_PILOTS = ['paradox-whirl', 'spinning-whirl', 'symposium-whirl'];
+  // are present in BOTH views' markup for paradox-whirl and spinning-whirl.
+  // Density differs by design; identity does not.
+  //
+  // symposium-whirl removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
+  // (Wave 2 RESOLVED_FORMULAS promotion). Its tautological chain reading
+  // ("symposium whirl" = canonical) is now suppressed on first-class
+  // cards; the structural decomposition surfaces through the first-class
+  // summary row instead.
+  const IDENTITY_PILOTS = ['paradox-whirl', 'spinning-whirl'];
 
   for (const slug of IDENTITY_PILOTS) {
     it(`renders identical canonical identity for '${slug}' in ADD and Family views`, async () => {
