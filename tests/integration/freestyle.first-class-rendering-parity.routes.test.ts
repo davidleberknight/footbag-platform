@@ -146,6 +146,30 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'gauntlet',                 canonical_name: 'gauntlet',                 adds: '7', base_trick: 'torque',                   trick_family: 'torque',                   category: 'compound', notation: 'STEPPING DUCKING PARADOX TORQUE' });
   insertFreestyleTrick(db, { slug: 'montage',                  canonical_name: 'montage',                  adds: '7', base_trick: 'whirl',                    trick_family: 'whirl',                    category: 'compound', notation: 'SPINNING DUCKING PARADOX SYMPOSIUM WHIRL' });
 
+  // ─── Tier 2 Wave 4-B: mechanical notation back-fill promotions
+  // (2026-05-22). 18 ordinary modifier+base compounds + 1 foundational
+  // primitive (sole-stall via ATOMIC). All derive cleanly via standard
+  // modifier × base ADD math; notation column now populated.
+  insertFreestyleTrick(db, { slug: 'flail',        canonical_name: 'flail',        adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'SYMPOSIUM ILLUSION' });
+  insertFreestyleTrick(db, { slug: 'magellan',     canonical_name: 'magellan',     adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'PIXIE LEGOVER' });
+  insertFreestyleTrick(db, { slug: 'merkon',       canonical_name: 'merkon',       adds: '3', base_trick: 'legover',         trick_family: 'legover',         category: 'compound', notation: 'SPINNING LEGOVER' });
+  insertFreestyleTrick(db, { slug: 'smudge',       canonical_name: 'smudge',       adds: '3', base_trick: 'illusion',        trick_family: 'illusion',        category: 'compound', notation: 'PIXIE ILLUSION' });
+  insertFreestyleTrick(db, { slug: 'assassin',     canonical_name: 'assassin',     adds: '4', base_trick: 'mirage',          trick_family: 'mirage',          category: 'compound', notation: 'PIXIE DUCKING MIRAGE' });
+  insertFreestyleTrick(db, { slug: 'haze',         canonical_name: 'haze',         adds: '4', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound', notation: 'STEPPING DLO' });
+  insertFreestyleTrick(db, { slug: 'mantis',       canonical_name: 'mantis',       adds: '4', base_trick: 'eggbeater',       trick_family: 'eggbeater',       category: 'compound', notation: 'GYRO EGGBEATER' });
+  insertFreestyleTrick(db, { slug: 'nova',         canonical_name: 'nova',         adds: '4', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound', notation: 'SYMPOSIUM DLO' });
+  insertFreestyleTrick(db, { slug: 'parkwalk',     canonical_name: 'parkwalk',     adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'PIXIE BUTTERFLY' });
+  insertFreestyleTrick(db, { slug: 'royale',       canonical_name: 'royale',       adds: '4', base_trick: 'reverse-drifter', trick_family: 'reverse-drifter', category: 'compound', notation: 'PARADOX REVERSE DRIFTER' });
+  insertFreestyleTrick(db, { slug: 'smog',         canonical_name: 'smog',         adds: '4', base_trick: 'double-leg-over', trick_family: 'double-leg-over', category: 'compound', notation: 'PIXIE DLO' });
+  insertFreestyleTrick(db, { slug: 'smoke',        canonical_name: 'smoke',        adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'PIXIE DRIFTER' });
+  insertFreestyleTrick(db, { slug: 'tapdown',      canonical_name: 'tapdown',      adds: '4', base_trick: 'butterfly',       trick_family: 'butterfly',       category: 'compound', notation: 'TAPPING BUTTERFLY' });
+  insertFreestyleTrick(db, { slug: 'tombstone',    canonical_name: 'tombstone',    adds: '4', base_trick: 'drifter',         trick_family: 'drifter',         category: 'compound', notation: 'STEPPING DRIFTER' });
+  insertFreestyleTrick(db, { slug: 'blurriest',    canonical_name: 'blurriest',    adds: '5', base_trick: 'barfly',          trick_family: 'barfly',          category: 'compound', notation: 'BLURRY BARFLY' });
+  insertFreestyleTrick(db, { slug: 'grave-digger', canonical_name: 'grave digger', adds: '5', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'STEPPING TORQUE' });
+  insertFreestyleTrick(db, { slug: 'tomahawk',     canonical_name: 'tomahawk',     adds: '5', base_trick: 'whirl',           trick_family: 'whirl',           category: 'compound', notation: 'DUCKING PARADOX WHIRL' });
+  insertFreestyleTrick(db, { slug: 'big-apple',    canonical_name: 'big apple',    adds: '6', base_trick: 'torque',          trick_family: 'torque',          category: 'compound', notation: 'GYRO SYMPOSIUM TORQUE' });
+  insertFreestyleTrick(db, { slug: 'sole-stall',   canonical_name: 'sole stall',   adds: '2', base_trick: 'sole-stall',      trick_family: 'sole-stall',      category: 'surface',  notation: 'SOLE STALL', operational_notation: '[set] > sole' });
+
   // ─── Tier 1: foundational 1-ADD vocabulary (added 2026-05-22) ────────
   // Anatomical surface stalls + unusual-surface kicks + folk-name surface +
   // flying-operator primitives. Each carries an ATOMIC_FLAG_DECOMPOSITIONS
@@ -458,6 +482,12 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'pigbeater', 'spinning-whirl', 'tripwalk', 'matador', 'phoenix',
       'spinal-tap', 'spinning-symposium-whirl', 'witchdoctor',
       'mind-bender', 'mullet', 'spender', 'gauntlet', 'montage',
+      // Wave 4-B mechanical notation back-fill promotions 2026-05-22 (19)
+      'flail', 'magellan', 'merkon', 'smudge',
+      'assassin', 'haze', 'mantis', 'nova', 'parkwalk', 'royale',
+      'smog', 'smoke', 'tapdown', 'tombstone',
+      'blurriest', 'grave-digger', 'tomahawk', 'big-apple',
+      'sole-stall',
     ];
     for (const slug of cohort) {
       const card = cardFor(slug, res.text);

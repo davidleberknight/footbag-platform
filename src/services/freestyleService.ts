@@ -2899,6 +2899,31 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spender',                 // spinning(+1) + paradox(+1) + blender(4) = 6 ADD
   'gauntlet',                // stepping(+1) + ducking(+1) + paradox(+1) + torque(4) = 7 ADD
   'montage',                 // spinning(+1) + ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 7 ADD
+  // ── Wave 4-B mechanical notation back-fill promotions (2026-05-22):
+  //    18 ordinary modifier+base compounds + 1 foundational primitive
+  //    (sole-stall via ATOMIC). All derive cleanly via standard
+  //    modifier × base ADD math; no composite-modifier expansion.
+  //    Notation back-filled into the DB notation column in the same slice.
+  'flail',                   // symposium(+1) + illusion(2) = 3 ADD
+  'magellan',                // pixie(+1) + legover(2) = 3 ADD
+  'merkon',                  // spinning(+1) + legover(2) = 3 ADD
+  'smudge',                  // pixie(+1) + illusion(2) = 3 ADD
+  'assassin',                // pixie(+1) + ducking(+1) + mirage(2) = 4 ADD
+  'haze',                    // stepping(+1) + dlo(3) = 4 ADD
+  'mantis',                  // gyro(+1) + eggbeater(3) = 4 ADD
+  'nova',                    // symposium(+1) + dlo(3) = 4 ADD
+  'parkwalk',                // pixie(+1) + butterfly(3) = 4 ADD
+  'royale',                  // paradox(+1) + reverse-drifter(3) = 4 ADD
+  'smog',                    // pixie(+1) + dlo(3) = 4 ADD
+  'smoke',                   // pixie(+1) + drifter(3) = 4 ADD
+  'tapdown',                 // tapping(+1) + butterfly(3) = 4 ADD
+  'tombstone',               // stepping(+1) + drifter(3) = 4 ADD
+  'blurriest',               // blurry(+1 flat) + barfly(4) = 5 ADD (NOT composite carve-out)
+  'grave-digger',            // stepping(+1) + torque(4) = 5 ADD
+  'tomahawk',                // ducking(+1) + paradox-whirl(4) = 5 ADD
+  'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
+  // Foundational 2-ADD primitive parallel to cloud-stall:
+  'sole-stall',              // unusual surface(1) + stall(1) = 2 ADD via ATOMIC
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
@@ -3204,6 +3229,15 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     decomposition:    'dex(1) + dex(1) + bod(1) + xbody(1) + stall(1) = 5 ADD',
     totalAdd:         5,
     operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
+  }],
+  // ── Wave 4-B: sole-stall foundational primitive (2026-05-22).
+  //    Parallel to cloud-stall (which was promoted with curator-locked
+  //    decomposition in the foundational-band slice). sole-stall is the
+  //    sole-of-foot stall — counts under the unusual-surface bucket.
+  ['sole-stall', {
+    decomposition:    'unusual surface(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > sole',
   }],
 ]);
 

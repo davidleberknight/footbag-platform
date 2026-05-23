@@ -298,6 +298,12 @@ describe('dictionary-trick-card — required slots', () => {
       'pigbeater', 'spinning-whirl', 'tripwalk', 'matador', 'phoenix',
       'spinal-tap', 'spinning-symposium-whirl', 'witchdoctor',
       'mind-bender', 'mullet', 'spender', 'gauntlet', 'montage',
+      // Tier 2 — Wave 4-B mechanical notation back-fill (19; 2026-05-22)
+      'flail', 'magellan', 'merkon', 'smudge',
+      'assassin', 'haze', 'mantis', 'nova', 'parkwalk', 'royale',
+      'smog', 'smoke', 'tapdown', 'tombstone',
+      'blurriest', 'grave-digger', 'tomahawk', 'big-apple',
+      'sole-stall',
     ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,
