@@ -262,7 +262,13 @@ describe('First-class trick pilot — browse-card secondary row', () => {
 
   it('non-first-class slugs do NOT render the secondary row in /freestyle/tricks?view=add', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    for (const slug of ['mobius', 'blur']) {
+    // mobius remains non-first-class (H6 fails: gyro(+2) + torque(4) = 6,
+    // but official=5 — composite-modifier issue pending Wave 2 gyro
+    // doctrine resolution). blur was promoted into FIRST_CLASS_TIER_2 in
+    // the 2026-05-22 Wave 3 audit-validated promotions; it now legitimately
+    // renders the first-class secondary row and is no longer a valid
+    // negative control here.
+    for (const slug of ['mobius']) {
       const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
       if (cardIdx < 0) continue; // not present in this test's seeded view
       const cardEnd = res.text.indexOf('</article>', cardIdx);

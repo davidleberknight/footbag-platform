@@ -2861,6 +2861,44 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-whirl',          // stepping(+1) + whirl(3) = 4 ADD
   'symposium-whirl',         // symposium(+1) + whirl(3) = 4 ADD
   'whirling-swirl',          // whirling(+1) + swirl(3) = 4 ADD
+  // ── Wave 3 promotions (2026-05-22): 28 slugs covering the remaining
+  //    audit-validated promotion candidates. 6 via ATAM bracket-flag
+  //    decomposition (squeeze through barraging-osis); 22 via parser-
+  //    derived modifier × base (or composite for witchdoctor). After
+  //    this batch the audit's promotion-candidate pool is closed for
+  //    all rows except composite-modifier compounds (blurry-* / haze /
+  //    food-processor / mantis / nova) and the missing-notation /
+  //    doctrine-blocked / folk-name primitive backlog.
+  // ATAM bracket-flag (6):
+  'squeeze',                 // unusual surface(1) + stall(1) = 2 ADD
+  'barrage',                 // dex(1) + dex(1) + stall(1) = 3 ADD
+  'barfly',                  // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
+  'high-plains-drifter',     // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
+  'paradon',                 // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
+  'barraging-osis',          // dex(1) + dex(1) + bod(1) + xbody(1) + stall(1) = 5 ADD
+  // Parser-derived modifier × base (21) + composite witchdoctor (1):
+  'cross-body-sole-stall',   // xbody(+1) + sole-stall(2) = 3 ADD
+  'legeater',                // quantum(+1) + pickup(2) = 3 ADD
+  'paste',                   // pixie(+1) + pickup(2) = 3 ADD
+  'reverse-drifter',         // [directional: rev] + drifter(3) = 3 ADD
+  'scrambled-eggbeater',     // atomic(+1) + pickup(2) = 3 ADD
+  'tap',                     // tapping(+1) + mirage(2) = 3 ADD
+  'blur',                    // stepping(+1) + paradox(+1) + mirage(2) = 4 ADD
+  'hatchet',                 // diving(+1) + whirl(3) = 4 ADD
+  'paradox-whirl',           // paradox(+1) + whirl(3) = 4 ADD
+  'pigbeater',               // pixie(+1) + eggbeater(3) = 4 ADD
+  'spinning-whirl',          // spinning(+1) + whirl(3) = 4 ADD
+  'tripwalk',                // quantum(+1) + butterfly(3) = 4 ADD
+  'matador',                 // nuclear(+2) + butterfly(3) = 5 ADD
+  'phoenix',                 // pixie(+1) + ducking(+1) + butterfly(3) = 5 ADD
+  'spinal-tap',              // tapping(+1) + torque(4) = 5 ADD
+  'spinning-symposium-whirl',// spinning(+1) + symposium(+1) + whirl(3) = 5 ADD
+  'witchdoctor',             // atom-smasher(4) + symposium(+1) = 5 ADD (composite)
+  'mind-bender',             // ducking(+1) + paradox(+1) + blender(4) = 6 ADD
+  'mullet',                  // ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD
+  'spender',                 // spinning(+1) + paradox(+1) + blender(4) = 6 ADD
+  'gauntlet',                // stepping(+1) + ducking(+1) + paradox(+1) + torque(4) = 7 ADD
+  'montage',                 // spinning(+1) + ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 7 ADD
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
@@ -3129,6 +3167,43 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > leggy in dex > ss inside',
+  }],
+  // ── Wave 3 ATAM bracket-flag derivations (2026-05-22). Each
+  //    decomposition translates the operational_notation's ATAM
+  //    bracket flags ([BOD] [DEX] [XBD] [DEL] [UNS] [PDX]) into the
+  //    foundational bucket vocabulary. operationalChain mirrors the
+  //    curator-authored DB op_notation. base_trick varies; the card-
+  //    render path uses slug-keyed lookup so the strip renders
+  //    correctly regardless of the isAtomic convergence gate.
+  ['squeeze', {
+    decomposition:    'unusual surface(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[UNS] [DEL]',
+  }],
+  ['barrage', {
+    decomposition:    'dex(1) + dex(1) + stall(1) = 3 ADD',
+    totalAdd:         3,
+    operationalChain: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',
+  }],
+  ['barfly', {
+    decomposition:    'dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD',
+    totalAdd:         4,
+    operationalChain: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
+  }],
+  ['high-plains-drifter', {
+    decomposition:    'dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD',
+    totalAdd:         4,
+    operationalChain: 'CLIP > SAME IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',
+  }],
+  ['paradon', {
+    decomposition:    'dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD',
+    totalAdd:         4,
+    operationalChain: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
+  }],
+  ['barraging-osis', {
+    decomposition:    'dex(1) + dex(1) + bod(1) + xbody(1) + stall(1) = 5 ADD',
+    totalAdd:         5,
+    operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
   }],
 ]);
 

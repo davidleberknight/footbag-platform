@@ -46,8 +46,19 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Seed a butterfly-family compound whose chain reading uses modifiers
+  // Seed a whirl-family compound whose chain reading uses modifiers
   // and a base-anchor — the rendered card must wrap both in anchor links.
+  // blurry-whirl is the rendering target because it remains non-first-
+  // class (composite-modifier compound; blurry → stepping+paradox
+  // expansion isn't supported at the parser layer per Red 2026-05-20).
+  // Non-first-class compounds preserve their tautological chain readings,
+  // so blurry-whirl's "blurry whirl" reading still renders with linked
+  // tokens. paradox-whirl + spinning-whirl were promoted into
+  // FIRST_CLASS_TIER_2 in Wave 3 (2026-05-22); their tautological chains
+  // are now suppressed (the first-class summary row carries the structural
+  // decomposition instead). They remain seeded for the resolver-level
+  // tests below which exercise pure text-to-token resolution and are
+  // independent of rendering.
   insertFreestyleTrick(db, {
     slug:           'paradox-whirl',
     canonical_name: 'paradox whirl',
@@ -62,6 +73,14 @@ beforeAll(async () => {
     trick_family:   'whirl',
     category:       'compound',
     adds:           '4',
+    is_active:      1,
+  });
+  insertFreestyleTrick(db, {
+    slug:           'blurry-whirl',
+    canonical_name: 'blurry whirl',
+    trick_family:   'whirl',
+    category:       'compound',
+    adds:           '5',
     is_active:      1,
   });
   // The base anchor for the family.
@@ -123,18 +142,24 @@ describe('SemanticBrowseToken.glossaryAnchor — resolver behavior', () => {
 });
 
 describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnchor is set', () => {
-  it('renders the paradox token as an anchor to /freestyle/glossary#modifier-paradox', async () => {
+  // Target slug switched from paradox-whirl to blurry-whirl 2026-05-22:
+  // paradox-whirl promoted into FIRST_CLASS_TIER_2 in Wave 3, which
+  // suppresses its tautological chain reading on the rendered card.
+  // blurry-whirl remains non-first-class (composite-modifier compound)
+  // and renders its "blurry whirl" tautological chain with linked
+  // tokens — exercising the same SemanticBrowseToken anchor-link
+  // contract this describe block validates.
+
+  it('renders the blurry token as an anchor to /freestyle/glossary#modifier-blurry', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     const card = res.text.match(
-      /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
-    // The paradox token renders as <a class="sem-token sem-token--modifier
-    // sem-token--linked" href="/freestyle/glossary#modifier-paradox" ...>
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-paradox"[^>]*>paradox<\/a>/,
+      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-blurry"[^>]*>blurry<\/a>/,
     );
   });
 
@@ -142,7 +167,7 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const card = res.text.match(
-      /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
     expect(card![0]).toMatch(
@@ -154,11 +179,9 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const card = res.text.match(
-      /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
-    // The whirl token is the family anchor in view=family — must carry
-    // data-anchor="true" alongside the new href.
     expect(card![0]).toMatch(
       /<a class="sem-token sem-token--base-anchor sem-token--linked"[^>]*data-anchor="true"[^>]*data-token-slug="whirl"[^>]*>whirl<\/a>/,
     );
@@ -168,13 +191,11 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     const card = res.text.match(
-      /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
-    // ADD view passes no group anchor, so isFamilyAnchor=false; but the
-    // glossaryAnchor still resolves and the token still renders as <a>.
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-paradox"[^>]*>paradox<\/a>/,
+      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-blurry"[^>]*>blurry<\/a>/,
     );
     expect(card![0]).toMatch(
       /<a class="sem-token sem-token--base-anchor sem-token--linked"[^>]*href="\/freestyle\/glossary#term-whirl"[^>]*>whirl<\/a>/,

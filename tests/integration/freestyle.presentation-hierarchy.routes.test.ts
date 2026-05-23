@@ -46,19 +46,18 @@ const { dbPath } = setTestEnv('3101');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-// symposium-whirl removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
-// (Wave 2 RESOLVED_FORMULAS promotion). For first-class compounds the
-// tautological chain reading is suppressed AND the inline notation is
-// absent (no curator op_notation populated), so the "formula" slot
-// position no longer falls between title and ADD chip — the structural
-// decomposition surfaces in the first-class secondary row below the
-// status badges instead. The other 3 pilots remain non-first-class
-// (paradox-whirl + spinning-whirl are parser-derivable promotion
-// candidates; dimwalk's chain reading "stepping butterfly" is folk-name
-// resolution, not tautological, and still renders normally).
+// Wave 3 (2026-05-22): paradox-whirl + spinning-whirl removed —
+// promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl (Wave 2).
+// First-class compounds with tautological chain readings (canonical-
+// name-equal) have those readings suppressed AND have no inline
+// dict-card-notation rendered, so the "formula" slot no longer falls
+// between title and ADD chip — the structural decomposition surfaces
+// in the first-class secondary row below the status badges instead.
+//
+// dimwalk remains in PILOTS: its chain reading "stepping butterfly"
+// is folk-name resolution (≢ canonical), so tautological suppression
+// does NOT fire and the formula slot still renders.
 const PILOTS = [
-  { slug: 'paradox-whirl',   name: 'paradox whirl',   family: 'whirl',     adds: '4' },
-  { slug: 'spinning-whirl',  name: 'spinning whirl',  family: 'whirl',     adds: '4' },
   { slug: 'dimwalk',         name: 'dimwalk',         family: 'butterfly', adds: '4' },
 ];
 
@@ -170,13 +169,20 @@ describe('Presentation-hierarchy contract — Family View (registry density, pos
 describe('Presentation-hierarchy contract — cross-density identity', () => {
   // The whole point of the normalization: same trick presents the same
   // canonical hierarchy in both densities.
-  it('paradox-whirl renders title → formula → ADD in BOTH ADD and Family views', async () => {
+  it('dimwalk renders title → formula → ADD in BOTH ADD and Family views', async () => {
+    // Target swapped from paradox-whirl to dimwalk 2026-05-22: paradox-
+    // whirl promoted into FIRST_CLASS_TIER_2 in Wave 3, which suppresses
+    // its tautological "paradox whirl" chain reading. dimwalk is also
+    // first-class but its chain reading "stepping butterfly" is folk-
+    // name resolution (≢ canonical "dimwalk"), so the chain still
+    // renders and the formula slot still falls between title and ADD —
+    // preserving the canonical-field-order contract this test asserts.
     const app = createApp();
     const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
 
-    const addCard = cardRegion(add.text, 'paradox-whirl');
-    const famCard = cardRegion(fam.text, 'paradox-whirl');
+    const addCard = cardRegion(add.text, 'dimwalk');
+    const famCard = cardRegion(fam.text, 'dimwalk');
     expect(addCard).not.toBeNull();
     expect(famCard).not.toBeNull();
 

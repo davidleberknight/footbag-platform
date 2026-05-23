@@ -267,13 +267,37 @@ describe('dictionary-trick-card — required slots', () => {
     // src/services/freestyleService.ts. Update both together when the
     // cohort changes.
     const FIRST_CLASS_COHORT_SLUGS = [
-      // Tier 1 (12: 11 atoms + pendulum)
+      // Tier 1 — 12 elite (11 atoms + pendulum)
       'osis', 'toe-stall', 'clipper-stall', 'mirage', 'whirl', 'butterfly',
       'swirl', 'legover', 'pickup', 'illusion', 'around-the-world', 'pendulum',
-      // Tier 2 (9: 4 original + 5 new)
+      // Tier 1 — foundational 1-ADD primitives (2026-05-22 widening)
+      'heel-stall', 'inside-stall', 'outside-stall', 'head-stall',
+      'forehead-stall', 'neck-stall', 'knee-stall', 'shoulder-stall',
+      'sole-kick', 'cloud-kick', 'peak-delay',
+      'flying-inside', 'flying-outside', 'double-knee',
+      // Tier 1 — foundational 2-ADD primitives (2026-05-22 + knee-clipper + guay)
+      'cloud-stall', 'dragonfly-kick', 'flying-clipper', 'knee-clipper', 'guay',
+      // Tier 2 — original (9)
       'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
       'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
       'eggbeater', 'paradox-symposium-whirl',
+      // Tier 2 — Wave 1 audit-derived (5; 2026-05-22)
+      'atomic-torque', 'ducking-mirage', 'paradox-drifter',
+      'spinning-pickup', 'tapping-whirl',
+      // Tier 2 — Wave 2 RESOLVED_FORMULAS promotions (19; 2026-05-22)
+      'atom-smasher', 'dimwalk', 'ducking-clipper', 'ducking-osis',
+      'ducking-whirl', 'fog', 'orbit', 'paradox-blender', 'paradox-torque',
+      'rake', 'rev-up', 'rev-whirl', 'smear', 'spinning-clipper',
+      'spinning-osis', 'spinning-torque', 'stepping-whirl',
+      'symposium-whirl', 'whirling-swirl',
+      // Tier 2 — Wave 3 audit-validated promotions (28; 2026-05-22)
+      'squeeze', 'barrage', 'barfly', 'high-plains-drifter', 'paradon',
+      'barraging-osis',
+      'cross-body-sole-stall', 'legeater', 'paste', 'reverse-drifter',
+      'scrambled-eggbeater', 'tap', 'blur', 'hatchet', 'paradox-whirl',
+      'pigbeater', 'spinning-whirl', 'tripwalk', 'matador', 'phoenix',
+      'spinal-tap', 'spinning-symposium-whirl', 'witchdoctor',
+      'mind-bender', 'mullet', 'spender', 'gauntlet', 'montage',
     ];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,

@@ -139,19 +139,20 @@ describe('Family View — formula visibility on whirl compounds', () => {
   // The Slice A2 chain additions for whirl-family compounds populate the
   // tokenizedEquivalences slot, so cards render their compositional formula
   // rather than the "Notation pending" placeholder.
-  it('renders the "paradox whirl" reading inside the paradox-whirl card', async () => {
+  it('renders the "blurry whirl" reading inside the blurry-whirl card', async () => {
+    // Target swapped from paradox-whirl to blurry-whirl 2026-05-22:
+    // paradox-whirl promoted into FIRST_CLASS_TIER_2 in Wave 3, which
+    // suppresses its tautological chain reading. blurry-whirl remains
+    // non-first-class and renders its compositional formula via the
+    // tokenizedEquivalences slot as this contract requires.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // The card carries data-trick-slug="paradox-whirl"; somewhere inside
-    // its markup, the equivalence row renders 'paradox' and 'whirl' tokens.
-    // We assert the trick's card region contains tokens whose text is
-    // 'paradox' and 'whirl' (order-preserving).
     const cardRegion = res.text.match(
-      /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(cardRegion).not.toBeNull();
-    expect(cardRegion![0]).toMatch(/sem-token[^>]*>paradox</);
+    expect(cardRegion![0]).toMatch(/sem-token[^>]*>blurry</);
     expect(cardRegion![0]).toMatch(/sem-token[^>]*>whirl</);
   });
 
@@ -162,13 +163,15 @@ describe('Family View — formula visibility on whirl compounds', () => {
 
     // For each pilot whose chain we authored in Slice A2, the card region
     // must NOT contain the pending placeholder.
-    // ducking-whirl + symposium-whirl excluded 2026-05-22: promoted into
-    // FIRST_CLASS_TIER_2 (Wave 2). First-class compounds with no curator
+    // ducking-whirl, symposium-whirl excluded 2026-05-22 (Wave 2); paradox-
+    // whirl + spinning-whirl excluded 2026-05-22 (Wave 3) — all promoted
+    // into FIRST_CLASS_TIER_2. First-class compounds with no curator
     // op_notation render the honest "JOB: notation pending" incomplete-
     // state line in the secondary row — the chain-row pending placeholder
-    // this test checks is a different surface.
+    // this test checks is a different surface. Only blurry-whirl remains
+    // non-first-class in the whirl family (composite-modifier compound).
     const pilotsWithChains = [
-      'paradox-whirl', 'spinning-whirl', 'blurry-whirl',
+      'blurry-whirl',
     ];
     for (const slug of pilotsWithChains) {
       const cardRegion = res.text.match(
@@ -184,17 +187,15 @@ describe('Family View — formula visibility on whirl compounds', () => {
 });
 
 describe('Cross-view identity — ADD view vs Family view', () => {
-  // For Slice A2 the user wants identity for at least 2 pilot tricks.
-  // We assert that the canonical name + ADD label + first-reading tokens
-  // are present in BOTH views' markup for paradox-whirl and spinning-whirl.
-  // Density differs by design; identity does not.
-  //
-  // symposium-whirl removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
-  // (Wave 2 RESOLVED_FORMULAS promotion). Its tautological chain reading
-  // ("symposium whirl" = canonical) is now suppressed on first-class
-  // cards; the structural decomposition surfaces through the first-class
-  // summary row instead.
-  const IDENTITY_PILOTS = ['paradox-whirl', 'spinning-whirl'];
+  // Wave 3 (2026-05-22): paradox-whirl + spinning-whirl removed —
+  // promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl (Wave 2).
+  // Their tautological chain readings (= canonical names) are now
+  // suppressed on first-class cards; structural decomposition surfaces
+  // through the first-class summary row instead. blurry-whirl is the
+  // only remaining non-first-class whirl-family compound and the only
+  // pilot that still exercises the cross-view-identity contract for
+  // tautological chain rendering.
+  const IDENTITY_PILOTS = ['blurry-whirl'];
 
   for (const slug of IDENTITY_PILOTS) {
     it(`renders identical canonical identity for '${slug}' in ADD and Family views`, async () => {
