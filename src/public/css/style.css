@@ -2931,6 +2931,233 @@ section.home-media { padding-top: 0; }
   color: var(--text-secondary, #444);
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   /freestyle/compositional-sets — dictionary-hub exploration surface.
+   Sibling to .moves-* above; operator cards in grids + visual ladders
+   for the uptime-reinterpretation section. Restrained palette per the
+   post-IA-cleanup standard (no warm/amber colors; white cards;
+   green-tinted accent for canonical, neutral for platform-tracked,
+   muted for Holden-only).
+   ───────────────────────────────────────────────────────────────────── */
+.compositional-sets-page {
+  max-width: 980px;
+}
+
+.compositional-sets-premise .compositional-sets-canonical-formula {
+  margin: 0.75rem 0 1rem;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  text-align: center;
+}
+.compositional-sets-canonical-formula code {
+  font-size: 1.02rem;
+  color: var(--text-strong, #1e293b);
+  letter-spacing: 0.01em;
+}
+.compositional-sets-canonical-formula figcaption {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+}
+
+.compositional-sets-softener {
+  margin: 0.75rem 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--border, #e2e8f0);
+  color: var(--text-secondary, #475569);
+  font-size: 0.95rem;
+}
+
+.compositional-sets-premise-bridge {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.compositional-sets-cross-link-row {
+  margin: 1rem 0 0;
+  font-size: 0.92rem;
+}
+.compositional-sets-cross-link-sep {
+  margin: 0 6px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.compositional-set-family-intro {
+  margin: 0 0 1rem;
+  max-width: 720px;
+  color: var(--text-secondary, #475569);
+}
+
+.compositional-set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0.5rem 0 0;
+}
+.compositional-set-grid--premise {
+  margin-top: 1rem;
+}
+
+.compositional-set-card {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.compositional-set-card--canonical {
+  border-left-color: var(--accent, #14b8a6);
+}
+.compositional-set-card--platform-tracked {
+  border-left-color: #94a3b8;
+}
+.compositional-set-card--holden-only {
+  border-left-color: #cbd5e1;
+  background: #fafafa;
+}
+
+.compositional-set-card-name {
+  margin: 0 0 6px;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-strong, #1e293b);
+}
+.compositional-set-card-name a {
+  color: inherit;
+  text-decoration-color: var(--accent, #14b8a6);
+  text-underline-offset: 2px;
+}
+
+.compositional-set-card-notation {
+  display: block;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border-radius: 3px;
+  font-size: 0.86rem;
+  color: var(--text-secondary, #475569);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.compositional-set-card-note {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #475569);
+  line-height: 1.4;
+}
+.compositional-set-card-status {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+}
+.compositional-set-card-status--holden-only {
+  color: #94a3b8;
+}
+
+/* Uptime-reinterpretation ladders — visual hierarchy with step indent. */
+.compositional-sets-ladders-intro {
+  max-width: 720px;
+  margin: 0 0 1rem;
+  color: var(--text-secondary, #475569);
+}
+.compositional-ladder {
+  margin: 1rem 0;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-left: 3px solid var(--accent, #14b8a6);
+  border-radius: 4px;
+}
+.compositional-ladder--conflict {
+  border-left-color: #94a3b8;
+  border-left-style: dashed;
+}
+.compositional-ladder-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.compositional-ladder-set-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text-strong, #1e293b);
+}
+.compositional-ladder-set-notation {
+  font-size: 0.86rem;
+  color: var(--text-secondary, #475569);
+  padding: 2px 6px;
+  background: #f8fafc;
+  border-radius: 3px;
+}
+.compositional-ladder-reinterpretation {
+  margin: 6px 0 10px;
+  font-size: 0.95rem;
+  color: var(--text-strong, #1e293b);
+  font-style: italic;
+}
+.compositional-ladder-steps {
+  margin: 0 0 8px;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+.compositional-ladder-step {
+  position: relative;
+  margin: 4px 0;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border-radius: 3px;
+  font-size: 0.88rem;
+}
+.compositional-ladder-step::before {
+  content: '·';
+  position: absolute;
+  left: -1.2rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+}
+.compositional-ladder-step code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-secondary, #475569);
+}
+.compositional-ladder-source {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+.compositional-ladder-source-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+.compositional-ladder-conflict {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-left: 2px dashed #94a3b8;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #475569);
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .compositional-set-grid {
+    grid-template-columns: 1fr;
+  }
+  .compositional-ladder-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 /* ── Trick detail: notes column ─────────────────────────────────────────── */
 .records-table .col-notes {
   font-size: 0.82rem;
@@ -7902,6 +8129,23 @@ a.dict-card-title:hover {
   margin: 0.15rem 0 0 1rem;
   line-height: 1.45;
   font-size: 0.95rem;
+}
+
+/* Compositional-premise (Ben Job 1995) examples in §7. Compact dl with
+   inline notation; visual exploration lives at /freestyle/compositional-sets. */
+.glossary-compositional-premise-examples {
+  margin: 0.5rem 0 1rem;
+  max-width: 720px;
+}
+.glossary-compositional-premise-examples dt {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+.glossary-compositional-premise-examples dd {
+  margin: 0.15rem 0 0 1rem;
+}
+.glossary-compositional-premise-examples code {
+  font-size: 0.92rem;
 }
 
 /* Primitives-and-compounds doctrine block in the Advanced Reference

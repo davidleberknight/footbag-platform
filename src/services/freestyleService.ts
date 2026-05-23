@@ -102,6 +102,10 @@ import {
   resolveModifierCompositionGloss,
 } from '../content/freestyleMovementSystems';
 import {
+  COMPOSITIONAL_SET_FAMILIES,
+  UPTIME_REINTERPRETATION_LADDERS,
+} from '../content/freestyleCompositionalSets';
+import {
   isUnresolvedCompound,
 } from '../content/freestyleUnresolvedCompounds';
 import {
@@ -480,6 +484,53 @@ export interface FreestyleMovesContent {
   unsVariants:        FreestyleMoveLabel[];
   antisymposium:      FreestyleMoveLabel[];
   components:         FreestyleMoveLabel[];
+}
+
+// View-model shapes for /freestyle/compositional-sets. Service-shaped
+// from src/content/freestyleCompositionalSets.ts plus a live dictionary
+// lookup that resolves each card's canonical link target.
+export interface CompositionalSetCardView {
+  name:           string;
+  notation:       string;
+  /** Resolved status — 'canonical' iff a dictionary slug exists. */
+  status:         'canonical' | 'platform-tracked' | 'holden-only';
+  /** /freestyle/tricks/<slug> when status === 'canonical'; null otherwise. */
+  trickHref:      string | null;
+  /** Stable per-card anchor (kebab-case). */
+  anchorId:       string;
+  structuralNote: string | null;
+}
+
+export interface CompositionalSetFamilyView {
+  key:     string;
+  name:    string;
+  intro:   string;
+  members: CompositionalSetCardView[];
+}
+
+export interface UptimeReinterpretationLadderView {
+  setName:          string;
+  setNotation:      string;
+  reinterpretation: string;
+  steps:            readonly string[];
+  sourceCitation:   string;
+  conflictNote:     string | null;
+  anchorId:         string;
+}
+
+export interface FreestyleCompositionalSetsContent {
+  premise: {
+    canonicalFormula: string;
+    softenerNote:     string;
+    examples:         { name: string; notation: string; trickHref: string | null }[];
+  };
+  families: CompositionalSetFamilyView[];
+  ladders:  UptimeReinterpretationLadderView[];
+  crossLinks: {
+    setsReferenceHref:    string;
+    operatorsHref:        string;
+    glossaryNotationHref: string;
+  };
 }
 
 // Kebab-case slug derivation for /freestyle/sets labels. Distinct from the
@@ -6368,6 +6419,119 @@ export const freestyleService = {
         components: [
           'Ducking', 'Diving', 'Spinning', 'Inspinning', 'Gyro',
         ].map(shapeBare),
+      },
+    };
+  },
+
+  getCompositionalSetsPage(): PageViewModel<FreestyleCompositionalSetsContent> {
+    // Sibling to getMovesPage. /freestyle/sets is the flat reference
+    // table (look up a formula); /freestyle/compositional-sets is the
+    // systematic exploration view. Shared dictionary-lookup pattern
+    // resolves canonical trick slugs so cards can link out.
+    const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const trickSlugs = new Set<string>(trickRows.map(r => r.slug));
+
+    const resolveCard = (
+      raw: {
+        name: string;
+        notation: string;
+        statusHint: 'canonical' | 'platform-tracked' | 'holden-only';
+        structuralNote: string | null;
+      },
+    ): CompositionalSetCardView => {
+      // Canonical resolution: a card is canonical iff its display
+      // name (slugified) matches a live dictionary slug. The
+      // statusHint is curator-locked for the 'platform-tracked' and
+      // 'holden-only' buckets; the live check upgrades to 'canonical'
+      // whenever a slug exists, regardless of hint.
+      const slug   = movesAnchorSlug(raw.name);
+      const isCanonical = trickSlugs.has(slug);
+      const status: CompositionalSetCardView['status'] = isCanonical
+        ? 'canonical'
+        : raw.statusHint === 'canonical'
+          ? 'platform-tracked'  // demote: hint said canonical but no slug
+          : raw.statusHint;
+      return {
+        name:           raw.name,
+        notation:       raw.notation,
+        status,
+        trickHref:      isCanonical ? `/freestyle/tricks/${slug}` : null,
+        anchorId:       `compset-${slug}`,
+        structuralNote: raw.structuralNote,
+      };
+    };
+
+    const families: CompositionalSetFamilyView[] = COMPOSITIONAL_SET_FAMILIES.map(f => ({
+      key:     f.key,
+      name:    f.name,
+      intro:   f.intro,
+      members: f.members.map(resolveCard),
+    }));
+
+    const ladders: UptimeReinterpretationLadderView[] = UPTIME_REINTERPRETATION_LADDERS.map(l => ({
+      setName:          l.setName,
+      setNotation:      l.setNotation,
+      reinterpretation: l.reinterpretation,
+      steps:            l.steps,
+      sourceCitation:   l.sourceCitation,
+      conflictNote:     l.conflictNote,
+      anchorId:         `ladder-${movesAnchorSlug(l.setName)}`,
+    }));
+
+    // Premise examples — same four shown in the glossary primer, with
+    // canonical-link resolution applied here so the view can render
+    // each as an operator card with proper cross-link when present.
+    const premiseExamples = [
+      { name: 'Pixie',    notation: 'TOE > SAME IN [DEX] >' },
+      { name: 'Stepping', notation: 'CLIP > OP IN [DEX] >' },
+      { name: 'Blurry',   notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] >' },
+      { name: 'Mobius',   notation: 'SET > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
+    ].map(ex => {
+      const slug = movesAnchorSlug(ex.name);
+      return {
+        name:      ex.name,
+        notation:  ex.notation,
+        trickHref: trickSlugs.has(slug) ? `/freestyle/tricks/${slug}` : null,
+      };
+    });
+
+    return {
+      seo: {
+        title:       'Compositional Sets',
+        description: 'Systematic exploration of how named freestyle sets compose from a small grammar — uptime reinterpretation ladders, family branching, and operator cards.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_compositional_sets',
+        title:      'Compositional Sets',
+        intro:      'How named sets compose from a small grammar.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Compositional Sets' },
+        ],
+      },
+      content: {
+        premise: {
+          canonicalFormula: '(toe | clip) > [(same | op)(in | out) dexterity]* > (same | op)(toe | clip)',
+          softenerNote:
+            'The dictionary\'s operational notation system descends from this compositional grammar, ' +
+            'extending it with additional movement primitives and modifiers — swirl/twirl, body modifiers ' +
+            '(ducking, diving, spinning), no-plant variants (symposium), unusual surfaces, and ' +
+            'torque-class hybrids. The base grammar covers a large central region of the trick language; ' +
+            'the extensions reach into the rest.',
+          examples: premiseExamples,
+        },
+        families,
+        ladders,
+        crossLinks: {
+          setsReferenceHref:    '/freestyle/sets',
+          operatorsHref:        '/freestyle/operators',
+          glossaryNotationHref: '/freestyle/glossary#operational-notation',
+        },
       },
     };
   },

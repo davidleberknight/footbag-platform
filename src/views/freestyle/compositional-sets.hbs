@@ -1,0 +1,168 @@
+{{!--
+  /freestyle/compositional-sets — dictionary-hub exploration of how named
+  freestyle sets compose from a small grammar.
+
+  Sibling to /freestyle/sets (the flat Holden reference table). This
+  surface organizes the same corpus into structural families, surfaces
+  uptime-reinterpretation ladders, and cross-links each canonical-named
+  set to its dictionary entry.
+
+  Design discipline: operator cards in grids; visual ladders for the
+  uptime reinterpretation section; family branching with curator-authored
+  intros — never giant notation blocks.
+--}}
+<section class="hero hero-sm">
+  <div class="wrapper">
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if this.href}}<a href="{{this.href}}">{{this.label}}</a>{{else}}<span>{{this.label}}</span>{{/if}}
+        {{#unless @last}} <span class="breadcrumb-sep" aria-hidden="true">/</span> {{/unless}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+  </div>
+</section>
+
+<div class="wrapper compositional-sets-page">
+
+  {{!-- §1 — The compositional premise --}}
+  <section class="content-section compositional-sets-premise" aria-label="The compositional premise">
+    <h2 class="section-heading">The compositional premise</h2>
+    <p>
+      Named freestyle sets compose from a small grammar. Notation work
+      originating with Ben Job (1995) proposes that every set can be
+      expressed as a sequence of set-type, side, direction, and dexterity
+      tokens. The dictionary's operational notation system descends from
+      that grammar.
+    </p>
+
+    <figure class="compositional-sets-canonical-formula">
+      <code>{{content.premise.canonicalFormula}}</code>
+      <figcaption>The canonical base shape.</figcaption>
+    </figure>
+
+    <p class="compositional-sets-softener">{{content.premise.softenerNote}}</p>
+
+    <p class="compositional-sets-premise-bridge">
+      Within that scope, many named "sets" turn out to be recognizable
+      trick structures performed uptime — miraging reads as the mirage
+      shape, illusioning mirrors illusion, blurry reads as stepping with
+      a paradox second dex. The structural relationships are explored
+      below.
+    </p>
+
+    <div class="compositional-set-grid compositional-set-grid--premise">
+      {{#each content.premise.examples}}
+        <article class="compositional-set-card compositional-set-card--canonical">
+          <p class="compositional-set-card-name">
+            {{#if this.trickHref}}
+              <a href="{{this.trickHref}}">{{this.name}}</a>
+            {{else}}
+              {{this.name}}
+            {{/if}}
+          </p>
+          <code class="compositional-set-card-notation">{{this.notation}}</code>
+        </article>
+      {{/each}}
+    </div>
+
+    <p class="compositional-sets-cross-link-row">
+      <a href="{{content.crossLinks.glossaryNotationHref}}">Glossary primer on operational notation &rarr;</a>
+      <span class="compositional-sets-cross-link-sep" aria-hidden="true">·</span>
+      <a href="{{content.crossLinks.setsReferenceHref}}">Reference table at /freestyle/sets &rarr;</a>
+    </p>
+  </section>
+
+  {{!-- §2 — Family branching --}}
+  {{#each content.families}}
+    <section class="content-section compositional-set-family" id="family-{{this.key}}" aria-label="{{this.name}}">
+      <h2 class="section-heading">{{this.name}}</h2>
+      <p class="compositional-set-family-intro">{{this.intro}}</p>
+      <div class="compositional-set-grid">
+        {{#each this.members}}
+          <article
+            id="{{this.anchorId}}"
+            class="compositional-set-card compositional-set-card--{{this.status}}"
+          >
+            <p class="compositional-set-card-name">
+              {{#if this.trickHref}}
+                <a href="{{this.trickHref}}">{{this.name}}</a>
+              {{else}}
+                {{this.name}}
+              {{/if}}
+            </p>
+            <code class="compositional-set-card-notation">{{this.notation}}</code>
+            {{#if this.structuralNote}}
+              <p class="compositional-set-card-note">{{this.structuralNote}}</p>
+            {{/if}}
+            {{#unless (eq this.status 'canonical')}}
+              <p class="compositional-set-card-status compositional-set-card-status--{{this.status}}">
+                {{#if (eq this.status 'platform-tracked')}}platform-tracked{{/if}}
+                {{#if (eq this.status 'holden-only')}}Holden-only{{/if}}
+              </p>
+            {{/unless}}
+          </article>
+        {{/each}}
+      </div>
+    </section>
+  {{/each}}
+
+  {{!-- §3 — Uptime reinterpretation ladders --}}
+  <section class="content-section compositional-sets-ladders" id="uptime-reinterpretation" aria-label="Uptime reinterpretation ladders">
+    <h2 class="section-heading">Uptime reinterpretation</h2>
+    <p class="compositional-sets-ladders-intro">
+      Several named sets read as trick structures performed uptime. The
+      ladders below show the relationship between a set and its
+      trick-structural source. Where Holden's compilation and later
+      platform analysis disagree, both readings are recorded.
+    </p>
+
+    {{#each content.ladders}}
+      <article
+        id="{{this.anchorId}}"
+        class="compositional-ladder{{#if this.conflictNote}} compositional-ladder--conflict{{/if}}"
+      >
+        <header class="compositional-ladder-header">
+          <p class="compositional-ladder-set-name">{{this.setName}}</p>
+          <code class="compositional-ladder-set-notation">{{this.setNotation}}</code>
+        </header>
+        <p class="compositional-ladder-reinterpretation">&rarr; {{this.reinterpretation}}</p>
+        <ol class="compositional-ladder-steps">
+          {{#each this.steps}}
+            <li class="compositional-ladder-step"><code>{{this}}</code></li>
+          {{/each}}
+        </ol>
+        <p class="compositional-ladder-source"><span class="compositional-ladder-source-label">Source:</span> {{this.sourceCitation}}</p>
+        {{#if this.conflictNote}}
+          <p class="compositional-ladder-conflict">{{this.conflictNote}}</p>
+        {{/if}}
+      </article>
+    {{/each}}
+  </section>
+
+  {{!-- §4 — Sources & cross-links --}}
+  <section class="content-section compositional-sets-sources" aria-label="Sources and cross-links">
+    <h2 class="section-heading">Sources &amp; attribution</h2>
+    <p>
+      Notation grammar originates with Ben Job's 1995 proposal to the
+      footbag discussion list. The family compilation below the premise
+      is Chris Holden's community-curated list (circa 2003), preserved
+      verbatim at <a href="/freestyle/sets">/freestyle/sets</a>. Holden's
+      compilation is a community archive, not platform-canonical doctrine —
+      entries marked <em>Holden-only</em> above are surfaced as
+      community-cited rather than promoted to canonical without curator
+      review.
+    </p>
+    <p class="compositional-sets-cross-link-row">
+      <a href="{{content.crossLinks.setsReferenceHref}}">Reference table &rarr;</a>
+      <span class="compositional-sets-cross-link-sep" aria-hidden="true">·</span>
+      <a href="{{content.crossLinks.operatorsHref}}">Operators &amp; modifiers &rarr;</a>
+      <span class="compositional-sets-cross-link-sep" aria-hidden="true">·</span>
+      <a href="{{content.crossLinks.glossaryNotationHref}}">Glossary §7: notation &rarr;</a>
+    </p>
+  </section>
+
+</div>

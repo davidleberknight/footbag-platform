@@ -159,6 +159,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/compositional-sets — systematic dictionary-hub exploration */
+  compositionalSets(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getCompositionalSetsPage();
+      res.render('freestyle/compositional-sets', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/glossary */
   glossary(_req: Request, res: Response, next: NextFunction): void {
     try {

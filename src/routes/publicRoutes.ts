@@ -56,6 +56,7 @@ publicRouter.get('/freestyle/combo-analysis', freestyleController.comboAnalysis)
 // links.
 publicRouter.get('/freestyle/sets',        freestyleController.moves);
 publicRouter.get('/freestyle/moves',       (_req, res) => res.redirect(301, '/freestyle/sets'));
+publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSets);
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
 publicRouter.get('/freestyle/operators',   freestyleController.operators);
 publicRouter.get('/freestyle/observational', freestyleController.observational);
