@@ -22,8 +22,7 @@ import {
   type ContextModifiers,
 } from './clubBootstrapClassificationService';
 import { identityAccessService } from './identityAccessService';
-import { getStubSesAdapterForTests } from '../adapters/sesAdapter';
-import { config } from '../config/env';
+import { getSesAdapter } from '../adapters/sesAdapter';
 import {
   ConflictError,
   NotFoundError,
@@ -55,12 +54,6 @@ export interface OnboardingTaskView {
   completedAt: string | null;
 }
 
-/**
- * Dashboard task widget shape. Splits tasks by state so the view template
- * can render section headers ("To do" / "Paused" / "Done") without
- * branching on raw state strings. Paused entries carry a resumeUrl back
- * to the wizard card the user detoured from.
- */
 export interface DashboardTaskItem {
   taskType: OnboardingTaskType;
   taskLabel: string;
@@ -77,9 +70,7 @@ export interface DashboardTaskWidget {
   pending:   DashboardTaskItem[];
   paused:    DashboardTaskItem[];
   skipped:   DashboardTaskItem[];
-  completed: DashboardTaskItem[];
   hasOutstanding: boolean;
-  hasAny:    boolean;
 }
 
 const TASK_LABELS: Record<OnboardingTaskType, string> = {
@@ -131,6 +122,7 @@ function transitionTask(
 ): void {
   assertTaskType(taskType);
   const row = ensureTaskRow(memberId, taskType);
+  if (row.state === nextState) return;
   const now = new Date().toISOString();
   const completedAt = nextState === 'completed' ? now : null;
   memberOnboarding.updateState.run(
@@ -160,6 +152,13 @@ function getTaskWidget(memberId: string): OnboardingTaskView[] {
       completedAt: r.completed_at,
     }))
     .sort((a, b) => TASK_TYPE_INDEX[a.taskType] - TASK_TYPE_INDEX[b.taskType]);
+}
+
+function getTaskState(memberId: string, taskType: OnboardingTaskType): OnboardingTaskState | null {
+  const row = memberOnboarding.findByMemberAndType.get(memberId, taskType) as
+    | MemberOnboardingTaskRow
+    | undefined;
+  return row ? row.state as OnboardingTaskState : null;
 }
 
 function startTaskList(memberId: string): void {
@@ -224,9 +223,8 @@ function completeTaskIfOutstanding(memberId: string, taskType: OnboardingTaskTyp
 /**
  * Auto-transition `legacy_claim` to `completed` when the underlying state
  * shows the member is already linked. Returns true if a transition occurred.
- * Called from the wizard GET to keep the widget honest when an out-of-wizard
- * link succeeded before this slice's cross-service hooks landed, or when the
- * member arrived via a side channel.
+ * Handles the case where a link succeeded outside the wizard (e.g. direct
+ * HP claim from the history page, or profile-edit side channel).
  */
 function ensureLegacyClaimReflectsState(memberId: string): boolean {
   const row = memberOnboarding.findByMemberAndType.get(memberId, 'legacy_claim') as
@@ -317,16 +315,14 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   const rows = memberOnboarding.listForMemberWithDetourMeta.all(memberId) as WidgetRow[];
 
   const widget: DashboardTaskWidget = {
-    pending: [], paused: [], skipped: [], completed: [],
-    hasOutstanding: false, hasAny: false,
+    pending: [], paused: [], skipped: [],
+    hasOutstanding: false,
   };
   for (const r of rows) {
     const taskType = r.task_type as OnboardingTaskType;
     if (!(taskType in TASK_TYPE_INDEX)) continue;
     const state = r.state as OnboardingTaskState;
-    // `not_applicable` rows exist for audit/state purposes but never surface
-    // on the dashboard; the widget treats them as if they did not exist.
-    if (state === 'not_applicable') continue;
+    if (state === 'not_applicable' || state === 'completed') continue;
 
     let resumeUrl:   string | null = null;
     let targetStory: string | null = null;
@@ -340,9 +336,6 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
         sourceCard  = meta.source_card  ?? null;
       } catch { /* malformed metadata leaves resume context null */ }
     }
-    // Paused tasks resume at the wizard task GET. The legacy `source_card`
-    // anchor (`?card=`) is not consumed today; emitting the bare task URL
-    // matches the only route shape the wizard actually registers.
     if (state === 'in_progress_paused') {
       resumeUrl = `/register/wizard/${taskType}`;
     }
@@ -358,9 +351,6 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
     } else if (state === 'skipped') {
       ctaLabel = 'Resume task';
       ctaHref  = `/register/wizard/${taskType}`;
-    } else if (state === 'completed') {
-      ctaLabel = 'Review';
-      ctaHref  = `/register/wizard/${taskType}`;
     }
     const item: DashboardTaskItem = {
       taskType,
@@ -373,8 +363,7 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
       ctaLabel,
       ctaHref,
     };
-    if      (state === 'completed')          widget.completed.push(item);
-    else if (state === 'in_progress_paused') widget.paused.push(item);
+    if      (state === 'in_progress_paused') widget.paused.push(item);
     else if (state === 'skipped')            widget.skipped.push(item);
     else if (state === 'pending')            widget.pending.push(item);
   }
@@ -384,29 +373,17 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   widget.pending.sort(sortByCatalog);
   widget.paused.sort(sortByCatalog);
   widget.skipped.sort(sortByCatalog);
-  widget.completed.sort(sortByCatalog);
   widget.hasOutstanding =
     widget.pending.length + widget.paused.length + widget.skipped.length > 0;
-  widget.hasAny =
-    widget.hasOutstanding || widget.completed.length > 0;
   return widget;
 }
 
 // ---------------------------------------------------------------------------
 // Wizard card listing — per-member view of the club_affiliations task.
 //
-// Two card kinds: 'membership' (a pending legacy_person_club_affiliations row
-// for the member's legacy identity, joined to a real clubs row via
-// legacy_club_candidates.mapped_club_id) and 'leadership' (a provisional
-// club_bootstrap_leaders row for the member's legacy identity).
-//
-// Ordering: Stage-aware per MIGRATION_PLAN §9.3 + USER_STORIES line 728. All
-// leadership cards (Stage 1A, "registrant is listed contact / leader of the
-// candidate club") render before any membership card (Stage 1B, "registrant
-// is in the roster but not the listed contact"); within each stage the
-// ordering is alphabetical by club name (ASC, COLLATE NOCASE). Stage 2A
-// (geographically nearby pre-populated clubs) and Stage 2B/3A (onboarding-
-// visible candidates and name search) are not in Phase A scope.
+// Two card kinds: 'membership' (pending legacy_person_club_affiliations) and
+// 'leadership' (provisional club_bootstrap_leaders). Leadership cards render
+// before membership cards; within each kind, alphabetical by club name.
 // ---------------------------------------------------------------------------
 
 export type MembershipConfidenceBand = 'high' | 'medium' | 'low';
@@ -445,9 +422,8 @@ export interface WizardLeadershipCard {
 export type WizardCard = WizardMembershipCard | WizardLeadershipCard;
 
 function confidenceBandFor(score: number | null): MembershipConfidenceBand {
-  // Per A.0 #2: loader emits scores at fixed increments
-  // (0.50 base / 0.70 one-signal / 0.90 both-signals). Thresholds align
-  // to those buckets so each band maps to a real signal-count state.
+  // Scores arrive at fixed increments (0.50 / 0.70 / 0.90) so each band
+  // maps to a real signal-count state.
   if (score === null) return 'low';
   if (score >= 0.90) return 'high';
   if (score >= 0.70) return 'medium';
@@ -532,9 +508,7 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
     };
   });
 
-  // Sort: stage-priority first (leadership = Stage 1A = 0, membership =
-  // Stage 1B = 1), then alphabetical (NOCASE) by club name within each
-  // stage. Matches the cross-stage rule at USER_STORIES line 728.
+  // Leadership before membership, then alphabetical by club name.
   const all: WizardCard[] = [...memberships, ...leaderships];
   const stageOrder = (c: WizardCard): number => (c.kind === 'leadership' ? 0 : 1);
   all.sort((a, b) => {
@@ -566,9 +540,7 @@ interface ClubAffiliationsResult {
 // Read pre-computed evidence rows for a bootstrap leader candidate and split
 // them into the StructuralSignals + ContextModifiers shapes that
 // classifyBootstrapLeader accepts. Defaults missing signals to false so the
-// classifier sees a complete shape even before the legacy_data pre-compute
-// pipeline ships (Slice 1 integration tests fixture-insert the signal rows
-// they need; production wizard use is gated on James's pre-compute).
+// classifier sees a complete shape even when signal rows are absent.
 function readSignalsForCandidate(candidateId: string): {
   structural: StructuralSignals;
   modifiers: ContextModifiers;
@@ -624,10 +596,8 @@ function submitMembershipResponse(
     throw new NotFoundError(`Legacy affiliation candidate not found: ${candidateId}`);
   }
 
-  // 'correct' on a membership card means "this record is wrong" (per A.0 #4:
-  // decline-with-different-audit-tag). The legacy row transitions to
-  // 'rejected' in both 'decline' and 'correct' cases; the audit metadata
-  // records which user button was pressed.
+  // 'correct' = "this record is wrong": same lpca transition as decline,
+  // distinguished only by audit metadata.
   const treatAsDecline = userDecision === 'decline' || userDecision === 'correct';
   const result = clubService.confirmAffiliation(
     candidateId,
@@ -830,10 +800,8 @@ export type WizardFlash =
     };
 
 // Per-method `formState` shapes carried in the `validation_error` arm
-// of `WizardActionResult`. Each shape is typed-per-method so controllers
-// pass through to the template without `as` casts. DD §5.2 (Service
-// action-result shape) requires this for every state-changing service
-// method that can return `validation_error`.
+// of `WizardActionResult`. Typed per-method so controllers pass through
+// to the template without `as` casts.
 
 export type LegacyClaimSubmitFormState = { identifier: string };
 export type LegacyClaimAutoLinkConfirmFormState =
@@ -877,8 +845,7 @@ function advanceAfter(
 }
 
 function captureSinceIndex(): number | null {
-  if (config.sesAdapter !== 'stub') return null;
-  return getStubSesAdapterForTests()?.sentMessages.length ?? 0;
+  return getSesAdapter().captureCurrentMessageIndex();
 }
 
 async function processLegacyClaimSubmit(
@@ -1190,4 +1157,5 @@ export const memberOnboardingService = {
   processShowCompetitiveResultsSubmit,
   processTaskSkip,
   claimHistoricalPersonAndCompleteTask,
+  getTaskState,
 };

@@ -4370,10 +4370,10 @@ export const freestyleService = {
       }));
     }
 
-    // SEO and page title: prefer "About" framing for dict-only tricks with no records
     const hasDictEntry     = dictEntry !== null;
     const hasRecords       = currentRows.length > 0;
-    const seoTitle         = hasRecords ? `${trickName} — Passback Records` : `${trickName} — Trick Reference`;
+    const trickTag         = slugToHashtag(slug);
+    const seoTitle         = `Trick ${trickTag}`;
     const seoDescription   = hasRecords
       ? `Freestyle footbag passback records for ${trickName}. Current record: ${topValue} kicks.`
       : `${trickName}: ${dictEntry?.description ?? 'Freestyle footbag trick reference.'}`;
@@ -4481,6 +4481,7 @@ export const freestyleService = {
           trickName,
           sortName,
           slug,
+          trickTag,
           records:          currentRows.map(shapeFreestyleRecord),
           recordCount:      currentRows.length,
           topValue,

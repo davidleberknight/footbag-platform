@@ -358,10 +358,16 @@ export const memberOnboardingController = {
         transitioned = memberOnboardingService.ensureClubAffiliationsReflectsState(memberId);
       }
       if (transitioned) {
-        const nextHref = nextPendingHref(memberId);
-        res.redirect(303, nextHref);
+        res.redirect(303, nextPendingHref(memberId));
         return;
       }
+
+      const taskState = memberOnboardingService.getTaskState(memberId, taskType);
+      if (taskState === 'completed' || taskState === 'not_applicable') {
+        res.redirect(303, nextPendingHref(memberId));
+        return;
+      }
+
       await renderTaskByType(req, res, taskType);
     } catch (err) {
       logger.error('onboarding getTask error', { error: err instanceof Error ? err.message : String(err) });

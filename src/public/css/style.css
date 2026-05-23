@@ -932,6 +932,7 @@ section.home-media { padding-top: 0; }
 .reference-media-tile > .video-facade-video {
   aspect-ratio: 16 / 9;
   border-radius: 6px;
+  height: auto;
 }
 
 /* Reference Media grid — compact thumbnails (UX3 QC follow-up 2026-05-11).
@@ -4314,6 +4315,11 @@ section.home-media { padding-top: 0; }
 .trick-hero-meta-chip-modifier {
   background: rgba(255, 245, 200, 0.22);
   font-weight: 600;
+}
+.trick-hero-meta-chip-tag {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

@@ -95,6 +95,7 @@ beforeEach(() => {
   const db = new BetterSqlite3(dbPath);
   db.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(LEGACY_ID);
   db.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id = ?').run(MEMBER_ID);
+  db.prepare(`UPDATE member_onboarding_tasks SET state = 'pending', completed_at = NULL WHERE member_id = ? AND task_type = 'legacy_claim'`).run(MEMBER_ID);
   db.close();
 });
 
@@ -170,10 +171,10 @@ describe('claimLegacyAccount — two-actor race', () => {
     db.close();
   });
 
-  // Outer beforeEach resets A only; B also needs clearing between iterations.
   beforeEach(() => {
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id = ?').run(MEMBER_B_ID);
+    db.prepare(`UPDATE member_onboarding_tasks SET state = 'pending', completed_at = NULL WHERE member_id = ? AND task_type = 'legacy_claim'`).run(MEMBER_B_ID);
     db.close();
   });
 
@@ -264,6 +265,7 @@ describe('claimLegacyAccount — two-actor race', () => {
       const resetDb = new BetterSqlite3(dbPath);
       resetDb.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(LEGACY_ID);
       resetDb.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id IN (?, ?)').run(MEMBER_ID, MEMBER_B_ID);
+      resetDb.prepare(`UPDATE member_onboarding_tasks SET state = 'pending', completed_at = NULL WHERE member_id IN (?, ?) AND task_type = 'legacy_claim'`).run(MEMBER_ID, MEMBER_B_ID);
       resetDb.prepare('DELETE FROM outbox_emails WHERE recipient_member_id IN (?, ?)').run(MEMBER_ID, MEMBER_B_ID);
       resetDb.close();
 

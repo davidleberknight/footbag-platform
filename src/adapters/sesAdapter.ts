@@ -23,6 +23,7 @@ export interface SesSendResult {
 
 export interface SesAdapter {
   sendEmail(msg: SesMessage): Promise<SesSendResult>;
+  captureCurrentMessageIndex(): number | null;
 }
 
 interface StubSentMessage extends SesMessage {
@@ -64,6 +65,9 @@ export function createLiveSesAdapter(opts: {
         deliveredAt: new Date().toISOString(),
       };
     },
+    captureCurrentMessageIndex() {
+      return null;
+    },
   };
 }
 
@@ -94,6 +98,9 @@ export function createStubSesAdapter(): StubSesAdapter {
       };
       sent.push(record);
       return { messageId: record.messageId, deliveredAt: record.deliveredAt };
+    },
+    captureCurrentMessageIndex() {
+      return sent.length;
     },
   };
 }

@@ -371,10 +371,7 @@ function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdenti
 
 function buildDashboardTasksView(memberId: string): DashboardTaskWidget | null {
   const widget = memberOnboardingService.getDashboardTaskWidget(memberId);
-  // hasAny is set by the service. A member with no onboarding-task rows
-  // yet (pre-bootstrap state) gets a null widget so the template skips the
-  // surface entirely.
-  return widget.hasAny ? widget : null;
+  return widget.hasOutstanding ? widget : null;
 }
 
 export const memberService = {

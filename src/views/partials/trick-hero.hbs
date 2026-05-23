@@ -16,6 +16,9 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
+      {{#if content.trickTag}}
+      <span class="trick-hero-meta-chip trick-hero-meta-chip-tag">{{content.trickTag}}</span>
+      {{/if}}
       {{#if content.dictEntry.trickFamily}}
       <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a>
       {{/if}}

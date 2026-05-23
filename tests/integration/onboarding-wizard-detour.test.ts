@@ -116,8 +116,8 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
   it('returns empty buckets for a member with no tasks', () => {
     const widget = svc.getDashboardTaskWidget('non-existent-member');
     expect(widget).toEqual({
-      pending: [], paused: [], skipped: [], completed: [],
-      hasOutstanding: false, hasAny: false,
+      pending: [], paused: [], skipped: [],
+      hasOutstanding: false,
     });
   });
 
@@ -133,9 +133,9 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
 
     const widget = svc.getDashboardTaskWidget(MEMBER_WIDGET);
 
-    expect(widget.completed.map((t) => t.taskType)).toContain('first_competition_year');
     expect(widget.paused.map((t) => t.taskType)).toContain('club_affiliations');
     // legacy_claim + show_competitive_results stay pending (started by startTaskList).
+    // first_competition_year is completed, so it does not appear in any bucket.
     expect(widget.pending.map((t) => t.taskType).sort()).toEqual(
       ['legacy_claim', 'show_competitive_results'].sort(),
     );
@@ -144,27 +144,17 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.state).toBe('in_progress_paused');
     expect(paused.targetStory).toBe('M_Create_Club');
     expect(paused.sourceCard).toBe('card_club_affiliations');
-    // Resume routes to the wizard task GET. The source-card anchor (?card=)
-    // is preserved on the view-model (targetStory/sourceCard) for callers
-    // that want it, but the resumeUrl is the bare task URL since that is
-    // the only route the wizard actually registers.
     expect(paused.resumeUrl).toBe('/register/wizard/club_affiliations');
-    // Slice 2 view-shape: pre-shaped label + CTA fields for the partial.
     expect(paused.taskLabel).toBe('Confirm your clubs');
     expect(paused.ctaLabel).toBe('Resume onboarding');
     expect(paused.ctaHref).toBe('/register/wizard/club_affiliations');
-
-    const completed = widget.completed.find((t) => t.taskType === 'first_competition_year')!;
-    expect(completed.taskLabel).toBe('Set your first competition year');
-    expect(completed.ctaLabel).toBe('Review');
-    expect(completed.ctaHref).toBe('/register/wizard/first_competition_year');
 
     const pendingLegacy = widget.pending.find((t) => t.taskType === 'legacy_claim')!;
     expect(pendingLegacy.taskLabel).toBe('Find your past records and clubs');
     expect(pendingLegacy.ctaLabel).toBe('Continue onboarding');
     expect(pendingLegacy.ctaHref).toBe('/register/wizard/legacy_claim');
 
-    expect(widget.hasAny).toBe(true);
+    expect(widget.hasOutstanding).toBe(true);
   });
 
   it('re-pause uses the most recent detour audit metadata', () => {

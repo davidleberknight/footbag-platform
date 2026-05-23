@@ -226,11 +226,10 @@ describe('C4: dashboard widget hides when nothing is outstanding', () => {
 
     const widget = svc.getDashboardTaskWidget(memberId);
     expect(widget.hasOutstanding).toBe(false);
-    expect(widget.completed.length).toBe(3);
     const allBuckets = [
-      ...widget.pending, ...widget.paused, ...widget.skipped, ...widget.completed,
+      ...widget.pending, ...widget.paused, ...widget.skipped,
     ].map((t) => t.taskType);
-    expect(allBuckets).not.toContain('club_affiliations');
+    expect(allBuckets).toHaveLength(0);
   });
 });
 
