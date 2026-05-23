@@ -808,6 +808,20 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
 // ── getMediaItem ───────────────────────────────────────────────────────────
 
 describe('curatorMediaService.getMediaItem', () => {
+  // Sandboxed curated root for the URL-ref tests below. getMediaItem on
+  // youtube/vimeo rows resolves a sidecar under curatedRootDir; without an
+  // override the service throws to prevent reads of the real repo
+  // /curated/ tree. The directory stays empty: these tests only assert
+  // the DB-derived shape (thumbnail_url derivation / stored value), not
+  // sidecar contents, so a missing sidecar file is the expected state.
+  let curatedRoot: string;
+  beforeAll(async () => {
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'get-media-item-curated-'));
+  });
+  afterAll(async () => {
+    await fsp.rm(curatedRoot, { recursive: true, force: true });
+  });
+
   it('returns null for an unknown media id', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     expect(await svc.getMediaItem('media_does_not_exist_xyz')).toBeNull();
@@ -879,7 +893,7 @@ describe('curatorMediaService.getMediaItem', () => {
   // derivation in deriveListThumbnail (DD §6.8: render-time derivation
   // when thumbnail_url IS NULL).
   it('youtube row with NULL thumbnail_url: thumbnailUrl is derived as i.ytimg.com/vi/{video_id}/hqdefault.jpg', async () => {
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), curatedRootDir: curatedRoot });
     const db = openDb();
     const now = new Date().toISOString();
     const mediaId = `media_yt_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -903,7 +917,7 @@ describe('curatorMediaService.getMediaItem', () => {
   });
 
   it('vimeo row with sidecar-supplied thumbnail_url: thumbnailUrl uses the stored value (not derived)', async () => {
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), curatedRootDir: curatedRoot });
     const db = openDb();
     const now = new Date().toISOString();
     const mediaId = `media_vimeo_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

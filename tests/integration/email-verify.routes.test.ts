@@ -341,6 +341,72 @@ describe('POST /verify/resend', () => {
     expect(lenRatio).toBeGreaterThan(0.95);
     expect(lenRatio).toBeLessThan(1.05);
   });
+
+  it('verify resend rate limit is tunable via system_config_current', async () => {
+    // Lower the bucket to 2 via system_config; the 3rd resend should not enqueue.
+    const tuneDb = new BetterSqlite3(dbPath);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'verify_resend_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
+    `).run(
+      'test-verify-resend-rl-tune',
+      '2026-05-22T00:00:00.000Z',
+      '2026-05-22T00:00:00.000Z',
+    );
+    tuneDb.close();
+    try {
+      const TUNE_EMAIL = 'verify-resend-tunable@example.com';
+      const app = createApp();
+      // Register a fresh unverified member; the registration creates the first
+      // outbox row. The per-email bucket for /verify/resend is unused.
+      await request(app).post('/register').type('form').send({
+        realName: 'Verify Resend Tunable',
+        email: TUNE_EMAIL,
+        password: 'verifypass!1',
+        confirmPassword: 'verifypass!1',
+      });
+      // 2 resends are allowed under the configured cap.
+      for (let i = 0; i < 2; i++) {
+        const r = await request(app).post('/verify/resend').type('form').send({ email: TUNE_EMAIL });
+        expect(r.status).toBe(200);
+      }
+      // Bucket is at 2 (= configured limit); the 3rd resend is blocked
+      // (anti-enumeration: response is still 200, but no new outbox row).
+      const before = (() => {
+        const db = new BetterSqlite3(dbPath, { readonly: true });
+        const count = db.prepare(
+          `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
+        ).get(TUNE_EMAIL) as { n: number };
+        db.close();
+        return count.n;
+      })();
+      const blocked = await request(app).post('/verify/resend').type('form').send({ email: TUNE_EMAIL });
+      expect(blocked.status).toBe(200);
+      const after = (() => {
+        const db = new BetterSqlite3(dbPath, { readonly: true });
+        const count = db.prepare(
+          `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
+        ).get(TUNE_EMAIL) as { n: number };
+        db.close();
+        return count.n;
+      })();
+      expect(after).toBe(before);
+    } finally {
+      // Restore the platform default so later tests see 3/attempt.
+      const restoreDb = new BetterSqlite3(dbPath);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'verify_resend_rate_limit_max_attempts', '3', ?, 'Test restore', NULL)
+      `).run(
+        'test-verify-resend-rl-restore',
+        '2026-05-22T00:00:01.000Z',
+        '2026-05-22T00:00:01.000Z',
+      );
+      restoreDb.close();
+    }
+  });
 });
 
 describe('POST /verify/resend — verify-email enqueue failure', () => {

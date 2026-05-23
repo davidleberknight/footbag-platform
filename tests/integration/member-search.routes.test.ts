@@ -52,6 +52,19 @@ beforeAll(async () => {
   insertHistoricalPerson(db, { person_id: 'person-dave-001', person_name: 'Dave Leberknight', country: 'US' });
   insertHistoricalPerson(db, { person_id: 'person-zane-001', person_name: 'Zane Footbag', country: 'CA' });
 
+  // 21 members under a unique prefix exercise the 20-result cap + refine
+  // prompt per M_Search_Members A6. The 'overflow_' prefix avoids collision
+  // with the jane/bob/zane/footbag/lebe queries above.
+  for (let i = 0; i < 21; i++) {
+    const n = i.toString().padStart(2, '0');
+    insertMember(db, {
+      display_name: `Overflow Member ${n}`,
+      real_name: `Overflow Member ${n}`,
+      slug: `overflow_member_${n}`,
+      country: 'US',
+    });
+  }
+
   db.close();
   createApp = await importApp();
 });
@@ -209,5 +222,15 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=zane`).set('Cookie', searcherCookie());
     expect(res.text).toContain('Zane Footbag');
     expect(res.text).toContain('/history/person-zane-001');
+  });
+
+  it('caps results at 20 with refine prompt when 21+ matches exist (M_Search_Members A6)', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${SEARCHER_SLUG}?q=overflow`)
+      .set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Too many results. Please refine your search.');
+    expect(res.text).toMatch(/section-count[^>]*>20\+</);
   });
 });

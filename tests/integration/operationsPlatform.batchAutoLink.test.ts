@@ -337,20 +337,8 @@ describe('runBatchAutoLink — silent claim + notification + card surface', () =
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// US ID:               M_Confirm_Auto_Linked_Identity
-// Derived assertion:   when the notification-email enqueue throws after the
-//                      silent-claim transaction commits, the claim is NOT
-//                      rolled back and a legacy.auto_link_notification_failed
-//                      audit row is persisted so the operator can re-enqueue.
-// Service methods:     identityAccessService.applyAutoLinkSilentClaim,
-//                      communicationService.enqueueEmailOrFail,
-//                      operationalErrors.recordOperationalError
-// STRIDE applicability:
-//   Information Disclosure: applicable (member not notified of identity link).
-//   Tampering:              applicable (claim committed without notification).
-// Technique:           scenario test with a CommunicationService whose
-//                      enqueueEmailOrFail throws ServiceUnavailableError.
-// Risk severity:       high.   ASVS level: L2.   Rigor reached: 3.
+// Auto-link silent-claim notification enqueue failure
+// ─────────────────────────────────────────────────────────────────────────────
 
 describe('runBatchAutoLink — notification enqueue failure (B4)', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports

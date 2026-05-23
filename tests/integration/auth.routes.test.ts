@@ -161,6 +161,50 @@ describe('POST /login — DB-backed auth', () => {
     expect(blocked.text).toContain('Too many failed login attempts');
     expect(blocked.headers['retry-after']).toBeDefined();
   });
+
+  it('login rate limit is tunable via system_config_current', async () => {
+    // Lower the bucket to 2 via system_config; the 3rd login attempt should 429.
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'login_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
+    `).run(
+      'test-login-rl-tune',
+      '2026-05-22T00:00:00.000Z',
+      '2026-05-22T00:00:00.000Z',
+    );
+    tuneDb.close();
+    try {
+      const TUNE_EMAIL = 'tune-test@example.com';
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post('/login')
+          .type('form')
+          .send({ email: TUNE_EMAIL, password: 'wrong-password' });
+        expect(ok.status).toBe(200);
+      }
+      const blocked = await request(app)
+        .post('/login')
+        .type('form')
+        .send({ email: TUNE_EMAIL, password: 'wrong-password' });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      // Restore the seeded default so the four returnTo tests below see 10/attempt.
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'login_rate_limit_max_attempts', '10', ?, 'Test restore', NULL)
+      `).run(
+        'test-login-rl-restore',
+        '2026-05-22T00:00:01.000Z',
+        '2026-05-22T00:00:01.000Z',
+      );
+      restoreDb.close();
+    }
+  });
 });
 
 describe('POST /login — returnTo open-redirect defenses (isSafePath)', () => {

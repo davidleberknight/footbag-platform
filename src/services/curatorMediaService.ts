@@ -957,10 +957,24 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   const findSystemMemberId = deps.findSystemMemberId ?? defaultFindSystemMemberId;
   const videoUrlVerifier =
     deps.videoUrlVerifier ?? videoUrlVerifierOverrideForTests ?? verifyExternalVideoUrl;
-  const curatedRootDir =
-    deps.curatedRootDir ??
-    curatedRootDirOverrideForTests ??
-    path.resolve(process.cwd(), 'curated');
+  // Resolve lazily so construction does not require a curated root.
+  // Read-only tests (e.g. lazy-adapter regressions) build the service
+  // without touching disk; throwing at construction would force every
+  // such test to set an override it never uses. Writes that need the
+  // root call getCuratedRootDir() and get the test-mode guard.
+  function getCuratedRootDir(): string {
+    if (deps.curatedRootDir) return deps.curatedRootDir;
+    if (curatedRootDirOverrideForTests) return curatedRootDirOverrideForTests;
+    if (config.nodeEnv === 'test') {
+      throw new Error(
+        'curatorMediaService: in test mode, either deps.curatedRootDir or ' +
+        'setCuratedRootDirForTests() must be set before exercising disk ' +
+        'paths. Falling through to process.cwd()/curated would write test ' +
+        'artifacts into the real repo.',
+      );
+    }
+    return path.resolve(process.cwd(), 'curated');
+  }
 
   function resolveSystemMemberIdOrThrow(): string {
     const id = findSystemMemberId();
@@ -1009,7 +1023,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // upload form's category picker. Sorted, ENOENT-tolerant. Lives on the
     // service so the controller doesn't need filesystem layout knowledge.
     listExistingCategories(): Promise<string[]> {
-      return listExistingCuratorCategories(curatedRootDir);
+      return listExistingCuratorCategories(getCuratedRootDir());
     },
 
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
@@ -1054,7 +1068,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const ext = detectedImage === 'image/png' ? 'png' : 'jpg';
         const slug = deriveCuratorSlug(input.sourceFilename);
         const binaryName = `${slug}.${ext}`;
-        const categoryDir = path.join(curatedRootDir, input.category);
+        const categoryDir = path.join(getCuratedRootDir(), input.category);
         await fsp.mkdir(categoryDir, { recursive: true });
         await fsp.writeFile(path.join(categoryDir, binaryName), input.photoBuffer);
         await writeSidecar(categoryDir, binaryName, {
@@ -1164,7 +1178,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const slug = deriveCuratorSlug(input.sourceFilename);
         const binaryName = `${slug}.${videoExt}`;
         const posterName = `${slug}.poster.${posterExt}`;
-        const categoryDir = path.join(curatedRootDir, input.category);
+        const categoryDir = path.join(getCuratedRootDir(), input.category);
         await fsp.mkdir(categoryDir, { recursive: true });
         await fsp.writeFile(path.join(categoryDir, binaryName), input.videoBuffer);
         await fsp.writeFile(path.join(categoryDir, posterName), input.posterBuffer);
@@ -1397,7 +1411,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw err;
       }
 
-      const categoryDir = path.join(curatedRootDir, input.category);
+      const categoryDir = path.join(getCuratedRootDir(), input.category);
       // Auto-create the category dir on first use. The admin form lets
       // operators type a new category name; the directory is created at
       // first upload to that name. Existing categories are no-op (recursive
@@ -1467,12 +1481,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let auditEntityId = input.mediaId;
       let auditActionType: 'edit_curated_media' | 'edit_curated_url_reference' = 'edit_curated_media';
       if (isSidecarBacked) {
-        const sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        const sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (!sidecarFilePath) {
           throw new Error(
             `editMedia: sidecar file not found for media ${input.mediaId} ` +
             `(video_platform=${row.video_platform}, video_url=${row.video_url}). ` +
-            `The DB row is sidecar-backed but no matching file under ${curatedRootDir}.`,
+            `The DB row is sidecar-backed but no matching file under ${getCuratedRootDir()}.`,
           );
         }
 
@@ -1579,7 +1593,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let sidecarFilename: string | null = null;
       const keysToDelete: string[] = [];
       if (isSidecarBacked) {
-        sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (sidecarFilePath) {
           sidecarFilename = path.basename(sidecarFilePath);
         }
@@ -1659,7 +1673,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let startSeconds: number | null = null;
       let endSeconds: number | null = null;
       if (row.video_platform === 'youtube' || row.video_platform === 'vimeo') {
-        const sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        const sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (sidecarFilePath) {
           try {
             const sidecar = await readUrlSidecarFile(sidecarFilePath);
@@ -2120,7 +2134,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       });
 
       if (existing.is_system === 1 && config.allowCuratedSidecarWrites) {
-        const sidecarPath = deriveGallerySidecarPath(curatedRootDir, galleryId);
+        const sidecarPath = deriveGallerySidecarPath(getCuratedRootDir(), galleryId);
         try {
           await deleteGallerySidecarFile(sidecarPath);
         } catch (err) {
@@ -2637,7 +2651,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     }
     try {
       validateGallerySidecarData(data);
-      await writeGallerySidecarFile(curatedRootDir, data);
+      await writeGallerySidecarFile(getCuratedRootDir(), data);
     } catch (err) {
       console.warn(
         `[curatorMediaService] sidecar write failed for ${data.id}: ${(err as Error).message}`,

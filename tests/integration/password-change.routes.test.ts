@@ -136,7 +136,13 @@ describe('POST /members/:slug/edit/password', () => {
     expect(res.text).toContain('do not match');
   });
 
-  it('short new password → 422', async () => {
+  it('7-char new password → 422 (lower boundary, just below MIN_PASSWORD_LENGTH=8)', async () => {
+    const hash = await argon2.hash(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit/password`)
@@ -144,11 +150,74 @@ describe('POST /members/:slug/edit/password', () => {
       .type('form')
       .send({
         oldPassword: OLD_PASSWORD,
-        newPassword: 'short',
-        confirmPassword: 'short',
+        newPassword: 'pass!12',
+        confirmPassword: 'pass!12',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('at least 8 characters');
+  });
+
+  it('8-char new password → 200 (lower boundary, exactly MIN_PASSWORD_LENGTH=8)', async () => {
+    const hash = await argon2.hash(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1))
+      .type('form')
+      .send({
+        oldPassword: OLD_PASSWORD,
+        newPassword: 'pass!123',
+        confirmPassword: 'pass!123',
+      });
+    expect(res.status).toBe(200);
+  });
+
+  it('128-char new password → 200 (upper boundary, exactly MAX_PASSWORD_LENGTH=128)', async () => {
+    const hash = await argon2.hash(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+
+    const longPassword = 'a'.repeat(128);
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1))
+      .type('form')
+      .send({
+        oldPassword: OLD_PASSWORD,
+        newPassword: longPassword,
+        confirmPassword: longPassword,
+      });
+    expect(res.status).toBe(200);
+  });
+
+  it('129-char new password → 422 (upper boundary, just above MAX_PASSWORD_LENGTH=128)', async () => {
+    const hash = await argon2.hash(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+
+    const tooLongPassword = 'a'.repeat(129);
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1))
+      .type('form')
+      .send({
+        oldPassword: OLD_PASSWORD,
+        newPassword: tooLongPassword,
+        confirmPassword: tooLongPassword,
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('at most 128 characters');
   });
 
   it('stale JWT (pre-change passwordVersion) is rejected by middleware → 302', async () => {
@@ -183,35 +252,6 @@ describe('POST /members/:slug/edit/password', () => {
 // ─────────────────────────────────────────────────────────────────────────
 // Session-reissue failure (KMS Sign / IAM regression / key rotation mid-flight)
 // ─────────────────────────────────────────────────────────────────────────
-// US ID:               M_Change_Password
-// Derived assertions:
-//   A1: When jwtSigningAdapter.signJwt throws after password_version commits,
-//       the response surfaces an actionable error explicitly pointing at the
-//       password-reset flow for recovery (not a generic 500).
-//   A2: The password_version increment is committed regardless (DB consistency).
-//   A3: No new session cookie is issued.
-// Routes:              POST /members/:memberKey/edit/password
-// Service methods:     identityAccessService.changePassword,
-//                      jwtService.createSessionJwt
-// STRIDE applicability:
-//   Spoofing:                applicable (a silently-locked-out account is an
-//                            account-takeover vector when the legitimate owner
-//                            cannot recover their session).
-//   Tampering:               not applicable.
-//   Repudiation:             applicable (audit ledger must still record the
-//                            password change; covered by audit.auth.test.ts).
-//   Information Disclosure:  not applicable.
-//   Denial of Service:       applicable (KMS rate-limit / IAM regression can
-//                            cascade across many concurrent password changes).
-//   Elevation of Privilege:  not applicable.
-// Technique:           scenario test with injected JwtSigningAdapter whose
-//                      signJwt throws (verifyJwt delegates to the real adapter
-//                      so the auth middleware's session validation still works).
-// Risk severity:       catastrophic.
-// ASVS level:          L3.
-// Rigor reached:       3. Target: 5 (blocked on Stryker + fast-check adoption
-//                      per IP §Test tooling adoption).
-// Tags:                @security
 
 describe('POST /members/:slug/edit/password — session reissue failure', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -293,36 +333,6 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
 // ─────────────────────────────────────────────────────────────────────────
 // Confirmation-email enqueue failure (outbox unavailable / SQLite busy)
 // ─────────────────────────────────────────────────────────────────────────
-// US ID:               M_Change_Password
-// Derived assertions:
-//   A1: When the confirmation-email enqueue throws after password_version
-//       commits, the response surfaces an actionable error pointing at the
-//       password-reset flow (not generic 500, not silent success).
-//   A2: A high-priority audit row with action_type
-//       'auth.password_change_notification_failed' is written so operators
-//       can correlate password changes with missing notifications (possible
-//       account-takeover signal).
-//   A3: The password_version increment is committed (DB consistency).
-//   A4: No new session cookie is issued (controller never reaches
-//       createSessionJwt).
-// Routes:              POST /members/:memberKey/edit/password
-// Service methods:     identityAccessService.changePassword,
-//                      communicationService.enqueueEmailOrFail
-// STRIDE applicability:
-//   Spoofing:                applicable (silent notification loss masks
-//                            account takeover).
-//   Tampering:               not applicable.
-//   Repudiation:             applicable; A2 explicitly tests the audit row.
-//   Information Disclosure:  not applicable.
-//   Denial of Service:       applicable (outbox unavailability under load).
-//   Elevation of Privilege:  not applicable.
-// Technique:           scenario test with a CommunicationService whose
-//                      enqueueEmailOrFail throws ServiceUnavailableError.
-// Risk severity:       high.
-// ASVS level:          L2.
-// Rigor reached:       3. Target: 4 (blocked on fast-check adoption per
-//                      IP §Test tooling adoption).
-// Tags:                @security
 
 describe('POST /members/:slug/edit/password — confirmation-email enqueue failure', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports

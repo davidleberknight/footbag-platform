@@ -40,8 +40,9 @@ export interface PlayerHeroData {
   region?: string | null;
   country?: string | null;
   isHistoricalOnly: boolean;
-  /** "Competing since {year}" line shown when the member has set a first
-   * competition year (or inherited one from a linked historical-person
-   * record). Null when no year is on file. */
+  /** Member's first competition year (or one inherited from a linked
+   * historical-person record). Optional. Shown on the member's profile
+   * (own and public) via the player-results partial; intentionally NOT
+   * rendered in the hero. Null when no year is on file. */
   firstCompetitionYear?: number | null;
 }

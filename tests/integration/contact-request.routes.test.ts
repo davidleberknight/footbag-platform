@@ -168,6 +168,17 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(res.text).toContain('Message is required');
   });
 
+  it('exactly 2000-char message → 303 (upper boundary accept)', async () => {
+    const app = createApp();
+    const exact = 'a'.repeat(2000);
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: exact });
+    expect(res.status).toBe(303);
+  });
+
   it('oversized message (>2000 chars) → 422', async () => {
     const app = createApp();
     const big = 'a'.repeat(2001);

@@ -111,6 +111,64 @@ describe('POST /password/forgot', () => {
     // But no new outbox row.
     expect(countOutboxFor(MEMBER_EMAIL)).toBe(before);
   });
+
+  it('password-forgot rate limit is tunable via system_config_current', async () => {
+    // Lower the bucket to 2 via system_config; the 3rd request should not enqueue.
+    const tuneDb = new BetterSqlite3(dbPath);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'password_reset_rate_limit_max_attempts', '2', ?, 'Test tunable', NULL)
+    `).run(
+      'test-pwreset-rl-tune',
+      '2026-05-22T00:00:00.000Z',
+      '2026-05-22T00:00:00.000Z',
+    );
+    tuneDb.close();
+    try {
+      // Seed a fresh verified member so the per-email bucket is unused and the
+      // success path enqueues an outbox row we can count.
+      const TUNE_EMAIL = 'pwreset-tunable@example.com';
+      const TUNE_ID = 'pwreset-tunable-001';
+      const TUNE_SLUG = 'pwreset_tunable';
+      const seedDb = new BetterSqlite3(dbPath);
+      const hash = await argon2.hash(ORIGINAL_PASSWORD);
+      insertMember(seedDb, {
+        id: TUNE_ID,
+        slug: TUNE_SLUG,
+        login_email: TUNE_EMAIL,
+        display_name: 'Pw Reset Tunable',
+        password_hash: hash,
+      });
+      seedDb.close();
+      const app = createApp();
+      // 2 requests are allowed under the configured cap; each enqueues a row.
+      for (let i = 0; i < 2; i++) {
+        const r = await request(app).post('/password/forgot').type('form').send({ email: TUNE_EMAIL });
+        expect(r.status).toBe(200);
+      }
+      const before = countOutboxFor(TUNE_EMAIL);
+      expect(before).toBe(2);
+      // Bucket is at 2 (= configured limit); the 3rd request is blocked
+      // (anti-enumeration: response is still 200, but no new outbox row).
+      const blocked = await request(app).post('/password/forgot').type('form').send({ email: TUNE_EMAIL });
+      expect(blocked.status).toBe(200);
+      expect(countOutboxFor(TUNE_EMAIL)).toBe(before);
+    } finally {
+      // Restore the platform default so later tests see 5/attempt.
+      const restoreDb = new BetterSqlite3(dbPath);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'password_reset_rate_limit_max_attempts', '5', ?, 'Test restore', NULL)
+      `).run(
+        'test-pwreset-rl-restore',
+        '2026-05-22T00:00:01.000Z',
+        '2026-05-22T00:00:01.000Z',
+      );
+      restoreDb.close();
+    }
+  });
 });
 
 describe('POST /password/reset/:token', () => {

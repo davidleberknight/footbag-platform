@@ -310,7 +310,10 @@ describe('GET /freestyle — two-band landing', () => {
   it('renders the hero with a movement-first title + subtitle', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('<h1>Freestyle Footbag</h1>');
-    expect(res.text).toContain('Freestyle turns a small footbag into movement, rhythm, and control.');
+    // Subtitle exists as a non-empty hero-subtitle element. Asserts the
+    // structural contract (hero has a subtitle) without pinning copy —
+    // the wording is owned by freestyleService and is expected to drift.
+    expect(res.text).toMatch(/<p class="hero-subtitle">[^<]+<\/p>/);
   });
 
   it('shows the mascot image', async () => {

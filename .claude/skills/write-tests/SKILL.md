@@ -52,9 +52,9 @@ Do not invent behavior not in the acceptance criteria.
 
 ## Step 4: Plan test cases
 
-Apply the derivation playbook in `docs/TESTING.md` §4: extract derived assertions A1..An from the user story success criteria (§4.2), classify risk tier (§3), fill the STRIDE per surface table (§4.3), and apply the technique selector per assertion (§4.4). The playbook produces the case list mechanically per surface and is the canonical method.
+Read `docs/TESTING.md` §4 for the project's test design principles. The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
 
-The baseline case list below applies to every route and is the floor the playbook augments:
+Baseline case list:
 
 - Happy path: correct status and expected content
 - Auth gate: 302 if unauthenticated, 200 if authenticated (protected routes)
@@ -66,7 +66,9 @@ The baseline case list below applies to every route and is the floor the playboo
 - Negative paths: validation failures, boundary values, empty/whitespace input
 - Adversarial: session tampering, double-submit, concurrent claims
 
-Produce a traceability entry per §4.7 (US ID, derived assertions, routes, services, STRIDE applicability, technique per assertion, risk tier, ASVS level, test files, rigor level, tags) and record it in the test file header or PR description. State the planned cases (including the playbook-derived ones) before writing code.
+For catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim), also consider STRIDE-aware threat coverage per `docs/TESTING.md` §4.2 (a vocabulary, not a per-test artifact) and the verification floor in §4.5.
+
+State the planned cases before writing code. No traceability entry artifact is required.
 
 ## Step 5: Write tests
 

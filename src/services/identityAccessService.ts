@@ -99,6 +99,7 @@ import { logger } from '../config/logger';
 import { simulatedEmailService, type SimulatedEmailPreview } from './simulatedEmailService';
 
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
 const MAX_DISPLAY_NAME = 64;
 
 function normalizeEmail(email: string): string {
@@ -515,6 +516,9 @@ async function registerMember(
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters.`);
   }
   if (password !== confirmPassword) {
     throw new ValidationError('Passwords do not match.');
@@ -2062,6 +2066,9 @@ async function changePassword(
   if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
+  if (newPassword.length > MAX_PASSWORD_LENGTH) {
+    throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters.`);
+  }
   if (newPassword !== confirmPassword) {
     throw new ValidationError('Passwords do not match.');
   }
@@ -2220,6 +2227,9 @@ async function completePasswordReset(
 ): Promise<PasswordResetCompletionResult> {
   if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  if (newPassword.length > MAX_PASSWORD_LENGTH) {
+    throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters.`);
   }
   if (newPassword !== confirmPassword) {
     throw new ValidationError('Passwords do not match.');

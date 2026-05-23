@@ -1102,12 +1102,11 @@ Cutover rollback decisions follow a hard time boundary.
 
 1. Enable maintenance mode per §8.3 HTTP 503 layer.
 2. Restore the pre-cutover snapshot per §10.5 Snapshot restore.
-3. Re-run the cutover auto-link batch. `OperationsPlatformService.runBatchAutoLink` is idempotent; reruns produce no duplicate claims, no double-sent notifications, and no duplicate confirmation cards per MIGRATION_PLAN §6.
-4. Disable maintenance mode.
-5. Run smoke tests against the origin per §13.8.
-6. Document the rollback trigger and the remediation plan.
+3. Disable maintenance mode.
+4. Run smoke tests against the origin per §13.8.
+5. Document the rollback trigger and the remediation plan.
 
-The pre-cutover snapshot is taken as the last step before cutover and integrity-verified before the auto-link batch runs.
+The pre-cutover snapshot is taken as State 4 step 9 (after the batch auto-link and validation, before the DNS switch). The snapshot includes the auto-link results, so the restore does not need to re-run the batch.
 
 **After T+4 hours:** rollback discards accumulated new user activity (registrations, claim confirmations, content edits). The decision requires governance sign-off. Procedure:
 
@@ -2060,7 +2059,7 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 
 - ACM certificate for footbag.org issued in us-east-1 and attached to the production CloudFront distribution. Issuance is operator-initiated through AWS Support and allows several days of lead time; the cert is requested with both `footbag.org` and `www.footbag.org` covered.
 - SES sending domain verified end-to-end on the production account, SPF/DKIM/DMARC records published, sandbox exit complete, bounce and complaint SNS topics subscribed. See §4.5 and §13.5. A test send from the production account to the operator mailbox confirms the path.
-- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §18.12; capture the lowered-TTL timestamp in the cutover log.
+- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §18 item 12; capture the lowered-TTL timestamp in the cutover log.
 - Pre-cutover database snapshot taken and integrity verified per §10.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`).
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
@@ -2070,6 +2069,8 @@ Each precondition halts the cutover if it fails. The orchestrator's pass means a
 ### 16.7 DNS cutover sequence runbook
 
 The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken.
+
+The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any future cutover that does not have its own cutover-specific overrides. For the production footbag.org cutover, MIGRATION_PLAN §28.12 overrides these defaults: TTL pre-shrink to 300s (legacy DNS host needs more margin), TTL restore at T+48h (extended for the §26 48h rollback window), and a 48h rollback window per §26 (rather than the §7.6 T+4h operator-call boundary). Where MP §28.12 and §16.7 disagree, MP §28.12 wins for the footbag.org cutover.
 
 Sequence:
 

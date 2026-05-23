@@ -422,17 +422,21 @@ describe('POST /admin/curator/media/:id/delete', () => {
 
 describe('admin curator media routes — sidecar-backed (URL reference)', () => {
   let curatedRoot: string;
-  let resetCuratedRootDirForTests: () => void;
+  let restoreFileLevelCuratedRoot: () => void;
 
   beforeAll(async () => {
     curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-routes-curated-'));
     const svcMod = await import('../../src/services/curatorMediaService');
     svcMod.setCuratedRootDirForTests(curatedRoot);
-    resetCuratedRootDirForTests = svcMod.resetCuratedRootDirForTests;
+    // Restore the file-level override (not null) so subsequent describes
+    // continue routing /curated/ writes into TEST_CURATED_DIR.
+    // resetCuratedRootDirForTests would leak the next upload (rate-limit
+    // test) into the repo's real /curated/.
+    restoreFileLevelCuratedRoot = () => svcMod.setCuratedRootDirForTests(TEST_CURATED_DIR);
   });
 
   afterAll(() => {
-    resetCuratedRootDirForTests?.();
+    restoreFileLevelCuratedRoot?.();
     try { fs.rmSync(curatedRoot, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
