@@ -6994,19 +6994,17 @@ export const freestyleService = {
         intro: {
           heading: 'What is Freestyle Footbag?',
           paragraphs: [
-            'Freestyle footbag began with informal Hacky Sack kicking circles in the 1970s and 1980s, evolving from casual play into a technical sport. It is a discipline built on creativity, technical difficulty, and individual style. Freestyle footbag is a great way to exercise due to its versatility and fun, cooperative flow, plus it can be practiced anywhere and anytime.',
-            'Players show off their skills by performing sequences of tricks, combining components such as spinning the body, ducking the bag with the head and neck, and dexterities (circling the bag with a leg).',
-            'Tricks are linked naturally from one to the next to create flowing, free-form, and expressive strings and combos. The list of tricks is nearly endless and can be combined in any order, giving the sport a huge variety of styles.',
-            // Language-of-freestyle framing (curator 2026-05-22): explicit
-            // call-out that trick names are compositional. Per the landing-
-            // vs-reference boundary, the landing carries only this short
-            // framing paragraph; the glossary §1 "Language of Freestyle"
-            // band holds the foundational movements + twelve core trick
-            // atoms in depth. (Plain text — the freestyle-portal-lede
-            // template renders {{this}} with HTML-escape; the glossary is
-            // already reachable via the Start Here / Glossary card below.)
-            'And the names aren\'t random — most are compositional. "Paradox mirage" reads as "mirage performed with the paradox body operator." A small set of foundational movements and twelve core trick atoms anchor the whole vocabulary, and once you know them you can read most trick names without ever having seen the trick.',
-            'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you start learning harder tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
+            // Movement-language framing (QC cleanup Pass A 2026-05-24).
+            // Replaces the prior 5-paragraph version that included
+            // "gym in your pocket", "Hacky Sack" historical filler, the
+            // "twelve core trick atoms" overconfidence, and a weak
+            // "paradox mirage reads as..." example. Per
+            // feedback_landing_vs_reference_boundary the landing carries
+            // only short framing; the glossary §1 "Language of Freestyle"
+            // band covers compositional grammar in depth. No em dashes.
+            'Freestyle footbag is a movement discipline. Players link sequences of tricks: body actions like spins, jumps, and ducks layered over circling motions of the legs around a small bag held aloft by repeated foot contact. The bag traces an unbroken path through the air; the body moves around it.',
+            'Trick names are compositional. A name like "spinning whirl" literally encodes structure: a body spin layered on top of the whirl base. Once you know the parts, you can read most trick names before you have ever seen the trick performed.',
+            'The vocabulary builds from a small set of foundational moves that compose richly. Stalls (the bag at rest on the top of the foot, the side of the foot, or other body surfaces). Dexterities (circling motions of a leg around the bag). Body modifiers (spins, ducks, jumps, steps). Structural sets (the launching motion that opens the trick). Combinations are nearly endless, and the language of freestyle is what makes the combinations legible.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
