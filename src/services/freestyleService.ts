@@ -102,6 +102,9 @@ import {
   resolveModifierCompositionGloss,
 } from '../content/freestyleMovementSystems';
 import {
+  ALTERNATIVE_SURFACES,
+} from '../content/freestyleAlternativeSurfaces';
+import {
   COMPOSITIONAL_SET_FAMILIES,
   UPTIME_REINTERPRETATION_LADDERS,
   COMPOSITIONAL_AUDIT_ENTRIES,
@@ -2091,6 +2094,32 @@ export interface MovementSystemAxisView {
 export interface MovementSystemBrowseView {
   observationalNote: string;
   axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
+  // Alternative-surfaces subsection (2026-05-24 follow-on after the
+  // nonstandard-topology audit). Compact educational subsection rendered
+  // AFTER the 4 movement-system axes. Always shaped; renders only when
+  // activeView === 'movement-system'.
+  alternativeSurfaces: AlternativeSurfacesView;
+}
+
+export interface AlternativeSurfacesView {
+  intro:  string;
+  groups: AlternativeSurfaceGroupView[];
+}
+
+export interface AlternativeSurfaceGroupView {
+  slug:   string;            // anchor id ('alt-surface-sole-and-heel' etc)
+  label:  string;            // pre-shaped group label
+  note:   string;             // pre-shaped framing line
+  tricks: AlternativeSurfaceTrickView[]; // members surviving the canonical-DB existence filter
+}
+
+export interface AlternativeSurfaceTrickView {
+  slug:                 string;
+  displayName:          string;
+  href:                 string; // /freestyle/tricks/:slug
+  adds:                 string | null;
+  addsLabel:            string;  // pre-shaped '2 ADD' / '? ADD'
+  operationalNotation:  string;  // raw op_notation string; empty when not populated
 }
 
 export interface FreestyleTricksIndexContent {
@@ -6139,6 +6168,32 @@ export const freestyleService = {
       };
     };
 
+    // Build the alternative-surfaces subsection (compact educational
+    // clusters; rendered after the 4 axes). Each group's trick list is
+    // filtered to canonical-DB active rows so missing slugs degrade
+    // gracefully (the content module is curator-paced; new alt-surface
+    // canonical rows added later just appear once their row is active).
+    const alternativeSurfaceGroups: AlternativeSurfaceGroupView[] =
+      ALTERNATIVE_SURFACES.groups.map(group => {
+        const tricks: AlternativeSurfaceTrickView[] = group.tricks
+          .map(slug => allActiveTrickRowsBySlug.get(slug))
+          .filter((row): row is FreestyleTrickRow => row !== undefined)
+          .map(row => ({
+            slug:                row.slug,
+            displayName:         row.canonical_name,
+            href:                `/freestyle/tricks/${row.slug}`,
+            adds:                row.adds ?? null,
+            addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+            operationalNotation: row.operational_notation ?? '',
+          }));
+        return {
+          slug:   `alt-surface-${group.slug}`,
+          label:  group.label,
+          note:   group.note,
+          tricks,
+        };
+      }).filter(g => g.tricks.length > 0);
+
     const movementSystemView: MovementSystemBrowseView = {
       observationalNote:
         'Four axes for navigating the freestyle movement language: how the set initiates ' +
@@ -6157,6 +6212,10 @@ export const freestyleService = {
             .filter((g): g is MovementSystemGroup => g !== null),
         }))
         .filter(a => a.groups.length > 0),
+      alternativeSurfaces: {
+        intro:  ALTERNATIVE_SURFACES.intro,
+        groups: alternativeSurfaceGroups,
+      },
     };
 
     // Cross-link block: when the dictionary is filtered to one family, surface

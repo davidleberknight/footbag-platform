@@ -9322,3 +9322,50 @@ a.dict-card-title:hover {
     flex: 0 0 auto;
   }
 }
+
+/* Alternative surfaces subsection (2026-05-24 follow-on to nonstandard-
+   topology audit). Compact educational subsection of the Movement System
+   view, rendered AFTER the 4 movement-system axes. Density is intentionally
+   lower than the dictionary-trick-card surface; the rendering is a
+   labelled inline list, not a card grid. */
+.alt-surfaces {
+  margin-top: 24px;
+}
+.alt-surface-group {
+  margin: 18px 0 22px;
+}
+.alt-surface-group-label {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+  color: var(--text-primary, #222);
+}
+.alt-surface-group-note {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #555);
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+.alt-surface-trick-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.alt-surface-trick {
+  padding: 3px 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.alt-surface-trick a {
+  font-weight: 500;
+}
+.alt-surface-add {
+  color: var(--text-subtle, #888);
+  font-size: 0.85rem;
+  margin: 0 6px 0 4px;
+}
+.alt-surface-notation {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--text-subtle, #777);
+  margin-left: 4px;
+}
