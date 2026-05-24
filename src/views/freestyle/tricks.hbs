@@ -73,6 +73,12 @@
       <a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "dex-count")}}
+      <span class="trick-view-toggle-active">By dex count</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=dex-count">By dex count</a>
+    {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
     <a href="/freestyle/operators">Operators &amp; Modifiers</a>
   </nav>
 
@@ -82,6 +88,27 @@
   <section class="content-section trick-add-group trick-group--registry" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
+      <span class="section-count">{{cards.length}}</span>
+    </div>
+    <div class="dict-card-stack dict-card-stack--registry">
+      {{#each cards}}
+        {{> dictionary-trick-card density="registry"}}
+      {{/each}}
+    </div>
+  </section>
+  {{/each}}
+  {{/if}}
+
+  {{! ── Dex Count view (notation-display audit Phase 4.1 prototype, 2026-05-24).
+      Buckets active tricks by the number of [DEX] tokens in their operational
+      notation. Shares the registry-density dictionary-trick-card partial with
+      the ADD view; only the bucketing axis differs. }}
+  {{#if (eq content.activeView "dex-count")}}
+  <p class="browse-view-intro">Tricks grouped by the number of dex events in their operational notation. How many dex moves does this trick involve?</p>
+  {{#each content.dexCountGroups}}
+  <section class="content-section trick-dex-count-group trick-group--registry" id="{{bucketId}}">
+    <div class="section-heading">
+      <h2>{{dexLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
     <div class="dict-card-stack dict-card-stack--registry">

@@ -1947,7 +1947,20 @@ export interface DictionaryTrickCard {
   firstClassChainIncomplete:   boolean;
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system' | 'dex-count';
+
+// Dex-count grouped browse view (2026-05-24 notation-display audit Phase 4.1
+// prototype). Buckets active dictionary tricks by the number of [DEX] tokens
+// in their operational_notation field. Pedagogical axis: "How many dex
+// moves does this trick involve?". Tricks without op_notation fall into an
+// "Unknown" bucket. Uses the shared dictionary-trick-card partial; card
+// shapes are identical to the ADD view.
+export interface FreestyleTrickDexCountGroup {
+  dexCount: number | null;     // null = unknown (no op_notation)
+  dexLabel: string;            // pre-shaped: '0 dex events', '1 dex event', '2 dex events', '3+ dex events', 'Unknown / no notation'
+  bucketId: string;            // pre-shaped section anchor: 'dex-0', 'dex-1', ... 'dex-unknown'. Avoids Handlebars 0-is-falsy footgun in the template.
+  cards: DictionaryTrickCard[];
+}
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
 // of canonical tricks that use it via freestyle_trick_modifier_links.
@@ -2083,6 +2096,9 @@ export interface MovementSystemBrowseView {
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
+  // ?view=dex-count grouped view (2026-05-24 notation-display audit Phase 4.1).
+  // Always shaped; UI branch renders only when activeView === 'dex-count'.
+  dexCountGroups: FreestyleTrickDexCountGroup[];
   activeView: FreestyleTricksActiveView;
 
   // Existing category-grouped view, preserved for ?view=category.
@@ -5807,12 +5823,62 @@ export const freestyleService = {
     // DSC-2 slice 3A: ?view=sets is an alias of ?view=component. Both
     // requests resolve to the same activeView so the new component browse
     // experience renders for inbound legacy links without breaking them.
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
       ? (requestedView === 'sets' ? 'component' : requestedView)
       : 'add';
     const activeView = resolvedView;
+
+    // ---- Dex-count groups (?view=dex-count) ---------------------------
+    // Bucket active dictionary tricks by the number of [DEX] tokens in
+    // their operational_notation. Tricks without op_notation fall into
+    // a separate "Unknown" bucket. The four-tier ladder (0 / 1 / 2 / 3+)
+    // matches the dex-count distribution observed in the canonical DB:
+    // most named tricks fall in 1- or 2-dex; 3+ is the deep-compound tail.
+    const countDexEvents = (opNotation: string | null | undefined): number | null => {
+      if (!opNotation) return null;
+      const matches = opNotation.match(/\[DEX\]/g);
+      return matches ? matches.length : 0;
+    };
+    const dexBuckets = new Map<number | null, AddBucketEntry[]>();
+    for (const row of allRows) {
+      if (!isTrickRow(row)) continue;
+      if (row.is_active !== 1) continue;
+      const raw = countDexEvents(row.operational_notation);
+      // Bucket 3 and 4+ together for the "3+ dex events" label.
+      const bucketKey: number | null = raw === null ? null : raw >= 3 ? 3 : raw;
+      const bucket = dexBuckets.get(bucketKey) ?? [];
+      bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
+      dexBuckets.set(bucketKey, bucket);
+    }
+    const dexCountGroups: FreestyleTrickDexCountGroup[] = [];
+    const buildDexGroup = (
+      dexCount: number | null,
+      dexLabel: string,
+      entries: AddBucketEntry[],
+    ): FreestyleTrickDexCountGroup => {
+      const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
+      const bucketId = dexCount === null ? 'dex-unknown' : `dex-${dexCount}`;
+      return {
+        dexCount,
+        dexLabel,
+        bucketId,
+        cards: sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+      };
+    };
+    const dexNumericKeys = [...dexBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
+    for (const k of dexNumericKeys) {
+      const label =
+        k === 0 ? '0 dex events' :
+        k === 1 ? '1 dex event' :
+        k === 2 ? '2 dex events' :
+        '3+ dex events';
+      dexCountGroups.push(buildDexGroup(k, label, dexBuckets.get(k) ?? []));
+    }
+    if (dexBuckets.has(null)) {
+      dexCountGroups.push(buildDexGroup(null, 'Unknown / no notation', dexBuckets.get(null) ?? []));
+    }
 
     // Load modifier reference table (still shaped; rendering currently disabled)
     const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
@@ -6129,6 +6195,7 @@ export const freestyleService = {
       },
       content: {
         addGroups,
+        dexCountGroups,
         activeView,
         groups,
         familyGroups,
