@@ -1,0 +1,21 @@
+slug,canonical_name,adds,dex_count,trick_family,entry_surface,terminal_surface,unusual_surface_flag,has_body_token,has_flying_marker,review_status,opn
+atomic-eclipse,atomic-eclipse,4,1,eclipse,TOE,TOE,False,True,True,expert_reviewed,TOE > OP OUT [DEX] > (JUMP) [BOD] > OP INSIDE [DEL] > OP TOE [DEL]
+butterfly-kick,butterfly-kick,3,1,butterfly,SET,CLIPPER,False,True,True,expert_reviewed,SET > JUMP [BOD] > SAME or OP OUT [DEX] > OP CLIP [XBD]
+cloud-kick,cloud kick,1,0,cloud-kick,SET,CLOUD,True,False,False,expert_reviewed,[set] > cloud kick
+cloud-stall,cloud stall,2,0,cloud-stall,SET,CLOUD,True,False,False,expert_reviewed,[set] > cloud
+cross-body-sole-stall,cross-body sole stall,3,0,cross-body-sole-stall,SET,SOLE,True,False,False,expert_reviewed,[set] > sole [xbd]
+dragonfly-kick,dragonfly kick,2,0,dragonfly-kick,,,False,True,True,expert_reviewed,flying > dragonfly
+ducking-osis,ducking osis,4,0,osis,SET,OSIS,False,True,False,expert_reviewed,SET > DUCK [BOD] > SAME or OP OSIS [BOD] [XBD] [DEL]
+flying-clipper,flying clipper,2,0,clipper,,CLIPPER,False,True,True,expert_reviewed,flying > clipper
+flying-inside,flying inside,1,0,flying-inside,,INSIDE,False,True,True,expert_reviewed,flying > inside
+flying-outside,flying outside,1,0,flying-outside,,OUTSIDE,False,True,True,expert_reviewed,flying > outside
+forehead-stall,forehead stall,1,0,forehead-stall,SET,FOREHEAD,True,False,False,expert_reviewed,[set] > forehead
+head-stall,head stall,1,0,head-stall,SET,HEAD,True,False,False,expert_reviewed,[set] > head
+heel-stall,heel stall,1,0,heel-stall,SET,HEEL,True,False,False,expert_reviewed,[set] > heel
+knee-stall,knee stall,1,0,knee-stall,SET,KNEE,True,False,False,expert_reviewed,[set] > knee
+miraging-eclipse,miraging-eclipse,4,1,eclipse,SET,TOE,False,True,True,expert_reviewed,SET > OP IN [DEX] > (JUMP) [BOD] > OP INSIDE [DEL] > OP TOE [DEL]
+neck-stall,neck stall,1,0,neck-stall,SET,NECK,True,False,False,expert_reviewed,[set] > neck
+pixie-eclipse,pixie-eclipse,4,1,eclipse,TOE,TOE,False,True,True,expert_reviewed,TOE > SAME IN [DEX] (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL]
+shoulder-stall,shoulder stall,1,0,shoulder-stall,SET,SHOULDER,True,False,False,expert_reviewed,[set] > shoulder
+sole-kick,sole kick,1,0,sole-kick,SET,SOLE,True,False,False,expert_reviewed,[set] > sole kick
+sole-stall,sole stall,2,0,sole-stall,SET,SOLE,True,False,False,expert_reviewed,[set] > sole

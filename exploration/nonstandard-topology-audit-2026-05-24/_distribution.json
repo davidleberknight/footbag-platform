@@ -1,0 +1,33 @@
+{
+  "total_active": 270,
+  "entry_distribution": {
+    "CLIPPER": 88,
+    "TOE": 76,
+    "null": 67,
+    "SET": 39
+  },
+  "terminal_distribution": {
+    "CLIPPER": 106,
+    "TOE": 83,
+    "null": 64,
+    "SOLE": 3,
+    "INSIDE": 3,
+    "CLOUD": 2,
+    "OUTSIDE": 2,
+    "OSIS": 1,
+    "FOREHEAD": 1,
+    "HEAD": 1,
+    "HEEL": 1,
+    "KNEE": 1,
+    "NECK": 1,
+    "SHOULDER": 1
+  },
+  "body_count": 87,
+  "flying_count": 8,
+  "unusual_surface_count": 11,
+  "no_op_notation_count": 62,
+  "unusual_inventory_count": 11,
+  "flying_body_count": 87,
+  "nonstandard_terminal_count": 17,
+  "topology_exception_count": 20
+}
