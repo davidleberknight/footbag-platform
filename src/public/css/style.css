@@ -9369,3 +9369,37 @@ a.dict-card-title:hover {
   color: var(--text-subtle, #777);
   margin-left: 4px;
 }
+
+/* Pass B Slice 1 polish (2026-05-24). Four small surface-clarity adds:
+   - Observational count strip (R11.1)
+   - Dex-count "Unknown" bucket explainer (R11.3)
+   - Family view ordering note (R7.2)
+   - Movement System ↔ Compositional Sets cross-links (R9.2)
+*/
+.observed-count-strip {
+  margin: 12px 0 18px;
+  font-size: 0.95rem;
+  color: var(--text-primary, #333);
+}
+.observed-count-strip strong {
+  font-weight: 600;
+}
+.dex-count-unknown-note {
+  margin: 4px 0 14px;
+  font-size: 0.9rem;
+  color: var(--text-subtle, #666);
+  line-height: 1.4;
+}
+.family-view-ordering-note {
+  margin: 6px 0 18px;
+  font-size: 0.92rem;
+  color: var(--text-subtle, #666);
+}
+.movement-system-cross-link {
+  margin: 4px 0 16px;
+  font-size: 0.9rem;
+}
+.compositional-sets-cross-link {
+  margin: 10px 0 18px;
+  font-size: 0.9rem;
+}

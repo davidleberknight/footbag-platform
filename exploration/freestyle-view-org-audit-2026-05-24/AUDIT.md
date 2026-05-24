@@ -49,7 +49,7 @@ It's the deliberate first entry in the `FAMILY_ORDER` curator array. Three plaus
 |---:|---|---|---|
 | R7.1 | **Keep the hard-coded order.** Curator-chosen pedagogical ordering is more useful than count-descending or alphabetical for a freestyle audience. | nil | Whirl-first is reasonable; reverting to count-descending would put `whirl` first anyway (33 rows). |
 | R7.2 | **Surface the ordering principle on the page.** One-sentence note above the family list: "Families are ordered by structural anchor weight, not alphabetically." | trivial template text | Answers the "why whirl first?" question without changing data. |
-| R7.3 | **Fix the empty-`trick_family` data debt.** 10 active rows have `trick_family=''`; they cluster in an unlabeled bucket. Surface for curator: query `SELECT slug FROM freestyle_tricks WHERE is_active=1 AND (trick_family IS NULL OR trick_family='');` and assign per row. | curator data work | Not a UI fix; a per-row correction via red_corrections. |
+| R7.3 | **~~Fix the empty-`trick_family` data debt~~ — CLOSED 2026-05-24 as not-a-bug.** Investigation revealed all 10 rows are modifier-table parallel rows (`barraging`, `blazing`, `ducking`, `gyro`, `paradox`, `spinning`, `stepping`, `symposium`, `tapping`, `terraging`) with `category='modifier'`. Empty `trick_family` is the intentional project convention for modifier rows; the family-view UI filters them out via `isTrickRow()` at `freestyleService.ts:5722`. The audit's SQL `GROUP BY trick_family` surfaced what's actually a deliberate non-family bucket; the rendered output was already correct. See `feedback_modifier_public_visibility.md`. | nil (closed) | n/a |
 | R7.4 | **Optional: add a small per-family-count summary strip** at the top of the family view, e.g. "20 families · 250 tricks active." Single line, no submenu. | trivial template | The user's TOC/submenu request risks visual bloat; a count strip is simpler. |
 
 A full TOC submenu (jump links to each family heading) would be visually heavy for a one-page browse view. Skip unless the curator specifically wants it.
@@ -156,7 +156,7 @@ This distinction is **already implicitly in place** because the two surfaces exi
 |---|---|---|---|
 | R7.1 | Keep family hard-coded order | nil | ✓ already correct |
 | R7.2 | One-line note explaining family ordering | trivial | medium |
-| R7.3 | Fix 10 empty `trick_family` rows | curator data work | high (data debt) |
+| R7.3 | ~~Fix 10 empty `trick_family` rows~~ — CLOSED as not-a-bug | nil | closed |
 | R7.4 | Optional family-count summary strip | trivial | low |
 | R8.1 | Keep Movement System 4-axis structure | nil | ✓ already correct |
 | R8.2 | Enrich intro paragraph with one example per axis | small content | medium |
@@ -192,7 +192,7 @@ Total: 4 trivial template / content edits. No service changes, no doctrine chang
 Total: 3 content edits + 1 ordering edit.
 
 **A third (curator-driven) cleanup**:
-- R7.3 (empty `trick_family` 10 rows) — per-row corrections via `red_corrections_2026_04_20.csv`
+- ~~R7.3 (empty `trick_family` 10 rows)~~ — CLOSED 2026-05-24 as not-a-bug. The 10 rows are modifier-table parallel rows; empty `trick_family` is intentional convention; family view already filters them via `isTrickRow()`.
 
 ## What this audit explicitly does NOT recommend
 

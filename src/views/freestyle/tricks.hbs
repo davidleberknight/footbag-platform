@@ -111,6 +111,9 @@
       <h2>{{dexLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
+    {{#unless dexCount}}{{#if (eq bucketId "dex-unknown")}}
+    <p class="dex-count-unknown-note"><em>These canonical rows do not yet have operational notation populated. The trick exists; its dex count cannot be derived without notation.</em></p>
+    {{/if}}{{/unless}}
     <div class="dict-card-stack dict-card-stack--registry">
       {{#each cards}}
         {{> dictionary-trick-card density="registry"}}
@@ -126,6 +129,7 @@
   {{#if content.familyViewIntro}}
   <p class="browse-view-intro">{{content.familyViewIntro}}</p>
   {{/if}}
+  <p class="family-view-ordering-note"><em>Families are ordered by structural anchor weight, not alphabetically. Whirl, butterfly, mirage, osis, and other foundational families anchor the most compound rows.</em></p>
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group trick-group--registry" id="family-{{familySlug}}" data-anchor-style="solid">
@@ -309,6 +313,7 @@
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
+  <p class="movement-system-cross-link detail-muted">For sets as tricks themselves (uptime motion analogues to ATW / orbit / pickup etc.), see <a href="/freestyle/compositional-sets">Compositional Sets</a>.</p>
 
   {{! Axis-jump nav. Mirror of the Component view's pattern. }}
   <nav class="movement-axis-jump" aria-label="Movement System axes">

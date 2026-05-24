@@ -61,6 +61,9 @@
     {{/if}}
 
     {{#if content.totalEntries}}
+      <p class="observed-count-strip" aria-label="Total observational entries">
+        <strong>{{content.totalEntries}}</strong> observational tricks pending canonical review.
+      </p>
       <div class="observed-card-grid">
         {{#each content.cards}}
         <article class="observed-card" data-folk-slug="{{folkSlug}}">
