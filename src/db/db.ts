@@ -1041,7 +1041,8 @@ export const clubBootstrapLeaderSignals = {
 // uniques enforce:
 //   - club_leaders ux_one_leader_per_club, ux_one_club_leader_per_member
 //   - member_club_affiliations UNIQUE(member_id, club_id),
-//     ux_member_club_affiliations_one_current (at most one is_current=1)
+//     ux_member_club_affiliations_one_primary (at most one primary)
+//     Two-current-club cap: service-enforced (count-before-insert, max 2)
 // SqliteError SQLITE_CONSTRAINT_UNIQUE on either is the conflict signal.
 // ---------------------------------------------------------------------------
 
@@ -1080,9 +1081,15 @@ export const memberClubAffiliations = {
   get insertAffiliation() { return db.prepare(`
     INSERT INTO member_club_affiliations (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, club_id, is_current, is_contact, source
+      member_id, club_id, is_current, is_primary, is_contact, source
     ) VALUES (?, ?, ?, ?, ?, 1,
-              ?, ?, 1, 0, 'legacy_claim')
+              ?, ?, 1, ?, 0, ?)
+  `); },
+
+  get countCurrentByMemberId() { return db.prepare(`
+    SELECT COUNT(*) AS c
+      FROM member_club_affiliations
+     WHERE member_id = ? AND is_current = 1
   `); },
 };
 

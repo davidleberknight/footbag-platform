@@ -15,9 +15,12 @@
 import BetterSqlite3 from 'better-sqlite3';
 import {
   insertMember,
+  insertLegacyMember,
   insertHistoricalPerson,
   insertClub,
   insertEvent,
+  insertLegacyClubCandidate,
+  insertLegacyPersonClubAffiliation,
   createMemberAtTier,
   createTestSessionJwt,
   type MemberOverrides,
@@ -356,6 +359,180 @@ export function seedUnlinkedHpMember(
     isAdmin: false,
     legacyMemberId,
     personId,
+  };
+}
+
+// ── Onboarding wizard personas ──────────────────────────────────────────────
+
+/**
+ * Brand-new player with no legacy identity. Email matches nothing in
+ * legacy_members or historical_persons. Used to test the skip path for
+ * the legacy_claim task and the no-match club affiliation exit.
+ */
+export function seedBrandNewPlayer(
+  db: BetterSqlite3.Database,
+  opts: { slug?: string; overrides?: Omit<MemberOverrides, 'id' | 'slug'> } = {},
+): Persona {
+  const memberId = `new-${rand()}`;
+  const slug = opts.slug ?? `new_${rand()}`;
+  createMemberAtTier(db, {
+    id: memberId,
+    slug,
+    tier: 'tier0',
+    memberOverrides: opts.overrides,
+  });
+  return {
+    memberId,
+    slug,
+    cookieHeader: cookieFor(memberId, 'member'),
+    tier: 'tier0',
+    isAdmin: false,
+  };
+}
+
+/**
+ * Member with a staged auto-link candidate. Login email matches
+ * legacy_members.legacy_email, and the legacy row back-links to a
+ * historical_persons row. The auto-link classifier returns high
+ * confidence for this setup.
+ */
+export function seedMemberWithAutoLinkCandidate(
+  db: BetterSqlite3.Database,
+  opts: {
+    slug?: string;
+    personName?: string;
+    overrides?: Omit<MemberOverrides, 'id' | 'slug' | 'legacy_member_id'>;
+  } = {},
+): Persona & { legacyMemberId: string; personId: string } {
+  const memberId = `al-${rand()}`;
+  const slug = opts.slug ?? `autolink_${rand()}`;
+  const legacyMemberId = `LM-AL-${rand().toUpperCase()}`;
+  const loginEmail = `test-autolink-${rand()}@example.com`;
+  const personName = opts.personName ?? 'Test Autolink';
+
+  insertLegacyMember(db, {
+    legacy_member_id: legacyMemberId,
+    legacy_email: loginEmail,
+    real_name: personName,
+    country: 'US',
+  });
+
+  const personId = insertHistoricalPerson(db, {
+    legacy_member_id: legacyMemberId,
+    person_name: personName,
+    country: 'US',
+    first_year: 2005,
+  });
+
+  createMemberAtTier(db, {
+    id: memberId,
+    slug,
+    tier: 'tier0',
+    memberOverrides: {
+      login_email: loginEmail,
+      real_name: personName,
+      ...(opts.overrides ?? {}),
+    },
+  });
+
+  return {
+    memberId,
+    slug,
+    cookieHeader: cookieFor(memberId, 'member'),
+    tier: 'tier0',
+    isAdmin: false,
+    legacyMemberId,
+    personId,
+  };
+}
+
+/**
+ * Member with pending club affiliations at a specific stage. Seeds a
+ * legacy_person_club_affiliation row in 'pending' status linked to a
+ * legacy_club_candidate of the requested classification.
+ */
+export function seedMemberWithPendingClubAffiliation(
+  db: BetterSqlite3.Database,
+  opts: {
+    slug?: string;
+    classification?: 'pre_populate' | 'onboarding_visible' | 'dormant';
+    overrides?: Omit<MemberOverrides, 'id' | 'slug'>;
+  } = {},
+): Persona & { candidateId: string; affiliationId: string; clubId: string | null } {
+  const memberId = `club-${rand()}`;
+  const slug = opts.slug ?? `club_${rand()}`;
+  const legacyMemberId = `LM-CLUB-${rand().toUpperCase()}`;
+  const classification = opts.classification ?? 'pre_populate';
+
+  createMemberAtTier(db, {
+    id: memberId,
+    slug,
+    tier: 'tier0',
+    memberOverrides: opts.overrides,
+  });
+
+  const personId = insertHistoricalPerson(db, {
+    legacy_member_id: legacyMemberId,
+    person_name: 'Test Club Member',
+  });
+
+  let clubId: string | null = null;
+  if (classification === 'pre_populate') {
+    clubId = insertClub(db, { id: `club-pp-${rand()}` });
+  }
+
+  const candidateId = insertLegacyClubCandidate(db, {
+    classification,
+    mapped_club_id: clubId,
+  });
+
+  const affiliationId = insertLegacyPersonClubAffiliation(db, {
+    historical_person_id: personId,
+    legacy_member_id: legacyMemberId,
+    legacy_club_candidate_id: candidateId,
+  });
+
+  return {
+    memberId,
+    slug,
+    cookieHeader: cookieFor(memberId, 'member'),
+    tier: 'tier0',
+    isAdmin: false,
+    candidateId,
+    affiliationId,
+    clubId,
+  };
+}
+
+/**
+ * Member mid-wizard: legacy_claim completed, remaining tasks pending.
+ * Used to test wizard resumption at the club_affiliations step.
+ */
+export function seedMemberMidWizard(
+  db: BetterSqlite3.Database,
+  opts: { slug?: string; overrides?: Omit<MemberOverrides, 'id' | 'slug'> } = {},
+): Persona {
+  const memberId = `mid-${rand()}`;
+  const slug = opts.slug ?? `mid_${rand()}`;
+  createMemberAtTier(db, {
+    id: memberId,
+    slug,
+    tier: 'tier0',
+    memberOverrides: opts.overrides,
+  });
+  const taskId = `mot-${rand()}`;
+  db.prepare(`
+    INSERT INTO member_onboarding_tasks (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, task_type, state, completed_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'legacy_claim', 'completed', ?)
+  `).run(taskId, TS, SYS, TS, SYS, memberId, TS);
+  return {
+    memberId,
+    slug,
+    cookieHeader: cookieFor(memberId, 'member'),
+    tier: 'tier0',
+    isAdmin: false,
   };
 }
 

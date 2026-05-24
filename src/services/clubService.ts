@@ -1105,16 +1105,23 @@ export class ClubService {
 
         // Affiliation insert is independent of leadership outcome: members who
         // don't get a leadership row still become club members.
-        affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-        try {
-          memberClubAffiliations.insertAffiliation.run(
-            affiliationId, now, 'onboarding_service', now, 'onboarding_service',
-            actorMemberId, clubId,
-          );
-        } catch (err) {
-          if (!isUniqueViolation(err)) throw err;
-          // Already affiliated — idempotent. Leave existing row in place.
+        // Two-current-club cap (max 2 is_current=1 rows per member).
+        // First current club is primary; second is secondary.
+        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+        if (currentCount >= 2) {
           affiliationId = null;
+        } else {
+          const isPrimary = currentCount === 0 ? 1 : 0;
+          affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+          try {
+            memberClubAffiliations.insertAffiliation.run(
+              affiliationId, now, 'onboarding_service', now, 'onboarding_service',
+              actorMemberId, clubId, isPrimary, 'legacy_claim',
+            );
+          } catch (err) {
+            if (!isUniqueViolation(err)) throw err;
+            affiliationId = null;
+          }
         }
       });
     } catch (err) {
@@ -1149,13 +1156,15 @@ export class ClubService {
    * card-listing layer; if one reaches this method directly, it raises
    * NotFoundError as an anti-enumeration safeguard.
    *
-   * Concurrent-affiliation safety: if the member already has an
-   * is_current=1 affiliation at another club, member_club_affiliations'
-   * ux_one_current partial unique fires. The new affiliation insert silently
-   * no-ops (existing current wins); the legacy_person_club_affiliations
-   * status still transitions to 'confirmed_current'. Admin remediation via
-   * A_Reassign_Club_Leader handles the rare case where the member meant to
-   * transfer current status.
+   * Multi-club safety: a member may hold at most two current club
+   * affiliations (primary + secondary). The first current club is
+   * primary (is_primary=1); the second is secondary (is_primary=0).
+   * If the member already has two is_current=1 rows, the new
+   * affiliation insert is skipped (cap hit); the legacy affiliation
+   * row still transitions to 'confirmed_current'. The cap is enforced
+   * at the service layer (count-before-insert), matching the 5-leader
+   * cap pattern in claimLeadership. The UNIQUE(member_id, club_id)
+   * index catches idempotent re-inserts of the same member-club pair.
    */
   confirmAffiliation(
     affiliationRowId: string,
@@ -1242,17 +1251,24 @@ export class ClubService {
             `Legacy affiliation status changed concurrently: ${affiliationRowId}`,
           );
         }
-        newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-        try {
-          memberClubAffiliations.insertAffiliation.run(
-            newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
-            actorMemberId, resolvedClubId,
-          );
-        } catch (err) {
-          if (!isUniqueViolation(err)) throw err;
-          // Already affiliated (or another is_current=1 exists for this
-          // member). Existing affiliation wins; legacy row still transitions.
+        // Two-current-club cap (max 2 is_current=1 rows per member).
+        // First current club is primary; second is secondary.
+        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+        if (currentCount >= 2) {
           newAffiliationId = null;
+        } else {
+          const isPrimary = currentCount === 0 ? 1 : 0;
+          newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+          try {
+            memberClubAffiliations.insertAffiliation.run(
+              newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
+              actorMemberId, resolvedClubId, isPrimary, 'legacy_claim',
+            );
+          } catch (err) {
+            if (!isUniqueViolation(err)) throw err;
+            // UNIQUE(member_id, club_id): already affiliated at this club.
+            newAffiliationId = null;
+          }
         }
       });
     } catch (err) {

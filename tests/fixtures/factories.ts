@@ -1556,6 +1556,7 @@ export function insertRegistration(
 export interface MemberClubAffiliationOverrides {
   id?: string;
   is_current?: 0 | 1;
+  is_primary?: 0 | 1;
   is_contact?: 0 | 1;
   source?: 'legacy_claim' | 'admin' | 'member_self_service';
 }
@@ -1570,12 +1571,13 @@ export function insertMemberClubAffiliation(
   db.prepare(`
     INSERT INTO member_club_affiliations (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, club_id, is_current, is_contact, source
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      member_id, club_id, is_current, is_primary, is_contact, source
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, SYS, TS, SYS,
     memberId, clubId,
     o.is_current ?? 1,
+    o.is_primary ?? 0,
     o.is_contact ?? 0,
     o.source ?? 'member_self_service',
   );

@@ -783,7 +783,7 @@ Club-affiliation task acceptance criteria:
 - In Stage 3A name search, when a dormant candidate matches the registrant's query but the registrant chooses path 3 "Different club, same name," the candidate is not marked confirmed or rejected. It remains in `legacy_club_candidates` and searchable for future registrants; the search continues against remaining matches.
 - The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to Stage 3. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
 - Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of classification strength and regardless of registrant tier. Schema invariants enforce one `role='leader'` per club (`ux_one_leader_per_club`) and one `role='leader'` per member across all clubs (`ux_one_club_leader_per_member`); when either invariant would be violated the wizard transparently downgrades the new row to `role='co-leader'`. The application-level five-leader-per-club cap is enforced; cap-hit claims still affiliate the member but do not insert a `club_leaders` row, and an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants. Clubs may have multiple leaders.
-- Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. When the registrant already has an `is_current=1` affiliation at a different club, the schema partial-unique `ux_member_club_affiliations_one_current` blocks the new row's `is_current=1` insert; the legacy affiliation row still transitions to `'confirmed_current'`, but the registrant's current-affiliation status stays with the pre-existing club. Transferring current-affiliation status to the newly confirmed club requires the explicit `M_Join_Club` surface or admin remediation via `A_Reassign_Club_Leader`.
+- Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the registrant already has two `is_current=1` affiliations, the new insert is skipped; the legacy affiliation row still transitions to `'confirmed_current'`, but the registrant's current-affiliation set is unchanged. Transferring current-affiliation status requires the explicit `M_Join_Club` / `M_Leave_Club` surface or admin remediation via `A_Reassign_Club_Leader`.
 - Members can detour out of any Stage 1/2/3 club card to `M_Join_Club` or `M_Create_Club` without resolving the current card. Unsignaled cards remain unsignaled and signaled cards retain their signals. On detour, the `club_affiliations` task transitions to `in_progress_paused` in `MemberOnboardingService`; the dashboard task widget surfaces "Resume onboarding" which returns the member to the same card. Detour decisions are audit-logged with member ID, target story, source wizard card, and timestamp.
 - Selecting "Add a club not shown" by a Tier 0 member surfaces a tier-gate advisory before routing: "Creating a club requires IFPA Member (Tier 1) or above, because you'll be the club leader." The advisory offers two paths: "Upgrade to Tier 1 first" routes to `M_Purchase_Tier_1_IFPA_Member`, returning to the advisory on successful upgrade with a "Continue to Create Club" option; "Continue with wizard" returns to the prior card with no state change. The advisory does not block. Tier 1, Tier 2, and Tier 3 members skip the advisory and route directly to `M_Create_Club`.
 - At the end of the `club_affiliations` task, if no `member_club_affiliations` row was written during the wizard run, the wizard's final screen displays a "Find or create your club" landing with three options: "Join an existing club" routes to `M_Join_Club`, "Create a new club" routes to `M_Create_Club` (Tier 0 members see the tier-gate advisory above first), and "Skip for now" completes the wizard with no club affiliation. The dashboard task widget surfaces "Continue onboarding" until the member explicitly dismisses or completes the task.
@@ -885,18 +885,18 @@ Success Criteria:
 
 ### M_Join_Club
 
-Access: Members can join one club.
+Access: Members can join up to two clubs.
 
-Story: As a member, I can join one club so that I appear on its roster.
+Story: As a member, I can join a club so that I appear on its roster.
 
 Success Criteria:
 
-- Only one club membership allowed at a time. If member joins a new (second) club, the system automatically removes member from old club. In this case the UI will have a clear message to the user.
+- A member may hold at most two current club memberships (primary and secondary). The first club joined is primary; the second is secondary. Joining a second club does not affect the first. Attempting to join a third current club is blocked with a clear message directing the member to leave an existing club first.
 - Club roster retrieved by aggregating members where clubId matches.
 - Club member roster visible to all logged-in members (not visitors).
 - Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
-- Joining sends an email notification to the member, and all Club Leaders. If the member was automatically removed from a previous club, then this will be noted in the email.
+- Joining sends an email notification to the member, and all Club Leaders.
 - When joining a club, the member sees the club's current description and external URL; the member can flag inaccuracies and suggest replacement text via the content validation loop. Suggestions enter a review queue and apply only after approval by the listed contact, the club leader, or admin. The flag-and-suggest affordance applies only to non-contact non-leader members; listed contacts and club leaders edit directly via `CL_Edit_Club` or wizard Stage 1A.
 - If the joining member is Tier 0 and has never previously been an Active Player, the first IFPA club join grants one 730-day Active Player period.
 - The one-time club-join Active Player grant does not change membership tier.
@@ -907,11 +907,12 @@ Success Criteria:
 
 Access: Members can leave a club they currently belong to.
 
-Story: As a member, I can leave my current club to be removed from the roster.
+Story: As a member, I can leave a current club to be removed from the roster.
 
 Success Criteria:
 
-- Leaving sets `member_club_affiliations.is_current=0` for the member-club pair.
+- Leaving sets `member_club_affiliations.is_current=0` and `is_primary=0` for the member-club pair.
+- If the member leaves their primary club and still has a secondary club, the UI reminds them they have a remaining club and prompts them to designate it as primary. The secondary club is not auto-promoted.
 - A member who is the sole `role='leader'` of the club cannot leave directly; the UI surfaces the constraint and routes the member to `CL_Manage_CoLeaders` to promote a successor first. The sole-leader rule mirrors the anti-self-removal invariant enforced by `ClubService`.
 - Leaving a club where the member also held a `club_leaders` row removes that leadership row in the same transaction.
 - Leaving sends an email notification to the leaving member and to all current club leaders.
@@ -1361,7 +1362,7 @@ Success Criteria:
 
 ## 3.10 Group Membership
 
-Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously, unlike clubs where membership is one-at-a-time. Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, alias keyword, and optional `parent_group_id` for subcommittees.
+Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, alias keyword, and optional `parent_group_id` for subcommittees.
 
 Group operability rule: A group is considered non-operable if it has zero current owners. Non-operable groups are flagged into the admin work queue for remediation. Admin remediation options include assigning a new owner via `A_Reassign_Group_Owner` or archiving the group via `A_Archive_Group` if defunct.
 

@@ -3,7 +3,7 @@
  * the wizard's membership-card transition path. Exercises the schema
  * CHECK contract (resolution_status='confirmed_current' requires
  * resolved_club_id), the pre_populate-only scope (wizard never creates
- * clubs), and the cross-club current-affiliation conflict behavior.
+ * clubs), the two-current-club cap, and same-club idempotency.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -13,6 +13,7 @@ import {
   insertClub,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMemberClubAffiliation,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3161');
@@ -29,6 +30,7 @@ interface MemberAffiliationRow {
   member_id:  string;
   club_id:    string;
   is_current: number;
+  is_primary: number;
   source:     string;
 }
 
@@ -45,7 +47,7 @@ function readMemberAffiliations(memberId: string): MemberAffiliationRow[] {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const rows = db
     .prepare(
-      `SELECT member_id, club_id, is_current, source
+      `SELECT member_id, club_id, is_current, is_primary, source
          FROM member_club_affiliations WHERE member_id = ? ORDER BY rowid`,
     )
     .all(memberId) as MemberAffiliationRow[];
@@ -65,6 +67,9 @@ const MEMBER_DECLINE      = 'member-confirm-decline';
 const MEMBER_IDEMPOTENT   = 'member-confirm-idempotent';
 const MEMBER_NO_MAPPED    = 'member-confirm-no-mapped';
 const MEMBER_CROSS_CLUB   = 'member-confirm-cross-club';
+const MEMBER_THREE_CAP    = 'member-confirm-three-cap';
+const MEMBER_FORMER       = 'member-confirm-former';
+const MEMBER_SAME_CLUB    = 'member-confirm-same-club';
 
 let prePopulateClubId   = '';
 let prePopulateAffId    = '';
@@ -74,6 +79,11 @@ let noMappedAffId       = '';
 let crossClubA          = '';
 let crossClubB          = '';
 let crossAffB           = '';
+let threeCapClubC       = '';
+let threeCapAffC        = '';
+let formerClubC         = '';
+let formerAffC          = '';
+let sameClubAffId       = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -133,14 +143,14 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_CROSS_CLUB, slug: 'm_confirm_cross', login_email: 'cross@example.com', legacy_member_id: 'lm-cross-confirm' });
   crossClubA = insertClub(db, { name: 'Cross-confirm Club A (existing current)' });
   crossClubB = insertClub(db, { name: 'Cross-confirm Club B (new claim)' });
-  // Pre-existing is_current=1 affiliation at club A.
+  // Pre-existing is_current=1 primary affiliation at club A.
   db.prepare(`
     INSERT INTO member_club_affiliations (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, club_id, is_current, is_contact, source
+      member_id, club_id, is_current, is_primary, is_contact, source
     ) VALUES ('mca-pre-cross-confirm',
               '2025-01-01T00:00:00.000Z', 'test', '2025-01-01T00:00:00.000Z', 'test', 1,
-              ?, ?, 1, 0, 'admin')
+              ?, ?, 1, 1, 0, 'admin')
   `).run(MEMBER_CROSS_CLUB, crossClubA);
   const candCrossB = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
@@ -150,6 +160,54 @@ beforeAll(async () => {
     legacy_member_id:         'lm-cross-confirm',
     legacy_club_candidate_id: candCrossB,
     confidence_score:         0.9,
+  });
+
+  // ── three-club cap (member already has 2 current clubs) ──
+  insertMember(db, { id: MEMBER_THREE_CAP, slug: 'm_confirm_three_cap', login_email: 'threecap@example.com', legacy_member_id: 'lm-three-cap' });
+  const capClubA = insertClub(db, { name: 'Cap Club A' });
+  const capClubB = insertClub(db, { name: 'Cap Club B' });
+  threeCapClubC = insertClub(db, { name: 'Cap Club C (should be blocked)' });
+  insertMemberClubAffiliation(db, MEMBER_THREE_CAP, capClubA, { is_current: 1, is_primary: 1, source: 'admin' });
+  insertMemberClubAffiliation(db, MEMBER_THREE_CAP, capClubB, { is_current: 1, is_primary: 0, source: 'admin' });
+  const candCapC = insertLegacyClubCandidate(db, {
+    classification: 'pre_populate',
+    mapped_club_id: threeCapClubC,
+  });
+  threeCapAffC = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-three-cap',
+    legacy_club_candidate_id: candCapC,
+    confidence_score:         0.8,
+  });
+
+  // ── former clubs don't count toward cap ──
+  insertMember(db, { id: MEMBER_FORMER, slug: 'm_confirm_former', login_email: 'former@example.com', legacy_member_id: 'lm-former' });
+  const formerClubA = insertClub(db, { name: 'Former Club A (current)' });
+  const formerClubB = insertClub(db, { name: 'Former Club B (former)' });
+  formerClubC = insertClub(db, { name: 'Former Club C (new claim)' });
+  insertMemberClubAffiliation(db, MEMBER_FORMER, formerClubA, { is_current: 1, is_primary: 1, source: 'admin' });
+  insertMemberClubAffiliation(db, MEMBER_FORMER, formerClubB, { is_current: 0, source: 'admin' });
+  const candFormerC = insertLegacyClubCandidate(db, {
+    classification: 'pre_populate',
+    mapped_club_id: formerClubC,
+  });
+  formerAffC = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-former',
+    legacy_club_candidate_id: candFormerC,
+    confidence_score:         0.7,
+  });
+
+  // ── same-club idempotency under two-club cap ──
+  insertMember(db, { id: MEMBER_SAME_CLUB, slug: 'm_confirm_same_club', login_email: 'sameclub@example.com', legacy_member_id: 'lm-same-club' });
+  const sameClub = insertClub(db, { name: 'Same Club (already current)' });
+  insertMemberClubAffiliation(db, MEMBER_SAME_CLUB, sameClub, { is_current: 1, is_primary: 1, source: 'admin' });
+  const candSame = insertLegacyClubCandidate(db, {
+    classification: 'pre_populate',
+    mapped_club_id: sameClub,
+  });
+  sameClubAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-same-club',
+    legacy_club_candidate_id: candSame,
+    confidence_score:         0.8,
   });
 
   db.close();
@@ -178,6 +236,7 @@ describe('clubService.confirmAffiliation — pre_populate happy path', () => {
     expect(affs[0]).toMatchObject({
       club_id:    prePopulateClubId,
       is_current: 1,
+      is_primary: 1,
       source:     'legacy_claim',
     });
 
@@ -240,27 +299,75 @@ describe('clubService.confirmAffiliation — candidate without mapped_club_id (a
   });
 });
 
-describe('clubService.confirmAffiliation — cross-club current-affiliation conflict', () => {
-  it('member already current at club A confirms B: lpca row transitions; new mca insert silently no-ops; club A current stays', () => {
+describe('clubService.confirmAffiliation — two-current-club cap: second current affiliation succeeds', () => {
+  it('member already current at club A confirms B: both affiliations land (under two-club cap)', () => {
     const result = svc.confirmAffiliation(crossAffB, MEMBER_CROSS_CLUB, 'confirm');
 
-    // Status transition lands regardless of mca-insert outcome.
     expect(result.branch).toBe('confirmed');
     expect(result.resolvedClubId).toBe(crossClubB);
-    // The new affiliation insert silently no-ops (ux_one_current). result
-    // surfaces newAffiliationId=null in that path.
-    expect(result.newAffiliationId).toBeNull();
+    expect(result.newAffiliationId).toBeTruthy();
 
     const row = readAffiliation(crossAffB);
     expect(row.resolution_status).toBe('confirmed_current');
     expect(row.resolved_club_id).toBe(crossClubB);
 
-    // Member's current affiliation: original at club A preserved; no new
-    // current row at club B.
     const affs = readMemberAffiliations(MEMBER_CROSS_CLUB);
+    expect(affs).toHaveLength(2);
+    expect(affs.map((a) => a.club_id).sort()).toEqual([crossClubA, crossClubB].sort());
+    expect(affs.every((a) => a.is_current === 1)).toBe(true);
+
+    // Club A (pre-existing) is primary; club B (newly confirmed) is secondary.
+    const primary = affs.find((a) => a.club_id === crossClubA)!;
+    const secondary = affs.find((a) => a.club_id === crossClubB)!;
+    expect(primary.is_primary).toBe(1);
+    expect(secondary.is_primary).toBe(0);
+  });
+});
+
+describe('clubService.confirmAffiliation — three-club cap: third current affiliation blocked', () => {
+  it('member with two current clubs, third confirm is capped: lpca transitions but no mca row created', () => {
+    const result = svc.confirmAffiliation(threeCapAffC, MEMBER_THREE_CAP, 'confirm');
+
+    expect(result.branch).toBe('confirmed');
+    expect(result.resolvedClubId).toBe(threeCapClubC);
+    expect(result.newAffiliationId).toBeNull();
+
+    const row = readAffiliation(threeCapAffC);
+    expect(row.resolution_status).toBe('confirmed_current');
+    expect(row.resolved_club_id).toBe(threeCapClubC);
+
+    const affs = readMemberAffiliations(MEMBER_THREE_CAP);
+    const currentAffs = affs.filter((a) => a.is_current === 1);
+    expect(currentAffs).toHaveLength(2);
+  });
+});
+
+describe('clubService.confirmAffiliation — former clubs do not count toward cap', () => {
+  it('member with one current and one former club, confirming third: insert succeeds (current count is 1)', () => {
+    const result = svc.confirmAffiliation(formerAffC, MEMBER_FORMER, 'confirm');
+
+    expect(result.branch).toBe('confirmed');
+    expect(result.resolvedClubId).toBe(formerClubC);
+    expect(result.newAffiliationId).toBeTruthy();
+
+    const affs = readMemberAffiliations(MEMBER_FORMER);
+    const currentAffs = affs.filter((a) => a.is_current === 1);
+    expect(currentAffs).toHaveLength(2);
+    expect(currentAffs.map((a) => a.club_id).sort()).toEqual(
+      [/* formerClubA */ currentAffs.find((a) => a.club_id !== formerClubC)!.club_id, formerClubC].sort(),
+    );
+  });
+});
+
+describe('clubService.confirmAffiliation — same-club idempotency under two-club cap', () => {
+  it('member already current at club A, confirms club A again: UNIQUE(member_id, club_id) catches it', () => {
+    const result = svc.confirmAffiliation(sameClubAffId, MEMBER_SAME_CLUB, 'confirm');
+
+    expect(result.branch).toBe('confirmed');
+    expect(result.newAffiliationId).toBeNull();
+
+    const affs = readMemberAffiliations(MEMBER_SAME_CLUB);
     expect(affs).toHaveLength(1);
-    expect(affs[0].club_id).toBe(crossClubA);
     expect(affs[0].is_current).toBe(1);
-    expect(affs[0].source).toBe('admin');
   });
 });

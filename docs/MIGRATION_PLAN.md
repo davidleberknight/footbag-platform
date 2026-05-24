@@ -112,7 +112,7 @@ The historical-data pipeline must produce:
   - Per-club classification with which rule(s) matched
   - Clubs with no credible leader candidate
   - Clubs with multiple competing leader candidates
-  - People with multiple apparent current-club indications (store all affiliations with `resolution_status = 'pending'`; the member resolves at claim time by choosing one current club and marking others as former)
+  - People with multiple apparent current-club indications (store all affiliations with `resolution_status = 'pending'`; the member resolves at claim time by choosing up to two current clubs and marking the rest as former)
   - Unmapped club aliases or duplicate club identities
   - Recommended split per classification rules (section 10.1): pre-populate / onboarding-visible / dormant / junk
 
@@ -797,9 +797,9 @@ Every wizard interaction produces structured audit-log evidence. Signals that ch
 
 #### Constraints
 
-- At most one current club affiliation per member. Confirming a new one converts any existing current to former in the same transaction.
+- At most two current club affiliations per member (primary and secondary), enforced at the service layer (count-before-insert). Wizard-path behavior: if the member already has two current affiliations, the new insert is skipped; the legacy affiliation row transitions but the member's current-affiliation set is unchanged. Transferring current-affiliation status requires `M_Join_Club` / `M_Leave_Club` or admin remediation.
 - Clubs may have multiple leaders.
-- Leadership is only offered to membership Tier 1+.
+- Leadership tier gating follows `M_Complete_Onboarding_Wizard`: with a bootstrap row, leadership promotes regardless of tier; without a bootstrap row, leadership is offered only to Tier 1+.
 - Onboarding-visible and dormant candidates are promoted to live `clubs` rows only via the promotion paths in §10.1 or via admin override.
 - Junk candidates are never shown in any wizard surface.
 - Dormant candidates are not surfaced as Stage 2 regional suggestions but are reachable through Stage 3A name search.
@@ -885,11 +885,11 @@ When every non-junk candidate has reached a terminal state, the `legacy_club_can
 
 ## 11. Onboarding wizard service
 
-The onboarding wizard is the primary surface for cleaning up legacy identity data. A single backend service, `MemberOnboardingService`, owns the per-member task list and orchestrates the wizard flow. Registration is one entry point; the member dashboard is the other.
+The onboarding wizard is the primary surface for cleaning up legacy identity data. A single backend service, `MemberOnboardingService`, owns the per-member task list and orchestrates the wizard flow. `M_Complete_Onboarding_Wizard` is the source of truth for task states, entry-point semantics, applicability rules, skip/resume behavior, detour lifecycle, dashboard task-widget behavior, and audit emission. This section covers only the migration-specific design: task-to-source-flow routing and storage.
 
 ### Task catalog
 
-Every member has an ordered task list. Each task is `pending`, `skipped`, `completed`, or `not_applicable`. Tasks at cutover:
+Every member has an ordered task list. Tasks at cutover:
 
 | Task type | Source flow | Owning service for the underlying logic |
 |---|---|---|
@@ -900,26 +900,6 @@ Every member has an ordered task list. Each task is `pending`, `skipped`, `compl
 
 Task ordering is fixed: `legacy_claim`, then `club_affiliations`, then optional metadata. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
 
-### Entry points
-
-**Registration** (`/register/wizard/*`): after email verification, the member is routed through outstanding tasks in catalog order. Each task can be completed or skipped. Per-card actions persist as the registrant takes them; closing the browser leaves the task in its current state. Skipping advances to the next task; at the end of the catalog the wizard lands the member on the dashboard. The wizard and the dashboard are alternate UI surfaces over the same service state, so any `pending` or `skipped` task resurfaces in the dashboard task widget for later completion.
-
-**Member dashboard** (task widget on the dashboard view): outstanding tasks render as a list with resume buttons. Completing a task removes it from the widget. The widget is the recovery path for any task skipped or deferred at registration.
-
-### Applicability
-
-The server determines each task's applicability at list construction:
-
-- `legacy_claim`: applicable to every registrant. The task surfaces staged auto-link candidates when any exist, plus a declared-anchor prompt (former surnames, old emails) so registrants without an auto-matched candidate can declare and trigger re-matching. Brand-new registrants with no signal see the task and skip in one motion.
-- `club_affiliations`: applicable to every registrant. New members with no legacy or regional matches still see Stage 3 (start a club).
-- `first_competition_year` and `show_competitive_results`: applicable to every registrant; defaults are server-side so completion is optional.
-
-A task that is server-determined `not_applicable` is never shown to the member.
-
-### Audit
-
-Every wizard transition (`startTask`, `submitTaskResponse`, `skipTask`, `completeTask`) appends an `audit_entries` row. The `action_type` catalog lives in DATA_MODEL §4 audit_entries subsection; `club_affiliations` per-stage signal action_types map 1:1 onto the §10.3 "Signals collected from registration" table.
-
 ### Storage
 
 `member_onboarding_tasks` (DATA_MODEL §4.27) carries one row per (member_id, task_type) with state and timestamps. The table is permanent operational state, not migration-only.
@@ -928,7 +908,7 @@ Every wizard transition (`startTask`, `submitTaskResponse`, `skipTask`, `complet
 
 The club onboarding flow described in §10.3 (Stages 1A, 1B, 2A, 2B, 3A) is the spec for the `club_affiliations` task handler. The wizard service is the orchestration shell; §10.3 describes one task's content. The legacy-account claim flow in §7 and §8, and the direct-HP claim flow in §8, together render as the `legacy_claim` task: one page mixing legacy_members + historical_persons candidates with a manual-id fallback, deep-linking HP cards to `/history/:personId/claim`.
 
-The onboarding wizard subsumes the narrower per-claim club review: every registrant sees the §10.3 flow regardless of whether they claim a legacy account. New members without any legacy match still see Stage 2, Stage 3, and the optional metadata tasks.
+The onboarding wizard subsumes the narrower per-claim club review: every registrant sees the §10.3 flow regardless of whether they claim a legacy account.
 
 ---
 

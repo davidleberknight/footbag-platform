@@ -1119,7 +1119,8 @@ Pricing keys are seeded at platform-epoch defaults. Insert a new `system_config`
 
 Permanent operational table recording live club membership for members. Written at legacy claim time, or by admin or member self-service. Never dropped.
 
-- One-current-club invariant: at most one `is_current = 1` row per member, enforced by `ux_member_club_affiliations_one_current` (partial unique index on `member_id WHERE is_current = 1`). When confirming a new current affiliation, the application must convert any existing current row for that member to `is_current = 0` in the same transaction.
+- Two-current-club cap: at most two `is_current = 1` rows per member, enforced at the service layer (count-before-insert in `ClubService`, matching the 5-leader-cap pattern). Joining a second club does not convert the first to former. Joining a third current club is blocked.
+- `is_primary`: designates the member's primary club among current affiliations. The first current club is primary (`is_primary = 1`); the second is secondary (`is_primary = 0`). At most one primary per member, enforced by `ux_member_club_affiliations_one_primary` (partial unique index on `member_id WHERE is_primary = 1 AND is_current = 1`). When a member leaves their primary club, the secondary is not auto-promoted; the member is prompted to designate a new primary.
 - `is_contact`: indicates the member is the designated club contact. Independent of `is_current`.
 - `source` enum: `legacy_claim` (written during the legacy claim flow), `admin` (admin-assigned), `member_self_service` (member-initiated after claim).
 - A member-club pair is unique (`UNIQUE(member_id, club_id)`); subsequent changes update the existing row.

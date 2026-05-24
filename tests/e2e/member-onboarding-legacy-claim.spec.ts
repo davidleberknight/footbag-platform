@@ -1,0 +1,205 @@
+/**
+ * Legacy claim paths: auto-link candidate cards, manual search with
+ * enqueued token, token confirm/consume, direct HP claim, and
+ * anti-enumeration equivalence.
+ */
+import { test, expect } from '@playwright/test';
+import { insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
+import { seedBrandNewPlayer, seedMemberWithAutoLinkCandidate, seedMemberWithLegacyDiffEmail, seedMemberWithHpMatch, getMemberField, getTaskState, raiseClaimRateLimits } from './helpers/onboarding';
+
+test.beforeAll(() => {
+  const db = openLiveDb();
+  raiseClaimRateLimits(db);
+  db.close();
+});
+import { WizardPage } from './pages/wizard.page';
+
+test('auto-link candidate card visible for high-confidence member', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_al_${Date.now()}`, personName: 'Autolink Person' });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('legacy_claim');
+  const body = await page.textContent('body');
+  expect(body).toContain('Autolink Person');
+
+  const linkButton = page.getByRole('button', { name: /this is me/i });
+  await expect(linkButton).toBeVisible();
+
+  await ctx.close();
+});
+
+test('auto-link confirm advances to next task', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_ac_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('legacy_claim');
+
+  const linkButton = page.getByRole('button', { name: /this is me/i });
+  await linkButton.click();
+  await page.waitForURL(/\/register\/wizard\//);
+
+  expect(page.url()).not.toContain('legacy_claim');
+
+  const db2 = openLiveDb();
+  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
+  db2.close();
+
+  await ctx.close();
+});
+
+test('manual search: enqueued path shows banner and simulated email card', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_enq_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('legacy_claim');
+  await wizard.submitIdentifier(persona.legacyEmail);
+
+  const sentBanner = page.locator('.form-success-banner');
+  await expect(sentBanner).toBeVisible();
+  const bannerText = await sentBanner.textContent();
+  expect(bannerText).toMatch(/confirmation link has been sent/i);
+
+  const simCard = page.locator('.sec-card-dev');
+  await expect(simCard).toBeVisible();
+  const tokenLink = simCard.locator('a[href*="/claim/confirm/"]');
+  await expect(tokenLink).toBeVisible();
+
+  await ctx.close();
+});
+
+test('token confirm page shows record details and confirm button', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_tok_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('legacy_claim');
+  await wizard.submitIdentifier(persona.legacyEmail);
+
+  const tokenHref = await page.locator('.sec-card-dev a[href*="/claim/confirm/"]').first().getAttribute('href');
+  expect(tokenHref).toBeTruthy();
+
+  await page.goto(tokenHref!);
+
+  const body = await page.textContent('body');
+  expect(body).toContain('Enqueued Claim');
+
+  const confirmButton = page.getByRole('button', { name: /confirm and link/i });
+  await expect(confirmButton).toBeVisible();
+
+  await ctx.close();
+});
+
+test('token consume advances wizard and links member', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_con_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+
+  await wizard.goto('legacy_claim');
+  await wizard.submitIdentifier(persona.legacyEmail);
+
+  const tokenHref = await page.locator('.sec-card-dev a[href*="/claim/confirm/"]').first().getAttribute('href');
+  await page.goto(tokenHref!);
+
+  const confirmButton = page.getByRole('button', { name: /confirm and link/i });
+  await confirmButton.click();
+  await page.waitForURL(/\/register\/wizard\//);
+
+  expect(page.url()).not.toContain('legacy_claim');
+
+  const db2 = openLiveDb();
+  expect(getMemberField(db2, persona.memberId, 'legacy_member_id')).toBe(persona.legacyMemberId);
+  expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
+  db2.close();
+
+  await ctx.close();
+});
+
+test('direct HP claim: surname match shows confirm page with name', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedMemberWithHpMatch(db, { slug: `lc_hp_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+
+  await page.goto(`/history/${persona.personId}/claim`);
+  const body = await page.textContent('body');
+  expect(body).toContain('Robert Testplayer');
+
+  const claimButton = page.getByRole('button', { name: /yes.*this is me|link the record/i });
+  await expect(claimButton).toBeVisible();
+
+  await ctx.close();
+});
+
+test('HP claim surname mismatch: claim-unavailable page (anti-enum safe)', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const personId = insertHistoricalPerson(db, { person_name: 'Totally Different' });
+  const persona = seedBrandNewPlayer(db, { slug: `lc_mm_${Date.now()}` });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+
+  const res = await page.goto(`/history/${personId}/claim`);
+  expect(res?.status()).toBe(200);
+
+  const body = await page.textContent('body');
+  expect(body).toMatch(/unavailable|cannot.*link/i);
+  expect(body).not.toContain('Totally Different');
+
+  await ctx.close();
+});
+
+test('anti-enum: no-match and match searches show identical banner text', async ({ browser, baseURL }) => {
+  const stamp = Date.now();
+
+  const db = openLiveDb();
+  const noMatchPersona = seedBrandNewPlayer(db, { slug: `lc_ae1_${stamp}` });
+  const legacyEmail = `ae-match-${stamp}@oldsite.example`;
+  insertLegacyMember(db, { legacy_member_id: `LM-AE-${stamp}`, legacy_email: legacyEmail, real_name: 'AE Match' });
+  const matchPersona = seedBrandNewPlayer(db, { slug: `lc_ae2_${stamp}` });
+  db.close();
+
+  const ctx1 = await createAuthenticatedContext(browser, baseURL!, noMatchPersona);
+  const page1 = await ctx1.newPage();
+  const w1 = new WizardPage(page1);
+  await w1.goto('legacy_claim');
+  await w1.submitIdentifier(`garbage-${stamp}`);
+  const noMatchBanner = await page1.textContent('[role="status"], .form-success-banner') ?? '';
+  await ctx1.close();
+
+  const ctx2 = await createAuthenticatedContext(browser, baseURL!, matchPersona);
+  const page2 = await ctx2.newPage();
+  const w2 = new WizardPage(page2);
+  await w2.goto('legacy_claim');
+  await w2.submitIdentifier(legacyEmail);
+  const matchBanner = await page2.textContent('[role="status"], .form-success-banner') ?? '';
+  await ctx2.close();
+
+  expect(noMatchBanner.trim()).toBe(matchBanner.trim());
+});

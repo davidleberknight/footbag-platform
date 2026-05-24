@@ -149,7 +149,7 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     const res = await getDashboard(T1_ID);
     expect(res.text).toContain('More Features');
     expect(res.text).toContain('Coming soon');
-    expect(res.text).toContain('My Club');
+    expect(res.text).toContain('My Clubs');
     expect(res.text).toContain('My Events');
     expect(res.text).toContain('Payments &amp; Donations');
     expect(res.text).toContain('Voting &amp; HoF');

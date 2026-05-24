@@ -49,6 +49,7 @@ interface AffiliationRow {
   member_id: string;
   club_id: string;
   is_current: number;
+  is_primary: number;
   source: string;
 }
 
@@ -87,7 +88,7 @@ function readAffiliations(memberId: string): AffiliationRow[] {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const rows = db
     .prepare(
-      `SELECT member_id, club_id, is_current, source
+      `SELECT member_id, club_id, is_current, is_primary, source
          FROM member_club_affiliations
         WHERE member_id = ?`,
     )
@@ -411,6 +412,12 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — cross-club 
     expect(bLeaders).toHaveLength(1);
     expect(bLeaders[0].role).toBe('co-leader');
 
+    // Two-current-club cap: both affiliations land.
+    const affs = readAffiliations(CROSS_CLUB_MEMBER);
+    expect(affs).toHaveLength(2);
+    expect(affs.map((a) => a.club_id).sort()).toEqual([crossClubA, crossClubB].sort());
+    expect(affs.every((a) => a.is_current === 1)).toBe(true);
+
     // F2 audit-metadata assertion: latest audit row for this member carries
     // both fields under the expected snake_case keys.
     const audits = readClubAffiliationsAudits(CROSS_CLUB_MEMBER);
@@ -456,13 +463,13 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com` });
     const clubX = insertClub(db, { name: 'D1 Club X (pre-existing current)' });
     const clubY = insertClub(db, { name: 'D1 Club Y (new claim)' });
-    // Direct insert of the pre-existing is_current=1 affiliation at clubX.
+    // Direct insert of the pre-existing is_current=1 primary affiliation at clubX.
     db.prepare(`
       INSERT INTO member_club_affiliations (
         id, created_at, created_by, updated_at, updated_by, version,
-        member_id, club_id, is_current, is_contact, source
+        member_id, club_id, is_current, is_primary, is_contact, source
       ) VALUES ('mca-d1-pre', '2025-01-01T00:00:00.000Z', 'test', '2025-01-01T00:00:00.000Z', 'test', 1,
-                ?, ?, 1, 0, 'admin')
+                ?, ?, 1, 1, 0, 'admin')
     `).run(memberId, clubX);
     const candidateY = seedCandidate(db, {
       clubId: clubY,
@@ -482,15 +489,13 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     expect(readClubLeaders(clubY)).toHaveLength(1);
     expect(readClubLeaders(clubX)).toHaveLength(0);
 
-    // Member's affiliation state: original is_current=1 at clubX preserved;
-    // no new is_current=1 row at clubY (insertAffiliation hits the partial
-    // unique on member_club_affiliations.ux_member_club_affiliations_one_current,
-    // service catches isUniqueViolation and continues idempotently).
+    // Member's affiliation state: two-current-club cap allows both.
+    // Original is_current=1 at clubX preserved; new is_current=1 at clubY
+    // also lands (under the two-club cap).
     const affs = readAffiliations(memberId);
-    expect(affs).toHaveLength(1);
-    expect(affs[0].club_id).toBe(clubX);
-    expect(affs[0].is_current).toBe(1);
-    expect(affs[0].source).toBe('admin');
+    expect(affs).toHaveLength(2);
+    expect(affs.map((a) => a.club_id).sort()).toEqual([clubX, clubY].sort());
+    expect(affs.every((a) => a.is_current === 1)).toBe(true);
   });
 });
 

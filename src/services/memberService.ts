@@ -757,7 +757,7 @@ function buildQuickActions(slug: string): QuickAction[] {
 }
 
 const COMING_SOON_FEATURES: ComingSoonFeature[] = [
-  { label: 'My Club',             description: 'Confirm your old footbag.org club affiliations and leadership roles, then see your club roster and current standing.' },
+  { label: 'My Clubs',            description: 'Confirm your old footbag.org club affiliations and leadership roles, then see your club roster and current standing.' },
   { label: 'My Events',           description: 'View your upcoming registrations and past event history.' },
   { label: 'Payments & Donations', description: 'View your payment history and donation receipts.' },
   { label: 'Voting & HoF',        description: 'Participate in active IFPA votes and Hall of Fame nominations.' },

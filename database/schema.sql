@@ -3197,6 +3197,7 @@ CREATE TABLE member_club_affiliations (
   member_id  TEXT NOT NULL REFERENCES members(id),
   club_id    TEXT NOT NULL REFERENCES clubs(id),
   is_current INTEGER NOT NULL DEFAULT 1 CHECK (is_current IN (0,1)),
+  is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
   is_contact INTEGER NOT NULL DEFAULT 0 CHECK (is_contact IN (0,1)),
   source     TEXT NOT NULL DEFAULT 'legacy_claim'
     CHECK (source IN ('legacy_claim','admin','member_self_service')),
@@ -3206,10 +3207,14 @@ CREATE TABLE member_club_affiliations (
 
 CREATE INDEX idx_member_club_affiliations_member ON member_club_affiliations(member_id);
 CREATE INDEX idx_member_club_affiliations_club   ON member_club_affiliations(club_id);
--- One-current-club invariant: at most one is_current=1 row per member.
-CREATE UNIQUE INDEX ux_member_club_affiliations_one_current
+-- Two-current-club cap: at most two is_current=1 rows per member.
+-- Service-enforced (ClubService count-before-insert, matching the
+-- 5-leader-cap pattern). Partial unique index was dropped because
+-- SQLite partial unique indexes only enforce N=1.
+-- Primary club: at most one is_primary=1 row per member among current affiliations.
+CREATE UNIQUE INDEX ux_member_club_affiliations_one_primary
   ON member_club_affiliations(member_id)
-  WHERE is_current = 1;
+  WHERE is_primary = 1 AND is_current = 1;
 
 -- Permanent operational table: per-member onboarding-wizard task state.
 -- One row per (member_id, task_type). Owned by MemberOnboardingService.

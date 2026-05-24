@@ -14,3 +14,7 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 - **Playwright tagging** (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`).
 - **Lightweight staging-safe pentest probes** (per `docs/TESTING.md` §9.2): security headers, no stack traces, no dev-shortcut acceptance, auth gates, anti-enumeration timing, no public-route contact fields.
+
+### Deferred wizard implementation gaps
+
+- **No-bootstrap-row leadership Tier 1+ gate in wizard path (Stage 1B path 1):** `M_Complete_Onboarding_Wizard` line 785 says without a bootstrap row, leadership is offered only to Tier 1+. Current `clubService.claimLeadership` has no tier check; the tier gate is implemented only at the card-rendering layer (cards are not surfaced for Tier 0 members without bootstrap rows). Verify the card-rendering layer enforces this before cutover.
