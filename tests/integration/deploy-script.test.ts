@@ -120,7 +120,7 @@ describe('deploy_to_aws.sh wrapper', () => {
     });
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/wipe S3 first:\s+no/);
+    expect(combined).toMatch(/clean S3 sync:\s+no/);
     expect(combined).toMatch(/KEEP_MEDIA=yes/);
   });
 

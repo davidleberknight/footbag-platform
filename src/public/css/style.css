@@ -932,6 +932,7 @@ section.home-media { padding-top: 0; }
 .reference-media-tile > .video-facade-video {
   aspect-ratio: 16 / 9;
   border-radius: 6px;
+  height: auto;
 }
 
 /* Reference Media grid — compact thumbnails (UX3 QC follow-up 2026-05-11).
