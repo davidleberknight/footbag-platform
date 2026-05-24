@@ -1311,13 +1311,15 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
-    // Section wrapper present. 2026-05-23: section heading was
-    // renamed from "Set notation (operational)" to "JOB notation" to
-    // match the brief's vocabulary; the section is rendered only for
-    // non-first-class tricks (the trick-notation-summary card carries
-    // the JOB row on first-class pages).
+    // Section wrapper present. 2026-05-24: section heading renamed to
+    // "Set notation" per the notation-display audit's label-normalization
+    // recommendation (public-facing surfaces use accessible terms; the
+    // first-class comparative-row keeps the compact JOB/ADD/ALT labels).
+    // The section is rendered only for non-first-class tricks (the
+    // trick-notation-summary card carries the compact JOB row on
+    // first-class pages).
     expect(res.text).toContain('class="content-section operational-notation-display"');
-    expect(res.text).toContain('<h2>JOB notation</h2>');
+    expect(res.text).toContain('<h2>Set notation</h2>');
     // O1b: each token rendered as a span with role class. O1c refined the
     // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
     // the generic "Plant or landing surface").

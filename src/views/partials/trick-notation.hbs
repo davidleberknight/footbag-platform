@@ -6,7 +6,7 @@
 {{#if content.notationDisplay}}
 <section class="content-section notation-display" aria-label="Trick notation">
   <div class="section-heading">
-    <h2>Notation</h2>
+    <h2>Movement notation</h2>
     <p class="section-intro">The name broken into named parts. Each colored term is a piece of structure &mdash; the base trick, a modifier, or a positional cue.</p>
   </div>
   <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>

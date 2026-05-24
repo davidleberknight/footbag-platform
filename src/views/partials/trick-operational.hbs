@@ -9,10 +9,10 @@
 --}}
 {{#if content.operationalNotation}}
 {{#unless content.isFirstClass}}
-<section class="content-section operational-notation-display" aria-label="JOB notation">
+<section class="content-section operational-notation-display" aria-label="Set notation">
   <div class="section-heading">
-    <h2>JOB notation</h2>
-    <p class="section-intro">Execution mechanics -- how the body performs the trick.</p>
+    <h2>Set notation</h2>
+    <p class="section-intro">Execution mechanics -- the set-arc form showing how the body performs the trick.</p>
   </div>
   <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
   {{#if content.operationalNotation.sourceNote}}
