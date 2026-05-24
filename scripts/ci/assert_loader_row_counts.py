@@ -62,6 +62,8 @@ EXPECTATIONS: list[Expectation] = [
     Expectation("freestyle_media_links", 1, "from committed inputs/curated/media/media_links.csv"),
     # Step 12: load_name_variants_seed.py
     Expectation("name_variants", 50, "from committed inputs/name_variants.csv (HIGH-confidence)"),
+    # Step 12b: load_given_name_variants_to_sqlite.py
+    Expectation("given_name_variants", 10, "from committed inputs/curated/given_name_variants.csv"),
     # Step 13: 12_build_net_discipline_groups.py
     Expectation("net_discipline_group", 1, "fixture has net disciplines so groups must build"),
     Expectation("net_stat_policy", 4, "exactly 4 registry rows by design"),

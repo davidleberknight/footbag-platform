@@ -164,6 +164,10 @@ echo "  → Loading name_variants seed..."
   --db "${DB_FILE}" \
   --apply
 
+echo "  → Loading given_name_variants..."
+"${PYTHON}" legacy_data/scripts/load_given_name_variants_to_sqlite.py \
+  --db "${DB_FILE}"
+
 # Phase NET: net enrichment layer (discipline groups, teams, appearances, review queue).
 # Reads canonical tables, writes net_* tables. Must run after script 08.
 echo "  → Building net discipline groups..."

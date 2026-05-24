@@ -3530,6 +3530,21 @@ CREATE TABLE name_variants (
 
 CREATE INDEX idx_name_variants_variant ON name_variants(variant_normalized);
 
+-- Generic given-name shortenings (Dave/David, Mike/Michael, etc.).
+-- Distinct from name_variants: these are not person-specific aliases but
+-- universal first-name equivalences applied at matching time.
+-- Curated source: inputs/curated/given_name_variants.csv.
+CREATE TABLE given_name_variants (
+  short_form_normalized TEXT NOT NULL,
+  long_form_normalized  TEXT NOT NULL,
+  created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+
+  PRIMARY KEY (short_form_normalized, long_form_normalized),
+  CHECK (short_form_normalized <> long_form_normalized),
+  CHECK (length(short_form_normalized) > 0),
+  CHECK (length(long_form_normalized)  > 0)
+);
+
 -- =============================================================================
 -- FREESTYLE DOMAIN LAYER
 -- Additive tables. No existing tables are modified.

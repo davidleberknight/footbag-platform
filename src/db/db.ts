@@ -5745,6 +5745,12 @@ export const nameVariants = {
     WHERE lower(trim(person_name)) = ?
     ORDER BY person_id
   `); },
+
+  get findGivenNameAlternates() { return db.prepare(`
+    SELECT short_form_normalized, long_form_normalized
+    FROM given_name_variants
+    WHERE short_form_normalized = ? OR long_form_normalized = ?
+  `); },
 };
 
 // ── Membership tier ledger (member_tier_grants / member_tier_current) ──

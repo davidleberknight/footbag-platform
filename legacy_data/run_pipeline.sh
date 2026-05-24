@@ -483,6 +483,8 @@ run_phase_v() {
     python scripts/load_name_variants_seed.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --apply
+    python scripts/load_given_name_variants_to_sqlite.py \
+        --db "${REPO_ROOT}/database/footbag.db"
     echo ""
 }
 

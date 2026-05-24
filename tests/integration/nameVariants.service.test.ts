@@ -11,6 +11,7 @@
  * Cases covered:
  *   - diacritic variant hit
  *   - display-name variant hit
+ *   - nickname variant hit (Dave ↔ David)
  *   - collision / no-match
  *   - exact canonical match (no variant row)
  *   - empty / whitespace input
@@ -20,7 +21,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertHistoricalPerson, insertNameVariant } from '../fixtures/factories';
+import { insertHistoricalPerson, insertNameVariant, insertGivenNameVariant } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3099');
 
@@ -35,6 +36,7 @@ const HP_SAM_Q_TESTER          = 'person-hp-sam-tester';
 const HP_DUPLICATE_JANE_A      = 'person-hp-jane-doe-a';
 const HP_DUPLICATE_JANE_B      = 'person-hp-jane-doe-b';
 const HP_ALSO_CHRIS_SIEBERT    = 'person-hp-chris-siebert-literal';
+const HP_DAVE_LEBERKNIGHT      = 'person-hp-dave-leberknight';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -83,6 +85,19 @@ beforeAll(async () => {
   insertHistoricalPerson(db, {
     person_id: HP_ALSO_CHRIS_SIEBERT,
     person_name: 'Chris Siebert',
+  });
+
+  // Nickname variant case: HP uses a common shortening (Dave); registrant
+  // uses the full form (David). The given_name_variants table provides the
+  // generic Dave/David mapping; the service expands first-name tokens at
+  // query time.
+  insertHistoricalPerson(db, {
+    person_id: HP_DAVE_LEBERKNIGHT,
+    person_name: 'Dave Leberknight',
+  });
+  insertGivenNameVariant(db, {
+    short_form_normalized: 'dave',
+    long_form_normalized:  'david',
   });
 
   db.close();
@@ -143,6 +158,18 @@ describe('findAutoLinkCandidates', () => {
       matchedCanonicalNormalized: 'chris siebert',
     });
     expect(byId[HP_ALSO_CHRIS_SIEBERT].matchedVariantNormalized).toBeUndefined();
+  });
+
+  it('returns a nickname-variant hit (Dave ↔ David)', () => {
+    const candidates = svc.findAutoLinkCandidates('David Leberknight');
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      personId: HP_DAVE_LEBERKNIGHT,
+      personName: 'Dave Leberknight',
+      matchKind: 'variant',
+      matchedCanonicalNormalized: 'dave leberknight',
+      matchedVariantNormalized:   'david leberknight',
+    });
   });
 
   it('returns no candidates when nothing matches (collision/no-match)', () => {

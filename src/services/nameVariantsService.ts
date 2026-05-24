@@ -46,6 +46,11 @@ interface NameVariantRow {
   variant_normalized: string;
 }
 
+interface GivenNameVariantRow {
+  short_form_normalized: string;
+  long_form_normalized: string;
+}
+
 interface HistoricalPersonRow {
   person_id: string;
   person_name: string;
@@ -85,6 +90,25 @@ export function findAutoLinkCandidates(realName: string): AutoLinkCandidate[] {
     // (e.g. input == other somehow), keep `undefined` so it's classified exact.
     if (!canonicalForms.has(other)) {
       canonicalForms.set(other, row.variant_normalized);
+    }
+  }
+
+  // Nickname expansion: swap the first token using given_name_variants.
+  const inputTokens = input.split(' ');
+  if (inputTokens.length >= 2) {
+    const firstToken = inputTokens[0];
+    const nicknameRows = nameVariantsDb.findGivenNameAlternates.all(
+      firstToken,
+      firstToken,
+    ) as GivenNameVariantRow[];
+    for (const row of nicknameRows) {
+      const altFirst = row.short_form_normalized === firstToken
+        ? row.long_form_normalized
+        : row.short_form_normalized;
+      const altName = [altFirst, ...inputTokens.slice(1)].join(' ');
+      if (!canonicalForms.has(altName)) {
+        canonicalForms.set(altName, input);
+      }
     }
   }
 

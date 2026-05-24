@@ -19,8 +19,9 @@
  * | 7 | `low_multi`              | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates`   | `/register/wizard/legacy_claim`      | verify     |
  * | 8 | `low_hp_mismatch_decoy`  | Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
  * | 9 | `low_surname_split`      | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
- * |10 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
- * |11 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
+ * |10 | `medium_nickname`        | David Testplayer            | Dave Testplayer               | `dave testplayer ↔ david testplayer`       | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
+ * |11 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
+ * |12 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
  *
  * `verify` driver: seed → issue email_verify token → GET /verify/:token → assert redirect.
  * `direct` driver: seed → call `identityAccessService.getAutoLinkClassificationForMember(memberId)` → assert confidence.
@@ -31,6 +32,7 @@ import {
   insertHistoricalPerson,
   insertLegacyMember,
   insertNameVariant,
+  insertGivenNameVariant,
 } from './factories';
 
 export type ExpectedBranch =
@@ -313,7 +315,37 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     },
   },
 
-  // ── 10. already linked ──────────────────────────────────────────────────
+  // ── 10. medium — nickname variant (Dave ↔ David) ───────────────────────
+  {
+    id: 'sc-medium-nickname',
+    slug: 'sc_medium_nickname',
+    description: 'Common given-name shortening resolves to canonical HP via curated nickname variant.',
+    expected: 'medium',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
+    driver: 'verify',
+    seed: (db) => {
+      insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-nick', legacy_email: 'sc-medium-nick@example.com' });
+      insertHistoricalPerson(db, {
+        person_id: 'hp-sc-medium-nick',
+        person_name: 'Dave Testplayer',
+        legacy_member_id: 'lm-sc-medium-nick',
+      });
+      insertGivenNameVariant(db, {
+        short_form_normalized: 'dave',
+        long_form_normalized:  'david',
+      });
+      insertMember(db, {
+        id: 'sc-medium-nickname',
+        slug: 'sc_medium_nickname',
+        login_email: 'sc-medium-nick@example.com',
+        real_name: 'David Testplayer',
+        email_verified_at: null,
+      });
+      return 'sc-medium-nickname';
+    },
+  },
+
+  // ── 11. already linked ──────────────────────────────────────────────────
   {
     id: 'sc-already-linked',
     slug: 'sc_already_linked',

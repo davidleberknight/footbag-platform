@@ -1348,6 +1348,28 @@ export function insertNameVariant(
   );
 }
 
+// ── Given-name variants (generic first-name shortenings) ─────────────────────
+
+export interface GivenNameVariantOverrides {
+  short_form_normalized: string;
+  long_form_normalized: string;
+  created_at?: string;
+}
+
+export function insertGivenNameVariant(
+  db: BetterSqlite3.Database,
+  o: GivenNameVariantOverrides,
+): void {
+  db.prepare(`
+    INSERT INTO given_name_variants (short_form_normalized, long_form_normalized, created_at)
+    VALUES (?, ?, ?)
+  `).run(
+    o.short_form_normalized,
+    o.long_form_normalized,
+    o.created_at ?? TS,
+  );
+}
+
 // ── Curator media (system-account-owned video tagged for a slot) ─────────────
 
 export interface CuratorVideoOverrides {
