@@ -6919,7 +6919,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'Freestyle turns a small footbag into movement, rhythm, and control.',
+        intro: 'Learn the movements, watch the sport, and explore the trick vocabulary.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',

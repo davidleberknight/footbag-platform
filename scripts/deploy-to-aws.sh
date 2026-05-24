@@ -10,7 +10,7 @@
 # Default with no flags = "ship everything fresh": rebuild local DB from
 # committed CSVs, replace staging DB, sync code + media, run tests, run smoke.
 # Each destructive step prompts before acting (rebuild local DB, replace
-# staging DB, wipe S3 bucket).
+# staging DB, clean S3 sync).
 #
 # Mirror is NEVER required at deploy time. Committed seed CSVs carry all
 # mirror-extracted data forward. Mirror extraction is an upstream
@@ -30,7 +30,7 @@ Usage: bash deploy_to_aws.sh [flags]                       (recommended)
 
 Default (no flags): ship code, rebuild local DB, replace staging DB, sync
 media, run tests + smoke. Prompts before each destructive step (rebuild,
-replace, S3 wipe).
+replace, clean S3 sync).
 
 MODES (mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
@@ -63,8 +63,8 @@ MODIFIERS
 ─────────────────────────────────────────────────────────────────────
   -y, --yes                    Accept every destructive prompt as its
                                default-yes answer. CI / scripted use.
-  -W, --no-s3-wipe             When media sync runs, skip the S3 wipe;
-                               still rsync new bytes additively.
+  -W, --no-s3-wipe             When media sync runs, skip --delete flag;
+                               still sync new bytes additively.
   --seed-dev-admins            After the deploy completes, run the
                                dev-admin seed inside the web container.
                                Reads .local/staging-admin-seed.json
@@ -75,7 +75,7 @@ MODIFIERS
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
-Combinations work: `-ryW` = reuse local DB, accept defaults, skip wipe.
+Combinations work: `-ryW` = reuse local DB, accept defaults, additive sync only.
 
 ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
@@ -269,8 +269,8 @@ if [[ -z "$REPLACE_STAGING" ]]; then
   fi
 fi
 
-# Wipe defaults: Y if a DB rebuild is happening (avatar S3 keys remap on fresh
-# DB seed; orphaned objects would serve wrong-person photos). N otherwise.
+# Clean-sync defaults: Y if a DB rebuild is happening (removes S3 objects that
+# have no local counterpart). N otherwise (additive sync only).
 WIPE_DEFAULT="N"
 if [[ "$REBUILD_LOCAL" == "yes" && "$REPLACE_STAGING" == "yes" ]]; then
   WIPE_DEFAULT="Y"
@@ -280,10 +280,10 @@ fi
 if [[ "$NO_S3_WIPE_FLAG" == "yes" ]]; then
   WIPE_S3="no"
 elif [[ "$REPLACE_STAGING" == "no" && "$MODE" == "keep" ]]; then
-  # -k mode: media still rsync's additively, but no DB context → no wipe.
+  # -k mode: media still syncs additively, but no DB context → no delete.
   WIPE_S3="no"
 else
-  if prompt_yn "Wipe S3 bucket before media sync?" "$WIPE_DEFAULT"; then
+  if prompt_yn "Remove stale S3 objects during media sync?" "$WIPE_DEFAULT"; then
     WIPE_S3="yes"
   else
     WIPE_S3="no"
@@ -299,8 +299,8 @@ echo "    target:           ${DEPLOY_TARGET:-footbag-staging}"
 echo "    mode:             ${MODE:-default}"
 echo "    rebuild local DB: ${REBUILD_LOCAL}"
 echo "    replace staging:  ${REPLACE_STAGING}"
-echo "    sync media:       yes (additive)"
-echo "    wipe S3 first:    ${WIPE_S3}"
+echo "    sync media:       yes (incremental)"
+echo "    clean S3 sync:    ${WIPE_S3}"
 echo "    seed dev admins:  ${SEED_DEV_ADMINS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
@@ -411,8 +411,8 @@ export SEED_DEV_ADMINS
 # SYNC_MEDIA: always yes when shipping anything (additive rsync).
 export SYNC_MEDIA="yes"
 
-# KEEP_MEDIA: yes means "skip wipe." Maps from WIPE_S3 (inverse semantics
-# preserved from legacy code).
+# KEEP_MEDIA: yes means "additive sync only, no --delete." Maps from WIPE_S3
+# (inverse semantics preserved from legacy code).
 if [[ "$WIPE_S3" == "yes" ]]; then
   export KEEP_MEDIA="no"
 else

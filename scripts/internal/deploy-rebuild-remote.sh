@@ -435,48 +435,34 @@ systemctl stop footbag || true
 echo "    Ensuring compose stack is fully down..."
 compose_cmd down --remove-orphans || true
 
-# S3 media cycle (wipe + repopulate) is gated on the --sync-media opt-in
-# threaded as SYNC_MEDIA env from the workstation's orchestrator. Without
-# the opt-in, S3 is fully preserved across this deploy (no wipe, no sync,
-# no aws-s3 calls). With the opt-in, the existing wipe semantics apply:
-# auto-wipe on staging by default; --keep-media to skip the wipe but still
-# rsync new bytes (incremental ETag-based sync).
+# S3 media sync is gated on the --sync-media opt-in threaded as SYNC_MEDIA
+# env from the workstation's orchestrator. Without the opt-in, S3 is fully
+# preserved across this deploy (no wipe, no sync, no aws-s3 calls).
 #
-# Avatar S3 keys are stable per member ID; on a fresh DB seed those IDs map
-# to different people, so leaving old objects in place would serve the wrong
-# person's photo at the new identity. The wipe ensures the rebuild is a true
-# clean slate. The DR bucket auto-receives delete markers via replication.
-# CloudFront edge cache may continue serving previously-cached objects for
-# up to 7 days under the /media/* TTL, which is acceptable on staging.
+# --keep-media skips deletion of S3-only objects (additive sync).
+# Without --keep-media, sync --delete removes S3 objects that have no local
+# counterpart. --size-only skips uploads for files whose size already
+# matches, avoiding redundant transfers for unchanged media.
+# DR bucket auto-receives delete markers via replication.
 : "${SYNC_MEDIA:?must be set by deploy-rebuild.sh via cat-pipe}"
 if [[ "$SYNC_MEDIA" != "yes" ]]; then
-  echo "    --sync-media not set: skipping S3 wipe + sync; live media untouched."
+  echo "    --sync-media not set: skipping S3 sync; live media untouched."
 else
-  if [[ "$KEEP_MEDIA" == "yes" ]]; then
-    echo "    --keep-media: skipping S3 media wipe."
-  else
-    MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
-    echo "    Wiping s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (staging default; pass --keep-media to skip)..."
-    AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 rm \
-      --region "$AWS_REGION_VAL" \
-      "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/" \
-      --recursive
-    echo "    S3 wipe complete; delete markers will replicate to DR bucket automatically."
-  fi
-
-  # Repopulate the bucket with the curator-seeded bytes that the workstation
-  # produced via scripts/seed_fh_curator.py and rsync'd into
-  # RELEASE_DIR/data/media/. Without this, the wipe above leaves S3 empty and
-  # the FH avatar + demo-loop URLs render 403/404 (DD §1.5: bytes live in S3,
-  # DB rows reference S3 keys; both sides must be in sync).
   if [[ -d "${RELEASE_DIR}/data/media" ]]; then
-    : "${MEDIA_STORAGE_S3_BUCKET_VAL:=$(require_env MEDIA_STORAGE_S3_BUCKET)}"
-    echo "    Syncing curator-seeded media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ ..."
+    MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
+    SYNC_FLAGS="--size-only"
+    if [[ "$KEEP_MEDIA" != "yes" ]]; then
+      SYNC_FLAGS="--delete --size-only"
+      echo "    Syncing media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (--delete: removing stale objects)..."
+    else
+      echo "    Syncing media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (--keep-media: additive only)..."
+    fi
     AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 sync \
       --region "$AWS_REGION_VAL" \
+      $SYNC_FLAGS \
       "${RELEASE_DIR}/data/media/" \
       "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
-    echo "    Curator media sync complete."
+    echo "    Media sync complete."
   else
     echo "    WARNING: --sync-media set but RELEASE_DIR/data/media does not exist; skipping S3 sync."
   fi
