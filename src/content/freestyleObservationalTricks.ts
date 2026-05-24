@@ -149,11 +149,39 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'bladerunner' removed 2026-05-23 — promoted canonical via Slice
-  // 7-OBS-A under FM dex-count convention (PB claim 3 ADD published
-  // as canonical). Per feedback_observational_canonical_promotion_cleanup.
-  // 'bling-blang' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 2 ADD published as canonical).
+  // 'bladerunner' restored 2026-05-24 — Slice 7-OBS-A revert. The FM
+  // dex-count canonical publication created confusion in rendered
+  // dictionary surfaces; curator instructed to revert and keep this
+  // row in Emerging Vocabulary until a canonical-bracket reading is
+  // authored.
+  {
+    folkSlug:           'bladerunner',
+    displayName:        'Bladerunner',
+    proposedReadings:   [
+      'Atomic far Eggbeater',
+      'Atomic Eggbeater',
+    ],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
+  // 'bling-blang' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'bling-blang',
+    displayName:        'Bling Blang',
+    proposedReadings:   ['(uptime) Whirling near Whip'],
+    proposedAddFormula: null,
+    proposedAddTotal:   2,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   // 'blurrage' removed 2026-05-23 — promoted to canonical via Wave 7
   // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
   // PB-source claim 3 documented as historical-divergence in
@@ -170,8 +198,22 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'cold-fusion' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 3 ADD published as canonical).
+  // 'cold-fusion' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'cold-fusion',
+    displayName:        'Cold Fusion',
+    proposedReadings:   [
+      'Nuclear far Double Down',
+      'Pdx. Fusion',
+    ],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   {
     folkSlug:           'colossus',
     displayName:        'Colossus',
@@ -232,8 +274,19 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'flurricane' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 3 ADD published as canonical).
+  // 'flurricane' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'flurricane',
+    displayName:        'Flurricane',
+    proposedReadings:   ['Gyro Flurry'],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   {
     folkSlug:           'gary-coleman',
     displayName:        'Gary Coleman',
@@ -273,10 +326,34 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'golden-shower' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 3 ADD published as canonical).
-  // 'goliath' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 3 ADD published as canonical).
+  // 'golden-shower' + 'goliath' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'golden-shower',
+    displayName:        'Golden Shower',
+    proposedReadings:   ['Stepping Ducking far Symp. Eggbeater'],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'goliath',
+    displayName:        'Goliath',
+    proposedReadings:   [
+      'Pixie Ducking far DLO',
+      'Alpine Smog',
+    ],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   {
     folkSlug:           'green-eggs-and-ham',
     displayName:        'Green Eggs and Ham',
@@ -289,9 +366,19 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'gybas' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 2 ADD published as canonical;
-  // G.Y.B.A.S. alias preserved on the canonical row).
+  // 'gybas' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'gybas',
+    displayName:        'GYBAS',
+    proposedReadings:   ['Stepping far Dyno'],
+    proposedAddFormula: null,
+    proposedAddTotal:   2,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   {
     folkSlug:           'id',
     displayName:        'Id',
@@ -489,10 +576,34 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'motion-sickness' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 2 ADD published as canonical).
-  // 'pandemonium' removed 2026-05-23 — promoted canonical via Slice 7-OBS-A
-  // under FM dex-count convention (PB claim 3 ADD published as canonical).
+  // 'motion-sickness' + 'pandemonium' restored 2026-05-24 — Slice 7-OBS-A revert.
+  {
+    folkSlug:           'motion-sickness',
+    displayName:        'Motion Sickness',
+    proposedReadings:   ['Spinning far Motion'],
+    proposedAddFormula: null,
+    proposedAddTotal:   2,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
+  {
+    folkSlug:           'pandemonium',
+    displayName:        'Pandemonium',
+    proposedReadings:   [
+      'Pixie far Symp. Eggbeater',
+      'BS Pigbeater',
+    ],
+    proposedAddFormula: null,
+    proposedAddTotal:   3,
+    sourceLabel:        'passback',
+    sourceCitation:     'PassBack dictionary (passback-dicrionary.txt)',
+    status:             'pending-review',
+    curatorNote:        null,
+    unresolvedBlockers: [],
+  },
   {
     folkSlug:           'pandora-s-box',
     displayName:        'Pandora\'s Box',

@@ -491,10 +491,13 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       // Wave 1 audit-derived 2026-05-22
       'atomic-torque', 'ducking-mirage', 'paradox-drifter',
       'spinning-pickup', 'tapping-whirl',
-      // Wave 2 RESOLVED_FORMULAS promotions 2026-05-22
+      // Wave 2 RESOLVED_FORMULAS promotions 2026-05-22.
+      // 2026-05-24 QC: rev-up was demoted from FIRST_CLASS_TIER_2 +
+      // is_active=0 (structurally distinct from rev-whirl but lacks an
+      // authored decomposition).
       'atom-smasher', 'dimwalk', 'ducking-clipper', 'ducking-osis',
       'ducking-whirl', 'fog', 'orbit', 'paradox-blender', 'paradox-torque',
-      'rake', 'rev-up', 'rev-whirl', 'smear', 'spinning-clipper',
+      'rake', 'rev-whirl', 'smear', 'spinning-clipper',
       'spinning-osis', 'spinning-torque', 'stepping-whirl',
       'symposium-whirl', 'whirling-swirl',
       // Wave 3 audit-validated promotions 2026-05-22 — ATAM bracket-flag (6)

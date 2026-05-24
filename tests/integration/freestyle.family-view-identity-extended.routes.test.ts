@@ -118,6 +118,11 @@ const FIRST_CLASS_TAUTOLOGICAL = new Set([
   'ducking-butterfly', 'spinning-butterfly', 'stepping-osis',
   // Tier 2 Wave 2 RESOLVED_FORMULAS promotions (2026-05-22):
   'ducking-osis', 'spinning-osis', 'paradox-torque', 'spinning-torque',
+  // 2026-05-24: universal tautological-reading filter expanded. Any
+  // slug whose firstReadingTokens.join(' ') equals the canonical name
+  // drops at the shaping layer regardless of first-class membership.
+  // Non-first-class tautological slug added below.
+  'blurry-torque',
 ]);
 const PILOTS_WITH_CHAINS = ALL_PILOTS
   .filter(p => p.firstReadingTokens.length > 0)

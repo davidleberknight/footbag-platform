@@ -565,16 +565,16 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro symposium torque'],
     curatorConfirmPending: false,   // FM 'Gyro Symposium Torque' + PB 'Symp. Mobius' agree (mobius unfolds to gyro torque); math gyro(+1)+symposium(+1)+torque(4)=6
   },
-  {
-    slug:     'rev-whirl',
-    readings: ['reverse whirl'],
-    curatorConfirmPending: false,   // Sprint 3 resolved: reverse(+0) + whirl(3) = 3 ADD. Curator 2026-05-19: 'reverse whirl == whip'; whip alias preserved on DB row
-  },
-  {
-    slug:     'rev-up',
-    readings: ['reverse whirl'],
-    curatorConfirmPending: false,   // Sprint 3 resolved: reverse(+0) + whirl(3) = 3 ADD. rev-up shares the structural reading with rev-whirl; folk-name distinction preserved at canonical row level
-  },
+  // 'rev-whirl' chain reading removed 2026-05-24 per curator rendered-
+  // output audit: 'reverse whirl' was just the canonical-name
+  // abbreviation expansion (rev → reverse) and added no information to
+  // the browse card. The trick's JOB notation, ADD breakdown, and ALT
+  // (reverse-pair) row carry the structural info. The 'whip' alias
+  // remains on the DB row.
+  // 'rev-up' chain entry removed 2026-05-24 per curator rendered-
+  // output QC: rev-up is structurally distinct from rev-whirl; the
+  // prior "reverse whirl" chain reading was misleading. rev-up is
+  // demoted to is_active=0 via red_corrections.
   {
     slug:     'fury',
     readings: ['furious paradox mirage'],
@@ -585,16 +585,16 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['stepping paradox double leg over', 'blurry dlo'],
     curatorConfirmPending: false,   // Red pt6 2026-05-04: Fog = Stepping Paradox Double Legover. Math: stepping(+1)+paradox(+1)+dlo(3)=5. Folk alias 'blurry dlo' preserved
   },
-  {
-    slug:     'pendulum',
-    readings: ['toe swing'],
-    curatorConfirmPending: false,   // Sprint 5 resolved: toe(1) + swing(1) = 2 ADD. Direction-variant pair with rake (rake reverses element order to swing > toe). Swing-element doctrine curator-locked 2026-05-19
-  },
-  {
-    slug:     'rake',
-    readings: ['swing toe'],
-    curatorConfirmPending: false,   // Sprint 6 resolved: swing(1) + toe(1) = 2 ADD. Direction-variant pair with pendulum (pendulum is toe > swing). FootbagMoves lists rake at 3 ADD; IFPA curator-locked at 2 per swing-element doctrine — Red review pending
-  },
+  // 'pendulum' chain reading removed 2026-05-24 per curator rendered-
+  // output audit: "toe swing" was just the JOB-form lowercase echo and
+  // added no information to the browse card (the JOB row carries the
+  // canonical form SET > TOE SWING [DEL]). Removed alongside rake's
+  // analogous "swing toe" reading.
+  // 'rake' chain reading removed 2026-05-24 per curator rendered-output
+  // audit: "swing toe" was just the JOB-form lowercase echo of the
+  // canonical SET > SWING TOE [DEL] notation and added no information
+  // to the browse card. Removed alongside pendulum's analogous
+  // "toe swing" reading.
   {
     slug:     'flying-clipper',
     readings: ['flying clipper'],

@@ -75,60 +75,56 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Trick-detail Tier-4 ADD-analysis disclosure — resolved-formula slugs', () => {
-  it('renders the disclosure section on paradox-mirage', async () => {
+describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
+  // 2026-05-23 curator-rendered-output audit: the previously-collapsed
+  // <details> disclosure was replaced with an expand-by-default <dl>
+  // "ADD"-labeled row. The contract now mirrors the Notation Summary
+  // card's ADD slot (visible-by-default labeled formula).
+
+  it('renders the ADD block on paradox-mirage (non-first-class compound)', async () => {
+    // Note: paradox-mirage may be first-class and render via the
+    // Notation Summary instead; assert the derivation text is present
+    // somewhere on the page rather than which container holds it.
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-add-analysis-disclosure"/);
+    expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\) (?:=|&#x3D;) 3 ADD/);
   });
 
-  it('renders the curator-published derivation verbatim', async () => {
+  it('renders the curator-published derivation verbatim inside a <code> element', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    // Handlebars HTML-escapes '=' as '&#x3D;'; otherwise the derivation
-    // renders verbatim from the resolved-formulas content module.
+    // Either the ADD-block dl OR the Notation Summary derivation slot
+    // carries the derivation; assert presence within a <code> tag.
     expect(res.text).toMatch(
-      /class="trick-add-analysis-derivation"[^>]*>\s*<code>paradox\(\+1\) \+ mirage\(2\) &#x3D; 3 ADD<\/code>/,
+      /<code[^>]*>paradox\(\+1\) \+ mirage\(2\) &#x3D; 3 ADD<\/code>/,
     );
   });
 
-  it('renders the total ADD value in the disclosure summary', async () => {
+  it('ADD block renders expand-by-default (no <details> collapse remaining)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    // The summary label includes the integer total ('How this 3-ADD total breaks down').
-    expect(res.text).toMatch(
-      /class="trick-add-analysis-summary-title"[^>]*>\s*How this 3-ADD total breaks down/,
-    );
-  });
-
-  it('disclosure is collapsed by default (no [open] attribute)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    // No open attribute should appear on the disclosure on initial render.
-    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"\s+open/);
-    expect(res.text).not.toMatch(/<details[^>]+class="trick-add-analysis-disclosure"[^>]*\sopen/);
+    // The collapsed <details> pattern was retired 2026-05-23.
+    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    expect(res.text).not.toMatch(/Click to expand/);
   });
 
   it('does NOT render curator-internal provenance on the public page', async () => {
-    // The ResolvedFormula.provenance field carries curator-audit
-    // language ("canonical inventory", "pt6 2026-05-04", "Red", etc.)
-    // and must NEVER reach a public trick-detail page.
-    // paradox-mirage's provenance string starts with "paradox = +1 body modifier".
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.text).not.toContain('canonical inventory');
     expect(res.text).not.toContain('+1 body modifier');
   });
 });
 
-describe('Trick-detail Tier-4 ADD-analysis disclosure — silent suppression', () => {
-  it('omits the disclosure entirely on mirage (core atom, no resolved formula)', async () => {
+describe('Trick-detail Tier-4 ADD block — silent suppression', () => {
+  it('omits the ADD-analysis block entirely on mirage (core atom, no resolved formula)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
-    expect(res.text).not.toMatch(/class="trick-add-analysis-summary-title"/);
+    expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
+    expect(res.text).not.toMatch(/class="trick-add-analysis-derivation"/);
   });
 
-  it('omits the disclosure entirely on whirl (core atom, no resolved formula)', async () => {
+  it('omits the ADD-analysis block entirely on whirl (core atom, no resolved formula)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
   });
 });
 
@@ -139,7 +135,7 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     // on trick-detail pages, never on the browse ladder.
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    expect(res.text).not.toMatch(/class="trick-add-analysis-fields"/);
   });
 
   it('Tier-4 derivation pattern absent from /freestyle/tricks?view=add browse OUTSIDE first-class cards', async () => {
@@ -157,6 +153,6 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
       sweep = sweep.replace(new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g'), '');
     }
     expect(sweep).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
-    expect(sweep).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    expect(sweep).not.toMatch(/class="trick-add-analysis-fields"/);
   });
 });

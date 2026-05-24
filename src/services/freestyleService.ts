@@ -1120,6 +1120,8 @@ export interface FreestyleTrickContent {
     baseSlug:      string;
     baseName:      string;
     baseHref:      string;
+    baseAdd:       number;  // for ALT-row formula rendering
+    totalAdd:      number;  // rev(0) is +0, so totalAdd == baseAdd
     rev0Explainer: string;  // shared rev(0) operator explainer
   } | null;
   // Movement-intuition prose (trick-detail enrichment slice, 2026-05-23).
@@ -3050,7 +3052,10 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'paradox-blender',         // paradox(+1) + blender(4) = 5 ADD
   'paradox-torque',          // paradox(+1) + torque(4) = 5 ADD
   'rake',                    // 2-ADD primitive
-  'rev-up',                  // 3-ADD whirl-family primitive
+  // 'rev-up' removed from FIRST_CLASS_TIER_2 2026-05-24: structurally
+  // distinct from rev-whirl (per curator clarification) but no
+  // structural decomposition authored; demoted via is_active=0 in
+  // red_corrections.
   'rev-whirl',               // 3-ADD whirl-family primitive
   'smear',                   // pixie(+1) + mirage(2) = 3 ADD
   'spinning-clipper',        // spinning(+1) + clipper-stall(2) = 3 ADD
@@ -3068,12 +3073,12 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   //    food-processor / mantis / nova) and the missing-notation /
   //    doctrine-blocked / folk-name primitive backlog.
   // ATAM bracket-flag (6):
-  'squeeze',                 // unusual surface(1) + stall(1) = 2 ADD
+  'squeeze',                 // UNS(1) + stall(1) = 2 ADD
   'barrage',                 // dex(1) + dex(1) + stall(1) = 3 ADD
   'barfly',                  // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
   'high-plains-drifter',     // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
   'paradon',                 // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
-  'barraging-osis',          // dex(1) + dex(1) + bod(1) + xbody(1) + stall(1) = 5 ADD
+  'barraging-osis',          // dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD
   // Parser-derived modifier × base (21) + composite witchdoctor (1):
   'cross-body-sole-stall',   // xbody(+1) + sole-stall(2) = 3 ADD
   'legeater',                // quantum(+1) + pickup(2) = 3 ADD
@@ -3121,21 +3126,14 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'tomahawk',                // ducking(+1) + paradox-whirl(4) = 5 ADD
   'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
   // Foundational 2-ADD primitive parallel to cloud-stall:
-  'sole-stall',              // unusual surface(1) + stall(1) = 2 ADD via ATOMIC
-  // ── Slice 7-OBS-A (2026-05-23) — FM-sourced folk-name promotions.
-  //    9 compounds promoted under the dual-convention rule. Each has
-  //    a matching ATOMIC_FLAG_DECOMPOSITIONS entry with FM dex-count
-  //    decomposition and FM-parens operational chain preserved as-authored.
-  'bladerunner',
-  'bling-blang',
-  'cold-fusion',
-  'flurricane',
-  'golden-shower',
-  'goliath',
-  'gybas',
-  'motion-sickness',
-  'pandemonium',
-  // ── Wave 5 observational→canonical promotions (2026-05-22). 14 entries
+  'sole-stall',              // UNS(1) + stall(1) = 2 ADD via ATOMIC
+  // ── 2026-05-24: DATW + DLO promoted from the productive-multiplicity
+  //    exception list to FIRST_CLASS_TIER_2. Both have notation +
+  //    operational_notation backfilled via red_corrections; base_trick
+  //    set to self via correction so isAtomic gate fires; ATOMIC_FLAG_
+  //    DECOMPOSITIONS entry carries the bracket-counted structural form.
+  'double-around-the-world',
+  'double-leg-over',
   //    moved from OBSERVATIONAL_TRICKS module into canonical via
   //    audit-validated derivations. 9 FB.org + 4 PassBack + 1 stepwise
   //    FB.org (paradox-blizzard depends on blizzard, both promoted
@@ -3375,17 +3373,17 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    self-token (no [set] > prefix; exempt from the tautological-JOB
   //    guard via SUI_GENERIS_SELF_TOKEN_SLUGS).
   ['flying-inside', {
-    decomposition:    'bod(1) = 1 ADD',
+    decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > inside',
   }],
   ['flying-outside', {
-    decomposition:    'bod(1) = 1 ADD',
+    decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'flying > outside',
   }],
   ['double-knee', {
-    decomposition:    'bod(1) = 1 ADD',
+    decomposition:    'BOD(1) = 1 ADD',
     totalAdd:         1,
     operationalChain: 'double knee',
   }],
@@ -3399,28 +3397,28 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    the convergence-rule isAtomic gate doesn't fire; the card path
   //    looks up by slug and renders correctly regardless.
   ['cloud-stall', {
-    decomposition:    'unusual surface (shin)(1) + stall(1) = 2 ADD',
+    decomposition:    'UNS(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > cloud',
   }],
   ['dragonfly-kick', {
-    decomposition:    'bod(1) + dex(1) = 2 ADD',
+    decomposition:    'BOD(1) + dex(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > dragonfly',
   }],
   ['flying-clipper', {
-    decomposition:    'bod(1) + xbody(1) = 2 ADD',
+    decomposition:    'BOD(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: 'flying > clipper',
   }],
   // ── knee-clipper: curator clarification 2026-05-22 — folk name, not a
   //    literal clipper-surface stall. Reads as a flying dexterity knee
-  //    kick: bod(1) + xbody(1) = 2 ADD. JOB chain kept as the DB
+  //    kick: BOD(1) + xbody(1) = 2 ADD. JOB chain kept as the DB
   //    op_notation '[set] > knee-clipper' for now; the flying-family
   //    operator-first form ('flying > knee-clipper') would be a
   //    follow-up alignment.
   ['knee-clipper', {
-    decomposition:    'bod(1) + xbody(1) = 2 ADD',
+    decomposition:    'BOD(1) + xbody(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > knee-clipper',
   }],
@@ -3440,7 +3438,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    render path uses slug-keyed lookup so the strip renders
   //    correctly regardless of the isAtomic convergence gate.
   ['squeeze', {
-    decomposition:    'unusual surface(1) + stall(1) = 2 ADD',
+    decomposition:    'UNS(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[UNS] [DEL]',
   }],
@@ -3465,7 +3463,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   }],
   ['barraging-osis', {
-    decomposition:    'dex(1) + dex(1) + bod(1) + xbody(1) + stall(1) = 5 ADD',
+    decomposition:    'dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD',
     totalAdd:         5,
     operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
   }],
@@ -3474,64 +3472,30 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    decomposition in the foundational-band slice). sole-stall is the
   //    sole-of-foot stall — counts under the unusual-surface bucket.
   ['sole-stall', {
-    decomposition:    'unusual surface(1) + stall(1) = 2 ADD',
+    decomposition:    'UNS(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > sole',
   }],
 
-  // ── Slice 7-OBS-A (2026-05-23) — FM-sourced folk-name promotions.
-  //    Nine compounds promoted from Emerging Vocabulary under the
-  //    dual-convention semantic model. Each entry's `decomposition`
-  //    uses FM dex-count framing (count of (DEX) events under FM-parens
-  //    convention); `operationalChain` is the FM JOB notation preserved
-  //    as-authored. The canonical bracket convention (every [TOKEN]=+1)
-  //    above continues to govern the [BRACKET]-format entries; the FM
-  //    (parens) convention governs the entries below. Punctuation style
-  //    determines counting convention — both are valid scoring layers.
-  ['bladerunner', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+  // ── 2026-05-24: DATW + DLO + rev-whirl first-class promotion via the
+  //    ATOMIC_FLAG path. Each row sets base_trick = self (via
+  //    red_corrections) so the convergence-rule isAtomic gate fires;
+  //    decomposition is the bracket-counted structural form;
+  //    operationalChain is the canonical footbag.org notation.
+  ['double-around-the-world', {
+    decomposition:    'dex(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)',
+    operationalChain: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',
   }],
-  ['bling-blang', {
-    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
-    totalAdd:         2,
-    operationalChain: 'Clip > Op Front Whirl (DEX) >> Same Back Swirl (DEX) > Op Clip (XBD)(DEL)',
-  }],
-  ['cold-fusion', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+  ['double-leg-over', {
+    decomposition:    'dex(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: 'Clip > Same Out (DEX)(PDX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > Op Clip (XBD)(DEL)',
+    operationalChain: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
   }],
-  ['flurricane', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+  ['rev-whirl', {
+    decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: 'Clip >> (back) Spin (BOD) > Same In (DEX) > Same In (DEX) >> Op Out (DEX) > Same Toe (DEL)',
-  }],
-  ['golden-shower', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
-    totalAdd:         3,
-    operationalChain: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX)(PDX) > Op Out (DEX) > Same Toe (DEL)',
-  }],
-  ['goliath', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
-    totalAdd:         3,
-    operationalChain: 'Toe > Same In (DEX) >> Duck (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)',
-  }],
-  ['gybas', {
-    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
-    totalAdd:         2,
-    operationalChain: 'Clip > Op In (DEX) >> Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)',
-  }],
-  ['motion-sickness', {
-    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
-    totalAdd:         2,
-    operationalChain: 'Clip >> (back) Spin (BOD) >> Op Out (DEX) > Same Out (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)',
-  }],
-  ['pandemonium', {
-    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
-    totalAdd:         3,
-    operationalChain: 'Toe > Same In (DEX) >> (no plant while) Op Out (DEX)(BOD) > Op Out (DEX) > Same Toe (DEL)',
+    operationalChain: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
   }],
 ]);
 
@@ -3951,7 +3915,15 @@ function shapeDictionaryTrickCard(
   const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
     ? row.operational_notation_source.trim()
     : null;
-  const operationalNotation: OperationalNotation | null = opDisplay
+  // 2026-05-24 rendered-output audit: suppress the op-notation chip on
+  // browse cards for first-class tricks. Those rows already render a
+  // labeled "JOB" line in the first-class secondary row; the duplicate
+  // chip between hashtag and ADD chip was reading as a
+  // "compound-description slot" leakage (echoing the JOB string). The
+  // chip stays available for non-first-class tricks where it's the
+  // only on-card notation cue.
+  const isFirstClassForCard = isFirstClass(indexRow.slug);
+  const operationalNotation: OperationalNotation | null = (opDisplay && !isFirstClassForCard)
     ? {
         raw:        opDisplay.raw,
         tokens:     opDisplay.tokens,
@@ -3963,24 +3935,21 @@ function shapeDictionaryTrickCard(
   // and the alias-governance allow-list (atoms). Order: compound chains
   // first (when present), then atom-level allow-listed aliases.
   //
-  // Tautological-reading filter (first-class only): drop any reading
-  // whose case-insensitive trimmed form equals the canonical name. For
-  // non-first-class compounds, the Slice A2 contract preserves tautological
-  // chains so the role-colored tokens + glossary links render even when
-  // the text repeats the title. For first-class compounds, the first-class
-  // summary row carries richer structural information (JOB + ADD breakdown),
-  // so the tautological ≡ row is redundant and visually empty —
-  // paradox-mirage ≡ "paradox mirage" next to a title "paradox mirage"
-  // adds no information. Curator-locked non-tautological readings (folk-
-  // name resolutions like ripwalk → "stepping butterfly", torque →
-  // "miraging osis") survive this filter unchanged for all slugs.
-  const isFirstClassForFilter = isFirstClass(indexRow.slug);
+  // Tautological-reading filter (universal, expanded 2026-05-24 per
+  // rendered-output audit): drop any reading whose case-insensitive
+  // trimmed form equals the canonical name, regardless of first-class
+  // status. Examples that previously leaked through: "double around the
+  // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
+  // locked non-tautological folk-name readings (ripwalk → "stepping
+  // butterfly", torque → "miraging osis", DLO → "miraging legover")
+  // survive this filter unchanged — they ARE genuine human-readable
+  // compound interpretations the user wants visible.
   const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
   const chain                = getSymbolicEquivalenceChain(indexRow.slug);
   const chainReadingsRaw     = chain ? [...chain.readings] : [];
-  const chainReadings        = isFirstClassForFilter
-    ? chainReadingsRaw.filter(r => r.toLowerCase().trim() !== canonicalLowerForFilter)
-    : chainReadingsRaw;
+  const chainReadings        = chainReadingsRaw.filter(
+    r => r.toLowerCase().trim() !== canonicalLowerForFilter,
+  );
   const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
   const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
 
@@ -3993,6 +3962,15 @@ function shapeDictionaryTrickCard(
   // browse cards so the curator-authored operational notation takes the
   // visible slot. Aliases like 'ATW' remain accessible on the trick-detail
   // page + glossary; they no longer compete with op-notation on browse.
+  //
+  // 2026-05-24 rendered-output audit: the universal tautological filter
+  // above (chainReadings) already drops readings that just echo the
+  // canonical name (e.g. "reverse whirl" on rev-whirl, "double around
+  // the world" on DATW). Genuine folk-name compound readings (DLO ≡
+  // "miraging legover", ripwalk ≡ "stepping butterfly") survive that
+  // filter — they ARE the kind of "human-readable compound reading"
+  // the curator's audit said to keep visible. The op-notation chip
+  // (which DID duplicate the JOB row) is suppressed separately above.
   const tokenizedEquivalences = coreAtomSpec
     ? []
     : shapeSemanticNotations(symbolicEquivalences, groupAnchor);
@@ -4333,13 +4311,19 @@ function buildHeroFormula(
   if (isModifier) return null;
   const numericAdds = tricksAdds && /^\d+$/.test(tricksAdds) ? tricksAdds : null;
   if (numericAdds === null) return null;
-  // Atom form: no modifier links OR no resolvable base distinct from self
-  if (modifierLinks.length === 0 || !baseTrick) {
-    return [
-      { kind: 'base',     text: canonicalName, weight: null, cssRole: 'core-family' },
-      { kind: 'operator', text: '=',           weight: null, cssRole: null },
-      { kind: 'result',   text: `${numericAdds} ADD`, weight: null, cssRole: null },
-    ];
+  // 2026-05-23 curator-rendered-output audit: suppress the tautological
+  // `<canonical_name> = N ADD` hero-formula for atomic and folk-name
+  // rows where no modifier links exist. The hero ADD chip already
+  // carries the numeric value; restating `cloud kick = 1 ADD` next to
+  // the title was a redundant pseudo-formula in the "compound-description
+  // slot" the curator's audit flagged. JOB notation in the lower
+  // operational/notation-summary section carries the structural
+  // information; the hero stays identity-only.
+  if (modifierLinks.length === 0) {
+    return null;
+  }
+  if (!baseTrick) {
+    return null;
   }
   // Compound form: modifiers + base = total
   const tokens: HeroFormulaToken[] = [];
@@ -5232,6 +5216,8 @@ export const freestyleService = {
               baseSlug:      entry.baseSlug,
               baseName:      entry.baseName,
               baseHref:      `/freestyle/tricks/${entry.baseSlug}`,
+              baseAdd:       entry.baseAdd,
+              totalAdd:      entry.baseAdd,  // rev(0) is +0 ADD
               rev0Explainer: REV_ZERO_EXPLAINER,
             };
           })(),

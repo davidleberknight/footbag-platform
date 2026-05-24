@@ -317,10 +317,16 @@ describe('topology view — intentional cross-group membership', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('topology view — card-uniformity invariant', () => {
-  it('uses the shared dictionary-trick-card partial (data-trick-slug + op-token spans)', async () => {
+  it('uses the shared dictionary-trick-card partial (data-trick-slug + tokenized formula content)', async () => {
+    // 2026-05-24 curator rendered-output audit: the standalone op-notation
+    // chip was suppressed for first-class tricks. The tokenized formula
+    // content (op-token + sem-token spans) still renders on browse
+    // cards via the first-class secondary row's JOB line + via
+    // tokenizedEquivalences for non-first-class compounds.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).toMatch(/<article class="dict-card[^"]*"\s+data-trick-slug="/);
-    // Operational notation tokens appear (role-tagged).
-    expect(res.text).toContain('class="op-token op-token--');
+    // Token markup appears somewhere on the page (op-token via the
+    // first-class JOB row, or sem-token via tokenizedEquivalences).
+    expect(res.text).toMatch(/class="(?:op-token|sem-token)/);
   });
 });

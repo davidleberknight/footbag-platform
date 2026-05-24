@@ -114,14 +114,18 @@ export interface ReversePairTransform {
   baseSlug: string;
   /** Display name of the base trick (matches CORE_TRICK_SPEC). */
   baseName: string;
+  /** Base trick ADD value, for ALT-row rendering of the full
+   *  rev(0) + base(N) = N ADD formula. rev(0) is +0, so totalAdd
+   *  equals baseAdd for all five entries. */
+  baseAdd: number;
 }
 
 export const REVERSE_PAIR_TRANSFORMS: ReadonlyMap<string, ReversePairTransform> = new Map([
-  ['illusion',  { expression: 'rev(0) + mirage',           baseSlug: 'mirage',           baseName: 'mirage' }],
-  ['pickup',    { expression: 'rev(0) + legover',          baseSlug: 'legover',          baseName: 'legover' }],
-  ['rev-whirl', { expression: 'rev(0) + whirl',            baseSlug: 'whirl',            baseName: 'whirl' }],
-  ['rev-swirl', { expression: 'rev(0) + swirl',            baseSlug: 'swirl',            baseName: 'swirl' }],
-  ['orbit',     { expression: 'rev(0) + around-the-world', baseSlug: 'around-the-world', baseName: 'around-the-world' }],
+  ['illusion',  { expression: 'rev(0) + mirage',           baseSlug: 'mirage',           baseName: 'mirage',           baseAdd: 2 }],
+  ['pickup',    { expression: 'rev(0) + legover',          baseSlug: 'legover',          baseName: 'legover',          baseAdd: 2 }],
+  ['rev-whirl', { expression: 'rev(0) + whirl',            baseSlug: 'whirl',            baseName: 'whirl',            baseAdd: 3 }],
+  ['rev-swirl', { expression: 'rev(0) + swirl',            baseSlug: 'swirl',            baseName: 'swirl',            baseAdd: 3 }],
+  ['orbit',     { expression: 'rev(0) + around-the-world', baseSlug: 'around-the-world', baseName: 'around-the-world', baseAdd: 2 }],
 ]);
 
 /**

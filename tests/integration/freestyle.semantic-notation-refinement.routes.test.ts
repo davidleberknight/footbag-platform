@@ -127,24 +127,23 @@ describe('Part 1 — description column refinement', () => {
 });
 
 describe('Part 2 — reverse-pair transform overlay', () => {
-  it('renders the transform section on illusion with the explainer (rev(0) + mirage)', async () => {
-    // 2026-05-23: the formula expression line was relocated to the
-    // notation-summary card's ALT row (curator-uniform JOB/ADD/ALT
-    // formula cluster). The transform overlay now carries only the
-    // shared explainer + base cross-link; the bare "Transform: rev(0)
-    // + mirage" line is intentionally retired.
+  it('renders the transform section on illusion with the ALT formula + explainer', async () => {
+    // 2026-05-23 curator-rendered-output audit (2nd pass): the ALT
+    // formula was re-added to trick-transform.hbs as a labeled "ALT"
+    // <dl> row so non-first-class rev(0) entries surface the ALT
+    // formula visibly without needing the Notation Summary card. The
+    // section still carries the rev(0) explainer + base cross-link.
     const res = await request(createApp()).get('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');
-    expect(res.text).not.toMatch(/class="trick-transform-label"/);
-    expect(res.text).not.toMatch(/class="trick-transform-expression"/);
-    // ALT row in the notation-summary card carries the formula.
-    const summaryStart = res.text.indexOf('class="trick-notation-summary"');
-    expect(summaryStart).toBeGreaterThan(0);
-    const summaryEnd = res.text.indexOf('</section>', summaryStart);
-    const summary = res.text.slice(summaryStart, summaryEnd);
-    expect(summary).toMatch(/<dt>ALT<\/dt>/);
-    expect(summary).toMatch(/rev\(0\)\s*\+\s*mirage\(2\)/);
+    // The transform section carries an ALT-labeled <dl> row with the
+    // full reverse-pair formula.
+    const tfStart = res.text.indexOf('class="content-section trick-transform"');
+    expect(tfStart).toBeGreaterThan(0);
+    const tfEnd = res.text.indexOf('</section>', tfStart);
+    const tf = res.text.slice(tfStart, tfEnd);
+    expect(tf).toMatch(/<dt>ALT<\/dt>/);
+    expect(tf).toMatch(/rev\(0\)\s*\+\s*mirage\(2\)/);
   });
 
   it('renders the locked rev(0) explainer on illusion (drift guard)', async () => {

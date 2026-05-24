@@ -2462,20 +2462,23 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     expect(res.text).not.toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]{0,40}reverse swirl/);
   });
 
-  it('atom dictionary cards surface curator-authored op-notation in place of alias-governance ≡ readings (post emergency 2026-05-19)', async () => {
-    // Emergency public-readiness slice 2026-05-19: atom cards on browse
-    // views surface CoreTrickSpec.operationalNotation as the visible
-    // reading. The around-the-world ≡ ATW alias still exists in
-    // freestyleAliasGovernance but is suppressed from atom browse cards
-    // so op-notation takes the slot (per curator brief acceptance:
-    // "ATW no longer renders only 'ATW'"). The alias remains accessible
-    // on the trick-detail page + glossary.
+  it('atom dictionary cards surface curator-authored op-notation via the first-class JOB row', async () => {
+    // 2026-05-24 curator rendered-output audit: the standalone op-notation
+    // chip on browse cards was suppressed for first-class tricks (it
+    // duplicated the JOB row below). Atoms are first-class; op-notation
+    // now renders ONLY via the first-class secondary row's labeled
+    // "JOB:" line. The around-the-world ≡ ATW alias remains suppressed
+    // from atom browse cards (no chip slot to take); it stays
+    // accessible on the trick-detail page + glossary.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);
     const atwCard = res.text.slice(atwIdx, atwCardEnd);
-    // Tokenizer splits `ss(midtime)` into separate `ss` + `(midtime)` spans.
-    expect(atwCard).toMatch(/>\(midtime\)</);
+    // No standalone chip slot.
+    expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
+    // First-class secondary row carries the tokenized JOB line.
+    expect(atwCard).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
+    expect(atwCard).toMatch(/\(midtime\)/);
   });
 });

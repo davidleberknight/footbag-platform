@@ -460,7 +460,11 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(/no curator-judgment cases/i);
   });
 
-  it('renders all 25 Sprint-1 + Sprint-2 + Sprint-3 rows with trick-detail links', async () => {
+  it('renders all 24 Sprint-1 + Sprint-2 + Sprint-3 rows with trick-detail links', async () => {
+    // 2026-05-24 QC: rev-up was demoted from canonical (is_active=0)
+    // because it's structurally distinct from rev-whirl but lacks an
+    // authored structural decomposition. Its row is removed from the
+    // public table along with the demotion.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedSlugs = [
       // Sprint 1 (15 rows — pure +1 stacks)
@@ -473,8 +477,8 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
       'eggbeater', 'ducking-clipper', 'spinning-clipper',
       'rev-whirl', 'orbit',
       'paradox-symposium-whirl', 'dimwalk',
-      // Sprint 3 (3 rows — targeted folk-name resolutions)
-      'smear', 'ripwalk', 'rev-up',
+      // Sprint 3 (2 rows after rev-up demote — targeted folk-name resolutions)
+      'smear', 'ripwalk',
     ];
     for (const slug of expectedSlugs) {
       expect(res.text, `missing Sprint row: ${slug}`)
@@ -497,8 +501,11 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     const eq = '(?:=|&#x3D;)';
     // pt-ruled: eggbeater = atomic legover
     expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*legover\\(2\\)\\s*${eq}\\s*3 ADD`));
-    // positional (+0): rev-whirl, reverse-ATW
-    expect(res.text).toMatch(new RegExp(`reverse\\(\\+0\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*3 ADD`));
+    // 2026-05-24 QC: rev-whirl now publishes the structural derivation
+    // (xbody+dex+stall). The reverse(+0) reading lives in the ALT row
+    // on /freestyle/tricks/rev-whirl, not on /freestyle/add-analysis.
+    expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    // orbit still publishes the reverse(+0) reading.
     expect(res.text).toMatch(new RegExp(`reverse\\(\\+0\\)\\s*\\+\\s*around-the-world\\(2\\)\\s*${eq}\\s*2 ADD`));
     // multi-operator chain
     expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*symposium\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
@@ -506,20 +513,20 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
   });
 
-  it('renders Sprint-3 folk-name resolutions (smear / ripwalk / rev-up)', async () => {
+  it('renders Sprint-3 folk-name resolutions (smear / ripwalk)', async () => {
+    // 2026-05-24 QC: rev-up was demoted from canonical (is_active=0)
+    // because it's structurally distinct from rev-whirl without an
+    // authored decomposition. Its resolved-formula entry is removed
+    // from RESOLVED_FORMULAS_SPRINT_1 alongside the demotion. Sprint 3
+    // now publishes 2 folk-name resolutions, not 3.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const eq = '(?:=|&#x3D;)';
-    // smear = pixie + mirage (operator-board lede)
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
-    // ripwalk = stepping + butterfly (operator-board + glossary §3/§8)
     expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
-    // rev-up = reverse + whirl (positional + 3-ADD core atom)
-    // Note: matches the rev-whirl derivation; the row is published under
-    // the rev-up slug with a curator-uncertainty note flagging that
-    // rev-up + rev-whirl are distinct canonical rows.
-    const revUpCount = (res.text.match(/reverse\(\+0\) \+ whirl\(3\) &#x3D; 3 ADD/g) ?? []).length;
-    expect(revUpCount, 'expected the reverse-whirl-derivation string to appear twice (rev-whirl + rev-up rows)')
-      .toBeGreaterThanOrEqual(2);
+    // rev-whirl publishes the structural form.
+    expect(res.text).toMatch(/xbody\(1\) \+ dex\(1\) \+ stall\(1\) &#x3D; 3 ADD/);
+    // The reverse(+0) reading is no longer in the /freestyle/add-analysis
+    // table for rev-up (rev-up demoted) or rev-whirl (structural form).
   });
 
   it('Sprint-1 section sits between worked examples (§2) and discrepancies (§3)', async () => {

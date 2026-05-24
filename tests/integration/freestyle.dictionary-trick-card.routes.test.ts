@@ -205,17 +205,22 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>7 ADD<\/span>/);
   });
 
-  it('renders operational notation as role-tagged token spans', async () => {
+  it('op-notation chip suppressed on browse cards for first-class tricks (renders only via first-class JOB row)', async () => {
+    // 2026-05-24 curator rendered-output audit: the op-notation chip
+    // between hashtag and ADD chip duplicated the JOB row in the
+    // first-class secondary row below. The chip is now suppressed for
+    // first-class tricks; non-first-class tricks still get it. The
+    // op-token role taxonomy itself is exercised on trick-detail pages
+    // and on the first-class secondary row's JOB line, which both
+    // continue to tokenize via the same renderer.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // Each notation token carries op-token class + cssRole modifier + data-role attr.
-    // Post emergency 2026-05-19 slice: the atom cards now source op-notation
-    // from CoreTrickSpec.operationalNotation, which uses `[set]` (the
-    // component-flag) instead of the previously-seeded `[clip]`. The role
-    // taxonomy spot-checks the same four roles via the new tokens.
-    expect(res.text).toMatch(/<span class="op-token op-token--component-flag[^"]*"[^>]*>\[set\]<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-minor"[^>]*data-role="sequence_op"[^>]*>&gt;<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--side"[^>]*data-role="side"[^>]*>op<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--direction"[^>]*data-role="direction"[^>]*>in<\/span>/);
+    // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
+    // chip is suppressed on browse cards.
+    const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
+    expect(toeStallCard).not.toBeNull();
+    expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
+    // First-class secondary row still carries the JOB line.
+    expect(toeStallCard![0]).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
   });
 
   it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
@@ -387,15 +392,21 @@ describe('dictionary-trick-card — required slots', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('dictionary-trick-card — sparse and deep render through the same template', () => {
-  it('Toe Stall (sparse) renders cleanly: title + ADD + minimal operational notation', async () => {
+  it('Toe Stall (sparse) renders cleanly: title + ADD + first-class JOB row', async () => {
+    // 2026-05-24 curator rendered-output audit: the standalone op-notation
+    // chip on browse cards was suppressed for first-class tricks (it
+    // duplicated the JOB row below). toe-stall is a core atom + first-
+    // class, so its op-notation now surfaces via the first-class
+    // secondary row's labeled "JOB:" line instead.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // Title row
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
-    // Operational notation: [set] > toe (curator-authored per CoreTrickSpec
-    // .operationalNotation; post emergency 2026-05-19 slice the atom card
-    // sources op-notation from the TS content module, overriding the seeded
-    // DB '[toe] > toe' notation for this curator-managed atom row).
-    expect(res.text).toMatch(/data-trick-slug="toe-stall"[\s\S]*?\[set\][\s\S]*?op-token--sequence-op-minor[\s\S]*?>toe</);
+    const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
+    expect(toeStallCard).not.toBeNull();
+    // No op-notation chip between hashtag and ADD chip.
+    expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
+    // First-class secondary row carries the JOB:
+    expect(toeStallCard![0]).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
+    expect(toeStallCard![0]).toMatch(/\[set\][\s\S]*?toe/);
   });
 
   it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {

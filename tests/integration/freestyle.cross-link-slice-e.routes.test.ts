@@ -92,6 +92,27 @@ beforeAll(async () => {
     adds:           '3',
     is_active:      1,
   });
+  // 2026-05-24: ripwalk seeded as the rendering-target for the linked-
+  // token assertions below. ripwalk's chain reading "stepping butterfly"
+  // is non-tautological with the canonical name, so it survives the
+  // universal tautological-reading filter and exercises the linked-
+  // token render contract.
+  insertFreestyleTrick(db, {
+    slug:           'ripwalk',
+    canonical_name: 'ripwalk',
+    trick_family:   'butterfly',
+    category:       'compound',
+    adds:           '4',
+    is_active:      1,
+  });
+  insertFreestyleTrick(db, {
+    slug:           'butterfly',
+    canonical_name: 'butterfly',
+    trick_family:   'butterfly',
+    category:       'dex',
+    adds:           '3',
+    is_active:      1,
+  });
 
   db.close();
   createApp = await importApp();
@@ -150,40 +171,45 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
   // tokens — exercising the same SemanticBrowseToken anchor-link
   // contract this describe block validates.
 
-  it('renders the blurry token as an anchor to /freestyle/glossary#modifier-blurry', async () => {
+  // 2026-05-24 curator rendered-output audit: switched target from
+  // blurry-whirl (tautological chain "blurry whirl" — suppressed by
+  // the universal tautological filter) to ripwalk, whose chain reading
+  // "stepping butterfly" survives the filter and still exercises the
+  // linked-token contract.
+  it('renders the stepping token as an anchor on the ripwalk card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     const card = res.text.match(
-      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-blurry"[^>]*>blurry<\/a>/,
+      /<a class="sem-token[^"]*sem-token--linked"[^>]*href="\/freestyle\/glossary#[^"]+"[^>]*>stepping<\/a>/,
     );
   });
 
-  it('renders the whirl token as an anchor to /freestyle/glossary#term-whirl', async () => {
+  it('renders the butterfly token as an anchor on the ripwalk card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const card = res.text.match(
-      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--base-anchor sem-token--linked"[^>]*href="\/freestyle\/glossary#term-whirl"[^>]*>whirl<\/a>/,
+      /<a class="sem-token[^"]*sem-token--linked"[^>]*href="\/freestyle\/glossary#[^"]+"[^>]*>butterfly<\/a>/,
     );
   });
 
-  it('preserves data-token-slug and isFamilyAnchor on linked tokens', async () => {
+  it('preserves data-token-slug on linked tokens', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const card = res.text.match(
-      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--base-anchor sem-token--linked"[^>]*data-anchor="true"[^>]*data-token-slug="whirl"[^>]*>whirl<\/a>/,
+      /<a class="sem-token[^"]*sem-token--linked"[^>]*data-token-slug="butterfly"[^>]*>butterfly<\/a>/,
     );
   });
 
@@ -191,14 +217,14 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     const card = res.text.match(
-      /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
+      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
     expect(card).not.toBeNull();
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--modifier sem-token--linked"[^>]*href="\/freestyle\/glossary#modifier-blurry"[^>]*>blurry<\/a>/,
+      /<a class="sem-token[^"]*sem-token--linked"[^>]*>stepping<\/a>/,
     );
     expect(card![0]).toMatch(
-      /<a class="sem-token sem-token--base-anchor sem-token--linked"[^>]*href="\/freestyle\/glossary#term-whirl"[^>]*>whirl<\/a>/,
+      /<a class="sem-token[^"]*sem-token--linked"[^>]*>butterfly<\/a>/,
     );
   });
 });

@@ -139,12 +139,13 @@ describe('Family View — formula visibility on whirl compounds', () => {
   // The Slice A2 chain additions for whirl-family compounds populate the
   // tokenizedEquivalences slot, so cards render their compositional formula
   // rather than the "Notation pending" placeholder.
-  it('renders the "blurry whirl" reading inside the blurry-whirl card', async () => {
-    // Target swapped from paradox-whirl to blurry-whirl 2026-05-22:
-    // paradox-whirl promoted into FIRST_CLASS_TIER_2 in Wave 3, which
-    // suppresses its tautological chain reading. blurry-whirl remains
-    // non-first-class and renders its compositional formula via the
-    // tokenizedEquivalences slot as this contract requires.
+  it('suppresses the tautological "blurry whirl" reading on the blurry-whirl card', async () => {
+    // 2026-05-24 curator rendered-output audit: the universal
+    // tautological-reading filter now drops any chain reading whose
+    // case-insensitive trim equals the canonical name. blurry-whirl's
+    // sole chain reading is "blurry whirl" — tautological with the
+    // title — so the ≡ slot stays empty (cleanest visible state).
+    // Compositional decomposition is available on the trick-detail page.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -152,8 +153,8 @@ describe('Family View — formula visibility on whirl compounds', () => {
       /data-trick-slug="blurry-whirl"[\s\S]*?<\/article>/,
     );
     expect(cardRegion).not.toBeNull();
-    expect(cardRegion![0]).toMatch(/sem-token[^>]*>blurry</);
-    expect(cardRegion![0]).toMatch(/sem-token[^>]*>whirl</);
+    expect(cardRegion![0]).not.toMatch(/sem-token[^>]*>blurry</);
+    expect(cardRegion![0]).not.toMatch(/sem-token[^>]*>whirl</);
   });
 
   it('does NOT render "Notation pending" for whirl-family pilots that have curated chains', async () => {
@@ -233,18 +234,19 @@ describe('Cross-view identity — ADD view vs Family view', () => {
       expect(addRegion![0]).toContain(addsLabel);
       expect(familyRegion![0]).toContain(addsLabel);
 
-      // Both views must render the FIRST equivalence reading. For these
-      // pilots the first reading is the canonical-name decomposition
-      // (e.g. "paradox whirl"). Token text matches across views; densities
-      // diverge in stacking, not in token content.
-      // Each pilot's name has exactly two tokens; assert both appear in the card region.
+      // 2026-05-24 curator rendered-output audit: the universal
+      // tautological-reading filter now drops chain readings whose
+      // text equals the canonical name. blurry-whirl's sole reading is
+      // "blurry whirl" (tautological), so the ≡ slot stays empty on
+      // both views. The cross-view identity contract still holds for
+      // title link + ADD chip + data-trick-slug.
       const [modifierToken, baseToken] = pilot.name.split(' ');
       const modifierPattern = new RegExp(`sem-token[^>]*>${modifierToken}<`);
       const basePattern     = new RegExp(`sem-token[^>]*>${baseToken}<`);
-      expect(addRegion![0], `ADD view missing modifier token for ${slug}`).toMatch(modifierPattern);
-      expect(addRegion![0], `ADD view missing base token for ${slug}`).toMatch(basePattern);
-      expect(familyRegion![0], `Family view missing modifier token for ${slug}`).toMatch(modifierPattern);
-      expect(familyRegion![0], `Family view missing base token for ${slug}`).toMatch(basePattern);
+      expect(addRegion![0], `ADD view should not echo tautological tokens for ${slug}`).not.toMatch(modifierPattern);
+      expect(addRegion![0], `ADD view should not echo tautological tokens for ${slug}`).not.toMatch(basePattern);
+      expect(familyRegion![0], `Family view should not echo tautological tokens for ${slug}`).not.toMatch(modifierPattern);
+      expect(familyRegion![0], `Family view should not echo tautological tokens for ${slug}`).not.toMatch(basePattern);
     });
   }
 });

@@ -22,6 +22,14 @@
     <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
   {{/if}}
 
+  {{! ── Secondary access path to Emerging Vocabulary (the canonicalization
+      incubator). The dictionary browse strip intentionally does NOT carry
+      this link to keep the strip focused on canonical browse modes; this
+      footer-style note is the discoverability path from the dictionary. ── }}
+  <p class="browse-view-emerging-vocabulary-link">
+    Looking for staged or unreviewed names? &nbsp;<a href="/freestyle/observational">View Emerging Vocabulary &rarr;</a>
+  </p>
+
   {{#if content.activeFamily}}
   <p class="family-filter-pill">
     Filtering by family: <strong>{{content.activeFamily}}</strong>
