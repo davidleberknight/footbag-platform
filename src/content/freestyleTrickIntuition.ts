@@ -63,6 +63,12 @@ export interface TrickIntuitionEntry {
 
 export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
+    slug: 'toe-stall',
+    prose:
+      'The foundational delay surface for upright freestyle. The bag rests on top of the foot just behind the toes, with the foot dorsiflexed (top of foot lifted, toes raised) so the bag sits in the small cup formed where the laces meet the ankle. Balance comes from the supporting leg with a slight forward lean; the catching foot holds the bag still for a beat before the next move. Most upright tricks open from a toe set or terminate on a toe delay.',
+    attribution: 'Curator description -- foundational 1-ADD delay surface.',
+  },
+  {
     slug: 'mirage',
     prose:
       'From a toe delay or a clipper delay, set the bag straight up, and swing the support leg from in to out over the footbag, catching it with the setting leg on a toe delay. The set from a clipper delay is easier once you know how to do a clipper. With a toe-set mirage, the support leg has to first swing under, then back over the bag.',

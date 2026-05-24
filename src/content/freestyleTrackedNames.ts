@@ -15,6 +15,17 @@
 // Source: the 2026-05-21 cross-source vocabulary reconciliation audit
 // + SYMBOLIC_GRAMMAR_MASTER.csv (symbolic_notation_raw).
 // Reversible content module per [[feedback_reversible_content_governance]].
+//
+// FM-PARENS NOTATION CONVENTION (forever-rule, 2026-05-23):
+// The operationalNotation strings sourced from FootbagMoves use mixed-case
+// tokens with (parens) flags. Under this convention, only (DEX) tokens
+// contribute +1 ADD; other parenthesized flags ((XBD), (BOD), (PDX),
+// (DEL), (XDEX), (UNS)) are descriptive qualifiers on movement events.
+// This is distinct from the canonical-bracket convention used by
+// footbag.org-sourced strings (uppercase [TOKEN] form), where every
+// bracket contributes +1. Punctuation style determines counting
+// convention; rewriting between conventions is doctrine work, not
+// transcription. See PUBLICATION_STANDARDS.md.
 
 export interface TrackedName {
   /** Trick name as documented by the source. */

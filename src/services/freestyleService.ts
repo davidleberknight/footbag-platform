@@ -3122,6 +3122,19 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
   // Foundational 2-ADD primitive parallel to cloud-stall:
   'sole-stall',              // unusual surface(1) + stall(1) = 2 ADD via ATOMIC
+  // ── Slice 7-OBS-A (2026-05-23) — FM-sourced folk-name promotions.
+  //    9 compounds promoted under the dual-convention rule. Each has
+  //    a matching ATOMIC_FLAG_DECOMPOSITIONS entry with FM dex-count
+  //    decomposition and FM-parens operational chain preserved as-authored.
+  'bladerunner',
+  'bling-blang',
+  'cold-fusion',
+  'flurricane',
+  'golden-shower',
+  'goliath',
+  'gybas',
+  'motion-sickness',
+  'pandemonium',
   // ── Wave 5 observational→canonical promotions (2026-05-22). 14 entries
   //    moved from OBSERVATIONAL_TRICKS module into canonical via
   //    audit-validated derivations. 9 FB.org + 4 PassBack + 1 stepwise
@@ -3464,6 +3477,61 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     decomposition:    'unusual surface(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > sole',
+  }],
+
+  // ── Slice 7-OBS-A (2026-05-23) — FM-sourced folk-name promotions.
+  //    Nine compounds promoted from Emerging Vocabulary under the
+  //    dual-convention semantic model. Each entry's `decomposition`
+  //    uses FM dex-count framing (count of (DEX) events under FM-parens
+  //    convention); `operationalChain` is the FM JOB notation preserved
+  //    as-authored. The canonical bracket convention (every [TOKEN]=+1)
+  //    above continues to govern the [BRACKET]-format entries; the FM
+  //    (parens) convention governs the entries below. Punctuation style
+  //    determines counting convention — both are valid scoring layers.
+  ['bladerunner', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)',
+  }],
+  ['bling-blang', {
+    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
+    totalAdd:         2,
+    operationalChain: 'Clip > Op Front Whirl (DEX) >> Same Back Swirl (DEX) > Op Clip (XBD)(DEL)',
+  }],
+  ['cold-fusion', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Clip > Same Out (DEX)(PDX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > Op Clip (XBD)(DEL)',
+  }],
+  ['flurricane', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Clip >> (back) Spin (BOD) > Same In (DEX) > Same In (DEX) >> Op Out (DEX) > Same Toe (DEL)',
+  }],
+  ['golden-shower', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX)(PDX) > Op Out (DEX) > Same Toe (DEL)',
+  }],
+  ['goliath', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Toe > Same In (DEX) >> Duck (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)',
+  }],
+  ['gybas', {
+    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
+    totalAdd:         2,
+    operationalChain: 'Clip > Op In (DEX) >> Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)',
+  }],
+  ['motion-sickness', {
+    decomposition:    '2 (DEX) events = 2 ADD (FM dex-count)',
+    totalAdd:         2,
+    operationalChain: 'Clip >> (back) Spin (BOD) >> Op Out (DEX) > Same Out (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)',
+  }],
+  ['pandemonium', {
+    decomposition:    '3 (DEX) events = 3 ADD (FM dex-count)',
+    totalAdd:         3,
+    operationalChain: 'Toe > Same In (DEX) >> (no plant while) Op Out (DEX)(BOD) > Op Out (DEX) > Same Toe (DEL)',
   }],
 ]);
 
@@ -6440,23 +6508,30 @@ export const freestyleService = {
 
     const sources = collectObservedSourceBadges(cards);
 
+    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging
+    // Vocabulary". The page is the canonicalization incubator, not a
+    // junk drawer: every entry here is a community-documented trick
+    // whose canonical form is being assembled. The URL stays
+    // /freestyle/observational; backend identifiers stay 'observational'
+    // (public-label-only rename, same pattern as the 2026-05-19
+    // Movement Neighborhoods rename for `topology`).
     return {
       seo: {
-        title: 'Observed Tricks',
+        title: 'Emerging Vocabulary',
         description:
-          'Freestyle trick names and movement patterns documented by the wider ' +
-          'community that have not yet been fully reviewed for the official dictionary.',
+          'Freestyle trick names documented across the community whose canonical ' +
+          'form is being assembled. The next-wave publication frontier.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
-        title:      'Observed Tricks',
-        intro:      'Documented trick names and movement patterns that have not yet been fully reviewed.',
+        title:      'Emerging Vocabulary',
+        intro:      'Names community-documented across freestyle’s source corpora. Each entry is being canonicalized; when its JOB notation and ADD accounting are settled, it moves into the trick dictionary.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Observed Tricks' },
+          { label: 'Emerging Vocabulary' },
         ],
       },
       content: {
@@ -6464,10 +6539,11 @@ export const freestyleService = {
         totalEntries:        cards.length,
         sources,
         layerNote:
-          'These are trick names and movement patterns documented by the wider ' +
-          'freestyle community. They are tracked here while a curator reviews ' +
-          'them; until that review is complete they are not part of the ' +
-          'official trick dictionary, so they carry no tag identity or detail page.',
+          'These are community-documented freestyle trick names. Each one is ' +
+          'a canonicalization candidate: its JOB notation and ADD accounting ' +
+          'are being worked out, and once settled it joins the canonical ' +
+          'trick dictionary. Until then it carries a tracked tag instead of ' +
+          'a canonical hashtag, and no detail page yet.',
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },

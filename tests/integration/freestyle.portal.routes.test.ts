@@ -361,7 +361,8 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('<div class="card-title">Scoring &amp; Combos</div>');
     expect(res.text).toContain('<div class="card-title">Operators &amp; Modifiers</div>');
     expect(res.text).toContain('<div class="card-title">Insights</div>');
-    expect(res.text).toContain('<div class="card-title">Observed Tricks</div>');
+    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging Vocabulary".
+    expect(res.text).toContain('<div class="card-title">Emerging Vocabulary</div>');
     expect(res.text).toContain('<div class="card-title">About Freestyle Footbag</div>');
   });
 

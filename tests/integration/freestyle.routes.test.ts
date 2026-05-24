@@ -583,7 +583,8 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('returns 200 with page title', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Observed Tricks');
+    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging Vocabulary".
+    expect(res.text).toContain('Emerging Vocabulary');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {
@@ -600,37 +601,25 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('renders the Batch B observational-safe expansion cohort (≥ 63 entries across ADD buckets)', async () => {
-    // 2026-05-22 Wave 5: original curator-authored seed entries
-    // (Blizzard / Blaze / Bedwetter / Sole Survivor) plus 10 FB.org
-    // entries (spinning-paradox-* / paradox-double-leg-over /
-    // paradox-barrage / paradox-symposium-mirage / paradox-high-plains-
-    // drifter / spinning-paradox-blender / stepping-ducking-paradox-
-    // blender / paradox-blizzard) promoted to canonical
-    // freestyle_tricks rows + FIRST_CLASS_TIER_2. Total Batch-B-era
-    // observational cohort dropped from 67 → 63 (the 4 PB seed entries)
-    // and from 12 → 2 FB.org (only inspinning-paradox-* remain) =
-    // 63 observational + 2 = 65 expected; assertion floor 63 keeps the
-    // bound generous.
+  it('renders the observational-safe expansion cohort (≥ 50 entries across claim buckets)', async () => {
+    // 2026-05-23 Slice 7-OBS-A: 9 PassBack folk-name compounds promoted
+    // to canonical under FM dex-count convention (bladerunner /
+    // bling-blang / cold-fusion / flurricane / golden-shower / goliath /
+    // gybas / motion-sickness / pandemonium). Combined with prior Wave 5
+    // + Wave 7 promotions the observational cohort floor sits in the
+    // 50-55 range; the assertion stays generous.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Spot-check from the Batch B observational-safe expansion cohort
-    // (2026-05-18; big-apple + mantis + nova + haze + assassin already-
-    // canonical; Wave 5 also moved the 4 original seeds out; Wave 7
-    // moved blurrage / predator / schmoe out via the doctrine-
-    // divergence framework).
-    // Covers multi-reading, all-uppercase displayName, apostrophe-
-    // bearing displayName, single-token name, parenthetical-prefixed
-    // reading, and the merged Bladerunner entry.
+    // Spot-check from the residual observational-safe cohort. Includes
+    // the folk-/semantic-frontier names that remain post-Slice-7-OBS-A.
     for (const name of [
-      'Anonymous', 'Bladerunner', 'Bling Blang',
-      'GDLO', 'GYBAS', 'Ghost', 'Johnny Vodka', 'Kiwi',
+      'Anonymous', 'GDLO', 'Ghost', 'Johnny Vodka', 'Kiwi',
       'Pandora’s Box', 'Trixie', 'Your Mom',
     ]) {
       const probe = name.split(/[’']/)[0];
       expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
     }
     const cards = res.text.match(/class="observed-card"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(60);
+    expect(cards.length).toBeGreaterThanOrEqual(50);
   });
 
   it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
@@ -867,14 +856,20 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).not.toMatch(/—\s*ADD/);
   });
 
-  it('merged Bladerunner entry renders both proposed readings', async () => {
-    // Bladerunner appeared twice in observational_candidate_queue.csv
-    // ('Atomic far Eggbeater' and 'Atomic Eggbeater'). Per Phase A.1
-    // policy, duplicates merge into a single ObservationalTrick with a
-    // multi-element proposedReadings array. Both readings must render.
+  // The "merged Bladerunner entry" test was retired in Slice 7-OBS-A
+  // (2026-05-23): bladerunner was promoted from Emerging Vocabulary to a
+  // canonical row under the FM dex-count convention. Its proposed-readings
+  // pair lives in resolved-formulas provenance metadata, not on the
+  // observational page. The multi-reading merge invariant is still
+  // covered by other entries (e.g. goliath was similar before promotion;
+  // big-orange / king-koopa / super-mario remain observational with
+  // multi-reading arrays).
+  it('a multi-reading observational entry still renders all readings', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toContain('Atomic far Eggbeater');
-    expect(res.text).toContain('Atomic Eggbeater');
+    // Big Orange has two proposed readings: 'Spinning near Symp. Flux'
+    // and 'Rev. Big Apple'.
+    expect(res.text).toContain('Spinning near Symp. Flux');
+    expect(res.text).toContain('Rev. Big Apple');
   });
 });
 

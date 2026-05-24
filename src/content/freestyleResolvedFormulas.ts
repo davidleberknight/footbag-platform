@@ -48,6 +48,35 @@
  * these 15 rows from `curator_pending` → `resolved`.
  */
 
+// ─────────────────────────────────────────────────────────────────────────
+// DUAL-CONVENTION SEMANTIC RULE (forever-rule, 2026-05-23):
+//
+// Two ADD-counting conventions coexist in this content module:
+//
+//   1. CANONICAL BRACKET CONVENTION (footbag.org-style; uppercase tokens,
+//      [BRACKETS]). Every [TOKEN] contributes +1 ADD. Used by the
+//      curator-resolved compounds (barfly, paradon, blur, barraging-osis,
+//      high-plains-drifter, squeeze, etc.) and by the published modifier-
+//      stack rows. Most entries in this file use this convention.
+//
+//   2. FM PARENS CONVENTION (FootbagMoves-style; mixed case, (parens)).
+//      Only (DEX) tokens contribute +1 ADD; all other parenthesized flags
+//      ((XBD), (BOD), (PDX), (DEL), (XDEX), (UNS)) are descriptive
+//      qualifiers. Used by FM-sourced folk-name promotions starting with
+//      Slice 7-OBS-A (bladerunner, bling-blang, cold-fusion, flurricane,
+//      golden-shower, goliath, gybas, motion-sickness, pandemonium).
+//
+// FOREVER-RULE: The JOB-notation punctuation style determines its
+// counting convention. (parens) → FM dex-count. [brackets] → canonical
+// full-token-count. The conventions describe the same physical movement
+// under different counting models; both are recognized scoring layers.
+// Rewriting an FM-parens JOB into canonical brackets (or vice versa) is
+// doctrine work that may change the implied ADD — it is not transcription.
+//
+// See exploration/scalable-publication-2026-05-23/PUBLICATION_STANDARDS.md
+// for the full framing and the dual-convention calibration table.
+// ─────────────────────────────────────────────────────────────────────────
+
 export interface ResolvedFormula {
   /** IFPA canonical slug. Links to /freestyle/tricks/{slug}. */
   slug:        string;
@@ -1131,6 +1160,124 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'stepping(+1) + legover(2) = 3 ADD',
     provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Wave 7 doctrine-divergence pilot 2026-05-23, Red Q7.',
+  },
+
+  // ── Slice 7-OBS-A (2026-05-23) — FM-sourced folk-name promotions ─────
+  // Nine community-named compounds promoted from the Emerging Vocabulary
+  // surface under the dual-convention semantic model. Each row carries
+  // its FM-format JOB notation preserved as-authored; the ADD value is
+  // the FM dex-count (number of (DEX) tokens in the JOB string), which
+  // coincides with each row's PB historical claim. Canonical bracket
+  // re-rewrite is deliberately deferred — that pass is a separate
+  // doctrine-sensitive slice where curator decides per row whether the
+  // canonical-convention reading agrees with the FM-convention reading.
+  //
+  // FOREVER-RULE: JOB-notation punctuation style determines counting
+  // convention. (parens) → FM dex-count: only (DEX) tokens count toward
+  // ADD; other parenthesized flags are descriptive qualifiers.
+  // [brackets] → canonical full-token-count: every [TOKEN] = +1 ADD.
+  // The two conventions describe the same physical movement under
+  // different counting models; both are recognized scoring layers.
+  // See exploration/scalable-publication-2026-05-23/PUBLICATION_STANDARDS.md
+  // for the full dual-convention framing.
+  {
+    slug:        'bladerunner',
+    name:        'bladerunner',
+    operator:    '(FM compound)',
+    base:        'bladerunner',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Community readings include "Atomic far Eggbeater" / "Atomic Eggbeater"; the structural decomposition under canonical bracket convention is a separate doctrine question reserved for a future curator pass.',
+  },
+  {
+    slug:        'bling-blang',
+    name:        'bling blang',
+    operator:    '(FM compound)',
+    base:        'bling-blang',
+    baseAdd:     0,
+    totalAdd:    2,
+    derivation:  '2 (DEX) events = 2 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip > Op Front Whirl (DEX) >> Same Back Swirl (DEX) > Op Clip (XBD)(DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Uptime whirl/swirl pairing terminating cross-body.',
+  },
+  {
+    slug:        'cold-fusion',
+    name:        'cold fusion',
+    operator:    '(FM compound)',
+    base:        'cold-fusion',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip > Same Out (DEX)(PDX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > Op Clip (XBD)(DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Paradox-flavored opening dex; cross-dex middle; terminates cross-body on a clipper.',
+  },
+  {
+    slug:        'flurricane',
+    name:        'flurricane',
+    operator:    '(FM compound)',
+    base:        'flurricane',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip >> (back) Spin (BOD) > Same In (DEX) > Same In (DEX) >> Op Out (DEX) > Same Toe (DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Community reading frames this as a flurry-derivative with a backspin opener.',
+  },
+  {
+    slug:        'golden-shower',
+    name:        'golden shower',
+    operator:    '(FM compound)',
+    base:        'golden-shower',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX)(PDX) > Op Out (DEX) > Same Toe (DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Ducking + paradox + DLO-adjacent structure; community reading places this in the DLO family.',
+  },
+  {
+    slug:        'goliath',
+    name:        'goliath',
+    operator:    '(FM compound)',
+    base:        'goliath',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Toe > Same In (DEX) >> Duck (BOD) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Ducking-DLO family adjacency.',
+  },
+  {
+    slug:        'gybas',
+    name:        'gybas',
+    operator:    '(FM compound)',
+    base:        'gybas',
+    baseAdd:     0,
+    totalAdd:    2,
+    derivation:  '2 (DEX) events = 2 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip > Op In (DEX) >> Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Source display form is G.Y.B.A.S.; alias preserved on the canonical row.',
+  },
+  {
+    slug:        'motion-sickness',
+    name:        'motion sickness',
+    operator:    '(FM compound)',
+    base:        'motion-sickness',
+    baseAdd:     0,
+    totalAdd:    2,
+    derivation:  '2 (DEX) events = 2 ADD (FM dex-count convention)',
+    operationalNotation: 'Clip >> (back) Spin (BOD) >> Op Out (DEX) > Same Out (DEX) >> (back) Spin (BOD) > Same Clip (XBD)(DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. Double-backspin structure with a dex pair sandwiched between.',
+  },
+  {
+    slug:        'pandemonium',
+    name:        'pandemonium',
+    operator:    '(FM compound)',
+    base:        'pandemonium',
+    baseAdd:     0,
+    totalAdd:    3,
+    derivation:  '3 (DEX) events = 3 ADD (FM dex-count convention)',
+    operationalNotation: 'Toe > Same In (DEX) >> (no plant while) Op Out (DEX)(BOD) > Op Out (DEX) > Same Toe (DEL)',
+    provenance:  'Slice 7-OBS-A 2026-05-23. FM-sourced compound; ADD computed under FM dex-count convention matches PB historical claim. No-plant body-modified outside dex pair after an inside dex opener.',
   },
 
   // ── 2026-05-23 — productive-multiplicity base entries (DATW + DLO) ─────
