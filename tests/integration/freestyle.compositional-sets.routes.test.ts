@@ -184,9 +184,9 @@ describe('/freestyle/compositional-sets — uptime reinterpretation ladders', ()
 });
 
 describe('/freestyle/compositional-sets — cross-links + sources', () => {
-  it('cross-links to /freestyle/sets (the flat reference table)', async () => {
+  it('cross-links to /freestyle/sets/reference (the flat Holden table)', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
-    expect(res.text).toContain('href="/freestyle/sets"');
+    expect(res.text).toContain('href="/freestyle/sets/reference"');
   });
 
   it('cross-links to /freestyle/operators and glossary notation primer', async () => {
@@ -260,11 +260,17 @@ describe('/freestyle/compositional-sets — §4 consistency audit', () => {
   });
 });
 
-describe('/freestyle/sets — existing reference page unaffected', () => {
-  it('continues to render 200 (sibling not replacement)', async () => {
-    const res = await request(createApp()).get('/freestyle/sets');
+describe('/freestyle/sets/reference — flat Holden table (moved from /freestyle/sets in Phase B)', () => {
+  it('continues to render 200 at its new path (sibling not replacement)', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Freestyle Move Sets/);
+  });
+
+  it('/freestyle/sets now 301-redirects to the Set Hub (no longer serves the flat table directly)', async () => {
+    const res = await request(createApp()).get('/freestyle/sets');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks?view=sets');
   });
 });
 

@@ -116,10 +116,12 @@ describe('GET /freestyle/tricks?view=sets — Set Hub (Phase A)', () => {
     expect(res.text).toContain('set-card-audit--holden-only');
   });
 
-  it('Phase A: detail-link placeholder renders, NOT a live detail link', async () => {
+  it('Phase B: live detail-page links render (no Phase A placeholder)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('Detail page coming in Phase B.');
-    expect(res.text).not.toContain('set-card-detail-link');
+    expect(res.text).toContain('set-card-detail-link');
+    expect(res.text).toContain('View set details');
+    expect(res.text).not.toContain('Detail page coming in Phase B.');
+    expect(res.text).toMatch(/href="\/freestyle\/sets\/pixie"/);
   });
 
   it('alt-surfaces tricks (sole / cloud / head / etc.) are NOT rendered on the set hub', async () => {

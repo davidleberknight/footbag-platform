@@ -157,7 +157,7 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
     expect(matches.length).toBe(11);
     // Spot-check one destination per category (notation / glossary / pedagogy).
-    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/sets/reference#move-pixie"');
     expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
     expect(res.text).toContain('href="/freestyle/modifier/ducking"');
   });

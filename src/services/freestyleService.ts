@@ -107,6 +107,7 @@ import {
 import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
+  findCanonicalSetBySlug,
 } from '../content/freestyleCanonicalSets';
 import {
   COMPOSITIONAL_SET_FAMILIES,
@@ -2023,6 +2024,50 @@ export interface AltSurfacesCrossLink {
   framing:           string;
   movementSystemHref: string;
   ctaLabel:          string;
+}
+
+// Set detail page content (Phase B of the set-system refactor, 2026-05-25).
+// One page per canonical set at /freestyle/sets/<slug>. Mirrors the
+// trick-detail structure: hashtag · formula · movement explanation ·
+// equivalence readings · derived/related systems · example tricks ·
+// cross-links · source/audit provenance.
+export interface FreestyleSetDetailContent {
+  slug:                 string;
+  hashtag:              string;
+  displayName:          string;
+  subtype:              SetSubtypeKey;
+  subtypeLabel:         string;
+  formula:              string;
+  movementExplanation:  string;
+  equivalenceReadings:  readonly string[];
+  derivedSystems:       readonly SlugLinkVM[];
+  relatedSystems:       readonly SlugLinkVM[];
+  exampleTricks:        readonly SetDetailExampleTrick[];
+  hasExampleTricks:     boolean;
+  crossLinks:           SetDetailCrossLinks;
+  source:               CanonicalSetSourceKey;
+  sourceLabel:          string;
+  sourceCitation:       string;
+  auditStatus?:         CanonicalSetAuditKey;
+  auditStatusLabel?:    string;
+  componentMechanicsNote: string;
+}
+
+export interface SetDetailExampleTrick {
+  slug:                string;
+  displayName:         string;
+  href:                string;
+  adds:                string | null;
+  addsLabel:           string;
+  operationalNotation: string;
+}
+
+export interface SetDetailCrossLinks {
+  setHubHref:                string;
+  compositionalHubHref:      string;
+  movementSystemAxisHref:    string;
+  operatorReferenceHref?:    string;
+  flatReferenceHref:         string;
 }
 
 // Dex-count grouped browse view (2026-05-24 notation-display audit Phase 4.1
@@ -6115,8 +6160,8 @@ export const freestyleService = {
         label: r.label,
         href:  `#set-${r.slug}`,
       })),
-      detailHref:          `/freestyle/sets/${s.slug}`,   // Phase B target
-      showDetailLink:      false,                          // Phase A: placeholder only
+      detailHref:          `/freestyle/sets/${s.slug}`,
+      showDetailLink:      true,
     });
     const subtypeSections: SetSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
       const cards = CANONICAL_SETS.filter(s => s.subtype === spec.key).map(shapeSetCard);
@@ -6933,6 +6978,140 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * GET /freestyle/sets/:slug — Set detail page (Phase B of the set-system
+   * refactor, 2026-05-25). Returns null when the slug does not resolve to
+   * a canonical-set entry; controller maps null → 404.
+   */
+  getCanonicalSetDetailPage(slug: string): PageViewModel<FreestyleSetDetailContent> | null {
+    const set = findCanonicalSetBySlug(slug);
+    if (!set) return null;
+
+    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
+      'canonical':        'Canonical',
+      'platform-tracked': 'Platform-tracked',
+      'holden-only':      'Holden-only',
+    };
+    const auditLabels: Record<CanonicalSetAuditKey, string> = {
+      'aligned':     'Aligned with Holden',
+      'partial':     'Partial — framing differs',
+      'conflict':    'Documented disagreement',
+      'holden-only': 'Holden-cited only',
+    };
+    const subtypeLabel = SET_SUBTYPE_SPECS.find(s => s.key === set.subtype)?.label ?? set.subtype;
+
+    // Example tricks: tricks linked to this set's slug in the modifier-link
+    // table. Sets without a registered modifier (most holden-only entries)
+    // produce an empty array.
+    const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const allActiveRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const rowsBySlug = new Map<string, FreestyleTrickRow>(
+      allActiveRows.map(r => [r.slug, r]),
+    );
+    const linkedTrickSlugs = new Set<string>(
+      linkRows.filter(l => l.modifier_slug === set.slug).map(l => l.trick_slug),
+    );
+    const exampleTricks: SetDetailExampleTrick[] = [...linkedTrickSlugs]
+      .map(s => rowsBySlug.get(s))
+      .filter((r): r is FreestyleTrickRow => r !== undefined)
+      .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name))
+      .map(row => ({
+        slug:                row.slug,
+        displayName:         row.canonical_name,
+        href:                `/freestyle/tricks/${row.slug}`,
+        adds:                row.adds ?? null,
+        addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+        operationalNotation: row.operational_notation ?? '',
+      }));
+
+    // Compositional-sets anchor — map subtype → family key on /freestyle/compositional-sets.
+    const compositionalFamilyKey: Record<SetSubtypeKey, string> = {
+      'true-core':            'single-dex-primitives',
+      'composite-derived':    'multi-dex-compounds',
+      'rotational':           'spinning-family',
+      'whirl-swirl':          'whirl-swirl-family',
+      'uns':                  'uns-sets',
+      'rooted-antisymposium': 'antisymposium-and-components',
+    };
+
+    // Operator reference is only meaningful when the set has a registered
+    // modifier (pixie/fairy/atomic/quantum/nuclear/stepping/surging). Other
+    // sets have no operator-page anchor; omit the field.
+    const REGISTERED_MODIFIER_SLUGS = new Set([
+      'pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging',
+    ]);
+    const operatorReferenceHref = REGISTERED_MODIFIER_SLUGS.has(set.slug)
+      ? `/freestyle/operators#${set.slug}`
+      : undefined;
+
+    const crossLinks: SetDetailCrossLinks = {
+      setHubHref:             '/freestyle/tricks?view=sets',
+      compositionalHubHref:   `/freestyle/compositional-sets#${compositionalFamilyKey[set.subtype]}`,
+      movementSystemAxisHref: '/freestyle/tricks?view=movement-system#movement-axis-set-uptime',
+      operatorReferenceHref,
+      flatReferenceHref:      '/freestyle/sets/reference',
+    };
+
+    return {
+      seo: {
+        title:       `${set.displayName} (set system)`,
+        description:
+          `${set.displayName} canonical set ontology — formula, movement explanation, ` +
+          `equivalence readings, derived and related systems, example tricks, and ` +
+          `Holden / platform provenance.`,
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_set_detail',
+        title:      `${set.displayName} ${set.hashtag}`,
+        eyebrow:    subtypeLabel,
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle',    href: '/freestyle' },
+          { label: 'Trick Dictionary', href: '/freestyle/tricks' },
+          { label: 'Sets',         href: '/freestyle/tricks?view=sets' },
+          { label: set.displayName },
+        ],
+      },
+      content: {
+        slug:                  set.slug,
+        hashtag:               set.hashtag,
+        displayName:           set.displayName,
+        subtype:               set.subtype,
+        subtypeLabel,
+        formula:               set.formula,
+        movementExplanation:   set.movementExplanation,
+        equivalenceReadings:   set.equivalenceNotes.map(n => `${n.reading} — ${n.citation}`),
+        derivedSystems:        set.derivedSystems.map(r => ({
+          slug:  r.slug,
+          label: r.label,
+          href:  `/freestyle/sets/${r.slug}`,
+        })),
+        relatedSystems:        set.relatedSystems.map(r => ({
+          slug:  r.slug,
+          label: r.label,
+          href:  `/freestyle/sets/${r.slug}`,
+        })),
+        exampleTricks,
+        hasExampleTricks:      exampleTricks.length > 0,
+        crossLinks,
+        source:                set.source,
+        sourceLabel:           sourceLabels[set.source],
+        sourceCitation:        set.sourceCitation,
+        auditStatus:           set.auditStatus,
+        auditStatusLabel:      set.auditStatus ? auditLabels[set.auditStatus] : undefined,
+        componentMechanicsNote:
+          'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
+          'are body modifiers, not sets. See the Operators & Modifiers reference.',
+      },
+    };
+  },
+
   getMovesPage(): PageViewModel<FreestyleMovesContent> {
     const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
@@ -7171,7 +7350,7 @@ export const freestyleService = {
             'canonical or any conflict is resolved.',
         },
         crossLinks: {
-          setsReferenceHref:    '/freestyle/sets',
+          setsReferenceHref:    '/freestyle/sets/reference',
           operatorsHref:        '/freestyle/operators',
           glossaryNotationHref: '/freestyle/glossary#operational-notation',
         },
@@ -7199,7 +7378,7 @@ export const freestyleService = {
       href:      destination?.href      ?? null,
       hrefLabel: destination?.label     ?? null,
     });
-    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets#move-${slug}`,         label: 'Notation reference' });
+    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets/reference#move-${slug}`, label: 'Notation reference' });
     const GLOSSARY    = (slug: string) => ({ href: `/freestyle/glossary#term-${slug}`,     label: 'Glossary entry'     });
     const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 

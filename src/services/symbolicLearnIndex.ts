@@ -86,7 +86,7 @@ const REFERENCE_SECTION: LearnIndexSection = {
   entries: [
     {
       title:      'Set notation reference',
-      href:       '/freestyle/sets',
+      href:       '/freestyle/sets/reference',
       shortBlurb: 'The legacy set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest are described in TOE / CLIP / SET grammar. The operational layer of the movement language.',
       status:     'shipped',
       isShipped:  true,

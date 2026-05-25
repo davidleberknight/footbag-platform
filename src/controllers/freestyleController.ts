@@ -149,11 +149,37 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/sets — set-notation reference (formerly /freestyle/moves) */
+  /**
+   * GET /freestyle/sets/reference — flat Holden set-notation reference table
+   * (formerly /freestyle/sets, formerly /freestyle/moves). Phase B of the
+   * set-system refactor moved this content out of /freestyle/sets so the Set
+   * Hub can claim the canonical /freestyle/sets/<slug> namespace.
+   */
   moves(_req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleService.getMovesPage();
       res.render('freestyle/moves', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /**
+   * GET /freestyle/sets/:slug — Set detail page (Phase B of the set-system
+   * refactor, 2026-05-25). Anti-enumeration: unknown slug → 404.
+   */
+  setDetail(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const rawSlug = typeof req.params['slug'] === 'string' ? req.params['slug'] : '';
+      const vm = freestyleService.getCanonicalSetDetailPage(rawSlug);
+      if (!vm) {
+        res.status(404).render('errors/not-found', {
+          seo:  { title: 'Page Not Found' },
+          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+        });
+        return;
+      }
+      res.render('freestyle/set-detail', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
     }

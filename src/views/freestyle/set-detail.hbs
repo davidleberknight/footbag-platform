@@ -1,0 +1,93 @@
+{{!--
+  Set detail page. Phase B of the set-system refactor (2026-05-25).
+  One page per canonical set; structurally mirrors the trick-detail
+  layout but expresses the set ontology object (hashtag, formula,
+  movement explanation, equivalence readings, derived/related systems,
+  example tricks, cross-links, source/audit provenance).
+--}}
+<article class="set-detail" data-set-slug="{{content.slug}}">
+
+  <header class="set-detail-head">
+    <p class="set-detail-eyebrow">{{content.subtypeLabel}}</p>
+    <h1 class="set-detail-name">{{content.displayName}}</h1>
+    <code class="set-detail-hashtag">{{content.hashtag}}</code>
+  </header>
+
+  <section class="set-detail-section set-detail-formula-section" aria-label="Formula">
+    <h2>Formula</h2>
+    <code class="set-detail-formula">{{content.formula}}</code>
+  </section>
+
+  <section class="set-detail-section set-detail-movement-section" aria-label="Movement explanation">
+    <h2>Movement</h2>
+    <p class="set-detail-movement">{{content.movementExplanation}}</p>
+  </section>
+
+  {{#if content.equivalenceReadings.length}}
+  <section class="set-detail-section set-detail-equivalence-section" aria-label="Equivalence readings">
+    <h2>Equivalence readings</h2>
+    <ul class="set-detail-equivalences">
+      {{#each content.equivalenceReadings}}<li>{{this}}</li>{{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.derivedSystems.length}}
+  <section class="set-detail-section set-detail-derived-section" aria-label="Derived systems">
+    <h2>Derived systems</h2>
+    <ul class="set-detail-link-list">
+      {{#each content.derivedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.relatedSystems.length}}
+  <section class="set-detail-section set-detail-related-section" aria-label="Related systems">
+    <h2>Related systems</h2>
+    <ul class="set-detail-link-list">
+      {{#each content.relatedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.hasExampleTricks}}
+  <section class="set-detail-section set-detail-examples-section" aria-label="Example tricks">
+    <h2>Example tricks</h2>
+    <ul class="set-detail-trick-list">
+      {{#each content.exampleTricks}}
+      <li class="set-detail-trick">
+        <a href="{{href}}">{{displayName}}</a>
+        <span class="set-detail-trick-add">({{addsLabel}})</span>
+        {{#if operationalNotation}}<code class="set-detail-trick-notation">{{operationalNotation}}</code>{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{else}}
+  <section class="set-detail-section set-detail-examples-section set-detail-examples-section--empty" aria-label="Example tricks">
+    <h2>Example tricks</h2>
+    <p class="set-detail-examples-empty">No canonical tricks currently link this set via the modifier registry. Holden-only and platform-tracked sets may not have registered modifier rows.</p>
+  </section>
+  {{/if}}
+
+  <section class="set-detail-section set-detail-cross-links-section" aria-label="Cross-references">
+    <h2>Cross-references</h2>
+    <ul class="set-detail-cross-links">
+      <li><a href="{{content.crossLinks.setHubHref}}">Back to Set Hub</a></li>
+      <li><a href="{{content.crossLinks.compositionalHubHref}}">View on Compositional Sets hub</a></li>
+      <li><a href="{{content.crossLinks.movementSystemAxisHref}}">Set / Uptime Systems axis on Movement Systems</a></li>
+      {{#if content.crossLinks.operatorReferenceHref}}
+      <li><a href="{{content.crossLinks.operatorReferenceHref}}">Operator entry on Operators &amp; Modifiers</a></li>
+      {{/if}}
+      <li><a href="{{content.crossLinks.flatReferenceHref}}">Flat Holden reference table</a></li>
+    </ul>
+    <p class="set-detail-component-note">{{content.componentMechanicsNote}}</p>
+  </section>
+
+  <footer class="set-detail-provenance" aria-label="Source provenance">
+    <span class="set-card-source set-card-source--{{content.source}}">{{content.sourceLabel}}</span>
+    {{#if content.auditStatusLabel}}<span class="set-card-audit set-card-audit--{{content.auditStatus}}">{{content.auditStatusLabel}}</span>{{/if}}
+    <p class="set-detail-citation">{{content.sourceCitation}}</p>
+  </footer>
+
+</article>
