@@ -5500,16 +5500,18 @@ export const freestyleService = {
               attribution: entry.attribution,
             };
           })(),
-          // ── Trick-detail ontology doctrine — Phase A/B (2026-05-25) ──
-          // L1-L6 layered ontology fields. Tier-gated: Tier C pages get
-          // all-null and render exactly as today; Tier A pages render
-          // L2-L6 sections when curator content exists.
+          // ── Trick-detail ontology doctrine — Phase A/B (2026-05-25); §8 amendment ──
+          // L1-L6 layered ontology fields. Universal grammar (§8 amendment,
+          // post-Phase-C): any trick with curated content renders the
+          // relevant sections. Tier is an authoring priority signal
+          // (TIER_A_SLUGS / TIER_B_SLUGS in freestyleTrickTier.ts), NOT
+          // a structural gate; suppression is content-driven (entry null
+          // → section suppresses). See PHASE_B_LOCK.md §8.
           trickTier:        resolveTrickTier(slug),
           mechanicalDelta:  (() => {
             // L2 — mechanical delta. The deepest ontology layer per the
             // doctrine; where paradox / x-dex / nuclear / rotational /
             // hidden-topology distinctions become understandable.
-            if (resolveTrickTier(slug) !== 'A') return null;
             const entry = getTrickMechanicalDelta(slug);
             if (entry === null) return null;
             const topologyLabelMap: Record<string, string> = {
@@ -5538,7 +5540,6 @@ export const freestyleService = {
           ontologyRole: (() => {
             // L3 — ontology role. May overlap with L4 (productivity) on
             // some slugs; curator picks which slot carries the prose.
-            if (resolveTrickTier(slug) !== 'A') return null;
             const entry = getTrickOntologyRole(slug);
             if (entry === null) return null;
             return {
@@ -5549,7 +5550,6 @@ export const freestyleService = {
           productivity: (() => {
             // L4 — productivity narrative. Curator-authored descendant
             // slugs (no NLP) so cross-references stay stable.
-            if (resolveTrickTier(slug) !== 'A') return null;
             const entry = getTrickProductivity(slug);
             if (entry === null) return null;
             return {
@@ -5566,8 +5566,6 @@ export const freestyleService = {
             // L5 — family evolution narrative. Branching steps with
             // axis + prose + exemplar links. Renders as the
             // movement-language-history surface; NOT a list.
-            const tier = resolveTrickTier(slug);
-            if (tier !== 'A' && tier !== 'B') return null;
             const entry = getTrickFamilyEvolution(slug);
             if (entry === null) return null;
             return {
@@ -5586,7 +5584,6 @@ export const freestyleService = {
             // L6 — progressive equivalence unfolding. simple parent →
             // topology transformation → compositional extension →
             // compressed shorthand → descendant systems.
-            if (resolveTrickTier(slug) !== 'A') return null;
             const entry = getTrickProgressiveReadings(slug);
             if (entry === null) return null;
             return {

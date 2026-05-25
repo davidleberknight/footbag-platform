@@ -308,8 +308,12 @@ describe('Placeholder-description suppressor', () => {
   });
 });
 
-describe('Tier C pages — no L1-L6 sections render', () => {
-  it('plain-tier-c-trick does NOT render mechanical-delta / ontology-role / productivity / family-evolution / progressive-readings sections', async () => {
+// Per PHASE_B_LOCK.md §8 (universal-grammar amendment): pages with no
+// curated L1-L6 content suppress those sections via content-driven
+// nulls, not via tier-gating. Tier remains an authoring priority signal,
+// NOT a structural gate.
+describe('Pages with no curated L1-L6 content suppress those sections (§8 universal grammar)', () => {
+  it('plain-tier-c-trick (no curated L1-L6 entries) does NOT render mechanical-delta / ontology-role / productivity / family-evolution / progressive-readings sections', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/plain-tier-c-trick');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-mechanical-delta"');
