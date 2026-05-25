@@ -171,15 +171,27 @@ describe('Glossary §12 — named source families (Slice C)', () => {
     expect(res.text).toContain('class="glossary-sources-list"');
   });
 
-  it('names the six source families inline', async () => {
+  it('names the five source families inline', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toContain('footbag.org');
     expect(res.text).toContain('PassBack');
+    expect(res.text).toContain('Stanford shorthand');
     expect(res.text).toContain('footbagmoves.com');
     expect(res.text).toContain('AnzTrikz');
-    expect(res.text).toMatch(/Tricks of the Trade/);
-    expect(res.text).toMatch(/WFA|NHSA/);
+    expect(res.text).toContain('Footbag Finland');
+  });
+
+  it('source-family bullets are depersonalized; individual acknowledgements live in the dedicated paragraph', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    // Source bullets should not carry personal attributions; PassBack and
+    // Stanford shorthand bullets in particular were depersonalized.
+    expect(res.text).not.toMatch(/Matt Kemmer's conceptual tutorial series/);
+    expect(res.text).not.toMatch(/Ben Lynn's compact symbolic notation/);
+    // Both individuals appear in the consolidated acknowledgements paragraph.
+    expect(res.text).toContain('Matt Kemmer');
+    expect(res.text).toContain('Ben Lynn');
   });
 });
 

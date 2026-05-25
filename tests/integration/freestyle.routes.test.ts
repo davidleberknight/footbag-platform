@@ -1597,7 +1597,6 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toContain('href="https://www.footbag.org/"');
     expect(res.text).toContain('href="https://www.footbag.org/newmoves/list"');
     expect(res.text).toContain('href="https://www.footbagmoves.com/"');
-    expect(res.text).toContain('href="https://www.youtube.com/@WorldFootbag"');
   });
 
   it('glossary §11 outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
@@ -1606,7 +1605,6 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     const checks = [
       'https://www.footbag.org/',
       'https://www.footbagmoves.com/',
-      'https://www.youtube.com/@WorldFootbag',
     ];
     for (const url of checks) {
       const idx = res.text.indexOf(`href="${url}"`);
