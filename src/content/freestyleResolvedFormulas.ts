@@ -1244,4 +1244,58 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'SET > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); chain reading "atomic illusion" (pt2 + followup-2026-04 locked) drives the derivation despite DB base_trick=pickup; structural conflict noted in audit; not Red-confirmed for operational notation.
     provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 non-rotational set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill 2026-05-25.',
   },
+
+  // ─── Pre-Adrian foundational-vocabulary promotion (2026-05-25) ──────────
+  // Conservative canonical-promotion slice for the most conspicuous
+  // foundational omissions. Three new canonical rows added to
+  // legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv;
+  // operationalNotation overlays below render the JOB row pre-pipeline-
+  // rebuild. Provenance: fb.org-derived / sibling-derived; NOT Red-
+  // confirmed. Surfaces Red questions K-1..K-3 + B-1 in
+  // exploration/pre-red-cleanup-2026-05-25/CLEANUP_AUDIT.md.
+
+  {
+    slug:        'around-the-world-kick',
+    name:        'around the world kick',
+    operator:    'kick (terminal stall removed)',
+    base:        'around-the-world',
+    baseAdd:     2,
+    totalAdd:    1,
+    derivation:  'around-the-world(2) − terminal stall(1) = 1 ADD (kick-rule)',
+    operationalNotation: 'TOE > SAME IN [DEX]',  // Pre-Adrian promotion 2026-05-25; fb.org-derived (fborg-1add.txt); kick-rule applied; not Red-confirmed.
+    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Kick-rule derivation: remove terminal [DEL] and stall(1) from around-the-world. fb.org-derived (fborg-1add.txt "Around the World Kick"); not Red-confirmed. Surfaces Red Q K-1..K-3 in CLEANUP_AUDIT.md (kick-family ADD reading + uniform [bod] vs structural [dex] interpretation).',
+  },
+  {
+    slug:        'clipper',
+    name:        'clipper',
+    operator:    'body-kick primitive',
+    base:        'clipper',
+    baseAdd:     1,
+    totalAdd:    1,
+    derivation:  'xbody(1) = 1 ADD',
+    operationalNotation: 'OP CLIP [XBD]',  // Pre-Adrian polish 2026-05-25; 1-ADD body kick into clipper position; user-spec operational form; not Red-confirmed.
+    provenance:  'Pre-Adrian foundational-vocabulary polish 2026-05-25. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Curator-published; not Red-confirmed.',
+  },
+  {
+    slug:        'triple-around-the-world',
+    name:        'triple around the world',
+    operator:    'triple (3-dex extension)',
+    base:        'around-the-world',
+    baseAdd:     2,
+    totalAdd:    4,
+    derivation:  'dex(3) + stall(1) = 4 ADD',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',  // Pre-Adrian promotion 2026-05-25; sibling-derivation from around-the-world + double-around-the-world; fb.org-derived (fborg-4add.txt); not Red-confirmed.
+    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Sibling-derivation from around-the-world(2) + double-around-the-world(3): three consecutive full leg circles ending in a same-side toe delay. fb.org-derived (fborg-4add.txt "Triple Around The World"); not Red-confirmed. Math: dex(3) + stall(1) = 4. Surfaces Red Q B-1 (canonical promotion) in CLEANUP_AUDIT.md.',
+  },
+  {
+    slug:        'double-around-the-world-heel',
+    name:        'double around the world heel',
+    operator:    'heel terminal (toe→heel surface swap)',
+    base:        'double-around-the-world',
+    baseAdd:     3,
+    totalAdd:    3,
+    derivation:  'dex(2) + heel-stall(1) = 3 ADD; terminal-surface variant of double-around-the-world',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Pre-Adrian promotion 2026-05-25; terminal-surface variant of double-around-the-world (toe→heel + [UNS] unusual-surface tag); fb.org-derived; not Red-confirmed.
+    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25 (optional in slice spec). Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
+  },
 ];
