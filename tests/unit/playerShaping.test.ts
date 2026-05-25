@@ -150,4 +150,131 @@ describe('groupPlayerResults', () => {
 
     expect(result[0].results[0].teammates[0].playerHref).toBeUndefined();
   });
+
+  // ─── Sick-discipline trick-anomaly filter ────────────────────────────
+  //
+  // Regression for the 2013 Todexon 14 / 2015 Worlds Copenhagen /
+  // 2016 + 2025 Eurochamp Frankfurt etc. event-results bug:
+  // the canonical event_result_participants.csv loaded the performed
+  // trick name as a second participant (participant_order=2, no
+  // person_id, no member_id) on solo "Sick Trick" / "Sick 3-Trick"
+  // disciplines. The renderer surfaced this as "Tied with: <trick name>"
+  // on player profile pages. Fix: filter these rows from the teammates
+  // list (data stays in DB for a future performance-note surface).
+
+  describe('sick-discipline trick-anomaly filter', () => {
+    it('skips a Sick 3-Trick row carrying a trick name as a second participant', () => {
+      // Todexon 14 — Jindrich Smola, Open Sick 3-Trick, place 2.
+      // Canonical CSV has two participant rows: Jindrich (order 1,
+      // person_id set) + trick name (order 2, no IDs).
+      const rows = [
+        makeRow({
+          discipline_name:          'Open Sick 3-Trick',
+          placement:                2,
+          team_type:                'singles',
+          participant_display_name: 'Jindrich Smola',
+          participant_person_id:    'person-jindrich',
+        }),
+        makeRow({
+          discipline_name:          'Open Sick 3-Trick',
+          placement:                2,
+          team_type:                'singles',
+          participant_display_name: 'Paradox Swirl>mullet>steping torque',
+          participant_person_id:    null,
+          participant_member_slug:  null,
+        }),
+      ];
+      const result = groupPlayerResults(rows, { selfPersonId: 'person-jindrich' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].results).toHaveLength(1);
+      // The trick name must NOT appear as a teammate.
+      expect(result[0].results[0].teammates).toHaveLength(0);
+      // Singles result with no teammates → no "Tied with:" rendering.
+      expect(result[0].results[0].detailPrefix).toBe('');
+    });
+
+    it('skips a Sick Trick row carrying a trick name as a second participant', () => {
+      // Todexon 14 — Milan Benda, Open Sick Trick, place 1.
+      // Trick name "Genesis Rake" is loaded as order-2 participant.
+      const rows = [
+        makeRow({
+          discipline_name:          'Open Sick Trick',
+          placement:                1,
+          team_type:                'singles',
+          participant_display_name: 'Milan Benda',
+          participant_person_id:    'person-milan',
+        }),
+        makeRow({
+          discipline_name:          'Open Sick Trick',
+          placement:                1,
+          team_type:                'singles',
+          participant_display_name: 'Genesis Rake',
+          participant_person_id:    null,
+          participant_member_slug:  null,
+        }),
+      ];
+      const result = groupPlayerResults(rows, { selfPersonId: 'person-milan' });
+
+      expect(result[0].results[0].teammates).toHaveLength(0);
+      expect(result[0].results[0].detailPrefix).toBe('');
+    });
+
+    it('preserves legitimate doubles partners with no person_id (doubles disciplines)', () => {
+      // Negative case: a doubles-net partner whose person_id has not
+      // been identity-resolved upstream. Display name only. Must STILL
+      // render as a teammate (the trick-anomaly filter only applies to
+      // sick disciplines).
+      const rows = [
+        makeRow({
+          discipline_name:          'Open Doubles Net',
+          placement:                1,
+          team_type:                'doubles',
+          participant_display_name: 'Tomas Tucek',
+          participant_person_id:    'person-tomas',
+        }),
+        makeRow({
+          discipline_name:          'Open Doubles Net',
+          placement:                1,
+          team_type:                'doubles',
+          participant_display_name: 'Martin Sladek',
+          participant_person_id:    null,
+          participant_member_slug:  null,
+        }),
+      ];
+      const result = groupPlayerResults(rows, { selfPersonId: 'person-tomas' });
+
+      // Doubles partner without person_id is still a legitimate teammate.
+      expect(result[0].results[0].teammates).toHaveLength(1);
+      expect(result[0].results[0].teammates[0].name).toBe('Martin Sladek');
+      expect(result[0].results[0].detailPrefix).toBe('With partner: ');
+    });
+
+    it('preserves a sick-discipline teammate that DOES have a person_id (defensive)', () => {
+      // Belt-and-suspenders case: if a "sick" discipline ever had a
+      // legitimate second human (collaborator, judge co-credit, etc.)
+      // with an identity, do NOT silently drop them. The filter only
+      // applies when both person_id AND member_id are missing.
+      const rows = [
+        makeRow({
+          discipline_name:          'Open Sick Trick',
+          placement:                1,
+          team_type:                'singles',
+          participant_display_name: 'Performer Alpha',
+          participant_person_id:    'person-alpha',
+        }),
+        makeRow({
+          discipline_name:          'Open Sick Trick',
+          placement:                1,
+          team_type:                'singles',
+          participant_display_name: 'Performer Beta',
+          participant_person_id:    'person-beta',
+        }),
+      ];
+      const result = groupPlayerResults(rows, { selfPersonId: 'person-alpha' });
+
+      expect(result[0].results[0].teammates).toHaveLength(1);
+      expect(result[0].results[0].teammates[0].name).toBe('Performer Beta');
+    });
+  });
 });

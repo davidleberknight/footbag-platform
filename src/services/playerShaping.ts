@@ -117,7 +117,19 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
       (opts.selfPersonId && row.participant_person_id === opts.selfPersonId) ||
       (opts.selfMemberId && row.participant_member_id === opts.selfMemberId);
 
-    if (!isSelf && !entry.teammates.some(t => t.name === row.participant_display_name)) {
+    // Data-shape anomaly: "Sick Trick" / "Sick 3-Trick" disciplines are solo
+    // performances, but the canonical CSV sometimes carries the performed
+    // trick name as a second participant (participant_order=2) with no
+    // person_id or member_id. Rendering that as "Tied with: <trick name>"
+    // is misleading. Skip these rows; the trick metadata stays in the DB
+    // for a future proper performance-note surface. ~27 rows across
+    // 2005 hackrifice / 2013 todexon_14 / 2015 worlds_copenhagen /
+    // 2016 eurochamp_frankfurt / 2025 eurochamp_frankfurt etc.
+    const isSickDiscipline = /sick/i.test(row.discipline_name ?? '');
+    const lacksHumanIdentity = !row.participant_person_id && !row.participant_member_id;
+    const isTrickAnomaly = isSickDiscipline && lacksHumanIdentity;
+
+    if (!isSelf && !isTrickAnomaly && !entry.teammates.some(t => t.name === row.participant_display_name)) {
       entry.teammates.push({
         name:       row.participant_display_name,
         playerHref: personHref(row.participant_member_slug, row.participant_person_id) ?? undefined,
