@@ -1,12 +1,25 @@
 /**
- * `?view=sets` browse mode + Operators & Modifiers retirement from toggle.
+ * `?view=sets` — Set Hub (Phase A of the set-system refactor, 2026-05-25).
  *
- * 2026-05-24 governance/polish slice. Pins:
- *   - Two-cohort structure (Core sets / Secondary / composite systems)
- *   - Per-set intro + dynamic trick count
- *   - "By set" appears in toggle as active state
- *   - "Operators & Modifiers" NOT in toggle nav anymore
- *   - /freestyle/operators still reachable (separate reference page)
+ * Pins:
+ *   - Six subtype sections render (true-core, composite-derived, rotational,
+ *     whirl-swirl, uns, rooted-antisymposium) when their content arrays are
+ *     non-empty
+ *   - Cards carry hashtag (#<slug>-set), formula, movement explanation,
+ *     source label, derived/related-system links
+ *   - Audit status renders when present (aligned / partial / conflict /
+ *     holden-only)
+ *   - Alt-surfaces are NOT inside the set hub (no surface trick rows; no
+ *     "Alternate-surface systems" cohort heading) but the cross-link aside
+ *     IS rendered pointing to Movement Systems
+ *   - "By set" toggle marker shows active state; Operators & Modifiers NOT
+ *     in the toggle nav
+ *   - Movement System + Movement Neighborhoods views show their exploratory
+ *     status labels (kept from the prior slice)
+ *
+ * No seeded modifier-link data: the Set Hub renders entirely from the
+ * canonical-set content module (freestyleCanonicalSets.ts), not from the
+ * dictionary's modifier_links. The test exercises the production content.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -17,11 +30,6 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import {
-  insertFreestyleTrick,
-  insertFreestyleTrickModifier,
-  insertFreestyleTrickModifierLink,
-} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3219');
 
@@ -29,55 +37,13 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-
-  // Seed a few canonical tricks
-  insertFreestyleTrick(db, {
-    slug: 'mirage', canonical_name: 'mirage', adds: '2',
-    base_trick: 'mirage', trick_family: 'mirage', category: 'dex',
-    operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
-  });
-  insertFreestyleTrick(db, {
-    slug: 'pixie-mirage', canonical_name: 'pixie mirage', adds: '3',
-    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
-    operational_notation: 'TOE > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
-  });
-  insertFreestyleTrick(db, {
-    slug: 'nuclear-mirage', canonical_name: 'nuclear mirage', adds: '4',
-    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
-    operational_notation: 'CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
-  });
-
-  // Seed the relevant modifiers
-  insertFreestyleTrickModifier(db, {
-    slug: 'pixie', modifier_name: 'pixie', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set', notes: '',
-  });
-  insertFreestyleTrickModifier(db, {
-    slug: 'nuclear', modifier_name: 'nuclear', add_bonus: 2, add_bonus_rotational: 2, modifier_type: 'set', notes: '',
-  });
-
-  // Link tricks to modifiers (positional factory signature)
-  insertFreestyleTrickModifierLink(db, 'pixie-mirage', 'pixie');
-  insertFreestyleTrickModifierLink(db, 'nuclear-mirage', 'nuclear');
-
-  // Seed one alternate-surface trick so the third cohort renders.
-  // head-stall lives in the head-neck-shoulder group of ALTERNATIVE_SURFACES.
-  insertFreestyleTrick(db, {
-    slug: 'head-stall', canonical_name: 'head stall', adds: '1',
-    base_trick: 'head-stall', trick_family: 'head-stall', category: 'stall',
-    operational_notation: 'SET > HEAD [DEL]',
-    review_status: 'expert_reviewed', is_active: 1,
-  });
-
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/tricks?view=sets', () => {
+describe('GET /freestyle/tricks?view=sets — Set Hub (Phase A)', () => {
   it('returns 200', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
@@ -88,86 +54,101 @@ describe('GET /freestyle/tricks?view=sets', () => {
     expect(res.text).toContain('<span class="trick-view-toggle-active">By set</span>');
   });
 
-  it('renders ALL THREE cohort sections (Core sets + Secondary/composite + Alternate-surface)', async () => {
+  it('renders ALL SIX subtype section headings', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('<h2>Core sets</h2>');
-    expect(res.text).toContain('<h2>Secondary / composite systems</h2>');
-    expect(res.text).toContain('<h2>Alternate-surface systems</h2>');
-    expect(res.text).toContain('id="sets-core"');
-    expect(res.text).toContain('id="sets-secondary"');
-    expect(res.text).toContain('id="sets-surface"');
+    expect(res.text).toContain('>True core sets<');
+    expect(res.text).toContain('>Composite / derived sets<');
+    expect(res.text).toContain('>Rotational set systems<');
+    expect(res.text).toContain('>Whirl / swirl-derived systems<');
+    expect(res.text).toContain('>UNS sets (unusual non-standard entry)<');
+    expect(res.text).toContain('>Rooted / antisymposium systems<');
   });
 
-  it('alternate-surface cohort explicitly frames itself as a distinct ontology layer', async () => {
+  it('renders one section per subtype with a stable anchor id', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    const surfaceStart = res.text.indexOf('id="sets-surface"');
-    expect(surfaceStart).toBeGreaterThan(-1);
-    const surfaceSlice = res.text.substring(surfaceStart);
-    expect(surfaceSlice).toContain('Distinct ontology layer');
-    expect(surfaceSlice).toContain('Surface mechanics are NOT sets');
+    expect(res.text).toContain('id="set-subtype-true-core"');
+    expect(res.text).toContain('id="set-subtype-composite-derived"');
+    expect(res.text).toContain('id="set-subtype-rotational"');
+    expect(res.text).toContain('id="set-subtype-whirl-swirl"');
+    expect(res.text).toContain('id="set-subtype-uns"');
+    expect(res.text).toContain('id="set-subtype-rooted-antisymposium"');
   });
 
-  it('alternate-surface cohort renders the seeded head-stall trick under its group', async () => {
+  it('renders canonical set cards with #<slug>-set hashtags', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    const surfaceStart = res.text.indexOf('id="sets-surface"');
-    const surfaceSlice = res.text.substring(surfaceStart);
-    expect(surfaceSlice).toContain('id="set-surface-head-neck-shoulder"');
-    expect(surfaceSlice).toMatch(/<a href="\/freestyle\/tricks\/head-stall">head stall<\/a>/);
+    // Spot-check across subtypes — at least one card per subtype carries a
+    // hashtag-set chip
+    expect(res.text).toContain('#pixie-set');
+    expect(res.text).toContain('#blurry-set');
+    expect(res.text).toContain('#surging-set');
+    expect(res.text).toContain('#whirling-set');
+    expect(res.text).toContain('#finchy-set');
+    expect(res.text).toContain('#zoid-set');
   });
 
-  it('renders the pixie set in Core sets with its modifier-linked tricks', async () => {
+  it('renders set formula as a code block on each card', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Core sets cohort comes first; pixie group within it
-    const coreStart = res.text.indexOf('id="sets-core"');
-    const coreEnd = res.text.indexOf('id="sets-secondary"');
-    expect(coreStart).toBeGreaterThan(-1);
-    expect(coreEnd).toBeGreaterThan(coreStart);
-    const coreSlice = res.text.substring(coreStart, coreEnd);
-    expect(coreSlice).toContain('id="set-pixie"');
-    expect(coreSlice).toMatch(/<a href="\/freestyle\/tricks\/pixie-mirage">pixie mirage<\/a>/);
+    expect(res.text).toContain('TOE &gt; SAME IN [DEX] &gt;');         // pixie
+    expect(res.text).toContain('CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt;'); // blurry
   });
 
-  it('renders the nuclear set in Secondary/composite systems', async () => {
+  it('renders the movement explanation prose on each card', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    const secStart = res.text.indexOf('id="sets-secondary"');
-    expect(secStart).toBeGreaterThan(-1);
-    const secSlice = res.text.substring(secStart);
-    expect(secSlice).toContain('id="set-nuclear"');
-    expect(secSlice).toMatch(/<a href="\/freestyle\/tricks\/nuclear-mirage">nuclear mirage<\/a>/);
+    // Stable substrings from the canonical-set entries
+    expect(res.text).toMatch(/Toe set, then a same-side inward dex/);   // pixie
+    expect(res.text).toMatch(/Stepping Paradox/);                       // blurry
   });
 
-  it('uses compact-list rendering (NOT registry-density cards)', async () => {
+  it('renders source provenance label on every card', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // The sets view should use the compact-list class for trick listings,
-    // not the dictionary-trick-card registry density.
-    expect(res.text).toContain('sets-trick-list');
-    // The dict-card-stack--registry class must not appear inside any
-    // sets-cohort section. We assert this by checking the substring
-    // between the first sets-cohort start and the last sets-cohort's
-    // closing </section> tag.
-    const firstCohort = res.text.indexOf('class="content-section sets-cohort"');
-    expect(firstCohort).toBeGreaterThan(-1);
-    // Find the closing tag of the secondary cohort (last sets-cohort).
-    const secondaryIdx = res.text.indexOf('id="sets-secondary"');
-    expect(secondaryIdx).toBeGreaterThan(-1);
-    // Walk forward to find the matching </section> after secondaryIdx.
-    const closeIdx = res.text.indexOf('</section>\n  {{/if}}', secondaryIdx);
-    const endOfSets = closeIdx > -1 ? closeIdx : res.text.indexOf('<footer', secondaryIdx);
-    const setsSlice = res.text.substring(firstCohort, endOfSets > 0 ? endOfSets : firstCohort + 8000);
-    expect(setsSlice).not.toContain('dict-card-stack--registry');
+    expect(res.text).toContain('set-card-source--platform-tracked');
+    expect(res.text).toContain('set-card-source--holden-only');
+    expect(res.text).toContain('Platform-tracked');
+    expect(res.text).toContain('Holden-only');
   });
 
-  it('shows dynamic trick counts per set group', async () => {
+  it('renders audit-status label when present', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // pixie has 1 seeded trick; nuclear has 1
-    expect(res.text).toMatch(/id="set-pixie"[\s\S]+?<span class="section-count">1<\/span>/);
-    expect(res.text).toMatch(/id="set-nuclear"[\s\S]+?<span class="section-count">1<\/span>/);
+    // aligned (pixie), partial (atomic), conflict (surging), holden-only (bubba)
+    expect(res.text).toContain('set-card-audit--aligned');
+    expect(res.text).toContain('set-card-audit--partial');
+    expect(res.text).toContain('set-card-audit--conflict');
+    expect(res.text).toContain('set-card-audit--holden-only');
   });
 
-  it('shows total-tricks count in the intro strip (sets + surface combined)', async () => {
+  it('Phase A: detail-link placeholder renders, NOT a live detail link', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // 2 set-linked tricks (pixie-mirage, nuclear-mirage) + 1 surface trick (head-stall) = 3
-    expect(res.text).toMatch(/<strong>3<\/strong> tricks grouped across/);
+    expect(res.text).toContain('Detail page coming in Phase B.');
+    expect(res.text).not.toContain('set-card-detail-link');
+  });
+
+  it('alt-surfaces tricks (sole / cloud / head / etc.) are NOT rendered on the set hub', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.text).not.toContain('id="set-subtype-surface"');
+    expect(res.text).not.toContain('>Alternate-surface systems<');
+    expect(res.text).not.toContain('id="sets-surface"');
+  });
+
+  it('alt-surfaces cross-link aside IS rendered and points to Movement Systems', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.text).toContain('sets-alt-surfaces-cross-link');
+    expect(res.text).toContain('Looking for alternate surfaces?');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    expect(res.text).toContain('View alternative surfaces on Movement Systems');
+  });
+
+  it('renders the total-set count in the intro strip', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    // 43 canonical sets total: 8 true-core + 11 composite + 9 rotational + 8 whirl/swirl + 5 uns + 2 rooted
+    expect(res.text).toMatch(/<strong>43<\/strong> canonical sets across 6 subtypes/);
+  });
+
+  it('derived-systems cross-link uses #set-<slug> anchor href', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    // pixie lists terraging as a derived system
+    expect(res.text).toMatch(/href="#set-terraging"/);
+    // stepping lists blurry as a derived system
+    expect(res.text).toMatch(/href="#set-blurry"/);
   });
 });
 

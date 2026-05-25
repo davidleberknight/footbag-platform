@@ -105,9 +105,9 @@ import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
 import {
-  CORE_SETS_INTROS,
-  SECONDARY_SETS_INTROS,
-} from '../content/freestyleSetsViewIntros';
+  CANONICAL_SETS,
+  SET_SUBTYPE_SPECS,
+} from '../content/freestyleCanonicalSets';
 import {
   COMPOSITIONAL_SET_FAMILIES,
   UPTIME_REINTERPRETATION_LADDERS,
@@ -1957,61 +1957,72 @@ export interface DictionaryTrickCard {
 
 export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system' | 'dex-count';
 
-// Sets-view browse model (2026-05-24 governance/polish slice). Three cohorts:
-// "Core sets" (clean +1 set primitives), "Secondary/composite systems"
-// (compound sets like nuclear=paradox+atomic, plus set-context body modifiers
-// like stepping/surging), and "Alternate-surface systems" (head/neck/sole/
-// cloud/heel/flying — a DISTINCT ontology layer included here for entry-
-// mechanic discoverability; explicitly framed as not-a-set per the
-// governance contract). The split reflects pedagogical distance from the
-// "uptime ATW/orbit motion analogue" that anchors core sets — secondary
-// systems carry additional structural debt; surface mechanics are an
-// orthogonal balance/control axis.
+// Sets-view browse model — Phase A of the set-system refactor
+// (2026-05-25). Canonical sets are first-class ontology objects, not
+// trick-grouped browse filters. Six subtypes; each set carries a
+// hashtag, formula, movement explanation, equivalence notes, derived /
+// related system slugs, source provenance, and (optionally) audit
+// status. Phase B will add set detail pages.
 //
-// NOT a substitute for the Operators & Modifiers reference page; that's a
-// separate vocabulary surface. The set view groups tricks by which set
-// initiates them; the operators page describes the operator vocabulary.
+// Alternate-surface systems are NOT here. Surface mechanics are a
+// distinct ontology layer (see ?view=movement-system alt-surfaces
+// subsection). The Set Hub renders a cross-link card pointing readers
+// to that surface; no surface entries on this view.
 export interface FreestyleSetsBrowseView {
-  intro:          string;
-  totalTricks:    number;       // dynamic — across all set groups (sets + surface)
-  coreSets:       SetBrowseGroup[];
-  secondarySets:  SetBrowseGroup[];
-  // Alternate-surface systems (head/neck/sole/cloud/heel/flying). A
-  // DISTINCT ontology layer (surface mechanics, not set systems) included
-  // on the sets view for entry-mechanic discoverability. Per the
-  // governance contract Part 2: surface mechanics are NOT sets; the
-  // framing prose and section heading make the distinction explicit.
-  surfaceSystems: SurfaceSystemsCohort;
+  intro:                  string;
+  totalSets:              number;
+  subtypeSections:        SetSubtypeSection[];
+  altSurfacesCrossLink:   AltSurfacesCrossLink;
 }
 
-export interface SurfaceSystemsCohort {
-  intro:      string;   // explicit "distinct ontology layer" framing
-  totalTricks: number;
-  groups:     SurfaceSystemsGroup[];
+export interface SetSubtypeSection {
+  key:    SetSubtypeKey;
+  label:  string;
+  intro:  string;
+  count:  number;
+  cards:  CanonicalSetCard[];
 }
 
-export interface SurfaceSystemsGroup {
-  slug:      string;
-  label:     string;
-  note:      string;
-  tricks:    SetBrowseTrick[];
+export type SetSubtypeKey =
+  | 'true-core'
+  | 'composite-derived'
+  | 'rotational'
+  | 'whirl-swirl'
+  | 'uns'
+  | 'rooted-antisymposium';
+
+export interface CanonicalSetCard {
+  slug:                 string;
+  hashtag:              string;
+  displayName:          string;
+  formula:              string;
+  movementExplanation:  string;
+  equivalenceReadings:  readonly string[];   // pre-shaped strings, "<reading> — <citation>"
+  source:               CanonicalSetSourceKey;
+  sourceLabel:          string;              // pre-shaped UI label
+  sourceCitation:       string;
+  auditStatus?:         CanonicalSetAuditKey;
+  auditStatusLabel?:    string;              // pre-shaped UI label
+  derivedSystems:       readonly SlugLinkVM[];
+  relatedSystems:       readonly SlugLinkVM[];
+  detailHref:           string;              // Phase B target; for Phase A renders as deferred placeholder
+  showDetailLink:       boolean;             // false in Phase A (placeholder); flips true in Phase B
 }
 
-export interface SetBrowseGroup {
-  modifierSlug:   string;
-  modifierName:   string;
-  intro:          string;       // one-line set explanation
-  trickCount:     number;       // dynamic count
-  tricks:         SetBrowseTrick[];
+export type CanonicalSetSourceKey = 'canonical' | 'platform-tracked' | 'holden-only';
+export type CanonicalSetAuditKey   = 'aligned' | 'partial' | 'conflict' | 'holden-only';
+
+export interface SlugLinkVM {
+  slug:  string;
+  label: string;
+  href:  string;        // anchor href within the set hub (e.g. "#set-pixie")
 }
 
-export interface SetBrowseTrick {
-  slug:                string;
-  displayName:         string;
-  href:                string;
-  adds:                string | null;
-  addsLabel:           string;
-  operationalNotation: string;
+export interface AltSurfacesCrossLink {
+  heading:           string;
+  framing:           string;
+  movementSystemHref: string;
+  ctaLabel:          string;
 }
 
 // Dex-count grouped browse view (2026-05-24 notation-display audit Phase 4.1
@@ -6065,101 +6076,80 @@ export const freestyleService = {
       trickCount: b.tricks.length,
     }));
 
-    // ---- Sets browse view (?view=sets) ---------------------------------
-    // 2026-05-24 governance/polish slice. Two cohorts: core sets (clean +1
-    // primitives) and secondary/composite systems (compound or set-context).
-    // Reuses the modifier-link data already aggregated in setGroupAccumulator;
-    // a curator-paced content module (freestyleSetsViewIntros.ts) supplies
-    // the one-line intro per set.
-    const buildSetBrowseGroup = (
-      modifierSlug: string,
-      intro: string,
-    ): SetBrowseGroup | null => {
-      const bucket = setGroupAccumulator.get(modifierSlug);
-      if (!bucket || bucket.tricks.length === 0) return null;
-      const tricks: SetBrowseTrick[] = bucket.tricks
-        .slice()
-        .sort((a, b) => byCanonicalNameAlpha(
-          shapeTrickIndexRow(a, ctx),
-          shapeTrickIndexRow(b, ctx),
-        ))
-        .map(row => ({
-          slug:                row.slug,
-          displayName:         row.canonical_name,
-          href:                `/freestyle/tricks/${row.slug}`,
-          adds:                row.adds ?? null,
-          addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
-          operationalNotation: row.operational_notation ?? '',
-        }));
-      return {
-        modifierSlug,
-        modifierName: bucket.modifierName,
-        intro,
-        trickCount:   tricks.length,
-        tricks,
-      };
+    // ---- Set Hub view (?view=sets) -------------------------------------
+    // Phase A of the set-system refactor (2026-05-25). Sets are first-class
+    // ontology objects; cards group by subtype (true-core / composite-derived
+    // / rotational / whirl-swirl / uns / rooted-antisymposium). Alt-surfaces
+    // are NOT here — they live on ?view=movement-system. Phase B will add
+    // /freestyle/sets/<slug> detail pages.
+    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
+      'canonical':        'Canonical',
+      'platform-tracked': 'Platform-tracked',
+      'holden-only':      'Holden-only',
     };
-    const coreSets: SetBrowseGroup[] = CORE_SETS_INTROS
-      .map(spec => buildSetBrowseGroup(spec.modifierSlug, spec.intro))
-      .filter((g): g is SetBrowseGroup => g !== null);
-    const secondarySets: SetBrowseGroup[] = SECONDARY_SETS_INTROS
-      .map(spec => buildSetBrowseGroup(spec.modifierSlug, spec.intro))
-      .filter((g): g is SetBrowseGroup => g !== null);
-    // Alternate-surface systems cohort. Reuses the curator-authored
-    // groupings from freestyleAlternativeSurfaces.ts; filters out missing
-    // slugs the same way the Movement System subsection does. Per the
-    // governance contract Part 2: surface mechanics are a DISTINCT
-    // ontology layer from sets. The framing prose makes that explicit.
-    const surfaceSystemsGroups: SurfaceSystemsGroup[] = ALTERNATIVE_SURFACES.groups
-      .map(group => {
-        const tricks: SetBrowseTrick[] = group.tricks
-          .map(slug => allActiveTrickRowsBySlug.get(slug))
-          .filter((row): row is FreestyleTrickRow => row !== undefined)
-          .map(row => ({
-            slug:                row.slug,
-            displayName:         row.canonical_name,
-            href:                `/freestyle/tricks/${row.slug}`,
-            adds:                row.adds ?? null,
-            addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
-            operationalNotation: row.operational_notation ?? '',
-          }));
-        return {
-          slug:    `set-surface-${group.slug}`,
-          label:   group.label,
-          note:    group.note,
-          tricks,
-        };
-      })
-      .filter(g => g.tricks.length > 0);
+    const auditLabels: Record<CanonicalSetAuditKey, string> = {
+      'aligned':     'Aligned with Holden',
+      'partial':     'Partial — framing differs',
+      'conflict':    'Documented disagreement',
+      'holden-only': 'Holden-cited only',
+    };
+    const shapeSetCard = (s: typeof CANONICAL_SETS[number]): CanonicalSetCard => ({
+      slug:                s.slug,
+      hashtag:             s.hashtag,
+      displayName:         s.displayName,
+      formula:             s.formula,
+      movementExplanation: s.movementExplanation,
+      equivalenceReadings: s.equivalenceNotes.map(n => `${n.reading} — ${n.citation}`),
+      source:              s.source,
+      sourceLabel:         sourceLabels[s.source],
+      sourceCitation:      s.sourceCitation,
+      auditStatus:         s.auditStatus,
+      auditStatusLabel:    s.auditStatus ? auditLabels[s.auditStatus] : undefined,
+      derivedSystems:      s.derivedSystems.map(r => ({
+        slug:  r.slug,
+        label: r.label,
+        href:  `#set-${r.slug}`,
+      })),
+      relatedSystems:      s.relatedSystems.map(r => ({
+        slug:  r.slug,
+        label: r.label,
+        href:  `#set-${r.slug}`,
+      })),
+      detailHref:          `/freestyle/sets/${s.slug}`,   // Phase B target
+      showDetailLink:      false,                          // Phase A: placeholder only
+    });
+    const subtypeSections: SetSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
+      const cards = CANONICAL_SETS.filter(s => s.subtype === spec.key).map(shapeSetCard);
+      return {
+        key:   spec.key,
+        label: spec.label,
+        intro: spec.intro,
+        count: cards.length,
+        cards,
+      };
+    }).filter(section => section.count > 0);
 
-    const surfaceSystems: SurfaceSystemsCohort = {
-      intro:
-        'Alternate-surface systems are a DISTINCT ontology layer from sets — surface ' +
-        'mechanics, not set primitives. Included on this view for entry-mechanic ' +
-        'discoverability: when a player thinks about how a trick starts, surface choice ' +
-        '(head, neck, sole, cloud, heel, flying entry) and set choice (pixie, fairy, ' +
-        'atomic, etc.) are parallel decisions, even though they live on different ' +
-        'ontology layers. See also the same listing on the Movement System view.',
-      totalTricks: surfaceSystemsGroups.reduce((n, g) => n + g.tricks.length, 0),
-      groups:      surfaceSystemsGroups,
+    const altSurfacesCrossLink: AltSurfacesCrossLink = {
+      heading: 'Looking for alternate surfaces?',
+      framing:
+        'Surface mechanics — sole, heel, cloud, knee, head, neck, shoulder, forehead, ' +
+        'and flying entries — are a distinct ontology layer from sets. They live as a ' +
+        'first-class section on the Movement Systems view.',
+      movementSystemHref: '/freestyle/tricks?view=movement-system',
+      ctaLabel:           'View alternative surfaces on Movement Systems',
     };
 
     const setsBrowseView: FreestyleSetsBrowseView = {
       intro:
-        'Tricks grouped by which set initiates them, plus alternate-surface systems for ' +
-        'entry-mechanic discoverability. Sets are player-facing, learnable entry ' +
-        'systems: the pre-base motion that opens a trick. Core sets are the +1 set ' +
-        'primitives; secondary systems include compound sets and set-context modifiers. ' +
-        'Alternate-surface systems are a distinct ontology layer (surface mechanics, ' +
-        'not sets) included for discoverability. For the modifier vocabulary itself ' +
-        '(paradox, spinning, ducking, symposium, etc.), see the Operators & Modifiers ' +
-        'reference page.',
-      totalTricks:   coreSets.reduce((n, g) => n + g.trickCount, 0)
-                  + secondarySets.reduce((n, g) => n + g.trickCount, 0)
-                  + surfaceSystems.totalTricks,
-      coreSets,
-      secondarySets,
-      surfaceSystems,
+        'Sets are first-class compositional vocabulary — the named movement primitives that ' +
+        'open a trick. Each card is a set ontology object: hashtag, formula, movement ' +
+        'explanation, equivalence notes, derived and related systems, and source ' +
+        'provenance. Phase B will add a detail page per set. For the body-modifier ' +
+        'vocabulary (paradox, spinning, ducking, symposium, etc.), see the Operators & ' +
+        'Modifiers reference page.',
+      totalSets:            subtypeSections.reduce((n, s) => n + s.count, 0),
+      subtypeSections,
+      altSurfacesCrossLink,
     };
 
     // ---- Component view (?view=component projection, DSC-2 slice 3A) ----

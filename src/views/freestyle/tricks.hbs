@@ -128,101 +128,68 @@
   {{/each}}
   {{/if}}
 
-  {{! ── By Set view (2026-05-24 governance/polish slice).
-      Two cohorts: Core sets (clean +1 set primitives) and Secondary /
-      composite systems (compound sets + set-context modifiers). Compact
-      grouped view; trick links inline (NOT registry density). Replaces
-      the previous ?view=sets→component alias. }}
+  {{! ── Set Hub view (Phase A of the set-system refactor, 2026-05-25).
+      Sets are first-class ontology objects, not trick-grouped browse
+      filters. Six subtype sections; each card carries hashtag, formula,
+      movement explanation, equivalence readings, derived / related
+      systems, and provenance. Phase B will add /freestyle/sets/<slug>
+      detail pages. }}
   {{#if (eq content.activeView "sets")}}
   <p class="browse-view-intro">{{content.setsBrowseView.intro}}</p>
-  <p class="sets-view-total detail-muted"><strong>{{content.setsBrowseView.totalTricks}}</strong> tricks grouped across {{content.setsBrowseView.coreSets.length}} core sets, {{content.setsBrowseView.secondarySets.length}} secondary / composite systems, and {{content.setsBrowseView.surfaceSystems.groups.length}} alternate-surface systems.</p>
+  <p class="sets-view-total detail-muted"><strong>{{content.setsBrowseView.totalSets}}</strong> canonical sets across {{content.setsBrowseView.subtypeSections.length}} subtypes.</p>
 
-  {{#if content.setsBrowseView.coreSets.length}}
-  <section class="content-section sets-cohort" id="sets-core" aria-label="Core sets">
+  {{#each content.setsBrowseView.subtypeSections}}
+  <section class="content-section set-subtype-section" id="set-subtype-{{key}}" aria-label="{{label}}">
     <div class="section-heading">
-      <h2>Core sets</h2>
-      <span class="section-count">{{content.setsBrowseView.coreSets.length}}</span>
+      <h2>{{label}}</h2>
+      <span class="section-count">{{count}}</span>
     </div>
-    {{#each content.setsBrowseView.coreSets}}
-    <section class="sets-group" id="set-{{modifierSlug}}">
-      <div class="sets-group-heading">
-        <h3>{{modifierName}}</h3>
-        <span class="section-count">{{trickCount}}</span>
-      </div>
-      <p class="sets-group-intro">{{intro}}</p>
-      <ul class="sets-trick-list">
-        {{#each tricks}}
-        <li class="sets-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="sets-trick-add">({{addsLabel}})</span>
-          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-    </section>
-    {{/each}}
+    <p class="set-subtype-intro">{{intro}}</p>
+    <div class="set-card-grid">
+      {{#each cards}}
+      <article class="set-card set-card--{{source}}" id="set-{{slug}}" data-set-slug="{{slug}}">
+        <header class="set-card-head">
+          <h3 class="set-card-name">{{displayName}}</h3>
+          <code class="set-card-hashtag">{{hashtag}}</code>
+        </header>
+        <code class="set-card-formula">{{formula}}</code>
+        <p class="set-card-movement">{{movementExplanation}}</p>
+        {{#if equivalenceReadings.length}}
+        <ul class="set-card-equivalences">
+          {{#each equivalenceReadings}}<li>{{this}}</li>{{/each}}
+        </ul>
+        {{/if}}
+        {{#if derivedSystems.length}}
+        <p class="set-card-relations"><strong>Derived systems:</strong>
+          {{#each derivedSystems}}<a href="{{href}}" class="set-relation-link">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </p>
+        {{/if}}
+        {{#if relatedSystems.length}}
+        <p class="set-card-relations"><strong>Related systems:</strong>
+          {{#each relatedSystems}}<a href="{{href}}" class="set-relation-link">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </p>
+        {{/if}}
+        <footer class="set-card-footer">
+          <span class="set-card-source set-card-source--{{source}}">{{sourceLabel}}</span>
+          {{#if auditStatusLabel}}<span class="set-card-audit set-card-audit--{{auditStatus}}">{{auditStatusLabel}}</span>{{/if}}
+          <span class="set-card-citation">{{sourceCitation}}</span>
+        </footer>
+        {{#if showDetailLink}}
+        <a class="set-card-detail-link" href="{{detailHref}}">View set details &rarr;</a>
+        {{else}}
+        <p class="set-card-detail-placeholder">Detail page coming in Phase B.</p>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
   </section>
-  {{/if}}
+  {{/each}}
 
-  {{#if content.setsBrowseView.secondarySets.length}}
-  <section class="content-section sets-cohort" id="sets-secondary" aria-label="Secondary and composite systems">
-    <div class="section-heading">
-      <h2>Secondary / composite systems</h2>
-      <span class="section-count">{{content.setsBrowseView.secondarySets.length}}</span>
-    </div>
-    {{#each content.setsBrowseView.secondarySets}}
-    <section class="sets-group" id="set-{{modifierSlug}}">
-      <div class="sets-group-heading">
-        <h3>{{modifierName}}</h3>
-        <span class="section-count">{{trickCount}}</span>
-      </div>
-      <p class="sets-group-intro">{{intro}}</p>
-      <ul class="sets-trick-list">
-        {{#each tricks}}
-        <li class="sets-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="sets-trick-add">({{addsLabel}})</span>
-          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-    </section>
-    {{/each}}
-  </section>
-  {{/if}}
-
-  {{! Alternate-surface systems. DISTINCT ontology layer from set systems —
-      surface mechanics, not set primitives. Included on this view for
-      entry-mechanic discoverability. Same data as the alt-surfaces
-      subsection on ?view=movement-system; same compact-list density. }}
-  {{#if content.setsBrowseView.surfaceSystems.groups.length}}
-  <section class="content-section sets-cohort sets-cohort--surface" id="sets-surface" aria-label="Alternate-surface systems">
-    <div class="section-heading">
-      <h2>Alternate-surface systems</h2>
-      <span class="section-count">{{content.setsBrowseView.surfaceSystems.groups.length}}</span>
-    </div>
-    <p class="sets-cohort-framing"><strong>Distinct ontology layer.</strong> Surface mechanics are NOT sets; they are an orthogonal balance / control axis. Listed here for entry-mechanic discoverability.</p>
-    <p class="sets-cohort-intro">{{content.setsBrowseView.surfaceSystems.intro}}</p>
-    {{#each content.setsBrowseView.surfaceSystems.groups}}
-    <section class="sets-group" id="{{slug}}">
-      <div class="sets-group-heading">
-        <h3>{{label}}</h3>
-        <span class="section-count">{{tricks.length}}</span>
-      </div>
-      <p class="sets-group-intro">{{note}}</p>
-      <ul class="sets-trick-list">
-        {{#each tricks}}
-        <li class="sets-trick">
-          <a href="{{href}}">{{displayName}}</a>
-          <span class="sets-trick-add">({{addsLabel}})</span>
-          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
-        </li>
-        {{/each}}
-      </ul>
-    </section>
-    {{/each}}
-  </section>
-  {{/if}}
+  <aside class="content-section sets-alt-surfaces-cross-link" aria-label="Alternate surfaces (distinct ontology layer)">
+    <h2>{{content.setsBrowseView.altSurfacesCrossLink.heading}}</h2>
+    <p>{{content.setsBrowseView.altSurfacesCrossLink.framing}}</p>
+    <p><a class="sets-alt-surfaces-cta" href="{{content.setsBrowseView.altSurfacesCrossLink.movementSystemHref}}">{{content.setsBrowseView.altSurfacesCrossLink.ctaLabel}} &rarr;</a></p>
+  </aside>
   {{/if}}
 
   {{! ── Family view — registry density.
