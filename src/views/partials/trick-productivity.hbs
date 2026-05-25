@@ -1,0 +1,22 @@
+{{!--
+  L4 — Productivity narrative. Why this trick became generative + the
+  curator-authored productive descendants. Renders for Tier A only.
+--}}
+{{#if content.productivity}}
+<section class="content-section trick-productivity" aria-label="Productivity">
+  <div class="section-heading">
+    <h2>Why this trick became productive</h2>
+  </div>
+  <p class="trick-productivity-prose">{{content.productivity.prose}}</p>
+  {{#if content.productivity.productiveDescendants.length}}
+  <ul class="trick-productive-descendants">
+    {{#each content.productivity.productiveDescendants}}
+    <li>
+      <a class="trick-productive-descendant-link" href="{{href}}">{{label}}</a>
+      {{#if note}}<span class="trick-productive-descendant-note">— {{note}}</span>{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+  {{/if}}
+</section>
+{{/if}}

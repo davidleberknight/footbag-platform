@@ -1,0 +1,13 @@
+{{!--
+  L3 — Ontology role. Names what ontology concept this trick
+  exemplifies. Renders for Tier A only.
+--}}
+{{#if content.ontologyRole}}
+<section class="content-section trick-ontology-role" aria-label="Ontology role">
+  <div class="section-heading">
+    <h2>Ontology role</h2>
+    <span class="section-role-eyebrow">{{content.ontologyRole.role}}</span>
+  </div>
+  <p class="trick-ontology-role-prose">{{content.ontologyRole.prose}}</p>
+</section>
+{{/if}}

@@ -124,6 +124,24 @@ import {
   getTrickIntuition,
 } from '../content/freestyleTrickIntuition';
 import {
+  resolveTrickTier,
+} from '../content/freestyleTrickTier';
+import {
+  getTrickMechanicalDelta,
+} from '../content/freestyleTrickMechanicalDelta';
+import {
+  getTrickOntologyRole,
+} from '../content/freestyleTrickOntologyRole';
+import {
+  getTrickProductivity,
+} from '../content/freestyleTrickProductivity';
+import {
+  getTrickFamilyEvolution,
+} from '../content/freestyleTrickFamilyEvolution';
+import {
+  getTrickProgressiveReadings,
+} from '../content/freestyleTrickProgressiveReadings';
+import {
   isUnresolvedCompound,
 } from '../content/freestyleUnresolvedCompounds';
 import {
@@ -1144,6 +1162,57 @@ export interface FreestyleTrickContent {
     prose:       string;
     attribution: string;
   } | null;
+  // Trick tier (Phase A of trick-detail ontology doctrine, 2026-05-25).
+  // 'A' = flagship ontology exemplar (renders L1-L6 layers when authored).
+  // 'B' = secondary, renders L1 + L5 only when authored.
+  // 'C' = default — renders the universal shell exactly as today.
+  trickTier: 'A' | 'B' | 'C';
+  // L2: mechanical-delta layer. The deepest ontology-work locus —
+  // where paradox / x-dex / nuclear / blurry / furious / rotational /
+  // hidden-topology distinctions become understandable. Populated for
+  // Tier A slugs with curator-authored entries; null otherwise.
+  mechanicalDelta: {
+    parentLinks:        { slug: string; label: string; href: string }[];
+    prose:              string;
+    topologyKind:       string;
+    topologyLabel:      string;          // pre-shaped UI label
+    interpretiveTraditions: { reading: string; citation: string }[];
+    hasInterpretiveTraditions: boolean;
+  } | null;
+  // L3: ontology-role layer. Names what ontology concept this trick
+  // exemplifies; renders as an eyebrow + prose pair.
+  ontologyRole: {
+    role:  string;
+    prose: string;
+  } | null;
+  // L4: productivity narrative. Why this trick became generative +
+  // curator-authored productive-descendant cross-links.
+  productivity: {
+    prose:                  string;
+    productiveDescendants:  { slug: string; label: string; href: string; note?: string }[];
+  } | null;
+  // L5: family-evolution narrative. Branching steps, each with axis +
+  // prose + exemplar links. NOT a list — a movement-language history.
+  familyEvolution: {
+    steps: {
+      branchAxis:    string;
+      prose:         string;
+      exemplarLinks: { slug: string; label: string; href: string }[];
+    }[];
+  } | null;
+  // L6: progressive-reading staircase. simple parent → topology
+  // transformation → compositional extension → compressed shorthand →
+  // descendant systems.
+  progressiveReadings: {
+    stages: { stage: string; reading: string; citation?: string }[];
+  } | null;
+  // Placeholder-description suppression (Phase A, 2026-05-25). True
+  // when the DB `description` matches a known placeholder pattern
+  // (X-modified Y / X-and-Y modified Z / "Popular freestyle trick.").
+  // Template suppresses the literal description and renders the
+  // service-shaped decomposition pill instead. DB row is NEVER
+  // mutated — suppression is render-only.
+  descriptionIsPlaceholder: boolean;
 }
 
 // Re-export the equivalence-topology entry type so consumers of the
@@ -5428,6 +5497,115 @@ export const freestyleService = {
               prose:       entry.prose,
               attribution: entry.attribution,
             };
+          })(),
+          // ── Trick-detail ontology doctrine — Phase A/B (2026-05-25) ──
+          // L1-L6 layered ontology fields. Tier-gated: Tier C pages get
+          // all-null and render exactly as today; Tier A pages render
+          // L2-L6 sections when curator content exists.
+          trickTier:        resolveTrickTier(slug),
+          mechanicalDelta:  (() => {
+            // L2 — mechanical delta. The deepest ontology layer per the
+            // doctrine; where paradox / x-dex / nuclear / rotational /
+            // hidden-topology distinctions become understandable.
+            if (resolveTrickTier(slug) !== 'A') return null;
+            const entry = getTrickMechanicalDelta(slug);
+            if (entry === null) return null;
+            const topologyLabelMap: Record<string, string> = {
+              'atom':              'Atom — defining mechanical pattern',
+              'paradox':           'Paradox topology',
+              'x-dex':             'X-dex escalation',
+              'rotational':        'Rotational',
+              'no-plant':          'Suspension / no-plant',
+              'cross-body':        'Cross-body',
+              'compound':          'Compound-of-canonicals',
+              'hidden-topology':   'Hidden topology',
+            };
+            return {
+              parentLinks: entry.parentSlugs.map(s => ({
+                slug:  s,
+                label: s.replace(/-/g, ' '),
+                href:  `/freestyle/tricks/${s}`,
+              })),
+              prose:                     entry.prose,
+              topologyKind:              entry.topologyKind,
+              topologyLabel:             topologyLabelMap[entry.topologyKind] ?? entry.topologyKind,
+              interpretiveTraditions:    [...(entry.interpretiveTraditions ?? [])],
+              hasInterpretiveTraditions: (entry.interpretiveTraditions ?? []).length > 0,
+            };
+          })(),
+          ontologyRole: (() => {
+            // L3 — ontology role. May overlap with L4 (productivity) on
+            // some slugs; curator picks which slot carries the prose.
+            if (resolveTrickTier(slug) !== 'A') return null;
+            const entry = getTrickOntologyRole(slug);
+            if (entry === null) return null;
+            return {
+              role:  entry.role,
+              prose: entry.prose,
+            };
+          })(),
+          productivity: (() => {
+            // L4 — productivity narrative. Curator-authored descendant
+            // slugs (no NLP) so cross-references stay stable.
+            if (resolveTrickTier(slug) !== 'A') return null;
+            const entry = getTrickProductivity(slug);
+            if (entry === null) return null;
+            return {
+              prose: entry.prose,
+              productiveDescendants: entry.productiveDescendants.map(d => ({
+                slug:  d.slug,
+                label: d.label,
+                href:  `/freestyle/tricks/${d.slug}`,
+                note:  d.note,
+              })),
+            };
+          })(),
+          familyEvolution: (() => {
+            // L5 — family evolution narrative. Branching steps with
+            // axis + prose + exemplar links. Renders as the
+            // movement-language-history surface; NOT a list.
+            const tier = resolveTrickTier(slug);
+            if (tier !== 'A' && tier !== 'B') return null;
+            const entry = getTrickFamilyEvolution(slug);
+            if (entry === null) return null;
+            return {
+              steps: entry.narrativeSteps.map(s => ({
+                branchAxis: s.branchAxis,
+                prose:      s.prose,
+                exemplarLinks: s.exemplarSlugs.map(es => ({
+                  slug:  es,
+                  label: es.replace(/-/g, ' '),
+                  href:  `/freestyle/tricks/${es}`,
+                })),
+              })),
+            };
+          })(),
+          progressiveReadings: (() => {
+            // L6 — progressive equivalence unfolding. simple parent →
+            // topology transformation → compositional extension →
+            // compressed shorthand → descendant systems.
+            if (resolveTrickTier(slug) !== 'A') return null;
+            const entry = getTrickProgressiveReadings(slug);
+            if (entry === null) return null;
+            return {
+              stages: entry.stages.map(s => ({
+                stage:    s.stage,
+                reading:  s.reading,
+                citation: s.citation,
+              })),
+            };
+          })(),
+          descriptionIsPlaceholder: (() => {
+            // Placeholder-description suppressor (Phase A, 2026-05-25).
+            // Match "X-modified Y." / "X-and-Y modified Z." /
+            // "Popular freestyle trick." patterns. DB row is NEVER
+            // mutated; template suppresses render only.
+            const desc = dictRow?.description ?? null;
+            if (!desc) return false;
+            const trimmed = desc.trim();
+            return /^[A-Z][a-zA-Z-]+(?:-modified|-and-[a-zA-Z-]+ modified) [a-zA-Z][a-zA-Z -]*\.?$/.test(trimmed)
+                || /^Popular freestyle trick\.?$/i.test(trimmed)
+                || /^Common freestyle trick\.?$/i.test(trimmed);
           })(),
           familyAnchorContext: (() => {
             // Dictionary Pedagogy Phase 3 (2026-05-21). When the

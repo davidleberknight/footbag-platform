@@ -1,0 +1,23 @@
+{{!--
+  L6 — Progressive equivalence unfolding. A staircase of readings:
+  simple parent → topology transformation → compositional extension →
+  compressed shorthand → descendant systems. Each stage earns its
+  place. Renders for Tier A only.
+--}}
+{{#if content.progressiveReadings}}
+<section class="content-section trick-progressive-readings" aria-label="Progressive readings">
+  <div class="section-heading">
+    <h2>Progressive readings</h2>
+    <p class="section-intro">The structure unfolds in stages.</p>
+  </div>
+  <ol class="trick-progressive-readings-stages">
+    {{#each content.progressiveReadings.stages}}
+    <li class="trick-progressive-stage">
+      <div class="trick-progressive-stage-label">{{stage}}</div>
+      <div class="trick-progressive-stage-reading">{{reading}}</div>
+      {{#if citation}}<div class="trick-progressive-stage-citation">{{citation}}</div>{{/if}}
+    </li>
+    {{/each}}
+  </ol>
+</section>
+{{/if}}

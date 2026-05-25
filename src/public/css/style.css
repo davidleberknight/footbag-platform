@@ -3951,6 +3951,175 @@ section.home-media { padding-top: 0; }
   max-width: 720px;
 }
 
+/* ── Trick-detail ontology doctrine — Phase A/B (2026-05-25) ──
+   L2-L6 layered ontology sections for Tier A flagship pages.
+   Movement-first; restrained typography; no decorative drift. */
+.trick-mechanical-delta,
+.trick-ontology-role,
+.trick-productivity,
+.trick-family-evolution,
+.trick-progressive-readings {
+  margin-top: 1.5rem;
+}
+.trick-mechanical-delta .section-heading,
+.trick-ontology-role .section-heading,
+.trick-productivity .section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.section-topology-label,
+.section-role-eyebrow {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #555);
+  background: var(--bg-subtle, #f3f3f3);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.trick-mechanical-delta-parents {
+  font-size: 0.92rem;
+  color: var(--text-secondary, #555);
+  margin: 4px 0 8px;
+}
+.trick-mechanical-delta-prose p {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-strong, #1e293b);
+  max-width: 720px;
+}
+.trick-interpretive-traditions {
+  margin-top: 0.75rem;
+  padding: 10px 12px;
+  border-left: 3px solid var(--border-subtle, #d4d4d4);
+  background: var(--bg-subtle, #f8f8f8);
+}
+.trick-interpretive-traditions-intro {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #555);
+  margin: 0 0 8px;
+  font-style: italic;
+}
+.trick-interpretive-traditions ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.trick-interpretive-traditions li {
+  margin: 4px 0;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+.trick-interpretive-reading {
+  display: block;
+}
+.trick-interpretive-citation {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-subtle, #777);
+  font-style: italic;
+  margin-top: 2px;
+}
+.trick-ontology-role-prose,
+.trick-productivity-prose {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text-strong, #1e293b);
+  max-width: 720px;
+}
+.trick-productive-descendants {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+.trick-productive-descendants li {
+  padding: 3px 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.trick-productive-descendant-link {
+  font-weight: 500;
+}
+.trick-productive-descendant-note {
+  color: var(--text-subtle, #777);
+  font-size: 0.88rem;
+  margin-left: 4px;
+}
+.trick-family-evolution-steps {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+.trick-family-evolution-step {
+  border-left: 3px solid var(--border-subtle, #e3e3e3);
+  padding-left: 14px;
+  margin-bottom: 14px;
+}
+.trick-family-evolution-axis {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: var(--text-strong, #1e293b);
+}
+.trick-family-evolution-prose {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-primary, #333);
+}
+.trick-family-evolution-exemplars {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #555);
+  margin: 0;
+}
+.trick-progressive-readings-stages {
+  list-style: none;
+  padding-left: 0;
+  counter-reset: progressive-stage;
+  margin: 0.5rem 0;
+}
+.trick-progressive-stage {
+  counter-increment: progressive-stage;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--bg-subtle, #fafafa);
+  border-left: 3px solid var(--border-subtle, #d4d4d4);
+}
+.trick-progressive-stage::before {
+  content: counter(progressive-stage) ". ";
+  font-weight: 600;
+  color: var(--text-secondary, #555);
+  font-size: 0.85rem;
+}
+.trick-progressive-stage-label {
+  display: inline;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-strong, #1e293b);
+  margin-right: 6px;
+}
+.trick-progressive-stage-reading {
+  display: inline;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-primary, #333);
+}
+.trick-progressive-stage-citation {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-subtle, #777);
+}
+.trick-description--decomposition-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--bg-subtle, #f5f5f5);
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  color: var(--text-primary, #333);
+}
+
 /* Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
    Renders below the canonical JOB notation on 5 curator-locked trick
    pages (illusion / pickup / rev-whirl / rev-swirl / orbit). Compact,

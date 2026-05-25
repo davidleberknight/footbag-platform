@@ -158,6 +158,13 @@ export function createApp(): express.Application {
         },
         yearFromDate: (iso: string) => String(iso).split('-')[0],
         externalLink: externalLinkHelper,
+        // Splits curator-authored prose on blank lines into paragraph
+        // strings. Used by trick-detail ontology partials (L2-L4) so
+        // multi-paragraph entries render as separate <p> blocks.
+        splitParagraphs: (text: unknown) => {
+          if (typeof text !== 'string') return [];
+          return text.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 0);
+        },
       },
     }),
   );

@@ -1,0 +1,37 @@
+{{!--
+  L2 — Mechanical delta. The deepest ontology-work layer per the
+  trick-detail ontology doctrine (2026-05-25). Renders for Tier A only.
+  Sections suppress when content is unauthored.
+--}}
+{{#if content.mechanicalDelta}}
+<section class="content-section trick-mechanical-delta" aria-label="Mechanical delta">
+  <div class="section-heading">
+    <h2>Mechanical delta</h2>
+    <span class="section-topology-label">{{content.mechanicalDelta.topologyLabel}}</span>
+  </div>
+  {{#if content.mechanicalDelta.parentLinks.length}}
+  <p class="trick-mechanical-delta-parents">
+    Delta from
+    {{#each content.mechanicalDelta.parentLinks}}<a href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}.
+  </p>
+  {{/if}}
+  <div class="trick-mechanical-delta-prose">
+    {{#each (splitParagraphs content.mechanicalDelta.prose)}}
+    <p>{{this}}</p>
+    {{/each}}
+  </div>
+  {{#if content.mechanicalDelta.hasInterpretiveTraditions}}
+  <div class="trick-interpretive-traditions">
+    <p class="trick-interpretive-traditions-intro">Both readings preserved; neither promoted to canonical doctrine:</p>
+    <ul>
+      {{#each content.mechanicalDelta.interpretiveTraditions}}
+      <li>
+        <span class="trick-interpretive-reading">{{reading}}</span>
+        <span class="trick-interpretive-citation">{{citation}}</span>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+</section>
+{{/if}}

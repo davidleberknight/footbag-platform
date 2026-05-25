@@ -104,6 +104,12 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
       'From a right clipper set, turn so the bag passes behind your back (clockwise), then without planting your right foot, spin into a right-leg mirage and catch the footbag on a left Osis. The structural reading is "gyro torque" — the spinning body modifier carries through a miraging-osis terminal.',
     attribution: 'Per fb.org /newmoves description (5-ADD canonical reference); compositional reading per pt11.',
   },
+  {
+    slug: 'paradox-mirage',
+    prose:
+      'Paradox-mirage feels mechanically heavier than ordinary mirage. The setting foot stays planted longer; the hip pivots cross-body during the dex; the bag tracks across more of the body width before recatching. The rhythm is one beat longer than plain mirage — the body must complete a directional shift before the catching foot arrives.',
+    attribution: 'Curator description — 3-ADD compound; topology reading per the L2 layer.',
+  },
 ];
 
 /** Slug-keyed lookup helper. Returns null when no entry is curated. */

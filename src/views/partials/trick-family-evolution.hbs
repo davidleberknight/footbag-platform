@@ -1,0 +1,27 @@
+{{!--
+  L5 — Family evolution narrative. Branching steps, each named by axis
+  + curator prose + exemplar links. Renders for Tier A and Tier B when
+  authored.
+--}}
+{{#if content.familyEvolution}}
+<section class="content-section trick-family-evolution" aria-label="Family evolution">
+  <div class="section-heading">
+    <h2>Family evolution</h2>
+    <p class="section-intro">How the movement-language expands through this trick.</p>
+  </div>
+  <ol class="trick-family-evolution-steps">
+    {{#each content.familyEvolution.steps}}
+    <li class="trick-family-evolution-step">
+      <h3 class="trick-family-evolution-axis">{{branchAxis}}</h3>
+      <p class="trick-family-evolution-prose">{{prose}}</p>
+      {{#if exemplarLinks.length}}
+      <p class="trick-family-evolution-exemplars">
+        Exemplars:
+        {{#each exemplarLinks}}<a href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+      </p>
+      {{/if}}
+    </li>
+    {{/each}}
+  </ol>
+</section>
+{{/if}}

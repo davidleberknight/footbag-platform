@@ -9,7 +9,21 @@
   </div>
 
   {{#if content.dictEntry.description}}
-  <p class="trick-description">{{content.dictEntry.description}}</p>
+    {{#if content.descriptionIsPlaceholder}}
+    {{!--
+      Phase A placeholder-description suppressor (2026-05-25). The DB
+      `description` matched a known placeholder pattern (X-modified Y /
+      X-and-Y modified Z / "Popular freestyle trick."). The literal
+      description is suppressed; the structured ADD-decomposition pill
+      below renders instead. The DB row is preserved unchanged — this
+      is a render-time-only suppression.
+    --}}
+    {{#if content.dictEntry.addComposition}}
+    <p class="trick-description trick-description--decomposition-pill">{{content.dictEntry.addComposition}}</p>
+    {{/if}}
+    {{else}}
+    <p class="trick-description">{{content.dictEntry.description}}</p>
+    {{/if}}
   {{/if}}
 
   {{#if content.dictEntry.isModifier}}
