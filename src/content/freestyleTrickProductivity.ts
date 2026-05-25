@@ -52,9 +52,9 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'paradox-mirage',
     prose:
-      "Paradox-mirage anchors a deep compositional tree. The paradox topology composes naturally across all five movement-language axes: with stepping (blur), with multi-dex extensions (fury), with x-dex escalation (sumo), with rotational modifiers (surge / surreal), and with surface shifts. Paradox-mirage became generative because the underlying hip-pivot topology preserves recognizability under heavy modifier stacking — descendants two or three modifiers deep still read as paradox-mirage transformations rather than novel inventions.",
+      "Paradox-mirage anchors one of the dictionary's deepest compositional trees and became the gateway to several productive chains at once: blur and its blurriest / blurrage multi-dex extensions, the paradox-whirl family on the rotational side, the paradox-topology blender ecosystem, and a wide range of modern stepping/paradox hybrids. Blur in particular grew into one of the most culturally central advanced transition tricks in the language — its emergence from paradox-mirage is the clearest example of how this chassis seeds further canonical vocabulary. Paradox-mirage became generative because the underlying hip-pivot topology preserves recognizability under heavy modifier stacking — descendants two or three modifiers deep still read as paradox-mirage transformations rather than novel inventions.",
     productiveDescendants: [
-      { slug: 'blur',     label: 'blur',     note: 'Stepping multi-dex on the paradox-mirage chassis.' },
+      { slug: 'blur',     label: 'blur',     note: 'Stepping multi-dex on the paradox-mirage chassis; major productive anchor in its own right.' },
       { slug: 'fury',     label: 'fury',     note: 'Three-dex extension (furious paradox mirage).' },
       { slug: 'sumo',     label: 'sumo',     note: 'Nuclear x-dex escalation; 5 ADD named exception.' },
       { slug: 'surreal',  label: 'surreal',  note: 'Surging rotational system layered on paradox-whirl, mirror-pattern descendant.' },
@@ -65,7 +65,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'whirl',
     prose:
-      "Whirl is among the most generative anchors in the dictionary. The conserved cross-body-rotational-with-clipper-terminal pattern composes naturally with body modifiers (gyro, spinning, ducking), with suspension modifiers (symposium produces pogo), with terminal compounds (osis produces blender), and with topology modifiers (paradox produces paradox-whirl and surge). What makes whirl productive is the persistence of its rotational signature: descendants remain recognizably whirl-derived even under heavy modifier stacking.",
+      "Whirl is among the most generative anchors in the dictionary. The conserved cross-body-rotational-with-clipper-terminal pattern composes naturally with body modifiers (gyro, spinning, ducking), with suspension modifiers (symposium produces pogo), with terminal compounds (osis produces blender), and with topology modifiers (paradox produces paradox-whirl and surge). What makes whirl productive is the persistence of its rotational signature: descendants remain recognizably whirl-derived even under heavy modifier stacking. The cross-body rotational catch also supports fluid combo continuity — whirl-shaped transitions link naturally into spinning, paradox, ducking, symposium, and stepping systems alike, which is why whirl became one of the most productive transition anchors in advanced freestyle run architecture.",
     productiveDescendants: [
       { slug: 'blender',     label: 'blender',     note: 'Terminal compound — whirl-osis.' },
       { slug: 'pogo',        label: 'pogo',        note: 'Suspension variant — whirl with no-plant constraint.' },
