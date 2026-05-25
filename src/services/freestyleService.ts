@@ -3101,7 +3101,7 @@ const FAMILY_NOTES: Record<string, string> = {
     'on the torque side, paradox blender and spender on the blender side — making the osis ' +
     'one of the most generative bases in the advanced trick vocabulary.',
   mirage:
-    'The mirage is the foundational 2-ADD rotational base. Compounds include smear (pixie ' +
+    'The mirage is the foundational 2-ADD dex base. Compounds include smear (pixie ' +
     'mirage) and tap (tapping mirage) at 3 ADD; atom smasher (atomic mirage) and blur ' +
     '(canonically Stepping Paradox Mirage) at 4 ADD.',
   clipper:
@@ -4759,9 +4759,10 @@ const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface TrickTopologyMembership {
-  topologySlug: string;
-  topologyName: string;
-  href:         string;
+  topologySlug:       string;
+  topologyName:       string;
+  topologyDefinition: string;
+  href:               string;
 }
 
 export interface TrickComponentMembership {
@@ -4786,9 +4787,10 @@ function computeTrickSymbolicMemberships(
   const topology: TrickTopologyMembership[] = TOPOLOGY_GROUPS
     .filter(def => def.matches(row, hasModifierLink))
     .map(def => ({
-      topologySlug: def.slug,
-      topologyName: def.name,
-      href:         `/freestyle/tricks?view=topology#topology-${def.slug}`,
+      topologySlug:       def.slug,
+      topologyName:       def.name,
+      topologyDefinition: def.definition,
+      href:               `/freestyle/tricks?view=topology#topology-${def.slug}`,
     }));
 
   // Component memberships from modifier links. Filter to body + set axes;

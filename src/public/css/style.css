@@ -4080,8 +4080,8 @@ section.home-media { padding-top: 0; }
 }
 .trick-progressive-stage {
   counter-increment: progressive-stage;
-  padding: 8px 10px;
-  margin-bottom: 8px;
+  padding: 10px 12px 12px 14px;
+  margin-bottom: 14px;
   background: var(--bg-subtle, #fafafa);
   border-left: 3px solid var(--border-subtle, #d4d4d4);
 }
@@ -4094,14 +4094,15 @@ section.home-media { padding-top: 0; }
 .trick-progressive-stage-label {
   display: inline;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   color: var(--text-strong, #1e293b);
-  margin-right: 6px;
 }
 .trick-progressive-stage-reading {
-  display: inline;
+  display: block;
+  margin-top: 4px;
+  padding-left: 16px;
   font-size: 0.95rem;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-primary, #333);
 }
 .trick-progressive-stage-citation {

@@ -94,6 +94,255 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
     ],
   },
 
+  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
+  // blur authored here (L5 narrative steps). fury and sumo suppress L5 —
+  // both are leaf-class compounds at the end of their extension axes; per
+  // the Phase B lock §2 rule 7, suppression > filler.
+
+  {
+    slug: 'blur',
+    narrativeSteps: [
+      {
+        branchAxis: 'Three-dex extension',
+        prose:
+          "Layering a furious modifier onto the same paradox-mirage chassis produces fury — a deeper multi-dex sequence than blur. Fury and blur read as siblings on the chassis rather than parent-and-child.",
+        exemplarSlugs: ['fury'],
+      },
+      {
+        branchAxis: 'Multi-dex naming superlative',
+        prose:
+          "The blurry-naming tradition extends into a different chassis to produce blurriest — a 5-ADD blurry-barfly compound carrying maximal blurry character. Kin in name; distinct in structural base.",
+        exemplarSlugs: ['blurriest'],
+      },
+      {
+        branchAxis: 'Cultural-canonical shorthand',
+        prose:
+          "The \"stepping paradox\" shorthand operates as a category label in player vocabulary. Blur is its canonical resolution; the category absorbs structurally adjacent compounds whose decompositions read as stepping-paradox-class even when the precise modifier stack differs.",
+        exemplarSlugs: [],
+      },
+    ],
+  },
+
+  {
+    slug: 'drifter',
+    narrativeSteps: [
+      {
+        branchAxis: 'Topology intensification',
+        prose:
+          "Layering paradox onto drifter produces paradox-drifter — the hip-pivot cross-body transition threaded into the mirage-dex with clipper terminal.",
+        exemplarSlugs: ['paradox-drifter'],
+      },
+      {
+        branchAxis: 'Rotational variant',
+        prose:
+          "Layering rotational character onto the drifter chassis produces vortex — the rotational extension on the clipper-anchored terminal.",
+        exemplarSlugs: ['vortex'],
+      },
+      {
+        branchAxis: 'Naming-driven extensions',
+        prose:
+          "Several 4-ADD compounds carry their own folk names while sharing the drifter chassis: smoke, tombstone, fume, quantum-drifter, and others. Each names a specific compositional reading on the chassis without escalating to a new family.",
+        exemplarSlugs: ['smoke', 'tombstone'],
+      },
+      {
+        branchAxis: 'Deeper compositional extension',
+        prose:
+          "Layering additional modifiers produces 5-ADD compounds on the drifter chassis — lotus among them.",
+        exemplarSlugs: ['lotus'],
+      },
+      {
+        branchAxis: 'Clipper-stall sibling branch',
+        prose:
+          "High-plains-drifter sits on the same clipper-stall chassis as drifter with an additional modifier — sibling-of-drifter rather than descendant.",
+        exemplarSlugs: ['high-plains-drifter'],
+      },
+    ],
+  },
+
+  {
+    slug: 'barrage',
+    narrativeSteps: [
+      {
+        branchAxis: 'Topology intensification',
+        prose:
+          "Layering paradox onto the doubled-dex chassis produces paradox-barrage — paradox hip-pivot threaded through the second dex.",
+        exemplarSlugs: ['paradox-barrage'],
+      },
+      {
+        branchAxis: 'Stepping-paradox extension',
+        prose:
+          "Layering stepping-paradox onto barrage produces blurrage — a 4-ADD compound on the same doubled-dex chassis with a multi-dex extension axis.",
+        exemplarSlugs: ['blurrage'],
+      },
+      {
+        branchAxis: 'Operator-path productivity',
+        prose:
+          "The shared \"barraging\" modifier produces fury (barraging-paradox-mirage in earlier doctrine) and flurry (barraging-leg-over) on other chassis. The same root name carries compositional weight as an operator across the broader language.",
+        exemplarSlugs: ['fury'],
+      },
+    ],
+  },
+
+  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // blender authored here (L5 narrative steps). surreal and phoenix
+  // suppress L5 — both are leaf compounds at the top of their extension
+  // axes; per the Phase B lock §2 rule 7, suppression > filler.
+
+  {
+    slug: 'blender',
+    narrativeSteps: [
+      {
+        branchAxis: 'Topology intensification',
+        prose:
+          "Layering paradox onto the blender chassis produces paradox-blender — paradox hip-pivot threaded into the whirl-osis compound.",
+        exemplarSlugs: ['paradox-blender'],
+      },
+      {
+        branchAxis: 'Naming-driven extensions',
+        prose:
+          "Several 5-6 ADD compounds carry their own folk names while sharing the blender chassis: fender, fender-bender, mind-bender, spender. Each names a specific compositional reading on the chassis without escalating to a new family.",
+        exemplarSlugs: ['fender', 'mind-bender'],
+      },
+      {
+        branchAxis: 'Multi-modifier extension',
+        prose:
+          "Deeper modifier stacks layer onto the chassis to produce 6-7 ADD compounds: spinning-paradox-blender and stepping-ducking-paradox-blender are the deepest extensions in the family.",
+        exemplarSlugs: ['spinning-paradox-blender'],
+      },
+      {
+        branchAxis: 'Operator-path productivity',
+        prose:
+          "The blurry operator extended onto the compound-of-canonicals chassis produces food-processor — blurry-modified blender at 6 ADD.",
+        exemplarSlugs: ['food-processor'],
+      },
+    ],
+  },
+
+  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // osis / butterfly / torque authored here (deep family-evolution
+  // narratives). mobius, ripwalk, food-processor suppress L5 — leaf
+  // compounds per the Phase B lock §2 rule 7.
+
+  {
+    slug: 'osis',
+    narrativeSteps: [
+      {
+        branchAxis: 'Compound-of-canonicals (mirage path)',
+        prose:
+          "Layering a mirage operator onto osis produces torque (miraging-osis at 4 ADD); torque becomes its own sub-anchor with descendants of its own.",
+        exemplarSlugs: ['torque'],
+      },
+      {
+        branchAxis: 'Compound-of-canonicals (whirl path)',
+        prose:
+          "Layering a whirl operator onto osis produces blender (whirling-osis at 4 ADD); the sibling compound to torque on the same osis chassis.",
+        exemplarSlugs: ['blender'],
+      },
+      {
+        branchAxis: 'Body-modifier branch',
+        prose:
+          "Ducking-osis, spinning-osis, atomic-osis, paradox-osis — each layers a body modifier on the spin-clipper chassis at the 4-ADD layer.",
+        exemplarSlugs: ['ducking-osis', 'spinning-osis'],
+      },
+      {
+        branchAxis: 'Set-treatment branch',
+        prose:
+          "Pixie-osis at 4 ADD layers a set-treatment modifier compressing the opening, anchoring the set-axis productivity on the chassis.",
+        exemplarSlugs: ['pixie-osis'],
+      },
+      {
+        branchAxis: 'Multi-dex extension',
+        prose:
+          "Stepping-osis at 4 ADD and barraging-osis at 5 ADD layer multi-dex extensions onto the spin-clipper chassis.",
+        exemplarSlugs: ['stepping-osis', 'barraging-osis'],
+      },
+      {
+        branchAxis: 'Naming-driven extensions',
+        prose:
+          "Twirl at 4 ADD and aeon-flux at 5 ADD carry their own folk names while sharing the osis chassis.",
+        exemplarSlugs: ['twirl', 'aeon-flux'],
+      },
+    ],
+  },
+
+  {
+    slug: 'butterfly',
+    narrativeSteps: [
+      {
+        branchAxis: 'Stepping branch',
+        prose:
+          "Layering stepping onto butterfly produces ripwalk — the shred-vocabulary entry on the chassis at 4 ADD.",
+        exemplarSlugs: ['ripwalk'],
+      },
+      {
+        branchAxis: 'Set-treatment branch',
+        prose:
+          "Pixie onto butterfly produces dimwalk; tapdown carries its own folk name in the same set-axis family at 4 ADD.",
+        exemplarSlugs: ['dimwalk', 'tapdown'],
+      },
+      {
+        branchAxis: 'Stepping-paradox branch',
+        prose:
+          "Layering stepping-paradox onto butterfly produces parkwalk — a deeper modifier stack on the chassis at 4 ADD.",
+        exemplarSlugs: ['parkwalk'],
+      },
+      {
+        branchAxis: 'Body-modifier branch',
+        prose:
+          "Atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly — each layers a single body modifier on the chassis at 4 ADD.",
+        exemplarSlugs: ['atomic-butterfly', 'ducking-butterfly'],
+      },
+      {
+        branchAxis: 'Multi-modifier extension',
+        prose:
+          "At 5 ADD, named two-modifier compounds (phoenix, yoda, matador, ripped-warrior) demonstrate that the chassis tolerates multi-axis layering cleanly.",
+        exemplarSlugs: ['phoenix', 'matador'],
+      },
+      {
+        branchAxis: 'Naming-driven extensions',
+        prose:
+          "Bigwalk, darkwalk, dark-avenue, sidewalk, tripwalk, quantanamera — folk-named 4-5 ADD compounds carrying their own identities while sharing the butterfly chassis.",
+        exemplarSlugs: ['bigwalk', 'darkwalk'],
+      },
+    ],
+  },
+
+  {
+    slug: 'torque',
+    narrativeSteps: [
+      {
+        branchAxis: 'Body-modifier branch',
+        prose:
+          "Paradox-torque, spinning-torque, symposium-torque layer body modifiers on the torque chassis at the 5-ADD layer.",
+        exemplarSlugs: ['paradox-torque', 'spinning-torque'],
+      },
+      {
+        branchAxis: 'Gyro layering',
+        prose:
+          "Layering gyro onto torque produces mobius (gyro-torque at 5 ADD) — the gyro lineage that builds on torque's intermediate-base status.",
+        exemplarSlugs: ['mobius'],
+      },
+      {
+        branchAxis: 'Atomic / nuclear extension',
+        prose:
+          "Atomic-torque at 6 ADD layers the atomic modifier onto the chassis; the deeper modifier-stack branch.",
+        exemplarSlugs: ['atomic-torque'],
+      },
+      {
+        branchAxis: 'Naming-driven extensions',
+        prose:
+          "Forque, grave-digger, spinal-tap, big-apple — folk-named compounds on the torque chassis at 5-6 ADD.",
+        exemplarSlugs: ['forque', 'grave-digger'],
+      },
+      {
+        branchAxis: 'Highest-ADD reach',
+        prose:
+          "Gauntlet at 7 ADD sits as the deepest torque-chassis compound in the dictionary.",
+        exemplarSlugs: ['gauntlet'],
+      },
+    ],
+  },
+
   // ── Editorial exemplar #3: whirl ────────────────────────────────────
   {
     slug: 'whirl',
