@@ -2095,6 +2095,61 @@ export interface AltSurfacesCrossLink {
   ctaLabel:          string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Set Encyclopedia (standalone /freestyle/sets page, 2026-05-25).
+//
+// Distinct from /freestyle/tricks?view=sets (which embeds set content in
+// the dictionary URL) and from /freestyle/compositional-sets (which is
+// the exploratory hub). The Encyclopedia is the canonical user-facing
+// entry point for "what is this set system?" — minimalist cards, scan-
+// friendly, links to /freestyle/sets/<slug> for deep ontology.
+//
+// Per the curator UX directive (2026-05-25): cards carry ONLY name +
+// hashtag + compact formula + one-sentence movement + one provenance
+// line + quick-relation tags + "View details →". Deep prose lives on
+// the detail pages.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface FreestyleSetsEncyclopediaView {
+  intro:           string;
+  totalSets:       number;
+  subtypeSections: readonly EncyclopediaSubtypeSection[];
+  crossLinks:      EncyclopediaCrossLinks;
+}
+
+export interface EncyclopediaSubtypeSection {
+  key:   SetSubtypeKey;
+  label: string;
+  count: number;
+  cards: readonly EncyclopediaSetCard[];
+}
+
+export interface EncyclopediaSetCard {
+  slug:            string;
+  hashtag:         string;
+  displayName:     string;
+  formula:         string;
+  /** First sentence of movementExplanation; compact + scan-friendly. */
+  compactMovement: string;
+  /** Single short line — combines source + audit status into one label. */
+  provenanceLine:  string;
+  /** Up to 3 quick-relation tags (derived first, then related). */
+  quickRelations:  readonly SlugLinkVM[];
+  /** Resolves to /freestyle/sets/<slug>. */
+  detailHref:      string;
+}
+
+export interface EncyclopediaCrossLinks {
+  dictionaryBysetLabel:    string;
+  dictionaryBysetHref:     string;
+  compositionalHubLabel:   string;
+  compositionalHubHref:    string;
+  operatorsPageLabel:      string;
+  operatorsPageHref:       string;
+  flatReferenceLabel:      string;
+  flatReferenceHref:       string;
+}
+
 // Set detail page content (Phase B of the set-system refactor, 2026-05-25).
 // One page per canonical set at /freestyle/sets/<slug>. Mirrors the
 // trick-detail structure: hashtag · formula · movement explanation ·
@@ -7285,6 +7340,144 @@ export const freestyleService = {
         componentMechanicsNote:
           'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
           'are body modifiers, not sets. See the Operators & Modifiers reference.',
+      },
+    };
+  },
+
+  /**
+   * GET /freestyle/sets — Set Encyclopedia (2026-05-25).
+   *
+   * Standalone minimalist surface listing canonical sets as first-class
+   * ontology objects. Distinct from:
+   *
+   *   /freestyle/tricks?view=sets   — Trick Dictionary's Set Hub view
+   *                                   (verbose cards, embedded in dictionary URL)
+   *   /freestyle/compositional-sets — exploratory compositional-sets hub
+   *                                   (family / ladder groupings + Holden audit)
+   *   /freestyle/sets/:slug         — per-set detail pages (deep ontology)
+   *   /freestyle/sets/reference     — flat Holden reference table
+   *
+   * Cards carry only: name + hashtag + compact formula + one-sentence
+   * movement + one provenance line + up to 3 quick-relation tags + a
+   * detail link. Deep content lives on the detail pages.
+   */
+  getSetsEncyclopediaPage(): PageViewModel<FreestyleSetsEncyclopediaView> {
+    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
+      'canonical':        'Canonical',
+      'platform-tracked': 'Platform-tracked',
+      'holden-only':      'Holden-only',
+    };
+
+    // Compact provenance: combine source + audit status into ONE line.
+    // Examples:
+    //   canonical + aligned        → "Canonical · Holden aligned"
+    //   platform-tracked + aligned → "Platform-tracked · Holden aligned"
+    //   holden-only                → "Holden-only"
+    //   platform-tracked + partial → "Platform-tracked · Holden partial"
+    const buildProvenanceLine = (set: typeof CANONICAL_SETS[number]): string => {
+      const sourcePart = sourceLabels[set.source];
+      if (!set.auditStatus) return sourcePart;
+      switch (set.auditStatus) {
+        case 'aligned':     return `${sourcePart} · Holden aligned`;
+        case 'partial':     return `${sourcePart} · Holden partial`;
+        case 'conflict':    return `${sourcePart} · documented disagreement`;
+        case 'holden-only': return sourcePart;
+      }
+    };
+
+    // Compact movement: first sentence of the explanation. Splits on
+    // ". " (period-space) which preserves abbreviations within a sentence.
+    // Falls back to the full string when no sentence-break is found.
+    const compactFirstSentence = (full: string): string => {
+      const cleaned = full.trim();
+      const sentenceBreak = cleaned.indexOf('. ');
+      if (sentenceBreak === -1) return cleaned;
+      // Include the period; drop the trailing space.
+      return cleaned.slice(0, sentenceBreak + 1);
+    };
+
+    // Quick relations: up to 2 derived + 1 related, capped at 3 total.
+    // Hrefs go to detail pages, NOT the in-page anchors (the Encyclopedia
+    // links forward, not into itself).
+    const shapeQuickRelations = (set: typeof CANONICAL_SETS[number]): SlugLinkVM[] => {
+      const derived: SlugLinkVM[] = set.derivedSystems.slice(0, 2).map(r => ({
+        slug:  r.slug,
+        label: r.label,
+        href:  `/freestyle/sets/${r.slug}`,
+      }));
+      const related: SlugLinkVM[] = set.relatedSystems.slice(0, 1).map(r => ({
+        slug:  r.slug,
+        label: r.label,
+        href:  `/freestyle/sets/${r.slug}`,
+      }));
+      return [...derived, ...related].slice(0, 3);
+    };
+
+    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => ({
+      slug:            s.slug,
+      hashtag:         s.hashtag,
+      displayName:     s.displayName,
+      formula:         s.formula,
+      compactMovement: compactFirstSentence(s.movementExplanation),
+      provenanceLine:  buildProvenanceLine(s),
+      quickRelations:  shapeQuickRelations(s),
+      detailHref:      `/freestyle/sets/${s.slug}`,
+    });
+
+    const subtypeSections: EncyclopediaSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
+      const cards = CANONICAL_SETS
+        .filter(s => s.subtype === spec.key)
+        .map(shapeEncyclopediaCard);
+      return {
+        key:   spec.key,
+        label: spec.label,
+        count: cards.length,
+        cards,
+      };
+    }).filter(section => section.count > 0);
+
+    const crossLinks: EncyclopediaCrossLinks = {
+      dictionaryBysetLabel:  'Trick Dictionary — tricks grouped by set',
+      dictionaryBysetHref:   '/freestyle/tricks?view=sets',
+      compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
+      compositionalHubHref:  '/freestyle/compositional-sets',
+      operatorsPageLabel:    'Operators & Modifiers',
+      operatorsPageHref:     '/freestyle/operators',
+      flatReferenceLabel:    'Flat Holden reference table',
+      flatReferenceHref:     '/freestyle/sets/reference',
+    };
+
+    return {
+      seo: {
+        title:       'Set Encyclopedia',
+        description:
+          'Canonical sets as first-class compositional vocabulary — the named uptime ' +
+          'movement primitives that open a trick. One card per set; detail pages carry ' +
+          'the deep ontology.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_sets_encyclopedia',
+        title:      'Set Encyclopedia',
+        eyebrow:    'Compositional vocabulary',
+        intro:
+          'Set systems as first-class ontology objects. Tap any card for the deep reading; ' +
+          'this index keeps it compact and browsable.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Sets' },
+        ],
+      },
+      content: {
+        intro:
+          'What is each set as a system? This index lists the named uptime movement ' +
+          'primitives the rest of the language composes from. For "which tricks use this ' +
+          'set?", see the Trick Dictionary\'s By Set view.',
+        totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
+        subtypeSections,
+        crossLinks,
       },
     };
   },

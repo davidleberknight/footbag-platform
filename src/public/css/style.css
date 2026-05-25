@@ -9752,6 +9752,164 @@ a.dict-card-title:hover {
   margin: 0 0 6px;
   color: var(--text-secondary, #555);
 }
+
+/* ── Set Encyclopedia (standalone /freestyle/sets, 2026-05-25) ──────────
+ * Denser visual treatment than the Set Hub at ?view=sets. Goal:
+ * compositional vocabulary board / set periodic table — cards are
+ * scan-friendly, formula-forward, with deep content deferred to
+ * /freestyle/sets/<slug> detail pages.
+ */
+.sets-encyclopedia {
+  padding-top: 14px;
+}
+.sets-encyclopedia-head {
+  margin-bottom: 18px;
+}
+.sets-encyclopedia-intro {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-primary, #333);
+  max-width: 760px;
+  margin: 6px 0 4px;
+}
+.sets-encyclopedia-total {
+  font-size: 0.85rem;
+  margin: 0;
+}
+.sets-encyclopedia-cross-nav {
+  background: var(--bg-subtle, #fafafa);
+  border: 1px solid var(--border-subtle, #e3e3e3);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 22px;
+}
+.sets-encyclopedia-cross-nav-intro {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #555);
+  font-weight: 500;
+}
+.sets-encyclopedia-cross-nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sets-encyclopedia-cross-nav-list li {
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.sets-encyclopedia-cross-nav-question {
+  color: var(--text-subtle, #777);
+  font-style: italic;
+}
+.sets-encyclopedia-subtype {
+  margin-top: 22px;
+}
+.sets-encyclopedia-subtype-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sets-encyclopedia-subtype-head h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+.sets-encyclopedia-subtype-count {
+  font-size: 0.78rem;
+  color: var(--text-subtle, #888);
+  background: var(--bg-subtle, #f3f3f3);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.sets-encyclopedia-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.sets-encyclopedia-card {
+  border: 1px solid var(--border-subtle, #e2e2e2);
+  border-radius: 5px;
+  padding: 9px 11px;
+  background: var(--bg-card, #fff);
+  display: flex;
+  flex-direction: column;
+}
+.sets-encyclopedia-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.sets-encyclopedia-card-name {
+  margin: 0;
+  font-size: 0.98rem;
+}
+.sets-encyclopedia-card-hashtag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-subtle, #777);
+  background: var(--bg-subtle, #f5f5f5);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.sets-encyclopedia-card-formula {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-primary, #222);
+  background: var(--bg-subtle, #f7f7f7);
+  padding: 4px 6px;
+  border-radius: 3px;
+  margin: 3px 0 6px;
+  white-space: normal;
+  word-break: break-word;
+}
+.sets-encyclopedia-card-movement {
+  font-size: 0.86rem;
+  color: var(--text-primary, #333);
+  line-height: 1.4;
+  margin: 4px 0 6px;
+}
+.sets-encyclopedia-card-provenance {
+  font-size: 0.74rem;
+  color: var(--text-subtle, #777);
+  margin: 0 0 6px;
+  font-style: italic;
+}
+.sets-encyclopedia-card-relations {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sets-encyclopedia-card-relations li {
+  font-size: 0.74rem;
+}
+.sets-encyclopedia-card-relation {
+  display: inline-block;
+  background: var(--bg-subtle, #f3f3f3);
+  color: var(--text-secondary, #555);
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-decoration: none;
+}
+.sets-encyclopedia-card-relation:hover {
+  background: var(--bg-emphasis, #e8e8e8);
+  color: var(--text-primary, #222);
+}
+.sets-encyclopedia-card-detail-link {
+  margin-top: auto;
+  align-self: flex-start;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
 .sets-alt-surfaces-cta {
   font-weight: 500;
 }

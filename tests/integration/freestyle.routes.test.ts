@@ -1954,10 +1954,12 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('Browse the trick dictionary');
     expect(res.text).toContain('Open the glossary');
-    // /freestyle/sets is no longer linked from the landing (the dual-CTA
-    // operator-board footer was retired in the second-pass cleanup,
-    // 2026-05-20). The canonical reference lives on /freestyle/operators.
-    expect(res.text).not.toContain('href="/freestyle/sets"');
+    // /freestyle/sets is now reachable from the landing via the Set
+    // Encyclopedia portal card (added 2026-05-25 as part of the pre-
+    // Adrian set-surface polish; the route was promoted from a 301
+    // redirect to a standalone minimalist index in the same slice).
+    expect(res.text).toContain('href="/freestyle/sets"');
+    expect(res.text).toContain('Set encyclopedia');
     // The retired "Where to go next" heading must not appear.
     expect(res.text).not.toContain('Where to go next');
   });

@@ -50,15 +50,17 @@ publicRouter.get('/freestyle/history',     freestyleController.history);
 publicRouter.get('/freestyle/about',       freestyleController.about);
 publicRouter.get('/freestyle/add-analysis', freestyleController.addAnalysis);
 publicRouter.get('/freestyle/combo-analysis', freestyleController.comboAnalysis);
-// SET-SYSTEM-REFACTOR Phase B (2026-05-25): /freestyle/sets is now the Set
-// Hub URL (301 to the canonical hub at /freestyle/tricks?view=sets); the
-// flat Holden reference table moved to /freestyle/sets/reference; per-set
-// detail pages live at /freestyle/sets/:slug.
+// SET-SYSTEM-REFACTOR (2026-05-25): /freestyle/sets is the standalone Set
+// Encyclopedia — a minimalist index of canonical sets as first-class
+// ontology objects, distinct from /freestyle/tricks?view=sets (Trick
+// Dictionary's By-Set view) and from /freestyle/compositional-sets
+// (exploratory hub). Per-set detail pages live at /freestyle/sets/:slug;
+// flat Holden reference table at /freestyle/sets/reference.
 // Literal sub-routes (reference) MUST register before the :slug param
 // route. Old /freestyle/moves URL continues to redirect for back-compat.
 publicRouter.get('/freestyle/sets/reference', freestyleController.moves);
 publicRouter.get('/freestyle/sets/:slug',     freestyleController.setDetail);
-publicRouter.get('/freestyle/sets',           (_req, res) => res.redirect(301, '/freestyle/tricks?view=sets'));
+publicRouter.get('/freestyle/sets',           freestyleController.setsEncyclopedia);
 publicRouter.get('/freestyle/moves',          (_req, res) => res.redirect(301, '/freestyle/sets/reference'));
 publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSets);
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);

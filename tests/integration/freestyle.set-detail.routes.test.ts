@@ -12,7 +12,7 @@
  *   - Cross-links resolve to expected URLs (set hub, compositional hub,
  *     Movement Systems set axis, flat reference, operators page when
  *     applicable)
- *   - /freestyle/sets (no slug) 301-redirects to the Set Hub
+ *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200; promoted from 301 in 2026-05-25 polish)
  *   - /freestyle/sets/reference renders the flat Holden reference (200,
  *     not the redirect)
  *   - /freestyle/moves 301-redirects to /freestyle/sets/reference
@@ -165,10 +165,11 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 });
 
 describe('routing migration — /freestyle/sets and /freestyle/moves', () => {
-  it('/freestyle/sets 301-redirects to the Set Hub', async () => {
+  it('/freestyle/sets renders the Set Encyclopedia directly (promoted from 301 redirect 2026-05-25)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
-    expect(res.status).toBe(301);
-    expect(res.header.location).toBe('/freestyle/tricks?view=sets');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Set Encyclopedia');
+    expect(res.text).toContain('class="wrapper sets-encyclopedia"');
   });
 
   it('/freestyle/sets/reference renders the flat Holden reference table directly', async () => {

@@ -165,6 +165,21 @@ export const freestyleController = {
   },
 
   /**
+   * GET /freestyle/sets — Set Encyclopedia (2026-05-25). Standalone
+   * minimalist index of canonical sets as first-class ontology objects.
+   * Distinct from the dictionary's /freestyle/tricks?view=sets surface
+   * and from the /freestyle/compositional-sets exploration hub.
+   */
+  setsEncyclopedia(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getSetsEncyclopediaPage();
+      res.render('freestyle/sets-encyclopedia', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /**
    * GET /freestyle/sets/:slug — Set detail page (Phase B of the set-system
    * refactor, 2026-05-25). Anti-enumeration: unknown slug → 404.
    */

@@ -1,0 +1,64 @@
+{{!--
+  /freestyle/sets — Set Encyclopedia (2026-05-25).
+
+  Standalone minimalist index of canonical sets as first-class ontology
+  objects. Distinct from /freestyle/tricks?view=sets (Trick Dictionary's
+  By-Set view) and from /freestyle/compositional-sets (exploratory hub).
+
+  Curator UX directive: cards stay compact + scan-friendly — name, hashtag,
+  formula, one-sentence movement, one provenance line, up to 3 quick-
+  relation tags, "View details →". Deep prose lives on the detail pages
+  at /freestyle/sets/<slug>.
+
+  Visual goal: compositional vocabulary board, not glossary essay.
+--}}
+<div class="wrapper sets-encyclopedia">
+
+  <header class="sets-encyclopedia-head">
+    <p class="hero-eyebrow">Compositional vocabulary</p>
+    <h1>Set Encyclopedia</h1>
+    <p class="sets-encyclopedia-intro">{{content.intro}}</p>
+    <p class="sets-encyclopedia-total detail-muted"><strong>{{content.totalSets}}</strong> canonical sets across {{content.subtypeSections.length}} subtypes.</p>
+  </header>
+
+  <nav class="sets-encyclopedia-cross-nav" aria-label="Related surfaces">
+    <p class="sets-encyclopedia-cross-nav-intro">Related surfaces — different questions:</p>
+    <ul class="sets-encyclopedia-cross-nav-list">
+      <li><a href="{{content.crossLinks.dictionaryBysetHref}}">{{content.crossLinks.dictionaryBysetLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">— which tricks use this set?</span></li>
+      <li><a href="{{content.crossLinks.compositionalHubHref}}">{{content.crossLinks.compositionalHubLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">— how do sets relate as families?</span></li>
+      <li><a href="{{content.crossLinks.operatorsPageHref}}">{{content.crossLinks.operatorsPageLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">— what transformations act on tricks?</span></li>
+      <li><a href="{{content.crossLinks.flatReferenceHref}}">{{content.crossLinks.flatReferenceLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">— Holden's flat list, no commentary.</span></li>
+    </ul>
+  </nav>
+
+  {{#each content.subtypeSections}}
+  <section class="sets-encyclopedia-subtype" id="set-subtype-{{key}}" aria-label="{{label}}">
+    <div class="sets-encyclopedia-subtype-head">
+      <h2>{{label}}</h2>
+      <span class="sets-encyclopedia-subtype-count">{{count}}</span>
+    </div>
+    <div class="sets-encyclopedia-grid">
+      {{#each cards}}
+      <article class="sets-encyclopedia-card" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
+        <header class="sets-encyclopedia-card-head">
+          <h3 class="sets-encyclopedia-card-name">{{displayName}}</h3>
+          <code class="sets-encyclopedia-card-hashtag">{{hashtag}}</code>
+        </header>
+        <code class="sets-encyclopedia-card-formula">{{formula}}</code>
+        <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
+        <p class="sets-encyclopedia-card-provenance">{{provenanceLine}}</p>
+        {{#if quickRelations.length}}
+        <ul class="sets-encyclopedia-card-relations" aria-label="Quick relations">
+          {{#each quickRelations}}
+          <li><a class="sets-encyclopedia-card-relation" href="{{href}}">{{label}}</a></li>
+          {{/each}}
+        </ul>
+        {{/if}}
+        <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details &rarr;</a>
+      </article>
+      {{/each}}
+    </div>
+  </section>
+  {{/each}}
+
+</div>
