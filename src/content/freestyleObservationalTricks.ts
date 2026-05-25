@@ -55,6 +55,30 @@ export type ObservationalStatus =
   | 'pending-canonicalization'
   | 'rejected';
 
+/**
+ * Explicit governance lane for an observational entry (2026-05-24 slice).
+ * The lane is curator-authored, NOT keyword-heuristic-derived. Default
+ * lane for new entries is 'source-only'. Curator hand-promotes entries
+ * by editing this field.
+ *
+ * Lanes:
+ *   - 'source-only'      — known name from a documented corpus without
+ *                          enough verified structure for promotion review
+ *   - 'formula-review'   — has a proposed decomposition but the ADD /
+ *                          formula reading is inconsistent or unresolved
+ *   - 'promotion-queue'  — source-backed name with plausible JOB notation
+ *                          + ADD accounting; near-ready after final
+ *                          curator review
+ *   - 'doctrine-blocked' — blocked by an unresolved doctrine issue
+ *                          (paradox, x-dex, nuclear/atomic, inspinning,
+ *                          shooting, backside, fairy/orbit reading, etc.)
+ */
+export type ObservationalGovernanceLane =
+  | 'source-only'
+  | 'formula-review'
+  | 'promotion-queue'
+  | 'doctrine-blocked';
+
 export interface ObservationalTrick {
   /** Lowercase URL-safe slug derived from the folk name. NEVER reuses a
    *  canonical freestyle_tricks slug — collision check enforced at
@@ -82,6 +106,11 @@ export interface ObservationalTrick {
   curatorNote: string | null;
   /** Wave 2 / curator blockers preventing canonicalization. */
   unresolvedBlockers: readonly string[];
+  /** Explicit governance lane (curator-authored; see ObservationalGovernanceLane).
+   *  Optional in the type for backwards-compatibility with rows authored
+   *  before the 2026-05-24 slice; shaping layer defaults missing values
+   *  to 'source-only'. */
+  governanceLane?: ObservationalGovernanceLane;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

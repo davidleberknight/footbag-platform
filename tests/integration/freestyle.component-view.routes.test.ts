@@ -124,14 +124,20 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('?view=sets still resolves server-side to the component view (alias)', async () => {
+  it('?view=sets is NO LONGER a component-view alias (2026-05-24 governance/polish slice)', async () => {
+    // The 2026-05-24 governance/polish slice ended the ?view=sets →
+    // ?view=component alias. ?view=sets now activates the dedicated By
+    // Set browse view. The component view is unaffected (still soft-
+    // retired; canonical /freestyle/tricks?view=component URL still
+    // renders with the retirement notice).
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    // Same markup as the canonical URL renders.
-    expect(res.text).toContain('class="component-view-note"');
-    expect(res.text).toContain('class="component-axis-jump"');
-    // Soft-retirement notice renders on the alias path too.
-    expect(res.text).toContain('class="component-view-retirement-notice"');
+    // The component view's markers must NOT appear on the sets URL anymore.
+    expect(res.text).not.toContain('class="component-view-note"');
+    expect(res.text).not.toContain('class="component-view-retirement-notice"');
+    // The dedicated By Set view's active toggle marker confirms the new
+    // routing took effect.
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
   });
 });
 

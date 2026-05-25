@@ -82,17 +82,23 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   it('opens with the plain movement-first dictionary intro + glossary link', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="browse-view-intro"');
-    expect(res.text).toMatch(/vast and growing movement vocabulary/);
+    // 2026-05-24 governance/polish slice: vague "vast and growing movement
+    // vocabulary" replaced with a dynamic canonical-tricks count. Assertion
+    // updated to match new "{N} canonical tricks documented to date" prose.
+    expect(res.text).toMatch(/\d+ canonical tricks documented to date/);
     expect(res.text).toContain('class="dictionary-intro-glossary-link"');
     expect(res.text).toContain('href="/freestyle/glossary"');
   });
 
-  it('does not render the coverage / governance block or a lead count', async () => {
+  it('does not render the coverage / governance block', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).not.toContain('class="trick-coverage-summary"');
     expect(res.text).not.toContain('class="dict-note"');
     expect(res.text).not.toContain('shown for transparency');
-    expect(res.text).not.toMatch(/\d+\s+canonical tricks/);
+    // 2026-05-24: the "no lead count" assertion was reversed by the
+    // governance/polish slice — dynamic canonical-trick counts now ARE
+    // surfaced in the dictionary intro (replacing vague "hundreds of
+    // named tricks" prose).
   });
 
   it('the view-toggle offers every browse system as secondary navigation', async () => {
@@ -105,13 +111,29 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).toContain('By family');
     expect(nav).toContain('By movement system');
     expect(nav).toContain('Movement Neighborhoods');
-    expect(nav).toContain('href="/freestyle/operators"');
+    // 2026-05-24 governance/polish slice: "By set" added as a primary
+    // browse axis; "Operators & Modifiers" REMOVED from the toggle row
+    // (operators/modifiers are reference vocabulary, not a dictionary
+    // grouping axis). The /freestyle/operators reference page is still
+    // reachable via the aside line below the toggle.
+    expect(nav).toContain('By set');
+    expect(nav).not.toContain('href="/freestyle/operators"');
     // 2026-05-23: the duplicate Observed Tricks link was removed from
     // the dictionary browse strip. Observed Tricks remains reachable
     // from the freestyle landing's Go Deeper card.
     expect(nav).not.toContain('href="/freestyle/observational"');
     // The retired "‹ Dictionary" back-link is gone.
     expect(nav).not.toContain('trick-view-toggle-back');
+  });
+
+  it('Operators & Modifiers reference link is preserved in the toggle aside (not in the toggle nav)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Operators & Modifiers stays reachable via an explanatory aside line
+    // BELOW the toggle row, framed as reference vocabulary.
+    expect(res.text).toContain('trick-view-toggle-aside');
+    expect(res.text).toContain('href="/freestyle/operators"');
+    // The aside text explicitly frames it as not-a-dictionary-axis.
+    expect(res.text).toContain('not a dictionary browse axis');
   });
 
   it('groups tricks by ADD value, with the gentlest first', async () => {

@@ -105,6 +105,10 @@ import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
 import {
+  CORE_SETS_INTROS,
+  SECONDARY_SETS_INTROS,
+} from '../content/freestyleSetsViewIntros';
+import {
   COMPOSITIONAL_SET_FAMILIES,
   UPTIME_REINTERPRETATION_LADDERS,
   COMPOSITIONAL_AUDIT_ENTRIES,
@@ -138,6 +142,7 @@ import {
   type ObservationalTrick,
   type ObservationalSourceLabel,
   type ObservationalStatus,
+  type ObservationalGovernanceLane,
 } from '../content/freestyleObservationalTricks';
 import {
   TRACKED_UNPUBLISHED_NAMES,
@@ -1952,6 +1957,63 @@ export interface DictionaryTrickCard {
 
 export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system' | 'dex-count';
 
+// Sets-view browse model (2026-05-24 governance/polish slice). Three cohorts:
+// "Core sets" (clean +1 set primitives), "Secondary/composite systems"
+// (compound sets like nuclear=paradox+atomic, plus set-context body modifiers
+// like stepping/surging), and "Alternate-surface systems" (head/neck/sole/
+// cloud/heel/flying — a DISTINCT ontology layer included here for entry-
+// mechanic discoverability; explicitly framed as not-a-set per the
+// governance contract). The split reflects pedagogical distance from the
+// "uptime ATW/orbit motion analogue" that anchors core sets — secondary
+// systems carry additional structural debt; surface mechanics are an
+// orthogonal balance/control axis.
+//
+// NOT a substitute for the Operators & Modifiers reference page; that's a
+// separate vocabulary surface. The set view groups tricks by which set
+// initiates them; the operators page describes the operator vocabulary.
+export interface FreestyleSetsBrowseView {
+  intro:          string;
+  totalTricks:    number;       // dynamic — across all set groups (sets + surface)
+  coreSets:       SetBrowseGroup[];
+  secondarySets:  SetBrowseGroup[];
+  // Alternate-surface systems (head/neck/sole/cloud/heel/flying). A
+  // DISTINCT ontology layer (surface mechanics, not set systems) included
+  // on the sets view for entry-mechanic discoverability. Per the
+  // governance contract Part 2: surface mechanics are NOT sets; the
+  // framing prose and section heading make the distinction explicit.
+  surfaceSystems: SurfaceSystemsCohort;
+}
+
+export interface SurfaceSystemsCohort {
+  intro:      string;   // explicit "distinct ontology layer" framing
+  totalTricks: number;
+  groups:     SurfaceSystemsGroup[];
+}
+
+export interface SurfaceSystemsGroup {
+  slug:      string;
+  label:     string;
+  note:      string;
+  tricks:    SetBrowseTrick[];
+}
+
+export interface SetBrowseGroup {
+  modifierSlug:   string;
+  modifierName:   string;
+  intro:          string;       // one-line set explanation
+  trickCount:     number;       // dynamic count
+  tricks:         SetBrowseTrick[];
+}
+
+export interface SetBrowseTrick {
+  slug:                string;
+  displayName:         string;
+  href:                string;
+  adds:                string | null;
+  addsLabel:           string;
+  operationalNotation: string;
+}
+
 // Dex-count grouped browse view (2026-05-24 notation-display audit Phase 4.1
 // prototype). Buckets active dictionary tricks by the number of [DEX] tokens
 // in their operational_notation field. Pedagogical axis: "How many dex
@@ -2128,6 +2190,10 @@ export interface FreestyleTricksIndexContent {
   // ?view=dex-count grouped view (2026-05-24 notation-display audit Phase 4.1).
   // Always shaped; UI branch renders only when activeView === 'dex-count'.
   dexCountGroups: FreestyleTrickDexCountGroup[];
+  // ?view=sets grouped view (2026-05-24 governance/polish slice). Always shaped;
+  // UI branch renders only when activeView === 'sets'. Replaces the previous
+  // sets→component alias (component view is soft-retired).
+  setsBrowseView: FreestyleSetsBrowseView;
   activeView: FreestyleTricksActiveView;
 
   // Existing category-grouped view, preserved for ?view=category.
@@ -2618,6 +2684,21 @@ export interface ObservedStatusChip {
   tone:  ObservedStatusTone;
 }
 
+export interface ObservationalLaneBucket {
+  laneSlug:   ObservationalGovernanceLane;
+  label:      string;            // pre-shaped section heading
+  intro:      string;            // one-line lane definition
+  cards:      readonly ObservedTrickCard[];
+  cardCount:  number;            // dynamic count
+}
+
+export interface ObservationalLanesView {
+  promotionQueue:  ObservationalLaneBucket;
+  formulaReview:   ObservationalLaneBucket;
+  sourceOnly:      ObservationalLaneBucket;
+  doctrineBlocked: ObservationalLaneBucket;
+}
+
 export interface ObservedTrickCardDetail {
   /** Readings beyond the first one (the first reading is rendered as
    *  the card's shortReading; this carries the rest). */
@@ -2637,6 +2718,10 @@ export interface ObservedTrickCardDetail {
 export interface ObservedTrickCard {
   folkSlug:         string;
   displayName:      string;
+  /** Explicit governance lane (per ObservationalGovernanceLane). Curator-
+   *  authored; defaults to 'source-only' when the source entry omits it.
+   *  Drives lane-bucketing on the Emerging Vocabulary page. */
+  governanceLane:   ObservationalGovernanceLane;
   sourceBadge:      ObservedSourceBadge;
   /** Full source citation surfaced as the badge's aria-label / title. */
   sourceTooltip:    string;
@@ -2669,6 +2754,10 @@ export interface FreestyleObservationalContent {
    *  labels (e.g. 'PB claim: 4'); the labels remain source-attributed
    *  and NEVER framed as canonical ADD. */
   cards:                readonly ObservedTrickCard[];
+  /** Cards bucketed into 4 governance lanes (2026-05-24 slice). Each
+   *  lane is an explicit governance bucket — curator-authored per
+   *  entry, NOT keyword-heuristic. Default lane is 'source-only'. */
+  lanes:                ObservationalLanesView;
   totalEntries:         number;
   /** Unique source badges represented (e.g. ['PB','FM']) for the page
    *  header source-summary chip strip. */
@@ -2726,6 +2815,10 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
   return {
     folkSlug:         t.folkSlug,
     displayName:      t.displayName,
+    // Default lane to 'source-only' when the curator hasn't explicitly
+    // promoted the entry (per the 2026-05-24 governance/polish slice
+    // contract: explicit manual field, NOT keyword heuristic).
+    governanceLane:   t.governanceLane ?? 'source-only',
     sourceBadge,
     sourceTooltip:    t.sourceCitation,
     statusChip:       OBSERVED_STATUS_CHIP[t.status],
@@ -5854,8 +5947,11 @@ export const freestyleService = {
     // experience renders for inbound legacy links without breaking them.
     const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
+    // 2026-05-24: ?view=sets now activates the dedicated By Set browse
+    // mode (was aliased to ?view=component prior to the governance/polish
+    // slice; component view is soft-retired).
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
-      ? (requestedView === 'sets' ? 'component' : requestedView)
+      ? requestedView
       : 'add';
     const activeView = resolvedView;
 
@@ -5968,6 +6064,103 @@ export const freestyleService = {
       tricks: b.tricks.map(r => shapeTrickIndexRow(r, ctx)),
       trickCount: b.tricks.length,
     }));
+
+    // ---- Sets browse view (?view=sets) ---------------------------------
+    // 2026-05-24 governance/polish slice. Two cohorts: core sets (clean +1
+    // primitives) and secondary/composite systems (compound or set-context).
+    // Reuses the modifier-link data already aggregated in setGroupAccumulator;
+    // a curator-paced content module (freestyleSetsViewIntros.ts) supplies
+    // the one-line intro per set.
+    const buildSetBrowseGroup = (
+      modifierSlug: string,
+      intro: string,
+    ): SetBrowseGroup | null => {
+      const bucket = setGroupAccumulator.get(modifierSlug);
+      if (!bucket || bucket.tricks.length === 0) return null;
+      const tricks: SetBrowseTrick[] = bucket.tricks
+        .slice()
+        .sort((a, b) => byCanonicalNameAlpha(
+          shapeTrickIndexRow(a, ctx),
+          shapeTrickIndexRow(b, ctx),
+        ))
+        .map(row => ({
+          slug:                row.slug,
+          displayName:         row.canonical_name,
+          href:                `/freestyle/tricks/${row.slug}`,
+          adds:                row.adds ?? null,
+          addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+          operationalNotation: row.operational_notation ?? '',
+        }));
+      return {
+        modifierSlug,
+        modifierName: bucket.modifierName,
+        intro,
+        trickCount:   tricks.length,
+        tricks,
+      };
+    };
+    const coreSets: SetBrowseGroup[] = CORE_SETS_INTROS
+      .map(spec => buildSetBrowseGroup(spec.modifierSlug, spec.intro))
+      .filter((g): g is SetBrowseGroup => g !== null);
+    const secondarySets: SetBrowseGroup[] = SECONDARY_SETS_INTROS
+      .map(spec => buildSetBrowseGroup(spec.modifierSlug, spec.intro))
+      .filter((g): g is SetBrowseGroup => g !== null);
+    // Alternate-surface systems cohort. Reuses the curator-authored
+    // groupings from freestyleAlternativeSurfaces.ts; filters out missing
+    // slugs the same way the Movement System subsection does. Per the
+    // governance contract Part 2: surface mechanics are a DISTINCT
+    // ontology layer from sets. The framing prose makes that explicit.
+    const surfaceSystemsGroups: SurfaceSystemsGroup[] = ALTERNATIVE_SURFACES.groups
+      .map(group => {
+        const tricks: SetBrowseTrick[] = group.tricks
+          .map(slug => allActiveTrickRowsBySlug.get(slug))
+          .filter((row): row is FreestyleTrickRow => row !== undefined)
+          .map(row => ({
+            slug:                row.slug,
+            displayName:         row.canonical_name,
+            href:                `/freestyle/tricks/${row.slug}`,
+            adds:                row.adds ?? null,
+            addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+            operationalNotation: row.operational_notation ?? '',
+          }));
+        return {
+          slug:    `set-surface-${group.slug}`,
+          label:   group.label,
+          note:    group.note,
+          tricks,
+        };
+      })
+      .filter(g => g.tricks.length > 0);
+
+    const surfaceSystems: SurfaceSystemsCohort = {
+      intro:
+        'Alternate-surface systems are a DISTINCT ontology layer from sets — surface ' +
+        'mechanics, not set primitives. Included on this view for entry-mechanic ' +
+        'discoverability: when a player thinks about how a trick starts, surface choice ' +
+        '(head, neck, sole, cloud, heel, flying entry) and set choice (pixie, fairy, ' +
+        'atomic, etc.) are parallel decisions, even though they live on different ' +
+        'ontology layers. See also the same listing on the Movement System view.',
+      totalTricks: surfaceSystemsGroups.reduce((n, g) => n + g.tricks.length, 0),
+      groups:      surfaceSystemsGroups,
+    };
+
+    const setsBrowseView: FreestyleSetsBrowseView = {
+      intro:
+        'Tricks grouped by which set initiates them, plus alternate-surface systems for ' +
+        'entry-mechanic discoverability. Sets are player-facing, learnable entry ' +
+        'systems: the pre-base motion that opens a trick. Core sets are the +1 set ' +
+        'primitives; secondary systems include compound sets and set-context modifiers. ' +
+        'Alternate-surface systems are a distinct ontology layer (surface mechanics, ' +
+        'not sets) included for discoverability. For the modifier vocabulary itself ' +
+        '(paradox, spinning, ducking, symposium, etc.), see the Operators & Modifiers ' +
+        'reference page.',
+      totalTricks:   coreSets.reduce((n, g) => n + g.trickCount, 0)
+                  + secondarySets.reduce((n, g) => n + g.trickCount, 0)
+                  + surfaceSystems.totalTricks,
+      coreSets,
+      secondarySets,
+      surfaceSystems,
+    };
 
     // ---- Component view (?view=component projection, DSC-2 slice 3A) ----
     // Body + set modifier axes only. Topology and movement-archetype axes
@@ -6237,8 +6430,8 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Trick Dictionary',
         description:
-          'The freestyle footbag trick dictionary — hundreds of named tricks, ' +
-          'browsable by difficulty, family, and movement system.',
+          `The freestyle footbag trick dictionary — ${canonicalCount} named canonical tricks, ` +
+          'browsable by difficulty, family, set, dex count, and movement system.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -6255,6 +6448,7 @@ export const freestyleService = {
       content: {
         addGroups,
         dexCountGroups,
+        setsBrowseView,
         activeView,
         groups,
         familyGroups,
@@ -6267,10 +6461,10 @@ export const freestyleService = {
         relatedSetGroups,
         totalTricks: canonicalCount,
         dictionaryIntro:
-          'Freestyle footbag has a vast and growing movement vocabulary — hundreds of ' +
-          'named tricks. Here they are grouped by ADD, a simple difficulty score: the ' +
-          'more a trick asks of you, the higher its ADD. Start with the gentlest tricks ' +
-          'and explore upward, or switch to another way of browsing below.',
+          `${canonicalCount} canonical tricks documented to date. Here they are grouped by ADD, ` +
+          'a simple difficulty score: the more a trick asks of you, the higher its ADD. ' +
+          'Start with the gentlest tricks and explore upward, or switch to another way of ' +
+          'browsing below.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +
@@ -6608,6 +6802,47 @@ export const freestyleService = {
     };
   },
 
+  buildObservationalLanes(cards: readonly ObservedTrickCard[]): ObservationalLanesView {
+    // Explicit governance-lane bucketing. Each card carries its
+    // curator-authored governanceLane (defaulted to 'source-only' at
+    // shape time when missing); this helper just buckets without
+    // heuristics, per the 2026-05-24 governance-contract requirement.
+    const promotionQueueCards  = cards.filter(c => c.governanceLane === 'promotion-queue');
+    const formulaReviewCards   = cards.filter(c => c.governanceLane === 'formula-review');
+    const doctrineBlockedCards = cards.filter(c => c.governanceLane === 'doctrine-blocked');
+    const sourceOnlyCards      = cards.filter(c => c.governanceLane === 'source-only');
+    return {
+      promotionQueue: {
+        laneSlug:  'promotion-queue',
+        label:     'Promotion queue',
+        intro:     'Source-backed names with plausible JOB notation and ADD accounting. Near-ready for canonical promotion after final curator review.',
+        cards:     promotionQueueCards,
+        cardCount: promotionQueueCards.length,
+      },
+      formulaReview: {
+        laneSlug:  'formula-review',
+        label:     'Formula review needed',
+        intro:     'Names with a known decomposition but inconsistent or unresolved ADD / formula reading. Awaiting curator adjudication of the structural interpretation.',
+        cards:     formulaReviewCards,
+        cardCount: formulaReviewCards.length,
+      },
+      sourceOnly: {
+        laneSlug:  'source-only',
+        label:     'Source-only documented',
+        intro:     'Known names from FootbagMoves / PassBack / footbag.org without enough verified structure yet. Default lane for new observational entries.',
+        cards:     sourceOnlyCards,
+        cardCount: sourceOnlyCards.length,
+      },
+      doctrineBlocked: {
+        laneSlug:  'doctrine-blocked',
+        label:     'Doctrine / policy blocked',
+        intro:     'Names blocked by an unresolved doctrine issue (paradox, x-dex, nuclear/atomic, inspinning, shooting, backside, fairy/orbit reading, productive-multiplicity, etc.). Curator decision required before triage.',
+        cards:     doctrineBlockedCards,
+        cardCount: doctrineBlockedCards.length,
+      },
+    };
+  },
+
   getObservationalLayerPage(): PageViewModel<FreestyleObservationalContent> {
     // Layer-separation invariant: this view-model is the ONLY place
     // observational entries surface. No DB query — content-module-driven
@@ -6648,6 +6883,7 @@ export const freestyleService = {
       },
       content: {
         cards,
+        lanes:               this.buildObservationalLanes(cards),
         totalEntries:        cards.length,
         sources,
         layerNote:

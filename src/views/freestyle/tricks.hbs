@@ -79,8 +79,13 @@
       <a href="/freestyle/tricks?view=dex-count">By dex count</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
-    <a href="/freestyle/operators">Operators &amp; Modifiers</a>
+    {{#if (eq content.activeView "sets")}}
+      <span class="trick-view-toggle-active">By set</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=sets">By set</a>
+    {{/if}}
   </nav>
+  <p class="trick-view-toggle-aside">For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names).</p>
 
   {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
   {{#if (eq content.activeView "add")}}
@@ -121,6 +126,103 @@
     </div>
   </section>
   {{/each}}
+  {{/if}}
+
+  {{! ── By Set view (2026-05-24 governance/polish slice).
+      Two cohorts: Core sets (clean +1 set primitives) and Secondary /
+      composite systems (compound sets + set-context modifiers). Compact
+      grouped view; trick links inline (NOT registry density). Replaces
+      the previous ?view=sets→component alias. }}
+  {{#if (eq content.activeView "sets")}}
+  <p class="browse-view-intro">{{content.setsBrowseView.intro}}</p>
+  <p class="sets-view-total detail-muted"><strong>{{content.setsBrowseView.totalTricks}}</strong> tricks grouped across {{content.setsBrowseView.coreSets.length}} core sets, {{content.setsBrowseView.secondarySets.length}} secondary / composite systems, and {{content.setsBrowseView.surfaceSystems.groups.length}} alternate-surface systems.</p>
+
+  {{#if content.setsBrowseView.coreSets.length}}
+  <section class="content-section sets-cohort" id="sets-core" aria-label="Core sets">
+    <div class="section-heading">
+      <h2>Core sets</h2>
+      <span class="section-count">{{content.setsBrowseView.coreSets.length}}</span>
+    </div>
+    {{#each content.setsBrowseView.coreSets}}
+    <section class="sets-group" id="set-{{modifierSlug}}">
+      <div class="sets-group-heading">
+        <h3>{{modifierName}}</h3>
+        <span class="section-count">{{trickCount}}</span>
+      </div>
+      <p class="sets-group-intro">{{intro}}</p>
+      <ul class="sets-trick-list">
+        {{#each tricks}}
+        <li class="sets-trick">
+          <a href="{{href}}">{{displayName}}</a>
+          <span class="sets-trick-add">({{addsLabel}})</span>
+          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{#if content.setsBrowseView.secondarySets.length}}
+  <section class="content-section sets-cohort" id="sets-secondary" aria-label="Secondary and composite systems">
+    <div class="section-heading">
+      <h2>Secondary / composite systems</h2>
+      <span class="section-count">{{content.setsBrowseView.secondarySets.length}}</span>
+    </div>
+    {{#each content.setsBrowseView.secondarySets}}
+    <section class="sets-group" id="set-{{modifierSlug}}">
+      <div class="sets-group-heading">
+        <h3>{{modifierName}}</h3>
+        <span class="section-count">{{trickCount}}</span>
+      </div>
+      <p class="sets-group-intro">{{intro}}</p>
+      <ul class="sets-trick-list">
+        {{#each tricks}}
+        <li class="sets-trick">
+          <a href="{{href}}">{{displayName}}</a>
+          <span class="sets-trick-add">({{addsLabel}})</span>
+          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{! Alternate-surface systems. DISTINCT ontology layer from set systems —
+      surface mechanics, not set primitives. Included on this view for
+      entry-mechanic discoverability. Same data as the alt-surfaces
+      subsection on ?view=movement-system; same compact-list density. }}
+  {{#if content.setsBrowseView.surfaceSystems.groups.length}}
+  <section class="content-section sets-cohort sets-cohort--surface" id="sets-surface" aria-label="Alternate-surface systems">
+    <div class="section-heading">
+      <h2>Alternate-surface systems</h2>
+      <span class="section-count">{{content.setsBrowseView.surfaceSystems.groups.length}}</span>
+    </div>
+    <p class="sets-cohort-framing"><strong>Distinct ontology layer.</strong> Surface mechanics are NOT sets; they are an orthogonal balance / control axis. Listed here for entry-mechanic discoverability.</p>
+    <p class="sets-cohort-intro">{{content.setsBrowseView.surfaceSystems.intro}}</p>
+    {{#each content.setsBrowseView.surfaceSystems.groups}}
+    <section class="sets-group" id="{{slug}}">
+      <div class="sets-group-heading">
+        <h3>{{label}}</h3>
+        <span class="section-count">{{tricks.length}}</span>
+      </div>
+      <p class="sets-group-intro">{{note}}</p>
+      <ul class="sets-trick-list">
+        {{#each tricks}}
+        <li class="sets-trick">
+          <a href="{{href}}">{{displayName}}</a>
+          <span class="sets-trick-add">({{addsLabel}})</span>
+          {{#if operationalNotation}}<code class="sets-trick-notation">{{operationalNotation}}</code>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/each}}
+  </section>
+  {{/if}}
   {{/if}}
 
   {{! ── Family view — registry density.
@@ -275,6 +377,7 @@
        public label renamed from "Topology"). The backend slug + URL
        parameter `?view=topology` are preserved for URL stability. ── }}
   {{#if (eq content.activeView "topology")}}
+  <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
   <p class="topology-view-note">
     {{content.topologyView.observationalNote}}
   </p>
@@ -312,8 +415,9 @@
       Axes shaped in declaration order; empty axes pruned. Modifier groups
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
+  <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
-  <p class="movement-system-cross-link detail-muted">For sets as tricks themselves (uptime motion analogues to ATW / orbit / pickup etc.), see <a href="/freestyle/compositional-sets">Compositional Sets</a>.</p>
+  <p class="movement-system-cross-link detail-muted">For sets as tricks themselves (uptime motion analogues to ATW / orbit / pickup etc.), see <a href="/freestyle/compositional-sets">Compositional Sets</a>. For tricks grouped by their entry set, see <a href="/freestyle/tricks?view=sets">By set</a>.</p>
 
   {{! Axis-jump nav. Mirror of the Component view's pattern. }}
   <nav class="movement-axis-jump" aria-label="Movement System axes">

@@ -529,11 +529,14 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=sets returns 200 and resolves to ?view=component (legacy alias)', async () => {
+  it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view, 2026-05-24)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    // Alias resolves server-side; same component-view markup renders.
-    expect(res.text).toContain('dict-card-stack');
+    // 2026-05-24 governance/polish slice: ?view=sets is no longer a
+    // component alias. It now renders the dedicated By Set browse view
+    // (compact-list density, NOT dict-card-stack registry density).
+    // Active-toggle marker confirms the routing.
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
   });
 
   it('/freestyle/tricks?view=category returns 200 and uses the shared card (slice 3B migrated)', async () => {
@@ -542,11 +545,12 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('every browse view now renders via the shared dictionary-trick-card partial (card-uniformity contract)', async () => {
-    // Bare /freestyle/tricks renders the dictionary landing surface
-    // post-CR-1; it has no trick cards by design. Each explicit
-    // ?view= URL still renders the shared dict-card-stack.
-    for (const view of ['add', 'family', 'category', 'component', 'sets']) {
+  it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
+    // 2026-05-24: ?view=sets removed from this card-uniformity contract.
+    // The dedicated By Set view uses compact-list density rendering, not
+    // the dictionary-trick-card partial. The card-uniformity contract
+    // still holds for the older registry-density views.
+    for (const view of ['add', 'family', 'category', 'component']) {
       const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);

@@ -9403,3 +9403,115 @@ a.dict-card-title:hover {
   margin: 10px 0 18px;
   font-size: 0.9rem;
 }
+
+/* 2026-05-24 governance/polish slice.
+   - Toggle aside for the Operators & Modifiers reference link
+   - Sets browse view (?view=sets) — Core / Secondary cohorts
+   - Browse-view status label (Movement System / Neighborhoods exploratory)
+   - Observational lane sections
+   - "By Set" trick-list density
+*/
+.trick-view-toggle-aside {
+  margin: 6px 0 14px;
+  font-size: 0.85rem;
+  color: var(--text-subtle, #777);
+  font-style: italic;
+}
+.browse-view-status-label {
+  display: inline-block;
+  margin: 4px 0 6px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  background: var(--bg-subtle, #f3f3f3);
+  border-radius: 3px;
+  color: var(--text-secondary, #555);
+}
+.sets-view-total {
+  margin: 4px 0 18px;
+  font-size: 0.92rem;
+}
+.sets-cohort {
+  margin-top: 22px;
+}
+.sets-cohort--surface {
+  border-top: 1px solid var(--border-subtle, #e5e5e5);
+  padding-top: 16px;
+}
+.sets-cohort-framing {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #555);
+  margin: 4px 0 6px;
+  line-height: 1.45;
+}
+.sets-cohort-framing strong {
+  color: var(--text-primary, #333);
+}
+.sets-cohort-intro {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #555);
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+.sets-group {
+  margin: 14px 0 22px;
+  padding-left: 6px;
+  border-left: 2px solid var(--border-subtle, #eee);
+}
+.sets-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sets-group-heading h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+.sets-group-intro {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #555);
+  line-height: 1.4;
+}
+.sets-trick-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.sets-trick {
+  padding: 3px 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.sets-trick a {
+  font-weight: 500;
+}
+.sets-trick-add {
+  color: var(--text-subtle, #888);
+  font-size: 0.85rem;
+  margin: 0 6px 0 4px;
+}
+.sets-trick-notation {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--text-subtle, #777);
+  margin-left: 4px;
+}
+.family-view-ordering-note {
+  margin: 4px 0 14px;
+  font-size: 0.92rem;
+  color: var(--text-subtle, #666);
+}
+.observed-lane {
+  margin: 22px 0 28px;
+}
+.observed-lane-intro {
+  margin: 4px 0 12px;
+  font-size: 0.92rem;
+  color: var(--text-secondary, #555);
+  line-height: 1.45;
+}
+.observed-lane--promotion-queue .section-heading h2 { color: #2e7d32; }
+.observed-lane--formula-review .section-heading h2 { color: #ad7a00; }
+.observed-lane--doctrine-blocked .section-heading h2 { color: #8e2a2a; }
+.observed-lane--source-only .section-heading h2 { color: var(--text-primary, #333); }

@@ -62,49 +62,76 @@
 
     {{#if content.totalEntries}}
       <p class="observed-count-strip" aria-label="Total observational entries">
-        <strong>{{content.totalEntries}}</strong> observational tricks pending canonical review.
+        <strong>{{content.totalEntries}}</strong> observational tricks pending canonical review, grouped into four governance lanes below.
       </p>
-      <div class="observed-card-grid">
-        {{#each content.cards}}
-        <article class="observed-card" data-folk-slug="{{folkSlug}}">
-          <header class="observed-card-head">
-            <span class="observed-card-source-badge observed-card-source-badge--{{sourceBadge}}" title="{{sourceTooltip}}" aria-label="Source: {{sourceTooltip}}">{{sourceBadge}}</span>
-            <h3 class="observed-card-name">{{displayName}}</h3>
-            <span class="observed-card-status-chip observed-card-status-chip--{{statusChip.tone}}">{{statusChip.label}}</span>
-          </header>
-          <p class="observed-card-meta">
-            <span class="tracked-tag" aria-label="Documented name, not yet reviewed">#{{folkSlug}}</span>
-            {{#if shortReading}}<span class="observed-card-reading"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{shortReading}}</span>{{/if}}
-            {{#if externalClaimLabel}}<span class="observed-card-external-claim">{{externalClaimLabel}}</span>{{/if}}
-          </p>
-          {{#if hasDetails}}
-          <details class="observed-card-details">
-            <summary class="observed-card-details-summary">More</summary>
-            {{#if detailExpansion.additionalReadings.length}}
-            <ul class="observed-card-detail-readings">
-              {{#each detailExpansion.additionalReadings}}
-              <li><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{this}}</li>
-              {{/each}}
-            </ul>
-            {{/if}}
-            {{#if detailExpansion.formula}}
-            <p class="observed-card-detail-formula"><code>{{detailExpansion.formula}}</code></p>
-            {{/if}}
-            {{#if detailExpansion.curatorNote}}
-            <p class="observed-card-detail-note"><em>Curator note:</em> {{detailExpansion.curatorNote}}</p>
-            {{/if}}
-            {{#if detailExpansion.blockers.length}}
-            <p class="observed-card-detail-blockers">
-              <em>Blockers:</em>
-              {{#each detailExpansion.blockers}}{{#unless @first}}; {{/unless}}{{this}}{{/each}}
-            </p>
-            {{/if}}
-            <p class="observed-card-detail-source">Source: {{detailExpansion.sourceCitation}}</p>
-          </details>
-          {{/if}}
-        </article>
-        {{/each}}
-      </div>
+
+      {{! ── Governance lanes (2026-05-24 slice). Four lanes; each lane
+          renders only when it has entries. Cards retain the same shape
+          as the previous flat grid; the lane sections are the only
+          structural change. }}
+      {{#with content.lanes}}
+
+      {{#if promotionQueue.cardCount}}
+      <section class="observed-lane observed-lane--promotion-queue" id="lane-promotion-queue" aria-label="Promotion queue lane">
+        <div class="section-heading">
+          <h2>{{promotionQueue.label}}</h2>
+          <span class="section-count">{{promotionQueue.cardCount}}</span>
+        </div>
+        <p class="observed-lane-intro">{{promotionQueue.intro}}</p>
+        <div class="observed-card-grid">
+          {{#each promotionQueue.cards}}
+            {{> observed-card-fields}}
+          {{/each}}
+        </div>
+      </section>
+      {{/if}}
+
+      {{#if formulaReview.cardCount}}
+      <section class="observed-lane observed-lane--formula-review" id="lane-formula-review" aria-label="Formula review lane">
+        <div class="section-heading">
+          <h2>{{formulaReview.label}}</h2>
+          <span class="section-count">{{formulaReview.cardCount}}</span>
+        </div>
+        <p class="observed-lane-intro">{{formulaReview.intro}}</p>
+        <div class="observed-card-grid">
+          {{#each formulaReview.cards}}
+            {{> observed-card-fields}}
+          {{/each}}
+        </div>
+      </section>
+      {{/if}}
+
+      {{#if doctrineBlocked.cardCount}}
+      <section class="observed-lane observed-lane--doctrine-blocked" id="lane-doctrine-blocked" aria-label="Doctrine blocked lane">
+        <div class="section-heading">
+          <h2>{{doctrineBlocked.label}}</h2>
+          <span class="section-count">{{doctrineBlocked.cardCount}}</span>
+        </div>
+        <p class="observed-lane-intro">{{doctrineBlocked.intro}}</p>
+        <div class="observed-card-grid">
+          {{#each doctrineBlocked.cards}}
+            {{> observed-card-fields}}
+          {{/each}}
+        </div>
+      </section>
+      {{/if}}
+
+      {{#if sourceOnly.cardCount}}
+      <section class="observed-lane observed-lane--source-only" id="lane-source-only" aria-label="Source-only documented lane">
+        <div class="section-heading">
+          <h2>{{sourceOnly.label}}</h2>
+          <span class="section-count">{{sourceOnly.cardCount}}</span>
+        </div>
+        <p class="observed-lane-intro">{{sourceOnly.intro}}</p>
+        <div class="observed-card-grid">
+          {{#each sourceOnly.cards}}
+            {{> observed-card-fields}}
+          {{/each}}
+        </div>
+      </section>
+      {{/if}}
+
+      {{/with}}
     {{else}}
     <p class="observational-empty-state">
       No observational entries currently staged. The

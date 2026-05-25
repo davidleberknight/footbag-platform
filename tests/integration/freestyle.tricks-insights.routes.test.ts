@@ -508,7 +508,9 @@ describe('public dictionary presentation', () => {
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
-    expect(res.text).toMatch(/vast and growing movement vocabulary/);
+    // 2026-05-24 governance/polish slice: vague "vast and growing
+    // movement vocabulary" replaced with a dynamic canonical-trick count.
+    expect(res.text).toMatch(/\d+ canonical tricks documented to date/);
     // The retired publication-state expansion note must not return.
     expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });
@@ -1009,7 +1011,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="trick-coverage-summary"');
     expect(res.text).not.toContain('External-source placeholders are shown for transparency');
-    expect(res.text).not.toMatch(/\d+\s+canonical tricks/);
+    // 2026-05-24: lead-count assertion reversed by governance/polish slice.
+    // Dynamic canonical-trick count IS now surfaced in the dictionary intro.
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {
@@ -1034,32 +1037,26 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks?view=sets — legacy alias for ?view=component', () => {
-  // DSC-2 slice 3A: ?view=sets continues to resolve to the new ?view=component
-  // render path; the legacy URL is supported for backward compatibility but
-  // the rendered page is the new component view (axes + dict-card-stack).
+describe('GET /freestyle/tricks?view=sets — dedicated By Set view (2026-05-24)', () => {
+  // 2026-05-24 governance/polish slice: ?view=sets no longer aliases to
+  // ?view=component (which is soft-retired). It now activates the
+  // dedicated By Set browse view with two cohorts (Core sets +
+  // Secondary / composite systems).
 
-  it('returns 200 and renders the component view (legacy alias)', async () => {
-    // 2026-05-18 Component View soft retirement: the URL still resolves
-    // and renders the view (bookmark/external-link compatibility),
-    // but the "By component" toggle entry is no longer surfaced.
-    // The retirement notice appears above the view body.
+  it('returns 200 and renders the dedicated By Set view (not the component alias)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    // The component view renders the dict-card-stack via the shared partial.
-    expect(res.text).toContain('dict-card-stack');
-    // Retirement notice present on the alias path too.
-    expect(res.text).toContain('class="component-view-retirement-notice"');
-    // Active-state toggle entry no longer exists (soft retirement).
-    expect(res.text).not.toMatch(/class="trick-view-toggle-active">By component</);
-  });
-
-  it('cross-references the static set-notation reference page is no longer required on the dictionary projection (the static legend stays at /freestyle/sets; the component view does not link to it inline)', async () => {
-    // Legacy assertion retired: the new component view focuses on the
-    // symbolic trick cards. The /freestyle/sets page remains the static
-    // set-notation reference, reachable from the freestyle landing.
-    expect(true).toBe(true);
+    // Active-state toggle entry confirms the new view took effect (and
+    // is no longer an alias to the soft-retired component view).
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
+    // Confirm we are NOT showing the soft-retired component view's
+    // retirement notice (i.e. the legacy alias is gone).
+    expect(res.text).not.toContain('class="component-view-retirement-notice"');
+    // Cohort sections render conditional on having modifier-linked
+    // tricks; this fixture doesn't seed set modifier links, so the
+    // cohort h2s may be empty. Full cohort rendering is exercised in
+    // tests/integration/freestyle.sets-view.routes.test.ts.
   });
 });
 
