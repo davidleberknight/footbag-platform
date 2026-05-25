@@ -215,3 +215,104 @@ describe('Pre-Adrian promotion — provenance is visible, not silently curator-a
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Canonical browse-view regression (the surface Adrian will see).
+//
+// Per curator pushback 2026-05-25: detail-route + content-overlay tests
+// are insufficient — the canonical browse view at /freestyle/tricks?view=add
+// must visibly render the promoted rows. These tests assert that.
+//
+// The test DB seeds the 4 promoted slugs (the same way the production DB
+// will look after loader 19 has ingested them, which has already been
+// done in dev — see commit message). The browse-view assertions verify
+// that each slug renders an article card in its expected ADD bucket and
+// that the JOB row is present on the card.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view=add) renders the 3 new trick rows', () => {
+  // clipper is INTENTIONALLY excluded from the ADD browse — the curator
+  // discriminator at src/content/freestyleTrickKindOverrides.ts classifies
+  // clipper as kind='surface' (the body-kick position, not a terminating
+  // trick). The clipper row itself still receives the operationalNotation
+  // overlay (verified separately by the trick-detail tests above).
+  const ADD_BROWSE_VISIBLE = PROMOTION_COHORT.filter(r => r.slug !== 'clipper');
+
+  it.each(ADD_BROWSE_VISIBLE.map(r => [r.slug] as const))(
+    '%s appears as an article card on the ADD browse view',
+    async (slug) => {
+      const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain(`data-trick-slug="${slug}"`);
+    },
+  );
+
+  it('around-the-world-kick appears under the 1 ADD section', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
+    expect(oneAddSectionMatch).toBeTruthy();
+    expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="around-the-world-kick"');
+  });
+
+  it('triple-around-the-world appears under the 4 ADD section', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const fourAddSectionMatch = res.text.match(/<section[^>]*id="add-4"[\s\S]*?<\/section>/);
+    expect(fourAddSectionMatch).toBeTruthy();
+    expect(fourAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="triple-around-the-world"');
+  });
+
+  it('double-around-the-world-heel appears under the 3 ADD section', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const threeAddSectionMatch = res.text.match(/<section[^>]*id="add-3"[\s\S]*?<\/section>/);
+    expect(threeAddSectionMatch).toBeTruthy();
+    expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double-around-the-world-heel"');
+  });
+
+  it('clipper is INTENTIONALLY excluded from the ADD browse (kind=surface per discriminator); concept represented via its own row + overlay', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    // The 1-ADD section does NOT render clipper as an article card
+    // (because kind='surface' filters it out). This is by design.
+    const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
+    expect(oneAddSectionMatch?.[0] ?? '').not.toContain('data-trick-slug="clipper"');
+    // But the trick-detail page still renders (verified above) and the
+    // RESOLVED_FORMULAS overlay carries OP CLIP [XBD] (verified above).
+  });
+});
+
+describe('Pre-Adrian promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
+  it('TRACKED_UNPUBLISHED_TOTAL decreased by 4 (558 → 554) after the 4 slugs moved to canonical-published state', async () => {
+    const { TRACKED_UNPUBLISHED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBe(554);
+  });
+
+  it('the 4 promoted slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
+    const { TRACKED_UNPUBLISHED_NAMES } = await import('../../src/content/freestyleTrackedNames');
+    const allTrackedSlugs = new Set<string>();
+    for (const group of TRACKED_UNPUBLISHED_NAMES) {
+      for (const name of group.names) {
+        allTrackedSlugs.add(name.slug);
+      }
+    }
+    expect(allTrackedSlugs.has('around-the-world-kick')).toBe(false);
+    expect(allTrackedSlugs.has('triple-around-the-world')).toBe(false);
+    expect(allTrackedSlugs.has('double-around-the-world-heel')).toBe(false);
+    expect(allTrackedSlugs.has('clipper-kick')).toBe(false);
+  });
+
+  it('/freestyle/observational page renders the updated 554 count, not 558', async () => {
+    const res = await request(await createApp()).get('/freestyle/observational');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('554 more documented names');
+    expect(res.text).not.toContain('558 more documented names');
+  });
+
+  it('/freestyle/observational does NOT list any of the 4 promoted slugs as tracked names', async () => {
+    const res = await request(await createApp()).get('/freestyle/observational');
+    // The tracked-names section renders #slug tags. After promotion, these
+    // slugs must not appear as observational entries.
+    expect(res.text).not.toMatch(/#around-the-world-kick/);
+    expect(res.text).not.toMatch(/#triple-around-the-world(?!-)/);  // negative lookahead to avoid matching e.g. triple-around-the-world-XYZ
+    expect(res.text).not.toMatch(/#double-around-the-world-heel/);
+    expect(res.text).not.toMatch(/#clipper-kick/);
+  });
+});

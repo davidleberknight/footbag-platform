@@ -15,17 +15,6 @@
 // Source: the 2026-05-21 cross-source vocabulary reconciliation audit
 // + SYMBOLIC_GRAMMAR_MASTER.csv (symbolic_notation_raw).
 // Reversible content module per [[feedback_reversible_content_governance]].
-//
-// FM-PARENS NOTATION CONVENTION (forever-rule, 2026-05-23):
-// The operationalNotation strings sourced from FootbagMoves use mixed-case
-// tokens with (parens) flags. Under this convention, only (DEX) tokens
-// contribute +1 ADD; other parenthesized flags ((XBD), (BOD), (PDX),
-// (DEL), (XDEX), (UNS)) are descriptive qualifiers on movement events.
-// This is distinct from the canonical-bracket convention used by
-// footbag.org-sourced strings (uppercase [TOKEN] form), where every
-// bracket contributes +1. Punctuation style determines counting
-// convention; rewriting between conventions is doctrine work, not
-// transcription. See PUBLICATION_STANDARDS.md.
 
 export interface TrackedName {
   /** Trick name as documented by the source. */
@@ -49,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 558;
+export const TRACKED_UNPUBLISHED_TOTAL = 554;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -445,7 +434,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Zulu Whirl', slug: 'zulu-whirl' },
   ] },
   { sourceLabel: 'footbag.org', names: [
-    { displayName: 'Around the World Kick', slug: 'around-the-world-kick' },
     { displayName: 'Atomic Eclipse', slug: 'atomic-eclipse', operationalNotation: 'TOE > OP OUT [DEX] > (JUMP) [BOD] > OP INSIDE [DEL] > OP OUT [DEX] > (LAND)', formulaProvenance: 'footbag.org' },
     { displayName: 'Backside Symposium Smear', slug: 'backside-symposium-smear', operationalNotation: 'TOE > SAME IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Backside Symposium Toe Blizzard', slug: 'backside-symposium-toe-blizzard', operationalNotation: 'TOE > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
@@ -456,9 +444,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Blurry Whirling Swirl', slug: 'blurry-whirling-swirl', operationalNotation: 'CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Bubba', slug: 'bubba', operationalNotation: 'CLIP > OP OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Butterfly Kick', slug: 'butterfly-kick', operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX] > OP CLIP [XBD]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Clipper Kick', slug: 'clipper-kick', operationalNotation: 'CLIP [XBD]', formulaProvenance: 'footbag.org' },
     { displayName: 'Da Da Curve', slug: 'da-da-curve', operationalNotation: 'CLIP > OP IN [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Double Around the World Heel', slug: 'double-around-the-world-heel', operationalNotation: 'TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Blender', slug: 'double-blender', operationalNotation: 'SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Pickup', slug: 'double-pickup', operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Switch-Over', slug: 'double-switch-over', operationalNotation: 'SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
@@ -561,7 +547,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Toe Double Drifter', slug: 'toe-double-drifter', operationalNotation: 'TOE > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Toe Ripwalk', slug: 'toe-ripwalk', operationalNotation: 'TOE > OP IN [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Toe Whirr', slug: 'toe-whirr', operationalNotation: 'TOE > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Triple Around The World', slug: 'triple-around-the-world', operationalNotation: 'TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Triple Spin', slug: 'triple-spin', operationalNotation: '[BOD] [BOD] [BOD]', formulaProvenance: 'footbag.org' },
     { displayName: 'Wrap', slug: 'wrap' },
   ] },
