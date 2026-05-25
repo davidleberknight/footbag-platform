@@ -311,11 +311,14 @@ describe('First-class rendering parity — informative chain preserved', () => {
 });
 
 describe('First-class rendering parity — honest incomplete-state', () => {
+  // Post-2026-05-25 Bucket A backfill (DERIVATION_AUDIT.md §2.1):
+  // symposium-mirage and ripwalk were promoted out of the JOB-pending
+  // state when their operationalNotation field was added to
+  // RESOLVED_FORMULAS_SPRINT_1. Only paradox-mirage and atomic-butterfly
+  // remain JOB-pending in this cohort.
   it.each([
     ['paradox-mirage',   'paradox(+1) + mirage(2) &#x3D; 3 ADD'],
-    ['symposium-mirage', 'symposium(+1) + mirage(2) &#x3D; 3 ADD'],
     ['atomic-butterfly', 'atomic(+1) + butterfly(3) &#x3D; 4 ADD'],
-    ['ripwalk',          'stepping(+1) + butterfly(3) &#x3D; 4 ADD'],
   ])('%s renders ADD breakdown + honest "JOB: notation pending" line', async (slug, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');

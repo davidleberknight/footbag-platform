@@ -133,6 +133,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'symposium(+1) + mirage(2) = 3 ADD',
+    operationalNotation: 'SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); symposium-whirl precedent + mirage base; not Red-confirmed.
     provenance:  'symposium = +1 no-plant body modifier; mirage = 2 ADD core atom',
   },
   {
@@ -173,6 +174,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'ducking(+1) + whirl(3) = 4 ADD',
+    operationalNotation: 'TOE > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); ducking-mirage precedent + whirl base; not Red-confirmed.
     provenance:  'ducking = +1 midtime body modifier; whirl = 3 ADD core atom',
   },
   {
@@ -213,6 +215,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + whirl(3) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] >> SAME IN [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); tombstone (stepping drifter) precedent + whirl base; not Red-confirmed.
     provenance:  'stepping = +1 set modifier; whirl = 3 ADD core atom',
   },
   {
@@ -243,6 +246,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + blender(4) = 5 ADD',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); paradox-whirl direction-flip precedent + blender base; not Red-confirmed.
     provenance:  'paradox = +1 body modifier; blender = 4 ADD compound (whirling osis)',
   },
   {
@@ -253,6 +257,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + torque(4) = 5 ADD',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); paradox-whirl direction-flip precedent + torque (miraging osis) base; not Red-confirmed.
     provenance:  'paradox = +1 body modifier; torque = 4 ADD compound (miraging osis, pt11)',
   },
   {
@@ -263,6 +268,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'spinning(+1) + torque(4) = 5 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); spinning-osis double-spin pattern + torque (miraging osis) base; not Red-confirmed.
     provenance:  'spinning = +1 midtime body modifier; torque = 4 ADD compound (miraging osis, pt11)',
   },
 
@@ -368,6 +374,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + butterfly(3) = 4 ADD',
+    operationalNotation: 'CLIP > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); dimwalk (pixie butterfly) dex-direction model + tombstone (stepping drifter) stepping pattern; not Red-confirmed.
     provenance:  'Folk-name resolution per operator-board lede + glossary §3 + §8: STEP + BUTTERFLY → RIPWALK. stepping = +1 set modifier (foot relocation); butterfly = 3 ADD core atom.',
   },
   // 'rev-up' resolved-formula entry removed 2026-05-24 per curator
@@ -396,6 +403,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'atomic(+1) + mirage(2) + x-dex/paradox-like contribution(+1) = 4 ADD',
+    operationalNotation: 'TOE > SAME OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); scrambled-eggbeater (atomic-pickup X-Dex) pattern + mirage base; not Red-confirmed (Red 2026-05-15 ruled the ADD-math but not the operational notation).
     provenance:  'Red 2026-05-15 ruling: Atom Smasher carries x-dex/paradox-like extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific x-dex/paradox-like contribution, not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
   },
 
@@ -485,6 +493,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    5,
     derivation:  'furious(+2 rotational) + paradox(+1) + mirage(2) = 5 ADD',
+    operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [PDX] [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); furious multi-dex pattern (nemesis precedent) + paradox-mirage stack; not Red-confirmed (Red pt6 ruled the chain reading but not the operational notation).
     provenance:  'Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +1 non-rotational / +2 rotational; applied to mirage (rotational base) yields +2. Chain reading published in freestyleSymbolicEquivalences.ts.',
   },
   {
@@ -531,6 +540,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + drifter(3) = 4 ADD',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); paradox-whirl direction-flip precedent + drifter base; not Red-confirmed.
     provenance:  'paradox = +1 body modifier; drifter = 3 ADD rotational compound base. Wave 1 audit derivation 2026-05-22.',
   },
   {
@@ -669,6 +679,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'spinning(+1) + whirl(3) = 4 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); spinning-pickup / spinning-clipper precedents + whirl base; not Red-confirmed.
     provenance:  'spinning = +1 midtime body modifier; whirl = 3 ADD rotational core atom.',
   },
   {
@@ -719,6 +730,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'spinning(+1) + symposium(+1) + whirl(3) = 5 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); clean compose of spinning + symposium-whirl precedents on whirl base; not Red-confirmed.
     provenance:  'spinning = +1 body modifier; symposium = +1 no-plant body modifier; whirl = 3 ADD rotational core atom.',
   },
   {
@@ -729,6 +741,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    5,
     derivation:  'atom-smasher(4) + symposium(+1) = 5 ADD',
+    operationalNotation: 'CLIP > (no plant while) SAME OUT [BOD] [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); atom-smasher (atomic-mirage X-Dex) + symposium-whirl no-plant pattern; not Red-confirmed (Red 2026-05-20 ruled the ADD-math but not the operational notation).
     provenance:  'Red 2026-05-20 adjudication: Atomic Mirage already 4 (Atom Smasher canonical); witchdoctor = Atomic Mirage + Symposium = 5 ADD. Composite reading (COMPOSITE_DERIVATIONS) — atom-smasher as the curator-canonical 4-ADD composite base.',
   },
   {
@@ -799,6 +812,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'symposium(+1) + illusion(2) = 3 ADD',
+    operationalNotation: 'SET > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); symposium-whirl no-plant pattern + illusion base; not Red-confirmed.
     provenance:  'symposium = +1 no-plant body modifier; illusion = 2 ADD core atom. DB description "Symposium-modified illusion."',
   },
   {
@@ -849,6 +863,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + dlo(3) = 4 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] >> SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); tombstone (stepping drifter) stepping pattern + double-leg-over base; not Red-confirmed.
     provenance:  'stepping = +1 body modifier; double-leg-over (dlo) = 3 ADD compound base. DB description "Stepping-modified double leg over." Folk-name resolution.',
   },
   {
@@ -1136,6 +1151,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + barrage(3) = 4 ADD',
+    operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); tombstone (stepping drifter) stepping pattern + barrage doubled-dex base; medium confidence (stepping-on-barrage stack pattern is unprecedented); not Red-confirmed.
     provenance:  'stepping = +1 body modifier; barrage = 3 ADD compound (Wave 3 promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (Wave 7 doctrine-divergence pilot 2026-05-23).',
   },
   {
@@ -1186,5 +1202,46 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'dex(2) + stall(1) = 3 ADD',
     operationalNotation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
     provenance:  'footbag.org corpus base operational form. Opposite-side inside dex into opposite-side outside dex into a same-side toe stall. ADD decomposes as two dex events (1 each) plus the terminal stall (1). Alias forms (double legover, dlo) collapse to the canonical double-leg-over slug.',
+  },
+
+  // ─── Bucket A derivation backfill (2026-05-25) ────────────────────────────
+  // Three new ResolvedFormula entries from the pre-Red derivation audit
+  // (exploration/derivation-audit-2026-05-25/DERIVATION_AUDIT.md §2.1
+  // Bucket A). Slugs had neither a ResolvedFormula entry nor an
+  // operational_notation row in DB; the audit derived candidate JOB
+  // forms from observed sibling precedents and operator-grammar rules.
+  // All three are sibling-derivation only; NOT Red-confirmed.
+  {
+    slug:        'bigwalk',
+    name:        'bigwalk',
+    operator:    'surging',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'surging(+2 = spinning + stepping per Red pt2) + butterfly(3) = 5 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); surging pattern (surge / surreal / venom) + butterfly base; not Red-confirmed.
+    provenance:  'surging primitive (2 ADD; decomposes to spinning + stepping per Red pt2); butterfly = 3 ADD core atom. Chain reading "surging butterfly" per freestyleSymbolicEquivalences.ts. Bucket A derivation backfill 2026-05-25.',
+  },
+  {
+    slug:        'torque',
+    name:        'torque',
+    operator:    'miraging',
+    base:        'osis',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'miraging(+1) + osis(3) = 4 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > (back or front) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); compound-of-canonicals (mirage dex + osis spin-terminal); chain reading "miraging osis" pt11-locked; not Red-confirmed for operational notation.
+    provenance:  'pt11-locked chain reading "miraging osis": torque = mirage operator (+1 dex on the osis chassis) + osis = 4 ADD. The operational notation composes mirage\'s in-to-out dex with osis\'s spin-into-clipper terminal. Bucket A derivation backfill 2026-05-25.',
+  },
+  {
+    slug:        'omelette',
+    name:        'omelette',
+    operator:    'atomic',
+    base:        'illusion',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'atomic(+1 non-rotational) + illusion(2) = 3 ADD',
+    operationalNotation: 'SET > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); chain reading "atomic illusion" (pt2 + followup-2026-04 locked) drives the derivation despite DB base_trick=pickup; structural conflict noted in audit; not Red-confirmed for operational notation.
+    provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 non-rotational set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill 2026-05-25.',
   },
 ];
