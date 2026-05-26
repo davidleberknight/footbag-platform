@@ -21,6 +21,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3159');
 
@@ -34,10 +39,19 @@ const PRIORITY_SETS = [
 
 beforeAll(async () => {
   // The Set Encyclopedia reads from CANONICAL_SETS (content module),
-  // not from freestyle_tricks. No trick seeding required for the page
-  // itself — though we seed minimal rows so the detail-page link target
-  // can resolve when assertions verify hrefs.
-  createTestDb(dbPath);
+  // not from freestyle_tricks. We seed a handful of trick rows + modifier
+  // links so the S1 "Common in:" preview line has data to render for at
+  // least one canonical set (pixie); cards without seeded links render
+  // an empty produces array and suppress the line.
+  const db = createTestDb(dbPath);
+  insertFreestyleTrickModifier(db, { slug: 'pixie' });
+  insertFreestyleTrick(db, { slug: 'dimwalk',        canonical_name: 'dimwalk',        adds: '4' });
+  insertFreestyleTrick(db, { slug: 'smear',          canonical_name: 'smear',          adds: '3' });
+  insertFreestyleTrick(db, { slug: 'pixie-illusion', canonical_name: 'pixie illusion', adds: '3' });
+  insertFreestyleTrickModifierLink(db, 'dimwalk',        'pixie');
+  insertFreestyleTrickModifierLink(db, 'smear',          'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie-illusion', 'pixie');
+  db.close();
   createApp = await importApp();
 });
 
@@ -176,5 +190,124 @@ describe('Cross-link presence on sibling pages', () => {
   it('glossary links to the Set Encyclopedia', async () => {
     const res = await request(await createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// S1 — Index card refinement (role chip · ★ flagship marker · Common in)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/sets — S1 role chip on every card', () => {
+  it('every card carries a role-chip class', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
+    const roleChipMatches   = res.text.match(/sets-encyclopedia-card-role-chip\b/g) ?? [];
+    expect(detailLinkMatches.length).toBeGreaterThan(0);
+    // One role chip per card (the base class appears once per chip;
+    // the role-variant class is a second occurrence on the same element).
+    expect(roleChipMatches.length).toBeGreaterThanOrEqual(detailLinkMatches.length);
+  });
+
+  it('true-core TOE-prefix sets carry the +1 entry role', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    for (const slug of ['pixie', 'fairy', 'atomic', 'quantum']) {
+      // Card present + role chip variant + role label visible
+      expect(res.text).toContain(`id="enc-set-${slug}"`);
+      expect(res.text).toContain('sets-encyclopedia-card-role-chip--plus-one-entry');
+    }
+    expect(res.text).toMatch(/>\+1 entry<\/span>/);
+  });
+
+  it('true-core CLIP-prefix sets carry the CLIP entry role', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    for (const slug of ['stepping', 'bubba', 'slapping', 'tapping']) {
+      expect(res.text).toContain(`id="enc-set-${slug}"`);
+    }
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip--clip-entry');
+    expect(res.text).toMatch(/>CLIP entry<\/span>/);
+  });
+
+  it('composite-derived / rotational / uns / rooted subtypes each carry their distinct role chip', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip--composite');
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip--rotational');
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip--uns-entry');
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip--rooted');
+  });
+});
+
+describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets', () => {
+  const FLAGSHIP_SLUGS = ['pixie', 'fairy', 'stepping', 'atomic', 'quantum'] as const;
+  const NON_FLAGSHIP_SLUGS = ['bubba', 'slapping', 'blurry', 'surging'] as const;
+
+  it.each(FLAGSHIP_SLUGS.map(slug => [slug] as const))(
+    '%s carries the flagship-marker chip with a title tooltip',
+    async (slug) => {
+      const res = await request(await createApp()).get('/freestyle/sets');
+      // Locate the card and assert the flagship span is present inside it.
+      const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
+      expect(cardIdx).toBeGreaterThan(0);
+      const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
+      expect(cardSlice).toMatch(/<span class="sets-encyclopedia-card-flagship" title="Flagship set: [^"]+">/);
+    },
+  );
+
+  it.each(NON_FLAGSHIP_SLUGS.map(slug => [slug] as const))(
+    '%s does NOT carry the flagship-marker chip',
+    async (slug) => {
+      const res = await request(await createApp()).get('/freestyle/sets');
+      const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
+      expect(cardIdx).toBeGreaterThan(0);
+      const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
+      expect(cardSlice).not.toMatch(/sets-encyclopedia-card-flagship/);
+    },
+  );
+
+  it('the flagship cohort is exactly 5 cards (matches FLAGSHIP_SET_TOOLTIPS in the service)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const flagshipMatches = res.text.match(/sets-encyclopedia-card-flagship/g) ?? [];
+    expect(flagshipMatches.length).toBe(5);
+  });
+});
+
+describe('GET /freestyle/sets — S1 "Common in:" preview line', () => {
+  it('pixie card renders the Common in line with seeded tricks (lowest ADD first, alphabetical tiebreak)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const cardIdx = res.text.indexOf('id="enc-set-pixie"');
+    expect(cardIdx).toBeGreaterThan(0);
+    const cardSlice = res.text.slice(cardIdx, cardIdx + 2500);
+    // Common-in label + line present
+    expect(cardSlice).toContain('class="sets-encyclopedia-card-common-in"');
+    expect(cardSlice).toContain('Common in:');
+    // The 3 seeded tricks linked, in lowest-ADD-first order:
+    // pixie-illusion(3), smear(3), dimwalk(4)
+    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/pixie-illusion"[^>]*>pixie illusion<\/a>/);
+    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/smear"[^>]*>smear<\/a>/);
+    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/dimwalk"[^>]*>dimwalk<\/a>/);
+    // pixie-illusion or smear (both 3 ADD) precede dimwalk (4 ADD)
+    const pixieIllIdx = cardSlice.indexOf('pixie-illusion"');
+    const dimwalkIdx  = cardSlice.indexOf('dimwalk"');
+    expect(pixieIllIdx).toBeLessThan(dimwalkIdx);
+  });
+
+  it('cards without modifier-link rows suppress the Common-in line (no empty markup)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    // fairy has no seeded modifier_links, so its card must not render the
+    // common-in line.
+    const cardIdx = res.text.indexOf('id="enc-set-fairy"');
+    expect(cardIdx).toBeGreaterThan(0);
+    const cardSlice = res.text.slice(cardIdx, cardIdx + 2500);
+    expect(cardSlice).not.toContain('class="sets-encyclopedia-card-common-in"');
+    expect(cardSlice).not.toContain('Common in:');
+  });
+});
+
+describe('GET /freestyle/sets — S1 "Derived:" label on the relations row', () => {
+  it('cards with derivedSystems render the Derived: label prefix and the relations row class', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toContain('class="sets-encyclopedia-card-relations-row"');
+    expect(res.text).toContain('class="sets-encyclopedia-card-relations-label">Derived:</span>');
+    // Relation anchors point to set detail pages (not in-page anchors)
+    expect(res.text).toMatch(/<a class="sets-encyclopedia-card-relation" href="\/freestyle\/sets\/[a-z-]+">/);
   });
 });

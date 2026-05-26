@@ -44,18 +44,27 @@
       {{#each cards}}
       <article class="sets-encyclopedia-card" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
         <header class="sets-encyclopedia-card-head">
-          <h3 class="sets-encyclopedia-card-name">{{displayName}}</h3>
+          <h3 class="sets-encyclopedia-card-name">
+            {{displayName}}
+            {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}">&#9733;</span>{{/if}}
+          </h3>
+          <span class="sets-encyclopedia-card-role-chip sets-encyclopedia-card-role-chip--{{roleKey}}">{{roleLabel}}</span>
           <code class="sets-encyclopedia-card-hashtag">{{hashtag}}</code>
         </header>
         <code class="sets-encyclopedia-card-formula">{{formula}}</code>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
         <p class="sets-encyclopedia-card-provenance">{{provenanceLine}}</p>
         {{#if quickRelations.length}}
-        <ul class="sets-encyclopedia-card-relations" aria-label="Quick relations">
-          {{#each quickRelations}}
-          <li><a class="sets-encyclopedia-card-relation" href="{{href}}">{{label}}</a></li>
-          {{/each}}
-        </ul>
+        <p class="sets-encyclopedia-card-relations-row">
+          <span class="sets-encyclopedia-card-relations-label">Derived:</span>
+          {{#each quickRelations}}<a class="sets-encyclopedia-card-relation" href="{{href}}">{{label}}</a>{{#unless @last}} <span class="sets-encyclopedia-card-relation-sep">·</span> {{/unless}}{{/each}}
+        </p>
+        {{/if}}
+        {{#if commonIn.length}}
+        <p class="sets-encyclopedia-card-common-in">
+          <span class="sets-encyclopedia-card-common-in-label">Common in:</span>
+          {{#each commonIn}}<a class="sets-encyclopedia-card-common-in-trick" href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
+        </p>
         {{/if}}
         <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details &rarr;</a>
       </article>

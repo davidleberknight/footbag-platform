@@ -2179,7 +2179,31 @@ export interface EncyclopediaSetCard {
   quickRelations:  readonly SlugLinkVM[];
   /** Resolves to /freestyle/sets/<slug>. */
   detailHref:      string;
+  /** Kebab-case role key for CSS targeting (e.g. 'plus-one-entry'). */
+  roleKey:         EncyclopediaCardRole;
+  /** Uppercase short label shown in the card header (e.g. '+1 ENTRY'). */
+  roleLabel:       string;
+  /** True for the 5 literal-primitive true-core entries that anchor most
+   *  of the compositional vocabulary (pixie / fairy / stepping / atomic /
+   *  quantum). Drives a small ★ chip + tooltip in the card header. */
+  isFlagship:      boolean;
+  /** Tooltip text for the ★ chip on flagship cards. */
+  flagshipTitle?:  string;
+  /** Up to 3 canonical tricks this set is commonly seen in (lowest ADD first,
+   *  then alphabetical). Empty when no modifier-registry rows link the set.
+   *  Surfaced as "Common in:" on the card — deliberately non-deterministic
+   *  wording, since a set is one ingredient among several in any compound. */
+  commonIn:        readonly SlugLinkVM[];
 }
+
+export type EncyclopediaCardRole =
+  | 'plus-one-entry'
+  | 'clip-entry'
+  | 'composite'
+  | 'rotational'
+  | 'whirl-swirl'
+  | 'uns-entry'
+  | 'rooted';
 
 export interface EncyclopediaCrossLinks {
   dictionaryBysetLabel:    string;
@@ -7555,16 +7579,107 @@ export const freestyleService = {
       return [...derived, ...related].slice(0, 3);
     };
 
-    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => ({
-      slug:            s.slug,
-      hashtag:         s.hashtag,
-      displayName:     s.displayName,
-      formula:         s.formula,
-      compactMovement: compactFirstSentence(s.movementExplanation),
-      provenanceLine:  buildProvenanceLine(s),
-      quickRelations:  shapeQuickRelations(s),
-      detailHref:      `/freestyle/sets/${s.slug}`,
-    });
+    // Card role: derived from subtype, with true-core split by formula prefix
+    // (TOE → +1 entry; CLIP → clip entry). Composite / rotational / whirl-swirl
+    // / uns / rooted map 1:1 from subtype.
+    const deriveCardRole = (s: typeof CANONICAL_SETS[number]): { roleKey: EncyclopediaCardRole; roleLabel: string } => {
+      switch (s.subtype) {
+        case 'true-core': {
+          const startsWithToe = /^\s*TOE\b/.test(s.formula);
+          return startsWithToe
+            ? { roleKey: 'plus-one-entry', roleLabel: '+1 entry' }
+            : { roleKey: 'clip-entry',     roleLabel: 'CLIP entry' };
+        }
+        case 'composite-derived':    return { roleKey: 'composite',   roleLabel: 'composite' };
+        case 'rotational':           return { roleKey: 'rotational',  roleLabel: 'rotational' };
+        case 'whirl-swirl':          return { roleKey: 'whirl-swirl', roleLabel: 'whirl/swirl' };
+        case 'uns':                  return { roleKey: 'uns-entry',   roleLabel: 'UNS entry' };
+        case 'rooted-antisymposium': return { roleKey: 'rooted',      roleLabel: 'rooted' };
+      }
+    };
+
+    // Flagship-foundational cohort: the 5 literal-primitive true-core sets
+    // that anchor most of the compositional vocabulary. Mirrors the Slice 4
+    // flagship-marker discipline on /freestyle/glossary.
+    const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
+      pixie:    'Flagship set: the simplest +1 uptime entry; anchors terraging / sailing / frantic.',
+      fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
+      stepping: 'Flagship set: clipper-entry +1; anchors blurry / barraging / shooting / leaning.',
+      atomic:   'Flagship set: out-dex toe entry resolving to op-side; anchors nuclear / fairy-atomic.',
+      quantum:  "Flagship set: atomic's in-dex sibling; the curator-canonical pt2 replacement for toe-prefix naming.",
+    };
+
+    // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia
+    // page (43 cards). The per-card produces preview reads from these maps;
+    // no per-card DB calls.
+    const allTrickRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const trickRowBySlug = new Map<string, FreestyleTrickRow>(
+      allTrickRows.map(r => [r.slug, r]),
+    );
+    const linkRowsAll = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const tricksByModifier = new Map<string, FreestyleTrickRow[]>();
+    for (const link of linkRowsAll) {
+      const row = trickRowBySlug.get(link.trick_slug);
+      if (!row) continue;
+      const bucket = tricksByModifier.get(link.modifier_slug);
+      if (bucket) bucket.push(row);
+      else tricksByModifier.set(link.modifier_slug, [row]);
+    }
+
+    // "Common in" preview: up to 3 canonical trick examples per set, sorted
+    // by lowest ADD first (most foundational compounds surface first), then
+    // alphabetical. Empty when no modifier-registry rows link the set.
+    // Wording chosen over "produces" to avoid implying single-ingredient
+    // determinism — a set is one factor among several in any compound.
+    const shapeCommonInPreview = (s: typeof CANONICAL_SETS[number]): SlugLinkVM[] => {
+      const tricks = tricksByModifier.get(s.slug) ?? [];
+      // freestyle_tricks.adds is TEXT in the schema (e.g. "3", "4",
+      // "modifier"). Parse to number for sort; non-numeric / null sorts
+      // last by using a sentinel of 99.
+      const parseAdds = (raw: string | null): number => {
+        if (raw === null) return 99;
+        const n = Number.parseInt(raw, 10);
+        return Number.isFinite(n) ? n : 99;
+      };
+      return tricks
+        .slice()
+        .sort((a, b) => {
+          const aAdd = parseAdds(a.adds);
+          const bAdd = parseAdds(b.adds);
+          if (aAdd !== bAdd) return aAdd - bAdd;
+          return a.canonical_name.localeCompare(b.canonical_name);
+        })
+        .slice(0, 3)
+        .map(r => ({
+          slug:  r.slug,
+          label: r.canonical_name,
+          href:  `/freestyle/tricks/${r.slug}`,
+        }));
+    };
+
+    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => {
+      const role = deriveCardRole(s);
+      const flagshipTitle = FLAGSHIP_SET_TOOLTIPS[s.slug];
+      return {
+        slug:            s.slug,
+        hashtag:         s.hashtag,
+        displayName:     s.displayName,
+        formula:         s.formula,
+        compactMovement: compactFirstSentence(s.movementExplanation),
+        provenanceLine:  buildProvenanceLine(s),
+        quickRelations:  shapeQuickRelations(s),
+        detailHref:      `/freestyle/sets/${s.slug}`,
+        roleKey:         role.roleKey,
+        roleLabel:       role.roleLabel,
+        isFlagship:      flagshipTitle !== undefined,
+        flagshipTitle,
+        commonIn:        shapeCommonInPreview(s),
+      };
+    };
 
     const subtypeSections: EncyclopediaSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
       const cards = CANONICAL_SETS
