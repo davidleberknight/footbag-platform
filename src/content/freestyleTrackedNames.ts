@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 551;
+export const TRACKED_UNPUBLISHED_TOTAL = 552;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -589,6 +589,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symp Whirling Swirl', slug: 'symp-whirling-swirl' },
     { displayName: 'Tapping Legover', slug: 'tapping-legover' },
     { displayName: 'Tapping Pickup', slug: 'tapping-pickup' },
+    { displayName: 'Toe Blur', slug: 'toe-blur' },
     { displayName: 'Toe Ducking Legover', slug: 'toe-ducking-legover' },
     { displayName: 'Toe Gyro Mirage', slug: 'toe-gyro-mirage' },
     { displayName: 'Toe Spinning Toe', slug: 'toe-spinning-toe' },
