@@ -45,7 +45,15 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 
 This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
 
-### B. Current strategic posture (post Wave Alpha + notation-display audit, 2026-05-24)
+### B. Current strategic posture (post 2026-05-25/26 polish + S3/S5 governance migration)
+
+**2026-05-25 / 2026-05-26 session shipped:** 21 new canonical rows across ~10 family slices (pixie / inspinning / down / paradox / standalone) + 2 alias re-points (toe-blizzard, backside-symposium-toe-blur). S3/S5/S8/S9 slot governance migration locked in trick-detail page slot ownership — see [[project_slot_governance_doctrine]] for the forever-rule. Glossary §composition gained "Vocabulary relationships" subsection (4-way taxonomy). New S8 "Compressed from" pedagogy line on flagship pages (FAMOUS_COMPRESSION_SLUGS allowlist). New PEDAGOGICAL_COMPRESSION_EXEMPLARS cohort gates S5 ladder authoring. R4 parent-base rule added to buildRelatedTricks. Pre-Adrian polish wave (notation normalization at render, ?view=emerging redirect, set-encyclopedia category one-liners). Adrian review-navigation guide at `exploration/adrian-prep-2026-05-26/REVIEW_GUIDE.md`. TRACKED_UNPUBLISHED_TOTAL 553→534. 4,580 tests green.
+
+**Slot governance forever-rule (load-bearing):** Trick-detail pages have four distinct relationship-rendering slots — S3 aliases / S5 SE-chain structural compressions / S8 Compressed-from pedagogy / S9 EQUIVALENCE_TOPOLOGY alternate derivations. Strict slot ownership: a reading appears in exactly one. Atom-level S5 primary readings preferred over compressed intermediaries. Two curator-locked cohorts (FAMOUS_COMPRESSION_SLUGS gates S8; PEDAGOGICAL_COMPRESSION_EXEMPLARS gates S5 ladder authoring). Common mistakes documented in [[project_slot_governance_doctrine]]. Read before any slice touching aliases_json, SE chains, EQUIVALENCE_TOPOLOGY, or trick-compressed-from.hbs.
+
+---
+
+### B.1 Pre-2026-05-26 historical context (Wave Alpha + notation-display audit, 2026-05-24)
 
 Wave Alpha (Phases 1-10) shipped 2026-05-23/24 against the comprehensive symbolic corpus (4,178 rows across 10 source systems at `exploration/symbolic-master/comprehensive_symbolic_trick_corpus_2026-05-23.csv`). 162 canonical rows touched = 74 backfills + 88 promotions. Foundational atoms (illusion / mirage / osis / whirl / swirl / butterfly / drifter / blender / dyno / nemesis / atomic-butterfly) now carry op_notation. 16 trick families exercised. 17 of 27 registered modifiers exercised. All work curator-paced, ADD-math verified per row, no test regressions across 10 phases.
 
@@ -99,12 +107,14 @@ Wave Alpha (Phases 1-10) shipped 2026-05-23/24 against the comprehensive symboli
 
 **What to do next (when starting freestyle work):**
 
-  1. Read `[[project_freestyle_state]]` for the latest cumulative state. The state memory is authoritative for what's currently in the dictionary; this skill captures durable doctrine.
-  2. If curator wants forward momentum on Wave Alpha follow-on (resolving the 11 + 5 + 3 deferrals): each is curator-doctrine-blocked, not mechanical work.
-  3. If curator wants a new browse axis: check `[[feedback_browse_view_distributional_density]]` first. Measure the candidate axis's row distribution before proposing a `?view=` toggle vs reference page.
-  4. If curator wants notation-display Phase 4.2 / 5 work: backed by Stanford data already loaded; lower-risk than Phase 4.1 was.
-  5. If curator wants to build `/freestyle/alternative-surfaces` reference page: 11 rows + educational prose; small slice.
-  6. If Red Wave 2 / 3 answers land: integrate per the queued post-Red follow-up slices (still in [[project_red_consultation_state]]).
+  1. Read `[[project_freestyle_state]]` for the latest cumulative state + `[[project_slot_governance_doctrine]]` if the slice touches trick-detail relationship slots (aliases / SE chains / Compressed-from / Alternate derivations).
+  2. **Before promoting any candidate to a new canonical row**, verify it isn't already represented by an existing slug (clipper-kick already covered by `clipper`; da-da-curve already `dada-curve`; check DB + RECONCILIATION audit notes). Folk-name candidates may need alias-wiring on an existing canonical instead of a new row.
+  3. **For deferred-candidate promotions (the dominant pattern):** backup DB → red_additions row + RESOLVED_FORMULAS entry + FIRST_CLASS_TIER_2 + RECONCILIATION governance_state flip → loader 19 → tracked-names regen → test → stage. JOB derivation: prefer FB.org-confirmed (fborg-*add.txt + gyroMoves.txt / paradoxMoves.txt / pixieMoves.txt); sibling-derive only when FB.org silent.
+  4. **Slot leakage is the most common audit failure.** When red_additions / red_corrections / SE chains carry a value that's a structural compression: it goes in S5 only, not aliases_json. When it's an alternate-derivation path: S9 only. Pure aliases (spelling variants, historical naming): S3 only.
+  5. **New SE chain entries default to single-depth atom-level reading.** Multi-depth ladders are PEDAGOGICAL_COMPRESSION_EXEMPLARS-only and curator-locked.
+  6. If curator wants a new browse axis: check `[[feedback_browse_view_distributional_density]]` first. Measure candidate axis's row distribution before proposing a `?view=` toggle vs reference page.
+  7. If Red Wave 2 / 3 answers land: integrate per the queued post-Red follow-up slices (see [[project_red_consultation_state]]).
+  8. Pre-Wave-Alpha Wave Alpha follow-on deferrals (the 11+5+3 cohort) are still curator-doctrine-blocked; see B.1 below.
 
 ### C. Family / topology caution
 
