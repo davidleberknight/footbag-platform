@@ -1608,4 +1608,43 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt + pixieMoves.txt). SAME/OP variant on BACK SWIRL preserved verbatim per fb.org.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt + pixieMoves.txt). Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the BACK SWIRL second dex (player choice).',
   },
+
+  // ─── Down-family follow-ons + flux (2026-05-25; deferred-candidate
+  //     follow-on). Two modifier-stacked extensions on the down-family
+  //     base (just shipped) + flux as a simple atomic-osis compound.
+  //     All three JOBs FB.org-confirmed verbatim.
+
+  {
+    slug:        'pixie-double-over-down',
+    name:        'pixie double-over down',
+    operator:    'pixie',
+    base:        'double-over-down',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'pixie(+1) + double-over-down(4) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt + pixieMoves.txt). Pixie prefix carries unusual (plant) pre-state between first dex and the double-over-down chassis.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red pt12 settled); double-over-down = 4 ADD canonical compound in DB (shipped earlier this session). JOB FB.org-confirmed verbatim (fborg-5add.txt + pixieMoves.txt). The (plant) pre-state flag between the pixie dex and the doubled-out dex pair is curator-locked per fb.org source.',
+  },
+  {
+    slug:        'scorpions-tail',
+    name:        "Scorpion's Tail",
+    operator:    'spinning',
+    base:        'down-double-down',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'spinning(+1) + down-double-down(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > (back) SPIN [bod] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt + moves-on-video.txt). lowercase [bod] preserved verbatim per fb.org source.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. spinning = +1 midtime body modifier (Red-settled canonical inventory; many spinning-* siblings in DB); down-double-down = 4 ADD canonical compound in DB (shipped earlier this session). JOB FB.org-confirmed verbatim. FB.org alias "Spinning Down Double-Down" wired via aliases column. Note: fb.org uses lowercase [bod] for the SPIN tag (most siblings use uppercase [BOD]); the source form preserved as-is.',
+  },
+  {
+    slug:        'flux',
+    name:        'flux',
+    operator:    'atomic',
+    base:        'osis',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'atomic(+1) + osis(3) = 4 ADD ([DEX] + [BOD] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt). Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather than at the front.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt). FB.org alias "Atomic Osis" wired via aliases column.',
+  },
 ];

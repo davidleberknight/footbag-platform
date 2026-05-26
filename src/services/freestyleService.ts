@@ -3530,6 +3530,10 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'flurricane',                  // gyro(+1) + flurry(4) = 5 ADD ([BOD] + 3*[DEX] + [DEL])
   // ── Pixie-swirl promotion 2026-05-25 (pixie(+1) + swirl(3); FB.org-confirmed JOB):
   'pixie-swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
+  // ── Down-family follow-ons + flux 2026-05-25 (FB.org-confirmed JOBs):
+  'pixie-double-over-down',      // pixie(+1) + double-over-down(4) = 5 ADD
+  'scorpions-tail',              // spinning(+1) + down-double-down(4) = 5 ADD (alias: Spinning Down Double-Down)
+  'flux',                        // atomic(+1) + osis(3) = 4 ADD (alias: Atomic Osis)
 ]);
 
 // "Compressed from" detail-page surface (2026-05-25 glossary follow-on).

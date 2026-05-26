@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 540;
+export const TRACKED_UNPUBLISHED_TOTAL = 537;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -162,7 +162,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Flipwalk', slug: 'flipwalk', operationalNotation: 'Dragon > Op In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Floatation', slug: 'floatation', operationalNotation: 'Toe > (no plant while) Op In (DEX)(BOD) > Op In (DEX)(XDEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Flog', slug: 'flog', operationalNotation: 'Toe > Same Out (DEX) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Flux', slug: 'flux', operationalNotation: 'Set >> Op Out (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Flying Fish', slug: 'flying-fish', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Duck (BOD) >> Op In (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Forque', slug: 'forque', operationalNotation: 'Toe > Same Out (DEX) >> Op In (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Forquelift', slug: 'forquelift', operationalNotation: 'Toe > Same Out (DEX) >> Duck (BOD) >> Op In (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -318,7 +317,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Sabotage', slug: 'sabotage', operationalNotation: 'Toe >> Op In (DEX) > Same In (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Saildown', slug: 'saildown', operationalNotation: 'Toe > Same In (DEX) > Op Out (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Sasquatch', slug: 'sasquatch', operationalNotation: 'Clip > Op In (DEX) >> (no plant while) Op Front Whirl (DEX)(BOD)(PDX) > Op XBD Rake (XBD)(DEL)(DEX)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
-    { displayName: 'Scorpion\'s Tail', slug: 'scorpions-tail', operationalNotation: 'Clip >> (back) Spin (BOD) >> Op Out (DEX) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Scorpions Toe Nail', slug: 'scorpions-toe-nail' },
     { displayName: 'Shaft', slug: 'shaft', operationalNotation: 'Clip >> (no plant while) Op Out (DEX)(BOD) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Shmoe', slug: 'shmoe', operationalNotation: 'Clip > Op In (DEX) >> Same Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -476,7 +474,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Paradox Ripwalk', slug: 'paradox-ripwalk', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Symposium Mirage', slug: 'paradox-symposium-mirage', operationalNotation: 'CLIP (plant) > (no plant while) SAME IN [PDX] [BOD] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paralax', slug: 'paralax', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Pixie Double Over Down', slug: 'pixie-double-over-down', operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Eclipse', slug: 'pixie-eclipse', operationalNotation: 'TOE > SAME IN [DEX] (JUMP) [BOD] > SAME INSIDE [DEL] > OP OUT [DEX] > (LAND)', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Leg Over', slug: 'pixie-leg-over', operationalNotation: 'TOE > SAME IN [DEX] > OP IN/OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Paradon', slug: 'pixie-paradon', operationalNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
