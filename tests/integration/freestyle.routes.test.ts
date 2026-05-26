@@ -1414,9 +1414,14 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     expect(res.text).toContain('class="equivalent-readings');
     expect(res.text).toContain('Equivalent readings');
     // Tokens for each reading are span-wrapped; assert their text presence.
-    expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);     // reading 0
-    expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>ss</);     // reading 1
-    expect(res.text).toMatch(/>miraging<\/span>\s*<span[^>]*>op</);     // reading 2
+    // Pre-Adrian polish #1 (2026-05-26): the S5 tokenizer expands
+    // `ss → same-side` and `op → opposite` at render time so the
+    // chain reading vocabulary matches the JOB notation register. The
+    // underlying chain data still stores the short forms; only the
+    // rendered text changes.
+    expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);            // reading 0 (no abbreviations)
+    expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>same-side</);     // reading 1 (ss → same-side)
+    expect(res.text).toMatch(/>miraging<\/span>\s*<span[^>]*>opposite</);      // reading 2 (op → opposite)
     // Last reading: tokenized; osis is a CORE atom → auto-linked
     expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"[^>]*>osis</);
     // Ordering: depth-0 before depth-1 before depth-2

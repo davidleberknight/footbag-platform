@@ -1730,16 +1730,39 @@ const RECOGNIZED_LINK_SLUGS: ReadonlySet<string> = (() => {
   return s;
 })();
 
+/**
+ * Render-time abbreviation expansion for S5 chain readings (2026-05-26
+ * pre-Adrian polish #1). Eliminates the visible inconsistency where
+ * S5 readings use lowercase abbreviations (`ss`, `op`) while JOB
+ * tokens on the same page use uppercase spelled-out forms (`SAME`,
+ * `OP`). Expanding to lowercase prose (`same-side`, `opposite`) keeps
+ * the readings reading as compositional name phrases without
+ * shouting all-caps.
+ *
+ * Map is intentionally small and curator-locked — only the two
+ * abbreviations that recur frequently enough to confuse readers.
+ * Future additions one-at-a-time by explicit curator decision.
+ */
+const S5_TOKEN_EXPANSIONS: ReadonlyMap<string, string> = new Map([
+  ['ss', 'same-side'],
+  ['op', 'opposite'],
+]);
+
+function expandS5Abbreviation(token: string): string {
+  return S5_TOKEN_EXPANSIONS.get(token.toLowerCase()) ?? token;
+}
+
 function tokenizeEquivalenceReading(reading: string): SemanticNotationToken[] {
   return reading
     .split(/\s+/)
     .filter(t => t.length > 0)
     .map((token): SemanticNotationToken => {
-      const normalized = token.toLowerCase();
+      const expanded = expandS5Abbreviation(token);
+      const normalized = expanded.toLowerCase();
       if (RECOGNIZED_LINK_SLUGS.has(normalized)) {
-        return { kind: 'link', text: token, href: `/freestyle/glossary#term-${normalized}` };
+        return { kind: 'link', text: expanded, href: `/freestyle/glossary#term-${normalized}` };
       }
-      return { kind: 'plain', text: token, href: null };
+      return { kind: 'plain', text: expanded, href: null };
     });
 }
 
