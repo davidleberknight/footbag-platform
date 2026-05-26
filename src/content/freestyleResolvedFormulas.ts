@@ -1590,4 +1590,22 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // FB.org-confirmed (fborg-5add.txt + gyroMoves.txt). CLIP-set primary form (TOE-set variant also published).
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. gyro = +1 spinning-style body modifier (Red-settled via gyro-* siblings in DB: gyro-mirage, gyro-illusion, gyro-whirl, gyro-butterfly all canonical with (back) SPIN [BOD] prefix); flurry = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt + gyroMoves.txt). FB.org alias "Gyro Flurry" wired via aliases column. FB.org also publishes a TOE-set variant (TOE > (back) SPIN [BOD] > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]); CLIP-set form used as primary per fb.org listing order.',
   },
+
+  // ─── Pixie-swirl promotion (2026-05-25; deferred-candidate follow-on).
+  //     Pixie(+1) + swirl(3) = 4 ADD. FB.org-confirmed JOB (fborg-4add.txt
+  //     + pixieMoves.txt). Standard pixie-prefix pattern: SAME IN [DEX]
+  //     prepended to swirl base. fb.org preserves SAME/OP variant on the
+  //     BACK SWIRL second dex (player choice).
+
+  {
+    slug:        'pixie-swirl',
+    name:        'pixie swirl',
+    operator:    'pixie',
+    base:        'swirl',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt + pixieMoves.txt). SAME/OP variant on BACK SWIRL preserved verbatim per fb.org.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt + pixieMoves.txt). Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the BACK SWIRL second dex (player choice).',
+  },
 ];

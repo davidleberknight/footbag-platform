@@ -3515,6 +3515,8 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'ricochet',                    // [DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (flapper-stall base)
   // ── Flurricane promotion 2026-05-25 (gyro(+1) + flurry(4); FB.org-confirmed JOB):
   'flurricane',                  // gyro(+1) + flurry(4) = 5 ADD ([BOD] + 3*[DEX] + [DEL])
+  // ── Pixie-swirl promotion 2026-05-25 (pixie(+1) + swirl(3); FB.org-confirmed JOB):
+  'pixie-swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the

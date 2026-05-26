@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 541;
+export const TRACKED_UNPUBLISHED_TOTAL = 540;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -481,7 +481,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Leg Over', slug: 'pixie-leg-over', operationalNotation: 'TOE > SAME IN [DEX] > OP IN/OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Paradon', slug: 'pixie-paradon', operationalNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Same Side Illusion', slug: 'pixie-same-side-illusion', operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Pixie Swirl', slug: 'pixie-swirl', operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Barfly', slug: 'pogo-barfly', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Butterfly', slug: 'pogo-butterfly', operationalNotation: 'CLIP > (NO PLANT WHILE) OP IN [DEX] [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Paradox Barrage', slug: 'pogo-paradox-barrage', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP IN [PDX] [DEX] > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
