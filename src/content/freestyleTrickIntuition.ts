@@ -194,6 +194,12 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
       "Ripstein stacks two same-side back-swirl dexes in sequence, ending on a cross-body clipper. The body works through two reverse-rotational dex moments — back, back — without alternating direction or switching the leading leg. The rhythm is a paired cadence reminiscent of barrage but with rotational rather than linear dexes; the body has to sustain the back-rotational character across both beats before the catch arrives on the cross-body clipper.",
     attribution: 'Curator description — 4-ADD compound; doubled same-side back-swirl reading.',
   },
+  {
+    slug: 'eclipse',
+    prose:
+      "Set the bag from a toe delay, then jump off the support leg as the bag rises; in mid-air, the inside of the opposite foot catches the bag briefly for a held delay, then swings outward into an outward dex while still airborne, with the landing arriving as the dex carries through. The defining feel is the jump-and-hover: eclipse takes the held-delay leg-over chassis of hop-over — where the body jumps over a grounded held delay — and lifts the entire structure off the ground, so both the inside-delay and the outward dex happen in flight rather than over a planted foot. The jump itself counts as a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.",
+    attribution: 'Adapted from fb.org Pixie Eclipse JOB form + Red pt1 jump-bearing ruling (airborne hop-over topology).',
+  },
 ];
 
 /** Slug-keyed lookup helper. Returns null when no entry is curated. */
