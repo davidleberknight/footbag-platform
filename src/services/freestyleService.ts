@@ -1162,6 +1162,19 @@ export interface FreestyleTrickContent {
     prose:       string;
     attribution: string;
   } | null;
+  // "Compressed from" / "Compressed reading" pedagogy line (2026-05-25
+  // glossary follow-on). Strict allowlist of famous structural
+  // compressions only: smear, ripwalk, atom-smasher, eggbeater, mobius.
+  // Reinforces the glossary §composition "Structural compression"
+  // concept directly on the flagship detail pages. Reads from existing
+  // freestyleSymbolicEquivalences.ts data (readings[0] is the compact
+  // reading). Null for every non-allowlisted slug; suppresses cleanly
+  // when no data. NOT a general equivalence-expansion surface; this is
+  // pedagogy reinforcement, not ontology.
+  compressedFrom: {
+    label:   'Compressed from' | 'Compressed reading';
+    reading: string;
+  } | null;
   // Trick tier (Phase A of trick-detail ontology doctrine, 2026-05-25).
   // 'A' = flagship ontology exemplar (renders L1-L6 layers when authored).
   // 'B' = secondary, renders L1 + L5 only when authored.
@@ -3519,6 +3532,52 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'pixie-swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
 ]);
 
+// "Compressed from" detail-page surface (2026-05-25 glossary follow-on).
+// Strict allowlist of famous/foundational structural compressions that
+// reinforce the glossary §composition "Structural compression" concept
+// directly on the flagship detail pages.
+//
+// DOCTRINE (curator-locked):
+//   - NEVER add slugs to this map for ontology-expansion reasons. This
+//     is pedagogy reinforcement of the glossary concept, not a general
+//     equivalence-spam surface. The user-curator decides additions one
+//     compression at a time.
+//   - The label for each slug is curator-authored. "Compressed from"
+//     reads the slug as the compressed form of a longer compositional
+//     reading (smear ← pixie mirage). "Compressed reading" reads the
+//     slug as the compact name with the reading as one expansion
+//     (mobius has multiple compression depths).
+//   - Reads readings[0] from freestyleSymbolicEquivalences.ts. The slug
+//     MUST have an entry there; null is returned otherwise (clean
+//     suppression).
+//   - blur and barrage were considered but lack symbolic-equivalences
+//     entries; deferred pending curator authoring.
+//   - ripwalk and atom-smasher carry curatorConfirmPending=true on
+//     their semantic-notation chains, but the allowlist membership IS
+//     the curator approval for this specific lightweight surface (the
+//     curator explicitly listed both in the slice brief).
+const FAMOUS_COMPRESSION_SLUGS: ReadonlyMap<string, 'Compressed from' | 'Compressed reading'> = new Map([
+  ['smear',        'Compressed from'   as const],
+  ['ripwalk',      'Compressed from'   as const],
+  ['atom-smasher', 'Compressed from'   as const],
+  ['eggbeater',    'Compressed from'   as const],
+  ['mobius',       'Compressed reading' as const],
+]);
+
+/**
+ * Shape the "Compressed from" / "Compressed reading" view-model field.
+ * Returns null when the slug is NOT in the famous-compression allowlist
+ * OR when no symbolic-equivalence chain exists for the slug. The label
+ * for mobius is "Compressed reading"; all others use "Compressed from".
+ */
+function shapeCompressedFrom(slug: string): { label: 'Compressed from' | 'Compressed reading'; reading: string } | null {
+  const label = FAMOUS_COMPRESSION_SLUGS.get(slug);
+  if (label === undefined) return null;
+  const chain = getSymbolicEquivalenceChain(slug);
+  if (chain === null || chain.readings.length === 0) return null;
+  return { label, reading: chain.readings[0]! };
+}
+
 // Sui-generis primitives whose curator-locked JOB notation IS the
 // canonical name itself (no decomposable set + terminator chain).
 // double-knee is the founding member (2026-05-22); pendulum mirrors the
@@ -5593,6 +5652,11 @@ export const freestyleService = {
               attribution: entry.attribution,
             };
           })(),
+          // "Compressed from" / "Compressed reading" pedagogy line
+          // (2026-05-25 glossary follow-on). Strict allowlist of famous
+          // structural compressions (smear, ripwalk, atom-smasher,
+          // eggbeater, mobius). See FAMOUS_COMPRESSION_SLUGS doctrine.
+          compressedFrom: shapeCompressedFrom(slug),
           // ── Trick-detail ontology doctrine — Phase A/B (2026-05-25); §8 amendment ──
           // L1-L6 layered ontology fields. Universal grammar (§8 amendment,
           // post-Phase-C): any trick with curated content renders the

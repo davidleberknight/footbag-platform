@@ -4424,6 +4424,24 @@ section.home-media { padding-top: 0; }
   color: #999;
   font-style: italic;
 }
+
+/* "Compressed from" / "Compressed reading" pedagogy line (2026-05-25
+   glossary follow-on). Single line; visually subordinate to the JOB/
+   ADD/ALT cluster above it. Margin-top pulls it close to the notation
+   summary block. */
+.trick-compressed-from {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.88em;
+  color: #6b6357;
+  line-height: 1.4;
+}
+.trick-compressed-from-label {
+  font-weight: 600;
+  color: #4a4232;
+}
+.trick-compressed-from-reading {
+  font-style: italic;
+}
 @media (max-width: 480px) {
   .trick-notation-summary-fields {
     grid-template-columns: 1fr;

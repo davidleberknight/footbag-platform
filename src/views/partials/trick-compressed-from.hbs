@@ -1,0 +1,21 @@
+{{!--
+  "Compressed from" / "Compressed reading" pedagogy line (2026-05-25
+  glossary follow-on). Lightweight one-line surface that reinforces the
+  glossary §composition "Structural compression" concept directly on
+  flagship trick-detail pages.
+
+  Renders ONLY when the curator has explicitly allowlisted the slug in
+  FAMOUS_COMPRESSION_SLUGS in freestyleService.ts (smear, ripwalk,
+  atom-smasher, eggbeater, mobius). The view-model field
+  content.compressedFrom is null for every other slug; this partial
+  collapses cleanly with no output.
+
+  Doctrine: pedagogy reinforcement, not ontology expansion. Do not add
+  prose, multi-line breakdowns, or alternate-reading lists here.
+--}}
+{{#if content.compressedFrom}}
+<p class="trick-compressed-from">
+  <span class="trick-compressed-from-label">{{content.compressedFrom.label}}:</span>
+  <em class="trick-compressed-from-reading">{{content.compressedFrom.reading}}</em>
+</p>
+{{/if}}
