@@ -20,6 +20,42 @@
 
   <div class="glossary-main-column">
 
+  {{! ── Glossary intro card — Phase 1 onboarding orientation ─────────────
+      A small one-pass orientation block above §1. Three short blocks:
+      what this glossary is, the four reading arcs, and how the sidebar
+      works. Zero new ontology; pure navigation lift. }}
+  <aside class="glossary-intro-card" aria-label="How to read this glossary">
+    <h2 class="glossary-intro-card-heading">How to read this glossary</h2>
+    <p class="glossary-intro-card-lede">
+      A primer on freestyle's movement language &mdash; the words for
+      surfaces, dexes, families, modifiers, notation, and composition.
+      Start at the top; each section builds on the one before.
+    </p>
+    <ol class="glossary-intro-card-arcs" aria-label="Reading arcs">
+      <li>
+        <strong>Foundations</strong>
+        <span class="glossary-intro-card-arc-detail">surfaces, dexes, timing, sets &mdash; the parts.</span>
+      </li>
+      <li>
+        <strong>Families &amp; Modifiers</strong>
+        <span class="glossary-intro-card-arc-detail">how parts cluster into named groups.</span>
+      </li>
+      <li>
+        <strong>Notation &amp; ADD</strong>
+        <span class="glossary-intro-card-arc-detail">the symbolic layer for reading any trick name.</span>
+      </li>
+      <li>
+        <strong>Composition &amp; Beyond</strong>
+        <span class="glossary-intro-card-arc-detail">how tricks combine and where the system reaches.</span>
+      </li>
+    </ol>
+    <p class="glossary-intro-card-tail detail-muted">
+      The sidebar lists every section grouped by tier. On narrow screens it
+      reflows above the page. Reference and history sit below the fold &mdash;
+      a first read does not need them.
+    </p>
+  </aside>
+
   <section class="content-section" id="section-core-concepts">
     <h2 class="section-heading">Movement Basics</h2>
     <p>
@@ -290,6 +326,12 @@
     </dl>
   </section>
 
+  {{! ── Tier-break ruler #1 — Foundations → Families & Notation ───────── }}
+  <div class="glossary-tier-break" role="separator" aria-label="End of Foundations">
+    <span class="glossary-tier-break-label">End of Foundations</span>
+    <p class="glossary-tier-break-note">You now have the vocabulary to read any base trick name. Below: how tricks cluster into families and how the notation system makes their composition legible.</p>
+  </div>
+
   <section class="content-section" id="section-families">
     <h2 class="section-heading">
       Core Trick Families
@@ -413,6 +455,19 @@
       Trick Naming &amp; Notation
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
+
+    {{! ── §7 mini-TOC — four arcs of the notation section ─────────────── }}
+    <nav class="glossary-mini-toc" aria-label="In this section">
+      <span class="glossary-mini-toc-label">In this section:</span>
+      <ol class="glossary-mini-toc-list">
+        <li><a href="#compositional-premise">Premise</a></li>
+        <li><a href="#jobs-notation">Grammar</a></li>
+        <li><a href="#notation-roles">Worked examples</a></li>
+        <li><a href="#abbreviations">Abbreviations</a></li>
+        <li><a href="#operational-notation">Operational reference</a></li>
+      </ol>
+    </nav>
+
     <p class="glossary-thesis">
       The language evolves by compressing recurring compositional structures
       into shorter readable symbolic forms.
@@ -652,18 +707,16 @@
 
     <h3>A compound example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.paradoxWhirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
-      A whirl with the paradox modifier applied. The notation reads
-      left-to-right exactly as the trick is built: the modifier (yellow-olive)
-      shapes the body position; the base anchor (green) provides the rotation
-      and family identity. Adds 1 ADD on top of whirl's base difficulty.
+      The paradox modifier on a whirl base. The modifier (yellow-olive)
+      shapes the body position; the base anchor (green) carries the
+      rotation and family identity. +1 ADD on top of whirl.
     </p>
 
     <h3>A modifier-heavy example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.gauntlet}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
-      Three body modifiers stacked on a torque base &mdash; known to the
-      community as Gauntlet, a 7-ADD trick. Reading the notation
-      left-to-right reveals the layered construction: each modifier
-      contributes its own +1 to the total difficulty.
+      Three body modifiers stacked on a torque base; the community calls
+      it Gauntlet, 7 ADD. Each modifier contributes its own +1 above the
+      base.
     </p>
 
     <h3 id="notation-roles">Color-coded structural roles</h3>
@@ -707,13 +760,16 @@
     </div>
 
     {{! ── Operational notation: advanced subsection ───────────────────────
-        Per the v5 scaffold, operational notation is the execution-mechanics
-        layer; kept here as an advanced reference subsection rather than a
-        top-level section so the page reads primer-first. }}
-    <h3 class="section-heading" id="operational-notation">
-      Operational notation
-      <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
-    </h3>
+        Reference for the bracket-flag operational notation token vocabulary.
+        Collapsed by default (Phase 1) so §7 reads primer-first; direct
+        navigation to #operational-notation or any #op-* child anchor
+        auto-opens the details element. }}
+    <details class="glossary-operational-details" id="operational-notation">
+      <summary class="glossary-operational-details-summary">
+        <span class="glossary-operational-details-title">Operational notation</span>
+        <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
+        <span class="glossary-operational-details-hint">Bracket-flag token vocabulary &mdash; click to expand</span>
+      </summary>
 
     <table class="glossary-layer-contrast">
       <thead>
@@ -818,6 +874,7 @@
       Fairy, Atomic, Quantum and how they decompose), see
       <a href="/freestyle/sets/reference">Set notation reference</a>.
     </p>
+    </details>
   </section>
 
   <section class="content-section" id="section-add-accounting">
@@ -841,9 +898,8 @@
 
     <h3>Base trick weights</h3>
     <p>
-      The twelve canonical atoms each have a fixed ADD value. Modifier
-      stacks compose <em>onto</em> these weights; family-level totals
-      derive from the base value plus accumulated operator contributions.
+      The twelve canonical atoms each have a fixed ADD value; modifier
+      stacks compose onto them.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">
@@ -867,11 +923,10 @@
 
     <h3>Modifier weights</h3>
     <p>
-      Modifier values come in two columns: the non-rotational bonus
-      applies on most bases, the rotational bonus applies when the base
-      is a rotational atom (whirl / mirage / torque / blender / swirl /
-      drifter / osis / illusion). The atomic, furious, and nuclear
-      modifiers contribute extra weight on rotational bases.
+      Two columns: the non-rotational bonus on most bases, the rotational
+      bonus on rotational atoms (whirl / mirage / torque / blender / swirl /
+      drifter / osis / illusion). Atomic, furious, and nuclear add extra
+      weight on rotational bases.
     </p>
     <div class="glossary-add-weight-table-wrap">
       <table class="glossary-add-weight-table">
@@ -895,39 +950,35 @@
 
     <h3>Additive formulas</h3>
     <p>
-      The default ADD formula is base + modifier stack. A simple
-      <em>+1 stack</em> like paradox + mirage = 3 ADD reads cleanly:
-      <code>paradox(+1) + mirage(2) = 3 ADD</code>. Stacks accumulate
-      left to right; the trick's operational notation chain mirrors
-      the formula's term order.
+      ADD = base + modifier stack. Example:
+      <code>paradox(+1) + mirage(2) = 3 ADD</code>. The operational
+      notation chain mirrors the formula's term order.
     </p>
 
     <h3>Complementary formulas</h3>
     <p>
       Some compound modifier labels are folk shorthand for two-operator
-      stacks. The <em>blurry</em> modifier is the canonical example:
-      <code>blurry = stepping + paradox</code> per Red pt8. The workbook
-      decomposes composite labels via a registry so the additive math
-      surfaces the underlying atom-level operators (see Blur in the
-      worked examples below).
+      stacks. <em>Blurry</em> is the canonical example:
+      <code>blurry = stepping + paradox</code>. The workbook decomposes
+      composite labels via a registry so the additive math surfaces the
+      atom-level operators (see Blur below).
     </p>
 
     <h3>Decomposition chains</h3>
     <p>
-      Multi-modifier compounds derive their ADD by walking the chain
-      from base trick outward. <em>Stepping paradox whirl</em> reads as
+      Multi-modifier compounds derive ADD by walking the chain outward
+      from the base. <em>Stepping paradox whirl</em> =
       <code>stepping(+1) + paradox(+1) + whirl(3) = 5 ADD</code>. The
-      same chain doubles as the trick's compositional reading on the
-      dictionary's trick-detail page.
+      same chain doubles as the trick's compositional reading on its
+      detail page.
     </p>
 
     <h3>Worked examples</h3>
     <p>
-      Five compact worked examples illustrate the additive doctrine, the
-      composite-modifier shorthand pattern, and currently-open doctrine
-      cases. Each card shows the compact notation, the official ADD,
-      and the derivation chain; observational commentary collapses
-      behind the card title.
+      Five examples cover the additive pattern, composite-modifier
+      shorthand, and currently-open doctrine cases. Each card shows
+      compact notation, official ADD, and derivation; commentary
+      collapses behind the card title.
     </p>
     <div class="glossary-add-examples-grid">
       {{#each content.addWorkedExamples}}
@@ -1039,6 +1090,12 @@
       <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
   </section>
+
+  {{! ── Tier-break ruler #2 — Notation/ADD → Composition & the system ── }}
+  <div class="glossary-tier-break" role="separator" aria-label="End of Notation and Accounting">
+    <span class="glossary-tier-break-label">End of Notation &amp; Accounting</span>
+    <p class="glossary-tier-break-note">You can now read trick-detail pages and follow a decomposition chain end-to-end. Below: how tricks combine into longer sequences, and the system-level view of how the vocabulary fits together.</p>
+  </div>
 
   <section class="content-section" id="section-composition">
     <h2 class="section-heading">
@@ -1338,6 +1395,12 @@
     </p>
   </section>
 
+  {{! ── Tier-break ruler #3 — Pedagogy → Reference & history ─────────── }}
+  <div class="glossary-tier-break" role="separator" aria-label="End of Pedagogy">
+    <span class="glossary-tier-break-label">End of Pedagogy</span>
+    <p class="glossary-tier-break-note">The sections below are reference and history &mdash; movement-neighborhood lenses, primitive/compound distinctions, folk and historical names, source acknowledgements. Nothing below is required to understand the system; everything here is lookup.</p>
+  </div>
+
   {{#if content.connectivePanels.length}}
   <section class="content-section glossary-connective-section" id="connective-panels">
     <h2 class="section-heading">
@@ -1346,22 +1409,19 @@
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
     <p class="section-intro">
-      Observational <em>movement neighborhoods</em> &mdash; exploratory
-      relationship browsing for a curator-selected cohort of high-value
-      glossary terms. Each panel surfaces how a term lives in practice:
-      in tricks that use it, in related symbolic groups, and (where
-      relevant) in operational notation. The definitions are coach-tone
-      summaries; the canonical entries above remain authoritative.
+      Observational <em>movement neighborhoods</em> &mdash; relationship
+      browsing for a curator-selected cohort of glossary terms. Each
+      panel surfaces how a term lives in practice: tricks that use it,
+      related symbolic groups, and (where relevant) operational notation.
+      The canonical entries above remain authoritative.
     </p>
     <p class="section-intro detail-muted">
-      <strong>This section is intentionally incomplete.</strong> The six
+      <strong>This section is intentionally incomplete.</strong> The
       panels below are a <em>representative selection</em>, not a
-      comprehensive topology atlas. Many movement neighborhoods that
-      deserve their own panel are not yet covered &mdash; the curator
-      will extend coverage as patterns stabilize. Panels are
-      <em>observational</em>: they describe shared mechanics across
-      tricks, but they do not override canonical family classifications,
-      which live in the trick dictionary's family view.
+      comprehensive atlas; the curator will extend coverage as patterns
+      stabilize. They describe shared mechanics across tricks but do not
+      override the canonical family classifications in the trick
+      dictionary.
     </p>
     <div class="glossary-connective-grid">
       {{#each content.connectivePanels}}

@@ -1516,11 +1516,21 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     // V5: operational notation lives as an Advanced Reference subsection
     // under §7 (Symbolic Notation), not as a top-level section. The deep-
     // link anchor id="operational-notation" is preserved for inbound links.
+    // Phase 1 polish: the subsection is now wrapped in a <details>/<summary>
+    // collapsible (default-closed) for progressive disclosure. The anchor
+    // migrated from the <h3> to the <details> element; the title text now
+    // lives in the <summary>. All #op-* child anchors remain reachable
+    // (browsers auto-open <details> when navigating to a child anchor).
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="operational-notation"');
-    expect(res.text).toMatch(/id="operational-notation"[^>]*>\s*Operational notation/);
+    // Anchor proximity to title text — holds for both the old <h3> shape
+    // and the new <details>/<summary> shape.
+    expect(res.text).toMatch(/id="operational-notation"[\s\S]{0,400}Operational notation/);
+    // Phase 1 shape: the subsection is collapsed in a <details> element.
+    expect(res.text).toMatch(/<details[^>]*class="glossary-operational-details"[^>]*id="operational-notation"/);
+    expect(res.text).toContain('class="glossary-operational-details-summary"');
   });
 
   it('defines per-token anchors for the 6 component flags', async () => {

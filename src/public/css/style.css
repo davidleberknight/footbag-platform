@@ -10077,3 +10077,169 @@ a.dict-card-title:hover {
 .observed-lane--formula-review .section-heading h2 { color: #ad7a00; }
 .observed-lane--doctrine-blocked .section-heading h2 { color: #8e2a2a; }
 .observed-lane--source-only .section-heading h2 { color: var(--text-primary, #333); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Glossary Phase 1 refinement — intro card, tier-break rulers, §7 mini-TOC,
+   §7 operational-notation collapsible details. Pure structural polish; no
+   new ontology surfaces. Anchors preserved.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Intro card — onboarding orientation block above §1 Movement Basics */
+.glossary-intro-card {
+  margin: 0 0 22px;
+  padding: 18px 22px;
+  background: #fbf8f0;
+  border: 1px solid #ece6d4;
+  border-left: 4px solid #7f9a6b;
+  border-radius: 4px;
+}
+.glossary-intro-card-heading {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3a3326;
+}
+.glossary-intro-card-lede {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #444;
+}
+.glossary-intro-card-arcs {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #3a3326;
+}
+.glossary-intro-card-arcs li { margin: 2px 0; }
+.glossary-intro-card-arc-detail {
+  color: var(--text-muted, #64748b);
+  font-weight: 400;
+  margin-left: 4px;
+}
+.glossary-intro-card-tail {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+/* Tier-break ruler — between major reading arcs */
+.glossary-tier-break {
+  margin: 36px 0 28px;
+  padding: 14px 18px 0;
+  border-top: 1px solid #d6cdb4;
+  position: relative;
+}
+.glossary-tier-break-label {
+  display: inline-block;
+  position: relative;
+  top: -23px;
+  padding: 0 12px;
+  background: var(--bg-page, #fff);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a7a14;
+}
+.glossary-tier-break-note {
+  margin: -8px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #555);
+  font-style: italic;
+}
+
+/* §7 mini-TOC — inline pill row beneath the Notation H2 */
+.glossary-mini-toc {
+  margin: 4px 0 16px;
+  padding: 8px 12px;
+  background: #fbf8f0;
+  border: 1px solid #ece6d4;
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  font-size: 0.86rem;
+}
+.glossary-mini-toc-label {
+  font-weight: 600;
+  color: #3a3326;
+  margin-right: 4px;
+}
+.glossary-mini-toc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.glossary-mini-toc-list li {
+  display: inline-flex;
+  align-items: center;
+}
+.glossary-mini-toc-list li:not(:last-child)::after {
+  content: "·";
+  margin-left: 8px;
+  color: var(--text-muted, #aaa);
+}
+.glossary-mini-toc-list a {
+  text-decoration: none;
+  color: #5a7b48;
+  font-weight: 500;
+}
+.glossary-mini-toc-list a:hover,
+.glossary-mini-toc-list a:focus {
+  text-decoration: underline;
+}
+
+/* §7 Operational notation — collapsible reference subsection */
+.glossary-operational-details {
+  margin: 24px 0 8px;
+  border: 1px solid #ece6d4;
+  border-radius: 4px;
+  background: #fdfbf6;
+}
+.glossary-operational-details > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.glossary-operational-details > summary::-webkit-details-marker { display: none; }
+.glossary-operational-details > summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+  font-size: 0.9em;
+}
+.glossary-operational-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.glossary-operational-details[open] > summary {
+  border-bottom: 1px solid #ece6d4;
+}
+.glossary-operational-details-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3a3326;
+}
+.glossary-operational-details-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  margin-left: auto;
+}
+.glossary-operational-details > *:not(summary) {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.glossary-operational-details > *:not(summary):first-of-type { padding-top: 14px; }
+.glossary-operational-details > *:last-child { padding-bottom: 16px; }
