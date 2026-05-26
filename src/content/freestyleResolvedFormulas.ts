@@ -1549,4 +1549,25 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]',  // Sibling-derived from symposium-prefix pattern applied to pixie base. Not Red-confirmed.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. symposium = +1 no-plant body modifier (Red-settled canonical inventory); pixie = 2 ADD set primitive in DB. JOB sibling-derived: symposium prefix wraps pixie\'s first dex with "(no plant while) [BOD]" fused on the SAME IN [DEX]. Verified against pixie-symposium-mirage in DB which carries the same symposium [BOD]+[DEX] fusion structure. Not Red-confirmed for this specific compound.',
   },
+
+  // ─── Ricochet promotion (2026-05-25; deferred-candidate follow-on).
+  //     Two out-to-in dexterities from a toe set ending on a cross-body
+  //     sole (flapper) delay. FB.org-confirmed JOB (fborg-5add.txt).
+  //     Base is cross-body-sole-stall (folk-name = flapper / flapper-stall;
+  //     aliases already registered in DB). [UNS] flag counts +1 ADD per
+  //     canonical bracket convention; the cross-body-sole-stall DB row
+  //     uses descriptive op_notation ([set] > sole [xbd]) while ricochet's
+  //     JOB expands to canonical-bracket form with the explicit [UNS] tag.
+
+  {
+    slug:        'ricochet',
+    name:        'ricochet',
+    operator:    'doubled-dex chassis',
+    base:        'cross-body-sole-stall',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  '[DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (two same-direction OUT dexes from toe set ending opposite-side sole/flapper)',
+    operationalNotation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Cross-body sole (flapper) terminator carries [XBD] [UNS] [DEL] = 3 ADD.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). Base is cross-body-sole-stall (DB canonical, 3 ADD; folk-name = flapper / flapper-stall; aliases already wired). The cross-body-sole-stall row uses descriptive op_notation ([set] > sole [xbd]) while ricochet expands the terminator to canonical-bracket form ([XBD] [UNS] [DEL]) — same structure, different representational convention.',
+  },
 ];

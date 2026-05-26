@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 543;
+export const TRACKED_UNPUBLISHED_TOTAL = 542;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -310,7 +310,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Reverse Swirling Osis', slug: 'reverse-swirling-osis' },
     { displayName: 'Reverse Whirling Rake', slug: 'reverse-whirling-rake' },
     { displayName: 'Revstein', slug: 'revstein', operationalNotation: 'Clip >> Same Front Swirl (DEX) >> Same Fornt Swirl (DEX)(XDEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
-    { displayName: 'Ricochet', slug: 'ricochet', operationalNotation: 'Toe >> Op Out (DEX) >> Same Out (DEX) > Op Flapper (XBD)(UNS)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ripcurl', slug: 'ripcurl', operationalNotation: 'Clip > Op In (DEX) >> Same Out (DEX) > Op Back Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ripped Warrior', slug: 'ripped-warrior', operationalNotation: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Riptide', slug: 'riptide', operationalNotation: 'Clip > Op In (DEX) >> Op Out (DEX) > Op Back Swirl (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
