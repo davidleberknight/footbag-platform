@@ -8510,7 +8510,7 @@ a.dict-card-title:hover {
   text-align: right;
 }
 .derivation-panel-outward {
-  margin: 0.75rem 0 0;
+  margin: 0.4rem 0 0;
   text-align: right;
 }
 
@@ -9058,12 +9058,12 @@ a.dict-card-title:hover {
 }
 
 .glossary-derivation-atlas-heading {
-  margin-top: 36px;
+  margin-top: 28px;
 }
 .glossary-derivation-atlas-intro {
   color: #555;
   font-style: italic;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .glossary-derivation-atlas {
   margin-bottom: 12px;
@@ -9101,8 +9101,8 @@ a.dict-card-title:hover {
 .derivation-panel {
   border: 1px solid #d8d4c8;
   border-radius: 6px;
-  padding: 18px 22px;
-  margin: 0 0 28px 0;
+  padding: 14px 18px;
+  margin: 0 0 18px 0;
   background: #fdfdfb;
 }
 .derivation-panel-head {
@@ -9111,8 +9111,8 @@ a.dict-card-title:hover {
   gap: 12px;
   flex-wrap: wrap;
   border-bottom: 1px solid #ece8dc;
-  padding-bottom: 10px;
-  margin-bottom: 14px;
+  padding-bottom: 7px;
+  margin-bottom: 9px;
 }
 .derivation-panel-title {
   font-family: Georgia, 'Times New Roman', serif;
@@ -9142,7 +9142,7 @@ a.dict-card-title:hover {
 }
 
 .derivation-panel-section {
-  margin: 14px 0;
+  margin: 9px 0;
 }
 .derivation-panel-section-heading {
   font-size: 0.78rem;
@@ -9150,7 +9150,7 @@ a.dict-card-title:hover {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #888;
-  margin: 0 0 6px 0;
+  margin: 0 0 3px 0;
 }
 
 .derivation-panel-operational {
@@ -9159,7 +9159,7 @@ a.dict-card-title:hover {
   font-size: 0.92rem;
   background: #f4f1e6;
   color: #2a3a4a;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 3px;
   letter-spacing: 0.01em;
   word-break: break-word;
@@ -9169,7 +9169,7 @@ a.dict-card-title:hover {
 .derivation-panel-lineage {
   display: grid;
   grid-template-columns: 130px 1fr;
-  gap: 4px 12px;
+  gap: 2px 12px;
   margin: 0;
   font-size: 0.94rem;
 }
@@ -9210,8 +9210,8 @@ a.dict-card-title:hover {
 }
 
 .derivation-panel-prose {
-  margin-top: 12px;
-  padding: 8px 12px;
+  margin-top: 8px;
+  padding: 6px 10px;
   background: #f7f4ea;
   border-left: 3px solid #d8d4c8;
   border-radius: 0 3px 3px 0;
@@ -9222,13 +9222,13 @@ a.dict-card-title:hover {
   color: #555;
 }
 .derivation-panel-prose[open] summary {
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 .derivation-panel-prose p {
   margin: 0;
   font-size: 0.92rem;
   color: #3a4858;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 .derivation-panel-prose-badge {
   display: inline-block;
@@ -9300,10 +9300,10 @@ a.dict-card-title:hover {
 .equivalence-chain {
   margin: 0;
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 .equivalence-chain-row {
-  padding: 6px 10px;
+  padding: 5px 9px;
   background: #f7f4ea;
   border-left: 3px solid #d8d4c8;
   border-radius: 0 3px 3px 0;
@@ -9342,7 +9342,7 @@ a.dict-card-title:hover {
 .equivalence-chain-source--curator-derived { background: #e8eaef; color: #3a4858; }
 .equivalence-chain-source--community       { background: #ece8dc; color: #555e6b; }
 .equivalence-chain-why {
-  margin: 4px 0 0 0;
+  margin: 2px 0 0 0;
   font-size: 0.85rem;
   font-style: italic;
   color: #555;
@@ -9385,7 +9385,7 @@ a.dict-card-title:hover {
 /* ── Doctrine note ────────────────────────────────────────────────────── */
 
 .doctrine-note {
-  padding: 12px 16px;
+  padding: 9px 13px;
   background: #f4f1e6;
   border-left: 4px solid #c9a64a;
   border-radius: 0 4px 4px 0;
@@ -9400,7 +9400,7 @@ a.dict-card-title:hover {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .doctrine-note-badge {
   font-size: 0.68rem;
@@ -9422,7 +9422,7 @@ a.dict-card-title:hover {
 .doctrine-note-fields {
   display: grid;
   grid-template-columns: 110px 1fr;
-  gap: 4px 12px;
+  gap: 2px 12px;
   margin: 0;
   font-size: 0.92rem;
 }
@@ -9447,8 +9447,8 @@ a.dict-card-title:hover {
   border-radius: 2px;
 }
 .doctrine-note-context {
-  margin-top: 10px;
-  padding-top: 8px;
+  margin-top: 7px;
+  padding-top: 6px;
   border-top: 1px solid #ece2bc;
 }
 .doctrine-note-context summary {
@@ -9457,11 +9457,11 @@ a.dict-card-title:hover {
   color: #555;
 }
 .doctrine-note-context p {
-  margin: 8px 0 0 0;
+  margin: 5px 0 0 0;
   font-size: 0.9rem;
   font-style: italic;
   color: #3a4858;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 /* ── Standalone primitive demo grid ──────────────────────────────────── */
@@ -9490,7 +9490,7 @@ a.dict-card-title:hover {
 
 @media (max-width: 600px) {
   .derivation-panel {
-    padding: 14px 14px;
+    padding: 11px 12px;
   }
   .derivation-panel-add,
   .derivation-panel-lineage,
@@ -9501,7 +9501,7 @@ a.dict-card-title:hover {
   .derivation-panel-add dt,
   .derivation-panel-lineage dt,
   .doctrine-note-fields dt {
-    margin-top: 6px;
+    margin-top: 4px;
   }
   .semantic-depth-ladder-rung {
     flex-wrap: wrap;
