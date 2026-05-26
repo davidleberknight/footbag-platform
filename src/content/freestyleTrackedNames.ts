@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 535;
+export const TRACKED_UNPUBLISHED_TOTAL = 534;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -441,7 +441,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Double Blender', slug: 'double-blender', operationalNotation: 'SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Pickup', slug: 'double-pickup', operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Switch-Over', slug: 'double-switch-over', operationalNotation: 'SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Double-Over Down Swirl', slug: 'double-over-down-swirl', operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Dragon', slug: 'dragon' },
     { displayName: 'Ducking Barfly', slug: 'ducking-barfly', operationalNotation: 'CLIP > DUCK [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Butterfly', slug: 'fairy-butterfly', operationalNotation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL].', formulaProvenance: 'footbag.org' },

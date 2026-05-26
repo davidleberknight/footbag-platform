@@ -1648,6 +1648,22 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt). FB.org alias "Atomic Osis" wired via aliases column.',
   },
 
+  // ─── Double-over-down-swirl promotion (2026-05-26; extends just-shipped
+  //     double-over-down chassis with a back-swirl third dex). FB.org-confirmed
+  //     JOB. Atom-level: 3 [DEX] tokens + cross-body clipper terminator.
+
+  {
+    slug:        'double-over-down-swirl',
+    name:        'double-over down swirl',
+    operator:    'tripled-dex chassis',
+    base:        'double-over-down',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'double-over-down(4) + back-swirl dex(1) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Extends double-over-down with OP BACK SWIRL third dex; terminator swaps OP CLIP → SAME CLIP.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-26. Extension of double-over-down (4 ADD canonical compound in DB, shipped earlier this session). JOB FB.org-confirmed verbatim (fborg-5add.txt). The two SAME OUT dex pair from double-over-down is preserved; third dex is an OP BACK SWIRL (rotation-variant fused token); terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
+  },
+
   // ─── Avalanche + spike-hammer (2026-05-25; deferred-candidate follow-on).
   //     Structural twins: both 5 ADD, identical 3-operator modifier stack
   //     (stepping + ducking + paradox-X), differ only in the base atom
