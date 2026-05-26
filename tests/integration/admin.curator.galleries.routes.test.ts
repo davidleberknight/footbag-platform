@@ -603,7 +603,9 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
 
     const del = await request(app)
       .post('/admin/curator/galleries/gallery_delete_target/delete')
-      .set('Cookie', adminCookie());
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
     expect(del.status).toBe(303);
     expect(del.headers.location).toBe('/admin/curator/galleries');
 
@@ -618,7 +620,9 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
   it('returns 404 for an unknown gallery id', async () => {
     const res = await request(createApp())
       .post('/admin/curator/galleries/gallery_does_not_exist/delete')
-      .set('Cookie', adminCookie());
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(404);
   });
 

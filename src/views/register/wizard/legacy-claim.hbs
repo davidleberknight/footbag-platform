@@ -47,8 +47,17 @@
           <li class="candidate-card">
             <div class="candidate-card-name">{{this.displayName}}</div>
             <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
+            {{#if this.aliasesLabel}}<div class="candidate-card-meta">{{this.aliasesLabel}}</div>{{/if}}
             {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
+            {{#if this.clubAffiliations.length}}
+              <div class="candidate-card-meta text-muted fs-sm">Clubs: {{#each this.clubAffiliations}}{{#if @index}}, {{/if}}{{this}}{{/each}}</div>
+            {{/if}}
+            {{#if this.eventsAttended.length}}
+              <div class="candidate-card-meta text-muted fs-sm">Events: {{#each this.eventsAttended}}{{#if @index}}, {{/if}}{{this.title}} ({{this.year}}){{/each}}</div>
+            {{/if}}
+            {{#if this.bioExcerpt}}<div class="candidate-card-meta text-muted fs-sm">{{this.bioExcerpt}}</div>{{/if}}
             {{#if this.isHof}}<div class="candidate-card-meta">Hall of Fame</div>{{/if}}
+            {{#if this.isBap}}<div class="candidate-card-meta">Big Add Posse</div>{{/if}}
             {{#if (eq this.claimMode 'auto_link_confirm')}}
               <form method="POST" action="/register/wizard/legacy_claim/auto-link/confirm" class="candidate-card-action">
                 <input type="hidden" name="personId" value="{{this.personId}}" />
@@ -60,7 +69,7 @@
                 <button type="submit" class="btn btn-primary">This is me, link my history</button>
               </form>
             {{else if (eq this.claimMode 'hp_review_page')}}
-              <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Review and link</a></p>
+              <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Claim this record</a></p>
             {{else if (eq this.claimMode 'already_linked')}}
               {{#if this.alreadyLinkedSinceDisplay}}
                 <p class="candidate-card-linked">Linked {{this.alreadyLinkedSinceDisplay}}.</p>
@@ -80,10 +89,59 @@
       <button type="submit" class="btn btn-secondary">Find</button>
     </form>
 
+    <h3 class="mt-6">Used a different email or name on the old site?</h3>
+
+    {{#if content.declaredAnchors.length}}
+      <ul class="mb-4">
+        {{#each content.declaredAnchors}}
+          <li class="mb-2">
+            <span class="badge">{{#if (eq this.anchorType 'old_email')}}Old email{{else}}Former name{{/if}}</span> {{this.anchorValue}}
+            <form method="POST" action="/register/wizard/legacy_claim/anchors/remove" class="inline-form">
+              <input type="hidden" name="anchorId" value="{{this.id}}" />
+              <button type="submit" class="btn-link text-muted fs-sm">Remove</button>
+            </form>
+          </li>
+        {{/each}}
+      </ul>
+    {{/if}}
+
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="mb-4">
+      <div class="form-field">
+        <label for="oldEmail">Email address used on the old footbag.org site</label>
+        <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" />
+        <input type="hidden" name="anchorType" value="old_email" />
+        <small class="form-hint">If you used a different email on footbag.org, enter it here to help us find your account.</small>
+      </div>
+      <button type="submit" class="btn btn-secondary">Add old email</button>
+    </form>
+
+    <div class="mb-6" data-name-change-section>
+      <label class="form-checkbox">
+        <input type="checkbox" data-name-change-toggle />
+        I have legally changed my name since my footbag.org account was created
+      </label>
+      <div class="mt-2" data-name-change-fields>
+        <form method="POST" action="/register/wizard/legacy_claim/anchors/add">
+          <div class="form-field">
+            <label for="formerSurname">Surname used on the old site</label>
+            <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" />
+            <input type="hidden" name="anchorType" value="former_surname" />
+            <small class="form-hint">We will search for records under this name.</small>
+          </div>
+          <button type="submit" class="btn btn-secondary">Add former name</button>
+        </form>
+      </div>
+    </div>
+
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
       <button type="submit" class="btn-link text-muted">Skip for now</button>
     </form>
 
+    {{#if content.memberSlug}}
+      <p class="mt-4 text-muted">Can't find your record? <a href="/members/{{content.memberSlug}}/contact-admin?category=identity_link_issue&from=wizard">Get help</a></p>
+    {{/if}}
+
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>
+<script src="/js/name-change-toggle.js" defer></script>

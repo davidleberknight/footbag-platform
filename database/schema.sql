@@ -1812,6 +1812,7 @@ CREATE TABLE members (
 
   first_competition_year INTEGER,
   show_competitive_results INTEGER NOT NULL DEFAULT 1 CHECK (show_competitive_results IN (0,1)),
+  show_first_competition_year INTEGER NOT NULL DEFAULT 0 CHECK (show_first_competition_year IN (0,1)),
 
   legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
   legacy_user_id   TEXT,
@@ -3230,7 +3231,7 @@ CREATE TABLE member_onboarding_tasks (
 
   member_id    TEXT NOT NULL REFERENCES members(id),
   task_type    TEXT NOT NULL
-    CHECK (task_type IN ('legacy_claim','club_affiliations','first_competition_year','show_competitive_results')),
+    CHECK (task_type IN ('personal_details','legacy_claim','club_affiliations')),
   state        TEXT NOT NULL DEFAULT 'pending'
     CHECK (state IN ('pending','in_progress_paused','skipped','completed','not_applicable')),
   completed_at TEXT,
@@ -3239,6 +3240,20 @@ CREATE TABLE member_onboarding_tasks (
 );
 
 CREATE INDEX idx_member_onboarding_tasks_member ON member_onboarding_tasks(member_id);
+
+CREATE TABLE member_declared_anchors (
+  id           TEXT PRIMARY KEY,
+  created_at   TEXT NOT NULL,
+  created_by   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  updated_by   TEXT NOT NULL,
+  version      INTEGER NOT NULL DEFAULT 1,
+  member_id    TEXT NOT NULL REFERENCES members(id),
+  anchor_type  TEXT NOT NULL CHECK (anchor_type IN ('former_surname','old_email')),
+  anchor_value TEXT NOT NULL,
+  UNIQUE(member_id, anchor_type, anchor_value)
+);
+CREATE INDEX idx_member_declared_anchors_member ON member_declared_anchors(member_id);
 
 -- Permanent archival table: one row per imported legacy account from the old
 -- footbag.org mirror or Steve Goldberg's data dump. Identified by the legacy

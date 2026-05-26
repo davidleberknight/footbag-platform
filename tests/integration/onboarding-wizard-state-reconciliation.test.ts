@@ -44,8 +44,8 @@ function getTaskState(memberId: string, taskType: string): string | null {
   return row?.state ?? null;
 }
 
-describe('A1: profile-edit save completes the metadata tasks', () => {
-  it('saving the profile-edit form transitions first_competition_year and show_competitive_results to completed', async () => {
+describe('A1: profile-edit save completes the personal_details task', () => {
+  it('saving the profile-edit form transitions personal_details to completed', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, {
       slug: `state_a1_${stamp}`,
@@ -53,8 +53,7 @@ describe('A1: profile-edit save completes the metadata tasks', () => {
       real_name:   'A One',
     });
     svc.startTaskList(memberId);
-    expect(getTaskState(memberId, 'first_competition_year')).toBe('pending');
-    expect(getTaskState(memberId, 'show_competitive_results')).toBe('pending');
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
 
     const res = await request(createApp())
       .post(`/members/state_a1_${stamp}/edit`)
@@ -67,8 +66,7 @@ describe('A1: profile-edit save completes the metadata tasks', () => {
       });
     expect(res.status).toBe(303);
 
-    expect(getTaskState(memberId, 'first_competition_year')).toBe('completed');
-    expect(getTaskState(memberId, 'show_competitive_results')).toBe('completed');
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
   });
 });
 
@@ -157,10 +155,9 @@ describe('B2: /register/wizard/complete does not lie about progress', () => {
       login_email: `state-b2-done-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
+    svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
     svc.markTaskNotApplicable(memberId, 'club_affiliations');
-    svc.completeTask(memberId, 'first_competition_year');
-    svc.completeTask(memberId, 'show_competitive_results');
 
     const res = await request(createApp())
       .get('/register/wizard/complete')
@@ -185,13 +182,10 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
       .set('Cookie', cookie).type('form').send({});
     expect(r1.headers.location).toBe('/register/wizard/club_affiliations');
 
-    // After club_affiliations auto-transitions to not_applicable on the
-    // followup skip, advance moves to first_competition_year — never back
-    // through legacy_claim even though it is in skipped state (A6).
     const r2 = await request(createApp())
       .post('/register/wizard/club_affiliations/skip')
       .set('Cookie', cookie).type('form').send({});
-    expect(r2.headers.location).toBe('/register/wizard/first_competition_year');
+    expect(r2.headers.location).toBe('/register/wizard/complete');
   });
 
   it('getDashboardTaskWidget puts skipped rows in the skipped bucket (not pending)', () => {
@@ -201,12 +195,12 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
       login_email: `state-a7-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
-    svc.skipTask(memberId, 'show_competitive_results');
+    svc.skipTask(memberId, 'club_affiliations');
 
     const widget = svc.getDashboardTaskWidget(memberId);
-    expect(widget.skipped.map((t) => t.taskType)).toContain('show_competitive_results');
-    expect(widget.pending.map((t) => t.taskType)).not.toContain('show_competitive_results');
-    const skipped = widget.skipped.find((t) => t.taskType === 'show_competitive_results')!;
+    expect(widget.skipped.map((t) => t.taskType)).toContain('club_affiliations');
+    expect(widget.pending.map((t) => t.taskType)).not.toContain('club_affiliations');
+    const skipped = widget.skipped.find((t) => t.taskType === 'club_affiliations')!;
     expect(skipped.ctaLabel).toBe('Resume task');
   });
 });
@@ -219,10 +213,9 @@ describe('C4: dashboard widget hides when nothing is outstanding', () => {
       login_email: `state-c4-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
+    svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
     svc.markTaskNotApplicable(memberId, 'club_affiliations');
-    svc.completeTask(memberId, 'first_competition_year');
-    svc.completeTask(memberId, 'show_competitive_results');
 
     const widget = svc.getDashboardTaskWidget(memberId);
     expect(widget.hasOutstanding).toBe(false);

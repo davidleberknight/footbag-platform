@@ -395,6 +395,27 @@ th.sortable:hover { color: var(--primary); }
 /* ── Profile membership block tiers link ────────────────────── */
 .membership-tiers-link { margin-top: 6px; font-size: 0.9rem; }
 
+/* ── My Clubs block (member dashboard) ─────────────────────── */
+.my-clubs-block { padding: 0 0 8px; }
+.my-clubs-list { list-style: none; padding: 0; margin: 0; }
+.my-clubs-item { padding: 10px 0; border-bottom: 1px solid #eee; }
+.my-clubs-item:last-child { border-bottom: none; }
+.my-clubs-item-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.my-clubs-name { font-weight: 600; }
+.my-clubs-actions { display: flex; gap: 12px; margin-top: 4px; }
+.my-clubs-ctas { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Club create form ───────────────────────────────────────── */
+.club-slug-group { display: flex; align-items: center; }
+.club-slug-prefix {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin-right: 4px;
+  user-select: none;
+}
+.club-slug-group input { flex: 1; }
+
 /* ── Find Members card (member dashboard) ───────────────────── */
 .member-search-card { padding: 16px; scroll-margin-top: 80px; }
 .member-search-card .member-search-section { margin-bottom: 8px; }
@@ -600,6 +621,16 @@ th.sortable:hover { color: var(--primary); }
   font-size: 0.75rem;
 }
 
+.browse-standard-section { margin: 24px 0 0; }
+.browse-popular-section { margin: 24px 0 0; }
+.browse-section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+}
 .browse-tags-help {
   margin: 24px 0 0;
   padding: 20px;
@@ -644,6 +675,107 @@ th.sortable:hover { color: var(--primary); }
   text-decoration: none;
 }
 .tag-chip:hover { background: var(--bg-hover, #eef); }
+button.tag-suggestion {
+  cursor: pointer;
+  font-family: inherit;
+}
+/* Tag chip input (progressive enhancement) */
+.tag-chip-input-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #d0d0d0);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  min-height: 38px;
+  cursor: text;
+  position: relative;
+}
+.tag-chip-input-container:focus-within {
+  border-color: var(--accent, #3366cc);
+  outline: 2px solid rgba(51, 102, 204, 0.2);
+}
+.tag-chip-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-light, #f4f4f4);
+  border: 1px solid var(--border-color, #d0d0d0);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.tag-chip-input-chip-remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  color: var(--text-muted);
+  font-family: inherit;
+}
+.tag-chip-input-chip-remove:hover { color: var(--text-default, #222); }
+.tag-chip-input-field {
+  border: none;
+  outline: none;
+  flex: 1 1 80px;
+  min-width: 80px;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  background: transparent;
+  font-family: inherit;
+}
+.tag-chip-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  background: #fff;
+  border: 1px solid var(--border-color, #d0d0d0);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.tag-chip-autocomplete-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.tag-chip-autocomplete-item:hover,
+.tag-chip-autocomplete-item--active {
+  background: var(--bg-hover, #eef);
+}
+.tag-chip-autocomplete-count {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.tag-suggestions {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.tag-suggestions-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.tag-suggestions-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 .gallery-tile-date {
   margin: 6px 0 0;
@@ -1440,6 +1572,7 @@ section.home-media { padding-top: 0; }
   line-height: 1.7;
   color: var(--text);
 }
+.club-gallery-link { margin-top: 20px; }
 .club-members { margin-top: 32px; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
 .club-member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
@@ -1913,6 +2046,25 @@ section.home-media { padding-top: 0; }
   .wizard-card-actions .btn { width: 100%; }
 }
 
+.disambiguation-club-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.disambiguation-club-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.disambiguation-club-item:last-child {
+  border-bottom: none;
+}
+.disambiguation-club-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
 .form-input-with-prefix {
   display: inline-flex;
   align-items: stretch;
@@ -2166,6 +2318,7 @@ section.home-media { padding-top: 0; }
    text instead of breaking onto its own line. Replaces inline style="" so
    CSP `style-src 'self'` can stay strict. */
 .inline-form { display: inline; }
+.inline-flex-row { display: inline-flex; gap: 0.5rem; align-items: center; }
 
 /* ── Internal QC: net review item edit UI ────────────────────── */
 .review-edit-row td { padding: 0 0.5rem 0.5rem; background: #f8f8f8; }

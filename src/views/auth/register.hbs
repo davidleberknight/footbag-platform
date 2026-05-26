@@ -35,19 +35,6 @@
       </div>
 
       <div class="form-field">
-        <label for="displayName">Display name <span class="text-muted">(optional)</span></label>
-        <input
-          type="text"
-          id="displayName"
-          name="displayName"
-          value="{{content.displayName}}"
-          maxlength="64"
-          autocomplete="nickname"
-        />
-        <small class="form-hint">How you want to appear on the site. Must include your last name. Defaults to your full name.</small>
-      </div>
-
-      <div class="form-field">
         <label for="email">Email address</label>
         <input
           type="email"
@@ -85,6 +72,50 @@
         />
       </div>
 
+      <div class="card mb-6">
+        <p class="card-title">Display name</p>
+        <p class="text-muted fs-sm mb-4">How your name appears across the site: on your profile, in search results, on club rosters, and in competition records. If you leave this blank, your full legal name is used.</p>
+        <div class="form-field">
+          <label for="displayName">Display name</label>
+          <input
+            type="text"
+            id="displayName"
+            name="displayName"
+            value="{{content.displayName}}"
+            placeholder="Leave blank to use your full name"
+            maxlength="64"
+            autocomplete="nickname"
+          />
+        </div>
+        <ul class="text-muted fs-sm mt-2 mb-0">
+          <li>Must include your last name</li>
+          <li>Permanent: cannot be changed after registration</li>
+        </ul>
+      </div>
+
+      <div class="card mb-6">
+        <p class="card-title">Profile URL</p>
+        <p class="text-muted fs-sm mb-4">Your permanent address on the site. If you leave this blank, it is generated from your display name (e.g. "david_leberknight"). This also becomes your personal media hashtag: #your_slug.</p>
+        <div class="form-field">
+          <label for="slug">Profile URL</label>
+          <input
+            type="text"
+            id="slug"
+            name="slug"
+            value="{{content.slug}}"
+            placeholder="Leave blank to generate from display name"
+            maxlength="64"
+            autocomplete="off"
+          />
+          <small class="form-hint">footbag.org/members/<strong>your_slug</strong></small>
+        </div>
+        <ul class="text-muted fs-sm mt-2 mb-0">
+          <li>Lowercase letters, numbers, and underscores only</li>
+          <li>Must contain your last name</li>
+          <li>Permanent: cannot be changed after registration</li>
+        </ul>
+      </div>
+
       <button type="submit" class="btn btn-primary">Create account</button>
     </form>
 
@@ -92,3 +123,4 @@
   </section>
 
 </div>
+<script src="/js/register-defaults.js" defer></script>

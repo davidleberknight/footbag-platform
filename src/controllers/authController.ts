@@ -88,8 +88,8 @@ function getRegister(req: Request, res: Response): void {
 }
 
 async function postRegister(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { realName, displayName, email, password, confirmPassword } = req.body as {
-    realName?: string; displayName?: string; email?: string; password?: string; confirmPassword?: string;
+  const { realName, displayName, slug, email, password, confirmPassword } = req.body as {
+    realName?: string; displayName?: string; slug?: string; email?: string; password?: string; confirmPassword?: string;
   };
 
   const renderError = (msg: string) => {
@@ -100,6 +100,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
         error: msg,
         realName: realName ?? '',
         displayName: displayName ?? '',
+        slug: slug ?? '',
         email: email ?? '',
       },
     } satisfies PageViewModel<RegisterContent>);
@@ -112,10 +113,9 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       confirmPassword ?? '',
       realName ?? '',
       displayName ?? '',
+      slug ?? '',
     );
-    // Both 'registered' and 'silent_duplicate' land here; the check-email
-    // page is identical regardless, preventing account enumeration.
-    // No session cookie is set.
+    // No session cookie is set; the member must verify via email first.
     res.redirect(303, '/register/check-email');
   } catch (err) {
     if (err instanceof ValidationError) {

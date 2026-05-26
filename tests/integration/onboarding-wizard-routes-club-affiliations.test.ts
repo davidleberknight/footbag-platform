@@ -237,8 +237,8 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: membershipAffId, userDecision: 'confirm' });
 
     expect(res.status).toBe(303);
-    // No more cards remaining -> advance to next task (first_competition_year).
-    expect(res.headers.location).toBe('/register/wizard/first_competition_year');
+    // No more cards remaining -> advance to wizard complete (club_affiliations is the last task).
+    expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');
   });
@@ -251,7 +251,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'leadership', candidateId: leadershipCblId, userDecision: 'confirm' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/first_competition_year');
+    expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readBootstrapStatus(leadershipCblId)).toBe('claimed');
     expect(readTaskState(MEMBER_LEADERSHIP)).toBe('completed');
   });
@@ -282,7 +282,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: multiAffAlpha, userDecision: 'confirm' });
 
     expect(second.status).toBe(303);
-    expect(second.headers.location).toBe('/register/wizard/first_competition_year');
+    expect(second.headers.location).toBe('/register/wizard/complete');
     expect(readTaskState(MEMBER_MULTI)).toBe('completed');
   });
 });

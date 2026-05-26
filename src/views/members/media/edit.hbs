@@ -25,8 +25,36 @@
 
     <p>
       <label for="member-media-tags">Tags (space-separated <code>#hashtags</code>):</label><br>
-      <input id="member-media-tags" type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #spike">
+      <input id="member-media-tags" type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #spike" data-tag-chips>
     </p>
+    {{#if tagSuggestions}}
+    <div class="tag-suggestions" aria-label="Suggested tags">
+      {{#if tagSuggestions.clubTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Your clubs:</span>
+        {{#each tagSuggestions.clubTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if tagSuggestions.participatedEventTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Your events:</span>
+        {{#each tagSuggestions.participatedEventTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if tagSuggestions.popularTags.length}}
+      <div class="tag-suggestions-group">
+        <span class="tag-suggestions-label">Popular:</span>
+        {{#each tagSuggestions.popularTags}}
+        <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+    </div>
+    {{/if}}
 
     <p>
       <label for="member-media-external-url">External URL (optional, link to source page or creator):</label><br>
@@ -39,3 +67,7 @@
     </p>
   </form>
 </div>
+<script src="/js/tag-chips.js" defer></script>
+{{#if tagSuggestions}}
+<script src="/js/tag-suggestions.js" defer></script>
+{{/if}}

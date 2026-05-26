@@ -123,7 +123,7 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
 
   it('splits a member tasks into pending / paused / completed with resumeUrl on paused', () => {
     svc.startTaskList(MEMBER_WIDGET);
-    svc.completeTask(MEMBER_WIDGET, 'first_competition_year');
+    svc.completeTask(MEMBER_WIDGET, 'personal_details');
     svc.transitionToDetourPaused(
       MEMBER_WIDGET,
       'club_affiliations',
@@ -134,10 +134,10 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     const widget = svc.getDashboardTaskWidget(MEMBER_WIDGET);
 
     expect(widget.paused.map((t) => t.taskType)).toContain('club_affiliations');
-    // legacy_claim + show_competitive_results stay pending (started by startTaskList).
-    // first_competition_year is completed, so it does not appear in any bucket.
+    // legacy_claim stays pending.
+    // personal_details is completed, so it does not appear in any bucket.
     expect(widget.pending.map((t) => t.taskType).sort()).toEqual(
-      ['legacy_claim', 'show_competitive_results'].sort(),
+      ['legacy_claim'].sort(),
     );
 
     const paused = widget.paused.find((t) => t.taskType === 'club_affiliations')!;
@@ -145,12 +145,12 @@ describe('memberOnboardingService.getDashboardTaskWidget', () => {
     expect(paused.targetStory).toBe('M_Create_Club');
     expect(paused.sourceCard).toBe('card_club_affiliations');
     expect(paused.resumeUrl).toBe('/register/wizard/club_affiliations');
-    expect(paused.taskLabel).toBe('Confirm your clubs');
+    expect(paused.taskLabel).toBe('Club affiliation');
     expect(paused.ctaLabel).toBe('Resume onboarding');
     expect(paused.ctaHref).toBe('/register/wizard/club_affiliations');
 
     const pendingLegacy = widget.pending.find((t) => t.taskType === 'legacy_claim')!;
-    expect(pendingLegacy.taskLabel).toBe('Find your past records and clubs');
+    expect(pendingLegacy.taskLabel).toBe('Find your past records');
     expect(pendingLegacy.ctaLabel).toBe('Continue onboarding');
     expect(pendingLegacy.ctaHref).toBe('/register/wizard/legacy_claim');
 

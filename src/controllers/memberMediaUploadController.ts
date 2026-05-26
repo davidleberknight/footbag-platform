@@ -32,6 +32,7 @@ import { hit as rateLimitHit } from '../services/rateLimitService';
 import { readIntConfig } from '../services/configReader';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 interface FormValues {
   mediaType?: 'photo' | 'video';
@@ -40,6 +41,13 @@ interface FormValues {
   videoUrl?: string;
   videoPlatform?: 'youtube' | 'vimeo' | '';
   externalUrl?: string;
+  galleryId?: string;
+}
+
+interface GalleryOption {
+  id: string;
+  name: string;
+  criteriaTags: string[];
 }
 
 function isOwnRoute(req: Request): boolean {
@@ -68,6 +76,8 @@ function renderForm(
     status?: number;
     errorMessage?: string;
     formValues?: FormValues;
+    tagSuggestions?: MemberTagSuggestions;
+    galleries?: GalleryOption[];
   } = {},
 ): void {
   const status = opts.status ?? 200;
@@ -78,6 +88,8 @@ function renderForm(
     cancelHref: listHref(memberKey),
     errorMessage: opts.errorMessage,
     formValues: opts.formValues ?? { mediaType: 'photo' },
+    tagSuggestions: opts.tagSuggestions,
+    galleries: opts.galleries,
   });
 }
 
@@ -92,7 +104,18 @@ export const memberMediaUploadController = {
       renderNotFound(res);
       return;
     }
-    renderForm(res, req.params.memberKey);
+    const memberId = req.user?.userId;
+    const tagSuggestions = memberId
+      ? hashtagDiscoveryService.getTagSuggestionsForMember(memberId)
+      : undefined;
+    const galleries: GalleryOption[] = memberId
+      ? getDefaultCuratorMediaService().listGalleriesForOwner(memberId).map(g => ({
+          id: g.id,
+          name: g.name,
+          criteriaTags: g.criteriaTags,
+        }))
+      : [];
+    renderForm(res, req.params.memberKey, { tagSuggestions, galleries });
   },
 
   /** POST /members/:memberKey/media/upload — accept multipart upload. */
@@ -181,9 +204,24 @@ export const memberMediaUploadController = {
       const mediaType = fields.mediaType;
       const captionRaw = (fields.caption ?? '').trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
-      const tags = parseTagsField(fields.tags);
-      // External URL: empty string -> null; trimmed value -> service-side validation.
-      // Validation lives in the service; the controller only normalises the empty-string sentinel.
+      let tags = parseTagsField(fields.tags);
+
+      const galleryId = (fields.galleryId ?? '').trim();
+      if (galleryId) {
+        const svcForGallery = getDefaultCuratorMediaService();
+        const galleries = svcForGallery.listGalleriesForOwner(memberId);
+        const selectedGallery = galleries.find(g => g.id === galleryId);
+        if (selectedGallery && selectedGallery.criteriaTags.length > 0) {
+          const existing = new Set(tags.map(t => t.toLowerCase()));
+          for (const ct of selectedGallery.criteriaTags) {
+            if (!existing.has(ct.toLowerCase())) {
+              tags.push(ct);
+              existing.add(ct.toLowerCase());
+            }
+          }
+        }
+      }
+
       const externalUrlRaw = (fields.externalUrl ?? '').trim();
       const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
 
@@ -276,5 +314,6 @@ function collectFormValues(fields: Record<string, string>): FormValues {
     videoUrl: fields.videoUrl ?? '',
     videoPlatform,
     externalUrl: fields.externalUrl ?? '',
+    galleryId: fields.galleryId ?? '',
   };
 }

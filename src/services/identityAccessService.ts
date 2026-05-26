@@ -73,7 +73,7 @@
  */
 import { randomUUID } from 'crypto';
 import argon2 from 'argon2';
-import { auth, registration, legacyClaim, legacyMembers, account, workQueue, pendingAutoLinkCard, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, workQueue, pendingAutoLinkCard, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { getCommunicationService } from './communicationService';
@@ -145,6 +145,7 @@ export interface RegisterContent {
   error?: string;
   realName?: string;
   displayName?: string;
+  slug?: string;
   email?: string;
 }
 
@@ -226,6 +227,10 @@ export interface ClaimHpConfirmContent {
   isHof?: boolean;
   isBap?: boolean;
   firstNameWarning?: boolean;
+  bioExcerpt?: string | null;
+  clubAffiliations?: string[];
+  eventsAttended?: Array<{ title: string; year: number }>;
+  memberSlug?: string;
   error?: string;
   cancelHref: string;
 }
@@ -267,8 +272,17 @@ export interface LinkHistoryCandidate {
   country: string | null;
   isHof: boolean;
   isBap: boolean;
+  firstYear: number | null;
   /** "Claimed Jan 12, 2024" string for `already_linked` legacy badges. */
   alreadyLinkedSinceDisplay: string | null;
+  /** Service-shaped alias line, e.g. "Also known as: dleberknight". Null when no aliases. */
+  aliasesLabel: string | null;
+  /** Truncated bio from legacy_members. Null for HP-only candidates or when bio is empty. */
+  bioExcerpt: string | null;
+  /** Club names from legacy_person_club_affiliations for this person. */
+  clubAffiliations: string[];
+  /** Events attended, newest first. */
+  eventsAttended: Array<{ title: string; year: number }>;
 }
 
 /**
@@ -331,6 +345,7 @@ export interface LinkHistoryContent {
    * when no validation message applies.
    */
   validationMessage?: string;
+  declaredAnchors?: DeclaredAnchorView[];
   /**
    * Static "Your clubs (coming soon)" placeholder per
    * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
@@ -346,6 +361,8 @@ export interface ClaimConfirmContent {
   isHof: boolean;
   isBap: boolean;
   token: string;
+  clubAffiliations: string[];
+  eventsAttended: Array<{ title: string; year: number }>;
 }
 
 // ── Business result contracts ──────────────────────────────────────────────
@@ -359,12 +376,7 @@ export interface RegisteredMember {
 }
 
 export interface RegisterResult {
-  /**
-   * Always redirect to /register/check-email regardless of which branch ran.
-   * Duplicate-email registrations silently take the 'silent_duplicate' branch
-   * to prevent account enumeration.
-   */
-  status: 'registered' | 'silent_duplicate';
+  status: 'registered';
 }
 
 /**
@@ -490,12 +502,33 @@ function validateDisplayNameSurname(displayName: string, realName: string): void
   }
 }
 
+const SLUG_PATTERN = /^[a-z0-9]([a-z0-9_]*[a-z0-9])?$/;
+const MAX_SLUG_LENGTH = 64;
+const MIN_SLUG_LENGTH = 2;
+
+function validateSlug(slug: string, realName: string): void {
+  if (slug.length < MIN_SLUG_LENGTH) {
+    throw new ValidationError(`Profile URL must be at least ${MIN_SLUG_LENGTH} characters.`);
+  }
+  if (slug.length > MAX_SLUG_LENGTH) {
+    throw new ValidationError(`Profile URL must be ${MAX_SLUG_LENGTH} characters or fewer.`);
+  }
+  if (!SLUG_PATTERN.test(slug)) {
+    throw new ValidationError('Profile URL must contain only lowercase letters, numbers, and underscores.');
+  }
+  const surname = surnameKey(realName);
+  if (surname && !slug.includes(surname)) {
+    throw new ValidationError('Profile URL must contain your last name.');
+  }
+}
+
 async function registerMember(
   email: string,
   password: string,
   confirmPassword: string,
   realName: string,
   displayName: string,
+  requestedSlug?: string,
 ): Promise<RegisterResult> {
   const trimmedRealName = realName.trim();
   const trimmedDisplayName = displayName.trim() || trimmedRealName;
@@ -509,6 +542,12 @@ async function registerMember(
   }
   if (trimmedDisplayName !== trimmedRealName) {
     validateDisplayNameSurname(trimmedDisplayName, trimmedRealName);
+  }
+
+  const trimmedSlug = requestedSlug?.trim().toLowerCase() ?? '';
+  const userProvidedSlug = trimmedSlug !== '';
+  if (userProvidedSlug) {
+    validateSlug(trimmedSlug, trimmedRealName);
   }
 
   if (!trimmedEmail) {
@@ -526,12 +565,7 @@ async function registerMember(
 
   const emailExists = registration.checkEmailExists.get(normalizedEmail) as { exists_flag: number } | undefined;
   if (emailExists) {
-    // Anti-enumeration: render the same check-email page for an
-    // already-registered address. We do not re-issue a token here;
-    // the existing verified account is unaffected. The UNIQUE-constraint
-    // catch below handles the residual race-window case where a concurrent
-    // registration commits between this check and the insert.
-    return { status: 'silent_duplicate' };
+    throw new ValidationError('An account with this email already exists. Please log in or reset your password.');
   }
 
   const id = `member_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -546,7 +580,7 @@ async function registerMember(
   //     and retry up to MAX_SLUG_RETRIES times. Bounded retry; the slug
   //     suffix space is large so collisions resolve quickly.
   const MAX_SLUG_RETRIES = 3;
-  let slug = generateUniqueSlug(trimmedDisplayName);
+  let slug = userProvidedSlug ? trimmedSlug : generateUniqueSlug(trimmedDisplayName);
   let inserted = false;
   for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt += 1) {
     try {
@@ -570,13 +604,16 @@ async function registerMember(
       if (!isUniqueConstraintError(err)) throw err;
       const msg = String((err as Error).message ?? '');
       if (msg.includes('login_email_normalized')) {
-        // Email race lost. Anti-enumeration: same response shape as the
-        // pre-check duplicate path.
-        return { status: 'silent_duplicate' };
+        throw new ValidationError('An account with this email already exists. Please log in or reset your password.');
       }
-      if (msg.includes('slug') && attempt < MAX_SLUG_RETRIES) {
-        slug = generateUniqueSlug(trimmedDisplayName);
-        continue;
+      if (msg.includes('slug')) {
+        if (userProvidedSlug) {
+          throw new ValidationError('This profile URL is already taken.');
+        }
+        if (attempt < MAX_SLUG_RETRIES) {
+          slug = generateUniqueSlug(trimmedDisplayName);
+          continue;
+        }
       }
       // Unknown unique constraint (e.g. PK id collision — astronomically
       // rare with 24-char random hex) or slug retries exhausted. Let it
@@ -703,7 +740,7 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
   // since the token itself is single-use, we proceed with login in any case.
 
   const row = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
-    | { id: string; slug: string | null; login_email: string | null; real_name: string | null; password_version: number; is_admin: number }
+    | { id: string; slug: string | null; login_email: string | null; real_name: string | null; password_version: number; is_admin: number; birth_date: string | null }
     | undefined;
   if (!row) return null;
 
@@ -725,7 +762,7 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
 
   const autoLinkClassification: AutoLinkClassification = emailAmbiguous
     ? { confidence: 'low', reason: 'ambiguous_email_anchor' }
-    : classifyAutoLink(row.real_name, legacyMatch);
+    : classifyAutoLink(row.real_name, legacyMatch, row.birth_date);
   logger.info('verify.autolink.classification', {
     memberId: row.id,
     confidence: autoLinkClassification.confidence,
@@ -757,12 +794,10 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
  */
 function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassification {
   const member = legacyClaim.findClaimingMember.get(memberId) as
-    | { id: string; real_name: string; legacy_member_id: string | null; historical_person_id: string | null }
+    | { id: string; real_name: string; legacy_member_id: string | null; historical_person_id: string | null; birth_date: string | null }
     | undefined;
   if (!member) return { confidence: 'none' };
 
-  // If the member is already linked (legacy or HP), the auto-link UI should
-  // fall through — don't re-offer a link they already have.
   if (member.legacy_member_id || member.historical_person_id) {
     return { confidence: 'none' };
   }
@@ -784,7 +819,7 @@ function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassific
   if (emailAmbiguous) {
     return { confidence: 'low', reason: 'ambiguous_email_anchor' };
   }
-  return classifyAutoLink(member.real_name, legacyMatch);
+  return classifyAutoLink(member.real_name, legacyMatch, member.birth_date);
 }
 
 interface IdentityLinksRow {
@@ -816,6 +851,32 @@ interface IdentityLinksRow {
  *
  * Returns null when the member is not found (controller renders 404).
  */
+
+const BIO_EXCERPT_MAX = 200;
+
+function bioExcerptFor(legacyMemberId: string | null): string | null {
+  if (!legacyMemberId) return null;
+  const row = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
+  if (!row?.bio) return null;
+  const trimmed = row.bio.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length <= BIO_EXCERPT_MAX) return trimmed;
+  return trimmed.slice(0, BIO_EXCERPT_MAX) + '…';
+}
+
+function candidateClubsAndEvents(personId: string | null): {
+  clubAffiliations: string[];
+  eventsAttended: Array<{ title: string; year: number }>;
+} {
+  if (!personId) return { clubAffiliations: [], eventsAttended: [] };
+  const clubs = legacyClaim.listClubAffiliationsForPerson.all(personId) as { display_name: string }[];
+  const events = legacyClaim.listEventsAttendedByPerson.all(personId) as { title: string; year: number }[];
+  return {
+    clubAffiliations: clubs.map((r) => r.display_name),
+    eventsAttended: events.map((r) => ({ title: r.title, year: r.year })),
+  };
+}
+
 function getLinkHistoryView(
   memberId: string,
   opts: {
@@ -844,6 +905,7 @@ function getLinkHistoryView(
   let classifierPersonId: string | null = null;
   if (classification.confidence === 'high' || classification.confidence === 'medium') {
     classifierPersonId = classification.personId;
+    const classifierHp = legacyClaim.findHistoricalPersonById.get(classification.personId) as HistoricalPersonClaimRow | undefined;
     candidates.push({
       claimMode: 'auto_link_confirm',
       displayName: classification.personName,
@@ -852,10 +914,14 @@ function getLinkHistoryView(
         : 'Possible match (matched by a name variant and email).',
       legacyMemberId: null,
       personId: classification.personId,
-      country: null,
-      isHof: false,
-      isBap: false,
+      country: classifierHp?.country ?? null,
+      isHof: classifierHp?.hof_member !== 0 && classifierHp?.hof_member != null,
+      isBap: classifierHp?.bap_member !== 0 && classifierHp?.bap_member != null,
+      firstYear: classifierHp?.first_year ?? null,
+      aliasesLabel: shapeAliasesLabel(classifierHp?.aliases ?? null),
       alreadyLinkedSinceDisplay: null,
+      bioExcerpt: bioExcerptFor(classifierHp?.legacy_member_id ?? null),
+      ...candidateClubsAndEvents(classification.personId),
     });
   }
 
@@ -887,7 +953,11 @@ function getLinkHistoryView(
               country: lookup.result.country,
               isHof: lookup.result.isHof,
               isBap: lookup.result.isBap,
+              firstYear: backHp?.first_year ?? null,
               alreadyLinkedSinceDisplay: null,
+              aliasesLabel: shapeAliasesLabel(backHp?.aliases ?? null),
+              bioExcerpt: bioExcerptFor(row.legacy_member_id),
+              ...candidateClubsAndEvents(backHp?.person_id ?? null),
             });
           }
         }
@@ -905,16 +975,21 @@ function getLinkHistoryView(
     for (const c of candidates) if (c.personId) seenPersonIds.add(c.personId);
     for (const c of findAutoLinkCandidates(member.real_name)) {
       if (seenPersonIds.has(c.personId)) continue;
+      const hp = legacyClaim.findHistoricalPersonById.get(c.personId) as HistoricalPersonClaimRow | undefined;
       candidates.push({
         claimMode: 'hp_review_page',
         displayName: c.personName,
         provenanceLabel: 'Competition record.',
         legacyMemberId: null,
         personId: c.personId,
-        country: null,
-        isHof: false,
-        isBap: false,
+        country: hp?.country ?? null,
+        isHof: hp?.hof_member !== 0 && hp?.hof_member != null,
+        isBap: hp?.bap_member !== 0 && hp?.bap_member != null,
+        firstYear: hp?.first_year ?? null,
         alreadyLinkedSinceDisplay: null,
+        aliasesLabel: shapeAliasesLabel(hp?.aliases ?? null),
+        bioExcerpt: bioExcerptFor(hp?.legacy_member_id ?? null),
+        ...candidateClubsAndEvents(c.personId),
       });
     }
   }
@@ -934,7 +1009,12 @@ function getLinkHistoryView(
       country: null,
       isHof: false,
       isBap: false,
+      firstYear: null,
       alreadyLinkedSinceDisplay: links?.legacy_claimed_at ? formatDateForDisplay(links.legacy_claimed_at) : null,
+      aliasesLabel: null,
+      bioExcerpt: null,
+      clubAffiliations: [],
+      eventsAttended: [],
     });
   }
   if (hpLinked) {
@@ -947,7 +1027,12 @@ function getLinkHistoryView(
       country: null,
       isHof: false,
       isBap: false,
+      firstYear: null,
       alreadyLinkedSinceDisplay: null,
+      aliasesLabel: null,
+      bioExcerpt: null,
+      clubAffiliations: [],
+      eventsAttended: [],
     });
   }
 
@@ -990,6 +1075,13 @@ function getLinkHistoryView(
   };
 }
 
+function shapeAliasesLabel(aliases: string | null): string | null {
+  if (!aliases || !aliases.trim()) return null;
+  const parts = aliases.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  return `Also known as: ${parts.join(', ')}`;
+}
+
 function formatDateForDisplay(iso: string): string {
   // Best-effort short month + day + year. Falls back to raw on parse failure.
   const d = new Date(iso);
@@ -1009,6 +1101,7 @@ function formatDateForDisplay(iso: string): string {
 function classifyAutoLink(
   realName: string | null,
   legacyMatch: LegacyAccountLookupResult | null,
+  memberBirthDate: string | null = null,
 ): AutoLinkClassification {
   if (!legacyMatch) return { confidence: 'none' };
 
@@ -1024,6 +1117,24 @@ function classifyAutoLink(
     return { confidence: 'low', reason: 'no_name_candidate' };
   }
   if (candidates.length > 1) {
+    if (memberBirthDate && legacyMatch.birthDate && memberBirthDate === legacyMatch.birthDate) {
+      const provenanceCandidate = candidates.find((c) => c.personId === hpProvenance.person_id);
+      if (provenanceCandidate) {
+        const narrowed = provenanceCandidate;
+        if (!normalizedSurnamesMatch(realName, narrowed.personName)) {
+          return { confidence: 'low', reason: 'hp_mismatch' };
+        }
+        if (narrowed.matchKind === 'exact') {
+          return { confidence: 'high', personId: narrowed.personId, personName: narrowed.personName };
+        }
+        return {
+          confidence: 'medium',
+          personId: narrowed.personId,
+          personName: narrowed.personName,
+          matchedVariantNormalized: narrowed.matchedVariantNormalized ?? '',
+        };
+      }
+    }
     return { confidence: 'low', reason: 'multiple_name_candidates' };
   }
 
@@ -1088,6 +1199,7 @@ export interface LegacyAccountLookupResult {
   country: string | null;
   isHof: boolean;
   isBap: boolean;
+  birthDate: string | null;
 }
 
 /**
@@ -1132,6 +1244,7 @@ function lookupLegacyAccount(
       country: row.country,
       isHof: Boolean(row.is_hof),
       isBap: Boolean(row.is_bap),
+      birthDate: row.birth_date ?? null,
     },
   };
 }
@@ -1407,6 +1520,10 @@ function applyAutoLinkSilentClaim(
         legacyMemberId:         lm.legacy_member_id,
         legacyDisplayName,
         claimAuditId,
+        country:                hp.country ?? null,
+        isHof:                  hp.hof_member !== 0,
+        isBap:                  hp.bap_member !== 0,
+        firstYear:              hp.first_year ?? null,
       });
       pendingAutoLinkCard.setForMember.run(cardPayload, now, 'auto_link_silent_claim', memberId);
     }
@@ -1742,6 +1859,8 @@ export interface LegacyClaimTokenLookup {
   country:        string | null;
   isHof:          boolean;
   isBap:          boolean;
+  clubAffiliations: string[];
+  eventsAttended: Array<{ title: string; year: number }>;
 }
 
 /**
@@ -1764,12 +1883,24 @@ function peekLegacyClaim(requestingMemberId: string, rawToken: string): LegacyCl
   const row = legacyMembers.findByLegacyMemberId.get(peek.targetLegacyMemberId) as LegacyMemberRow | undefined;
   if (!row || row.claimed_by_member_id) return null;
 
+  const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
+  let clubAffiliations: string[] = [];
+  let eventsAttended: Array<{ title: string; year: number }> = [];
+  if (backHp) {
+    const clubRows = legacyClaim.listClubAffiliationsForPerson.all(backHp.person_id) as { display_name: string }[];
+    const eventRows = legacyClaim.listEventsAttendedByPerson.all(backHp.person_id) as { title: string; year: number }[];
+    clubAffiliations = clubRows.map((r) => r.display_name);
+    eventsAttended = eventRows.map((r) => ({ title: r.title, year: r.year }));
+  }
+
   return {
     legacyMemberId: row.legacy_member_id,
     displayName:    row.display_name ?? row.real_name ?? null,
     country:        row.country,
     isHof:          Boolean(row.is_hof),
     isBap:          Boolean(row.is_bap),
+    clubAffiliations,
+    eventsAttended,
   };
 }
 
@@ -1828,6 +1959,9 @@ export interface HistoricalPersonClaimLookup {
   isHof: boolean;
   isBap: boolean;
   firstNameWarning: boolean;
+  bioExcerpt: string | null;
+  clubAffiliations: string[];
+  eventsAttended: Array<{ title: string; year: number }>;
 }
 
 function normalizedSurnamesMatch(a: string | null, b: string | null): boolean {
@@ -1856,10 +1990,14 @@ interface ClaimingMemberRow {
   email_verified_at: string | null;
 }
 
+export type HistoricalPersonClaimLookupResult =
+  | { status: 'ok'; data: HistoricalPersonClaimLookup }
+  | { status: 'conflict' };
+
 function lookupHistoricalPersonForClaim(
   requestingMemberId: string,
   personId: string,
-): HistoricalPersonClaimLookup | null {
+): HistoricalPersonClaimLookupResult | null {
   const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
   if (!member) return null;
   if (member.historical_person_id) {
@@ -1869,10 +2007,9 @@ function lookupHistoricalPersonForClaim(
   const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
   if (!hp) return null;
 
-  // Not already claimed by another member.
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    throw new ValidationError('This historical record has already been claimed by another member.');
+    return { status: 'conflict' };
   }
 
   // Surname reconciliation is required to proceed. Mismatch blocks the claim
@@ -1901,13 +2038,22 @@ function lookupHistoricalPersonForClaim(
     }
   }
 
+  const clubRows = legacyClaim.listClubAffiliationsForPerson.all(personId) as { display_name: string }[];
+  const eventRows = legacyClaim.listEventsAttendedByPerson.all(personId) as { title: string; year: number }[];
+
   return {
-    personId: hp.person_id,
-    personName: hp.person_name,
-    country: hp.country,
-    isHof: Boolean(hp.hof_member),
-    isBap: Boolean(hp.bap_member),
-    firstNameWarning: !firstNamesMatch(member.real_name, hp.person_name),
+    status: 'ok' as const,
+    data: {
+      personId: hp.person_id,
+      personName: hp.person_name,
+      country: hp.country,
+      isHof: Boolean(hp.hof_member),
+      isBap: Boolean(hp.bap_member),
+      firstNameWarning: !firstNamesMatch(member.real_name, hp.person_name),
+      bioExcerpt: bioExcerptFor(hp.legacy_member_id ?? null),
+      clubAffiliations: clubRows.map((r) => r.display_name),
+      eventsAttended: eventRows.map((r) => ({ title: r.title, year: r.year })),
+    },
   };
 }
 
@@ -2320,7 +2466,12 @@ function findHistoricalPersonForLinkSubmit(
   const hpByLegacy = legacyClaim.findHistoricalPersonByLegacyId.get(identifier) as
     | HistoricalPersonClaimRow
     | undefined;
-  return hpByLegacy ?? null;
+  if (hpByLegacy) return hpByLegacy;
+  const escapedIdentifier = identifier.replace(/[%_\\]/g, c => '\\' + c);
+  const hpByAlias = legacyClaim.findHistoricalPersonByAlias.get(escapedIdentifier) as
+    | HistoricalPersonClaimRow
+    | undefined;
+  return hpByAlias ?? null;
 }
 
 const WIZARD_CLAIM_CONFIRM_URL_PREFIX = '/register/wizard/legacy_claim/claim/confirm/';
@@ -2375,8 +2526,70 @@ async function getLinkHistoryViewForWizard(
           country: hp.country,
           isHof: hp.hof_member !== 0,
           isBap: hp.bap_member !== 0,
+          firstYear: hp.first_year ?? null,
           alreadyLinkedSinceDisplay: null,
+          aliasesLabel: shapeAliasesLabel(hp.aliases),
+          bioExcerpt: bioExcerptFor(hp.legacy_member_id ?? null),
+          ...candidateClubsAndEvents(hp.person_id),
         });
+      }
+    }
+  }
+
+  const anchors = listDeclaredAnchors(memberId);
+  const seenPersonIds = new Set(view.candidates.map((c) => c.personId).filter(Boolean));
+  for (const anchor of anchors) {
+    if (anchor.anchorType === 'former_surname') {
+      for (const c of findAutoLinkCandidates(anchor.anchorValue)) {
+        if (seenPersonIds.has(c.personId)) continue;
+        seenPersonIds.add(c.personId);
+        const hp = legacyClaim.findHistoricalPersonById.get(c.personId) as HistoricalPersonClaimRow | undefined;
+        view.candidates.push({
+          claimMode: 'hp_review_page',
+          displayName: c.personName,
+          provenanceLabel: `Matched via declared former surname.`,
+          legacyMemberId: null,
+          personId: c.personId,
+          country: hp?.country ?? null,
+          isHof: hp?.hof_member !== 0 && hp?.hof_member != null,
+          isBap: hp?.bap_member !== 0 && hp?.bap_member != null,
+          firstYear: hp?.first_year ?? null,
+          alreadyLinkedSinceDisplay: null,
+          aliasesLabel: shapeAliasesLabel(hp?.aliases ?? null),
+          bioExcerpt: bioExcerptFor(hp?.legacy_member_id ?? null),
+          ...candidateClubsAndEvents(c.personId),
+        });
+      }
+    } else if (anchor.anchorType === 'old_email') {
+      try {
+        const lookup = lookupLegacyAccount(memberId, anchor.anchorValue);
+        if (lookup.kind === 'single') {
+          const lmRow = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
+          if (lmRow) {
+            const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(lmRow.legacy_member_id) as HistoricalPersonClaimRow | undefined;
+            const personId = backHp?.person_id ?? null;
+            if (!personId || !seenPersonIds.has(personId)) {
+              if (personId) seenPersonIds.add(personId);
+              view.candidates.push({
+                claimMode: 'legacy_claim',
+                displayName: lookup.result.displayName ?? lmRow.real_name ?? 'Unknown',
+                provenanceLabel: 'Matched via declared old email.',
+                legacyMemberId: lmRow.legacy_member_id,
+                personId,
+                country: lookup.result.country,
+                isHof: lookup.result.isHof,
+                isBap: lookup.result.isBap,
+                firstYear: backHp?.first_year ?? null,
+                alreadyLinkedSinceDisplay: null,
+                aliasesLabel: shapeAliasesLabel(backHp?.aliases ?? null),
+                bioExcerpt: bioExcerptFor(lmRow.legacy_member_id),
+                ...candidateClubsAndEvents(personId),
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-revealing on lookup errors.
       }
     }
   }
@@ -2538,4 +2751,119 @@ function listClaimedLegacyIdentities(memberId: string): ClaimedLegacyIdentity[] 
   }));
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertAutoLinkByToken, applyAutoLinkSilentClaim, getPendingAutoLinkCard, confirmAutoLinkCard, dismissAutoLinkCard, listClaimedLegacyIdentities };
+// ---------------------------------------------------------------------------
+// Cross-source candidate prompt (DD-F). After a successful claim of one
+// source (HP or legacy), check the other for unclaimed matches.
+// ---------------------------------------------------------------------------
+
+export interface CrossSourceCandidate {
+  kind: 'legacy' | 'hp';
+  displayName: string;
+  personId: string | null;
+  legacyMemberId: string | null;
+}
+
+function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string): CrossSourceCandidate | null {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { legacy_member_id: string | null; real_name: string }
+    | undefined;
+  if (!member || member.legacy_member_id) return null;
+
+  const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
+  if (!hp) return null;
+
+  const searchNames = [hp.person_name];
+  for (const name of searchNames) {
+    try {
+      const lookup = lookupLegacyAccount(memberId, name);
+      if (lookup.kind === 'single') {
+        return {
+          kind: 'legacy',
+          displayName: lookup.result.displayName ?? name,
+          personId: null,
+          legacyMemberId: lookup.result.legacyMemberId,
+        };
+      }
+    } catch {
+      // Swallow: the member might already have the legacy account claimed
+    }
+  }
+  return null;
+}
+
+function findCrossSourceCandidateAfterLegacyClaim(memberId: string, legacyMemberId: string): CrossSourceCandidate | null {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { historical_person_id: string | null }
+    | undefined;
+  if (!member || member.historical_person_id) return null;
+
+  const lm = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
+  if (!lm) return null;
+
+  const realName = lm.real_name ?? lm.display_name;
+  if (!realName) return null;
+
+  const candidates = findAutoLinkCandidates(realName);
+  if (candidates.length === 1) {
+    return {
+      kind: 'hp',
+      displayName: candidates[0].personName,
+      personId: candidates[0].personId,
+      legacyMemberId: null,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Declared anchors — former surnames and old emails the member provides to
+// broaden the matching surface for identity linking.
+// ---------------------------------------------------------------------------
+
+export interface DeclaredAnchorView {
+  id: string;
+  anchorType: 'former_surname' | 'old_email';
+  anchorValue: string;
+}
+
+function declareAnchor(
+  memberId: string,
+  anchorType: string,
+  anchorValue: string,
+): void {
+  if (anchorType !== 'former_surname' && anchorType !== 'old_email') {
+    throw new ValidationError('Anchor type must be former_surname or old_email.');
+  }
+  const trimmed = anchorType === 'old_email'
+    ? anchorValue.trim().toLowerCase()
+    : anchorValue.trim();
+  if (!trimmed) {
+    throw new ValidationError('Anchor value cannot be empty.');
+  }
+  const id = `mda_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+  try {
+    declaredAnchors.insert.run(id, memberId, memberId, memberId, anchorType, trimmed);
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && (err as { code: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      throw new ValidationError('This anchor has already been declared.');
+    }
+    throw err;
+  }
+}
+
+function listDeclaredAnchors(memberId: string): DeclaredAnchorView[] {
+  const rows = declaredAnchors.listByMember.all(memberId) as {
+    id: string; anchor_type: string; anchor_value: string;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    anchorType: r.anchor_type as 'former_surname' | 'old_email',
+    anchorValue: r.anchor_value,
+  }));
+}
+
+function removeAnchor(memberId: string, anchorId: string): void {
+  declaredAnchors.deleteById.run(anchorId, memberId);
+}
+
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertAutoLinkByToken, applyAutoLinkSilentClaim, getPendingAutoLinkCard, confirmAutoLinkCard, dismissAutoLinkCard, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim };

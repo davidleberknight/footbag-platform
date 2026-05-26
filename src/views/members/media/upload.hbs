@@ -82,8 +82,48 @@
       <p>
         <label for="member-upload-tags">Tags (optional, space-separated <code>#hashtags</code>):</label><br>
         <input id="member-upload-tags" type="text" name="tags" value="{{formValues.tags}}"
-               placeholder="#freestyle #spike">
+               placeholder="#freestyle #spike" data-tag-chips>
       </p>
+      {{#if tagSuggestions}}
+      <div class="tag-suggestions" aria-label="Suggested tags">
+        {{#if tagSuggestions.clubTags.length}}
+        <div class="tag-suggestions-group">
+          <span class="tag-suggestions-label">Your clubs:</span>
+          {{#each tagSuggestions.clubTags}}
+          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+          {{/each}}
+        </div>
+        {{/if}}
+        {{#if tagSuggestions.participatedEventTags.length}}
+        <div class="tag-suggestions-group">
+          <span class="tag-suggestions-label">Your events:</span>
+          {{#each tagSuggestions.participatedEventTags}}
+          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+          {{/each}}
+        </div>
+        {{/if}}
+        {{#if tagSuggestions.popularTags.length}}
+        <div class="tag-suggestions-group">
+          <span class="tag-suggestions-label">Popular:</span>
+          {{#each tagSuggestions.popularTags}}
+          <button type="button" class="tag-chip tag-suggestion" data-tag="{{normalized}}">{{display}}</button>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+      {{#if galleries.length}}
+      <p>
+        <label for="member-upload-gallery">Add to gallery (optional):</label><br>
+        <select id="member-upload-gallery" name="galleryId">
+          <option value="">(none)</option>
+          {{#each galleries}}
+          <option value="{{id}}" {{#if (eq id ../formValues.galleryId)}}selected{{/if}}>{{name}}</option>
+          {{/each}}
+        </select>
+        <br><small>Gallery criteria tags will be added automatically.</small>
+      </p>
+      {{/if}}
       <p>
         <label for="member-upload-external-url">External URL (optional, link to source page or creator):</label><br>
         <input id="member-upload-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}"
@@ -97,3 +137,7 @@
     </p>
   </form>
 </div>
+<script src="/js/tag-chips.js" defer></script>
+{{#if tagSuggestions}}
+<script src="/js/tag-suggestions.js" defer></script>
+{{/if}}

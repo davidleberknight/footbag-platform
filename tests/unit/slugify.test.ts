@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slugify } from '../../src/services/slugify';
+import { slugify, slugifyForTag } from '../../src/services/slugify';
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with underscores', () => {
@@ -48,5 +48,54 @@ describe('slugify', () => {
 
   it('handles whitespace-only input', () => {
     expect(slugify('   ')).toBe('');
+  });
+});
+
+describe('slugifyForTag', () => {
+  it('lowercases and replaces spaces with underscores', () => {
+    expect(slugifyForTag('Denver')).toBe('denver');
+  });
+
+  it('handles multi-word city names', () => {
+    expect(slugifyForTag('San Francisco')).toBe('san_francisco');
+  });
+
+  it('strips diacritics via NFD normalization', () => {
+    expect(slugifyForTag('München')).toBe('munchen');
+    expect(slugifyForTag('São Paulo')).toBe('sao_paulo');
+    expect(slugifyForTag('Łódź')).toBe('lodz');
+  });
+
+  it('handles L-stroke, O-stroke, D-stroke via pre-NFD map', () => {
+    expect(slugifyForTag('Ørsted')).toBe('orsted');
+    expect(slugifyForTag('Đakovo')).toBe('dakovo');
+  });
+
+  it('replaces non-alphanumeric with underscores', () => {
+    expect(slugifyForTag('New York - USA')).toBe('new_york_usa');
+  });
+
+  it('collapses consecutive underscores', () => {
+    expect(slugifyForTag('a---b___c')).toBe('a_b_c');
+  });
+
+  it('strips leading and trailing underscores', () => {
+    expect(slugifyForTag('  _test_  ')).toBe('test');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(slugifyForTag('')).toBe('');
+  });
+
+  it('preserves digits', () => {
+    expect(slugifyForTag('Club 42')).toBe('club_42');
+  });
+
+  it('handles already-clean input', () => {
+    expect(slugifyForTag('portland')).toBe('portland');
+  });
+
+  it('handles all-special-character input', () => {
+    expect(slugifyForTag('!!!')).toBe('');
   });
 });

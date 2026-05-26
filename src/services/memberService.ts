@@ -49,7 +49,7 @@
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
-import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -116,6 +116,7 @@ export interface IdentityLinkView {
   historicalPerson: {
     linked: boolean;
     summary: string | null;
+    href: string | null;
   };
   cta: {
     href: string;
@@ -137,6 +138,35 @@ export interface MemberWelcomeContent {
 }
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
 
+export interface MyClubsClubView {
+  clubName: string;
+  clubHref: string;
+  isPrimary: boolean;
+  designationLabel: string;
+  isLeader: boolean;
+  leaderRole: string | null;
+  leaveHref: string;
+  canMarkInactive: boolean;
+  canStepDown: boolean;
+}
+
+export interface NearbyClubSuggestion {
+  clubName: string;
+  city: string | null;
+  clubHref: string;
+}
+
+export interface MyClubsView {
+  clubs: MyClubsClubView[];
+  canAddClub: boolean;
+  canCreateClub: boolean;
+  canSwapPrimary: boolean;
+  browseClubsHref: string;
+  createClubHref: string | null;
+  swapPrimaryHref: string | null;
+  nearbySuggestions: NearbyClubSuggestion[];
+}
+
 export interface OwnProfileContent {
   displayName: string;
   bio: string;
@@ -154,6 +184,8 @@ export interface OwnProfileContent {
   historicalPersonHref: string | null;
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
+  showFirstCompetitionYear: boolean;
+  declaredAnchors?: Array<{ id: string; anchorType: string; anchorValue: string }>;
   heroData?: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
@@ -179,6 +211,7 @@ export interface OwnProfileContent {
    * Per M_Complete_Onboarding_Wizard the widget surfaces pending, paused
    * (detoured), and completed tasks with pre-shaped CTA labels. */
   dashboardTasks?: DashboardTaskWidget | null;
+  myClubs?: MyClubsView;
 }
 
 export interface PendingAutoLinkCardContent {
@@ -188,6 +221,10 @@ export interface PendingAutoLinkCardContent {
   legacyMemberId:         string;
   legacyDisplayName:      string;
   claimAuditId:           string;
+  country:                string | null;
+  isHof:                  boolean;
+  isBap:                  boolean;
+  firstYear:              number | null;
   /** Endpoint URLs pre-shaped for the template; templates never construct URLs. */
   confirmHref:            string;
   dismissHref:            string;
@@ -248,6 +285,7 @@ export interface ProfileEditInput {
   emailVisibility: string;
   firstCompetitionYear: string;
   showCompetitiveResults: string | string[];
+  showFirstCompetitionYear: string | string[];
 }
 
 function normalizeText(val: unknown): string {
@@ -287,6 +325,7 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     country:              row.country,
     isHistoricalOnly: false,
     firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+    showFirstCompetitionYear: row.show_first_competition_year !== 0,
   };
 }
 
@@ -310,6 +349,7 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
       : null,
     firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
     showCompetitiveResults: row.show_competitive_results !== 0,
+    showFirstCompetitionYear: row.show_first_competition_year !== 0,
     avatarThumbUrl:  buildAvatarUrl(row.avatar_thumb_key, row.avatar_media_id),
   };
 }
@@ -346,6 +386,7 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
 function buildPendingAutoLinkCardContent(memberId: string): PendingAutoLinkCardContent | null {
   const card = identityAccessService.getPendingAutoLinkCard(memberId);
   if (!card) return null;
+  const c = card as unknown as Record<string, unknown>;
   return {
     personId:                 card.personId,
     personName:               card.personName,
@@ -353,6 +394,10 @@ function buildPendingAutoLinkCardContent(memberId: string): PendingAutoLinkCardC
     legacyMemberId:           card.legacyMemberId,
     legacyDisplayName:        card.legacyDisplayName,
     claimAuditId:             card.claimAuditId,
+    country:                  typeof c.country === 'string' ? c.country : null,
+    isHof:                    Boolean(c.isHof),
+    isBap:                    Boolean(c.isBap),
+    firstYear:                typeof c.firstYear === 'number' ? c.firstYear : null,
     confirmHref:              '/members/me/auto-link/confirm',
     dismissHref:              '/members/me/auto-link/dismiss',
     reportIncorrectHref:      '/members/me/auto-link/report-incorrect',
@@ -411,6 +456,7 @@ export const memberService = {
         quickActions: buildQuickActions(slug),
         search,
         comingSoon:   COMING_SOON_FEATURES,
+        myClubs:      buildMyClubsView(row.id),
         memberSlug:   slug,
         pendingAutoLinkCard:    buildPendingAutoLinkCardContent(row.id),
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
@@ -461,6 +507,7 @@ export const memberService = {
   ): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
     const cta = buildIdentityCta(row.legacy_member_id !== null, row.historical_person_id !== null, slug);
+    const anchors = identityAccessService.listDeclaredAnchors(row.id);
     return {
       seo:  { title: 'Edit Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile_edit', title: 'Edit Profile' },
@@ -474,6 +521,7 @@ export const memberService = {
         profileUrl: `/members/${slug}`,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
+        declaredAnchors: anchors,
         error,
         avatarError,
         avatarSuccess,
@@ -499,6 +547,10 @@ export const memberService = {
       ? input.showCompetitiveResults[input.showCompetitiveResults.length - 1]
       : input.showCompetitiveResults;
     const showResults = rawShow === '0' ? 0 : 1;
+    const rawShowYear = Array.isArray(input.showFirstCompetitionYear)
+      ? input.showFirstCompetitionYear[input.showFirstCompetitionYear.length - 1]
+      : input.showFirstCompetitionYear;
+    const showYear = rawShowYear === '0' ? 0 : 1;
 
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
@@ -514,9 +566,11 @@ export const memberService = {
       emailVis,
       validYear,
       showResults,
+      showYear,
       now,
       row.id,
     );
+    memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
   },
 
   getCompetitionPrefill(memberId: string): {
@@ -531,6 +585,98 @@ export const memberService = {
       firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
       showCompetitiveResults: row.show_competitive_results !== 0,
     };
+  },
+
+  getPersonalDetailsPrefill(memberId: string): {
+    city: string; region: string; country: string; birthDate: string;
+    firstCompetitionYear: number | null; showFirstCompetitionYear: boolean;
+    showCompetitiveResults: boolean;
+  } {
+    const row = runSqliteRead('findPersonalDetails', () =>
+      account.findPersonalDetails.get(memberId),
+    ) as {
+      city: string | null; region: string | null; country: string | null; birth_date: string | null;
+      first_competition_year: number | null; show_first_competition_year: number;
+      show_competitive_results: number;
+    } | undefined;
+    return {
+      city: row?.city ?? '',
+      region: row?.region ?? '',
+      country: row?.country ?? '',
+      birthDate: row?.birth_date ?? '',
+      firstCompetitionYear: row?.first_competition_year ?? null,
+      showFirstCompetitionYear: (row?.show_first_competition_year ?? 0) !== 0,
+      showCompetitiveResults: (row?.show_competitive_results ?? 1) !== 0,
+    };
+  },
+
+  setPersonalDetails(memberId: string, input: {
+    city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
+    yearValue?: unknown; showFirstCompetitionYear?: unknown;
+  }): void {
+    const city = normalizeText(input.city) || null;
+    const region = normalizeText(input.region) || null;
+    const country = normalizeText(input.country) || null;
+    const rawDob = normalizeText(input.birthDate);
+
+    if (!city && !region && !country && !rawDob) {
+      throw new ValidationError('Please provide at least one field (location or date of birth).');
+    }
+
+    if (city && city.length > 64) {
+      throw new ValidationError('City must be 64 characters or fewer.');
+    }
+    if (region && region.length > 64) {
+      throw new ValidationError('Region must be 64 characters or fewer.');
+    }
+    if (country && country.length > 64) {
+      throw new ValidationError('Country must be 64 characters or fewer.');
+    }
+
+    let birthDate: string | null = null;
+    if (rawDob) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDob)) {
+        throw new ValidationError('Date of birth must be in YYYY-MM-DD format.');
+      }
+      const parsed = new Date(rawDob + 'T00:00:00Z');
+      if (isNaN(parsed.getTime())) {
+        throw new ValidationError('Date of birth is not a valid date.');
+      }
+      if (parsed.getFullYear() < 1900) {
+        throw new ValidationError('Date of birth must be after 1900.');
+      }
+      if (parsed > new Date()) {
+        throw new ValidationError('Date of birth cannot be in the future.');
+      }
+      birthDate = rawDob;
+    }
+
+    let firstCompetitionYear: number | null = null;
+    const rawYear = normalizeText(input.yearValue);
+    if (rawYear !== '') {
+      const parsedYear = parseInt(rawYear, 10);
+      const thisYear = new Date().getFullYear();
+      if (!Number.isFinite(parsedYear) || String(parsedYear) !== rawYear || parsedYear < 1972 || parsedYear > thisYear) {
+        throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
+      }
+      firstCompetitionYear = parsedYear;
+    }
+
+    const showFirstCompetitionYear = firstCompetitionYear != null
+      ? 1
+      : (input.showFirstCompetitionYear === true ||
+         input.showFirstCompetitionYear === 'on' ||
+         input.showFirstCompetitionYear === '1' ||
+         input.showFirstCompetitionYear === 'true'
+           ? 1
+           : 0);
+
+    const now = new Date().toISOString();
+    account.updateMemberPersonalDetails.run(
+      city, region, country, birthDate,
+      firstCompetitionYear, showFirstCompetitionYear,
+      now, memberId,
+    );
   },
 
   setFirstCompetitionYear(memberId: string, rawYear: unknown): void {
@@ -757,12 +903,75 @@ function buildQuickActions(slug: string): QuickAction[] {
 }
 
 const COMING_SOON_FEATURES: ComingSoonFeature[] = [
-  { label: 'My Clubs',            description: 'Confirm your old footbag.org club affiliations and leadership roles, then see your club roster and current standing.' },
   { label: 'My Events',           description: 'View your upcoming registrations and past event history.' },
   { label: 'Payments & Donations', description: 'View your payment history and donation receipts.' },
   { label: 'Voting & HoF',        description: 'Participate in active IFPA votes and Hall of Fame nominations.' },
   { label: 'Email Subscriptions', description: 'Manage your email notifications and preferences.' },
 ];
+
+interface CurrentAffiliationRow {
+  id: string;
+  club_id: string;
+  club_name: string;
+  club_key: string;
+  club_status: string;
+  is_primary: number;
+}
+
+function buildMyClubsView(memberId: string): MyClubsView {
+  const rows = memberClubAffiliations.listCurrentWithClubName.all(memberId) as CurrentAffiliationRow[];
+  const tier = getTierStatus(memberId);
+  const hasTier1Benefits = tier != null && tier.tier_status !== 'tier0';
+  const isLeaderAnywhere = clubLeaders.memberIsLeaderSomewhere.get(memberId) as { x: number } | undefined;
+
+  const clubViews: MyClubsClubView[] = rows.map((r) => {
+    const leadership = clubLeaders.memberInClubLeadership.get(r.club_id, memberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    const otherLeaders = leadership
+      ? (clubLeaders.countOtherLeadersByClub.get(r.club_id, memberId) as { c: number }).c
+      : 0;
+
+    return {
+      clubName: r.club_name,
+      clubHref: `/clubs/${encodeURIComponent(r.club_key)}`,
+      isPrimary: r.is_primary === 1,
+      designationLabel: r.is_primary === 1 ? 'Primary club' : 'Secondary club',
+      isLeader: leadership != null,
+      leaderRole: leadership ? (leadership.role === 'leader' ? 'Leader' : 'Co-leader') : null,
+      leaveHref: `/clubs/${encodeURIComponent(r.club_key)}/leave`,
+      canMarkInactive: leadership != null && r.club_status === 'active',
+      canStepDown: leadership?.role === 'leader' && otherLeaders > 0,
+    };
+  });
+
+  let nearbySuggestions: NearbyClubSuggestion[] = [];
+  if (rows.length === 0) {
+    const personalDetails = account.findPersonalDetails.get(memberId) as
+      | { country: string | null }
+      | undefined;
+    const country = personalDetails?.country ?? null;
+    if (country) {
+      const nearby = clubsDb.listOpenByCountry.all(country) as
+        Array<{ club_id: string; name: string; city: string | null; club_key: string }>;
+      nearbySuggestions = nearby.map((r) => ({
+        clubName: r.name,
+        city: r.city,
+        clubHref: `/clubs/${encodeURIComponent(r.club_key)}`,
+      }));
+    }
+  }
+
+  return {
+    clubs: clubViews,
+    canAddClub: rows.length < 2,
+    canCreateClub: hasTier1Benefits && !isLeaderAnywhere,
+    canSwapPrimary: rows.length === 2,
+    browseClubsHref: '/clubs',
+    createClubHref: hasTier1Benefits && !isLeaderAnywhere ? '/clubs/create' : null,
+    swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
+    nearbySuggestions,
+  };
+}
 
 function buildIdentityCta(
   legacyLinked: boolean,
@@ -798,6 +1007,9 @@ function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView
     historicalPerson: {
       linked: hpLinked,
       summary: personName,
+      href: row?.historical_person_id
+        ? `/history/${encodeURIComponent(row.historical_person_id)}`
+        : null,
     },
     cta: buildIdentityCta(legacyLinked, hpLinked, slug),
   };

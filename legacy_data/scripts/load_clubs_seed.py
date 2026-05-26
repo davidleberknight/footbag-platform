@@ -5,10 +5,11 @@ Inserts one tags row (is_standard=1, standard_type='club') and one clubs row
 per CSV entry. Skips on conflict (idempotent). Reads DB path from
 FOOTBAG_DB_PATH env var, defaulting to ./database/footbag.db.
 
-Hashtag algorithm — #club_{slug}, country prefix added only on collision:
-  1. #club_{name_slug}
-  2. #club_{country_slug}_{name_slug}
+Hashtag algorithm — #club_{slug}, city-first cascade:
+  1. #club_{city_slug}
+  2. #club_{country_slug}_{city_slug}
   3. #club_{country_slug}_{city_slug}_{name_slug}
+  Fallback (empty city or city==country): #club_{name_slug}, then country prefix.
   4. Append _2, _3, ... as last resort for true duplicates
 
 Slugify: unicode → ASCII, lowercase, non-[a-z0-9] → underscore,
@@ -45,15 +46,18 @@ def stable_id(prefix: str, *parts: str) -> str:
     return f"{prefix}_{digest}"
 
 
+_PRE_NFKD_MAP = str.maketrans({
+    'Ł': 'L', 'ł': 'l', 'Ø': 'O', 'ø': 'o', 'Đ': 'D', 'đ': 'd',
+})
+
+
 def slugify(text: str) -> str:
     """Slugify for hashtag use: unicode → ASCII, lowercase, underscores only."""
-    # Decompose unicode and drop combining marks (é → e, à → a, etc.)
+    text = (text or "").translate(_PRE_NFKD_MAP)
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower()
-    # Replace any char that isn't a letter or digit with underscore
     text = re.sub(r"[^a-z0-9]+", "_", text)
-    # Collapse runs and strip
     text = re.sub(r"_+", "_", text).strip("_")
     return text
 
@@ -91,22 +95,47 @@ def _clean_club_name(name: str) -> str:
     return name.strip()
 
 
+def extract_primary_city(city: str) -> str:
+    """Take the first city from multi-city values. Returns '' if empty."""
+    if not city or not city.strip():
+        return ''
+    city = re.sub(r'\s*\([^)]*\)\s*', ' ', city)
+    parts = re.split(r'\s*/\s*|\s+-\s+|\s+&\s+|\s+and\s+', city.strip(), flags=re.IGNORECASE)
+    return parts[0].strip() if parts else ''
+
+
+# Confirmed duplicate pairs: entry B -> entry A (keep A, merge B into A).
+KNOWN_DUPLICATES: dict[str, str] = {
+    '1488489195': '1042652245',   # Les Pieds a Gilles, Lausanne
+    'zion-fr':    '944090321',    # RNH Footbag, Paris
+    '1422386831': 'memphis',      # Memphis Footworks
+    '1320083231': '1379698765',   # Penn State Footbag Club
+}
+
+
 def make_tag_normalized(name: str, country: str, city: str, seen: set[str]) -> str:
-    """Generate a unique #club_{slug} tag using name, adding country/city only on collision."""
+    """Generate unique #club_{slug} using city-first cascade."""
     name_slug = strip_redundant_suffix(slugify(_clean_club_name(name)))
     country_slug = slugify(country)
-    city_slug = slugify(city)
+    primary_city = extract_primary_city(city)
+    city_slug = slugify(primary_city)
 
-    candidates = [
-        f"#club_{name_slug}",
-        f"#club_{country_slug}_{name_slug}",
-        f"#club_{country_slug}_{city_slug}_{name_slug}",
-    ]
+    if not city_slug or city_slug == country_slug:
+        candidates = [
+            f"#club_{name_slug}",
+            f"#club_{country_slug}_{name_slug}",
+        ]
+    else:
+        candidates = [
+            f"#club_{city_slug}",
+            f"#club_{country_slug}_{city_slug}",
+            f"#club_{country_slug}_{city_slug}_{name_slug}",
+        ]
+
     for candidate in candidates:
         if candidate not in seen:
             return candidate
 
-    # True duplicate: append numeric suffix
     base = candidates[-1]
     suffix = 2
     while f"{base}_{suffix}" in seen:
@@ -166,6 +195,9 @@ def main() -> None:
     with con:
         for row in rows:
             key = row["legacy_club_key"]
+            if key in KNOWN_DUPLICATES:
+                skipped += 1
+                continue
             name = row["name"]
 
             tag_normalized = make_tag_normalized(

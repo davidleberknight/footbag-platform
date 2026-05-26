@@ -174,33 +174,33 @@ describe('memberOnboardingService.skipTask', () => {
   });
 
   it('lazily creates the row when called before startTaskList (defensive idempotency)', () => {
-    svc.skipTask(MEMBER_LAZY, 'first_competition_year');
+    svc.skipTask(MEMBER_LAZY, 'club_affiliations');
     const rows = readTaskRows(MEMBER_LAZY);
-    const fcy = rows.find((r) => r.task_type === 'first_competition_year');
-    expect(fcy).toBeDefined();
-    expect(fcy!.state).toBe('skipped');
+    const ca = rows.find((r) => r.task_type === 'club_affiliations');
+    expect(ca).toBeDefined();
+    expect(ca!.state).toBe('skipped');
   });
 });
 
 describe('memberOnboardingService.completeTask', () => {
   it('transitions to completed, sets completed_at, removes from widget, and emits one audit row', () => {
     svc.startTaskList(MEMBER_COMPLETE);
-    svc.completeTask(MEMBER_COMPLETE, 'show_competitive_results');
+    svc.completeTask(MEMBER_COMPLETE, 'club_affiliations');
 
     const rows = readTaskRows(MEMBER_COMPLETE);
-    const target = rows.find((r) => r.task_type === 'show_competitive_results')!;
+    const target = rows.find((r) => r.task_type === 'club_affiliations')!;
     expect(target.state).toBe('completed');
     expect(target.completed_at).not.toBeNull();
 
     const widget = svc.getTaskWidget(MEMBER_COMPLETE);
-    expect(widget.find((t) => t.taskType === 'show_competitive_results')).toBeUndefined();
+    expect(widget.find((t) => t.taskType === 'club_affiliations')).toBeUndefined();
 
     const audits = readAuditRowsForMember(MEMBER_COMPLETE)
       .filter((a) => a.action_type === 'onboarding_task_completed');
     expect(audits).toHaveLength(1);
     expect(audits[0].entity_id).toBe(target.id);
     expect(JSON.parse(audits[0].metadata_json)).toEqual({
-      task_type: 'show_competitive_results',
+      task_type: 'club_affiliations',
     });
   });
 });
@@ -208,12 +208,12 @@ describe('memberOnboardingService.completeTask', () => {
 describe('memberOnboardingService.startTask (skip-resume-complete cycle)', () => {
   it('emits three audit rows for the same row in skip → start → complete order', () => {
     svc.startTaskList(MEMBER_CYCLE);
-    svc.skipTask(MEMBER_CYCLE, 'first_competition_year');
-    svc.startTask(MEMBER_CYCLE, 'first_competition_year');
-    svc.completeTask(MEMBER_CYCLE, 'first_competition_year');
+    svc.skipTask(MEMBER_CYCLE, 'club_affiliations');
+    svc.startTask(MEMBER_CYCLE, 'club_affiliations');
+    svc.completeTask(MEMBER_CYCLE, 'club_affiliations');
 
     const rows = readTaskRows(MEMBER_CYCLE);
-    const target = rows.find((r) => r.task_type === 'first_competition_year')!;
+    const target = rows.find((r) => r.task_type === 'club_affiliations')!;
     expect(target.state).toBe('completed');
     expect(target.completed_at).not.toBeNull();
 

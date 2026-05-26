@@ -2,10 +2,11 @@
  * ClubService -- club lifecycle and roster.
  *
  * Owns:
- *   - Club lifecycle: create, edit, activate/deactivate, archive
- *   - Leader and co-leader management
- *   - Roster management
- *   - Operability enforcement
+ *   - Club lifecycle: create (with standard hashtag reservation), edit,
+ *     activate/deactivate, archive
+ *   - Leader and co-leader management (including step-down)
+ *   - Roster management (self-service join, leave, swap primary)
+ *   - Operability enforcement (work queue items for missing contact)
  *
  * Does not own:
  *   - Media (MediaGalleryService)
@@ -59,16 +60,22 @@ import {
   clubLeaders,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
+  mediaTags,
+  countGalleryItemsByCriteria,
   memberClubAffiliations,
+  workQueue,
   transaction,
   type ClubBootstrapLeaderRow,
   type LegacyClubCandidateRow,
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { appendAuditEntry } from './auditService';
+import { applyClubJoin as applyActivePlayerClubJoin } from './activePlayerService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode } from './countryUtils';
+import { slugifyForTag } from './slugify';
 import { randomUUID } from 'crypto';
 
 function isUniqueViolation(err: unknown): boolean {
@@ -95,6 +102,15 @@ function normalizePublicClubKeyToStoredTag(clubKey: string): string {
   }
   return `#${clubKey}`;
 }
+
+// ── Create-club result ───────────────────────────────────────────────────────
+
+type CreateClubResult =
+  | { branch: 'created'; clubId: string; clubKey: string }
+  | { branch: 'already_leader'; existingClubName: string }
+  | { branch: 'affiliation_cap' }
+  | { branch: 'exact_name_exists'; existingClubName: string; existingClubKey: string }
+  | { branch: 'tag_conflict'; tagNormalized: string };
 
 // ── Shared view-model types ────────────────────────────────────────────────────
 
@@ -186,6 +202,10 @@ export interface PublicClubDetail extends PublicClubSummary {
   countrySlug: string;
   members: ClubMemberSummary[];
   leaders: ClubLeader[];
+  viewerIsMember: boolean;
+  viewerCanJoin: boolean;
+  joinHref: string | null;
+  viewGalleryHref: string | null;
   // TEMP-DEVIATION: club-classification QC panel.
   // Current: populated unconditionally on every club detail page; surfaces the
   //   classifier's category, confidence, R1-R10 rule firings, rule inputs,
@@ -435,6 +455,10 @@ function toPublicClubDetail(
     description: row.description,
     countrySlug: slugifyCountry(row.country),
     members,
+    viewerIsMember: false,
+    viewerCanJoin: false,
+    joinHref: null,
+    viewGalleryHref: null,
   };
   if (qcPanel) detail.qcPanel = qcPanel;
   return detail;
@@ -687,9 +711,9 @@ export type ClubRouteResult =
 
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
-  resolveByKey(key: string, isAuthenticated: boolean): ClubRouteResult {
+  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null): ClubRouteResult {
     if (key.startsWith('club_')) {
-      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated) };
+      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId) };
     }
     return { template: 'clubs/country', vm: this.getPublicCountryPage(key) };
   }
@@ -844,7 +868,7 @@ export class ClubService {
     });
   }
 
-  getPublicClubPage(clubKey: string, isAuthenticated: boolean): PageViewModel<{ club: PublicClubDetail }> {
+  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null): PageViewModel<{ club: PublicClubDetail }> {
     const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
 
     return runSqliteRead('clubService.getPublicClubPage', () => {
@@ -939,6 +963,27 @@ export class ClubService {
       }
 
       const club = toPublicClubDetail(row, vitality, members, leaders, qcPanel);
+
+      const tagRow = mediaTags.findTagByNormalized.get(row.tag_normalized) as { id: string } | undefined;
+      if (tagRow) {
+        const mediaCount = countGalleryItemsByCriteria([tagRow.id]);
+        if (mediaCount > 0) {
+          club.viewGalleryHref = `/media/browse?tag=${encodeURIComponent(club.clubKey)}`;
+        }
+      }
+
+      if (viewerMemberId) {
+        const viewerAff = memberClubAffiliations.findCurrentByMemberAndClub.get(viewerMemberId, row.club_id) as
+          | { id: string; is_primary: number } | undefined;
+        club.viewerIsMember = viewerAff != null;
+        if (!viewerAff) {
+          const viewerCount = (memberClubAffiliations.countCurrentByMemberId.get(viewerMemberId) as { c: number }).c;
+          club.viewerCanJoin = viewerCount < 2;
+        }
+        if (club.viewerCanJoin) {
+          club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
+        }
+      }
 
       return {
         seo: { title: club.standardTagDisplay },
@@ -1282,6 +1327,447 @@ export class ClubService {
       resolvedClubId,
       newAffiliationId,
     };
+  }
+
+  resolveClubIdByKey(clubKey: string): string {
+    const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
+    const row = clubs.getByTagNormalized.get(tagNormalized) as PublicClubRow | undefined;
+    if (!row) {
+      throw new NotFoundError('Club not found.');
+    }
+    return row.club_id;
+  }
+
+  // ── Club creation ───────────────────────────────────────────────────────────
+
+  createClub(
+    actorMemberId: string,
+    input: {
+      name: string;
+      description: string;
+      city: string;
+      region: string;
+      country: string;
+      contactEmail: string;
+      whatsapp: string;
+      slug: string;
+    },
+  ): CreateClubResult {
+    const name = input.name.trim();
+    const description = input.description.trim();
+    const city = input.city.trim();
+    const region = input.region.trim() || null;
+    const country = input.country.trim();
+    const contactEmail = input.contactEmail.trim() || null;
+    const whatsapp = input.whatsapp.trim() || null;
+
+    const fieldErrors: Record<string, string> = {};
+    if (!name) fieldErrors.name = 'Club name is required.';
+    else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
+    if (!city) fieldErrors.city = 'City is required.';
+    if (!country) fieldErrors.country = 'Country is required.';
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      fieldErrors.contactEmail = 'Enter a valid email address.';
+    }
+
+    let slug = input.slug.trim().toLowerCase();
+    if (!slug) {
+      slug = slugifyForTag(city);
+    }
+    if (!slug) {
+      fieldErrors.slug = 'Could not derive a slug from the city name. Enter one manually.';
+    } else if (slug.length < 2) {
+      fieldErrors.slug = 'Slug must be at least 2 characters.';
+    } else if (!/^[a-z0-9][a-z0-9_]*[a-z0-9]$/.test(slug)) {
+      fieldErrors.slug = 'Slug must start and end with a letter or digit.';
+    } else if (/__/.test(slug)) {
+      fieldErrors.slug = 'Slug must not contain consecutive underscores.';
+    } else if (!/^[a-z0-9_]+$/.test(slug)) {
+      fieldErrors.slug = 'Slug may only contain lowercase letters, digits, and underscores.';
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError('Please fix the errors below.', { fieldErrors });
+    }
+
+    const tagNormalized = `#club_${slug}`;
+    if (tagNormalized.length > 100) {
+      throw new ValidationError('Please fix the errors below.', {
+        fieldErrors: { slug: 'Slug is too long. The full hashtag must be 100 characters or fewer.' },
+      });
+    }
+
+    const leaderRow = clubLeaders.memberIsLeaderSomewhere.get(actorMemberId) as { x: number } | undefined;
+    if (leaderRow) {
+      const clubNameRow = clubLeaders.leaderClubNameForMember.get(actorMemberId) as { club_name: string } | undefined;
+      return { branch: 'already_leader', existingClubName: clubNameRow?.club_name ?? 'another club' };
+    }
+
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+    if (currentCount >= 2) {
+      return { branch: 'affiliation_cap' };
+    }
+
+    const dupRow = clubs.findByNameAndCountry.get(name, country) as
+      | { club_id: string; name: string; country: string; club_key: string } | undefined;
+    if (dupRow) {
+      return { branch: 'exact_name_exists', existingClubName: dupRow.name, existingClubKey: dupRow.club_key };
+    }
+
+    const existingTag = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
+    if (existingTag) {
+      return { branch: 'tag_conflict', tagNormalized };
+    }
+
+    const now = new Date().toISOString();
+    const tagId = `tag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const clubId = `club_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const isPrimary = currentCount === 0 ? 1 : 0;
+
+    try {
+      transaction(() => {
+        mediaTags.insertStandardTag.run(
+          tagId, now, 'club_service', now, 'club_service',
+          tagNormalized, tagNormalized, 'club',
+        );
+        clubs.insertClub.run(
+          clubId, now, 'club_service', now, 'club_service',
+          name, description, city, region, country,
+          contactEmail, whatsapp, tagId,
+        );
+        clubLeaders.insertClubLeader.run(
+          clubLeaderId, now, 'club_service', now, 'club_service',
+          clubId, actorMemberId, 'leader', now,
+        );
+        memberClubAffiliations.insertAffiliation.run(
+          affiliationId, now, 'club_service', now, 'club_service',
+          actorMemberId, clubId, isPrimary, 'member_self_service',
+        );
+        appendAuditEntry({
+          actionType: 'club.created',
+          category: 'club_lifecycle',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'club',
+          entityId: clubId,
+          metadata: { club_name: name, tag_normalized: tagNormalized, city, country },
+        });
+
+        if (!contactEmail && !whatsapp) {
+          const wqId = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+          workQueue.insertItem.run(
+            wqId, now, 'club_service', now, 'club_service',
+            'club_leadership', 'club_needs_contact',
+            'club', clubId,
+            5, now,
+            'Club created without any contact method.',
+          );
+        }
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        const recheck = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
+        if (recheck) {
+          return { branch: 'tag_conflict', tagNormalized };
+        }
+      }
+      throw err;
+    }
+
+    try {
+      applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
+    } catch {
+      // AP grant is best-effort; creation succeeds regardless.
+    }
+
+    const clubKey = `club_${slug}`;
+    return { branch: 'created', clubId, clubKey };
+  }
+
+  // ── Self-service club management ────────────────────────────────────────────
+
+  joinClub(
+    actorMemberId: string,
+    clubId: string,
+  ): {
+    branch: 'joined_primary' | 'joined_secondary' | 'already_member' | 'cap_reached' | 'club_not_found';
+    affiliationId: string | null;
+  } {
+    const club = clubs.findById.get(clubId) as { club_id: string; name: string; status: string } | undefined;
+    if (!club || club.status === 'archived') {
+      return { branch: 'club_not_found', affiliationId: null };
+    }
+
+    const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+      | { id: string; is_primary: number } | undefined;
+    if (existing) {
+      return { branch: 'already_member', affiliationId: null };
+    }
+
+    const now = new Date().toISOString();
+    let affiliationId: string | null = null;
+    let isPrimary = 0;
+
+    transaction(() => {
+      const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+      if (currentCount >= 2) {
+        return;
+      }
+      isPrimary = currentCount === 0 ? 1 : 0;
+      affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+      try {
+        memberClubAffiliations.insertAffiliation.run(
+          affiliationId, now, 'club_service', now, 'club_service',
+          actorMemberId, clubId, isPrimary, 'member_self_service',
+        );
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        affiliationId = null;
+      }
+
+      if (affiliationId) {
+        appendAuditEntry({
+          actionType: 'club.member_joined',
+          category: 'club_membership',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'member_club_affiliation',
+          entityId: affiliationId,
+          metadata: { club_id: clubId, club_name: club.name, is_primary: isPrimary },
+        });
+      }
+    });
+
+    if (!affiliationId && !existing) {
+      return { branch: 'cap_reached', affiliationId: null };
+    }
+
+    if (affiliationId) {
+      try {
+        applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
+      } catch {
+        // AP grant is best-effort; join succeeds regardless.
+      }
+    }
+
+    return {
+      branch: isPrimary ? 'joined_primary' : 'joined_secondary',
+      affiliationId,
+    };
+  }
+
+  leaveClub(
+    actorMemberId: string,
+    clubId: string,
+  ): {
+    branch: 'left' | 'sole_leader_blocked' | 'not_member';
+    remainingClubName: string | null;
+  } {
+    const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+      | { id: string; is_primary: number } | undefined;
+    if (!existing) {
+      return { branch: 'not_member', remainingClubName: null };
+    }
+
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    if (leadership && leadership.role === 'leader') {
+      const otherLeaders = (clubLeaders.countOtherLeadersByClub.get(clubId, actorMemberId) as { c: number }).c;
+      if (otherLeaders === 0) {
+        return { branch: 'sole_leader_blocked', remainingClubName: null };
+      }
+    }
+
+    const now = new Date().toISOString();
+    let remainingClubName: string | null = null;
+
+    transaction(() => {
+      memberClubAffiliations.deactivate.run(now, 'club_service', actorMemberId, clubId);
+
+      if (leadership) {
+        clubLeaders.removeByMemberAndClub.run(actorMemberId, clubId);
+      }
+
+      appendAuditEntry({
+        actionType: 'club.member_left',
+        category: 'club_membership',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'member_club_affiliation',
+        entityId: existing.id,
+        metadata: {
+          club_id: clubId,
+          was_primary: existing.is_primary,
+          had_leadership: leadership?.role ?? null,
+        },
+      });
+    });
+
+    // Check if the member has a remaining club (for the "designate as primary" prompt).
+    const remaining = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
+      Array<{ club_name: string }>;
+    if (remaining.length === 1) {
+      remainingClubName = remaining[0].club_name;
+    }
+
+    return { branch: 'left', remainingClubName };
+  }
+
+  swapPrimaryAffiliation(
+    actorMemberId: string,
+  ): {
+    branch: 'swapped' | 'not_enough_clubs';
+  } {
+    const current = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
+      Array<{ id: string; club_id: string; club_name: string; is_primary: number }>;
+    if (current.length < 2) {
+      return { branch: 'not_enough_clubs' };
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      memberClubAffiliations.swapPrimary.run(now, 'club_service', actorMemberId);
+
+      appendAuditEntry({
+        actionType: 'club.primary_swapped',
+        category: 'club_membership',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'member',
+        entityId: actorMemberId,
+        metadata: {
+          old_primary_club_id: current.find((c) => c.is_primary)?.club_id ?? null,
+          new_primary_club_id: current.find((c) => !c.is_primary)?.club_id ?? null,
+        },
+      });
+    });
+
+    return { branch: 'swapped' };
+  }
+
+  stepDownFromLeader(
+    actorMemberId: string,
+    clubId: string,
+  ): {
+    branch: 'stepped_down' | 'sole_leader_blocked' | 'not_leader';
+  } {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    if (!leadership) {
+      return { branch: 'not_leader' };
+    }
+    if (leadership.role !== 'leader') {
+      return { branch: 'not_leader' };
+    }
+
+    const otherLeaders = (clubLeaders.countOtherLeadersByClub.get(clubId, actorMemberId) as { c: number }).c;
+    if (otherLeaders === 0) {
+      return { branch: 'sole_leader_blocked' };
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      clubLeaders.updateRole.run('co-leader', now, 'club_service', actorMemberId, clubId);
+
+      appendAuditEntry({
+        actionType: 'club.leader_stepped_down',
+        category: 'club_leadership',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'club_leader',
+        entityId: leadership.id,
+        metadata: { club_id: clubId, old_role: 'leader', new_role: 'co-leader' },
+      });
+    });
+
+    return { branch: 'stepped_down' };
+  }
+
+  markClubInactive(
+    actorMemberId: string,
+    clubId: string,
+  ): {
+    branch: 'marked_inactive' | 'already_inactive' | 'not_leader';
+  } {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    if (!leadership) {
+      return { branch: 'not_leader' };
+    }
+
+    const club = clubs.findById.get(clubId) as { club_id: string; name: string; status: string } | undefined;
+    if (!club) {
+      return { branch: 'not_leader' };
+    }
+    if (club.status === 'inactive') {
+      return { branch: 'already_inactive' };
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      clubs.updateStatus.run('inactive', now, 'club_service', clubId);
+
+      appendAuditEntry({
+        actionType: 'club.marked_inactive',
+        category: 'club_lifecycle',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'club',
+        entityId: clubId,
+        metadata: { club_name: club.name, old_status: club.status },
+      });
+    });
+
+    return { branch: 'marked_inactive' };
+  }
+
+  updateClubHashtag(
+    clubId: string,
+    newSlug: string,
+    actorMemberId: string,
+  ): { branch: 'updated' | 'not_leader' | 'tag_conflict' | 'invalid_format' } {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    if (!leadership) {
+      return { branch: 'not_leader' };
+    }
+
+    const normalized = slugifyForTag(newSlug);
+    if (!normalized || normalized.length < 2) {
+      return { branch: 'invalid_format' };
+    }
+
+    const tagNormalized = `#club_${normalized}`;
+    const tagDisplay = `#club_${normalized}`;
+
+    const existing = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
+    const club = clubs.findByIdWithHashtag.get(clubId) as
+      | { club_id: string; name: string; hashtag_tag_id: string; tag_normalized: string }
+      | undefined;
+    if (!club) return { branch: 'not_leader' };
+
+    if (existing && existing.id !== club.hashtag_tag_id) {
+      return { branch: 'tag_conflict' };
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      mediaTags.updateTagDisplay.run(tagNormalized, tagDisplay, club.hashtag_tag_id);
+
+      appendAuditEntry({
+        actionType: 'club.hashtag_updated',
+        category: 'club_lifecycle',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'club',
+        entityId: clubId,
+        metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
+      });
+    });
+
+    return { branch: 'updated' };
   }
 }
 

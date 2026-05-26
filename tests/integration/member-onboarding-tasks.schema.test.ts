@@ -2,7 +2,7 @@
  * Schema-level tests for member_onboarding_tasks.
  *
  * Verifies the contract of the table:
- *   - one row per task_type per member accepted (all four valid task_types)
+ *   - one row per task_type per member accepted (all three valid task_types)
  *   - default state is 'pending' when not supplied
  *   - CHECK enforces task_type enum
  *   - CHECK enforces state enum
@@ -19,10 +19,9 @@ import { createTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 
 const TASK_TYPES = [
+  'personal_details',
   'legacy_claim',
   'club_affiliations',
-  'first_competition_year',
-  'show_competitive_results',
 ] as const;
 
 const STATES = ['pending', 'in_progress_paused', 'skipped', 'completed', 'not_applicable'] as const;
@@ -89,7 +88,7 @@ describe('member_onboarding_tasks schema', () => {
       completed_at: string | null;
       version: number;
     }>;
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
     for (const row of rows) {
       expect(TASK_TYPES).toContain(row.task_type as typeof TASK_TYPES[number]);
       expect(row.state).toBe('pending');

@@ -1,0 +1,66 @@
+<section>
+  <div class="section-heading">
+    <h2>My Clubs</h2>
+  </div>
+  <div class="my-clubs-block">
+    {{#if clubs.length}}
+      <ul class="my-clubs-list">
+        {{#each clubs}}
+          <li class="my-clubs-item">
+            <div class="my-clubs-item-header">
+              <a href="{{this.clubHref}}" class="my-clubs-name">{{this.clubName}}</a>
+              <span class="badge">{{this.designationLabel}}</span>
+              {{#if this.isLeader}}
+                <span class="badge badge-honor">{{this.leaderRole}}</span>
+              {{/if}}
+            </div>
+            <div class="my-clubs-actions">
+              <form method="POST" action="{{this.leaveHref}}" class="inline-form">
+                <button type="submit" class="btn-link text-muted fs-sm">Leave club</button>
+              </form>
+              {{#if this.canMarkInactive}}
+                <form method="POST" action="{{this.clubHref}}/mark-inactive" class="inline-form">
+                  <button type="submit" class="btn-link text-muted fs-sm">Mark inactive</button>
+                </form>
+              {{/if}}
+              {{#if this.canStepDown}}
+                <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
+                  <button type="submit" class="btn-link text-muted fs-sm">Step down to co-leader</button>
+                </form>
+              {{/if}}
+            </div>
+          </li>
+        {{/each}}
+      </ul>
+
+      {{#if canSwapPrimary}}
+        <form method="POST" action="{{swapPrimaryHref}}" class="mt-4">
+          <button type="submit" class="btn btn-outline">Swap primary club</button>
+        </form>
+      {{/if}}
+    {{else}}
+      <p class="text-muted">You have no club affiliations yet.</p>
+      {{#if nearbySuggestions.length}}
+        <h3 class="mt-4">Clubs in your area</h3>
+        <ul class="candidate-list">
+          {{#each nearbySuggestions}}
+            <li class="candidate-card">
+              <div class="candidate-card-name">{{this.clubName}}</div>
+              {{#if this.city}}<div class="candidate-card-meta text-muted">{{this.city}}</div>{{/if}}
+              <a href="{{this.clubHref}}" class="btn btn-outline mt-2">View club</a>
+            </li>
+          {{/each}}
+        </ul>
+      {{/if}}
+    {{/if}}
+
+    <div class="my-clubs-ctas mt-4">
+      {{#if canAddClub}}
+        <a href="{{browseClubsHref}}" class="btn btn-outline">Browse clubs</a>
+      {{/if}}
+      {{#if createClubHref}}
+        <a href="{{createClubHref}}" class="btn btn-outline">Start a new club</a>
+      {{/if}}
+    </div>
+  </div>
+</section>

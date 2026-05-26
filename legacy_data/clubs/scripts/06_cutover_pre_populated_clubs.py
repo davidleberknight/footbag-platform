@@ -50,6 +50,18 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
 SEED_CSV = LEGACY_DATA_ROOT / "seed" / "clubs.csv"
 
+# Confirmed duplicate pairs: entry B -> entry A (keep A, merge B into A).
+KNOWN_DUPLICATES: dict[str, str] = {
+    '1488489195': '1042652245',   # Les Pieds a Gilles, Lausanne
+    'zion-fr':    '944090321',    # RNH Footbag, Paris
+    '1422386831': 'memphis',      # Memphis Footworks
+    '1320083231': '1379698765',   # Penn State Footbag Club
+}
+
+_CLASSIFICATION_ORDER = {
+    'pre_populate': 0, 'onboarding_visible': 1, 'dormant': 2, 'junk': 3,
+}
+
 
 def now_iso() -> str:
     return (
@@ -71,8 +83,14 @@ def stable_id(prefix: str, *parts: str) -> str:
 # script can INSERT a club + tag from scratch on a DB where load_clubs_seed
 # has not yet run. On the normal path (reset-local-db.sh runs load_clubs_seed
 # first), INSERT OR IGNORE no-ops and this logic is unused.
+_PRE_NFKD_MAP = str.maketrans({
+    'Ł': 'L', 'ł': 'l', 'Ø': 'O', 'ø': 'o', 'Đ': 'D', 'đ': 'd',
+})
+
+
 def slugify(text: str) -> str:
-    text = unicodedata.normalize("NFKD", text or "")
+    text = (text or "").translate(_PRE_NFKD_MAP)
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower()
     text = re.sub(r"[^a-z0-9]+", "_", text)
@@ -101,15 +119,34 @@ def _clean_club_name(name: str) -> str:
     return name.strip()
 
 
+def extract_primary_city(city: str) -> str:
+    """Take the first city from multi-city values. Returns '' if empty."""
+    if not city or not city.strip():
+        return ''
+    city = re.sub(r'\s*\([^)]*\)\s*', ' ', city)
+    parts = re.split(r'\s*/\s*|\s+-\s+|\s+&\s+|\s+and\s+', city.strip(), flags=re.IGNORECASE)
+    return parts[0].strip() if parts else ''
+
+
 def make_tag_normalized(name: str, country: str, city: str, seen: set[str]) -> str:
+    """Generate unique #club_{slug} using city-first cascade."""
     name_slug = strip_redundant_suffix(slugify(_clean_club_name(name)))
     country_slug = slugify(country)
-    city_slug = slugify(city)
-    candidates = [
-        f"#club_{name_slug}",
-        f"#club_{country_slug}_{name_slug}",
-        f"#club_{country_slug}_{city_slug}_{name_slug}",
-    ]
+    primary_city = extract_primary_city(city)
+    city_slug = slugify(primary_city)
+
+    if not city_slug or city_slug == country_slug:
+        candidates = [
+            f"#club_{name_slug}",
+            f"#club_{country_slug}_{name_slug}",
+        ]
+    else:
+        candidates = [
+            f"#club_{city_slug}",
+            f"#club_{country_slug}_{city_slug}",
+            f"#club_{country_slug}_{city_slug}_{name_slug}",
+        ]
+
     for c in candidates:
         if c not in seen:
             return c
@@ -262,6 +299,14 @@ def main() -> int:
             )
             return 1
 
+        # Cascade ordering: bootstrap_eligible first, then classification
+        # priority, then alphabetical. Higher-priority clubs claim shorter slugs.
+        all_candidates.sort(key=lambda r: (
+            0 if r[4] else 1,
+            _CLASSIFICATION_ORDER.get(r[5], 99),
+            (r[1] or '').lower(),
+        ))
+
         # Prime slug-collision space for the fallback INSERT path.
         existing_tags = {
             r[0]
@@ -278,9 +323,31 @@ def main() -> int:
         mappings_written = 0
         mappings_unchanged = 0
         candidates_skipped_no_club = 0
+        duplicates_merged = 0
         missing_seed: list[str] = []
 
         for legacy_key, display_name, city, country, bootstrap_eligible, _classification in all_candidates:
+            # Dedup: if this is a known duplicate (entry B), point at
+            # entry A's club row instead. No tag/club INSERT for B.
+            canonical_key = KNOWN_DUPLICATES.get(legacy_key)
+            if canonical_key is not None:
+                canonical_club_id = stable_id("club", canonical_key)
+                cur = con.execute(
+                    """
+                    UPDATE legacy_club_candidates
+                    SET mapped_club_id = ?,
+                        updated_at = ?,
+                        updated_by = 'cutover_06',
+                        version = version + 1
+                    WHERE legacy_club_key = ?
+                      AND (mapped_club_id IS NULL OR mapped_club_id != ?)
+                    """,
+                    (canonical_club_id, ts, legacy_key, canonical_club_id),
+                )
+                if cur.rowcount:
+                    duplicates_merged += 1
+                continue
+
             club_id = stable_id("club", legacy_key)
             tag_id = stable_id("tag", "club", legacy_key)
 
@@ -379,6 +446,7 @@ def main() -> int:
     print(f"  tags rows inserted:        {tags_inserted}")
     print(f"  candidate mappings written: {mappings_written}")
     print(f"  candidate mappings unchanged (already set): {mappings_unchanged}")
+    print(f"  duplicates merged (entry B → entry A): {duplicates_merged}")
     print(f"  non-eligible candidates skipped (no matching clubs row): {candidates_skipped_no_club}")
     if missing_seed:
         print(

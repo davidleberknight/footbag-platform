@@ -19,6 +19,7 @@ export const FLASH_KIND = {
   MEDIA_SAVED: 'media_saved',
   CONTACT_SUBMITTED: 'contact_submitted',
   WORK_QUEUE_RESOLVED: 'work_queue_resolved',
+  CLUB_ACTION: 'club_action',
 } as const;
 export type FlashKind = (typeof FLASH_KIND)[keyof typeof FLASH_KIND];
 

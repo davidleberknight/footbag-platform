@@ -13,12 +13,12 @@ import {
   WizardCard,
   LegacyClaimAutoLinkConfirmFormState,
   LegacyClaimTokenConfirmFormState,
-  FirstCompetitionYearFormState,
-  ShowCompetitiveResultsFormState,
+  PersonalDetailsFormState,
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
 import { logger } from '../config/logger';
 import { handleControllerError } from '../lib/controllerErrors';
+import { ValidationError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import {
   FLASH_KIND,
@@ -26,6 +26,7 @@ import {
   readFlash,
   clearFlash,
 } from '../lib/flashCookie';
+import { getTierStatus } from '../services/membershipTieringService';
 
 // Wizard surface: `/register/wizard/:taskType`. POST handlers are thin
 // HTTP glue per VIEW_CATALOG §8.4: parse input, call one service method
@@ -55,11 +56,21 @@ interface ClubAffiliationsCardContent {
   cardsRemaining:  number;
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline' } | null;
   formError:       string | null;
+  stage?:          string;
+  canCreateClub?:  boolean;
+  nearbyCandidates?: Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
+  searchResults?:  Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
 }
 
-interface FirstCompetitionYearContent {
+interface PersonalDetailsContent {
   dashboardHref: string;
+  city: string;
+  region: string;
+  country: string;
+  birthDate: string;
   yearValue: string;
+  showFirstCompetitionYear: boolean;
+  showCompetitiveResults: boolean;
   error: string | null;
 }
 
@@ -167,6 +178,7 @@ async function renderLegacyClaim(
     return;
   }
   data.dashboardHref = dashboardHrefFor(req);
+  data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
   if (validationMessage) data.validationMessage = validationMessage;
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find your past records and clubs' },
@@ -201,15 +213,27 @@ function renderClubAffiliationsCard(
   const memberId = req.user!.userId;
   const cards = memberOnboardingService.listWizardCardsForMember(memberId);
   const resolvedNotice = readClubResolvedFlash(req, res);
-  // cardsTotal is best-effort: when a notice is present we know the user just
-  // resolved one card, so the original total was cards.length + 1. Otherwise
-  // (fresh wizard load), cardsTotal = cards.length. The template renders
-  // "Card N of M" only when M > 1.
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
+
+  const stage = cards.length > 0 ? 'stage1' : memberOnboardingService.getClubAffiliationStage(memberId);
+  let nearbyCandidates: Array<{ id: string; displayName: string; city: string | null; country: string | null }> | undefined;
+  let searchResults: typeof nearbyCandidates | undefined;
+
+  if (stage === 'stage2a') {
+    nearbyCandidates = memberOnboardingService.getStage2aCandidates(memberId);
+  } else if (stage === 'stage2b') {
+    nearbyCandidates = memberOnboardingService.getStage2bCandidates(memberId);
+  } else if (stage === 'stage3a') {
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
+    if (query) {
+      searchResults = memberOnboardingService.searchStage3aCandidates(query);
+    }
+  }
+
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
-    seo:  { title: 'Confirm your clubs' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Confirm your clubs' },
+    seo:  { title: 'Link your primary club' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Link your primary club' },
     content: {
       dashboardHref:  dashboardHrefFor(req),
       submitHref:     '/register/wizard/club_affiliations/submit',
@@ -219,31 +243,44 @@ function renderClubAffiliationsCard(
       cardsRemaining,
       resolvedNotice,
       formError:      opts.formError ?? null,
+      stage,
+      canCreateClub:  (() => {
+        const tier = getTierStatus(memberId);
+        return tier != null && tier.tier_status !== 'tier0';
+      })(),
+      nearbyCandidates,
+      searchResults,
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
 
-function renderFirstCompetitionYear(
+function renderPersonalDetails(
   req: Request,
   res: Response,
-  opts: { yearValue?: string; error?: string | null; statusOverride?: number } = {},
+  opts: { city?: string; region?: string; country?: string; birthDate?: string; yearValue?: string; showFirstCompetitionYear?: boolean; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
 ): void {
-  const prefill = memberService.getCompetitionPrefill(req.user!.userId);
+  const prefill = memberService.getPersonalDetailsPrefill(req.user!.userId);
   const yearValue =
     opts.yearValue !== undefined
       ? opts.yearValue
       : prefill.firstCompetitionYear != null
       ? String(prefill.firstCompetitionYear)
       : '';
-  res.status(opts.statusOverride ?? 200).render('register/wizard/first-competition-year', {
-    seo:  { title: 'When did you start competing?' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_first_competition_year', title: 'When did you start competing?' },
+  res.status(opts.statusOverride ?? 200).render('register/wizard/personal-details', {
+    seo:  { title: 'Personal details' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_personal_details', title: 'Personal details' },
     content: {
       dashboardHref: dashboardHrefFor(req),
+      city: opts.city ?? prefill.city,
+      region: opts.region ?? prefill.region,
+      country: opts.country ?? prefill.country,
+      birthDate: opts.birthDate ?? prefill.birthDate,
       yearValue,
+      showFirstCompetitionYear: opts.showFirstCompetitionYear ?? prefill.showFirstCompetitionYear,
+      showCompetitiveResults: opts.showCompetitiveResults ?? prefill.showCompetitiveResults,
       error: opts.error ?? null,
     },
-  } satisfies PageViewModel<FirstCompetitionYearContent>);
+  } satisfies PageViewModel<PersonalDetailsContent>);
 }
 
 function renderShowCompetitiveResults(
@@ -278,14 +315,13 @@ async function renderTaskByType(
   taskType: OnboardingTaskType,
 ): Promise<void> {
   switch (taskType) {
+    case 'personal_details':         renderPersonalDetails(req, res); return;
     case 'legacy_claim': {
       const state = readWizardFlashState(req, res);
       await renderLegacyClaim(req, res, state);
       return;
     }
     case 'club_affiliations':        renderClubAffiliationsCard(req, res); return;
-    case 'first_competition_year':   renderFirstCompetitionYear(req, res); return;
-    case 'show_competitive_results': renderShowCompetitiveResults(req, res); return;
     default: {
       const _exhaustive: never = taskType;
       void _exhaustive;
@@ -461,6 +497,8 @@ export const memberOnboardingController = {
           isHof:          result.isHof,
           isBap:          result.isBap,
           token,
+          clubAffiliations: result.clubAffiliations,
+          eventsAttended:   result.eventsAttended,
         },
       } satisfies PageViewModel<ClaimConfirmContent>);
     } catch (err) {
@@ -483,27 +521,28 @@ export const memberOnboardingController = {
     });
   },
 
-  async postFirstCompetitionYearSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const rawYear = String(req.body.year ?? '');
-    await dispatch<FirstCompetitionYearFormState>(req, res, next, 'first_competition_year', {
-      action: () => memberOnboardingService.processFirstCompetitionYearSubmit(req.user!.userId, rawYear),
+  async postPersonalDetailsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const city = String(req.body.city ?? '');
+    const region = String(req.body.region ?? '');
+    const country = String(req.body.country ?? '');
+    const birthDate = String(req.body.birthDate ?? '');
+    const yearValue = String(req.body.year ?? '');
+    const showFirstCompetitionYear =
+      req.body.showFirstCompetitionYear === '1' || req.body.showFirstCompetitionYear === 'true';
+    const showCompetitiveResults =
+      req.body.showCompetitiveResults === '1' || req.body.showCompetitiveResults === 'true';
+    await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
+      action: () => memberOnboardingService.processPersonalDetailsSubmit(
+        req.user!.userId, city, region, country, birthDate, yearValue, showFirstCompetitionYear, showCompetitiveResults),
       renderValidationError: (result) => {
-        renderFirstCompetitionYear(req, res, {
+        renderPersonalDetails(req, res, {
+          city: result.formState.city,
+          region: result.formState.region,
+          country: result.formState.country,
+          birthDate: result.formState.birthDate,
           yearValue: result.formState.yearValue,
-          error: result.message,
-          statusOverride: 422,
-        });
-      },
-    });
-  },
-
-  async postShowCompetitiveResultsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    await dispatch<ShowCompetitiveResultsFormState>(req, res, next, 'show_competitive_results', {
-      action: () => memberOnboardingService.processShowCompetitiveResultsSubmit(
-        req.user!.userId, req.body.enabled),
-      renderValidationError: (result) => {
-        renderShowCompetitiveResults(req, res, {
-          enabled: result.formState.enabled,
+          showFirstCompetitionYear: result.formState.showFirstCompetitionYear,
+          showCompetitiveResults: result.formState.showCompetitiveResults,
           error: result.message,
           statusOverride: 422,
         });
@@ -522,5 +561,31 @@ export const memberOnboardingController = {
         });
       },
     });
+  },
+
+  async postAddAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      identityAccessService.declareAnchor(
+        req.user!.userId,
+        String(req.body.anchorType ?? ''),
+        String(req.body.anchorValue ?? ''),
+      );
+      res.redirect(303, '/register/wizard/legacy_claim');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  postRemoveAnchor(req: Request, res: Response, next: NextFunction): void {
+    try {
+      identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
+      res.redirect(303, '/register/wizard/legacy_claim');
+    } catch (err) {
+      next(err);
+    }
   },
 };

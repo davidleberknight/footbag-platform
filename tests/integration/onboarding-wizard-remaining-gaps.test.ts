@@ -223,10 +223,9 @@ describe('dashboard task widget: pending and skipped tasks surface Resume button
     });
 
     svc.startTaskList(memberId);
+    svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
     svc.markTaskNotApplicable(memberId, 'club_affiliations');
-    svc.completeTask(memberId, 'first_competition_year');
-    svc.completeTask(memberId, 'show_competitive_results');
 
     const dashboard = await request(createApp())
       .get(`/members/widget_done_${stamp}`)

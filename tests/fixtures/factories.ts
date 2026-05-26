@@ -39,6 +39,7 @@ export interface MemberOverrides {
   deleted_at?: string | null;
   personal_data_purged_at?: string | null;
   show_competitive_results?: 0 | 1;
+  show_first_competition_year?: 0 | 1;
   legacy_member_id?: string | null;
   first_competition_year?: number | null;
   bio?: string;
@@ -80,9 +81,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       is_admin, is_system, is_hof, is_bap, is_deceased,
       searchable,
       deleted_at, personal_data_purged_at,
-      show_competitive_results, legacy_member_id, first_competition_year,
+      show_competitive_results, show_first_competition_year, legacy_member_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
@@ -92,7 +93,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.is_admin ?? 0, o.is_system ?? 0, o.is_hof ?? 0, o.is_bap ?? 0, o.is_deceased ?? 0,
     o.searchable ?? 1,
     o.deleted_at ?? null, purged,
-    o.show_competitive_results ?? 1, o.legacy_member_id ?? null, o.first_competition_year ?? null,
+    o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.legacy_member_id ?? null, o.first_competition_year ?? null,
     TS, SYS, TS, SYS,
   );
   return id;

@@ -13,7 +13,7 @@
       {{/if}}
     {{/if}}
     {{#if historicalPerson.linked}}
-      <p>Competition record: {{historicalPerson.summary}}.</p>
+      <p>Competition record: {{#if historicalPerson.href}}<a href="{{historicalPerson.href}}">{{historicalPerson.summary}}</a>{{else}}{{historicalPerson.summary}}{{/if}}.</p>
     {{else}}
       {{#if legacyAccount.linked}}
         <p>Competition record: not yet linked.</p>

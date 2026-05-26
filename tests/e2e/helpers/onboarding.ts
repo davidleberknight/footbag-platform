@@ -306,7 +306,7 @@ export function seedAllTasksCompleted(
 
   createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { login_email: uniqueEmail('done') } });
 
-  const tasks = ['legacy_claim', 'club_affiliations', 'first_competition_year', 'show_competitive_results'];
+  const tasks = ['personal_details', 'legacy_claim', 'club_affiliations'];
   for (const taskType of tasks) {
     const taskId = `mot-done-${rand()}`;
     const state = taskType === 'club_affiliations' ? 'not_applicable' : 'completed';
@@ -337,10 +337,9 @@ export function seedMixedTaskState(
   createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { login_email: uniqueEmail('mix') } });
 
   const taskStates: Array<[string, string]> = [
+    ['personal_details', 'pending'],
     ['legacy_claim', 'completed'],
     ['club_affiliations', 'skipped'],
-    ['first_competition_year', 'pending'],
-    ['show_competitive_results', 'pending'],
   ];
   for (const [taskType, state] of taskStates) {
     const taskId = `mot-mix-${rand()}`;

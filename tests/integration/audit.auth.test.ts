@@ -119,7 +119,7 @@ describe('audit_entries — register', () => {
     expect(exists?.ok).toBe(1);
   });
 
-  it('silent-duplicate POST /register (already-registered email) → no new audit row', async () => {
+  it('duplicate-email POST /register → 422 validation error, no new audit row', async () => {
     const app = createApp();
     const before = readAudits({ action_type: 'auth.register' }).length;
     const res = await request(app)
@@ -132,7 +132,8 @@ describe('audit_entries — register', () => {
         realName: 'Someone Else',
         displayName: 'Someone Else',
       });
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already exists');
     expect(readAudits({ action_type: 'auth.register' }).length).toBe(before);
   });
 });

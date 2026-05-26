@@ -28,6 +28,7 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
 import { readIntConfig } from '../services/configReader';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
@@ -65,7 +66,7 @@ function renderForm(
   memberKey: string,
   mediaId: string,
   values: FormValues,
-  opts: { status?: number; errorMessage?: string } = {},
+  opts: { status?: number; errorMessage?: string; tagSuggestions?: MemberTagSuggestions } = {},
 ): void {
   res.status(opts.status ?? 200).render('members/media/edit', {
     seo: { title: 'Edit Media' },
@@ -74,6 +75,7 @@ function renderForm(
     cancelHref: galleriesHref(memberKey),
     errorMessage: opts.errorMessage,
     formValues: values,
+    tagSuggestions: opts.tagSuggestions,
   });
 }
 
@@ -108,11 +110,12 @@ export const memberMediaEditController = {
       // a free-form #by_* re-add).
       const uploaderTag = `#by_${req.user!.slug.toLowerCase()}`;
       const tagsString = item.tags.filter((t) => t.toLowerCase() !== uploaderTag).join(' ');
+      const tagSuggestions = hashtagDiscoveryService.getTagSuggestionsForMember(memberId);
       renderForm(res, memberKey, mediaId, {
         caption: item.caption ?? '',
         tags: tagsString,
         externalUrl: item.externalUrl ?? '',
-      });
+      }, { tagSuggestions });
     } catch (err) {
       logger.error('member media edit GET error', { error: err instanceof Error ? err.message : String(err) });
       next(err);

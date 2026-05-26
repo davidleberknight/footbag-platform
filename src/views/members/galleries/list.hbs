@@ -53,9 +53,18 @@
             <td>
               <a href="{{editHref}}">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">
-                <button type="submit" class="btn-link-danger">Delete</button>
-              </form>
+              {{#if (eq id ../content.confirmDeleteId)}}
+                <form method="POST" action="{{deleteHref}}" class="inline-form">
+                  <input type="hidden" name="confirmed" value="1" />
+                  <span class="text-secondary">Are you sure?</span>
+                  <button type="submit" class="btn-link-danger">Confirm delete</button>
+                  <a href="{{../content.listHref}}">Cancel</a>
+                </form>
+              {{else}}
+                <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">
+                  <button type="submit" class="btn-link-danger">Delete</button>
+                </form>
+              {{/if}}
             </td>
           </tr>
         {{/each}}

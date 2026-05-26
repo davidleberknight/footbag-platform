@@ -508,12 +508,12 @@ Success Criteria:
 - System sends verification email.
 - After clicking link, user can log in and create profile.
 - Email must be unique across all members including accounts in their deletion grace period (reuse only after the grace period completes and PII is cleared).
-- Registration enforces email uniqueness. If a submitted email belongs to an account currently in its deletion grace period, the response is identical to a successful new registration. No indication is given that the email is reserved, preventing account-existence enumeration via the registration flow.
-- Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read; identical UX whether the email is new, in deletion grace, or already registered.
+- Registration enforces email uniqueness. If a submitted email belongs to an active account or one in its deletion grace period, the form re-renders at 422 with an inline error directing the user to log in or reset their password. Rate limiting prevents enumeration abuse.
+- Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 - New members automatically assigned Tier 0 (free lifetime) status.
 - **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported `legacy_members` row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (exact name match) and medium-confidence matches (known variant name match), the prompt defaults to yes (pre-checked). For low-confidence matches (email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
-- **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` with applicable outstanding tasks. The wizard owns the club affiliation flow (Stages 1A, 1B, 2A, 2B, 3A) and the optional metadata tasks (`first_competition_year`, `show_competitive_results`). Registration itself does not block on these tasks; they are skippable and resumable from the dashboard task widget.
+- **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` with applicable outstanding tasks. The wizard owns the club affiliation flow (Stages 1A, 1B, 2A, 2B, 3A). Both `first_competition_year` and `show_competitive_results` are collected as fields within the `personal_details` task. Registration itself does not block on these tasks; they are skippable and resumable from the dashboard task widget.
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
 - Passwords are stored securely using one-way hashing; they are never stored or logged in plaintext.
@@ -767,7 +767,7 @@ Success Criteria:
 - The `legacy_claim` task is **universal** (always rendered): the task surfaces any staged candidates the platform found for this member's verified email or earlier-declared anchors, plus a prompt to declare optional anchors (former surnames, old emails) so the platform can look harder, plus a CTA into the direct historical-record claim affordance. Brand-new players with no pre-existing identity see the task and skip in one motion; returning members whose anchors did not auto-match see the prompt as an invitation to declare. The earlier signal-dependent applicability rule is dropped. Card-level UX and the claim mechanics are specified by `M_Claim_Legacy_Account`.
 - The `club_affiliations` task content covers Stages 1A, 1B, 2A, 2B, 3A, plus a no-match exit that links to `M_Create_Club`.
 - On submission, the underlying state is written via the owning service and the `member_onboarding_tasks` row transitions to `completed`.
-- Optional-metadata tasks (`first_competition_year`, `show_competitive_results`) are applicable to every registrant; defaults are server-side so completion is optional.
+- Both `first_competition_year` and `show_competitive_results` are collected as fields within the `personal_details` task. Defaults are server-side so completion is optional.
 - Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. A member who has claimed an HP record marked deceased (via direct-HP claim) still runs the wizard normally; the `is_deceased` attribute applies only to the HP / historical-persons rows, not to the living member's account.
 - Every task offers a `Skip for now` action that transitions the `member_onboarding_tasks` row to `skipped`. Skipping does not block sign-in or any otherwise-authenticated surface; each skip emits an `audit_entries` row.
 - The dashboard task widget (rendered on the personal-home view) queries `MemberOnboardingService.getTaskWidget(memberId)` and lists outstanding tasks (`pending` or `skipped`) ordered by catalog position, each with a `Resume` button that opens the same task UI used at registration (identical service contract regardless of entry point). Completing a task removes it from the widget. When no outstanding tasks remain, or when none are applicable, the widget renders nothing on the dashboard (no empty-state banner, no "all done" message). Skip-resume cycles emit one audit row per transition.
@@ -795,8 +795,8 @@ Club-affiliation task acceptance criteria:
 
 Optional metadata task acceptance criteria:
 
-- `first_competition_year`: the task renders a single year input prefilled from `historical_persons.first_year` when a legacy claim has linked an HP record, otherwise blank. Submission writes the value to `members.first_competition_year` via `MemberService` (per M_Edit_Profile shape) and marks the task `completed`. Skipping leaves the field NULL; the value is editable later via M_Edit_Profile.
-- `show_competitive_results`: the task renders an explanatory paragraph plus a single boolean toggle defaulting to off. Submission writes `members.show_competitive_results` and marks the task `completed`. Skipping leaves the default (off); the toggle is editable later via M_Edit_Profile.
+- `first_competition_year`: collected as a field within the `personal_details` task alongside city, region, country, and date of birth. Prefilled from `historical_persons.first_year` when a legacy claim has linked an HP record, otherwise blank. The value is editable later via M_Edit_Profile.
+- `show_competitive_results`: collected as a checkbox within the `personal_details` task. Default on. The toggle is editable later via M_Edit_Profile.
 
 ## 3.2 Profile Management
 

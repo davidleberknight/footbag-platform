@@ -160,14 +160,17 @@ export const memberGalleryController = {
         deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
       }));
       const savedFlag = readMediaSavedFlag(req, res);
+      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render('members/galleries/list', {
         seo: { title: 'My Galleries' },
         page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
         content: {
           galleries,
+          listHref: listHref(memberKey),
           newGalleryHref: `/members/${memberKey}/galleries/new`,
           uploadMediaHref: `/members/${memberKey}/media/upload`,
           savedFlag,
+          confirmDeleteId,
         },
       });
     } catch (err) {
@@ -425,6 +428,11 @@ export const memberGalleryController = {
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnRoute(req)) {
       renderNotFound(res);
+      return;
+    }
+    if (req.body?.confirmed !== '1') {
+      const memberKey = req.params.memberKey;
+      res.redirect(303, `${listHref(memberKey)}?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
     }
     const rlErr = enforceGalleryWriteLimit(req);

@@ -119,7 +119,8 @@ describe('GET /members/<slug> — Identity & History block', () => {
     const res = await getDashboard(NO_YES_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Legacy account: none on file.');
-    expect(res.text).toContain(`Competition record: ${HP_NAME}.`);
+    expect(res.text).toContain(`>${HP_NAME}</a>.`);
+    expect(res.text).toMatch(/href="\/history\/[^"]+"/);
     expect(res.text).toContain('Link your old footbag.org account');
   });
 
@@ -127,7 +128,8 @@ describe('GET /members/<slug> — Identity & History block', () => {
     const res = await getDashboard(YES_YES_ID);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
-    expect(res.text).toContain(`Competition record: ${HP_NAME}.`);
+    expect(res.text).toContain(`>${HP_NAME}</a>.`);
+    expect(res.text).toMatch(/href="\/history\/[^"]+"/);
     expect(res.text).not.toContain('not yet linked');
     expect(res.text).not.toContain('none on file');
     expect(res.text).not.toContain('Find your past account');

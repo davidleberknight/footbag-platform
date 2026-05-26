@@ -661,7 +661,9 @@ describe('POST /members/:memberKey/galleries/:id/delete', () => {
     const id = findGalleryIdByName('Doomed')!;
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries/${id}/delete`)
-      .set('Cookie', ownerCookie());
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
     expect(findGalleryIdByName('Doomed')).toBeUndefined();
@@ -670,7 +672,9 @@ describe('POST /members/:memberKey/galleries/:id/delete', () => {
   it('returns 404 for an unknown gallery id', async () => {
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries/gallery_does_not_exist_zz/delete`)
-      .set('Cookie', ownerCookie());
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(404);
   });
 
@@ -679,7 +683,9 @@ describe('POST /members/:memberKey/galleries/:id/delete', () => {
     const id = findGalleryIdByName('Survivor')!;
     const res = await request(createApp())
       .post(`/members/${OTHER_SLUG}/galleries/${id}/delete`)
-      .set('Cookie', otherCookie());
+      .set('Cookie', otherCookie())
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(404);
     expect(findGalleryIdByName('Survivor')).toBe(id);
   });

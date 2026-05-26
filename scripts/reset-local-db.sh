@@ -264,6 +264,44 @@ else
   echo "  → Skipping FH/curator seed (CURATOR_SEED=no; --no-curator-seed was passed)."
 fi
 
+# Rebuild tag_stats (denormalized tag discovery cache) after all seeders.
+# Uses inline Python + SQLite (matching every other seeder step) to avoid
+# pulling in the full app env.ts config chain that npx tsx would require.
+echo "  → Rebuilding tag stats..."
+"${PYTHON}" - "${DB_FILE}" <<'PYEOF'
+import sys, sqlite3, datetime
+db_path = sys.argv[1]
+con = sqlite3.connect(db_path)
+con.execute("PRAGMA foreign_keys = ON")
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+rows = con.execute("""
+    SELECT mt.tag_id,
+           COUNT(*) AS usage_count,
+           COUNT(DISTINCT mi.uploader_member_id) AS distinct_member_count,
+           MAX(mi.uploaded_at) AS last_used_at
+    FROM media_tags mt
+    JOIN media_items mi ON mi.id = mt.media_id
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+    GROUP BY mt.tag_id
+""").fetchall()
+con.execute("DELETE FROM tag_stats")
+for tag_id, usage_count, distinct_member_count, last_used_at in rows:
+    con.execute("""
+        INSERT INTO tag_stats (tag_id, usage_count, distinct_member_count, last_used_at, created_at, updated_at, computed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tag_id) DO UPDATE SET
+          usage_count = excluded.usage_count,
+          distinct_member_count = excluded.distinct_member_count,
+          last_used_at = excluded.last_used_at,
+          updated_at = excluded.updated_at,
+          computed_at = excluded.computed_at
+    """, (tag_id, usage_count, distinct_member_count, last_used_at, now, now, now))
+con.commit()
+con.close()
+print(f"    tag_stats rows: {len(rows)}")
+PYEOF
+
 # Sanity check
 EVENT_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM events;")
 CLUB_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM clubs;")

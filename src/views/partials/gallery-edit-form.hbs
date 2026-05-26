@@ -57,7 +57,7 @@
 
   <label class="form-row">
     <span class="form-label">Criteria tags</span>
-    <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
+    <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
     {{#if isCreate}}
       <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
     {{else}}
@@ -68,7 +68,7 @@
 
   <label class="form-row">
     <span class="form-label">Exclude tags</span>
-    <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
+    <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
     <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
     {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
   </label>

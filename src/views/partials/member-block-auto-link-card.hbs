@@ -11,6 +11,10 @@
       Historical record: {{this.personName}}.
     </p>
     {{/if}}
+    {{#if this.country}}<p class="text-muted fs-sm">Country: {{this.country}}</p>{{/if}}
+    {{#if this.isHof}}<p class="fs-sm">Hall of Fame member</p>{{/if}}
+    {{#if this.isBap}}<p class="fs-sm">Big Add Posse member</p>{{/if}}
+    {{#if this.firstYear}}<p class="text-muted fs-sm">First competed: {{this.firstYear}}</p>{{/if}}
     <div class="auto-link-card-actions">
       <form method="post" action="{{this.confirmHref}}" class="auto-link-card-form">
         <button type="submit" class="btn btn-primary">Confirm, this is me</button>

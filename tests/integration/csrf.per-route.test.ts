@@ -93,8 +93,6 @@ const ROUTES: readonly Row[] = [
   { name: 'wizard-claim-find',     method: 'post', path: '/register/wizard/legacy_claim/find',                 body: { identifier: 'LM-1' }, requiresAuth: true },
   { name: 'wizard-claim-autolink', method: 'post', path: '/register/wizard/legacy_claim/auto-link/confirm',    body: { token: 'x' }, requiresAuth: true },
   { name: 'wizard-claim-confirm',  method: 'post', path: '/register/wizard/legacy_claim/claim/confirm',        body: { token: 'x' }, requiresAuth: true },
-  { name: 'wizard-first-year',     method: 'post', path: '/register/wizard/first_competition_year/submit',    body: { year: '2020' }, requiresAuth: true },
-  { name: 'wizard-show-results',   method: 'post', path: '/register/wizard/show_competitive_results/submit',  body: { show: 'true' }, requiresAuth: true },
   { name: 'wizard-club-affil',     method: 'post', path: '/register/wizard/club_affiliations/submit',         body: {}, requiresAuth: true },
   { name: 'wizard-skip',           method: 'post', path: '/register/wizard/legacy_claim/skip',                body: {}, requiresAuth: true },
 ];

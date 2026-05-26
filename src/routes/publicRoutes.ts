@@ -22,14 +22,26 @@ import { sidelineController } from '../controllers/sidelineController';
 import { rulesController } from '../controllers/rulesController';
 import { ifpaController } from '../controllers/ifpaController';
 import { legalController } from '../controllers/legalController';
+import { tagSuggestController } from '../controllers/tagSuggestController';
 import { requireAuth } from '../middleware/auth';
 import { requireTier1Benefits } from '../middleware/requireTier';
+import { requireOnboardingComplete } from '../middleware/requireOnboardingComplete';
 
 export const publicRouter = Router();
+publicRouter.use(requireOnboardingComplete);
 
 publicRouter.get('/',      homeController.home);
-publicRouter.get('/clubs',       clubController.index);
-publicRouter.get('/clubs/:key', clubController.byKey);
+publicRouter.get('/clubs',                  clubController.index);
+publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
+publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);
+publicRouter.post('/clubs/create',          requireAuth, requireTier1Benefits(), clubController.postCreate);
+publicRouter.get('/clubs/:key',             clubController.byKey);
+publicRouter.post('/clubs/:key/join',           requireAuth, clubController.postJoin);
+publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.postLeave);
+publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
+publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
+publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
+publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
 // before /media/:galleryId. Without this ordering, "browse" would be
@@ -118,6 +130,8 @@ publicRouter.get('/members',                       memberController.landing);
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',          requireAuth, memberController.getProfileEdit);
 publicRouter.post('/members/:memberKey/edit',         requireAuth, memberController.postProfileEdit);
+publicRouter.post('/members/:memberKey/anchors/add',    requireAuth, memberController.postAddAnchor);
+publicRouter.post('/members/:memberKey/anchors/remove', requireAuth, memberController.postRemoveAnchor);
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
@@ -185,12 +199,13 @@ publicRouter.get('/auto-link/report-incorrect/:token', authController.getReportI
 // `:taskType` routes so literal segments (find, skip, auto-link, claim,
 // submit) are not captured as :taskType. Order matters: Express matches
 // in registration order.
+publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
 publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
 publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
 publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
-publicRouter.post('/register/wizard/first_competition_year/submit',     requireAuth, memberOnboardingController.postFirstCompetitionYearSubmit);
-publicRouter.post('/register/wizard/show_competitive_results/submit',   requireAuth, memberOnboardingController.postShowCompetitiveResultsSubmit);
+publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
+publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);

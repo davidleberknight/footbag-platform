@@ -534,6 +534,7 @@ export const adminCuratorController = {
         caption: sort === 'caption_asc' ? 'asc' : null,
       };
 
+      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render('admin/curator/list', {
         seo: { title: 'Curated Media' },
         page: { sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media' },
@@ -549,6 +550,7 @@ export const adminCuratorController = {
         nextPageHref,
         emptyState: result.items.length === 0,
         savedFlag,
+        confirmDeleteId,
       });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -684,12 +686,14 @@ export const adminCuratorController = {
       const savedFlag = readMediaSavedFlag(req, res);
       const svc = buildSvc();
       const items = svc.listOwnedGalleries();
+      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render('admin/curator/galleries/list', {
         seo: { title: 'Curator Galleries' },
         page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_list', title: 'Curator Galleries' },
         items,
         emptyState: items.length === 0,
         savedFlag,
+        confirmDeleteId,
       });
     } catch (err) {
       next(err);
@@ -861,6 +865,10 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries/:id/delete — hard-delete FH gallery + sidecar. */
   async postGalleryDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (req.body?.confirmed !== '1') {
+      res.redirect(303, `/admin/curator/galleries?confirmDelete=${encodeURIComponent(req.params.id)}`);
+      return;
+    }
     try {
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
@@ -894,6 +902,10 @@ export const adminCuratorController = {
   /** POST /admin/curator/media/:id/delete — hard delete + S3 cleanup. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!enforceCuratorWriteLimit(req, res)) return;
+    if (req.body?.confirmed !== '1') {
+      res.redirect(303, `/admin/curator/media?confirmDelete=${encodeURIComponent(req.params.id)}`);
+      return;
+    }
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;

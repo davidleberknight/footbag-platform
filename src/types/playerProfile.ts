@@ -40,9 +40,6 @@ export interface PlayerHeroData {
   region?: string | null;
   country?: string | null;
   isHistoricalOnly: boolean;
-  /** Member's first competition year (or one inherited from a linked
-   * historical-person record). Optional. Shown on the member's profile
-   * (own and public) via the player-results partial; intentionally NOT
-   * rendered in the hero. Null when no year is on file. */
   firstCompetitionYear?: number | null;
+  showFirstCompetitionYear?: boolean;
 }

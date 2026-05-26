@@ -390,7 +390,7 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .post(`/admin/curator/media/${mediaId}/delete`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({});
+      .send({ confirmed: '1' });
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/media');
@@ -409,7 +409,7 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .post('/admin/curator/media/media_unknown_xyz/delete')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({});
+      .send({ confirmed: '1' });
     expect(res.status).toBe(404);
   });
 });
@@ -531,7 +531,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .post(`/admin/curator/media/${mediaId}/delete`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({});
+      .send({ confirmed: '1' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/curator/media');
     expect(fs.existsSync(sidecarPath)).toBe(false);
@@ -568,7 +568,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .post(`/admin/curator/media/${mediaId}/delete`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({});
+      .send({ confirmed: '1' });
     expect(postRes.status).toBe(303);
     const res = await agent.get('/admin/curator/media').set('Cookie', adminCookie());
     expect(res.status).toBe(200);

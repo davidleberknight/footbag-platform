@@ -1,0 +1,66 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>Tell us where you are and when you were born. All fields are optional.</p>
+
+    {{#if content.error}}
+      <p class="form-notice" role="alert">{{content.error}}</p>
+    {{/if}}
+
+    <form method="POST" action="/register/wizard/personal_details/submit" class="profile-edit-form">
+      <div class="form-field">
+        <label for="city">City</label>
+        <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" />
+      </div>
+
+      <div class="form-field">
+        <label for="region">Region / State</label>
+        <input type="text" id="region" name="region" maxlength="64" value="{{content.region}}" />
+        <small class="form-hint">For USA, use official two-letter state code.</small>
+      </div>
+
+      <div class="form-field">
+        <label for="country">Country</label>
+        <input type="text" id="country" name="country" maxlength="64" value="{{content.country}}" />
+      </div>
+
+      <div class="form-field">
+        <label for="birthDate">Date of birth</label>
+        <input type="date" id="birthDate" name="birthDate" value="{{content.birthDate}}" />
+        <small class="form-hint">Your date of birth is private and never shown publicly.</small>
+      </div>
+
+      <div class="form-field">
+        <label for="year">First competition year <span class="text-muted">(optional)</span></label>
+        <input type="number" id="year" name="year" min="1972" inputmode="numeric"
+               value="{{content.yearValue}}" placeholder="e.g. 1998" />
+        <small class="form-hint">Optional. The year you first competed in a footbag tournament. Will display on your profile if set.</small>
+      </div>
+
+      <div class="form-field">
+        <label class="form-checkbox">
+          <input type="hidden" name="showCompetitiveResults" value="0" />
+          <input type="checkbox" name="showCompetitiveResults" value="1"
+                 {{#if content.showCompetitiveResults}}checked{{/if}} />
+          Show my competition results on my public profile
+        </label>
+        <small class="form-hint">You can change this any time from your profile settings.</small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/register/wizard/personal_details/skip" class="mt-6">
+      <button type="submit" class="btn-link text-muted">Skip for now</button>
+    </form>
+
+    <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
+  </section>
+</div>

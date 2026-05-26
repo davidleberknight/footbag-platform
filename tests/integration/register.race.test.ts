@@ -56,7 +56,7 @@ function countMembersBySlug(slug: string): number {
 }
 
 describe('POST /register race against email UNIQUE constraint', () => {
-  it('two concurrent same-email registrations both return 200 (check-email page); exactly one members row inserted', async () => {
+  it('two concurrent same-email registrations: one succeeds (303), the loser gets 422; exactly one members row inserted', async () => {
     const app = createApp();
     const sharedEmail = 'race-email@example.com';
     const post = (realName: string, displayName: string) =>
@@ -76,13 +76,10 @@ describe('POST /register race against email UNIQUE constraint', () => {
       post('Bob Smith', 'Bob Smith'),
     ]);
 
-    // Both responses must be 200 (check-email render) or 303 (redirect to
-    // check-email) — never 500. The silent_duplicate path returns the same
-    // shape as a fresh registration.
-    expect([200, 303]).toContain(resA.status);
-    expect([200, 303]).toContain(resB.status);
-    expect(resA.status).not.toBe(500);
-    expect(resB.status).not.toBe(500);
+    // One wins (303 to check-email), the other gets duplicate error (422).
+    // Neither should 500.
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([303, 422]);
 
     // Exactly one member row exists for the shared email.
     expect(countMembersByEmail(sharedEmail)).toBe(1);

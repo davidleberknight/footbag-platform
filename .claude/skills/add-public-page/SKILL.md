@@ -52,6 +52,11 @@ Naming:
 - Controllers: `{domain}Controller.ts` -- camelCase, singular noun. No `publicController` layer.
 - Services: `{domain}Service.ts` -- camelCase, singular noun.
 
+Client JS:
+- JS is optional progressive enhancement, never required for functionality.
+- Client-side form validation and UX polish are fine, but the page must work without JS.
+- Core logic (defaults, business rules, data shaping) lives in services.
+
 ## Step 4: Watch for route hazards
 
 - preserve explicit route ordering

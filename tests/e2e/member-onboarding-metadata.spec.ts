@@ -4,7 +4,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
-import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState, getMemberField } from './helpers/onboarding';
+import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 
 test('first_competition_year: out-of-range year 1900 rejected inline', async ({ browser, baseURL }) => {
@@ -46,37 +46,10 @@ test('first_competition_year: future year rejected inline', async ({ browser, ba
   await ctx.close();
 });
 
-test('show_competitive_results default state is unchecked', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberMidWizard(db, { slug: `m_def_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('first_competition_year');
-  await wizard.skipCurrentTask();
-  expect(page.url()).toContain('show_competitive_results');
-
-  const isChecked = await wizard.resultsToggle.isChecked();
-  // show_competitive_results defaults to 1 in the factory (insertMember default)
-  // The toggle state should match whatever the member's current DB value is
-  const db2 = openLiveDb();
-  const dbValue = getMemberField(db2, persona.memberId, 'show_competitive_results');
-  db2.close();
-
-  expect(isChecked).toBe(dbValue === 1);
-
-  await ctx.close();
-});
-
 test('unauthenticated wizard access redirects to login with returnTo', async ({ page }) => {
   const routes = [
     '/register/wizard/legacy_claim',
     '/register/wizard/club_affiliations',
-    '/register/wizard/first_competition_year',
-    '/register/wizard/show_competitive_results',
     '/register/wizard/complete',
   ];
 

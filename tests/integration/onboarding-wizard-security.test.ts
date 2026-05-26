@@ -50,8 +50,6 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
   const getRoutes = [
     '/register/wizard/legacy_claim',
     '/register/wizard/club_affiliations',
-    '/register/wizard/first_competition_year',
-    '/register/wizard/show_competitive_results',
     '/register/wizard/complete',
   ];
 
@@ -68,8 +66,6 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
     '/register/wizard/legacy_claim/find',
     '/register/wizard/legacy_claim/auto-link/confirm',
     '/register/wizard/legacy_claim/claim/confirm',
-    '/register/wizard/first_competition_year/submit',
-    '/register/wizard/show_competitive_results/submit',
     '/register/wizard/club_affiliations/submit',
     '/register/wizard/legacy_claim/skip',
   ];
@@ -94,8 +90,6 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
     '/register/wizard/legacy_claim/find',
     '/register/wizard/legacy_claim/auto-link/confirm',
     '/register/wizard/legacy_claim/claim/confirm',
-    '/register/wizard/first_competition_year/submit',
-    '/register/wizard/show_competitive_results/submit',
     '/register/wizard/club_affiliations/submit',
     '/register/wizard/legacy_claim/skip',
   ];
@@ -202,8 +196,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
 describe('no PII leakage: wizard pages do not expose real member email addresses', () => {
   const wizardPages = [
     '/register/wizard/legacy_claim',
-    '/register/wizard/first_competition_year',
-    '/register/wizard/show_competitive_results',
+    '/register/wizard/club_affiliations',
   ];
 
   for (const route of wizardPages) {

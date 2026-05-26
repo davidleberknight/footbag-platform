@@ -3,7 +3,6 @@ import Busboy from 'busboy';
 import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
-import { memberOnboardingService } from '../services/memberOnboardingService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
@@ -161,17 +160,10 @@ export const memberController = {
         emailVisibility: req.body.emailVisibility ?? 'private',
         firstCompetitionYear: req.body.firstCompetitionYear ?? '',
         showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
+        showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
       };
       try {
         memberService.updateOwnProfile(memberKey, input);
-        // Profile-edit covers the same fields as the wizard's optional-metadata
-        // tasks; saving here completes the corresponding wizard task so the
-        // dashboard widget doesn't keep prompting for work the member just did.
-        // The submit always carries firstCompetitionYear (blank or value) and
-        // showCompetitiveResults (hidden + checkbox), so both tasks always
-        // count as "decided" after a profile-edit save.
-        memberOnboardingService.completeTaskIfOutstanding(memberId, 'first_competition_year');
-        memberOnboardingService.completeTaskIfOutstanding(memberId, 'show_competitive_results');
         res.redirect(303, `/members/${memberKey}`);
       } catch (err) {
         if (err instanceof ValidationError) {
@@ -417,6 +409,37 @@ export const memberController = {
         },
         content: {},
       } satisfies PageViewModel<MemberStubContent>);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  postAddAnchor(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    const memberKey = req.params.memberKey;
+    try {
+      identityAccessService.declareAnchor(
+        req.user!.userId,
+        String(req.body.anchorType ?? ''),
+        String(req.body.anchorValue ?? ''),
+      );
+      res.redirect(303, `/members/${memberKey}/edit`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = memberService.getProfileEditPage(memberKey, err.message);
+        res.status(422).render('members/profile-edit', vm);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  postRemoveAnchor(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    const memberKey = req.params.memberKey;
+    try {
+      identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
+      res.redirect(303, `/members/${memberKey}/edit`);
     } catch (err) {
       next(err);
     }

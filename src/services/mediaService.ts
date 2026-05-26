@@ -72,6 +72,7 @@ import { NotFoundError } from './serviceErrors';
 import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
+import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 
 export const PAGE_SIZE = 24;
 
@@ -270,6 +271,12 @@ export interface MediaBrowseArgs {
   rawPage: unknown;
 }
 
+export interface BrowseTagChip {
+  display: string;
+  normalized: string;
+  href: string;
+}
+
 export interface MediaBrowseContent {
   mode: 'browse' | 'results';
   formIncludeText: string;
@@ -281,6 +288,8 @@ export interface MediaBrowseContent {
   items: GalleryItem[];
   totalItems: number;
   pagination: GalleryPagination | null;
+  standardGalleries?: { clubs: BrowseTagChip[]; events: BrowseTagChip[] };
+  popularTags?: BrowseTagChip[];
 }
 
 const MONTHS = [
@@ -534,6 +543,8 @@ export const mediaService = {
       // Browse mode: no resolved criteria → no results pane. Hero echoes
       // submitted tokens via formInclude/ExcludeText only; chip lists empty.
       if (criteriaTagIds.length === 0) {
+        const standardGalleries = hashtagDiscoveryService.getStandardTagsWithMedia();
+        const popularTags = hashtagDiscoveryService.getPopularTags(30);
         return {
           seo: { title: 'Browse Media' },
           page: {
@@ -552,6 +563,9 @@ export const mediaService = {
             items: [],
             totalItems: 0,
             pagination: null,
+            standardGalleries: (standardGalleries.clubs.length > 0 || standardGalleries.events.length > 0)
+              ? standardGalleries : undefined,
+            popularTags: popularTags.length > 0 ? popularTags : undefined,
           },
         };
       }
@@ -604,6 +618,9 @@ export const mediaService = {
         ...(hasNext ? { nextHref: pageHref(page + 1) } : {}),
       };
 
+      const emptyResultSuggestions = total === 0
+        ? hashtagDiscoveryService.getPopularTags(5) : undefined;
+
       return {
         seo: { title: 'Browse Media' },
         page: {
@@ -622,6 +639,7 @@ export const mediaService = {
           items,
           totalItems: total,
           pagination,
+          popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
         },
       };
     });

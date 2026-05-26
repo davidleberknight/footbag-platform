@@ -9,6 +9,14 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     <p class="club-hashtag hero-hashtag">{{content.club.standardTagDisplay}}</p>
+    {{#if isAuthenticated}}
+    <form method="POST" action="/clubs/{{content.club.clubKey}}/hashtag" class="mt-2">
+      <div class="form-field inline-flex-row">
+        <input type="text" name="newSlug" placeholder="New hashtag slug" class="fs-sm" />
+        <button type="submit" class="btn btn-outline fs-sm">Update hashtag</button>
+      </div>
+    </form>
+    {{/if}}
   </div>
 </div>
 
@@ -30,6 +38,12 @@
     {{#if content.club.description}}
     <div class="club-detail-description">
       <p>{{content.club.description}}</p>
+    </div>
+    {{/if}}
+
+    {{#if content.club.viewGalleryHref}}
+    <div class="club-gallery-link">
+      <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View gallery</a>
     </div>
     {{/if}}
 
@@ -87,6 +101,15 @@
     {{/if}}
 
     {{#if isAuthenticated}}
+    <div class="club-join-block mt-4">
+      {{#if content.club.viewerIsMember}}
+        <p class="badge">You are a member of this club</p>
+      {{else if content.club.viewerCanJoin}}
+        <form method="POST" action="{{content.club.joinHref}}">
+          <button type="submit" class="btn btn-primary">Join this club</button>
+        </form>
+      {{/if}}
+    </div>
     {{#if content.club.members.length}}
     <div class="club-members">
       <h2 class="club-members-heading">Members</h2>

@@ -152,7 +152,6 @@ describe('getOwnProfile().content.comingSoon', () => {
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
     const labels = vm.content.comingSoon!.map((f) => f.label);
     expect(labels).toEqual([
-      'My Clubs',
       'My Events',
       'Payments & Donations',
       'Voting & HoF',

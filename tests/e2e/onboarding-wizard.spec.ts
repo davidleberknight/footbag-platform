@@ -126,7 +126,7 @@ test('complete first_competition_year via form fill -> advances to next task', a
   await expect(wizard.yearInput).toBeVisible();
   await wizard.submitYear('2005');
 
-  expect(page.url()).toMatch(/\/register\/wizard\/show_competitive_results/);
+  expect(page.url()).toMatch(/\/register\/wizard\/complete/);
 
   await context.close();
 });
@@ -197,7 +197,7 @@ test('wizard pages have accessible form labels and heading', async ({ browser, b
 
   await wizard.skipCurrentTask();
 
-  const tasks = ['first_competition_year', 'show_competitive_results'];
+  const tasks = ['club_affiliations'];
   for (const taskType of tasks) {
     await wizard.goto(taskType);
     const status = await page.evaluate(() => document.readyState);

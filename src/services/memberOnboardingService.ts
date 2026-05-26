@@ -3,6 +3,7 @@ import {
   account,
   clubBootstrapLeaders,
   clubBootstrapLeaderSignals,
+  legacyClubCandidates,
   legacyPersonClubAffiliations,
   memberOnboarding,
   transaction,
@@ -31,11 +32,16 @@ import {
   ValidationError,
 } from './serviceErrors';
 
+function normalizeToArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+  if (typeof value === 'string') return [value];
+  return [];
+}
+
 export const TASK_CATALOG = [
+  'personal_details',
   'legacy_claim',
   'club_affiliations',
-  'first_competition_year',
-  'show_competitive_results',
 ] as const;
 export type OnboardingTaskType = typeof TASK_CATALOG[number];
 
@@ -74,10 +80,9 @@ export interface DashboardTaskWidget {
 }
 
 const TASK_LABELS: Record<OnboardingTaskType, string> = {
-  legacy_claim:             'Find your past records and clubs',
-  club_affiliations:        'Confirm your clubs',
-  first_competition_year:   'Set your first competition year',
-  show_competitive_results: 'Show your competition results',
+  personal_details:         'Personal details',
+  legacy_claim:             'Find your past records',
+  club_affiliations:        'Club affiliation',
 };
 
 export class NotImplementedError extends ServiceError {
@@ -159,6 +164,14 @@ function getTaskState(memberId: string, taskType: OnboardingTaskType): Onboardin
     | MemberOnboardingTaskRow
     | undefined;
   return row ? row.state as OnboardingTaskState : null;
+}
+
+const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'skipped', 'not_applicable']);
+
+function isOnboardingComplete(memberId: string): boolean {
+  const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
+  if (rows.length === 0) return true;
+  return rows.every((r) => TERMINAL_STATES.has(r.state));
 }
 
 function startTaskList(memberId: string): void {
@@ -405,6 +418,8 @@ export interface WizardMembershipCard {
   clubName: string;
   confidenceBand: MembershipConfidenceBand;
   confidenceBandLabel: string;
+  clubDescription: string | null;
+  clubExternalUrl: string | null;
 }
 
 export interface WizardLeadershipCard {
@@ -417,9 +432,25 @@ export interface WizardLeadershipCard {
   classification: 'strong' | 'weak' | 'none';
   classificationLabel: string;
   signals: SignalChecklistRow[];
+  clubDescription: string | null;
+  clubExternalUrl: string | null;
 }
 
-export type WizardCard = WizardMembershipCard | WizardLeadershipCard;
+export interface WizardDisambiguationCard {
+  kind: 'disambiguation';
+  city: string;
+  clubs: Array<{
+    candidateId: string;
+    clubId: string;
+    clubName: string;
+    confidenceBand: MembershipConfidenceBand;
+    confidenceBandLabel: string;
+    clubDescription: string | null;
+    clubExternalUrl: string | null;
+  }>;
+}
+
+export type WizardCard = WizardMembershipCard | WizardLeadershipCard | WizardDisambiguationCard;
 
 function confidenceBandFor(score: number | null): MembershipConfidenceBand {
   // Scores arrive at fixed increments (0.50 / 0.70 / 0.90) so each band
@@ -471,17 +502,49 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
     legacyMemberId,
   ) as WizardLeadershipCardRow[];
 
-  const memberships: WizardMembershipCard[] = membershipRows.map((r) => {
-    const band = confidenceBandFor(r.confidence_score);
-    return {
-      kind:                'membership',
-      candidateId:         r.affiliation_id,
-      clubId:              r.club_id,
-      clubName:            r.club_name,
-      confidenceBand:      band,
-      confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
-    };
-  });
+  // Group membership rows by city for disambiguation. Single-club cities
+  // produce normal cards; multi-club cities produce a disambiguation card.
+  const cityGroups = new Map<string, WizardMembershipCardRow[]>();
+  for (const r of membershipRows) {
+    const cityKey = (r.club_city || '').toLowerCase();
+    if (!cityGroups.has(cityKey)) cityGroups.set(cityKey, []);
+    cityGroups.get(cityKey)!.push(r);
+  }
+
+  const memberships: (WizardMembershipCard | WizardDisambiguationCard)[] = [];
+  for (const [, rows] of cityGroups) {
+    if (rows.length === 1) {
+      const r = rows[0];
+      const band = confidenceBandFor(r.confidence_score);
+      memberships.push({
+        kind:                'membership' as const,
+        candidateId:         r.affiliation_id,
+        clubId:              r.club_id,
+        clubName:            r.club_name,
+        confidenceBand:      band,
+        confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
+        clubDescription:     r.club_description || null,
+        clubExternalUrl:     r.club_external_url || null,
+      });
+    } else {
+      memberships.push({
+        kind: 'disambiguation' as const,
+        city: rows[0].club_city,
+        clubs: rows.map((r) => {
+          const band = confidenceBandFor(r.confidence_score);
+          return {
+            candidateId:         r.affiliation_id,
+            clubId:              r.club_id,
+            clubName:            r.club_name,
+            confidenceBand:      band,
+            confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
+            clubDescription:     r.club_description || null,
+            clubExternalUrl:     r.club_external_url || null,
+          };
+        }),
+      });
+    }
+  }
 
   const leaderships: WizardLeadershipCard[] = leadershipRows.map((r) => {
     const { structural, modifiers } = readSignalsForCandidate(r.candidate_id);
@@ -505,16 +568,21 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       classification:      classified.classification,
       classificationLabel: CLASSIFICATION_LABELS[classified.classification],
       signals,
+      clubDescription:     r.club_description || null,
+      clubExternalUrl:     r.club_external_url || null,
     };
   });
 
-  // Leadership before membership, then alphabetical by club name.
-  const all: WizardCard[] = [...memberships, ...leaderships];
+  // Leadership first, then membership/disambiguation. Within each group,
+  // sort alphabetically (by clubName for single cards, by city for disambiguation).
+  const all: WizardCard[] = [...leaderships, ...memberships];
   const stageOrder = (c: WizardCard): number => (c.kind === 'leadership' ? 0 : 1);
+  const sortKey = (c: WizardCard): string =>
+    c.kind === 'disambiguation' ? c.city.toLowerCase() : c.clubName.toLowerCase();
   all.sort((a, b) => {
     const stageDiff = stageOrder(a) - stageOrder(b);
     if (stageDiff !== 0) return stageDiff;
-    return a.clubName.toLowerCase().localeCompare(b.clubName.toLowerCase());
+    return sortKey(a).localeCompare(sortKey(b));
   });
   return all;
 }
@@ -769,13 +837,8 @@ function submitClubAffiliationsResponse(
 function submitTaskResponse(memberId: string, taskType: string, response: unknown): void {
   assertTaskType(taskType);
   const body = (response ?? {}) as Record<string, unknown>;
-  if (taskType === 'first_competition_year') {
-    memberService.setFirstCompetitionYear(memberId, body.year);
-    completeTask(memberId, taskType);
-    return;
-  }
-  if (taskType === 'show_competitive_results') {
-    memberService.setShowCompetitiveResults(memberId, body.enabled);
+  if (taskType === 'personal_details') {
+    memberService.setPersonalDetails(memberId, body);
     completeTask(memberId, taskType);
     return;
   }
@@ -808,8 +871,7 @@ export type LegacyClaimAutoLinkConfirmFormState =
   | { personId: string; personName: string; confidence: 'high' | 'medium' }
   | null;
 export type LegacyClaimTokenConfirmFormState = null;
-export type FirstCompetitionYearFormState = { yearValue: string };
-export type ShowCompetitiveResultsFormState = { enabled: boolean };
+export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDate: string; yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean };
 
 // Per-arm types so the discriminant union's non-formState arms can be
 // returned from helpers (e.g. advanceAfter) without binding to a
@@ -968,18 +1030,27 @@ function processLegacyClaimTokenConfirm(
   }
 }
 
-function processFirstCompetitionYearSubmit(
+function processPersonalDetailsSubmit(
   memberId: string,
-  rawYear: string,
-): WizardActionResult<FirstCompetitionYearFormState> {
+  city: string,
+  region: string,
+  country: string,
+  birthDate: string,
+  yearValue: string,
+  showFirstCompetitionYear: boolean,
+  showCompetitiveResults: boolean,
+): WizardActionResult<PersonalDetailsFormState> {
   try {
-    submitTaskResponse(memberId, 'first_competition_year', { year: rawYear });
-    return advanceAfter(memberId, 'first_competition_year');
+    submitTaskResponse(memberId, 'personal_details', {
+      city, region, country, birthDate, yearValue, showFirstCompetitionYear,
+    });
+    memberService.setShowCompetitiveResults(memberId, showCompetitiveResults);
+    return advanceAfter(memberId, 'personal_details');
   } catch (err) {
     if (err instanceof ValidationError) {
       return {
         kind: 'validation_error',
-        formState: { yearValue: rawYear },
+        formState: { city, region, country, birthDate, yearValue, showFirstCompetitionYear, showCompetitiveResults },
         message: err.message,
       };
     }
@@ -987,24 +1058,6 @@ function processFirstCompetitionYearSubmit(
   }
 }
 
-function processShowCompetitiveResultsSubmit(
-  memberId: string,
-  rawEnabled: unknown,
-): WizardActionResult<ShowCompetitiveResultsFormState> {
-  try {
-    submitTaskResponse(memberId, 'show_competitive_results', { enabled: rawEnabled });
-    return advanceAfter(memberId, 'show_competitive_results');
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      return {
-        kind: 'validation_error',
-        formState: { enabled: Boolean(rawEnabled) },
-        message: err.message,
-      };
-    }
-    throw err;
-  }
-}
 
 function processTaskSkip(
   memberId: string,
@@ -1080,13 +1133,59 @@ function assertCandidateOwnership(
   }
 }
 
+function submitDisambiguationResponse(
+  memberId: string,
+  selectedIds: string[],
+  allIds: string[],
+): ClubAffiliationsResult {
+  for (const id of allIds) {
+    assertCandidateOwnership(memberId, id, 'membership');
+  }
+  const selectedSet = new Set(selectedIds);
+  for (const id of allIds) {
+    const decision = selectedSet.has(id) ? 'confirm' : 'decline';
+    submitMembershipResponse(memberId, id, decision);
+  }
+  const taskState = maybeCompleteClubAffiliationsTask(memberId);
+  return {
+    branch:         selectedIds.length > 0 ? 'confirmed' : 'declined',
+    classification: 'none',
+    actualRole:     null,
+    taskState,
+  };
+}
+
 function processClubAffiliationsSubmit(
   memberId: string,
   body: Record<string, unknown>,
 ): WizardActionResult<ClubAffiliationsFormState> {
+  const kindRaw = typeof body.kind === 'string' ? body.kind : '';
+
+  if (kindRaw === 'disambiguation') {
+    const allIds      = normalizeToArray(body.allCandidateIds);
+    const selectedIds = normalizeToArray(body.selectedCandidateIds);
+    if (allIds.length === 0) {
+      return { kind: 'validation_error', formState: null, message: 'allCandidateIds is required' };
+    }
+    const result = submitDisambiguationResponse(memberId, selectedIds, allIds);
+    if (result.taskState === 'completed') {
+      return advanceAfter(memberId, 'club_affiliations');
+    }
+    const selectedCount = selectedIds.length;
+    return {
+      kind: 'retry_same',
+      flash: {
+        kind: 'WIZARD_CLUB_CARD_RESOLVED',
+        payload: {
+          clubName: selectedCount > 0 ? `${selectedCount} club(s)` : 'none',
+          decision: selectedCount > 0 ? 'confirm' : 'decline',
+        },
+      },
+    };
+  }
+
   const candidateId  = typeof body.candidateId  === 'string' ? body.candidateId  : '';
   const userDecision = body.userDecision;
-  const kindRaw      = typeof body.kind === 'string' ? body.kind : '';
 
   if (!candidateId) {
     return { kind: 'validation_error', formState: null, message: 'candidateId is required' };
@@ -1112,11 +1211,11 @@ function processClubAffiliationsSubmit(
 
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
-  // Capture the resolved card's club name BEFORE submission so the success
-  // banner on the next render can name what the member just decided. Falls
-  // back to a generic label if the card was already gone (idempotent re-submit).
   const cardsBefore = listWizardCardsForMember(memberId);
-  const resolvedCard = cardsBefore.find((c) => c.candidateId === candidateId);
+  const resolvedCard = cardsBefore.find(
+    (c): c is WizardMembershipCard | WizardLeadershipCard =>
+      c.kind !== 'disambiguation' && c.candidateId === candidateId,
+  );
   const clubName = resolvedCard?.clubName ?? 'that club';
 
   const result = submitClubAffiliationsResponse(memberId, body);
@@ -1130,6 +1229,66 @@ function processClubAffiliationsSubmit(
       payload: { clubName, decision: userDecision },
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Club affiliation stages 2A / 2B / 3A — geographic and dormant matching.
+// Stage 1 is the existing card-based flow above. Stages 2-3 extend it with
+// geographic matching against legacy_club_candidates.
+// ---------------------------------------------------------------------------
+
+export type ClubAffiliationStage = 'stage1' | 'stage2a' | 'stage2b' | 'stage3a' | 'wrap_up';
+
+interface NearbyClubCandidate {
+  id: string;
+  displayName: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  mappedClubId: string | null;
+}
+
+function getClubAffiliationStage(memberId: string): ClubAffiliationStage {
+  const stage1Cards = listWizardCardsForMember(memberId);
+  if (stage1Cards.length > 0) return 'stage1';
+
+  const memberRow = account.findPersonalDetails.get(memberId) as
+    | { country: string | null }
+    | undefined;
+  const country = memberRow?.country ?? null;
+  if (!country) return 'wrap_up';
+
+  const prePopulated = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+  if (prePopulated.length > 0) return 'stage2a';
+
+  const onboardingVisible = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+  if (onboardingVisible.length > 0) return 'stage2b';
+
+  return 'stage3a';
+}
+
+function getStage2aCandidates(memberId: string): NearbyClubCandidate[] {
+  const memberRow = account.findPersonalDetails.get(memberId) as
+    | { country: string | null }
+    | undefined;
+  const country = memberRow?.country ?? null;
+  if (!country) return [];
+  return legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+}
+
+function getStage2bCandidates(memberId: string): NearbyClubCandidate[] {
+  const memberRow = account.findPersonalDetails.get(memberId) as
+    | { country: string | null }
+    | undefined;
+  const country = memberRow?.country ?? null;
+  if (!country) return [];
+  return legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+}
+
+function searchStage3aCandidates(query: string): NearbyClubCandidate[] {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  return legacyClubCandidates.searchDormantByName.all(`%${trimmed}%`) as NearbyClubCandidate[];
 }
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
@@ -1150,12 +1309,16 @@ export const memberOnboardingService = {
   submitClubAffiliationsResponse,
   processClubAffiliationsSubmit,
   listWizardCardsForMember,
+  processPersonalDetailsSubmit,
   processLegacyClaimSubmit,
   processLegacyClaimAutoLinkConfirm,
   processLegacyClaimTokenConfirm,
-  processFirstCompetitionYearSubmit,
-  processShowCompetitiveResultsSubmit,
   processTaskSkip,
   claimHistoricalPersonAndCompleteTask,
   getTaskState,
+  isOnboardingComplete,
+  getClubAffiliationStage,
+  getStage2aCandidates,
+  getStage2bCandidates,
+  searchStage3aCandidates,
 };

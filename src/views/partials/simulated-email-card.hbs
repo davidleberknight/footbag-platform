@@ -42,7 +42,10 @@
       </table>
     </div>
   {{else}}
-    <div class="empty-state">No messages sent yet.</div>
+    <div class="empty-state">
+      No messages sent yet.
+      <p class="text-muted fs-sm mt-2">If you just registered, this usually means the email address is already in use (anti-enumeration: no visible difference). Try resetting the database or using a different email.</p>
+    </div>
   {{/if}}
 </section>
 {{/if}}

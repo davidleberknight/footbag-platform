@@ -1,0 +1,148 @@
+{{! Club creation form }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Start a local footbag community.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    {{#if errorMessage}}
+      <div class="form-error-banner" role="alert">
+        <p>{{errorMessage}}</p>
+        {{#if existingClubHref}}
+          <p><a href="{{existingClubHref}}">View {{existingClubName}}</a></p>
+        {{/if}}
+      </div>
+    {{/if}}
+
+    <form method="POST" action="{{formAction}}" class="login-form">
+
+      <div class="form-field">
+        <label for="name">Club name</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value="{{club.name}}"
+          maxlength="150"
+          required
+        />
+        {{#if fieldErrors.name}}
+          <p class="form-error" role="alert">{{fieldErrors.name}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="description">Description <span class="text-muted">(optional)</span></label>
+        <textarea
+          id="description"
+          name="description"
+          maxlength="2000"
+          rows="3"
+        >{{club.description}}</textarea>
+        {{#if fieldErrors.description}}
+          <p class="form-error" role="alert">{{fieldErrors.description}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="city">City</label>
+        <input
+          type="text"
+          id="city"
+          name="city"
+          value="{{club.city}}"
+          required
+        />
+        {{#if fieldErrors.city}}
+          <p class="form-error" role="alert">{{fieldErrors.city}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="region">Region / State <span class="text-muted">(optional)</span></label>
+        <input
+          type="text"
+          id="region"
+          name="region"
+          value="{{club.region}}"
+        />
+        {{#if fieldErrors.region}}
+          <p class="form-error" role="alert">{{fieldErrors.region}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="country">Country</label>
+        <input
+          type="text"
+          id="country"
+          name="country"
+          value="{{club.country}}"
+          required
+        />
+        {{#if fieldErrors.country}}
+          <p class="form-error" role="alert">{{fieldErrors.country}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="contactEmail">Contact email <span class="text-muted">(optional)</span></label>
+        <input
+          type="email"
+          id="contactEmail"
+          name="contactEmail"
+          value="{{club.contactEmail}}"
+        />
+        {{#if fieldErrors.contactEmail}}
+          <p class="form-error" role="alert">{{fieldErrors.contactEmail}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="whatsapp">WhatsApp <span class="text-muted">(optional)</span></label>
+        <input
+          type="text"
+          id="whatsapp"
+          name="whatsapp"
+          value="{{club.whatsapp}}"
+          placeholder="+1 555 123 4567"
+        />
+        <small class="form-hint">At least one contact method (email or WhatsApp) is recommended. Clubs without any contact method will be flagged for admin review.</small>
+        {{#if fieldErrors.whatsapp}}
+          <p class="form-error" role="alert">{{fieldErrors.whatsapp}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="slug">Club hashtag</label>
+        <div class="club-slug-group">
+          <span class="club-slug-prefix">#club_</span>
+          <input
+            type="text"
+            id="slug"
+            name="slug"
+            value="{{club.slug}}"
+            pattern="[a-z0-9][a-z0-9_]*[a-z0-9]" minlength="2"
+          />
+        </div>
+        <small class="form-hint">Your club's permanent hashtag. Leave blank to default from city name.</small>
+        {{#if fieldErrors.slug}}
+          <p class="form-error" role="alert">{{fieldErrors.slug}}</p>
+        {{/if}}
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create club</button>
+        <a href="{{cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+
+    </form>
+  </section>
+</div>
+
+<script src="/js/club-create.js" defer></script>

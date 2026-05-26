@@ -162,13 +162,12 @@ describe('POST /verify/resend — response shape identical for exists/unverified
   });
 });
 
-// ── POST /register (silent-duplicate vs fresh) ───────────────────────────────
+// ── POST /register (duplicate email) ──────────────────────────────────────────
 
-describe('POST /register — silent-duplicate indistinguishable from fresh registration', () => {
-  it('303 redirect to /register/check-email in both cases', async () => {
+describe('POST /register — duplicate email returns 422 with actionable error', () => {
+  it('fresh registration → 303; duplicate email → 422 with login/reset guidance', async () => {
     const app = createApp();
 
-    // Fresh registration.
     const fresh = await request(app)
       .post('/register')
       .type('form')
@@ -179,8 +178,9 @@ describe('POST /register — silent-duplicate indistinguishable from fresh regis
         password: 'FreshPass1!',
         confirmPassword: 'FreshPass1!',
       });
+    expect(fresh.status).toBe(303);
+    expect(fresh.headers.location).toBe('/register/check-email');
 
-    // Duplicate-email registration (already-exists path).
     const duplicate = await request(app)
       .post('/register')
       .type('form')
@@ -191,10 +191,8 @@ describe('POST /register — silent-duplicate indistinguishable from fresh regis
         password: 'AnotherPass1!',
         confirmPassword: 'AnotherPass1!',
       });
-
-    expect(fresh.status).toBe(duplicate.status);
-    expect(fresh.status).toBe(303);
-    expect(fresh.headers.location).toBe(duplicate.headers.location);
-    expect(fresh.headers.location).toBe('/register/check-email');
+    expect(duplicate.status).toBe(422);
+    expect(duplicate.text).toContain('already exists');
+    expect(duplicate.text).toContain('log in');
   });
 });

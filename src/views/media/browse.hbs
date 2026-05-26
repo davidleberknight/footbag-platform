@@ -16,13 +16,13 @@
   <form method="GET" action="/media/browse" class="curator-edit-form">
     <label class="form-row">
       <span class="form-label">Include tags</span>
-      <input type="text" name="tag" value="{{content.formIncludeText}}" placeholder="butterfly spike">
+      <input type="text" name="tag" value="{{content.formIncludeText}}" placeholder="butterfly spike" data-tag-chips>
       <small class="form-help">Whitespace-separated. An item must carry every one of these tags to appear. The leading <code>#</code> is optional.</small>
     </label>
 
     <label class="form-row">
       <span class="form-label">Exclude tags</span>
-      <input type="text" name="exclude" value="{{content.formExcludeText}}" placeholder="tutorial">
+      <input type="text" name="exclude" value="{{content.formExcludeText}}" placeholder="tutorial" data-tag-chips>
       <small class="form-help">Whitespace-separated. An item carrying any of these tags is filtered out. Optional.</small>
     </label>
 
@@ -38,6 +38,40 @@
   {{/if}}
 
   {{#unless (eq content.mode "results")}}
+    {{#if content.standardGalleries}}
+      {{#if content.standardGalleries.clubs.length}}
+      <section class="browse-standard-section" aria-labelledby="browse-club-galleries-heading">
+        <h2 id="browse-club-galleries-heading" class="browse-section-heading">Club galleries</h2>
+        <ul class="tag-chip-row">
+          {{#each content.standardGalleries.clubs}}
+          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+          {{/each}}
+        </ul>
+      </section>
+      {{/if}}
+      {{#if content.standardGalleries.events.length}}
+      <section class="browse-standard-section" aria-labelledby="browse-event-galleries-heading">
+        <h2 id="browse-event-galleries-heading" class="browse-section-heading">Event galleries</h2>
+        <ul class="tag-chip-row">
+          {{#each content.standardGalleries.events}}
+          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+          {{/each}}
+        </ul>
+      </section>
+      {{/if}}
+    {{/if}}
+
+    {{#if content.popularTags.length}}
+    <section class="browse-popular-section" aria-labelledby="browse-popular-heading">
+      <h2 id="browse-popular-heading" class="browse-section-heading">Popular tags</h2>
+      <ul class="tag-chip-row">
+        {{#each content.popularTags}}
+        <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/if}}
+
     <section class="browse-tags-help" aria-labelledby="browse-tags-help-heading">
       <h2 id="browse-tags-help-heading">About hashtags</h2>
       <p>Hashtags label every photo and video. They group content into discoverable feeds without a centralized taxonomy.</p>
@@ -47,6 +81,7 @@
         <li><strong>Popular tags</strong> are the most-used community tags across the site.</li>
         <li><strong>Personal tags</strong> are used by a single member; they stay private to that member's gallery.</li>
       </ul>
+      {{#unless content.popularTags.length}}
       <p class="browse-tags-help-try">Try one:</p>
       <ul class="tag-chip-row">
         <li><a href="/media/browse?tag=freestyle" class="tag-chip">#freestyle</a></li>
@@ -55,8 +90,8 @@
         <li><a href="/media/browse?tag=tutorial" class="tag-chip">#tutorial</a></li>
         <li><a href="/media/browse?tag=demo" class="tag-chip">#demo</a></li>
         <li><a href="/media/browse?tag=tricks_of_the_trade" class="tag-chip">#tricks_of_the_trade</a></li>
-        <li><a href="/media/browse?tag=event_2026_worlds_japan" class="tag-chip">#event_2026_worlds_japan</a></li>
       </ul>
+      {{/unless}}
     </section>
   {{/unless}}
 
@@ -95,8 +130,19 @@
         {{/if}}
       {{/if}}
     {{else}}
-      <div class="empty-state">No media yet.</div>
+      <div class="empty-state">
+        <p>No media yet.</p>
+        {{#if content.popularTags.length}}
+        <p>Try one of these popular tags:</p>
+        <ul class="tag-chip-row">
+          {{#each content.popularTags}}
+          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+          {{/each}}
+        </ul>
+        {{/if}}
+      </div>
     {{/if}}
   {{/if}}
 
 </div>
+<script src="/js/tag-chips.js" defer></script>

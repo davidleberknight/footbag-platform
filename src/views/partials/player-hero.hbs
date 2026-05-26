@@ -11,6 +11,6 @@
         <p class="hero-subtitle">Historical player record</p>
       {{/unless}}{{/unless}}
     {{/if}}
-    {{#if heroData.city}}<p class="hero-subtitle">{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}</p>{{/if}}
+    {{#if (or heroData.city (or heroData.region heroData.country))}}<p class="hero-subtitle">{{#if heroData.city}}{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else if heroData.region}}{{heroData.region}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else}}{{heroData.country}}{{/if}}</p>{{/if}}
   </div>
 </div>

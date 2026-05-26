@@ -80,7 +80,7 @@
  */
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction, type MediaJobRow } from '../db/db';
+import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { detectImageType } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
@@ -130,6 +130,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '.
 import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
+import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 
 export const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = 150 * 1024 * 1024;
@@ -538,7 +539,8 @@ function defaultFindSystemMemberId(): string | null {
   return row?.id ?? null;
 }
 
-function applyTags(mediaId: string, tags: string[], now: string): void {
+function applyTags(mediaId: string, tags: string[], now: string): string[] {
+  const tagIds: string[] = [];
   for (const tag of tags) {
     const existing = mediaTagsDb.findTagByNormalized.get(tag) as { id: string } | undefined;
     let tagId: string;
@@ -549,16 +551,18 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
       mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
     }
     mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
+    tagIds.push(tagId);
   }
+  return tagIds;
 }
 
 // Only path that writes #curated; stored as freeform (is_standard=0) because
 // the standardized hashtag namespace covers only #event_* and #club_*.
 // Input-side validateTags rejects #curated, so auto-application here is the
 // sole source of the tag.
-function applyTagsForCurator(mediaId: string, userTags: string[], now: string): void {
+function applyTagsForCurator(mediaId: string, userTags: string[], now: string): string[] {
   const canonical = [...userTags, CURATED_TAG];
-  applyTags(mediaId, canonical, now);
+  return applyTags(mediaId, canonical, now);
 }
 
 // Member tag application: prepends `#by_<slug>` (the uploader-attribution
@@ -575,10 +579,10 @@ function applyTagsForMember(
   slug: string,
   userTags: string[],
   now: string,
-): void {
+): string[] {
   const uploaderTag = `${UPLOADER_TAG_PREFIX}${slug.toLowerCase()}`;
   const canonical = [uploaderTag, ...userTags];
-  applyTags(mediaId, canonical, now);
+  return applyTags(mediaId, canonical, now);
 }
 
 // Default per-member gallery materialized on first upload. Members can
@@ -1083,6 +1087,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       // Compensating-delete: storage objects already committed above; on tx
       // failure (UNIQUE, FK, CHECK) we delete them so they don't orphan.
+      let appliedTagIds: string[] = [];
       try {
         transaction(() => {
           media.insertCuratorPhoto.run(
@@ -1094,7 +1099,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
           }
-          applyTagsForCurator(mediaId, input.tags, now);
+          appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
             actionType: 'upload_curated_media',
             category: 'media',
@@ -1109,6 +1114,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         await compensatingStorageDelete(storage, [thumbKey, displayKey]);
         throw err;
       }
+      hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       return { mediaId, displayUrl: storage.constructURL(displayKey) };
     },
@@ -1197,6 +1203,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // Compensating-delete on tx failure (video + poster pair). Same
       // pattern as uploadPhoto: storage objects committed above; clean
       // them up if the DB insert rejects.
+      let appliedTagIds: string[] = [];
       try {
         transaction(() => {
           media.insertCuratorVideo.run(
@@ -1209,7 +1216,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
           }
-          applyTagsForCurator(mediaId, input.tags, now);
+          appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
             actionType: 'upload_curated_media',
             category: 'media',
@@ -1228,6 +1235,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         ]);
         throw err;
       }
+      hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
@@ -1301,6 +1309,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const now = new Date().toISOString();
       const thumbnailUrl = storage.constructURL(posterDisplayKey);
 
+      let appliedTagIds: string[] = [];
       transaction(() => {
         media.insertCuratorVideo.run(
           mediaId, now, now,
@@ -1309,7 +1318,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           processed.widthPx, processed.heightPx,
           job.source_filename,
         );
-        applyTagsForCurator(mediaId, tags, now);
+        appliedTagIds = applyTagsForCurator(mediaId, tags, now);
         appendAuditEntry({
           actionType: 'upload_curated_media',
           category: 'media',
@@ -1320,6 +1329,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           metadata: { mediaType: 'video', tags, mediaJobId: job.id },
         });
       });
+      hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       // Best-effort cleanup of pending sources. S3 lifecycle on the pending/
       // prefix is the safety net if these calls fail.
@@ -1542,17 +1552,20 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const dedupedTags =
         input.tags !== undefined ? Array.from(new Set(input.tags)) : undefined;
 
+      const oldTagIds = dedupedTags !== undefined
+        ? (tagStats.listTagIdsByMediaId.all(input.mediaId) as { tag_id: string }[]).map(r => r.tag_id)
+        : [];
+      let newTagIds: string[] = [];
+
       transaction(() => {
         if (input.caption !== undefined) {
           media.updateCuratorMediaCaption.run(input.caption, now, input.mediaId);
         }
         if (dedupedTags !== undefined) {
           mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
-          applyTagsForCurator(input.mediaId, dedupedTags, now);
+          newTagIds = applyTagsForCurator(input.mediaId, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
-          // null clears, string sets. validated_at is set even on clear so
-          // we record when the field was last touched.
           media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
         }
         appendAuditEntry({
@@ -1571,6 +1584,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           },
         });
       });
+
+      if (dedupedTags !== undefined) {
+        hashtagDiscoveryService.decrementTagStats(oldTagIds);
+        hashtagDiscoveryService.incrementTagStats(newTagIds);
+      }
 
       return { mediaId: input.mediaId, updatedAt: now };
     },
@@ -1606,9 +1624,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
       }
 
+      const deletedTagIds = (tagStats.listTagIdsByMediaId.all(input.mediaId) as { tag_id: string }[]).map(r => r.tag_id);
+
       transaction(() => {
-        // media_tags cascades via FK ON DELETE CASCADE; explicit delete here
-        // is redundant for media_tags but kept defensive against schema drift.
         mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
@@ -1627,6 +1645,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           },
         });
       });
+      hashtagDiscoveryService.decrementTagStats(deletedTagIds);
 
       // Filesystem + storage cleanup after the DB transaction commits.
       // Best-effort: a failed unlink/delete leaves an orphan but does not
@@ -2216,6 +2235,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // Compensating-delete on tx failure: storage objects already committed
       // above; on UNIQUE / FK / CHECK violation we delete them so they don't
       // orphan. Same pattern as uploadPhoto / uploadVideo.
+      let appliedTagIds: string[] = [];
       try {
         transaction(() => {
           media.insertMemberPhoto.run(
@@ -2227,7 +2247,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
           }
-          applyTagsForMember(mediaId, input.slug, input.tags, now);
+          appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
           ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
           appendAuditEntry({
             actionType: 'upload_member_media',
@@ -2250,6 +2270,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
         throw err;
       }
+      hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       return { mediaId, displayUrl: storage.constructURL(displayKey) };
     },
@@ -2305,13 +2326,18 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const dedupedTags =
         input.tags !== undefined ? Array.from(new Set(input.tags)) : undefined;
 
+      const oldTagIds = dedupedTags !== undefined
+        ? (tagStats.listTagIdsByMediaId.all(input.mediaId) as { tag_id: string }[]).map(r => r.tag_id)
+        : [];
+      let newTagIds: string[] = [];
+
       transaction(() => {
         if (input.caption !== undefined) {
           media.updateMemberMediaCaption.run(input.caption, now, input.mediaId);
         }
         if (dedupedTags !== undefined) {
           mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
-          applyTagsForMember(input.mediaId, input.slug, dedupedTags, now);
+          newTagIds = applyTagsForMember(input.mediaId, input.slug, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
@@ -2330,6 +2356,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           },
         });
       });
+
+      if (dedupedTags !== undefined) {
+        hashtagDiscoveryService.decrementTagStats(oldTagIds);
+        hashtagDiscoveryService.incrementTagStats(newTagIds);
+      }
 
       return { mediaId: input.mediaId, updatedAt: now };
     },
@@ -2392,6 +2423,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
           : (thumbnailUrl ?? '');
 
+      let appliedTagIds: string[] = [];
       transaction(() => {
         media.insertMemberVideo.run(
           mediaId, now, now,
@@ -2401,7 +2433,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         if (normalizedExternalUrl !== null) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
         }
-        applyTagsForMember(mediaId, input.slug, input.tags, now);
+        appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
         ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
         appendAuditEntry({
           actionType: 'upload_member_media',
@@ -2413,6 +2445,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           metadata: { mediaType: 'video', videoPlatform: input.videoPlatform, tags: input.tags },
         });
       });
+      hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       return { mediaId, displayUrl };
     },

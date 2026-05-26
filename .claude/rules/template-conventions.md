@@ -27,6 +27,7 @@ Middleware also populates `res.locals.isAuthenticated`, `res.locals.isAdmin`, `r
 - **No URL construction with two or more variables.** `href="/freestyle/tricks?family={{family}}"` is acceptable (single variable). `href="/members/{{slug}}/section-{{section}}/{{id}}"` is forbidden; services provide pre-shaped `*Href` view-model fields.
 - **No inline `style="..."`, `<style>`, `<script>` blocks.** CSP enforces `script-src 'self'` and `style-src 'self'`. All CSS lives in `src/public/css/style.css`. All client behavior lives in `src/public/js/*.js` loaded via `<script src="..." defer>`. The single permitted exception is non-executable JSON data islands: `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>`, parsed by an external script. The CI gate at `scripts/ci/assert_conventions.sh` enforces this at merge time; CSP catches it at runtime as defense in depth.
 - **No inline event handlers** (`onclick=`, `onchange=`, `onsubmit=`, etc.). Attach handlers from external JS via `addEventListener` on a class or `data-*` selector.
+- **JS is optional progressive enhancement**, never required for functionality. Client-side form validation and UX polish are fine, but the page must work without JS. Core logic (defaults, business rules, data shaping) lives in services.
 
 ## Registered helpers
 

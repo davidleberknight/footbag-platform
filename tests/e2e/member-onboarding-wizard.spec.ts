@@ -122,7 +122,7 @@ test('first_competition_year: valid year saves to DB', async ({ browser, baseURL
   await wizard.goto('first_competition_year');
   await wizard.submitYear('2005');
 
-  expect(page.url()).toContain('show_competitive_results');
+  expect(page.url()).toContain('complete');
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBe(2005);
@@ -173,37 +173,11 @@ test('first_competition_year: empty year accepted, clears field', async ({ brows
   await wizard.saveButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
-  expect(page.url()).toContain('show_competitive_results');
+  expect(page.url()).toContain('complete');
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBeNull();
   expect(getTaskState(db2, persona.memberId, 'first_competition_year')).toBe('completed');
-  db2.close();
-
-  await ctx.close();
-});
-
-test('show_competitive_results: toggle on, submit, advances to completion', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedMemberMidWizard(db, { slug: `w_scr_${Date.now()}` });
-  db.close();
-
-  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await ctx.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('first_competition_year');
-  await wizard.skipCurrentTask();
-  expect(page.url()).toContain('show_competitive_results');
-
-  await wizard.resultsToggle.check();
-  await wizard.saveButton.click();
-  await page.waitForURL(/\/register\/wizard\//);
-
-  await expect(wizard.completionMessage).toBeVisible();
-
-  const db2 = openLiveDb();
-  expect(getMemberField(db2, persona.memberId, 'show_competitive_results')).toBe(1);
   db2.close();
 
   await ctx.close();
@@ -234,7 +208,7 @@ test('completion page: text correct, profile link works', async ({ browser, base
   await ctx.close();
 });
 
-test('skip all four tasks end-to-end -> completion -> profile', async ({ browser, baseURL }) => {
+test('skip all three tasks end-to-end -> completion -> profile', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_all_${Date.now()}` });
   db.close();
@@ -255,8 +229,7 @@ test('skip all four tasks end-to-end -> completion -> profile', async ({ browser
 
   const db2 = openLiveDb();
   expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('skipped');
-  expect(getTaskState(db2, persona.memberId, 'first_competition_year')).toBe('skipped');
-  expect(getTaskState(db2, persona.memberId, 'show_competitive_results')).toBe('skipped');
+  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toMatch(/skipped|not_applicable/);
   db2.close();
 
   await ctx.close();

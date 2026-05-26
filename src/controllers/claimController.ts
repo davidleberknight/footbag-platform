@@ -40,12 +40,8 @@ export const claimController = {
   getClaimHp(req: Request, res: Response, next: NextFunction): void {
     const personId = req.params.personId ?? '';
     try {
-      const result = identityAccessService.lookupHistoricalPersonForClaim(req.user!.userId, personId);
-      if (!result) {
-        // HP not found (or requesting member not found). Render the uniform
-        // claim-unavailable page rather than redirecting to /history/:personId
-        // (which would 404 for a non-existent HP and distinguish the case
-        // from the ValidationError branch below — enumeration leak).
+      const lookupResult = identityAccessService.lookupHistoricalPersonForClaim(req.user!.userId, personId);
+      if (!lookupResult) {
         logger.info('hp claim unavailable: lookup returned null', {
           personId,
           memberId: req.user!.userId,
@@ -53,6 +49,19 @@ export const claimController = {
         renderHpClaimUnavailable(res, personId);
         return;
       }
+      if (lookupResult.status === 'conflict') {
+        const memberSlug = req.user!.slug ?? req.user!.userId;
+        res.render('history/claim-hp-conflict', {
+          seo:  { title: 'Claim unavailable' },
+          page: { sectionKey: 'members', pageKey: 'hp_claim_conflict', title: 'Claim unavailable' },
+          content: {
+            memberSlug,
+            contactAdminHref: `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
+          },
+        } satisfies PageViewModel<{ memberSlug: string; contactAdminHref: string }>);
+        return;
+      }
+      const result = lookupResult.data;
       res.render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
         content: {
@@ -62,6 +71,9 @@ export const claimController = {
           isHof:            result.isHof,
           isBap:            result.isBap,
           firstNameWarning: result.firstNameWarning,
+          bioExcerpt:       result.bioExcerpt,
+          clubAffiliations: result.clubAffiliations,
+          eventsAttended:   result.eventsAttended,
           cancelHref:       `/history/${encodeURIComponent(result.personId)}`,
         },
       } satisfies PageViewModel<ClaimHpConfirmContent>);

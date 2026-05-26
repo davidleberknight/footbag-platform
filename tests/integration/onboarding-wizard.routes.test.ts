@@ -70,18 +70,18 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     expect(res.headers.location).toContain('returnTo=%2Fregister%2Fwizard%2Flegacy_claim');
   });
 
-  it('authenticated GET creates all four task rows on first visit (idempotent)', async () => {
+  it('authenticated GET creates all task rows on first visit (idempotent)', async () => {
     const memberId = insertMember(testDb, { slug: `wiz_bootstrap_${Date.now()}`, login_email: `wiz-bs-${Date.now()}@example.com` });
     expect(countOnboardingTasks(memberId)).toBe(0);
     const res = await request(createApp())
-      .get('/register/wizard/legacy_claim')
+      .get('/register/wizard/personal_details')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    expect(countOnboardingTasks(memberId)).toBe(4);
+    expect(countOnboardingTasks(memberId)).toBe(3);
     await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
-    expect(countOnboardingTasks(memberId)).toBe(4);
+    expect(countOnboardingTasks(memberId)).toBe(3);
   });
 
   it('unknown :taskType -> 404', async () => {
@@ -102,7 +102,7 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_eachtask_${stamp}`, login_email: `wiz-each-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
-    for (const taskType of ['legacy_claim', 'first_competition_year', 'show_competitive_results']) {
+    for (const taskType of ['legacy_claim']) {
       const res = await request(createApp())
         .get(`/register/wizard/${taskType}`)
         .set('Cookie', cookie);
@@ -153,29 +153,26 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
   });
 
-  it('skipping all four tasks in sequence lands on /register/wizard/complete', async () => {
+  it('skipping all tasks in sequence lands on /register/wizard/complete', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { slug: `wiz_skip_all_${stamp}`, login_email: `wiz-skip-all-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
-    let res = await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
+    await request(createApp()).get('/register/wizard/personal_details').set('Cookie', cookie);
+    let res = await request(createApp()).post('/register/wizard/personal_details/skip').set('Cookie', cookie).type('form').send({});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    res = await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     res = await request(createApp()).post('/register/wizard/club_affiliations/skip').set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/first_competition_year');
-    res = await request(createApp()).post('/register/wizard/first_competition_year/skip').set('Cookie', cookie).type('form').send({});
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/show_competitive_results');
-    res = await request(createApp()).post('/register/wizard/show_competitive_results/skip').set('Cookie', cookie).type('form').send({});
-    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/complete');
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
     expect(followUp.text).toContain('Your onboarding tasks are handled');
-    for (const tt of ['legacy_claim', 'club_affiliations', 'first_competition_year', 'show_competitive_results']) {
+    for (const tt of ['personal_details', 'legacy_claim', 'club_affiliations'] as const) {
       expect(getTaskState(memberId, tt), `task=${tt}`).toBe('skipped');
     }
-    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(4);
+    expect(countAuditEntries(memberId, 'onboarding_task_skipped')).toBe(3);
   });
 
   it('skip on unknown taskType -> 404, no state changes', async () => {
@@ -480,105 +477,16 @@ describe('POST /register/wizard/legacy_claim/claim/confirm — token confirmatio
   });
 });
 
-describe('POST /register/wizard/first_competition_year/submit', () => {
-  it('valid year -> 303 advance; members.first_competition_year written', async () => {
-    const stamp = Date.now();
-    const memberId = insertMember(testDb, { slug: `wiz_yr_${stamp}`, login_email: `wiz-yr-${stamp}@example.com` });
-    await request(createApp()).get('/register/wizard/first_competition_year').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/first_competition_year/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ year: '1998' });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/show_competitive_results');
-    const row = testDb.prepare('SELECT first_competition_year FROM members WHERE id = ?').get(memberId) as { first_competition_year: number | null };
-    expect(row.first_competition_year).toBe(1998);
-    expect(getTaskState(memberId, 'first_competition_year')).toBe('completed');
-  });
-
-  it('invalid year -> 422 with error inline', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_byr_${Date.now()}`, login_email: `wiz-byr-${Date.now()}@example.com` });
-    await request(createApp()).get('/register/wizard/first_competition_year').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/first_competition_year/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ year: 'banana' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Year must be');
-    expect(getTaskState(memberId, 'first_competition_year')).toBe('pending');
-  });
-
-  it('out-of-range year (1900) -> 422', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_oyr_${Date.now()}`, login_email: `wiz-oyr-${Date.now()}@example.com` });
-    const res = await request(createApp())
-      .post('/register/wizard/first_competition_year/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ year: '1900' });
-    expect(res.status).toBe(422);
-  });
-
-  it('empty year -> 303 advance; field cleared; task completed', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_eyr_${Date.now()}`, login_email: `wiz-eyr-${Date.now()}@example.com` });
-    await request(createApp()).get('/register/wizard/first_competition_year').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/first_competition_year/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ year: '' });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/show_competitive_results');
-    const row = testDb.prepare('SELECT first_competition_year FROM members WHERE id = ?').get(memberId) as { first_competition_year: number | null };
-    expect(row.first_competition_year).toBeNull();
-    expect(getTaskState(memberId, 'first_competition_year')).toBe('completed');
-  });
-});
-
-describe('POST /register/wizard/show_competitive_results/submit', () => {
-  it('enabled=1 -> 303 advance; writes 1; completes task', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_sr1_${Date.now()}`, login_email: `wiz-sr1-${Date.now()}@example.com` });
-    await request(createApp()).get('/register/wizard/show_competitive_results').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/show_competitive_results/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ enabled: '1' });
-    expect(res.status).toBe(303);
-    const row = testDb.prepare('SELECT show_competitive_results FROM members WHERE id = ?').get(memberId) as { show_competitive_results: number };
-    expect(row.show_competitive_results).toBe(1);
-    expect(getTaskState(memberId, 'show_competitive_results')).toBe('completed');
-  });
-
-  it('missing enabled (unchecked) -> 303 advance; writes 0', async () => {
-    const memberId = insertMember(testDb, { slug: `wiz_sr0_${Date.now()}`, login_email: `wiz-sr0-${Date.now()}@example.com` });
-    await request(createApp()).get('/register/wizard/show_competitive_results').set('Cookie', cookieFor(memberId));
-    const res = await request(createApp())
-      .post('/register/wizard/show_competitive_results/submit')
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
-    expect(res.status).toBe(303);
-    const row = testDb.prepare('SELECT show_competitive_results FROM members WHERE id = ?').get(memberId) as { show_competitive_results: number };
-    expect(row.show_competitive_results).toBe(0);
-  });
-
-  it('last outstanding task -> 303 to /register/wizard/complete', async () => {
+describe('last outstanding task -> 303 to /register/wizard/complete', () => {
+  it('skipping all three tasks lands on complete', async () => {
     const memberId = insertMember(testDb, { slug: `wiz_done_${Date.now()}`, login_email: `wiz-done-${Date.now()}@example.com` });
     const cookie = cookieFor(memberId);
-    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+    await request(createApp()).get('/register/wizard/personal_details').set('Cookie', cookie);
+    await request(createApp()).post('/register/wizard/personal_details/skip').set('Cookie', cookie).type('form').send({});
     await request(createApp()).post('/register/wizard/legacy_claim/skip').set('Cookie', cookie).type('form').send({});
     await request(createApp()).post('/register/wizard/club_affiliations/skip').set('Cookie', cookie).type('form').send({});
-    await request(createApp()).post('/register/wizard/first_competition_year/skip').set('Cookie', cookie).type('form').send({});
-    const res = await request(createApp())
-      .post('/register/wizard/show_competitive_results/submit')
-      .set('Cookie', cookie)
-      .type('form')
-      .send({ enabled: '1' });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/complete');
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
+    expect(followUp.status).toBe(200);
     expect(followUp.text).toContain('Your onboarding tasks are handled');
   });
 });
@@ -637,7 +545,7 @@ describe('flash cookie behavior (adversarial)', () => {
       .send({ identifier: `garbage-${stamp}` });
     expect(post.status).toBe(303);
     // Detour to a different task GET; the flash must NOT be consumed there.
-    const detour = await agent.get('/register/wizard/first_competition_year').set('Cookie', cookieFor(memberId));
+    const detour = await agent.get('/register/wizard/personal_details').set('Cookie', cookieFor(memberId));
     expect(detour.status).toBe(200);
     // The legacy_claim GET still has access to the flash.
     const target = await agent.get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));

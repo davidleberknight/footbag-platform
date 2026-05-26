@@ -26,7 +26,19 @@
         {{#if content.isBap}}
           <p class="m-0 mt-1 fw-500 text-secondary">BAP member</p>
         {{/if}}
+        {{#if content.bioExcerpt}}
+          <p class="m-0 mt-2 text-muted fs-sm">{{content.bioExcerpt}}</p>
+        {{/if}}
       </div>
+
+      {{#if content.clubAffiliations.length}}
+        <h3>Club affiliations</h3>
+        <ul>{{#each content.clubAffiliations}}<li>{{this}}</li>{{/each}}</ul>
+      {{/if}}
+      {{#if content.eventsAttended.length}}
+        <h3>Events attended</h3>
+        <ul>{{#each content.eventsAttended}}<li>{{this.title}} ({{this.year}})</li>{{/each}}</ul>
+      {{/if}}
 
       {{#if content.firstNameWarning}}
         <div class="notice-card notice-card--warn-strong my-4">

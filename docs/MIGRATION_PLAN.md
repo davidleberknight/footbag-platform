@@ -268,7 +268,7 @@ Two registration fields:
 Two fields on `members`:
 
 - `first_competition_year` (INTEGER, nullable): editable on profile edit. Pre-populated from `historical_persons.first_year` during claim (COALESCE; member value wins if already set). Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing).
-- `show_competitive_results` (INTEGER, default 0): toggle controlling whether results show on public profile. Members opt in via M_Edit_Profile or the optional metadata task at onboarding. Own profile always shows results to the owner regardless of toggle state.
+- `show_competitive_results` (INTEGER, default 1): toggle controlling whether results show on public profile. Collected in the `personal_details` onboarding task and editable via M_Edit_Profile. Own profile always shows results to the owner regardless of toggle state.
 
 **Caveat text on results section:** "Published event results only. Historical records may be incomplete."
 
@@ -893,12 +893,11 @@ Every member has an ordered task list. Tasks at cutover:
 
 | Task type | Source flow | Owning service for the underlying logic |
 |---|---|---|
+| `personal_details` | Location, date of birth, first competition year, show competitive results | `MemberService` |
 | `legacy_claim` | §7 auto-link or §8 self-serve claim | `IdentityAccessService` |
 | `club_affiliations` | §10.3 three-stage club flow | clubs service |
-| `first_competition_year` | §15.14 metadata | `MemberService` |
-| `show_competitive_results` | §15.14 toggle | `MemberService` |
 
-Task ordering is fixed: `legacy_claim`, then `club_affiliations`, then optional metadata. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
+Task ordering is fixed: `personal_details`, then `legacy_claim`, then `club_affiliations`. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
 
 ### Storage
 

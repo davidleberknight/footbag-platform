@@ -160,20 +160,8 @@ describe('POST /register', () => {
     expect(outboxRows[0].recipient_member_id).toBe(member!.id);
   });
 
-  it('duplicate email → 303 to /register/check-email, NO new DB rows (anti-enumeration + silent dedup)', async () => {
+  it('duplicate email → 422 with inline error and login/reset guidance', async () => {
     const app = createApp();
-
-    // Snapshot counts *before* the POST. Prior it-blocks may have created
-    // rows; we assert ONLY that the duplicate POST added nothing.
-    // When the submitted address is already registered, no new member row
-    // is created and no new verification email is enqueued.
-    const countBefore = (() => {
-      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-      const m = db.prepare(`SELECT COUNT(*) AS n FROM members`).get() as { n: number };
-      const o = db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails`).get() as { n: number };
-      db.close();
-      return { members: m.n, outbox: o.n };
-    })();
 
     const res = await request(app)
       .post('/register')
@@ -184,19 +172,9 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/check-email');
-
-    const countAfter = (() => {
-      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
-      const m = db.prepare(`SELECT COUNT(*) AS n FROM members`).get() as { n: number };
-      const o = db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails`).get() as { n: number };
-      db.close();
-      return { members: m.n, outbox: o.n };
-    })();
-
-    expect(countAfter.members).toBe(countBefore.members);
-    expect(countAfter.outbox).toBe(countBefore.outbox);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already exists');
+    expect(res.text).toContain('log in');
   });
 
   it('short password → 422 with error', async () => {
@@ -350,6 +328,133 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
+  });
+
+  it('custom slug succeeds and is stored in the DB', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Slug Tester',
+        email: 'slugtester@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: 'slug_tester',
+      });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/check-email');
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const member = db.prepare(
+      `SELECT slug FROM members WHERE login_email_normalized = ?`,
+    ).get('slugtester@example.com') as { slug: string } | undefined;
+    db.close();
+    expect(member).toBeDefined();
+    expect(member!.slug).toBe('slug_tester');
+  });
+
+  it('blank slug falls back to auto-generation', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Auto Slugger',
+        email: 'autoslugger@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: '',
+      });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const member = db.prepare(
+      `SELECT slug FROM members WHERE login_email_normalized = ?`,
+    ).get('autoslugger@example.com') as { slug: string } | undefined;
+    db.close();
+    expect(member).toBeDefined();
+    expect(member!.slug).toBe('auto_slugger');
+  });
+
+  it('slug with invalid format → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Bad Format',
+        email: 'badformat@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: '_leading_underscore',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('lowercase letters, numbers, and underscores');
+  });
+
+  it('slug too short → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Short Slug',
+        email: 'shortslug@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: 'x',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('at least 2 characters');
+  });
+
+  it('slug missing surname → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'David Leberknight',
+        email: 'nosurname@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: 'cool_handle',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must contain your last name');
+  });
+
+  it('user-provided slug collision → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Existing User',
+        email: 'slugcollision@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: 'existing_user',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already taken');
+  });
+
+  it('slug is echoed back on validation error', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: '',
+        email: 'echo@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+        slug: 'my_slug',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('value="my_slug"');
   });
 });
 

@@ -624,6 +624,44 @@ export const publicPlayers = {
 };
 
 export const clubs = {
+  get findById() { return db.prepare(`
+    SELECT id AS club_id, name, status FROM clubs WHERE id = ?
+  `); },
+
+  get findByIdWithHashtag() { return db.prepare(`
+    SELECT c.id AS club_id, c.name, c.status, c.hashtag_tag_id,
+           t.tag_normalized, t.tag_display
+      FROM clubs c
+      JOIN tags t ON t.id = c.hashtag_tag_id
+     WHERE c.id = ?
+  `); },
+
+  get insertClub() { return db.prepare(`
+    INSERT INTO clubs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      name, description, city, region, country,
+      contact_email, whatsapp, hashtag_tag_id
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?, ?, ?, ?,
+              ?, ?, ?)
+  `); },
+
+  get findByNameAndCountry() { return db.prepare(`
+    SELECT c.id AS club_id, c.name, c.country,
+           REPLACE(t.tag_normalized, '#', '') AS club_key
+      FROM clubs AS c
+      INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
+     WHERE c.name = ? COLLATE NOCASE AND c.country = ? COLLATE NOCASE
+       AND c.status != 'archived'
+     LIMIT 1
+  `); },
+
+  get updateStatus() { return db.prepare(`
+    UPDATE clubs
+       SET status = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
   get listOpen() { return db.prepare(`
     SELECT
       c.id          AS club_id,
@@ -648,6 +686,23 @@ export const clubs = {
       c.region  COLLATE NOCASE ASC,
       c.city    COLLATE NOCASE ASC,
       c.name    COLLATE NOCASE ASC
+  `); },
+
+  get listOpenByCountry() { return db.prepare(`
+    SELECT
+      c.id          AS club_id,
+      c.name,
+      c.city,
+      c.country,
+      REPLACE(t.tag_normalized, '#', '') AS club_key
+    FROM clubs_open AS c
+    INNER JOIN tags AS t
+      ON t.id = c.hashtag_tag_id
+    WHERE c.country = ? COLLATE NOCASE
+      AND t.is_standard = 1
+      AND t.standard_type = 'club'
+    ORDER BY c.name COLLATE NOCASE ASC
+    LIMIT 10
   `); },
 
   // Per-country member count derived from legacy_person_club_affiliations.
@@ -840,6 +895,30 @@ export const legacyClubCandidates = {
       FROM legacy_club_candidates
      WHERE id = ?
   `); },
+
+  get findPrePopulatedByCountry() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country,
+           mapped_club_id
+      FROM legacy_club_candidates
+     WHERE classification = 'pre_populate'
+       AND country = ?
+       AND mapped_club_id IS NOT NULL
+  `); },
+
+  get findOnboardingVisibleByCountry() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country,
+           mapped_club_id
+      FROM legacy_club_candidates
+     WHERE classification = 'onboarding_visible'
+       AND country = ?
+  `); },
+
+  get searchDormantByName() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country
+      FROM legacy_club_candidates
+     WHERE classification = 'dormant'
+       AND display_name LIKE ?
+  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -869,7 +948,10 @@ export interface WizardMembershipCardRow {
   affiliation_id: string;
   club_id: string;
   club_name: string;
+  club_city: string;
   confidence_score: number | null;
+  club_description: string | null;
+  club_external_url: string | null;
 }
 
 export const legacyPersonClubAffiliations = {
@@ -894,7 +976,10 @@ export const legacyPersonClubAffiliations = {
       lpca.id             AS affiliation_id,
       lcc.mapped_club_id  AS club_id,
       c.name              AS club_name,
-      lpca.confidence_score AS confidence_score
+      c.city              AS club_city,
+      lpca.confidence_score AS confidence_score,
+      c.description       AS club_description,
+      c.external_url      AS club_external_url
       FROM legacy_person_club_affiliations AS lpca
       INNER JOIN legacy_club_candidates AS lcc
          ON lcc.id = lpca.legacy_club_candidate_id
@@ -903,7 +988,7 @@ export const legacyPersonClubAffiliations = {
      WHERE lpca.legacy_member_id  = ?
        AND lpca.resolution_status = 'pending'
        AND lcc.mapped_club_id IS NOT NULL
-     ORDER BY c.name COLLATE NOCASE ASC
+     ORDER BY c.city COLLATE NOCASE ASC, c.name COLLATE NOCASE ASC
   `); },
 
   // Pending -> rejected transition for the 'decline' wizard branch. Guarded
@@ -959,6 +1044,8 @@ export interface WizardLeadershipCardRow {
   club_id: string;
   club_name: string;
   role: 'leader' | 'co-leader';
+  club_description: string | null;
+  club_external_url: string | null;
 }
 
 export const clubBootstrapLeaders = {
@@ -1004,8 +1091,10 @@ export const clubBootstrapLeaders = {
     SELECT
       cbl.id    AS candidate_id,
       cbl.club_id,
-      c.name    AS club_name,
-      cbl.role
+      c.name          AS club_name,
+      cbl.role,
+      c.description   AS club_description,
+      c.external_url  AS club_external_url
       FROM club_bootstrap_leaders AS cbl
       INNER JOIN clubs AS c
          ON c.id = cbl.club_id
@@ -1071,9 +1160,31 @@ export const clubLeaders = {
     SELECT 1 AS x FROM club_leaders WHERE member_id = ? AND role = 'leader' LIMIT 1
   `); },
 
+  get leaderClubNameForMember() { return db.prepare(`
+    SELECT c.name AS club_name
+      FROM club_leaders AS cl
+      INNER JOIN clubs AS c ON c.id = cl.club_id
+     WHERE cl.member_id = ? AND cl.role = 'leader'
+     LIMIT 1
+  `); },
+
   // Is this member already in this club's leadership (any role)? Idempotency probe.
   get memberInClubLeadership() { return db.prepare(`
     SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
+  `); },
+
+  get removeByMemberAndClub() { return db.prepare(`
+    DELETE FROM club_leaders WHERE member_id = ? AND club_id = ?
+  `); },
+
+  get updateRole() { return db.prepare(`
+    UPDATE club_leaders
+       SET role = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND club_id = ?
+  `); },
+
+  get countOtherLeadersByClub() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ? AND member_id != ?
   `); },
 };
 
@@ -1090,6 +1201,37 @@ export const memberClubAffiliations = {
     SELECT COUNT(*) AS c
       FROM member_club_affiliations
      WHERE member_id = ? AND is_current = 1
+  `); },
+
+  get listCurrentWithClubName() { return db.prepare(`
+    SELECT mca.id, mca.club_id, c.name AS club_name,
+           REPLACE(t.tag_normalized, '#', '') AS club_key,
+           c.status AS club_status, mca.is_primary
+      FROM member_club_affiliations AS mca
+      INNER JOIN clubs AS c ON c.id = mca.club_id
+      INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
+     WHERE mca.member_id = ? AND mca.is_current = 1
+     ORDER BY mca.is_primary DESC
+  `); },
+
+  get deactivate() { return db.prepare(`
+    UPDATE member_club_affiliations
+       SET is_current = 0, is_primary = 0,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND club_id = ? AND is_current = 1
+  `); },
+
+  get swapPrimary() { return db.prepare(`
+    UPDATE member_club_affiliations
+       SET is_primary = CASE WHEN is_primary = 1 THEN 0 ELSE 1 END,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND is_current = 1
+  `); },
+
+  get findCurrentByMemberAndClub() { return db.prepare(`
+    SELECT id, is_primary
+      FROM member_club_affiliations
+     WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 };
 
@@ -3631,6 +3773,7 @@ export interface MemberProfileRow {
   is_bap: number;
   first_competition_year: number | null;
   show_competitive_results: number;
+  show_first_competition_year: number;
   legacy_member_id: string | null;
   historical_person_id: string | null;
   login_email: string;
@@ -3695,6 +3838,7 @@ export const account = {
       m.is_bap,
       m.first_competition_year,
       m.show_competitive_results,
+      m.show_first_competition_year,
       m.legacy_member_id,
       m.historical_person_id,
       m.login_email,
@@ -3894,17 +4038,18 @@ export const account = {
   get updateMemberProfile() { return db.prepare(`
     UPDATE members
     SET
-      bio                     = ?,
-      city                    = ?,
-      region                  = ?,
-      country                 = ?,
-      phone                   = ?,
-      email_visibility        = ?,
-      first_competition_year  = ?,
-      show_competitive_results = ?,
-      updated_at              = ?,
-      updated_by              = 'member',
-      version                 = version + 1
+      bio                        = ?,
+      city                       = ?,
+      region                     = ?,
+      country                    = ?,
+      phone                      = ?,
+      email_visibility           = ?,
+      first_competition_year     = ?,
+      show_competitive_results   = ?,
+      show_first_competition_year = ?,
+      updated_at                 = ?,
+      updated_by                 = 'member',
+      version                    = version + 1
     WHERE id = ?
   `); },
 
@@ -3919,6 +4064,28 @@ export const account = {
       AND m.legacy_member_id IS NOT NULL
     WHERE m.id = ?
       AND m.personal_data_purged_at IS NULL
+  `); },
+
+  get updateMemberPersonalDetails() { return db.prepare(`
+    UPDATE members
+    SET
+      city                        = ?,
+      region                      = ?,
+      country                     = ?,
+      birth_date                  = ?,
+      first_competition_year      = ?,
+      show_first_competition_year = ?,
+      updated_at                  = ?,
+      updated_by                  = 'onboarding_wizard',
+      version                     = version + 1
+    WHERE id = ?
+  `); },
+
+  get findPersonalDetails() { return db.prepare(`
+    SELECT city, region, country, birth_date,
+           first_competition_year, show_first_competition_year,
+           show_competitive_results
+    FROM members_active WHERE id = ?
   `); },
 
   get updateMemberFirstCompetitionYear() { return db.prepare(`
@@ -3996,7 +4163,7 @@ export const auth = {
   `); },
 
   get findMemberForSessionAfterVerify() { return db.prepare(`
-    SELECT id, slug, login_email, real_name, password_version, is_admin
+    SELECT id, slug, login_email, real_name, password_version, is_admin, birth_date
     FROM members_active
     WHERE id = ?
   `); },
@@ -5045,6 +5212,16 @@ export const mediaTags = {
               0, NULL)
   `); },
 
+  get insertStandardTag() { return db.prepare(`
+    INSERT INTO tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      tag_normalized, tag_display,
+      is_standard, standard_type
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?,
+              1, ?)
+  `); },
+
   get insertMediaTag() { return db.prepare(`
     INSERT INTO media_tags (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -5065,7 +5242,181 @@ export const mediaTags = {
   get findMediaTag() { return db.prepare(`
     SELECT id FROM media_tags WHERE media_id = ? AND tag_id = ?
   `); },
+
+  get updateTagDisplay() { return db.prepare(`
+    UPDATE tags
+       SET tag_normalized = ?,
+           tag_display    = ?,
+           updated_at     = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+     WHERE id = ?
+  `); },
 };
+
+// ── tag_stats (denormalized read cache for tag discovery) ────────────────────
+
+export interface TagStatSourceRow {
+  tag_id: string;
+  usage_count: number;
+  distinct_member_count: number;
+  last_used_at: string | null;
+}
+
+export function queryTagStatsSource(): TagStatSourceRow[] {
+  return db.prepare(`
+    SELECT mt.tag_id,
+           COUNT(*) AS usage_count,
+           COUNT(DISTINCT mi.uploader_member_id) AS distinct_member_count,
+           MAX(mi.uploaded_at) AS last_used_at
+    FROM media_tags mt
+    JOIN media_items mi ON mi.id = mt.media_id
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+    GROUP BY mt.tag_id
+  `).all() as TagStatSourceRow[];
+}
+
+export interface PopularTagRow {
+  tag_id: string;
+  tag_normalized: string;
+  tag_display: string;
+  usage_count: number;
+  distinct_member_count: number;
+}
+
+export interface StandardTagWithMediaRow {
+  tag_id: string;
+  tag_normalized: string;
+  tag_display: string;
+  standard_type: 'event' | 'club';
+  usage_count: number;
+}
+
+export interface TagSuggestRow {
+  tag_normalized: string;
+  tag_display: string;
+  usage_count: number | null;
+}
+
+export interface MemberTagRow {
+  tag_normalized: string;
+  tag_display: string;
+}
+
+export const tagStats = {
+  get upsertTagStat() { return db.prepare(`
+    INSERT INTO tag_stats (tag_id, usage_count, distinct_member_count, last_used_at, created_at, updated_at, computed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(tag_id) DO UPDATE SET
+      usage_count = excluded.usage_count,
+      distinct_member_count = excluded.distinct_member_count,
+      last_used_at = excluded.last_used_at,
+      updated_at = excluded.updated_at,
+      computed_at = excluded.computed_at
+  `); },
+
+  get deleteAll() { return db.prepare(`DELETE FROM tag_stats`); },
+
+  get listTagIdsByMediaId() { return db.prepare(`
+    SELECT tag_id FROM media_tags WHERE media_id = ?
+  `); },
+
+  get upsertIncrement() { return db.prepare(`
+    INSERT INTO tag_stats (tag_id, usage_count, distinct_member_count, last_used_at, created_at, updated_at, computed_at)
+    VALUES (?, 1, 1, ?, ?, ?, ?)
+    ON CONFLICT(tag_id) DO UPDATE SET
+      usage_count = tag_stats.usage_count + 1,
+      last_used_at = excluded.last_used_at,
+      updated_at = excluded.updated_at,
+      computed_at = excluded.computed_at
+  `); },
+
+  get decrementUsageCount() { return db.prepare(`
+    UPDATE tag_stats
+       SET usage_count = usage_count - 1,
+           updated_at = ?,
+           computed_at = ?
+     WHERE tag_id = ?
+  `); },
+
+  get deleteZeroUsage() { return db.prepare(`
+    DELETE FROM tag_stats WHERE tag_id = ? AND usage_count <= 0
+  `); },
+
+  get recomputeDistinctMemberCountForTag() { return db.prepare(`
+    UPDATE tag_stats
+       SET distinct_member_count = (
+             SELECT COUNT(DISTINCT mi.uploader_member_id)
+               FROM media_tags mt
+               JOIN media_items mi ON mi.id = mt.media_id
+              WHERE mt.tag_id = ?
+                AND mi.moderation_status = 'active'
+                AND mi.is_avatar = 0
+           ),
+           updated_at = ?,
+           computed_at = ?
+     WHERE tag_id = ?
+  `); },
+
+  get listPopularCommunityTags() { return db.prepare(`
+    SELECT ts.tag_id, t.tag_normalized, t.tag_display,
+           ts.usage_count, ts.distinct_member_count
+    FROM tag_stats ts
+    JOIN tags t ON t.id = ts.tag_id
+    WHERE ts.distinct_member_count >= 2
+      AND t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized <> '#unavailable_embed'
+    ORDER BY ts.distinct_member_count DESC, ts.usage_count DESC
+    LIMIT ?
+  `); },
+
+  get listStandardTagsWithMedia() { return db.prepare(`
+    SELECT t.id AS tag_id, t.tag_normalized, t.tag_display, t.standard_type,
+           ts.usage_count
+    FROM tags t
+    JOIN tag_stats ts ON ts.tag_id = t.id
+    WHERE t.is_standard = 1
+      AND ts.usage_count > 0
+    ORDER BY t.standard_type, t.tag_display
+  `); },
+
+  get listMemberClubTags() { return db.prepare(`
+    SELECT t.tag_normalized, t.tag_display
+    FROM member_club_affiliations mca
+    JOIN clubs c ON c.id = mca.club_id
+    JOIN tags t ON t.id = c.hashtag_tag_id
+    WHERE mca.member_id = ? AND mca.is_current = 1
+    ORDER BY mca.is_primary DESC
+  `); },
+
+  get listMemberParticipatedEventTags() { return db.prepare(`
+    SELECT DISTINCT t.tag_normalized, t.tag_display
+    FROM event_result_entry_participants erep
+    JOIN event_result_entries ere ON ere.id = erep.result_entry_id
+    JOIN events e ON e.id = ere.event_id
+    JOIN tags t ON t.id = e.hashtag_tag_id
+    WHERE erep.member_id = ?
+      AND e.status IN ('published', 'completed')
+    ORDER BY e.start_date DESC
+    LIMIT ?
+  `); },
+};
+
+export function suggestTagsByPrefix(prefix: string, limit: number): TagSuggestRow[] {
+  const escaped = prefix.replace(/[%_\\]/g, c => '\\' + c);
+  const pattern = `#${escaped}%`;
+  return db.prepare(`
+    SELECT t.tag_normalized, t.tag_display,
+           ts.usage_count
+    FROM tags t
+    LEFT JOIN tag_stats ts ON ts.tag_id = t.id
+    WHERE t.tag_normalized LIKE ? ESCAPE '\\'
+      AND t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized <> '#unavailable_embed'
+    ORDER BY COALESCE(ts.distinct_member_count, 0) DESC,
+             COALESCE(ts.usage_count, 0) DESC
+    LIMIT ?
+  `).all(pattern, limit) as TagSuggestRow[];
+}
 
 export interface MediaJobRow {
   id: string;
@@ -5292,6 +5643,7 @@ export interface AlreadyClaimedRow {
 export interface HistoricalPersonClaimRow {
   person_id: string;
   person_name: string;
+  aliases: string | null;
   legacy_member_id: string | null;
   country: string | null;
   hof_member: number;
@@ -5303,7 +5655,7 @@ export interface HistoricalPersonClaimRow {
 
 export const legacyClaim = {
   get findHistoricalPersonByLegacyId() { return db.prepare(`
-    SELECT person_id, person_name, legacy_member_id, country,
+    SELECT person_id, person_name, aliases, legacy_member_id, country,
            hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
     FROM historical_persons
     WHERE legacy_member_id = ?
@@ -5311,10 +5663,18 @@ export const legacyClaim = {
   `); },
 
   get findHistoricalPersonById() { return db.prepare(`
-    SELECT person_id, person_name, legacy_member_id, country,
+    SELECT person_id, person_name, aliases, legacy_member_id, country,
            hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
     FROM historical_persons
     WHERE person_id = ?
+    LIMIT 1
+  `); },
+
+  get findHistoricalPersonByAlias() { return db.prepare(`
+    SELECT person_id, person_name, aliases, legacy_member_id, country,
+           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
+    FROM historical_persons
+    WHERE aliases LIKE '%' || ? || '%' ESCAPE '\\'
     LIMIT 1
   `); },
 
@@ -5401,11 +5761,29 @@ export const legacyClaim = {
   // signal used by the email-equality fast path in initiateLegacyClaim.
   get findClaimingMember() { return db.prepare(`
     SELECT id, slug, real_name, legacy_member_id, historical_person_id,
-           login_email_normalized, email_verified_at
+           login_email_normalized, email_verified_at, birth_date
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL
       AND personal_data_purged_at IS NULL
+  `); },
+
+  get listClubAffiliationsForPerson() { return db.prepare(`
+    SELECT lcc.display_name
+      FROM legacy_person_club_affiliations lpca
+      JOIN legacy_club_candidates lcc
+        ON lpca.legacy_club_candidate_id = lcc.id
+     WHERE lpca.historical_person_id = ?
+  `); },
+
+  get listEventsAttendedByPerson() { return db.prepare(`
+    SELECT DISTINCT e.title,
+           CAST(substr(e.start_date, 1, 4) AS INTEGER) AS year
+      FROM event_result_entry_participants erep
+      JOIN event_result_entries ere ON erep.result_entry_id = ere.id
+      JOIN events e ON ere.event_id = e.id
+     WHERE erep.historical_person_id = ?
+     ORDER BY year DESC
   `); },
 };
 
@@ -5699,6 +6077,31 @@ export const memberOnboarding = {
       ) AS detour_metadata_json
     FROM member_onboarding_tasks t
     WHERE t.member_id = ?
+  `); },
+};
+
+// ── member_declared_anchors ────────────────────────────────────────────────
+//
+// Former surnames and old emails declared by members to broaden the identity
+// matching surface for auto-link and legacy-claim flows.
+// ---------------------------------------------------------------------------
+
+export const declaredAnchors = {
+  get insert() { return db.prepare(`
+    INSERT INTO member_declared_anchors
+      (id, created_at, created_by, updated_at, updated_by, member_id, anchor_type, anchor_value)
+    VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?, ?, ?, ?)
+  `); },
+
+  get listByMember() { return db.prepare(`
+    SELECT id, anchor_type, anchor_value, created_at
+      FROM member_declared_anchors
+     WHERE member_id = ?
+     ORDER BY anchor_type, anchor_value
+  `); },
+
+  get deleteById() { return db.prepare(`
+    DELETE FROM member_declared_anchors WHERE id = ? AND member_id = ?
   `); },
 };
 

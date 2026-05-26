@@ -702,7 +702,8 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 #### Competition history
 
-- `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set). Shown as "Competing since {year}" on profile; leave blank to hide.
+- `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit and wizard personal-details task. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set).
+- `show_first_competition_year` (`INTEGER`, default 0): opt-in toggle controlling whether "Competing since {year}" appears on the member's public profile. Default 0 means legacy imports and HP-claim transfers do not auto-show the year; only explicit member action sets it to 1.
 - `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
 
 #### Display name and slug
@@ -1210,13 +1211,25 @@ This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is r
 
 Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow and the dashboard task widget read and write through the service.
 
-- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable.
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. The schema CHECK retains `first_competition_year` for backward compatibility with orphan rows; the application task catalog no longer creates rows of that type (year input is bundled into `personal_details`).
 - **`in_progress_paused`**: the task is mid-flow and the member detoured to another story (for example, `M_Join_Club` or `M_Create_Club` from the `club_affiliations` step). The dashboard task widget surfaces "Resume onboarding" while the row is in this state, and the wizard re-renders the same card on return.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
 - **Applicability is server-determined**: `not_applicable` is written by the service when the underlying eligibility fails (e.g. no plausible legacy match for `legacy_claim`). Client cannot bypass.
 - **Skipped is not blocking**: a `skipped` row does not gate sign-in. The member's dashboard surfaces all rows whose state is `pending` or `skipped`; completing transitions to `completed` and removes from the widget.
 - **Audit trail**: every state transition emits an `audit_entries` row owned by the wizard service; see DATA_MODEL §4 audit_entries subsection for the `action_type` catalog.
+
+---
+
+### 4.28 Member Declared Anchors
+
+**Table:** `member_declared_anchors`
+
+Former surnames and old email addresses declared by members to broaden the identity-matching surface for auto-link and legacy-claim flows. Declared anchors are private: visible only to the member and admin.
+
+- **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; `anchor_type` TEXT with CHECK in (`former_surname`, `old_email`); `anchor_value` TEXT NOT NULL.
+- **`UNIQUE(member_id, anchor_type, anchor_value)`**: prevents duplicate declarations.
+- **Matching integration**: former-surname anchors feed into `findAutoLinkCandidates` as additional name inputs. Old-email anchors feed into `lookupLegacyAccount` as additional identifier lookups. Both are exercised when the wizard's `legacy_claim` task renders the candidate list.
 
 ---
 
