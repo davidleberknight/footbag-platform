@@ -2499,6 +2499,30 @@ export interface FreestyleTricksIndexContent {
   // truthy string).
   dictionaryIntro: string | null;
   familyViewIntro: string | null;
+  /** DL-1+2+5 landing-surface refresh (2026-05-26): 3-band conceptual grid
+   *  rendered above the inline view-toggle when on the default landing view.
+   *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
+   *  a lens question + count + 3 micro-example chips + optional cross-link. */
+  landingGrid: DictionaryLandingGrid;
+}
+
+export interface DictionaryLandingGrid {
+  bands: readonly DictionaryLandingBand[];
+}
+
+export interface DictionaryLandingBand {
+  eyebrow: string;  // 'DIFFICULTY' / 'STRUCTURE' / 'TRACKING & EXPANSION'
+  cards:   readonly DictionaryLandingCard[];
+}
+
+export interface DictionaryLandingCard {
+  label:        string;         // display label (sentence case)
+  href:         string;         // /freestyle/tricks?view=… OR /freestyle/observational
+  count:        number;         // bucket / group / row count (per C1 governance)
+  countSuffix:  string;         // 'buckets' / 'families' / 'sets' / etc. (for accessibility)
+  lensQuestion: string;         // 'How layered is the trick?'
+  chips:        readonly string[]; // 3 micro-example chips
+  crossLink?:   { label: string; href: string };  // optional in-context cross-link
 }
 
 export interface FreestyleFamilyGroup {
@@ -6887,6 +6911,95 @@ export const freestyleService = {
         }))
       : [];
 
+    // DL-1+2+5 landing-grid (2026-05-26) — 3-band conceptual grid for the
+    // /freestyle/tricks landing surface. Bands: Difficulty / Structure /
+    // Tracking & Expansion. Count governance per the cleanup-sweep report:
+    // each card's count = buckets / groups, NOT trick rows (since the same
+    // trick appears in multiple axes — would mislead).
+    const distinctFamilyCount = new Set(
+      activeRows
+        .filter(r => r.trick_family && r.trick_family !== '')
+        .map(r => r.trick_family),
+    ).size;
+    const landingGrid: DictionaryLandingGrid = {
+      bands: [
+        {
+          eyebrow: 'DIFFICULTY',
+          cards: [
+            {
+              label:        'By ADD',
+              href:         '/freestyle/tricks?view=add',
+              count:        addGroups.length,
+              countSuffix:  'difficulty buckets',
+              lensQuestion: 'How layered is the trick?',
+              chips:        ['1 ADD', '4 ADD', '7 ADD'],
+            },
+            {
+              label:        'By dex count',
+              href:         '/freestyle/tricks?view=dex-count',
+              count:        dexCountGroups.length,
+              countSuffix:  'dex-count buckets',
+              lensQuestion: 'How many dex events does it have?',
+              chips:        ['0 dex', '1 dex', '2 dex'],
+            },
+          ],
+        },
+        {
+          eyebrow: 'STRUCTURE',
+          cards: [
+            {
+              label:        'By family',
+              href:         '/freestyle/tricks?view=family',
+              count:        distinctFamilyCount,
+              countSuffix:  'families',
+              lensQuestion: 'What core movement topology does the trick inherit from?',
+              chips:        ['whirl', 'butterfly', 'mirage'],
+            },
+            {
+              label:        'By set',
+              href:         '/freestyle/tricks?view=sets',
+              count:        CANONICAL_SETS.length,
+              countSuffix:  'canonical sets',
+              lensQuestion: 'What entry launches the movement?',
+              chips:        ['pixie', 'fairy', 'atomic'],
+              crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
+            },
+            {
+              label:        'By movement system',
+              href:         '/freestyle/tricks?view=movement-system',
+              count:        MOVEMENT_SYSTEM_AXES.length,
+              countSuffix:  'compositional axes',
+              lensQuestion: 'What compositional systems shape the trick?',
+              chips:        ['Set/Uptime', 'Midtime Body', 'No-Plant'],
+              crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
+            },
+            {
+              label:        'Movement neighborhoods',
+              href:         '/freestyle/tricks?view=topology',
+              count:        TOPOLOGY_GROUPS.length,
+              countSuffix:  'neighborhoods',
+              lensQuestion: 'Tricks that FEEL mechanically similar to perform.',
+              chips:        ['Whirl/swirl', 'Pixie uptime', 'Symposium clipper'],
+              crossLink:    { label: 'Compare to By family for the canonical view.', href: '/freestyle/tricks?view=family' },
+            },
+          ],
+        },
+        {
+          eyebrow: 'TRACKING & EXPANSION',
+          cards: [
+            {
+              label:        'Emerging vocabulary',
+              href:         '/freestyle/observational',
+              count:        TRACKED_UNPUBLISHED_TOTAL,
+              countSuffix:  'tracked names',
+              lensQuestion: 'Tracked but not yet promoted to canonical.',
+              chips:        ['PassBack', 'FB.org', 'Holden compilation'],
+            },
+          ],
+        },
+      ],
+    };
+
     return {
       seo: {
         title: 'Freestyle Trick Dictionary',
@@ -6921,11 +7034,12 @@ export const freestyleService = {
         activeFamily,
         relatedSetGroups,
         totalTricks: canonicalCount,
+        landingGrid,
         dictionaryIntro:
-          `${canonicalCount} canonical tricks documented to date. Here they are grouped by ADD, ` +
-          'a simple difficulty score: the more a trick asks of you, the higher its ADD. ' +
-          'Start with the gentlest tricks and explore upward, or switch to another way of ' +
-          'browsing below.',
+          `${canonicalCount} canonical tricks documented to date. The dictionary lets you ` +
+          'understand freestyle through three lenses: difficulty (how layered is a trick), ' +
+          'structure (what kind of trick is it), and tracking & expansion (what\'s tracked ' +
+          'beyond the canonical set). Pick a lens below.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +

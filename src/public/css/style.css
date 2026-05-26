@@ -10383,3 +10383,126 @@ a.dict-card-title:hover {
   vertical-align: 0.05em;
   cursor: help;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Dictionary landing grid (DL-1+2+5 2026-05-26)
+
+   3-band conceptual grid for /freestyle/tricks default view.
+   Bands: DIFFICULTY (2 cards) / STRUCTURE (4 cards) / TRACKING & EXPANSION
+   (1 card). Each card carries: label + count, lens-question one-liner,
+   3 micro-example chips, Open link, optional cross-link.
+
+   Renders only on the landing default view; secondary views render the
+   inline trick-view-toggle nav (existing pattern) for quick switching.
+   ───────────────────────────────────────────────────────────────────────── */
+.dict-landing-grid {
+  margin: 18px 0 20px;
+}
+.dict-landing-band {
+  margin: 0 0 22px;
+}
+.dict-landing-band:last-child {
+  margin-bottom: 8px;
+}
+.dict-landing-band-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle, #888);
+}
+.dict-landing-band-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.dict-landing-card {
+  padding: 12px 14px;
+  background: #fdfdfb;
+  border: 1px solid #ece8dc;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dict-landing-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.dict-landing-card-label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.dict-landing-card-label a {
+  text-decoration: none;
+  color: #2a3a4a;
+}
+.dict-landing-card-label a:hover,
+.dict-landing-card-label a:focus {
+  text-decoration: underline;
+}
+.dict-landing-card-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-subtle, #888);
+  background: #f4f1e6;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.dict-landing-card-question {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-secondary, #555);
+  font-style: italic;
+  line-height: 1.4;
+}
+.dict-landing-card-chips {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-subtle, #777);
+  line-height: 1.4;
+}
+.dict-landing-card-chip {
+  display: inline-block;
+  color: var(--text-secondary, #555);
+}
+.dict-landing-card-chip-sep {
+  color: var(--text-subtle, #aaa);
+  margin: 0 2px;
+}
+.dict-landing-card-open {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+.dict-landing-card-open a {
+  color: #5a7b48;
+  text-decoration: none;
+}
+.dict-landing-card-open a:hover,
+.dict-landing-card-open a:focus {
+  text-decoration: underline;
+}
+.dict-landing-card-crosslink {
+  margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle, #ece8dc);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-subtle, #888);
+}
+.dict-landing-card-crosslink a {
+  color: var(--text-secondary, #555);
+  text-decoration: none;
+}
+.dict-landing-card-crosslink a:hover,
+.dict-landing-card-crosslink a:focus {
+  text-decoration: underline;
+  color: var(--text-primary, #222);
+}

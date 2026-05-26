@@ -102,10 +102,17 @@ describe('Dictionary — plain-language intro paragraph', () => {
     expect(res.text).toMatch(/class="browse-view-intro"/);
   });
 
-  it('the intro explains ADD in plain, movement-first language', async () => {
+  it('the intro explains the dictionary in plain, movement-first language', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
-    expect(res.text).toMatch(/difficulty score/i);
+    // DL-1+2+5 2026-05-26: intro reframed to the 3-lens model
+    // (difficulty / structure / tracking & expansion); per-lens framing
+    // moved to the landing-grid cards' lens-questions. Plain-language
+    // beginner-friendly framing preserved.
+    expect(res.text).toMatch(/three lenses/i);
+    expect(res.text).toMatch(/difficulty/i);
+    expect(res.text).toMatch(/structure/i);
+    expect(res.text).toMatch(/How layered is the trick/);
     // No ontology jargon in the beginner intro.
     expect(res.text).not.toMatch(/orthogonal/i);
   });

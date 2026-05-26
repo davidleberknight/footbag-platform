@@ -280,9 +280,15 @@ describe('Emerging Vocabulary remains accessible', () => {
     expect(res.text).toContain('Emerging Vocabulary');
   });
 
-  it('the dictionary landing surfaces a secondary link to Emerging Vocabulary', async () => {
+  it('the dictionary landing surfaces a link to Emerging Vocabulary', async () => {
+    // DL-1+2+5 2026-05-26: Emerging Vocabulary moved from a separate
+    // footer-style paragraph into the landing grid's third band
+    // ("TRACKING & EXPANSION"). The display label is now sentence case
+    // ("Emerging vocabulary"); the /freestyle/observational route is
+    // unchanged.
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/Emerging Vocabulary/);
+    expect(res.text).toMatch(/Emerging vocabulary/);
     expect(res.text).toContain('href="/freestyle/observational"');
+    expect(res.text).toMatch(/TRACKING &amp; EXPANSION/);
   });
 });

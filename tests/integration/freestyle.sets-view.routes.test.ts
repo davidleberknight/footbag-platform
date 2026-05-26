@@ -169,10 +169,18 @@ describe('GET /freestyle/tricks (other views) — toggle wiring', () => {
     expect(nav).not.toContain('href="/freestyle/operators"');
   });
 
-  it('Operators & Modifiers stays reachable via the toggle aside', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('trick-view-toggle-aside');
-    expect(res.text).toContain('href="/freestyle/operators"');
+  it('Operators & Modifiers stays reachable from every browse view', async () => {
+    // DL-1+2+5 2026-05-26: cross-links migrated from the toggle-aside
+    // paragraph into landing-grid cards. The aside paragraph is
+    // preserved on SECONDARY views (activeView != 'add') for direct
+    // reachability without a return trip; on the landing view
+    // (?view=add) the cross-link lives in the By-movement-system card.
+    // Either path satisfies the contract — verify both shapes.
+    const landingRes = await request(await createApp()).get('/freestyle/tricks?view=add');
+    expect(landingRes.text).toContain('href="/freestyle/operators"');
+    const secondaryRes = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    expect(secondaryRes.text).toContain('trick-view-toggle-aside');
+    expect(secondaryRes.text).toContain('href="/freestyle/operators"');
   });
 
   it('Movement System view shows exploratory label', async () => {

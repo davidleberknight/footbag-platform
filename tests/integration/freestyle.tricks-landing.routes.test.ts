@@ -126,14 +126,21 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).not.toContain('trick-view-toggle-back');
   });
 
-  it('Operators & Modifiers reference link is preserved in the toggle aside (not in the toggle nav)', async () => {
+  it('Operators & Modifiers reference link is reachable from the landing surface', async () => {
+    // DL-1+2+5 2026-05-26: cross-links migrated from the toggle-aside
+    // paragraph into landing-grid cards. On the default landing view
+    // (?view=add, no family filter), the Operators link lives in the
+    // By-movement-system card's crossLink. On secondary views the
+    // toggle-aside paragraph is preserved (rendered only when
+    // activeView != 'add') for reachability without a return trip.
     const res = await request(createApp()).get('/freestyle/tricks');
-    // Operators & Modifiers stays reachable via an explanatory aside line
-    // BELOW the toggle row, framed as reference vocabulary.
-    expect(res.text).toContain('trick-view-toggle-aside');
     expect(res.text).toContain('href="/freestyle/operators"');
-    // The aside text explicitly frames it as not-a-dictionary-axis.
-    expect(res.text).toContain('not a dictionary browse axis');
+    // The cross-link sits under the By-movement-system card; verify its
+    // proximity to that card's label.
+    const movSysIdx = res.text.indexOf('By movement system');
+    const operatorsIdx = res.text.indexOf('href="/freestyle/operators"');
+    expect(movSysIdx).toBeGreaterThan(0);
+    expect(operatorsIdx).toBeGreaterThan(movSysIdx);
   });
 
   it('groups tricks by ADD value, with the gentlest first', async () => {

@@ -22,13 +22,44 @@
     <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
   {{/if}}
 
-  {{! ── Secondary access path to Emerging Vocabulary (the canonicalization
-      incubator). The dictionary browse strip intentionally does NOT carry
-      this link to keep the strip focused on canonical browse modes; this
-      footer-style note is the discoverability path from the dictionary. ── }}
-  <p class="browse-view-emerging-vocabulary-link">
-    Looking for staged or unreviewed names? &nbsp;<a href="/freestyle/observational">View Emerging Vocabulary &rarr;</a>
-  </p>
+  {{! ── DL-1+2+5 landing grid (2026-05-26): 3-band conceptual map of the
+      dictionary's browse axes. Renders ONLY on the default landing view
+      (?view=add, the default) to orient first-time readers. On secondary
+      views (?view=family, ?view=sets, etc.) the inline view-toggle below
+      handles persistent quick-switching nav. Emerging Vocabulary lives
+      under the third band (Tracking & Expansion), promoted from its
+      previous separate footer-style paragraph. }}
+  {{#if (eq content.activeView "add")}}
+  {{#unless content.activeFamily}}
+  <div class="dict-landing-grid" aria-label="Dictionary browse axes">
+    {{#each content.landingGrid.bands}}
+    <section class="dict-landing-band">
+      <p class="dict-landing-band-eyebrow">{{eyebrow}}</p>
+      <div class="dict-landing-band-cards">
+        {{#each cards}}
+        <article class="dict-landing-card">
+          <header class="dict-landing-card-header">
+            <h2 class="dict-landing-card-label"><a href="{{href}}">{{label}}</a></h2>
+            <span class="dict-landing-card-count" aria-label="{{count}} {{countSuffix}}">{{count}}</span>
+          </header>
+          <p class="dict-landing-card-question">{{lensQuestion}}</p>
+          {{#if chips.length}}
+          <p class="dict-landing-card-chips" aria-label="Examples">
+            {{#each chips}}<span class="dict-landing-card-chip">{{this}}</span>{{#unless @last}} <span class="dict-landing-card-chip-sep">·</span> {{/unless}}{{/each}}
+          </p>
+          {{/if}}
+          <p class="dict-landing-card-open"><a href="{{href}}">Open &rarr;</a></p>
+          {{#if crossLink}}
+          <p class="dict-landing-card-crosslink"><a href="{{crossLink.href}}">{{crossLink.label}}</a></p>
+          {{/if}}
+        </article>
+        {{/each}}
+      </div>
+    </section>
+    {{/each}}
+  </div>
+  {{/unless}}
+  {{/if}}
 
   {{#if content.activeFamily}}
   <p class="family-filter-pill">
@@ -85,7 +116,14 @@
       <a href="/freestyle/tricks?view=sets">By set</a>
     {{/if}}
   </nav>
+  {{#unless (eq content.activeView "add")}}
+  {{! Secondary-view reachability for cross-link surfaces. On the default
+      landing view, the dict-landing-grid above carries Operators / Set
+      Encyclopedia cross-links in their respective cards; on secondary
+      views, this aside paragraph preserves reachability without requiring
+      a return trip to the landing. }}
   <p class="trick-view-toggle-aside">For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  {{/unless}}
 
   {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
   {{#if (eq content.activeView "add")}}
