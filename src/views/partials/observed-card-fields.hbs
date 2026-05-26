@@ -5,7 +5,11 @@
   is unchanged from the prior inline form.
 
   Per the layer-separation contract:
-    - tracked-tag (NOT canonical hashtag) — visually distinct dashed border
+    - tracked-tag (NOT canonical hashtag) — visually distinct dashed border,
+      monospace, NO leading `#` glyph (HG-1 governance rule 2026-05-26:
+      the `#slug` form is reserved for promoted canonical tricks; tracked
+      vocabulary renders the bare slug to preserve the publication
+      semantic asymmetry)
     - source badge with tooltip attribution
     - status chip surfacing curator-review state
     - external-claim label always source-attributed (never canonical ADD)
@@ -19,7 +23,7 @@
     <span class="observed-card-status-chip observed-card-status-chip--{{statusChip.tone}}">{{statusChip.label}}</span>
   </header>
   <p class="observed-card-meta">
-    <span class="tracked-tag" aria-label="Documented name, not yet reviewed">#{{folkSlug}}</span>
+    <span class="tracked-tag" aria-label="Documented name, not yet reviewed">{{folkSlug}}</span>
     {{#if shortReading}}<span class="observed-card-reading"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{shortReading}}</span>{{/if}}
     {{#if externalClaimLabel}}<span class="observed-card-external-claim">{{externalClaimLabel}}</span>{{/if}}
   </p>

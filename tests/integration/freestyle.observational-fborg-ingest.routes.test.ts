@@ -138,12 +138,14 @@ describe('FB.org observational ingest — layer-separation contract', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/observational');
     // Observed entries carry a visually distinct tracked-tag (a non-link
-    // #folk-slug span) — never a canonical trick-detail hyperlink.
+    // bare-slug span — HG-1 2026-05-26: tracked-tag renders the bare slug
+    // with NO leading `#` glyph; the `#slug` form is reserved for promoted
+    // canonical tricks per the publication-semantic forever-rule).
     for (const entry of FBORG_BATCH) {
       expect(res.text, `${entry.folkSlug} carries a canonical detail link`)
         .not.toMatch(new RegExp(`href="/freestyle/tricks/${entry.folkSlug}"`));
     }
-    expect(res.text).toMatch(/<span class="tracked-tag"[^>]*>#inspinning-paradox-mirage<\/span>/);
+    expect(res.text).toMatch(/<span class="tracked-tag"[^>]*>inspinning-paradox-mirage<\/span>/);
   });
 });
 

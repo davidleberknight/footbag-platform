@@ -148,7 +148,7 @@
       <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
       <ul class="observational-tracked-list">
         {{#each names}}
-        <li>{{displayName}} <span class="tracked-tag">#{{slug}}</span>{{#if operationalNotation}} <span class="observational-tracked-formula">&equiv; <code>{{operationalNotation}}</code></span>{{/if}}</li>
+        <li>{{displayName}} <span class="tracked-tag">{{slug}}</span>{{#if operationalNotation}} <span class="observational-tracked-formula">&equiv; <code>{{operationalNotation}}</code></span>{{/if}}</li>
         {{/each}}
       </ul>
       {{/each}}
