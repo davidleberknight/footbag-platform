@@ -2239,7 +2239,9 @@ describe('Freestyle glossary — Structural compression subsection (post 2026-05
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
-    expect(slice).toMatch(/<strong>mobius<\/strong>/i);
+    // Slice 5: trick names in §9 §2 list are hyperlinked; <strong> now
+    // wraps an <a>.
+    expect(slice).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/mobius">mobius<\/a>\s*<\/strong>/i);
     expect(slice).toMatch(/gyro torque/i);
     expect(slice).toMatch(/spinning same-side torque/i);
     expect(slice).toMatch(/spinning miraging same-side osis/i);

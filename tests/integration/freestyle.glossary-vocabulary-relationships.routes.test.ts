@@ -84,7 +84,9 @@ describe('Glossary Vocabulary Relationships subsection', () => {
     expect(res.text).toMatch(/barraging\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
     // witchdoctor: composite-base + historical
     expect(res.text).toMatch(/witchdoctor/i);
-    expect(res.text).toMatch(/atom-smasher \+ symposium/i);
+    // Slice 5: atom-smasher is now hyperlinked, so its closing </a> sits
+    // between the trick name and "+ symposium".
+    expect(res.text).toMatch(/atom-smasher<\/a>\s*\+ symposium/i);
     expect(res.text).toMatch(/atomic symposium mirage/i);
     // Both detail-page links preserved
     expect(res.text).toContain('/freestyle/tricks/flurry');

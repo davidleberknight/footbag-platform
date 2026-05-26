@@ -73,8 +73,10 @@ describe('GET /freestyle/glossary — equivalence-topology coverage in §composi
 
 describe('GET /freestyle/glossary — flurry worked example (preserved from prior subsection)', () => {
   it('renders both flurry derivations with ADD breakdowns', async () => {
+    // Slice 5: trick names in §9 worked-example lists are now hyperlinked
+    // to their detail pages, so the <strong> wraps an <a>.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/<strong>flurry<\/strong>/i);
+    expect(res.text).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/flurry">flurry<\/a>\s*<\/strong>/i);
     expect(res.text).toContain('barraging legover');
     expect(res.text).toContain('paradox + paradox legover');
   });
@@ -94,9 +96,12 @@ describe('GET /freestyle/glossary — flurry worked example (preserved from prio
 
 describe('GET /freestyle/glossary — witchdoctor worked example (preserved from prior subsection)', () => {
   it('renders the composite-base canonical reading + historical reading', async () => {
+    // Slice 5: trick names in §9 worked-example lists are now hyperlinked.
+    // The atom-smasher reference in the witchdoctor derivation is also
+    // wrapped in <a>; "+ symposium" follows the closing </a> tag.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/<strong>witchdoctor<\/strong>/i);
-    expect(res.text).toContain('atom-smasher + symposium');
+    expect(res.text).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/witchdoctor">witchdoctor<\/a>\s*<\/strong>/i);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/atom-smasher">atom-smasher<\/a>\s*\+ symposium/i);
     expect(res.text).toContain('atomic symposium mirage');
   });
 
