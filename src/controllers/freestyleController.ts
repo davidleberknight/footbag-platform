@@ -120,6 +120,15 @@ export const freestyleController = {
     try {
       const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
       const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
+      // Legacy/guessed alias: /freestyle/tricks?view=emerging redirects
+      // to the dedicated Emerging Vocabulary surface. Without the
+      // redirect, the unknown view falls through to the default 'add'
+      // view silently, producing a confusing "this looked like a new
+      // surface but rendered the same content" UX.
+      if (view === 'emerging') {
+        res.redirect(302, '/freestyle/observational');
+        return;
+      }
       // /freestyle/tricks opens directly on the By ADD ladder (the service
       // defaults view to 'add'); there is no separate browse-mode gate.
       const vm = freestyleService.getFreestyleTricksIndexPage(family, view);
