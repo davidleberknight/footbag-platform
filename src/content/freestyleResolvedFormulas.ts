@@ -1664,6 +1664,24 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-26. Extension of double-over-down (4 ADD canonical compound in DB, shipped earlier this session). JOB FB.org-confirmed verbatim (fborg-5add.txt). The two SAME OUT dex pair from double-over-down is preserved; third dex is an OP BACK SWIRL (rotation-variant fused token); terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
   },
 
+  // ─── Quantum-symposium-mirage promotion (2026-05-26; with backside-symposium-
+  //     toe-blur folk-name as alias). Per Red pt2 'toe X → quantum X' retirement
+  //     ruling, the modern canonical name is quantum-symposium-mirage (sibling
+  //     to quantum-mirage / quantum-illusion / quantum-butterfly already in DB).
+  //     The folk-name 'backside symposium toe blur' is wired as a pure S3 alias.
+
+  {
+    slug:        'quantum-symposium-mirage',
+    name:        'quantum symposium mirage',
+    operator:    'quantum + symposium',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    4,
+    derivation:  'quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL])',
+    operationalNotation: 'TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (fborg-4add.txt). Quantum prefix = OP IN [DEX]; symposium prefix = (no plant while) [BOD] fused with the dex.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-26. quantum = +1 set modifier (Red pt2 retired the toe- prefix in favor of quantum-; siblings quantum-mirage / quantum-illusion / quantum-butterfly all canonical in DB). symposium = +1 no-plant body modifier (canonical inventory). JOB FB.org-confirmed verbatim (fborg-4add.txt). Folk-name alias "Backside Symposium Toe Blur" wired (the "toe" prefix is the pre-Quantum folk-name retired by Red pt2).',
+  },
+
   // ─── Avalanche + spike-hammer (2026-05-25; deferred-candidate follow-on).
   //     Structural twins: both 5 ADD, identical 3-operator modifier stack
   //     (stepping + ducking + paradox-X), differ only in the base atom

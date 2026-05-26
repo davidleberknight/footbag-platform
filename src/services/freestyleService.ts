@@ -3539,6 +3539,8 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spike-hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
   // ── Double-over-down-swirl 2026-05-26 (extends double-over-down chassis; FB.org-confirmed JOB):
   'double-over-down-swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + OP BACK SWIRL third dex)
+  // ── Quantum-symposium-mirage 2026-05-26 (Red pt2 'toe X → quantum X' retirement; FB.org-confirmed JOB):
+  'quantum-symposium-mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
 ]);
 
 // "Compressed from" detail-page surface (2026-05-25 glossary follow-on).
