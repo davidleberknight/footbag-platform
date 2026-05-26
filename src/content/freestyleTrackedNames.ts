@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 549;
+export const TRACKED_UNPUBLISHED_TOTAL = 546;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -117,7 +117,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Double Spinning Osis', slug: 'double-spinning-osis' },
     { displayName: 'Double Spinning Rake', slug: 'double-spinning-rake' },
     { displayName: 'Double Switchover (far)', slug: 'double-switchover' },
-    { displayName: 'Down Diver', slug: 'down-diver', operationalNotation: 'Clip >> Dive (BOD) >> Op Out (DEX) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Down Double Down', slug: 'down-double-down', operationalNotation: 'Clip >> Op Out (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Downward Spiral', slug: 'downward-spiral', operationalNotation: 'Toe > Same Out (DEX) > Op Back Swirl (DEX) >> Op Back Whirl (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Dragonstein', slug: 'dragonstein', operationalNotation: 'Clip >> Same Back Swirl (BOD) >> Same Back Swirl (BOD) > Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
@@ -447,9 +446,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Double Blender', slug: 'double-blender', operationalNotation: 'SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Pickup', slug: 'double-pickup', operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double Switch-Over', slug: 'double-switch-over', operationalNotation: 'SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Double-Over Down', slug: 'double-over-down', operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Double-Over Down Swirl', slug: 'double-over-down-swirl', operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Down Double-Down', slug: 'down-double-down', operationalNotation: 'CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Dragon', slug: 'dragon' },
     { displayName: 'Ducking Barfly', slug: 'ducking-barfly', operationalNotation: 'CLIP > DUCK [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Butterfly', slug: 'fairy-butterfly', operationalNotation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL].', formulaProvenance: 'footbag.org' },

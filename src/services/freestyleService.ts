@@ -3502,6 +3502,10 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'inspinning-butterfly',        // (front) SPIN [BOD] + butterfly base = 4 ADD (sibling JOB from spinning-butterfly)
   'inspinning-paradox-illusion', // (front) SPIN [BOD] + paradox-illusion base = 4 ADD (sibling JOB from spinning-paradox-illusion)
   'inspinning-paradox-mirage',   // (front) SPIN [BOD] + paradox-mirage base = 4 ADD (sibling JOB from spinning-paradox-mirage)
+  // ── Down-family promotions 2026-05-25 (Red pt7 settled: down-pattern tricks are distinct):
+  'double-over-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (TOE-set chassis; FB.org-confirmed JOB)
+  'down-double-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (CLIP-set chassis; FB.org-confirmed JOB)
+  'down-diver',                  // diving(+1) + double-over-down(4) = 5 ADD ([BOD] + 4 base tokens; FB.org-confirmed JOB)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the

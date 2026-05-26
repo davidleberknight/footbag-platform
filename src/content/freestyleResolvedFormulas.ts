@@ -1455,4 +1455,48 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation from spinning-paradox-mirage with the inspinning direction-flip rule established by FB.org-confirmed inspinning-butterfly. Not Red-confirmed.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7); paradox-mirage = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-mirage (CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
+
+  // ─── Down-family compound promotions (2026-05-25; deferred-candidate
+  //     follow-on; Red pt7 settled: "Down pattern" tricks are different
+  //     tricks). Three siblings: double-over-down + down-double-down
+  //     (distinct toe-set vs clipper-set chassis at 4 ADD); down-diver
+  //     (5 ADD = diving(+1) + double-over-down chassis). All three JOBs
+  //     FB.org-confirmed verbatim (JobsNotation.txt + fborg-4add.txt +
+  //     fborg-5add.txt). Diving is a body-modifier per the
+  //     freestyleTrickIntuition mobius/osis ontology notes (four-way
+  //     ducking/diving/weaving/zulu family).
+
+  {
+    slug:        'double-over-down',
+    name:        'double-over down',
+    operator:    'doubled-dex chassis',
+    base:        'double-over-down',
+    baseAdd:     4,
+    totalAdd:    4,
+    derivation:  '[DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (two same-side OUT dexes from toe set ending opposite-leg clipper)',
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (JobsNotation.txt + fborg-4add.txt). Toe-set chassis with two same-side OUT dexes.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Red pt7 ruled "Down pattern" tricks (double-over down / down double-down / down diver) as Different tricks. JOB FB.org-confirmed verbatim (fborg-4add.txt + JobsNotation.txt: "TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). 4 ADD by canonical bracket convention.',
+  },
+  {
+    slug:        'down-double-down',
+    name:        'down double-down',
+    operator:    'doubled-dex chassis',
+    base:        'down-double-down',
+    baseAdd:     4,
+    totalAdd:    4,
+    derivation:  '[DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (clipper-set entry: OP/SAME dex alternation between two same-side clippers)',
+    operationalNotation: 'CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt). Clipper-set entry with alternating OP/SAME OUT dexes.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Red pt7 ruled "Down pattern" tricks as Different tricks. JOB FB.org-confirmed verbatim (fborg-4add.txt: "CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). Distinct chassis from double-over-down (clipper-set entry vs toe-set entry, OP/SAME alternation vs SAME/SAME). 4 ADD by canonical bracket convention.',
+  },
+  {
+    slug:        'down-diver',
+    name:        'down diver',
+    operator:    'diving',
+    base:        'double-over-down',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'diving(+1) + double-over-down(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Diving modifier on double-over-down chassis (TOE-set, SAME/SAME dexes — NOT down-double-down despite the "Diving Down Double-Down" alias).
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). FB.org alias "Diving Down Double-Down" preserved on row. Note: RECONCILIATION formula reads "diving(+1) + down-double-down(4)" but the actual FB.org JOB chassis matches double-over-down (TOE start, SAME OUT/SAME OUT), not down-double-down (CLIP start, OP/SAME alternation). Following JOB evidence as authoritative.',
+  },
 ];
