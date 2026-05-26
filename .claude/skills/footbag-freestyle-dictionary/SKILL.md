@@ -45,9 +45,9 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 
 This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
 
-### B. Current strategic posture (post 2026-05-26 Phase 1 polish wave)
+### B. Current strategic posture (post 2026-05-26 trick-detail stabilization wave)
 
-**2026-05-26 later session shipped: Glossary Phase 1 polish (5 slices) + Set Encyclopedia Phase 1 (3 of 5 slices).** Zero new ontology; zero anchor renames. The glossary trajectory is complete. The Set Encyclopedia is at Phase 1 done / Phase 2 deferred (curator content lift). 4,580 → 4,608 tests green. See [[project_freestyle_state]] section "2026-05-26 (later session)" for the full per-slice inventory and [[project_set_encyclopedia_surface]] for the encyclopedia-specific state. Section B.2 below documents the Phase 1 polish playbook (methodology forward-applicable to future surface refinement work on the Compositional Sets hub / Operators page / etc.).
+**2026-05-26 trick-detail stabilization wave shipped: 6 mechanical-backfill slices (T1 + T2 + T5-CSV + T4-priority + T4-expanded-A + T3-A).** Lifted JOB coverage 37% → 87% (+142 rows) and op_notation 74% → 83% (+26 rows) across 283 active non-modifier tricks. Both-empty bucket 53 → 38. Earlier 2026-05-26 work (Glossary Phase 1 polish + Set Encyclopedia Phase 1: see section B.2 playbook; Adrian-prep + S3/S5 governance + 21 promotions: see [[project_freestyle_state]] body) preserved. **Single load-bearing handoff reference for next session: `exploration/trick-stabilization-handoff/REPORT.md`** (324 lines; 5 curator decisions [D1]–[D5], ~11 FB.org-ready rows in T4-expanded-B queue, Set Encyclopedia Phase 2 backlog, recommended ROI-ordered next-session queue). Read this first if continuing trick-detail work. See [[project_freestyle_state]] section "2026-05-26 (continued)" for the wave inventory and [[project_set_encyclopedia_surface]] for encyclopedia-specific state. Section B.3 below documents the trick-detail stabilization methodology forever-rules (mechanical JOB rule + sibling-pattern op_notation derivation + 5-class derivation taxonomy + description-column-as-FB.org-source pattern). 4,608 tests green; tsc clean.
 
 **Earlier 2026-05-25 / 2026-05-26 work** (preserved as B.1 below context, still load-bearing for trick-detail slot governance):
 21 new canonical rows across ~10 family slices (pixie / inspinning / down / paradox / standalone) + 2 alias re-points (toe-blizzard, backside-symposium-toe-blur). S3/S5/S8/S9 slot governance migration locked in trick-detail page slot ownership — see [[project_slot_governance_doctrine]] for the forever-rule. Glossary §composition gained "Vocabulary relationships" subsection (4-way taxonomy). New S8 "Compressed from" pedagogy line on flagship pages (FAMOUS_COMPRESSION_SLUGS allowlist). New PEDAGOGICAL_COMPRESSION_EXEMPLARS cohort gates S5 ladder authoring. R4 parent-base rule added to buildRelatedTricks. Pre-Adrian polish wave (notation normalization at render, ?view=emerging redirect, set-encyclopedia category one-liners). Adrian review-navigation guide at `exploration/adrian-prep-2026-05-26/REVIEW_GUIDE.md`. TRACKED_UNPUBLISHED_TOTAL 553→534.
@@ -161,6 +161,57 @@ Future Phase 1-style work should **reuse these classes, not create duplicates**.
 - **Slug audit before every cross-link slice.** Verify each target slug exists in `freestyle_tricks` before wrapping `<strong>NAME</strong>` in `<a>`. Slice 5 caught one missing slug (quantum-butterfly) — left unlinked rather than shipping a 404. Pattern: `sqlite3 footbag.db "SELECT slug FROM freestyle_tricks WHERE slug IN (...);"`.
 
 **When to apply this playbook.** Any time a freestyle surface feels "comparatively thin and under-realized relative to the rest of the system" — the framing the curator used for the Set Encyclopedia in its Phase 1 planning brief. The same framing is likely to recur for the Compositional Sets hub and the Operators page when their turn comes.
+
+### B.3 Trick-detail stabilization methodology (2026-05-26 — mechanical backfill forever-rules)
+
+The 2026-05-26 trick-detail stabilization wave established four forever-rules for mechanical notation backfill. Apply to any future slice that touches `freestyle_tricks.notation` (JOB) or `operational_notation` (op).
+
+**Rule 1 — Mechanical JOB rule (uniform across all 283 active tricks):**
+
+```
+JOB = canonical_name.replace(/[-\s]+/g, ' ').toUpperCase()
+```
+
+Applies uniformly to: modifier+base compounds (`paradox-mirage` → `PARADOX MIRAGE`), folk-name compounds (`surge` → `SURGE`; `mobius` → `MOBIUS`), sui-generis primitives (`bullwhip` → `BULLWHIP`), multi-modifier compounds (`stepping-ducking-paradox-blender` → `STEPPING DUCKING PARADOX BLENDER`). For folk-name compounds the compositional decomposition lives in SE chain (S5), not JOB — per the slot-governance forever-rule. Curator can override individual rows on a per-row basis if a different JOB form is preferred; the mechanical rule applies in absence of override. T2 shipped 125 rows via this rule with zero post-hoc corrections.
+
+**Rule 2 — Sibling-pattern op_notation derivation:**
+
+1. Identify the closest single-modifier sibling with populated op_notation (e.g. for `spinning-whirl`, sibling = `spinning-butterfly`)
+2. Substitute the differing operator's bracketed segment (whirl's `OP IN [DEX]` for butterfly's `OP OUT [DEX]`)
+3. **Verify bracket count == asserted ADD** per the ADD-math forever-rule (`[DEX]/[BOD]/[XBD]/[PDX]/[DEL]/[UNS]/[XDEX]` count must match canonical `adds`)
+4. Document the sibling source in the red_correction's source_note column
+
+Special derivation patterns established this wave:
+- **pt7 direction-flip:** inspinning-X = spinning-X with `(back) SPIN` → `(front) SPIN`, dex side `OP` → `SAME`. Other axes unchanged.
+- **Stepping leading-[DEX]:** sidewalk pattern `CLIP > OP IN [DEX] >> {base body}` for stepping-X compounds
+- **Symposium no-plant + [BOD]:** symposium-whirl pattern `SET > (no plant while) OP IN [BOD] [DEX] > {terminal}`
+- **pt9 X-Dex placement:** for X-Dex named-exception compounds, `[XDEX]` flag goes on the BASE's dex (sumo `> OP IN [DEX] [XDEX] >` pattern; atom-smasher follows)
+- **Direction-reverse (rev-X):** flip dex direction (`OP IN` → `OP OUT`); make entry explicit (`SET` → `CLIP`)
+
+**Rule 3 — 5-class derivation taxonomy (classify before shipping):**
+
+| Class | Definition | Action |
+|---|---|---|
+| **A** Safe-mechanical | Sibling-derivable; clear bracket-count closure; no doctrine ambiguity | Ship in slice; bundle ~10 at a time |
+| **B** Sibling-derivable moderate-risk | Sibling pattern exists but some judgment (which side flips, ambiguous bracket placement) | Ship with curator spot-check; document the judgment call |
+| **C** Truly sui-generis | No clean sibling; canonical_name doesn't decompose into known modifiers + base | Curator-authored JOB needed; defer |
+| **D** Missing evidence | Row exists but source-confirmed formula unavailable (no fb.org / FM / PassBack / Holden reading) | Source research needed; defer |
+| **Blocked** | Doctrine question pending (specific Red question; pt## queue) | Defer until ruling; tag with [D#] reference |
+
+Default scope rule: **ship Class A only**; flag Class B/C/D/Blocked in the slice's deliverable with explicit reasons. The 6-slice wave shipped ~167 rows of Class A work; deferred ~30 rows across Class B/C/D/Blocked.
+
+**Rule 4 — Description-column-as-FB.org-source pattern:**
+
+When auditing the both-empty bucket, **read the `description` column carefully** — recent promotion-wave rows often carry their FB.org-confirmed JOB form verbatim in description (e.g. `pixie-swirl` description = "FB.org-confirmed. JOB TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]"). This is **pure mechanical migration**, not derivation — copy from description to `notation` / `operational_notation` via red_corrections. Bracket-count verification still required. ~11 rows surfaced via this pattern in the handoff report (T4-expanded-B queue) — saved for next session.
+
+**Operational forever-rules also reinforced this wave:**
+- All CSV-driven via `red_corrections_2026_04_20.csv` + `red_additions_2026_04_20.csv`; loader 19 applies. Never direct DB UPDATE.
+- DB backup before each major slice (`database/footbag.db.bak-pre-{slice}-{timestamp}`)
+- Parser-populate after each loader 19 run (`python3 scripts/parse_freestyle_notation.py --apply`) per `[[feedback_parser_population_after_rebuild]]`
+- Casing preservation per sibling (no casing normalization without curator decision per T6 deferral)
+- ADD-math sanity check on every row (forever-rule from Wave Alpha)
+
+**When to apply this methodology:** any future stabilization slice on the `freestyle_tricks` dictionary — backfilling notation, normalizing format, migrating fields. The 4 rules + 5-class taxonomy give a repeatable framework. The handoff report at `exploration/trick-stabilization-handoff/REPORT.md` is the single load-bearing reference for the next-session queue.
 
 ### C. Family / topology caution
 
