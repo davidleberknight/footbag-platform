@@ -2156,6 +2156,12 @@ export interface FreestyleSetsEncyclopediaView {
 export interface EncyclopediaSubtypeSection {
   key:   SetSubtypeKey;
   label: string;
+  /** Curator-authored 2-3 sentence framing of this subtype. Surfaced
+   *  under the h2 on /freestyle/sets so each category lands with
+   *  immediate context rather than as bare taxonomy. Sourced from
+   *  SET_SUBTYPE_SPECS in freestyleCanonicalSets.ts (single source of
+   *  truth across encyclopedia + detail surfaces). */
+  intro: string;
   count: number;
   cards: readonly EncyclopediaSetCard[];
 }
@@ -7567,6 +7573,7 @@ export const freestyleService = {
       return {
         key:   spec.key,
         label: spec.label,
+        intro: spec.intro,
         count: cards.length,
         cards,
       };

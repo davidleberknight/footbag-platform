@@ -37,6 +37,9 @@
       <h2>{{label}}</h2>
       <span class="sets-encyclopedia-subtype-count">{{count}}</span>
     </div>
+    {{#if intro}}
+    <p class="sets-encyclopedia-subtype-intro">{{intro}}</p>
+    {{/if}}
     <div class="sets-encyclopedia-grid">
       {{#each cards}}
       <article class="sets-encyclopedia-card" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
