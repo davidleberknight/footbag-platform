@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 546;
+export const TRACKED_UNPUBLISHED_TOTAL = 544;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -472,13 +472,11 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Paradox Blizzard', slug: 'paradox-blizzard', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > OP TOE [DEL].', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Blur', slug: 'paradox-blur', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Blurry Whirl', slug: 'paradox-blurry-whirl', operationalNotation: 'CLIP > SAME IN [DEX] [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Paradox Da Da Curve', slug: 'paradox-da-da-curve', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Double Leg Over', slug: 'paradox-double-leg-over', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox High Plains Drifter', slug: 'paradox-high-plains-drifter', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Illusion', slug: 'paradox-illusion', operationalNotation: 'CLIP > SAME OUT [PDX[DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Ripwalk', slug: 'paradox-ripwalk', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox Symposium Mirage', slug: 'paradox-symposium-mirage', operationalNotation: 'CLIP (plant) > (no plant while) SAME IN [PDX] [BOD] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Paradox Whirling Swirl', slug: 'paradox-whirling-swirl', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paralax', slug: 'paralax', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Double Over Down', slug: 'pixie-double-over-down', operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Eclipse', slug: 'pixie-eclipse', operationalNotation: 'TOE > SAME IN [DEX] (JUMP) [BOD] > SAME INSIDE [DEL] > OP OUT [DEX] > (LAND)', formulaProvenance: 'footbag.org' },

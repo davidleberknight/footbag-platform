@@ -1499,4 +1499,34 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Diving modifier on double-over-down chassis (TOE-set, SAME/SAME dexes — NOT down-double-down despite the "Diving Down Double-Down" alias).
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). FB.org alias "Diving Down Double-Down" preserved on row. Note: RECONCILIATION formula reads "diving(+1) + down-double-down(4)" but the actual FB.org JOB chassis matches double-over-down (TOE start, SAME OUT/SAME OUT), not down-double-down (CLIP start, OP/SAME alternation). Following JOB evidence as authoritative.',
   },
+
+  // ─── Paradox-family compound promotions (2026-05-25; deferred-candidate
+  //     follow-on). Two compounds, both FB.org-confirmed JOBs (fborg-5add.txt).
+  //     Standard paradox-prefix pattern: the base's leading dex is replaced
+  //     by SAME IN [PDX] [DEX] (adds the [PDX] component flag for the +1
+  //     ADD). Most paradox-* compounds already in DB; these two are the
+  //     remaining promotable candidates from the audit.
+
+  {
+    slug:        'paradox-da-da-curve',
+    name:        'paradox da-da curve',
+    operator:    'paradox',
+    base:        'dada-curve',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Paradox prefix on dada-curve no-plant-while chassis.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. paradox = +1 PDX modifier (Red-settled canonical inventory); dada-curve = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt). Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX].',
+  },
+  {
+    slug:        'paradox-whirling-swirl',
+    name:        'paradox whirling swirl',
+    operator:    'paradox',
+    base:        'whirling-swirl',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Paradox prefix on whirling-swirl chassis (preserves OP BACK SWIRL second dex + SAME CLIP terminal).
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt). Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; OP BACK SWIRL second dex + SAME CLIP terminator unchanged.',
+  },
 ];

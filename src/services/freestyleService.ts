@@ -3506,6 +3506,9 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'double-over-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (TOE-set chassis; FB.org-confirmed JOB)
   'down-double-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (CLIP-set chassis; FB.org-confirmed JOB)
   'down-diver',                  // diving(+1) + double-over-down(4) = 5 ADD ([BOD] + 4 base tokens; FB.org-confirmed JOB)
+  // ── Paradox-family promotions 2026-05-25 (settled +1 PDX modifier; FB.org-confirmed JOBs):
+  'paradox-da-da-curve',         // paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + 4 base tokens)
+  'paradox-whirling-swirl',      // paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + 4 base tokens)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
