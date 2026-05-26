@@ -1412,4 +1412,47 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation from drifter / fairy-clipper / spinning-clipper; same-side clipper terminator (SAME CLIP). Not Red-confirmed.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Same-side clipper terminator. Sibling JOB derivation from drifter / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
+
+  // ─── Inspinning-family compound promotions (2026-05-25; deferred-candidate
+  //     follow-on; settled doctrine per Red pt7 "Modifier stacking" ruling on
+  //     PassBack Inspinning). Three compounds, all mirroring their spinning-*
+  //     siblings (already in DB) with the spin direction flipped: spinning
+  //     uses `(back) SPIN [BOD]`; inspinning uses `(front) SPIN [BOD]`. ADD
+  //     math is identical to the spinning variant; JOB derivation is purely
+  //     directional. Bases are all canonical (butterfly core atom; paradox-
+  //     illusion / paradox-mirage as compound bases already in DB).
+
+  {
+    slug:        'inspinning-butterfly',
+    name:        'inspinning butterfly',
+    operator:    'inspinning',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'inspinning(+1) + butterfly(3) = 4 ADD',
+    operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed JOB per RECONCILIATION 2026-05-21 ingestion. Inspinning rotation flips spin to (front) AND flips dex side OP→SAME while preserving dex direction.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7: "Modifier stacking" on PassBack Inspinning group); butterfly = 3 ADD core atom. JOB form is FB.org-confirmed via RECONCILIATION (jobs=CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]). Establishes the inspinning direction-flip rule: spin (back→front), dex side (OP→SAME), dex direction + terminal stall unchanged.',
+  },
+  {
+    slug:        'inspinning-paradox-illusion',
+    name:        'inspinning paradox illusion',
+    operator:    'inspinning',
+    base:        'paradox-illusion',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'inspinning(+1) + paradox-illusion(3) = 4 ADD',
+    operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation from spinning-paradox-illusion with the inspinning direction-flip rule established by FB.org-confirmed inspinning-butterfly. Not Red-confirmed.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7); paradox-illusion = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-illusion (CLIP > (back) SPIN [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
+  },
+  {
+    slug:        'inspinning-paradox-mirage',
+    name:        'inspinning paradox mirage',
+    operator:    'inspinning',
+    base:        'paradox-mirage',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'inspinning(+1) + paradox-mirage(3) = 4 ADD',
+    operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation from spinning-paradox-mirage with the inspinning direction-flip rule established by FB.org-confirmed inspinning-butterfly. Not Red-confirmed.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7); paradox-mirage = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-mirage (CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
+  },
 ];

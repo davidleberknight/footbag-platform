@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 552;
+export const TRACKED_UNPUBLISHED_TOTAL = 549;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -201,7 +201,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Icarus', slug: 'icarus', operationalNotation: 'Toe > Op Out (DEX) >> Duck (BOD) >> Op In (DEX)(XDEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Icon', slug: 'icon', operationalNotation: 'Clip >> (front) Spin (BOD) >> Same Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Ill Frenzy', slug: 'ill-frenzy', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Op Out (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Inspinning Butterfly', slug: 'inspinning-butterfly' },
     { displayName: 'Inspinning Clipper', slug: 'inspinning-clipper' },
     { displayName: 'Inspinning Osis', slug: 'inspinning-osis' },
     { displayName: 'Irish Cream', slug: 'irish-cream', operationalNotation: 'Toe > Op Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -463,8 +462,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fairy Spyro Mirage', slug: 'fairy-spyro-mirage', operationalNotation: 'TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Frigidosis', slug: 'frigidosis' },
     { displayName: 'Hop Over Swirl', slug: 'hop-over-swirl', operationalNotation: 'INSIDE > (JUMP) [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Inspinning Paradox Illusion', slug: 'inspinning-paradox-illusion', operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Inspinning Paradox Mirage', slug: 'inspinning-paradox-mirage', operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Inspinning Same Side Butterfly', slug: 'inspinning-same-side-butterfly', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Inspinning Same Side Illusion', slug: 'inspinning-same-side-illusion', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Inspinning Same Side Mirage', slug: 'inspinning-same-side-mirage', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },

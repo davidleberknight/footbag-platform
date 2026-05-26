@@ -3498,6 +3498,10 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   //    toe-blizzard is an alias of quantum-illusion (not a new canonical row).
   'pixie-opposite-clipper',      // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
   'pixie-same-clipper',          // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
+  // ── Inspinning family promotions 2026-05-25 (Red pt7 settled: inspinning = +1 modifier):
+  'inspinning-butterfly',        // (front) SPIN [BOD] + butterfly base = 4 ADD (sibling JOB from spinning-butterfly)
+  'inspinning-paradox-illusion', // (front) SPIN [BOD] + paradox-illusion base = 4 ADD (sibling JOB from spinning-paradox-illusion)
+  'inspinning-paradox-mirage',   // (front) SPIN [BOD] + paradox-mirage base = 4 ADD (sibling JOB from spinning-paradox-mirage)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
