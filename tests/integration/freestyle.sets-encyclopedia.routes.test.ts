@@ -311,3 +311,74 @@ describe('GET /freestyle/sets — S1 "Derived:" label on the relations row', () 
     expect(res.text).toMatch(/<a class="sets-encyclopedia-card-relation" href="\/freestyle\/sets\/[a-z-]+">/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// S4 — Mini-TOC pill row + per-subtype Read-next footers
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/sets — S4 mini-TOC pill row', () => {
+  it('renders the mini-TOC nav with one anchor per rendered subtype', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toContain('class="glossary-mini-toc"');
+    expect(res.text).toContain('aria-label="In this encyclopedia"');
+    expect(res.text).toContain('>In this encyclopedia:</span>');
+  });
+
+  it('mini-TOC anchors target each of the 6 subtype sections', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
+    const tocEnd = res.text.indexOf('</nav>', tocStart);
+    expect(tocStart).toBeGreaterThan(0);
+    const tocSlice = res.text.slice(tocStart, tocEnd);
+    for (const key of [
+      'true-core', 'composite-derived', 'rotational',
+      'whirl-swirl', 'uns', 'rooted-antisymposium',
+    ]) {
+      expect(tocSlice).toContain(`href="#set-subtype-${key}"`);
+    }
+  });
+
+  it('mini-TOC anchors carry human-readable subtype labels', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
+    const tocEnd = res.text.indexOf('</nav>', tocStart);
+    const tocSlice = res.text.slice(tocStart, tocEnd);
+    expect(tocSlice).toContain('True core sets');
+    expect(tocSlice).toContain('Composite / derived sets');
+    expect(tocSlice).toContain('Rotational set systems');
+  });
+});
+
+describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
+  it('renders 5 Read-next footers (one per subtype except the last)', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const footerMatches = res.text.match(/class="glossary-section-next"/g) ?? [];
+    // 6 rendered subtypes → 5 forward-pointing footers (last suppresses).
+    expect(footerMatches.length).toBe(5);
+  });
+
+  it('true-core footer points forward to composite-derived with a lowercased tagline', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const sectionStart = res.text.indexOf('id="set-subtype-true-core"');
+    const sectionEnd   = res.text.indexOf('id="set-subtype-composite-derived"');
+    expect(sectionStart).toBeGreaterThan(0);
+    expect(sectionEnd).toBeGreaterThan(sectionStart);
+    const slice = res.text.slice(sectionStart, sectionEnd);
+    expect(slice).toMatch(/class="glossary-section-next"/);
+    expect(slice).toMatch(/href="#set-subtype-composite-derived"/);
+    expect(slice).toContain('Composite / derived sets');
+    // Tagline is the lowercased first sentence of the composite intro.
+    expect(slice).toMatch(/multi-dex chains and derived entry topologies/);
+  });
+
+  it('the last rendered subtype (rooted-antisymposium) does NOT render a Read-next footer', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    const sectionStart = res.text.indexOf('id="set-subtype-rooted-antisymposium"');
+    expect(sectionStart).toBeGreaterThan(0);
+    // Slice from this section's opening to the wrapper close — there
+    // should be no glossary-section-next inside it.
+    const wrapperCloseIdx = res.text.indexOf('</div>', sectionStart);
+    const slice = res.text.slice(sectionStart, wrapperCloseIdx + 6);
+    expect(slice).not.toMatch(/class="glossary-section-next"/);
+  });
+});

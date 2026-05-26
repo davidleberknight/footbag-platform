@@ -2150,7 +2150,15 @@ export interface FreestyleSetsEncyclopediaView {
   intro:           string;
   totalSets:       number;
   subtypeSections: readonly EncyclopediaSubtypeSection[];
+  /** S4 mini-TOC: one pill per rendered subtype section, in render order.
+   *  Empty when no sections render. */
+  subtypeMiniToc:  readonly EncyclopediaMiniTocEntry[];
   crossLinks:      EncyclopediaCrossLinks;
+}
+
+export interface EncyclopediaMiniTocEntry {
+  anchorId: string;     // matches the rendered <section id="...">
+  label:    string;
 }
 
 export interface EncyclopediaSubtypeSection {
@@ -2164,6 +2172,13 @@ export interface EncyclopediaSubtypeSection {
   intro: string;
   count: number;
   cards: readonly EncyclopediaSetCard[];
+  /** S4 Read-next footer: forward pointer to the next rendered subtype
+   *  section. Null on the last rendered section (no next; footer
+   *  suppresses). The tagline is the first sentence of the next
+   *  section's intro, lowercased — short enough for a 1-line footer. */
+  nextSubtypeAnchor:  string | null;
+  nextSubtypeLabel:   string | null;
+  nextSubtypeTagline: string | null;
 }
 
 export interface EncyclopediaSetCard {
@@ -7681,7 +7696,12 @@ export const freestyleService = {
       };
     };
 
-    const subtypeSections: EncyclopediaSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
+    // First pass: build sections without forward-pointers, drop empties.
+    type RawSection = Omit<
+      EncyclopediaSubtypeSection,
+      'nextSubtypeAnchor' | 'nextSubtypeLabel' | 'nextSubtypeTagline'
+    >;
+    const rawSections: RawSection[] = SET_SUBTYPE_SPECS.map(spec => {
       const cards = CANONICAL_SETS
         .filter(s => s.subtype === spec.key)
         .map(shapeEncyclopediaCard);
@@ -7693,6 +7713,39 @@ export const freestyleService = {
         cards,
       };
     }).filter(section => section.count > 0);
+
+    // S4 tagline: first sentence of the intro, lowercased, no trailing
+    // period — short enough to land in a 1-line "Next — X: <tagline>"
+    // footer. Truncates at the first period or em-dash, whichever comes
+    // first. Lowercases the first letter so the clause reads naturally
+    // after the colon.
+    const deriveTagline = (intro: string): string => {
+      const periodIdx  = intro.indexOf('.');
+      const emDashIdx  = intro.indexOf('—'); // em dash
+      const candidates = [periodIdx, emDashIdx].filter(i => i > 0);
+      const cutIdx = candidates.length > 0 ? Math.min(...candidates) : intro.length;
+      const head = intro.slice(0, cutIdx).trim();
+      return head.length > 0
+        ? head.charAt(0).toLowerCase() + head.slice(1)
+        : intro;
+    };
+
+    // Second pass: inject forward-pointers based on rendered order.
+    // Last section gets nulls (footer suppresses cleanly).
+    const subtypeSections: EncyclopediaSubtypeSection[] = rawSections.map((section, i) => {
+      const next = rawSections[i + 1];
+      return {
+        ...section,
+        nextSubtypeAnchor:  next ? `set-subtype-${next.key}` : null,
+        nextSubtypeLabel:   next?.label  ?? null,
+        nextSubtypeTagline: next ? deriveTagline(next.intro) : null,
+      };
+    });
+
+    const subtypeMiniToc: EncyclopediaMiniTocEntry[] = subtypeSections.map(section => ({
+      anchorId: `set-subtype-${section.key}`,
+      label:    section.label,
+    }));
 
     const crossLinks: EncyclopediaCrossLinks = {
       dictionaryBysetLabel:  'Trick Dictionary — tricks grouped by set',
@@ -7735,6 +7788,7 @@ export const freestyleService = {
           'set?", see the Trick Dictionary\'s By Set view.',
         totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
         subtypeSections,
+        subtypeMiniToc,
         crossLinks,
       },
     };
