@@ -959,14 +959,15 @@ describe('GET /freestyle/glossary', () => {
     expect(res.text).toContain('SS');
   });
 
-  it('contains symbolic-compression and core-trick concepts', async () => {
+  it('contains structural-compression and core-trick concepts', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     // V5: §7 carries the notation thesis (with Jobs notation reference
-    // preserved as the historical name of the semantic layer); §8 hosts
-    // the worked symbolic-compression flow. §5 hosts the core trick
-    // structures grid.
-    expect(res.text).toMatch(/Symbolic compression/);
+    // preserved as the historical name of the semantic layer); §composition
+    // hosts the worked structural-compression treatment as part of the
+    // Vocabulary Relationships subsection (2026-05-25). §5 hosts the
+    // core trick structures grid.
+    expect(res.text).toMatch(/Structural compression/);
     expect(res.text).toMatch(/Jobs notation/);
     expect(res.text).toContain('Core Trick Families');
     expect(res.text).toContain('clipper');
@@ -2038,22 +2039,25 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(afterSetMod).not.toContain('<dl class="glossary-set-modifiers">');
   });
 
-  it('symbolic-compression worked example renders as a compact one-row equivalence', async () => {
-    // Slice X corrective (2026-05-17): the prior three-card cascade was
-    // collapsed into a single compact equivalence row. The anchor and
-    // worked-example identity persist; the visual is now a one-liner.
+  it('structural-compression worked example renders as a four-depth equivalence ladder inside Vocabulary Relationships', async () => {
+    // 2026-05-25 Vocabulary Relationships expansion: the prior one-liner
+    // (mobius = gyro torque = spinning same-side torque) was folded into
+    // the Structural compression subsection as a four-depth ladder. The
+    // #symbolic-compression-flow anchor is preserved on the new h4.
+    // Retired prose / classes: glossary-compression-one-liner,
+    // glossary-compression-expanded text-muted (paragraph wrappers
+    // gone — content now in a <li> inside glossary-equivalence-worked-
+    // example).
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
-    // Slice to the next §8 sibling heading.
-    const nextH3 = res.text.indexOf('class="section-heading"', flowIdx + 1);
-    const slice = res.text.slice(flowIdx, nextH3 > 0 ? nextH3 : flowIdx + 2000);
-    // One-liner equivalence chain.
-    expect(slice).toContain('class="glossary-compression-one-liner"');
-    expect(slice).toMatch(/mobius\s*=\s*gyro torque\s*=\s*spinning same-side torque/);
-    // Muted expanded reading.
-    expect(slice).toContain('class="glossary-compression-expanded text-muted"');
-    expect(slice).toMatch(/spinning same-side miraging osis/);
+    const nextH4 = res.text.indexOf('glossary-equivalence-worked-heading', flowIdx + 1);
+    const slice = res.text.slice(flowIdx, nextH4 > 0 ? nextH4 : flowIdx + 4000);
+    // Four-depth ladder; all four readings rendered via &equiv;
+    expect(slice).toMatch(/mobius/i);
+    expect(slice).toMatch(/gyro torque/i);
+    expect(slice).toMatch(/spinning same-side torque/i);
+    expect(slice).toMatch(/spinning miraging same-side osis/i);
     // Link to ADD Accounting & Analysis is preserved.
     expect(slice).toContain('href="/freestyle/add-analysis"');
     // The retired three-card cascade must not survive.
@@ -2196,11 +2200,13 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   });
 });
 
-describe('Freestyle glossary — §9 torque/mobius compression (compact form, Slice X 2026-05-17)', () => {
-  it('renders the symbolic-compression-flow anchor inside §9 (above §11)', async () => {
-    // 14-section IA refactor (2026-05-19): the worked compression lives in
-    // §9 Symbolic Composition (renumbered from §8). Renders before §11
-    // Family & Topology Concepts. Anchor preserved.
+describe('Freestyle glossary — Structural compression subsection (post 2026-05-25 Vocabulary Relationships expansion)', () => {
+  it('renders the symbolic-compression-flow anchor inside §composition (above §connective-panels)', async () => {
+    // 2026-05-25 Vocabulary Relationships expansion: the worked
+    // compression moved from a standalone h3 to an h4 inside the
+    // Vocabulary Relationships subsection of §composition (Symbolic
+    // Composition). Anchor #symbolic-compression-flow preserved on the
+    // new h4 for inbound deep-links.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
@@ -2208,16 +2214,21 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
     expect(topologyIdx).toBeGreaterThan(flowIdx);
   });
 
-  it('renders the compact one-row equivalence (no per-step cards)', async () => {
+  it('renders the four-depth mobius compression ladder', async () => {
+    // The compression-ladder example was expanded from 3 readings to 4
+    // (curator-approved 2026-05-25): mobius → gyro torque → spinning
+    // same-side torque → spinning miraging same-side osis. The deepest
+    // reading is where the "compositional transformations" wow-moment
+    // lands pedagogically.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
-    // One-liner: mobius = gyro torque = spinning same-side torque
-    expect(slice).toContain('class="glossary-compression-one-liner"');
-    expect(slice).toMatch(/mobius\s*=\s*gyro torque\s*=\s*spinning same-side torque/);
-    // Muted expanded reading.
-    expect(slice).toMatch(/spinning same-side miraging osis/);
+    expect(slice).toMatch(/<strong>mobius<\/strong>/i);
+    expect(slice).toMatch(/gyro torque/i);
+    expect(slice).toMatch(/spinning same-side torque/i);
+    expect(slice).toMatch(/spinning miraging same-side osis/i);
+    expect(slice).toMatch(/compression ladder/i);
     // The retired three-card cascade must not survive.
     expect(slice).not.toContain('id="compression-step-osis"');
     expect(slice).not.toContain('id="compression-step-torque"');
@@ -2226,8 +2237,6 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
   });
 
   it('links to the ADD Accounting & Analysis page for deeper explanation', async () => {
-    // Slice X corrective: the prose under the compact equivalence routes
-    // readers to /freestyle/add-analysis instead of stacking three cards.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
@@ -2235,13 +2244,15 @@ describe('Freestyle glossary — §9 torque/mobius compression (compact form, Sl
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('keeps explanatory prose minimal — single short paragraph with the deep-link', async () => {
+  it('frames the wow-moment as "oh, these are compositional transformations"', async () => {
+    // Replaces the prior "Three names. One trick." framing. The new
+    // prose explicitly names the pedagogical pivot.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
-    expect(slice).toMatch(/Three names\.\s+One trick\./);
-    expect(slice).toMatch(/either\s+expanded\s+reading\s+is\s+no\s+less\s+correct/);
+    expect(slice).toMatch(/wow-moment/i);
+    expect(slice).toMatch(/compositional\s+transformations/i);
   });
 });
 
@@ -2346,10 +2357,18 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                cite to the in-repo archive at
     //                exploration/fborg/JobsNotation.txt. The historical
     //                source-of-truth surface for the grammar lineage.
+    //   200K → 215K  2026-05-25 Vocabulary Relationships subsection
+    //                expansion in §composition: replaced prior
+    //                #compression-vs-alternate-derivation with a four-
+    //                way relationship-types treatment (pure alias /
+    //                structural compression / equivalent derivation /
+    //                ontology relationship), with concrete movement-
+    //                centered examples for each. Curator-approved
+    //                conceptual expansion; not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(200_000);
+    expect(res.text.length).toBeLessThan(215_000);
   });
 });
 

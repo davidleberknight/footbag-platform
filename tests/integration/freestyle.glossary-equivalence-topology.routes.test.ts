@@ -1,24 +1,17 @@
 /**
- * Integration tests for the equivalence-topology subsection inside
- * /freestyle/glossary §9 Symbolic Composition.
+ * Integration tests for the Vocabulary Relationships subsection inside
+ * /freestyle/glossary §composition (Symbolic Composition).
  *
- * Phase 3 of the equivalence-topology rollout. The subsection sits
- * between the compression-ladder worked example and the walking-family
- * progression. It introduces the alias / compression ladder / alternate
- * derivation / historical reading / doctrine-locked reading vocabulary
- * via a compact table and exhibits two worked examples (flurry,
- * witchdoctor) that match the Phase 2 trick-detail topology panel.
+ * This subsection replaced the prior "Compression ladders vs alternate
+ * derivations" h3 on 2026-05-25 (see freestyle.glossary-vocabulary-
+ * relationships.routes.test.ts for the new-structure test coverage).
  *
- * Contract under test:
- *   - The subsection's anchor and heading render.
- *   - The five distinctions render as table rows in the documented
- *     order (alias / compression ladder / alternate derivation /
- *     historical reading / doctrine-locked reading).
- *   - The flurry worked example renders both structural readings and
- *     cross-links to /freestyle/tricks/flurry.
- *   - The witchdoctor worked example renders both readings (current
- *     canonical + historical) and cross-links to
- *     /freestyle/tricks/witchdoctor.
+ * THIS FILE preserves the equivalence-topology-specific contracts:
+ *   - flurry + witchdoctor worked examples still render with the
+ *     same content as before (just under the Equivalent derivations
+ *     subsection instead of the prior Worked-example h4s).
+ *   - Cross-links to /freestyle/tricks/flurry and /freestyle/tricks/
+ *     witchdoctor still render.
  *   - Curator-internal language never reaches the rendered HTML
  *     (curatorConfirmPending, curatorNote, "1-component gap").
  *
@@ -40,8 +33,7 @@ const { dbPath } = setTestEnv('3159');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
-  // The glossary's §9 equivalence-topology subsection is static
-  // curator-authored prose; no DB rows are required.
+  // Static curator-authored prose; no DB rows required.
   const db = createTestDb(dbPath);
   db.close();
   createApp = await importApp();
@@ -49,42 +41,27 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/glossary — equivalence-topology subsection in §9', () => {
-  it('renders the subsection anchor and heading', async () => {
+describe('GET /freestyle/glossary — equivalence-topology coverage in §composition', () => {
+  it('preserves the legacy #compression-vs-alternate-derivation anchor for inbound deep-links', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/id="compression-vs-alternate-derivation"/);
-    expect(res.text).toMatch(/Compression ladders vs alternate derivations/);
+    expect(res.text).toContain('id="compression-vs-alternate-derivation"');
   });
 
-  it('contrasts compression ladder vs alternate derivation in prose', async () => {
+  it('renders the Equivalent derivations subsection (third of four relationship types)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Compression-ladder framing
-    expect(res.text).toMatch(/<strong>compression ladder<\/strong>[\s\S]{0,80}same/i);
-    // Alternate-derivation framing
-    expect(res.text).toMatch(/<strong>alternate derivation<\/strong>[\s\S]{0,120}different/i);
+    expect(res.text).toMatch(/Equivalent derivations/i);
+    expect(res.text).toMatch(/multiple valid paths/i);
   });
 
-  it('renders the five-distinction comparison table in documented order', async () => {
+  it('renders the sharpened 4-row distinctions table (alias / structural compression / equivalent derivation / ontology relationship)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const startIdx = res.text.indexOf('glossary-equivalence-distinctions');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</table>', startIdx);
     const table = res.text.slice(startIdx, endIdx);
-    // All five concepts present
-    expect(table).toContain('Alias');
-    expect(table).toContain('Compression ladder');
-    expect(table).toContain('Alternate derivation');
-    expect(table).toContain('Historical reading');
-    expect(table).toContain('Doctrine-locked reading');
-    // Verify documented order: alias → ladder → alternate → historical → doctrine-locked
-    const order = [
-      'Alias',
-      'Compression ladder',
-      'Alternate derivation',
-      'Historical reading',
-      'Doctrine-locked reading',
-    ];
+    // All four relationship types present in documented order
+    const order = ['Pure alias', 'Structural compression', 'Equivalent derivation', 'Ontology relationship'];
     let cursor = 0;
     for (const label of order) {
       const idx = table.indexOf(label, cursor);
@@ -94,10 +71,10 @@ describe('GET /freestyle/glossary — equivalence-topology subsection in §9', (
   });
 });
 
-describe('GET /freestyle/glossary — flurry worked example', () => {
-  it('renders both flurry derivations side by side', async () => {
+describe('GET /freestyle/glossary — flurry worked example (preserved from prior subsection)', () => {
+  it('renders both flurry derivations with ADD breakdowns', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/Worked example[\s\S]{0,40}flurry/i);
+    expect(res.text).toMatch(/<strong>flurry<\/strong>/i);
     expect(res.text).toContain('barraging legover');
     expect(res.text).toContain('paradox + paradox legover');
   });
@@ -107,28 +84,26 @@ describe('GET /freestyle/glossary — flurry worked example', () => {
     expect(res.text).toContain('href="/freestyle/tricks/flurry"');
   });
 
-  it('notes that both flurry readings reach the same ADD', async () => {
+  it('shows both flurry readings reach 4 ADD via different operator compositions', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // The intro asserts "each reach 4 ADD" and the structural
-    // contributors are visible in the per-row em tags.
-    expect(res.text).toMatch(/each\s+reach\s+4\s+ADD/i);
-    expect(res.text).toMatch(/barraging \+2/);
-    expect(res.text).toMatch(/paradox \+1/);
+    // The per-path ADD breakdowns (parenthesized) confirm 4-ADD convergence.
+    expect(res.text).toMatch(/barraging\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
+    expect(res.text).toMatch(/paradox\(\+1\)[\s\S]*paradox-legover\(3\)[\s\S]*4 ADD/i);
   });
 });
 
-describe('GET /freestyle/glossary — witchdoctor worked example', () => {
+describe('GET /freestyle/glossary — witchdoctor worked example (preserved from prior subsection)', () => {
   it('renders the composite-base canonical reading + historical reading', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/Worked example[\s\S]{0,80}witchdoctor/i);
+    expect(res.text).toMatch(/<strong>witchdoctor<\/strong>/i);
     expect(res.text).toContain('atom-smasher + symposium');
     expect(res.text).toContain('atomic symposium mirage');
   });
 
-  it('frames the historical reading as preserved context, not as a competing ADD claim', async () => {
+  it('frames the historical reading as preserved context (note paragraph after worked examples)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/historical reading/i);
-    expect(res.text).toMatch(/preserved as context/i);
+    expect(res.text).toMatch(/preserved\s+(as\s+context|even\s+after)/i);
   });
 
   it('cross-links to the witchdoctor trick-detail page', async () => {
