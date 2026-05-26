@@ -61,7 +61,7 @@ test('skip legacy_claim -> advances to next task', async ({ browser, baseURL }) 
   await expect(wizard.skipButton).toBeVisible();
   await wizard.skipCurrentTask();
 
-  expect(page.url()).toMatch(/\/register\/wizard\/(club_affiliations|first_competition_year)/);
+  expect(page.url()).toMatch(/\/register\/wizard\/(personal_details|club_affiliations)/);
 
   await context.close();
 });
@@ -113,7 +113,7 @@ test('clicking Resume on dashboard opens the wizard task page', async ({ browser
 
 // ── First competition year form fill ─────────────────────────────────────────
 
-test('complete first_competition_year via form fill -> advances to next task', async ({ browser, baseURL }) => {
+test('complete personal_details via form fill -> advances to next task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `e2e_year_${Date.now()}` });
   db.close();
@@ -122,8 +122,9 @@ test('complete first_competition_year via form fill -> advances to next task', a
   const page = await context.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
   await expect(wizard.yearInput).toBeVisible();
+  await page.locator('#city').fill('Portland');
   await wizard.submitYear('2005');
 
   expect(page.url()).toMatch(/\/register\/wizard\/complete/);
@@ -157,7 +158,7 @@ test('legacy-claim email-equality fast path: auto-links and advances', async ({ 
   await wizard.goto('legacy_claim');
   await wizard.submitIdentifier(sharedEmail);
 
-  expect(page.url()).toMatch(/\/register\/wizard\/(club_affiliations|first_competition_year)/);
+  expect(page.url()).toMatch(/\/register\/wizard\/(personal_details|club_affiliations)/);
 
   await context.close();
 });

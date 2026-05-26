@@ -7,7 +7,7 @@ import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 
-test('first_competition_year: out-of-range year 1900 rejected inline', async ({ browser, baseURL }) => {
+test('personal_details: out-of-range year 1900 rejected inline', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `m_lo_${Date.now()}` });
   db.close();
@@ -16,18 +16,18 @@ test('first_competition_year: out-of-range year 1900 rejected inline', async ({ 
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
   await wizard.yearInput.fill('1900');
   await wizard.saveButton.click();
 
-  expect(page.url()).toContain('first_competition_year');
+  expect(page.url()).toContain('personal_details');
   const msg = await wizard.yearInput.evaluate((el: HTMLInputElement) => el.validationMessage);
   expect(msg).toBeTruthy();
 
   await ctx.close();
 });
 
-test('first_competition_year: future year rejected inline', async ({ browser, baseURL }) => {
+test('personal_details: future year rejected inline', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `m_hi_${Date.now()}` });
   db.close();
@@ -36,11 +36,12 @@ test('first_competition_year: future year rejected inline', async ({ browser, ba
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
+  await page.locator('#city').fill('Portland');
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
 
-  expect(page.url()).toContain('first_competition_year');
+  expect(page.url()).toContain('personal_details');
   await expect(wizard.inlineError).toBeVisible();
 
   await ctx.close();

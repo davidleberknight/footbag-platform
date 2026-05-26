@@ -110,7 +110,7 @@ test('no-match search: renders guidance banner (no candidate count or identity l
   await ctx.close();
 });
 
-test('first_competition_year: valid year saves to DB', async ({ browser, baseURL }) => {
+test('personal_details: valid year saves to DB', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `w_yr_${Date.now()}` });
   db.close();
@@ -119,20 +119,21 @@ test('first_competition_year: valid year saves to DB', async ({ browser, baseURL
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
+  await page.locator('#city').fill('Portland');
   await wizard.submitYear('2005');
 
   expect(page.url()).toContain('complete');
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBe(2005);
-  expect(getTaskState(db2, persona.memberId, 'first_competition_year')).toBe('completed');
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('completed');
   db2.close();
 
   await ctx.close();
 });
 
-test('first_competition_year: out-of-range year blocked by browser validation, stays on page', async ({ browser, baseURL }) => {
+test('personal_details: out-of-range year blocked by browser validation, stays on page', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `w_byr_${Date.now()}` });
   db.close();
@@ -141,11 +142,11 @@ test('first_competition_year: out-of-range year blocked by browser validation, s
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
   await wizard.yearInput.fill('1900');
   await wizard.saveButton.click();
 
-  expect(page.url()).toContain('first_competition_year');
+  expect(page.url()).toContain('personal_details');
 
   const validationMessage = await wizard.yearInput.evaluate(
     (el: HTMLInputElement) => el.validationMessage,
@@ -153,13 +154,13 @@ test('first_competition_year: out-of-range year blocked by browser validation, s
   expect(validationMessage).toBeTruthy();
 
   const db2 = openLiveDb();
-  expect(getTaskState(db2, persona.memberId, 'first_competition_year')).toBe('pending');
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('pending');
   db2.close();
 
   await ctx.close();
 });
 
-test('first_competition_year: empty year accepted, clears field', async ({ browser, baseURL }) => {
+test('personal_details: empty year accepted, clears field', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberMidWizard(db, { slug: `w_eyr_${Date.now()}` });
   db.close();
@@ -168,7 +169,8 @@ test('first_competition_year: empty year accepted, clears field', async ({ brows
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  await wizard.goto('first_competition_year');
+  await wizard.goto('personal_details');
+  await page.locator('#city').fill('Portland');
   await wizard.yearInput.fill('');
   await wizard.saveButton.click();
   await page.waitForURL(/\/register\/wizard\//);
@@ -177,7 +179,7 @@ test('first_competition_year: empty year accepted, clears field', async ({ brows
 
   const db2 = openLiveDb();
   expect(getMemberField(db2, persona.memberId, 'first_competition_year')).toBeNull();
-  expect(getTaskState(db2, persona.memberId, 'first_competition_year')).toBe('completed');
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('completed');
   db2.close();
 
   await ctx.close();
@@ -194,9 +196,8 @@ test('completion page: text correct, profile link works', async ({ browser, base
 
   await wizard.goto('legacy_claim');
   await wizard.skipCurrentTask();
-  // club_affiliations auto-transitions for brand-new player
+  // club_affiliations auto-transitions for brand-new player, lands on personal_details
   await page.waitForURL(/\/register\/wizard\//);
-  await wizard.skipCurrentTask();
   await wizard.skipCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
@@ -219,9 +220,8 @@ test('skip all three tasks end-to-end -> completion -> profile', async ({ browse
 
   await wizard.goto('legacy_claim');
   await wizard.skipCurrentTask();
-  // club_affiliations auto-skips for no-match member
+  // club_affiliations auto-transitions for no-match member, lands on personal_details
   await page.waitForURL(/\/register\/wizard\//);
-  await wizard.skipCurrentTask();
   await wizard.skipCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
@@ -230,6 +230,7 @@ test('skip all three tasks end-to-end -> completion -> profile', async ({ browse
   const db2 = openLiveDb();
   expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('skipped');
   expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toMatch(/skipped|not_applicable/);
+  expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('skipped');
   db2.close();
 
   await ctx.close();

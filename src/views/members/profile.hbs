@@ -2,6 +2,9 @@
 
 <div class="wrapper">
   <section>
+    {{#if page.notice}}
+      <div class="form-success-banner" role="status">{{page.notice}}</div>
+    {{/if}}
     <div class="profile-layout">
 
       <div class="profile-sidebar">

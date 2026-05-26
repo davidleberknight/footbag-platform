@@ -191,7 +191,7 @@ export function seedMemberWithClubCards(
   const clubIds: string[] = [];
 
   for (let i = 0; i < count; i++) {
-    const clubId = insertClub(db, { id: `club-mc-${rand()}`, name: `Test Club ${i + 1}` });
+    const clubId = insertClub(db, { id: `club-mc-${rand()}`, name: `Test Club ${i + 1}`, city: `City${i + 1}` });
     clubIds.push(clubId);
 
     const candidateId = insertLegacyClubCandidate(db, {

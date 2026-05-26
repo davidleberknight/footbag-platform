@@ -67,8 +67,15 @@ export const memberController = {
 
     if (isOwnProfile(req)) {
       try {
+        const flash = readFlash(req);
+        let profileNotice: string | undefined;
+        if (flash?.kind === FLASH_KIND.PROFILE_UPDATED) {
+          profileNotice = 'Profile updated.';
+          clearFlash(res, req);
+        }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
         const vm = memberService.getOwnProfile(memberKey, { query });
+        if (profileNotice) vm.page.notice = profileNotice;
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -164,6 +171,7 @@ export const memberController = {
       };
       try {
         memberService.updateOwnProfile(memberKey, input);
+        writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED);
         res.redirect(303, `/members/${memberKey}`);
       } catch (err) {
         if (err instanceof ValidationError) {
