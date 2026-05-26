@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 544;
+export const TRACKED_UNPUBLISHED_TOTAL = 543;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -524,7 +524,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symposium Blizzard', slug: 'symposium-blizzard', operationalNotation: 'CLIP > OP IN [DEX] > (NO PLANT WHILE) OP OUT [BOD] [DEX] [BOD] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Symposium Blur', slug: 'symposium-blur', operationalNotation: 'CLIP > OP IN [DEX] > (NO PLANT WHILE) OP IN/OUT [DEX] [BOD] [BOD] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Symposium Double Leg Over', slug: 'symposium-double-leg-over', operationalNotation: 'SET > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Symposium Pixie', slug: 'symposium-pixie', operationalNotation: 'TOE (plant) > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Symposium Reverse Whirl', slug: 'symposium-reverse-whirl', operationalNotation: 'SET > (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Symposium Tomahawk', slug: 'symposium-tomahawk', operationalNotation: 'CLIP > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Symposium Torque', slug: 'symposium-torque', operationalNotation: 'SET > (NO PLANT WHILE) OP IN [DEX] [BOD] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },

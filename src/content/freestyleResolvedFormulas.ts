@@ -1529,4 +1529,24 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Paradox prefix on whirling-swirl chassis (preserves OP BACK SWIRL second dex + SAME CLIP terminal).
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt). Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; OP BACK SWIRL second dex + SAME CLIP terminator unchanged.',
   },
+
+  // ─── Symposium-pixie promotion (2026-05-25; deferred-candidate follow-on).
+  //     No FB.org-published JOB for this specific compound. Sibling-derived
+  //     using the symposium-prefix pattern (BOD fuses with first dex via
+  //     "(no plant while) <side> <direction> [BOD] [DEX]") applied to
+  //     pixie's base JOB. Verified against pixie-symposium-mirage in DB
+  //     (4 ADD: pixie(+1) + symposium(+1) + mirage(2) carries the same
+  //     symposium [BOD]+[DEX] fusion pattern).
+
+  {
+    slug:        'symposium-pixie',
+    name:        'symposium pixie',
+    operator:    'symposium',
+    base:        'pixie',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])',
+    operationalNotation: 'TOE > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]',  // Sibling-derived from symposium-prefix pattern applied to pixie base. Not Red-confirmed.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. symposium = +1 no-plant body modifier (Red-settled canonical inventory); pixie = 2 ADD set primitive in DB. JOB sibling-derived: symposium prefix wraps pixie\'s first dex with "(no plant while) [BOD]" fused on the SAME IN [DEX]. Verified against pixie-symposium-mirage in DB which carries the same symposium [BOD]+[DEX] fusion structure. Not Red-confirmed for this specific compound.',
+  },
 ];
