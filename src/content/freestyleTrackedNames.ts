@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 537;
+export const TRACKED_UNPUBLISHED_TOTAL = 535;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -62,7 +62,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Pickup (same side)', slug: 'atomic-pickup' },
     { displayName: 'Atomic ss Osis', slug: 'atomic-ss-osis' },
     { displayName: 'Atomotion', slug: 'atomotion', operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Avalanche', slug: 'avalanche', operationalNotation: 'Clip > Op In (DEX) >> Duck (BOD) >> Op Out (DEX)(PDX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Barfry', slug: 'barfry', operationalNotation: 'Clip > Same Out (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Barroque', slug: 'barroque', operationalNotation: 'Clip > Op In (DEX) > Same In (DEX) >> (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Bedwetter', slug: 'bedwetter', operationalNotation: 'Clip > Op In (DEX) >> Op Out (DEX)(PDX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -499,7 +498,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Shooting Mirage', slug: 'shooting-mirage', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Shooting Star', slug: 'shooting-star', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Shooting Torque', slug: 'shooting-torque', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Spike Hammer', slug: 'spike-hammer', operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spinning Butterfly Kick', slug: 'spinning-butterfly-kick', operationalNotation: 'CLIP > (back) SPIN [BOD] > JUMP [BOD] > OP OUT [DEX] > OP CLIP [XBD]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spinning Paradox Blender', slug: 'spinning-paradox-blender', operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spinning Paradox Illusion', slug: 'spinning-paradox-illusion', operationalNotation: 'CLIP > (back) SPIN [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },

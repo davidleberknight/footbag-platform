@@ -3534,6 +3534,9 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'pixie-double-over-down',      // pixie(+1) + double-over-down(4) = 5 ADD
   'scorpions-tail',              // spinning(+1) + down-double-down(4) = 5 ADD (alias: Spinning Down Double-Down)
   'flux',                        // atomic(+1) + osis(3) = 4 ADD (alias: Atomic Osis)
+  // ── Avalanche + spike-hammer 2026-05-25 (structural twins; 3-operator-stack compressions):
+  'avalanche',                   // stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD (alias: Stepping Ducking Paradox Illusion)
+  'spike-hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
 ]);
 
 // "Compressed from" detail-page surface (2026-05-25 glossary follow-on).

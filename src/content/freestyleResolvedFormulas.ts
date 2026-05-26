@@ -1647,4 +1647,37 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt). Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather than at the front.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt). FB.org alias "Atomic Osis" wired via aliases column.',
   },
+
+  // ─── Avalanche + spike-hammer (2026-05-25; deferred-candidate follow-on).
+  //     Structural twins: both 5 ADD, identical 3-operator modifier stack
+  //     (stepping + ducking + paradox-X), differ only in the base atom
+  //     (illusion vs mirage). The JOB difference is the dex direction
+  //     after DUCK [BOD]: OP OUT [PDX] [DEX] for illusion (avalanche),
+  //     OP IN [PDX] [DEX] for mirage (spike-hammer). Both folk-names
+  //     compress a 3-operator-stack reading into a single word — a
+  //     textbook example of the glossary §composition "Structural
+  //     compression" doctrine. FB.org-confirmed verbatim.
+
+  {
+    slug:        'avalanche',
+    name:        'avalanche',
+    operator:    'stepping + ducking',
+    base:        'paradox-illusion',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
+    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (paradoxMoves.txt). 3-operator-stack compression of stepping ducking paradox illusion.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (paradoxMoves.txt). FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer: same modifier stack, mirage base instead of illusion (dex direction OP OUT vs OP IN).',
+  },
+  {
+    slug:        'spike-hammer',
+    name:        'spike hammer',
+    operator:    'stepping + ducking',
+    base:        'paradox-mirage',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
+    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (paradoxMoves.txt). 3-operator-stack compression of stepping ducking paradox mirage.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (paradoxMoves.txt). FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche: same modifier stack, illusion base swapped for mirage (dex direction OP IN vs OP OUT).',
+  },
 ];
