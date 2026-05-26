@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 554;
+export const TRACKED_UNPUBLISHED_TOTAL = 553;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -548,7 +548,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Toe Ripwalk', slug: 'toe-ripwalk', operationalNotation: 'TOE > OP IN [DEX] (plant) > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Toe Whirr', slug: 'toe-whirr', operationalNotation: 'TOE > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Triple Spin', slug: 'triple-spin', operationalNotation: '[BOD] [BOD] [BOD]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Wrap', slug: 'wrap' },
   ] },
   { sourceLabel: 'PassBack', names: [
     { displayName: 'Alpine Blurry Whirl', slug: 'alpine-blurry-whirl' },

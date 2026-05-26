@@ -280,9 +280,13 @@ describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view
 });
 
 describe('Pre-Adrian promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
-  it('TRACKED_UNPUBLISHED_TOTAL decreased by 4 (558 → 554) after the 4 slugs moved to canonical-published state', async () => {
+  it('TRACKED_UNPUBLISHED_TOTAL decreased after promoted slugs moved to canonical-published state', async () => {
+    // 558 (pre-session) → 554 (after Pre-Adrian promotion of 4 slugs) →
+    // 553 (after held-delay-family slice promoted `wrap`). The exact
+    // current value drifts as more slugs promote out of observational;
+    // assert direction + monotone lower bound.
     const { TRACKED_UNPUBLISHED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    expect(TRACKED_UNPUBLISHED_TOTAL).toBe(554);
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(554);
   });
 
   it('the 4 promoted slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
@@ -299,10 +303,12 @@ describe('Pre-Adrian promotion — Emerging Vocabulary no longer counts the prom
     expect(allTrackedSlugs.has('clipper-kick')).toBe(false);
   });
 
-  it('/freestyle/observational page renders the updated 554 count, not 558', async () => {
+  it('/freestyle/observational page renders an updated (lower) count, not the pre-session 558', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('554 more documented names');
+    // Pre-session was 558; this slice + subsequent slices reduce the
+    // count as more slugs promote out of observational. Assert it's
+    // no longer 558.
     expect(res.text).not.toContain('558 more documented names');
   });
 

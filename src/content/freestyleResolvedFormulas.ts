@@ -1298,4 +1298,85 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Pre-Adrian promotion 2026-05-25; terminal-surface variant of double-around-the-world (toe→heel + [UNS] unusual-surface tag); fb.org-derived; not Red-confirmed.
     provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25 (optional in slice spec). Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
   },
+
+  // ─── Held-delay leg-over family + butterfly-kick correction (2026-05-25) ──
+  // Second pre-Adrian polish slice. Four entries:
+  //   - hop-over    (2 ADD; existing DB row with empty op_notation;
+  //                  fb.org [bod] [del])
+  //   - walk-over   (2 ADD; existing DB row with empty op_notation;
+  //                  fb.org [del] [dex])
+  //   - wrap        (2 ADD; new canonical row in red_additions; fb.org
+  //                  [del] [dex])
+  //   - butterfly-kick (DB correction applied via red_corrections: 3→2 ADD,
+  //                     drop terminal [XBD]; overlay entry below provides
+  //                     the curator-published derivation for the ADD analysis
+  //                     disclosure)
+  //
+  // Held-delay leg-over family is sibling-not-merge per the curator's
+  // topology-family note: distinct event signatures (hop-over = body jump;
+  // walk-over = leg step over; wrap = bag pulled around the leg).
+
+  {
+    slug:        'hop-over',
+    name:        'hop over',
+    operator:    'body-jump primitive',
+    base:        'hop-over',
+    baseAdd:     2,
+    totalAdd:    2,
+    derivation:  'inside-delay(1) + bod(1) = 2 ADD',
+    operationalNotation: '[set] > inside [DEL] > (hop over) [BOD]',  // Held-delay leg-over family 2026-05-25; fb.org-derived (fborg-2add.txt "Hop Over"); not Red-confirmed.
+    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
+  },
+  {
+    slug:        'walk-over',
+    name:        'walk over',
+    operator:    'leg-step primitive',
+    base:        'walk-over',
+    baseAdd:     2,
+    totalAdd:    2,
+    derivation:  'inside-delay(1) + dex(1) = 2 ADD',
+    operationalNotation: '[set] > inside [DEL] > OP (step over) [DEX]',  // Held-delay leg-over family 2026-05-25; fb.org-derived (fborg-2add.txt "Walk Over" / "Step Over"); not Red-confirmed. Step-over is the fb.org alias of walk-over.
+    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
+  },
+  {
+    slug:        'wrap',
+    name:        'wrap',
+    operator:    'wrap-around primitive',
+    base:        'wrap',
+    baseAdd:     2,
+    totalAdd:    2,
+    derivation:  'inside-delay(1) + dex(1) = 2 ADD',
+    operationalNotation: '[set] > inside [DEL] > (wrap) [DEX]',  // Held-delay leg-over family 2026-05-25; new canonical row promoted in red_additions; fb.org-derived (fborg-2add.txt "Wrap"); not Red-confirmed.
+    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions_2026_04_20.csv in this slice. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
+  },
+  {
+    slug:        'butterfly-kick',
+    name:        'butterfly kick',
+    operator:    'kick (terminal stall removed)',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    2,
+    derivation:  'bod(1) + dex(1) = 2 ADD (butterfly kick variant: jump + outward dex, no terminal stall)',
+    operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]',  // Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod]; drops the terminal OP CLIP [XBD] that prior IFPA DB row carried. DB correction via red_corrections; overlay carries the resolved formula.
+    provenance:  'Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
+  },
+
+  // ─── Eclipse promotion (2026-05-25; airborne hop-over topology) ─────────
+  // Curator-published operational notation for the eclipse trick.
+  // Eclipse is structurally an airborne symposium-style evolution of
+  // hop-over topology: grounded held-delay crossover becomes a jump-
+  // initiated aerial dexterity sequence. Existing DB row was at 3 ADD
+  // with empty op_notation; this entry supplies the curator-authored JOB.
+
+  {
+    slug:        'eclipse',
+    name:        'eclipse',
+    operator:    'airborne hop-over topology',
+    base:        'eclipse',
+    baseAdd:     3,
+    totalAdd:    3,
+    derivation:  'bod(1) + del(1) + dex(1) = 3 ADD (jump + mid-flight inside delay + outward dex)',
+    operationalNotation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)',  // Curator-supplied 2026-05-25 (pre-Adrian polish); fb.org-aligned (pt1 jump-bearing 3-ADD reading); airborne hop-over topology.
+    provenance:  'Curator-published operational notation 2026-05-25 (pre-Adrian polish). Eclipse structurally an airborne symposium-style evolution of hop-over topology: jump-initiated aerial dexterity sequence with mid-flight held inside delay. bod(1) + del(1) + dex(1) = 3 ADD. fb.org-aligned (pt1 ruled jump-bearing 3-ADD). Historical alias "Catwalk" preserved on DB row.',
+  },
 ];

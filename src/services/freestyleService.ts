@@ -3479,6 +3479,20 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'blurrage',                // stepping(+1) + barrage(3) = 4 ADD (PB-source: 3)
   'predator',                // atomic(+1) + dlo(3) = 4 ADD (PB-source: 3)
   'schmoe',                  // stepping(+1) + legover(2) = 3 ADD (PB-source: 2)
+  // ── Pre-Adrian polish slice (2026-05-25): three ATW-family promoted
+  //    rows + three held-delay leg-over family rows + butterfly-kick
+  //    correction. Each has operationalNotation populated via the
+  //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
+  //    surfaces the JOB+ADD browse-card row (was: bare op-notation
+  //    display only on trick-detail pages).
+  'around-the-world-kick',       // around-the-world(2) - terminal stall(1) = 1 ADD (kick-rule)
+  'triple-around-the-world',     // dex(3) + stall(1) = 4 ADD
+  'double-around-the-world-heel', // dex(2) + heel-stall(1) = 3 ADD
+  'hop-over',                    // inside-delay(1) + bod(1) = 2 ADD
+  'walk-over',                   // inside-delay(1) + dex(1) = 2 ADD
+  'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
+  'butterfly-kick',              // bod(1) + dex(1) = 2 ADD (corrected 2026-05-25; was 3 ADD with extra [XBD])
+  'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB 2026-05-25)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
