@@ -10243,3 +10243,45 @@ a.dict-card-title:hover {
 }
 .glossary-operational-details > *:not(summary):first-of-type { padding-top: 14px; }
 .glossary-operational-details > *:last-child { padding-bottom: 16px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Glossary Phase 1 Slice 4 — pathway scaffolding. Two small components:
+   "Read next" section-footer line (compact, right-aligned, italic) and a
+   ★ flagship-example marker (tiny inline chip). Both deliberately small
+   to add navigation without visual clutter.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Read-next footer — one-line forward-pointing link at end of a section
+   or subsection. Right-aligned, italic, muted. The link text itself
+   stays upright for legibility. */
+.glossary-section-next {
+  margin: 14px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  text-align: right;
+  font-style: italic;
+  line-height: 1.45;
+}
+.glossary-section-next a {
+  font-style: normal;
+  color: #5a7b48;
+  text-decoration: none;
+  font-weight: 500;
+}
+.glossary-section-next a:hover,
+.glossary-section-next a:focus {
+  text-decoration: underline;
+}
+
+/* ★ flagship-example marker — tiny inline chip placed next to a trick
+   name (e.g. ripwalk, mobius, flurry) on its first canonical pedagogical
+   mention. Deliberately small (0.72rem, single glyph) so it reads as a
+   subtle hint, not a badge. */
+.glossary-flagship-marker {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.72rem;
+  color: #b8923a;
+  vertical-align: 0.05em;
+  cursor: help;
+}
