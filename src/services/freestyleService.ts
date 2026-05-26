@@ -3513,6 +3513,8 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'symposium-pixie',             // symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])
   // ── Ricochet promotion 2026-05-25 (cross-body sole/flapper terminator; FB.org-confirmed JOB):
   'ricochet',                    // [DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (flapper-stall base)
+  // ── Flurricane promotion 2026-05-25 (gyro(+1) + flurry(4); FB.org-confirmed JOB):
+  'flurricane',                  // gyro(+1) + flurry(4) = 5 ADD ([BOD] + 3*[DEX] + [DEL])
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the

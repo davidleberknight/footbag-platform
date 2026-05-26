@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 542;
+export const TRACKED_UNPUBLISHED_TOTAL = 541;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -162,7 +162,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Flipwalk', slug: 'flipwalk', operationalNotation: 'Dragon > Op In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Floatation', slug: 'floatation', operationalNotation: 'Toe > (no plant while) Op In (DEX)(BOD) > Op In (DEX)(XDEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Flog', slug: 'flog', operationalNotation: 'Toe > Same Out (DEX) >> Op In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Flurricane', slug: 'flurricane', operationalNotation: 'Clip >> (back) Spin (BOD > Same In (DEX) > Same In (DEX) >> Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Flux', slug: 'flux', operationalNotation: 'Set >> Op Out (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Flying Fish', slug: 'flying-fish', operationalNotation: 'Toe > (rooted) Same In (DEX)(BOD) > Op In (DEX) >> Duck (BOD) >> Op In (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Forque', slug: 'forque', operationalNotation: 'Toe > Same Out (DEX) >> Op In (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

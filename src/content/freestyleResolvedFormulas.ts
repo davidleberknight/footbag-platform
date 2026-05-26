@@ -1570,4 +1570,24 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Cross-body sole (flapper) terminator carries [XBD] [UNS] [DEL] = 3 ADD.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). Base is cross-body-sole-stall (DB canonical, 3 ADD; folk-name = flapper / flapper-stall; aliases already wired). The cross-body-sole-stall row uses descriptive op_notation ([set] > sole [xbd]) while ricochet expands the terminator to canonical-bracket form ([XBD] [UNS] [DEL]) — same structure, different representational convention.',
   },
+
+  // ─── Flurricane promotion (2026-05-25; deferred-candidate follow-on).
+  //     Gyro(+1) modifier on flurry(4) base = 5 ADD. FB.org-confirmed JOB
+  //     (fborg-5add.txt + gyroMoves.txt). Standard gyro-prefix pattern:
+  //     (back) SPIN [BOD] prepended; first dex shifts from OP IN to
+  //     SAME IN (matches gyro-* sibling pattern in DB). FB.org publishes
+  //     a TOE-set variant too; CLIP-set form used as primary per fb.org
+  //     listing order. FB.org alias "Gyro Flurry" preserved on row.
+
+  {
+    slug:        'flurricane',
+    name:        'flurricane',
+    operator:    'gyro',
+    base:        'flurry',
+    baseAdd:     4,
+    totalAdd:    5,
+    derivation:  'gyro(+1) + flurry(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [DEX] + [DEL])',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // FB.org-confirmed (fborg-5add.txt + gyroMoves.txt). CLIP-set primary form (TOE-set variant also published).
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. gyro = +1 spinning-style body modifier (Red-settled via gyro-* siblings in DB: gyro-mirage, gyro-illusion, gyro-whirl, gyro-butterfly all canonical with (back) SPIN [BOD] prefix); flurry = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt + gyroMoves.txt). FB.org alias "Gyro Flurry" wired via aliases column. FB.org also publishes a TOE-set variant (TOE > (back) SPIN [BOD] > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]); CLIP-set form used as primary per fb.org listing order.',
+  },
 ];
