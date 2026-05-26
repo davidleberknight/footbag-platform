@@ -84,6 +84,29 @@
     <p class="set-detail-component-note">{{content.componentMechanicsNote}}</p>
   </section>
 
+  {{#if (or content.previousSet content.nextSet)}}
+  {{! S5: subtype-internal sibling navigation. Suppresses entirely when
+      both are null (single-set subtype, edge case only). Renders prev
+      on the left, next on the right; either side may be absent
+      independently. }}
+  <nav class="set-detail-sibling-nav" aria-label="Subtype navigation">
+    {{#if content.previousSet}}
+    <a class="set-detail-sibling-nav-prev" href="{{content.previousSet.href}}">
+      <span class="set-detail-sibling-nav-arrow" aria-hidden="true">&larr;</span>
+      <span class="set-detail-sibling-nav-label">Previous in {{content.subtypeLabel}}</span>
+      <span class="set-detail-sibling-nav-name">{{content.previousSet.displayName}}</span>
+    </a>
+    {{/if}}
+    {{#if content.nextSet}}
+    <a class="set-detail-sibling-nav-next" href="{{content.nextSet.href}}">
+      <span class="set-detail-sibling-nav-label">Next in {{content.subtypeLabel}}</span>
+      <span class="set-detail-sibling-nav-name">{{content.nextSet.displayName}}</span>
+      <span class="set-detail-sibling-nav-arrow" aria-hidden="true">&rarr;</span>
+    </a>
+    {{/if}}
+  </nav>
+  {{/if}}
+
   <footer class="set-detail-provenance" aria-label="Source provenance">
     <span class="set-card-source set-card-source--{{content.source}}">{{content.sourceLabel}}</span>
     {{#if content.auditStatusLabel}}<span class="set-card-audit set-card-audit--{{content.auditStatus}}">{{content.auditStatusLabel}}</span>{{/if}}

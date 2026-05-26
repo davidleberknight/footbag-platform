@@ -45,9 +45,12 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 
 This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
 
-### B. Current strategic posture (post 2026-05-25/26 polish + S3/S5 governance migration)
+### B. Current strategic posture (post 2026-05-26 Phase 1 polish wave)
 
-**2026-05-25 / 2026-05-26 session shipped:** 21 new canonical rows across ~10 family slices (pixie / inspinning / down / paradox / standalone) + 2 alias re-points (toe-blizzard, backside-symposium-toe-blur). S3/S5/S8/S9 slot governance migration locked in trick-detail page slot ownership — see [[project_slot_governance_doctrine]] for the forever-rule. Glossary §composition gained "Vocabulary relationships" subsection (4-way taxonomy). New S8 "Compressed from" pedagogy line on flagship pages (FAMOUS_COMPRESSION_SLUGS allowlist). New PEDAGOGICAL_COMPRESSION_EXEMPLARS cohort gates S5 ladder authoring. R4 parent-base rule added to buildRelatedTricks. Pre-Adrian polish wave (notation normalization at render, ?view=emerging redirect, set-encyclopedia category one-liners). Adrian review-navigation guide at `exploration/adrian-prep-2026-05-26/REVIEW_GUIDE.md`. TRACKED_UNPUBLISHED_TOTAL 553→534. 4,580 tests green.
+**2026-05-26 later session shipped: Glossary Phase 1 polish (5 slices) + Set Encyclopedia Phase 1 (3 of 5 slices).** Zero new ontology; zero anchor renames. The glossary trajectory is complete. The Set Encyclopedia is at Phase 1 done / Phase 2 deferred (curator content lift). 4,580 → 4,608 tests green. See [[project_freestyle_state]] section "2026-05-26 (later session)" for the full per-slice inventory and [[project_set_encyclopedia_surface]] for the encyclopedia-specific state. Section B.2 below documents the Phase 1 polish playbook (methodology forward-applicable to future surface refinement work on the Compositional Sets hub / Operators page / etc.).
+
+**Earlier 2026-05-25 / 2026-05-26 work** (preserved as B.1 below context, still load-bearing for trick-detail slot governance):
+21 new canonical rows across ~10 family slices (pixie / inspinning / down / paradox / standalone) + 2 alias re-points (toe-blizzard, backside-symposium-toe-blur). S3/S5/S8/S9 slot governance migration locked in trick-detail page slot ownership — see [[project_slot_governance_doctrine]] for the forever-rule. Glossary §composition gained "Vocabulary relationships" subsection (4-way taxonomy). New S8 "Compressed from" pedagogy line on flagship pages (FAMOUS_COMPRESSION_SLUGS allowlist). New PEDAGOGICAL_COMPRESSION_EXEMPLARS cohort gates S5 ladder authoring. R4 parent-base rule added to buildRelatedTricks. Pre-Adrian polish wave (notation normalization at render, ?view=emerging redirect, set-encyclopedia category one-liners). Adrian review-navigation guide at `exploration/adrian-prep-2026-05-26/REVIEW_GUIDE.md`. TRACKED_UNPUBLISHED_TOTAL 553→534.
 
 **Slot governance forever-rule (load-bearing):** Trick-detail pages have four distinct relationship-rendering slots — S3 aliases / S5 SE-chain structural compressions / S8 Compressed-from pedagogy / S9 EQUIVALENCE_TOPOLOGY alternate derivations. Strict slot ownership: a reading appears in exactly one. Atom-level S5 primary readings preferred over compressed intermediaries. Two curator-locked cohorts (FAMOUS_COMPRESSION_SLUGS gates S8; PEDAGOGICAL_COMPRESSION_EXEMPLARS gates S5 ladder authoring). Common mistakes documented in [[project_slot_governance_doctrine]]. Read before any slice touching aliases_json, SE chains, EQUIVALENCE_TOPOLOGY, or trick-compressed-from.hbs.
 
@@ -115,6 +118,49 @@ Wave Alpha (Phases 1-10) shipped 2026-05-23/24 against the comprehensive symboli
   6. If curator wants a new browse axis: check `[[feedback_browse_view_distributional_density]]` first. Measure candidate axis's row distribution before proposing a `?view=` toggle vs reference page.
   7. If Red Wave 2 / 3 answers land: integrate per the queued post-Red follow-up slices (see [[project_red_consultation_state]]).
   8. Pre-Wave-Alpha Wave Alpha follow-on deferrals (the 11+5+3 cohort) are still curator-doctrine-blocked; see B.1 below.
+
+### B.2 Phase 1 polish playbook (2026-05-26 — methodology for future surface refinement)
+
+The 2026-05-26 polish wave converged on a repeatable 5-stage pattern across both the glossary and the Set Encyclopedia. Future Phase 1-style work on any other public freestyle surface (Compositional Sets hub, Operators page, etc.) should follow the same sequence and discipline.
+
+**Stage 1 — Onboarding orientation.** Add an intro card above the first section with: what-the-surface-is paragraph + reading-flow map + sidebar/nav pointer. Add tier-break rulers at major reading-arc transitions with one-line "you can stop here" microcopy. Sidebar groupings (if any) should be made visible in the main column at the same break points.
+
+**Stage 2 — Density relief on the heaviest section.** Identify the surface's biggest density spike (glossary §7 / set-detail's modifier-interactions section / etc.). Apply: mini-TOC pill row at section top + `<details>`/`<summary>` collapse on the heaviest sub-block (preserve all child anchors; browsers auto-open `<details>` on hash navigation). Test contract change pattern: when an anchor migrates from `<h3>` to `<details>`, update the existing assertion to a title-proximity regex + add a new shape assertion for the collapse.
+
+**Stage 3 — Prose density tightening.** Sentence-level edits to remove repetition + tighten transitions. Targets: lead paragraphs above tables/grids (often expandable to one sentence); worked-example paragraphs (frequently repeat the same framing phrase); intro paragraphs that double the same concept. Apply public-prose hygiene at the same time (strip `pt##` / `Red` / `adjudication` / dated `curator-reviewed` per `[[feedback_public_facing_prose]]`).
+
+**Stage 4 — Pathway scaffolding.** Three small additive moves:
+- **Read-next footers** (`.glossary-section-next`) at section / subsection boundaries pointing forward to the next conceptually-adjacent concept. Right-aligned italic 1-line; reuse existing CSS.
+- **★ flagship markers** (`.glossary-flagship-marker`) on canonical teaching exemplars. Per-marker tooltip naming the pedagogical role. Restrained cohort (3-5 markers per surface; flagship dilution is the failure mode).
+- **Section-purpose micro-intros** (1-2 sentences) under abrupt h3 subsections that currently jump straight to content.
+
+**Stage 5 — Cross-link polish.** Make worked-example trick-name surfaces clickable into the dictionary. Sidebar refresh — add deep sub-anchors to formerly-section-only sidebar entries. Sharpen 2-3 generic crosslinks (e.g. `/freestyle/tricks` → `/freestyle/tricks?view=family`) where a query-param-narrowed link better matches the reader's mental state at the link point.
+
+**Link-density discipline (load-bearing across surfaces).**
+
+- **Link:** first meaningful mention per subsection · canonical examples used to illustrate a concept · flagship exemplars · worked-example outputs · derivation anchors
+- **Don't link:** 10-item family-anchor enumerations · repeated mentions of the same trick · retired-alias left-sides · every inline operator/trick occurrence · data-driven panels (would require service-layer changes for marginal gain)
+
+The discipline matters. Wikipedia-density linking is the failure mode; surgical linking that turns worked-example surfaces into gateways into the dictionary is the success mode.
+
+**Reusable cross-surface CSS primitives (architectural fact).**
+
+Three classes are now general-purpose despite the `glossary-` prefix:
+
+- `.glossary-mini-toc` + `-label` + `-list` — pill row of in-section anchors
+- `.glossary-section-next` — one-line italic right-aligned "Next —" footer
+- `.glossary-flagship-marker` — tiny inline ★ chip with title tooltip
+
+Future Phase 1-style work should **reuse these classes, not create duplicates**. If a sufficiently-coordinated rename becomes worthwhile (e.g. to drop the `glossary-` prefix), do it as a single coordinated refactor across all current usages, not piecemeal.
+
+**Architectural principles (forward-applicable):**
+
+- **Cards stay compact; pedagogy lives on detail pages.** When a refinement pressure pushes card content past ~8 visible lines, the right move is to move that content to the detail page, not to expand the card.
+- **Sibling surfaces share rhythm.** When refining a surface (Set Encyclopedia), mirror the rhythm of the sibling that's already mature (Trick Dictionary detail pages). Same shell flow, different content axis. Preserves visual + conceptual coherence.
+- **Cheap structural slices ship first; content-heavy slices defer to curator pace.** The Set Encyclopedia plan's S1+S4+S5 (structural) shipped in one session; S2+S3 (curator-authored content for 8 flagship sets) deferred to Phase 2. Order matters: structural lifts give the surface visible improvement BEFORE the content-authoring backlog opens.
+- **Slug audit before every cross-link slice.** Verify each target slug exists in `freestyle_tricks` before wrapping `<strong>NAME</strong>` in `<a>`. Slice 5 caught one missing slug (quantum-butterfly) — left unlinked rather than shipping a 404. Pattern: `sqlite3 footbag.db "SELECT slug FROM freestyle_tricks WHERE slug IN (...);"`.
+
+**When to apply this playbook.** Any time a freestyle surface feels "comparatively thin and under-realized relative to the rest of the system" — the framing the curator used for the Set Encyclopedia in its Phase 1 planning brief. The same framing is likely to recur for the Compositional Sets hub and the Operators page when their turn comes.
 
 ### C. Family / topology caution
 

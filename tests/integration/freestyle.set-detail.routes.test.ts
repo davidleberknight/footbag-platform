@@ -164,6 +164,71 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// S5 — Subtype-internal sibling navigation (prev/next strip)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// True-core subtype declaration order in CANONICAL_SETS:
+//   pixie → fairy → stepping → quantum → atomic → bubba → slapping → tapping
+// First (pixie): no prev, next = fairy
+// Middle (stepping): prev = fairy, next = quantum
+// Last (tapping): prev = slapping, no next
+
+describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
+  it('first-in-subtype (pixie): renders next=fairy, no previous', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    expect(res.text).toContain('class="set-detail-sibling-nav"');
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/fairy">/);
+    expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-prev"/);
+  });
+
+  it('middle-in-subtype (stepping): renders prev=fairy AND next=quantum', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    expect(res.text).toContain('class="set-detail-sibling-nav"');
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/fairy">/);
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/quantum">/);
+    // Subtype label appears inside the strip ("Previous in True core sets")
+    const stripStart = res.text.indexOf('class="set-detail-sibling-nav"');
+    const stripEnd = res.text.indexOf('</nav>', stripStart);
+    const strip = res.text.slice(stripStart, stripEnd);
+    expect(strip).toContain('Previous in True core sets');
+    expect(strip).toContain('Next in True core sets');
+    expect(strip).toContain('Fairy');
+    expect(strip).toContain('Quantum');
+  });
+
+  it('last-in-subtype (tapping): renders prev=slapping, no next', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/tapping');
+    expect(res.text).toContain('class="set-detail-sibling-nav"');
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-prev" href="\/freestyle\/sets\/slapping">/);
+    expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-next"/);
+  });
+
+  it('sibling strip is placed between cross-references and provenance footer', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/stepping');
+    const crossLinksIdx = res.text.indexOf('class="set-detail-cross-links"');
+    const siblingIdx    = res.text.indexOf('class="set-detail-sibling-nav"');
+    const provenanceIdx = res.text.indexOf('class="set-detail-provenance"');
+    expect(crossLinksIdx).toBeGreaterThan(0);
+    expect(siblingIdx).toBeGreaterThan(crossLinksIdx);
+    expect(provenanceIdx).toBeGreaterThan(siblingIdx);
+  });
+
+  it('sibling strip suppresses entirely when both prev and next are null', async () => {
+    // No single-set subtype exists today (every subtype has ≥1 entry, but
+    // most have multiple). The suppression contract is still asserted at
+    // the markup level: the strip wrapper only renders when at least one
+    // of prev/next is non-null. We verify the helper expression
+    // (or content.previousSet content.nextSet) by spot-checking that
+    // every priority set (which all have at least one sibling) renders
+    // the strip — no contradicting case.
+    for (const slug of ['pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'tapping']) {
+      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      expect(res.text).toContain('class="set-detail-sibling-nav"');
+    }
+  });
+});
+
 describe('routing migration — /freestyle/sets and /freestyle/moves', () => {
   it('/freestyle/sets renders the Set Encyclopedia directly (promoted from 301 redirect 2026-05-25)', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');

@@ -10088,6 +10088,57 @@ a.dict-card-title:hover {
   margin: 8px 0 0;
   line-height: 1.4;
 }
+/* S5 subtype-internal sibling navigation — compact strip placed between
+   cross-references and the provenance footer. Prev anchor flush-left,
+   next anchor flush-right; either side may be absent independently. */
+.set-detail-sibling-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle, #e3e3e3);
+  font-size: 0.88rem;
+}
+.set-detail-sibling-nav-prev,
+.set-detail-sibling-nav-next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--text-secondary, #555);
+  text-decoration: none;
+  line-height: 1.4;
+}
+.set-detail-sibling-nav-next {
+  margin-left: auto;
+  text-align: right;
+}
+.set-detail-sibling-nav-prev:hover,
+.set-detail-sibling-nav-prev:focus,
+.set-detail-sibling-nav-next:hover,
+.set-detail-sibling-nav-next:focus {
+  color: var(--text-primary, #222);
+}
+.set-detail-sibling-nav-arrow {
+  color: var(--text-subtle, #888);
+}
+.set-detail-sibling-nav-label {
+  font-size: 0.78rem;
+  color: var(--text-subtle, #888);
+  font-style: italic;
+}
+.set-detail-sibling-nav-name {
+  font-weight: 600;
+  color: var(--text-primary, #2a3a4a);
+}
+.set-detail-sibling-nav-prev:hover .set-detail-sibling-nav-name,
+.set-detail-sibling-nav-prev:focus .set-detail-sibling-nav-name,
+.set-detail-sibling-nav-next:hover .set-detail-sibling-nav-name,
+.set-detail-sibling-nav-next:focus .set-detail-sibling-nav-name {
+  text-decoration: underline;
+}
 .set-detail-provenance {
   border-top: 1px dashed var(--border-subtle, #e3e3e3);
   padding-top: 12px;

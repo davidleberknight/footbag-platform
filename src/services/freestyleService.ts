@@ -2256,6 +2256,19 @@ export interface FreestyleSetDetailContent {
   auditStatus?:         CanonicalSetAuditKey;
   auditStatusLabel?:    string;
   componentMechanicsNote: string;
+  /** S5 subtype-internal sibling navigation: previous/next set within
+   *  the same subtype, in CANONICAL_SETS declaration order (the same
+   *  order the encyclopedia card grid uses). Null on the first/last
+   *  set within the subtype; the sibling-nav strip suppresses entirely
+   *  if both are null. */
+  previousSet:          SetDetailSibling | null;
+  nextSet:              SetDetailSibling | null;
+}
+
+export interface SetDetailSibling {
+  slug:        string;
+  displayName: string;
+  href:        string;
 }
 
 export interface SetDetailExampleTrick {
@@ -7469,6 +7482,20 @@ export const freestyleService = {
       flatReferenceHref:      '/freestyle/sets/reference',
     };
 
+    // S5 sibling navigation: previous / next set within the same subtype,
+    // in CANONICAL_SETS declaration order (matches the encyclopedia card
+    // grid order). Null on the first / last set within the subtype.
+    const subtypeSiblings = CANONICAL_SETS.filter(s => s.subtype === set.subtype);
+    const siblingIdx = subtypeSiblings.findIndex(s => s.slug === set.slug);
+    const buildSibling = (s: typeof CANONICAL_SETS[number] | undefined): SetDetailSibling | null =>
+      s ? { slug: s.slug, displayName: s.displayName, href: `/freestyle/sets/${s.slug}` } : null;
+    const previousSet = siblingIdx > 0
+      ? buildSibling(subtypeSiblings[siblingIdx - 1])
+      : null;
+    const nextSet = siblingIdx >= 0 && siblingIdx < subtypeSiblings.length - 1
+      ? buildSibling(subtypeSiblings[siblingIdx + 1])
+      : null;
+
     return {
       seo: {
         title:       `${set.displayName} (set system)`,
@@ -7521,6 +7548,8 @@ export const freestyleService = {
         componentMechanicsNote:
           'Component mechanics (ducking, diving, bare spinning, bare inspinning, gyro) ' +
           'are body modifiers, not sets. See the Operators & Modifiers reference.',
+        previousSet,
+        nextSet,
       },
     };
   },
