@@ -7,7 +7,7 @@ export interface FreestyleRelatedTrick {
   hashtag:       string;
   adds:          string | null;
   detailHref:    string;
-  rule:          'family' | 'modifier-prefix' | 'grandparent';
+  rule:          'family' | 'modifier-prefix' | 'parent' | 'grandparent';
 }
 
 const MAX_RESULTS  = 8;
@@ -68,10 +68,18 @@ function shape(row: FreestyleTrickRow, rule: FreestyleRelatedTrick['rule']): Fre
  *   R3 — Grandparent base trick (current.base_trick → that row's base_trick;
  *        include if active, non-modifier, and trick_family differs from
  *        current's). Gated: only fires when R1+R2 < 6 AND not duplicate.
+ *   R4 — Parent base trick (current.base_trick itself; the compound one
+ *        compositional hop up). 2026-05-26 polish: surfaces the direct
+ *        parent for sparse-family compounds where R1/R2 yield little
+ *        and R3 jumps two hops up (e.g. avalanche's parent is
+ *        paradox-illusion; R3 was finding only the grandparent illusion).
+ *        Gated: only fires when R1+R2 < 6 AND parent not already in
+ *        R1/R2/R3 (typically true for compounds whose base_trick is in
+ *        a different trick_family).
  *
  * Within each rule's candidate set, results are sorted via round-robin
  * across ADD buckets (low/mid/high mixed). Final display order is the
- * concatenation of R1 picks → R2 picks → R3 picks, capped at 8.
+ * concatenation of R1 picks → R2 picks → R3 picks → R4 picks, capped at 8.
  *
  * All inputs filtered to `is_active = 1` AND `category != 'modifier'` per
  * the public-surface invariant + modifier-layer separation.
@@ -112,6 +120,22 @@ export function buildRelatedTricks(
     }
   }
 
+  // R4 — Parent base trick (one compositional hop up). Surfaces sparse-
+  // family compounds' direct parent that R1 misses (when current's
+  // trick_family is the compound's own slug, not the parent's family).
+  // Skip if parent would duplicate R1/R2/R3.
+  let r4: FreestyleTrickRow[] = [];
+  if (r1AndR2Count < R3_GATE_SIZE && current.base_trick && current.base_trick !== current.slug) {
+    const parent = eligible.find(r => r.slug === current.base_trick);
+    if (parent) {
+      const alreadyIncluded =
+        r1.some(x => x.slug === parent.slug) ||
+        r2.some(x => x.slug === parent.slug) ||
+        r3.some(x => x.slug === parent.slug);
+      if (!alreadyIncluded) r4 = [parent];
+    }
+  }
+
   const r1Sampled = roundRobinSample(bucketByAdds(r1), MAX_RESULTS);
   const r2Sampled = roundRobinSample(bucketByAdds(r2), MAX_RESULTS);
 
@@ -135,6 +159,12 @@ export function buildRelatedTricks(
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
     out.push(shape(row, 'grandparent'));
+  }
+  for (const row of r4) {
+    if (out.length >= MAX_RESULTS) break;
+    if (seen.has(row.slug)) continue;
+    seen.add(row.slug);
+    out.push(shape(row, 'parent'));
   }
   return out;
 }

@@ -83,6 +83,15 @@ const FIXTURE: FreestyleTrickRow[] = [
   row('paradox-blender', '5', 'compound', 'blender', 'blender'),
   row('paradox-drifter', '4', 'compound', 'drifter', 'drifter'),
 
+  // ── illusion family + sparse-family compounds (avalanche / spike-hammer)
+  // for R4 (parent base trick) testing. avalanche's trick_family is its
+  // own base_trick (paradox-illusion), which means R1 finds zero
+  // siblings; R3 finds the grandparent (illusion); R4 (new) finds the
+  // direct parent (paradox-illusion).
+  row('illusion',         '2', 'dex',      'illusion',         'illusion'),
+  row('paradox-illusion', '3', 'compound', 'illusion',         'illusion'),
+  row('avalanche',        '5', 'compound', 'paradox-illusion', 'paradox-illusion'),
+
   // modifier-category row that MUST be excluded from any related list
   row('paradox', 'modifier', 'modifier', 'paradox', 'paradox'),
 ];
@@ -118,7 +127,10 @@ describe('buildRelatedTricks — worked examples', () => {
     expect(result.length).toBe(8);
   });
 
-  it('atomic-torque: R1 → R2 → R3 ordering with R3 gate firing', () => {
+  it('atomic-torque: R1 → R2 → R3 → R4 ordering with R3/R4 both firing', () => {
+    // 2026-05-26 polish: R4 (parent base trick) added. atomic-torque's
+    // base_trick=torque is in the osis trick_family (not torque), so
+    // R1 doesn't surface it; R4 now does.
     const result = buildRelatedTricks(pick('atomic-torque'), FIXTURE);
     expect(result.map(r => `${r.rule}:${r.slug}`)).toEqual([
       'family:mobius',
@@ -127,6 +139,7 @@ describe('buildRelatedTricks — worked examples', () => {
       'family:spinning-torque',
       'modifier-prefix:atomic-butterfly',
       'grandparent:osis',
+      'parent:torque',
     ]);
   });
 });
@@ -156,6 +169,33 @@ describe('buildRelatedTricks — rule contracts', () => {
     const r3 = result.filter(r => r.rule === 'grandparent');
     expect(r3.length).toBe(1);
     expect(r3[0]!.slug).toBe('osis');
+  });
+
+  it('R4 (parent base trick): sparse-family compound surfaces both parent + grandparent (2026-05-26 polish)', () => {
+    // avalanche has trick_family = paradox-illusion (its own base_trick).
+    // R1 (family=paradox-illusion) finds no other tricks (avalanche is the
+    // only one in fixture). R3 finds the grandparent (illusion via
+    // paradox-illusion → illusion). R4 finds the direct parent
+    // (paradox-illusion). Pre-polish: 1 result; post-polish: 2 results.
+    const result = buildRelatedTricks(pick('avalanche'), FIXTURE);
+    expect(result.map(r => `${r.rule}:${r.slug}`)).toEqual([
+      'grandparent:illusion',
+      'parent:paradox-illusion',
+    ]);
+  });
+
+  it('R4 does NOT duplicate when parent is already in R1 family list', () => {
+    // For mirage-family compounds (paradox-mirage et al.) the parent is
+    // already in the R1 result (same trick_family=mirage), so R4 must
+    // skip to avoid duplication.
+    const result = buildRelatedTricks(pick('atom-smasher'), FIXTURE);
+    // atom-smasher's base_trick = mirage, same family. mirage IS in R1.
+    // R4 should NOT add a second mirage entry.
+    const mirageCount = result.filter(r => r.slug === 'mirage').length;
+    expect(mirageCount).toBeLessThanOrEqual(1);
+    // And the rule for mirage (if present) should be 'family', not 'parent'.
+    const mirageEntry = result.find(r => r.slug === 'mirage');
+    if (mirageEntry) expect(mirageEntry.rule).toBe('family');
   });
 
   it('hashtag derivation matches slugToHashtag (hyphens to underscores, # prefix)', () => {
