@@ -1379,4 +1379,37 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)',  // Curator-supplied 2026-05-25 (pre-Adrian polish); fb.org-aligned (pt1 jump-bearing 3-ADD reading); airborne hop-over topology.
     provenance:  'Curator-published operational notation 2026-05-25 (pre-Adrian polish). Eclipse structurally an airborne symposium-style evolution of hop-over topology: jump-initiated aerial dexterity sequence with mid-flight held inside delay. bod(1) + del(1) + dex(1) = 3 ADD. fb.org-aligned (pt1 ruled jump-bearing 3-ADD). Historical alias "Catwalk" preserved on DB row.',
   },
+
+  // ─── Pixie-clipper compound promotions (2026-05-25; deferred-candidate
+  //     follow-on from the ADD-flattening note review). Two siblings: pixie
+  //     modifier prefix + clipper-stall terminator, opposite-side and
+  //     same-side variants. Both 3 ADD by canonical bracket convention:
+  //     pixie [DEX] + clipper-stall [XBD] [DEL]. JOB derivation follows the
+  //     established pattern of drifter / fairy-clipper / spinning-clipper
+  //     (all 3-ADD clipper-stall compounds carrying the XBD-DEL terminator
+  //     regardless of side). Not Red-confirmed for these specific compounds;
+  //     family inventory (pixie = +1 PDX modifier) IS Red-settled (pt12).
+
+  {
+    slug:        'pixie-opposite-clipper',
+    name:        'pixie opposite clipper',
+    operator:    'pixie',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'pixie(+1) + clipper-stall(2) = 3 ADD ([DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > SAME IN [DEX] > OP CLIP [XBD] [DEL]',  // Sibling-derivation from drifter / fairy-clipper / spinning-clipper; opposite-side clipper terminator (OP CLIP). Not Red-confirmed.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Opposite-side clipper terminator. Sibling JOB derivation from drifter (SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]) / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
+  },
+  {
+    slug:        'pixie-same-clipper',
+    name:        'pixie same clipper',
+    operator:    'pixie',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'pixie(+1) + clipper-stall(2) = 3 ADD ([DEX] + [XBD] + [DEL])',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation from drifter / fairy-clipper / spinning-clipper; same-side clipper terminator (SAME CLIP). Not Red-confirmed.
+    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Same-side clipper terminator. Sibling JOB derivation from drifter / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
+  },
 ];

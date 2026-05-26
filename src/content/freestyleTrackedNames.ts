@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 553;
+export const TRACKED_UNPUBLISHED_TOTAL = 551;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -489,9 +489,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Double Over Down', slug: 'pixie-double-over-down', operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Eclipse', slug: 'pixie-eclipse', operationalNotation: 'TOE > SAME IN [DEX] (JUMP) [BOD] > SAME INSIDE [DEL] > OP OUT [DEX] > (LAND)', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Leg Over', slug: 'pixie-leg-over', operationalNotation: 'TOE > SAME IN [DEX] > OP IN/OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Pixie Opposite Clipper', slug: 'pixie-opposite-clipper', operationalNotation: 'TOE > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Paradon', slug: 'pixie-paradon', operationalNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Pixie Same Clipper', slug: 'pixie-same-clipper', operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Same Side Illusion', slug: 'pixie-same-side-illusion', operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Swirl', slug: 'pixie-swirl', operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pogo Barfly', slug: 'pogo-barfly', operationalNotation: 'CLIP > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },

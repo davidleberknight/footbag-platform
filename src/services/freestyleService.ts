@@ -3493,6 +3493,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
   'butterfly-kick',              // bod(1) + dex(1) = 2 ADD (corrected 2026-05-25; was 3 ADD with extra [XBD])
   'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB 2026-05-25)
+  // ── Deferred-candidate promotions 2026-05-25 (pixie family + toe-blizzard alias):
+  //    pixie-opposite-clipper / pixie-same-clipper = pixie(+1) + clipper-stall(2) = 3 ADD;
+  //    toe-blizzard is an alias of quantum-illusion (not a new canonical row).
+  'pixie-opposite-clipper',      // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
+  'pixie-same-clipper',          // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
 ]);
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
