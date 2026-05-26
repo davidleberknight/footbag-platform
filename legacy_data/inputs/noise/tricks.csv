@@ -18,14 +18,14 @@ eggbeater,3,legover,compound,egg beater,Illusion-modified legover.
 double leg over,3,legover,compound,dlo|miraging legover,Mirage-modified legover.
 drifter,3,clipper stall,compound,miraging clipper,Mirage-modified clipper stall.
 barfly,4,infinity,compound,double infinity|bar fly,Double infinity.
-smear,3,mirage,compound,pixie mirage,Pixie-modified mirage.
-flurry,3,legover,compound,barraging legover,"Three consecutive dexes from a clipper set, finishing on the same toe."
+smear,3,mirage,compound,,Pixie-modified mirage.
+flurry,3,legover,compound,,"Three consecutive dexes from a clipper set, finishing on the same toe."
 dimwalk,4,butterfly,compound,pixie butterfly|dim walk,Pixie-modified butterfly.
 parkwalk,4,butterfly,compound,pixie ss butterfly|park walk,Pixie-modified same-side butterfly.
 torque,4,osis,compound,,Mirage variation of an osis.
-ripwalk,4,butterfly,compound,blurry butterfly,Blurry-modified butterfly.
-blur,4,mirage,compound,blurry mirage,Blurry-modified mirage.
-atom smasher,4,mirage,compound,atomsmasher|atomic mirage|atom-smasher,"Atomic mirage: outside-then-inside dex sequence, recaught on the opposite toe."
+ripwalk,4,butterfly,compound,,Blurry-modified butterfly.
+blur,4,mirage,compound,,Blurry-modified mirage.
+atom smasher,4,mirage,compound,atomsmasher|atom-smasher,"Atomic mirage: outside-then-inside dex sequence, recaught on the opposite toe."
 blender,4,osis,compound,whirling osis,Whirl-modified osis.
 ducking clipper,3,clipper stall,compound,,Ducking-modified clipper stall.
 spinning clipper,3,clipper stall,compound,,Spinning-modified clipper stall.
@@ -42,7 +42,7 @@ paradox torque,5,torque,compound,pdx torque|p torque|p. torque|paradox t,Paradox
 blurry whirl,5,whirl,compound,bw|blurry w,Blurry-modified whirl.
 blurriest,5,barfly,compound,blurry barfly|blurr-iest,Blurry-modified barfly.
 fog,5,legover,compound,blurry dlo|blurry dim walk,Blurry-modified eggbeater.
-mobius,5,torque,compound,gyro torque|möbius|moebius,Gyro-modified torque.
+mobius,5,torque,compound,möbius|moebius,Gyro-modified torque.
 fusion,5,dod,compound,atomic dod|atomic down-over-down,Atomic-modified down-over-down.
 tomahawk,5,whirl,compound,ducking paradox whirl,Ducking-modified paradox whirl.
 superfly,5,barfly,compound,super fly|symposium barfly|superfly,Symposium-modified barfly.

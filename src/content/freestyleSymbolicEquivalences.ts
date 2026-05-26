@@ -24,6 +24,26 @@
  *         nuclear / barraging / furious / double / whirling / high). Those
  *         operators decompose, but the decomposition lives in the glossary.
  *       * Deeper depth only when curator-authored.
+ *   - ATOM-LEVEL PREFERENCE RULE (2026-05-26 governance migration):
+ *     The primary reading (readings[0]) should expand to stable
+ *     primitive/operator vocabulary, NOT stop at a compressed
+ *     intermediary nickname. Prefer: primitive set/operator + base
+ *     trick / stable atoms / explicit operator stack. Avoid: stopping
+ *     at "blurry X" when "stepping paradox X" is the cleaner
+ *     expansion; stopping at "ps X" when "paradox symposium X" is
+ *     cleaner. Exception: depth ladders for pedagogical exemplars
+ *     (PEDAGOGICAL_COMPRESSION_EXEMPLARS below) may include intermediate-
+ *     compression depths above the atom-level reading (e.g. mobius
+ *     shows gyro torque → spinning ss torque → atom-level osis-base).
+ *   - S3/S5 SEPARATION RULE (2026-05-26 governance migration):
+ *     S5 chains own structural compressions only — the compositional
+ *     readings the canonical name compresses. They never overlap with
+ *     S3 (aliases_json, pure spelling/historical aliases) or S9
+ *     (equivalence-topology, alternate derivation paths). If a reading
+ *     is an alternate-derivation path with a different ADD breakdown,
+ *     it belongs in S9 only and the SE chain for that slug should be
+ *     omitted. If a reading is a pure spelling variant of the canonical
+ *     name, it belongs in S3 only.
  *   - sourceLabel rendering is 'editorial' const literal; never claims parser
  *     provenance.
  *   - curatorConfirmPending=true entries ship with the rendered pending flag
@@ -52,11 +72,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro torque', 'spinning ss torque', 'spinning ss miraging op osis'],
     curatorConfirmPending: false,   // curator-authored verbatim
   },
-  {
-    slug:     'toe-blur',
-    readings: ['quantum mirage'],
-    curatorConfirmPending: false,   // locked by Red pt2: "Toe Blur (3 ADD) = Quantum Mirage"
-  },
+  // toe-blur entry removed 2026-05-26 (S3/S5 governance migration): toe-blur
+  // is a pure alias of quantum-mirage (Red pt2), not a canonical trick — its
+  // SE chain entry never reached the detail-page render path. Dead data
+  // cleanup. Alias relationship preserved in S3 (freestyle_trick_aliases).
   {
     slug:     'ripwalk',
     readings: ['stepping butterfly'],
@@ -178,11 +197,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['paradox reverse drifter'],
     curatorConfirmPending: false,   // pt5-locked (= paradox grifter)
   },
-  {
-    slug:     'flurry',
-    readings: ['barraging legover'],
-    curatorConfirmPending: false,   // pt4-locked
-  },
+  // flurry entry removed 2026-05-26 (S3/S5 governance migration): flurry
+  // is an equivalent-derivation case (two valid structural paths converging
+  // on 4 ADD: barraging legover vs paradox paradox-legover). S9
+  // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
+  // S5 would duplicate one path and obscure the other.
   {
     slug:     'double-leg-over',
     readings: ['miraging legover'],
@@ -499,11 +518,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['ducking paradox whirl'],
     curatorConfirmPending: false,   // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' agree; row removed from UNRESOLVED_COMPOUNDS in this sweep
   },
-  {
-    slug:     'witchdoctor',
-    readings: ['atomic symposium mirage'],
-    curatorConfirmPending: true,   // FM 'Atomic Symposium Mirage' only (PB silent); structurally clean but single-source — pill remains in UNRESOLVED_COMPOUNDS pending PB corroboration or Red ruling
-  },
+  // witchdoctor entry removed 2026-05-26 (S3/S5 governance migration):
+  // "atomic symposium mirage" is a historical reading preserved in S9
+  // (EQUIVALENCE_TOPOLOGY) with role='historical'. S5 would compete with
+  // S9 for the same reading and confuse the canonical-primary
+  // ("atom-smasher + symposium") vs historical-context relationship.
   // ── Path A — Slice X follow-on (2026-05-17) ────────────────────────────
   // 5 additional chain entries for existing IFPA rows lacking chains. All
   // structurally clean (operators in IFPA registry; bases in IFPA core
@@ -630,7 +649,80 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['double around the world'],
     curatorConfirmPending: true,    // Canonical row at 3 ADD; doctrinally double(+1)+ATW(2)=3 per multiplier audit framework but 'double' operator not in modifier table — Red Wave 2 question on double-as-multiplier doctrine. Per CANONICALIZATION_POLICY.md §10 Productive Multiplicity Red pt3, double-around-the-world is stabilized canonical
   },
+
+  // ─── S3/S5 governance migration 2026-05-26 (atom-level rule) ──────────
+  // Three new chain entries that previously lived (wrongly) in
+  // aliases_json as structural compressions. Migrated to S5 per the
+  // S3/S5 separation rule, with atom-level expansion preferred over
+  // compressed-intermediary forms (e.g. blur's "blurry mirage" expands
+  // to "stepping paradox mirage" because "blurry" itself compresses
+  // "stepping + paradox").
+
+  {
+    slug:     'blur',
+    readings: ['stepping paradox mirage'],
+    // Atom-level expansion: blurry = stepping + paradox; mirage = core atom.
+    // The aliases_json value "blurry mirage" stopped at a compressed
+    // intermediary; atom-level rule prefers the fully expanded form.
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'avalanche',
+    readings: ['stepping ducking paradox illusion'],
+    // Atom-level: stepping/ducking/paradox = settled operators; illusion = core atom.
+    // Migrated from aliases_json (folk-name compression to 3-operator stack).
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'spike-hammer',
+    readings: ['stepping ducking paradox mirage'],
+    // Atom-level: structural twin of avalanche (mirage base instead of illusion).
+    // Migrated from aliases_json (folk-name compression to 3-operator stack).
+    curatorConfirmPending: false,
+  },
 ];
+
+/**
+ * PEDAGOGICAL_COMPRESSION_EXEMPLARS — slugs eligible for multi-depth
+ * S5 ladder treatment + new SE chain authoring. Membership is
+ * curator-locked; additions one-at-a-time by explicit curator decision.
+ *
+ * Criteria (any one qualifies):
+ *   - historically important compression that taught a generation
+ *   - unusually educational reading-depth ladder
+ *   - flagship structural-compression exemplar in glossary §composition
+ *
+ * Two distinct cohorts overlap with this set but serve different
+ * surfaces:
+ *   - FAMOUS_COMPRESSION_SLUGS (in freestyleService.ts) gates the
+ *     lightweight S8 "Compressed from" line on detail pages
+ *   - PEDAGOGICAL_COMPRESSION_EXEMPLARS (this set) gates S5 depth-
+ *     ladder authoring permission
+ * Some slugs are in both (mobius, ripwalk, atom-smasher); some only
+ * in this set (blur, barrage, paradox-mirage); some only in FAMOUS
+ * (smear, eggbeater — they don't need ladder depth beyond a single
+ * compositional reading).
+ *
+ * Curator-locked: do NOT expand this set for ontology-completeness
+ * reasons. This is pedagogy, not enumeration.
+ */
+export const PEDAGOGICAL_COMPRESSION_EXEMPLARS: ReadonlySet<string> = new Set([
+  'mobius',          // 3-depth ladder authored; flagship glossary example
+  'ripwalk',         // single-depth today; depth expansion deferred
+  'atom-smasher',    // single-depth today; depth expansion deferred
+  'blur',            // single-depth at atom level (stepping paradox mirage)
+  'barrage',         // no chain yet; reserved for future curator authoring
+  'paradox-mirage',  // tautological entry today; depth-ladder authoring deferred
+]);
+
+/**
+ * Returns true when the slug is curator-approved for multi-depth S5
+ * ladder treatment. Used by future depth-expansion slices to gate
+ * chain edits that add depths > 1.
+ */
+export function isPedagogicalCompressionExemplar(slug: string): boolean {
+  return PEDAGOGICAL_COMPRESSION_EXEMPLARS.has(slug.trim().toLowerCase());
+}
 
 /**
  * Look up a chain by canonical slug. O(n) is fine at this corpus size.

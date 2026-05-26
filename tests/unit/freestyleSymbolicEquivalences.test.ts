@@ -71,10 +71,15 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
     expect(getSymbolicEquivalenceChain('smog')?.readings).toEqual(['pixie double legover']);
   });
 
-  it('NR-1 royale + flurry + dlo', () => {
+  it('NR-1 royale + dlo (flurry SE chain removed 2026-05-26 per S3/S5 governance migration)', () => {
     expect(getSymbolicEquivalenceChain('royale')?.readings).toEqual(['paradox reverse drifter']);
-    expect(getSymbolicEquivalenceChain('flurry')?.readings).toEqual(['barraging legover']);
     expect(getSymbolicEquivalenceChain('double-leg-over')?.readings).toEqual(['miraging legover']);
+    // flurry's chain was removed as part of the 2026-05-26 S3/S5 slot
+    // governance migration. flurry is an equivalent-derivation case
+    // (two valid paths converge on 4 ADD) owned exclusively by S9
+    // (EQUIVALENCE_TOPOLOGY); S5 would duplicate one path and obscure
+    // the other.
+    expect(getSymbolicEquivalenceChain('flurry')).toBeNull();
   });
 
   it('NR-1 surging-family (pt2): surge / surreal / surgery / venom / bigwalk', () => {
@@ -97,8 +102,9 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 
   it('all NR-1 entries are flagged curator-confirmed (not pending)', () => {
+    // flurry removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)
     const nr1Slugs = [
-      'flail', 'smudge', 'smoke', 'smog', 'royale', 'flurry', 'double-leg-over',
+      'flail', 'smudge', 'smoke', 'smog', 'royale', 'double-leg-over',
       'surge', 'surreal', 'surgery', 'venom', 'bigwalk',
       'plasma', 'fusion', 'grave-digger', 'nemesis', 'atomic-torque',
     ];
@@ -169,13 +175,12 @@ describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain addit
     expect(chain?.curatorConfirmPending).toBe(false);
   });
 
-  it('witchdoctor resolves to atomic symposium mirage (FM only — curatorConfirmPending=true)', () => {
-    const chain = getSymbolicEquivalenceChain('witchdoctor');
-    expect(chain).not.toBeNull();
-    expect(chain?.readings).toEqual(['atomic symposium mirage']);
-    // FM is the only source — pill stays in UNRESOLVED_COMPOUNDS;
-    // chain entry is provisional pending PB or Red corroboration.
-    expect(chain?.curatorConfirmPending).toBe(true);
+  it('witchdoctor SE chain removed 2026-05-26 (S3/S5 governance migration; S9 sole owner)', () => {
+    // "atomic symposium mirage" is a historical equivalent-derivation
+    // reading preserved in S9 (EQUIVALENCE_TOPOLOGY) with role='historical'.
+    // S5 would compete with S9 for the same reading and confuse the
+    // canonical-primary vs historical-context relationship.
+    expect(getSymbolicEquivalenceChain('witchdoctor')).toBeNull();
   });
 });
 
