@@ -875,3 +875,13 @@ pixie-barrage,notation,,PIXIE BARRAGE,W3a 2026-05-27: JOB per mechanical upperca
 pixie-barrage,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL],"W3a 2026-05-27: pixie chassis + barrage's OP-IN/SAME-IN double-dex. 4 brackets matches 4 ADD. Distinct from Terraging (Double Pixie) — barrage's first dex is OP IN, not SAME IN."
 pixie-symposium-whirl,notation,,PIXIE SYMPOSIUM WHIRL,W3a 2026-05-27: JOB per mechanical uppercase rule.
 pixie-symposium-whirl,operational_notation,,TOE > SAME IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W3a 2026-05-27: pixie chassis + symposium-whirl's no-plant body event + IN-dex + cross-body clipper terminal. 5 brackets matches 5 ADD.
+pixie-symposium-eggbeater,notation,,PIXIE SYMPOSIUM EGGBEATER,W3b 2026-05-27: JOB per mechanical uppercase rule.
+pixie-symposium-eggbeater,operational_notation,,TOE > SAME IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W3b 2026-05-27: pixie-symposium-mirage chassis + eggbeater's two-OP-OUT-dex chain. 5 brackets matches 5 ADD.
+pixie-symposium-illusion,notation,,PIXIE SYMPOSIUM ILLUSION,W3b 2026-05-27: JOB per mechanical uppercase rule.
+pixie-symposium-illusion,operational_notation,,TOE > SAME IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W3b 2026-05-27: pixie-symposium-mirage chassis with illusion's OP OUT dex + op-toe terminator. 4 brackets matches 4 ADD.
+pixie-double-leg-over,notation,,PIXIE DOUBLE LEG OVER,W3b 2026-05-27: JOB per mechanical uppercase rule.
+pixie-double-leg-over,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W3b 2026-05-27: pixie set + double-leg-over chassis. 4 brackets matches 4 ADD.
+pixie-ducking-clipper,notation,,PIXIE DUCKING CLIPPER,W3b 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-clipper,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP CLIP [XBD] [DEL],W3b 2026-05-27: phoenix/assassin chassis with clipper-stall terminal. 4 brackets matches 4 ADD.
+pixie-ducking-illusion,notation,,PIXIE DUCKING ILLUSION,W3b 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-illusion,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP TOE [DEL],W3b 2026-05-27: phoenix/assassin chassis with illusion's OP OUT dex + op-toe terminator. 4 brackets matches 4 ADD.
