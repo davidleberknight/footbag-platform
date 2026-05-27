@@ -917,3 +917,53 @@ fairy-flail,notation,,FAIRY FLAIL,W5a 2026-05-27: JOB per mechanical uppercase r
 fairy-flail,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + flail chassis. 4 brackets matches 4 ADD.
 fairy-barrage,notation,,FAIRY BARRAGE,W5a 2026-05-27: JOB per mechanical uppercase rule.
 fairy-barrage,operational_notation,,TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + barrage's SAME IN double-dex chain. 4 brackets matches 4 ADD.
+fairy-double-leg-over,notation,,FAIRY DOUBLE LEG OVER,W5b 2026-05-27: JOB per mechanical uppercase rule.
+fairy-double-leg-over,operational_notation,,TOE > SAME OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-double-leg-over chassis. 4 brackets matches 4 ADD.
+fairy-symposium-mirage,notation,,FAIRY SYMPOSIUM MIRAGE,W5b 2026-05-27: JOB per mechanical uppercase rule.
+fairy-symposium-mirage,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-mirage chassis. 4 brackets matches 4 ADD.
+fairy-symposium-eggbeater,notation,,FAIRY SYMPOSIUM EGGBEATER,W5b 2026-05-27: JOB per mechanical uppercase rule.
+fairy-symposium-eggbeater,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-eggbeater chassis. 5 brackets matches 5 ADD.
+fairy-symposium-whirl,notation,,FAIRY SYMPOSIUM WHIRL,W5b 2026-05-27: JOB per mechanical uppercase rule.
+fairy-symposium-whirl,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W5b 2026-05-27: fairy direction-flip of pixie-symposium-whirl chassis. 5 brackets matches 5 ADD.
+fairy-diving-butterfly,notation,,FAIRY DIVING BUTTERFLY,W5b 2026-05-27: JOB per mechanical uppercase rule.
+fairy-diving-butterfly,operational_notation,,TOE > SAME OUT [DEX] >> DIVE [BOD] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],W5b 2026-05-27: fairy direction-flip of darkwalk chassis. 5 brackets matches 5 ADD.
+fairy-swirl,notation,,FAIRY SWIRL,W5c 2026-05-27: JOB per mechanical uppercase rule.
+fairy-swirl,operational_notation,,TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W5c 2026-05-27: fairy set + swirl chassis. 4 brackets matches 4 ADD.
+fairy-eclipse,notation,,FAIRY ECLIPSE,W5c 2026-05-27: JOB per mechanical uppercase rule.
+fairy-eclipse,operational_notation,,TOE > SAME OUT [DEX] (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL],W5c 2026-05-27: fairy direction-flip of pixie-eclipse chassis. 4 brackets matches 4 ADD.
+fairy-ducking-clipper,notation,,FAIRY DUCKING CLIPPER,W5c 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-clipper,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP CLIP [XBD] [DEL],W5c 2026-05-27: fairy direction-flip of pixie-ducking-clipper chassis. 4 brackets matches 4 ADD.
+fairy-ducking-illusion,notation,,FAIRY DUCKING ILLUSION,W5c 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-illusion,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP TOE [DEL],W5c 2026-05-27: fairy direction-flip of pixie-ducking-illusion chassis. 4 brackets matches 4 ADD.
+fairy-ducking-osis,notation,,FAIRY DUCKING OSIS,W5c 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-osis,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W5c 2026-05-27: fairy direction-flip of pixie-ducking-osis chassis. Double [BOD] per stepping-ducking-osis precedent. 5 brackets matches 5 ADD.
+fairy-ducking-whirl,notation,,FAIRY DUCKING WHIRL,W5d 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-whirl,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL],W5d 2026-05-27: fairy direction-flip of pixie-ducking-whirl chassis. 5 brackets matches 5 ADD.
+fairy-ducking-blender,notation,,FAIRY DUCKING BLENDER,W5d 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-blender,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W5d 2026-05-27: phoenix chassis + blender's back-spin + same-clip terminal. 6 brackets matches 6 ADD.
+fairy-ducking-double-leg-over,notation,,FAIRY DUCKING DOUBLE LEG OVER,W5d 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-double-leg-over,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W5d 2026-05-27: phoenix chassis + double-leg-over dexes + same-toe terminal. 5 brackets matches 5 ADD.
+fairy-ducking-torque,notation,,FAIRY DUCKING TORQUE,W5d 2026-05-27: JOB per mechanical uppercase rule.
+fairy-ducking-torque,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W5d 2026-05-27: phoenix chassis + torque chassis (op-clip terminal). 6 brackets matches 6 ADD.
+fairy-gyro-butterfly,notation,,FAIRY GYRO BUTTERFLY,W5d 2026-05-27: JOB per mechanical uppercase rule.
+fairy-gyro-butterfly,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W5d 2026-05-27: gyro-butterfly chassis with fairy TOE+dex prefix. 5 brackets matches 5 ADD.
+fairy-paradon,notation,,FAIRY PARADON,W5e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-paradon,operational_notation,,TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W5e 2026-05-27: fairy set + paradon chassis. 5 brackets matches 5 ADD.
+fairy-spinning-butterfly,notation,,FAIRY SPINNING BUTTERFLY,W5e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-spinning-butterfly,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W5e 2026-05-27: spinning-butterfly chassis with fairy TOE+dex prefix. 5 brackets matches 5 ADD.
+fairy-spinning-osis,notation,,FAIRY SPINNING OSIS,W5e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-spinning-osis,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W5e 2026-05-27: spinning-osis chassis (double back-spin) with fairy prefix. 5 brackets matches 5 ADD.
+fairy-gyro-whirl,notation,,FAIRY GYRO WHIRL,W5e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-gyro-whirl,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP CLIP [XBD] [DEL],W5e 2026-05-27: gyro-whirl chassis with fairy prefix. 5 brackets matches 5 ADD.
+fairy-double-pickup,notation,,FAIRY DOUBLE PICKUP,W5e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-double-pickup,operational_notation,,TOE > SAME OUT [DEX] > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL],W5e 2026-05-27: double-pickup chassis with fairy prefix. 4 brackets matches 4 ADD.
+fairy-spinning-mirage,notation,,FAIRY SPINNING MIRAGE,W5f 2026-05-27: JOB per mechanical uppercase rule.
+fairy-spinning-mirage,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],W5f 2026-05-27: spinning chassis + mirage IN-dex + toe terminator. 4 brackets matches 4 ADD.
+fairy-spinning-illusion,notation,,FAIRY SPINNING ILLUSION,W5f 2026-05-27: JOB per mechanical uppercase rule.
+fairy-spinning-illusion,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP OUT [DEX] > OP TOE [DEL],W5f 2026-05-27: spinning chassis + illusion OUT-dex + toe terminator. 4 brackets matches 4 ADD.
+fairy-spinning-blender,notation,,FAIRY SPINNING BLENDER,W5f 2026-05-27: JOB per mechanical uppercase rule.
+fairy-spinning-blender,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W5f 2026-05-27: double-back-spin chain (spinning's spin + blender's own spin). 6 brackets matches 6 ADD.
+fairy-gyro-mirage,notation,,FAIRY GYRO MIRAGE,W5f 2026-05-27: JOB per mechanical uppercase rule.
+fairy-gyro-mirage,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL],W5f 2026-05-27: gyro-mirage chassis with fairy prefix. 4 brackets matches 4 ADD.
+fairy-double-over-down,notation,,FAIRY DOUBLE OVER DOWN,W5f 2026-05-27: JOB per mechanical uppercase rule.
+fairy-double-over-down,operational_notation,,TOE > SAME OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W5f 2026-05-27: double-over-down chassis with fairy prefix. 5 brackets matches 5 ADD.
