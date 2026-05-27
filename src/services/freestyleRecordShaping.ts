@@ -27,7 +27,21 @@ export interface FreestyleRecordViewModel {
   videoTimecode: string | null;
 }
 
+/**
+ * Excel-epoch placeholder dates (1905-MM-DD) appear in upstream records_master.csv
+ * when the source had a date cell formatted but unfilled. Footbag did not exist
+ * before 1970, so any record with an earlier year is a placeholder, not a real
+ * achievement date. Treat as unknown at the presentation layer; the underlying
+ * row is preserved.
+ */
+function dateIsPlaceholder(iso: string | null): boolean {
+  if (!iso) return false;
+  const year = Number(iso.slice(0, 4));
+  return Number.isFinite(year) && year < 1970;
+}
+
 export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordViewModel {
+  const placeholderDate = dateIsPlaceholder(row.achieved_date);
   return {
     id:              row.id,
     holderName:      row.holder_name,
@@ -37,8 +51,8 @@ export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordVi
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,
-    achievedDate:    row.achieved_date,
-    dateApproximate: row.date_precision !== 'day',
+    achievedDate:    placeholderDate ? null : row.achieved_date,
+    dateApproximate: !placeholderDate && row.date_precision !== 'day',
     videoUrl:        row.video_url,
     videoTimecode:   row.video_timecode,
   };
