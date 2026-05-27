@@ -270,14 +270,15 @@ describe('Item 4: glossary has Jobs notation section with archive reference', ()
 
 // ── Items 5 + 6 + 8 — cloud-kick page contract ───────────────────────────
 describe('Items 5 + 6 + 8: cloud-kick formula rows', () => {
-  it('renders the ADD breakdown as UNS(1) = 1 ADD (no "unusual surface" long form)', async () => {
+  it('renders the ADD breakdown as UNS(1) (no "unusual surface" long form)', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/cloud-kick');
     expect(res.status).toBe(200);
-    // Handlebars HTML-escapes the `=` inside <code>, so the literal
-    // bytes are `UNS(1) &#x3D; 1 ADD`. Match either form.
-    expect(res.text).toMatch(/UNS\(1\)\s*(?:=|&#x3D;)\s*1 ADD/);
-    expect(res.text).not.toMatch(/unusual surface\(\d+\)\s*(?:=|&#x3D;)\s*\d+\s*ADD/);
+    // Slice D 2026-05-26: the `= 1 ADD` terminator is stripped from
+    // trick-detail breakdowns; the hero ADD chip carries the total.
+    // Still pin uppercase UNS and absence of the "unusual surface" long form.
+    expect(res.text).toMatch(/UNS\(1\)/);
+    expect(res.text).not.toMatch(/unusual surface\(\d+\)/);
   });
 
   it('does not duplicate the operational formula in a compound-description slot', async () => {
@@ -391,7 +392,8 @@ describe('Item 9: double-around-the-world + double-leg-over formula rows', () =>
     // structural assertion ("right tokens, right order"), not a text
     // substring assertion.
     expect(res.text).toMatch(/>TOE<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);
-    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    // Slice D 2026-05-26: `= 3 ADD` stripped from trick-detail breakdowns.
+    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
   it('double-leg-over renders JOB + ADD formulas from the resolved-formulas override', async () => {
@@ -399,18 +401,18 @@ describe('Item 9: double-around-the-world + double-leg-over formula rows', () =>
     const res = await request(app).get('/freestyle/tricks/double-leg-over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/>SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</);
-    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 });
 
 // ── Item 10 — flying-clipper BOD accounting ──────────────────────────────
 describe('Item 10: flying-clipper ADD accounting uses BOD(1)', () => {
-  it('renders BOD(1) + clipper(1) = 2 ADD on the flying-clipper detail page', async () => {
+  it('renders BOD(1) + clipper(1) on the flying-clipper detail page (Slice D: terminator stripped)', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/flying-clipper');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/BOD\(1\)\s*\+\s*clipper\(1\)\s*(?:=|&#x3D;)\s*2 ADD/);
+    expect(res.text).toMatch(/BOD\(1\)\s*\+\s*clipper\(1\)/);
     // The old flying(+1) form must not appear in user-facing displays.
-    expect(res.text).not.toMatch(/flying\(\+1\)\s*\+\s*clipper\(1\)\s*(?:=|&#x3D;)\s*2 ADD/);
+    expect(res.text).not.toMatch(/flying\(\+1\)\s*\+\s*clipper\(1\)/);
   });
 });

@@ -261,8 +261,9 @@ describe('First-class rendering parity — osis golden', () => {
     expect(card).toContain('dict-card-first-class-row');
     // JOB row carries curator-authored operational chain
     expect(card).toMatch(/JOB:[\s\S]+\[set\][\s\S]+spin/);
-    // ADD row carries atomic flag-decomposition
-    expect(card).toContain('spin(1) + xbod(1) + stall(1) &#x3D; 3 ADD');
+    // ADD row carries atomic flag-decomposition (Slice D 2026-05-26: `= N
+    // ADD` terminator stripped; the hero/registry ADD chip is the total).
+    expect(card).toContain('spin(1) + xbod(1) + stall(1)');
     // NOT in incomplete-state
     expect(card).not.toContain('dict-card-first-class-line--incomplete');
     expect(card).not.toContain('notation pending');
@@ -317,8 +318,10 @@ describe('First-class rendering parity — honest incomplete-state', () => {
   // RESOLVED_FORMULAS_SPRINT_1. Only paradox-mirage and atomic-butterfly
   // remain JOB-pending in this cohort.
   it.each([
-    ['paradox-mirage',   'paradox(+1) + mirage(2) &#x3D; 3 ADD'],
-    ['atomic-butterfly', 'atomic(+1) + butterfly(3) &#x3D; 4 ADD'],
+    // Slice D 2026-05-26: `= N ADD` terminator stripped on browse + detail
+    // breakdowns; the hero/registry ADD chip carries the total.
+    ['paradox-mirage',   'paradox(+1) + mirage(2)'],
+    ['atomic-butterfly', 'atomic(+1) + butterfly(3)'],
   ])('%s renders ADD breakdown + honest "JOB: notation pending" line', async (slug, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
@@ -381,7 +384,7 @@ describe('First-class rendering parity — slug/alias variations do not suppress
     // earlier shaping path that compared notation against canonical
     // name could in theory miscategorize ripwalk. Assert the data
     // survives all the way to render.
-    expect(card).toContain('stepping(+1) + butterfly(3) &#x3D; 4 ADD');
+    expect(card).toContain('stepping(+1) + butterfly(3)');
   });
 });
 
@@ -400,12 +403,14 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
   // fires when opNotationRaw is empty AND the atomic-chain fallback
   // supplies the chain (a path no longer reached for atoms with
   // CORE_TRICK_SPEC entries).
+  // Slice D 2026-05-26: `= N ADD` terminator stripped from ADD breakdowns
+  // (hero/registry ADD chip is the authoritative total).
   it.each([
-    ['toe-stall',  '[set] &gt; toe',                                  'stall(1) &#x3D; 1 ADD'],
-    ['mirage',     '[set] &gt; hippy in dex &gt; op toe',             'dex(1) + stall(1) &#x3D; 2 ADD'],
-    ['whirl',      '[set] &gt; leggy in dex &gt; ss clipper',         'xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD'],
-    ['butterfly',  '[set] &gt; hippy out dex &gt; ss clipper',        'dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD'],
-    ['swirl',      '[set] &gt; leggy (xbd) out dex &gt; ss clipper',  'xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD'],
+    ['toe-stall',  '[set] &gt; toe',                                  'stall(1)'],
+    ['mirage',     '[set] &gt; hippy in dex &gt; op toe',             'dex(1) + stall(1)'],
+    ['whirl',      '[set] &gt; leggy in dex &gt; ss clipper',         'xbody(1) + dex(1) + stall(1)'],
+    ['butterfly',  '[set] &gt; hippy out dex &gt; ss clipper',        'dex(1) + xbody(1) + stall(1)'],
+    ['swirl',      '[set] &gt; leggy (xbd) out dex &gt; ss clipper',  'xbody(1) + dex(1) + stall(1)'],
   ])('%s renders JOB + ADD rows in the first-class summary (full parity)', async (slug, expectedJobText, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
@@ -437,11 +442,12 @@ describe('First-class cohort expansion — Tier 1 compound (pendulum)', () => {
 });
 
 describe('First-class cohort expansion — Tier 2 new promotions', () => {
+  // Slice D 2026-05-26: `= N ADD` terminator stripped.
   it.each([
-    ['ducking-butterfly',       'ducking(+1) + butterfly(3) &#x3D; 4 ADD'],
-    ['spinning-butterfly',      'spinning(+1) + butterfly(3) &#x3D; 4 ADD'],
-    ['stepping-osis',           'stepping(+1) + osis(3) &#x3D; 4 ADD'],
-    ['paradox-symposium-whirl', 'paradox(+1) + symposium(+1) + whirl(3) &#x3D; 5 ADD'],
+    ['ducking-butterfly',       'ducking(+1) + butterfly(3)'],
+    ['spinning-butterfly',      'spinning(+1) + butterfly(3)'],
+    ['stepping-osis',           'stepping(+1) + osis(3)'],
+    ['paradox-symposium-whirl', 'paradox(+1) + symposium(+1) + whirl(3)'],
   ])('%s renders ADD breakdown + honest JOB-pending line', async (slug, expectedAddSubstring) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
@@ -460,7 +466,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     expect(card).toMatch(/data-token-slug="atomic"/);
     expect(card).toMatch(/data-token-slug="legover"/);
     // ADD breakdown wires through.
-    expect(card).toContain('atomic(+1) + legover(2) &#x3D; 3 ADD');
+    expect(card).toContain('atomic(+1) + legover(2)');
     // Job notation pending (eggbeater has no curator op-notation).
     expect(card).toContain('notation pending');
   });

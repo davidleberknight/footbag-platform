@@ -11,9 +11,13 @@
   rendered (curator-internal language).
 
   Per the 4-tier rendering hierarchy contract: Tier-4 patterns
-  (xbody(N), dex(N), stall(N), spin(N), BOD(N), UNS(N), '= N ADD')
-  appear ONLY on trick-detail pages + /freestyle/add-analysis; browse
-  cards + landing forbid them via test-pinned absence.
+  (xbody(N), dex(N), stall(N), spin(N), BOD(N), UNS(N)) appear ONLY on
+  trick-detail pages + /freestyle/add-analysis; browse cards + landing
+  forbid them via test-pinned absence. Slice D 2026-05-26: the trailing
+  '= N ADD' terminator is stripped from trick-detail derivations (the
+  hero ADD chip carries the total); the terminator is preserved on
+  /freestyle/add-analysis worked-examples and glossary §formulas where
+  it serves a teaching role.
 --}}
 {{#if content.addAnalysis}}
 <section class="content-section trick-add-analysis" aria-label="ADD derivation">

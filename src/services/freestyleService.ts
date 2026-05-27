@@ -1954,7 +1954,7 @@ export interface FreestyleTrickIndexRow {
   recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
   hasMedia: boolean;            // back-compat boolean; equals (mediaCoverage !== 'none')
   mediaCoverage: TrickMediaCoverage;  // tier-aware coverage classification
-  mediaCoverageLabel: string;   // pre-shaped chip text: 'Tutorial available' / 'Demo only' / 'No video yet'
+  mediaCoverageLabel: string;   // pre-shaped chip text: 'Tutorial available' / 'Demo available' / '' (none)
   isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
   statusBadge: string | null;   // pre-shaped status text; null for plain canonical rows
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
@@ -2029,7 +2029,7 @@ export interface DictionaryTrickCard {
   hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
   hasReferenceMedia:          boolean;                       // true when any tutorial/demo media exists
   mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
-  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo only' / 'No video yet'
+  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo available' / '' (none)
   trickFamily:                string | null;                 // reserved for future family-axis affordance
   // Slice M (2026-05-16): curator-authored flag for folk-derived /
   // mechanically-ambiguous rows. Drives a small italic pill on the
@@ -2502,7 +2502,10 @@ export interface FreestyleTricksIndexContent {
   /** DL-1+2+5 landing-surface refresh (2026-05-26): 3-band conceptual grid
    *  rendered above the inline view-toggle when on the default landing view.
    *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
-   *  a lens question + count + 3 micro-example chips + optional cross-link. */
+   *  a lens question + count + full-enumeration chip preview + optional
+   *  cross-link. Chips densified 2026-05-26 (Slice B): each card surfaces
+   *  ALL labels in its enumeration (wrapped-chip form) so the landing feels
+   *  encyclopedic and navigable rather than truncated. */
   landingGrid: DictionaryLandingGrid;
 }
 
@@ -3336,11 +3339,21 @@ function resolveOperationalNotationRaw(
  *  trick-detail then silently omits the disclosure section. Provenance
  *  is intentionally NOT included in the disclosure (curator-internal
  *  language; see [[feedback_public_facing_prose]]). */
+/** Slice D 2026-05-26: strip the trailing `= N ADD` from a curator-published
+ *  derivation string. The hero ADD chip (`{adds} ADD`) is the authoritative
+ *  ADD display on trick-detail + first-class browse cards; the breakdown row
+ *  carries the operator-by-operator math without restating the total. The
+ *  /freestyle/add-analysis worked-examples and glossary §formulas
+ *  intentionally keep the terminator (teaching surfaces; out of scope). */
+function stripDerivationAddTerminator(s: string): string {
+  return s.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
+}
+
 function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null {
   const formula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
   if (!formula) return null;
   return {
-    derivation: formula.derivation,
+    derivation: stripDerivationAddTerminator(formula.derivation),
     totalAdd:   formula.totalAdd,
   };
 }
@@ -4299,10 +4312,10 @@ function shapeComparativeNotation(
   let addBreakdown: string;
   let addBreakdownSource: ComparativeNotationRow['addBreakdownSource'];
   if (published) {
-    addBreakdown = published.derivation;
+    addBreakdown = stripDerivationAddTerminator(published.derivation);
     addBreakdownSource = 'curator';
   } else if (atomicDecomp) {
-    addBreakdown = atomicDecomp.decomposition;
+    addBreakdown = stripDerivationAddTerminator(atomicDecomp.decomposition);
     addBreakdownSource = 'atomic';
   } else {
     return null;  // shouldn't happen — convergence check should have rejected
@@ -4336,7 +4349,7 @@ function shapeComparativeNotation(
   // stays uncluttered. rev(0) adds 0 ADD, so the total equals the base.
   const transformEntry = getReversePairTransform(slug);
   const altFormula: string | null = transformEntry
-    ? `rev(0) + ${transformEntry.baseName}(${officialAdd}) = ${officialAdd} ADD`
+    ? `rev(0) + ${transformEntry.baseName}(${officialAdd})`
     : null;
 
   return {
@@ -4560,9 +4573,9 @@ function shapeDictionaryTrickCard(
       }
     }
     if (published) {
-      firstClassAddBreakdown = published.derivation;
+      firstClassAddBreakdown = stripDerivationAddTerminator(published.derivation);
     } else if (atomic) {
-      firstClassAddBreakdown = atomic.decomposition;
+      firstClassAddBreakdown = stripDerivationAddTerminator(atomic.decomposition);
     }
   }
 
@@ -4651,10 +4664,14 @@ function shapeTrickIndexRow(
     recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
     mediaCoverage,
+    // Slice C 2026-05-26: vocabulary normalized to `Tutorial available` /
+    // `Demo available`. The 'none' branch returns '' because the card
+    // partial gates the chip block on `hasReferenceMedia` — the prior
+    // 'No video yet' string was unreachable noise.
     mediaCoverageLabel:
       mediaCoverage === 'tutorial' ? 'Tutorial available'
-      : mediaCoverage === 'demo'   ? 'Demo only'
-      :                              'No video yet',
+      : mediaCoverage === 'demo'   ? 'Demo available'
+      :                              '',
     isExternalOnly,
     statusBadge,
     placeholderNote,
@@ -4879,8 +4896,9 @@ function buildHeroFormula(
     weight:  baseAdds ? `(${baseAdds})` : null,
     cssRole: 'core-family',
   });
-  tokens.push({ kind: 'operator', text: '=', weight: null, cssRole: null });
-  tokens.push({ kind: 'result', text: `${numericAdds} ADD`, weight: null, cssRole: null });
+  // Slice D 2026-05-26: drop the `=` operator + `result` (`N ADD`) tokens.
+  // The hero ADD chip (`{adds} ADD`) already carries the total; the formula
+  // row shows the operator-by-operator math without restating the result.
   return tokens;
 }
 
@@ -6921,6 +6939,21 @@ export const freestyleService = {
         .filter(r => r.trick_family && r.trick_family !== '')
         .map(r => r.trick_family),
     ).size;
+    const dexChipLabel = (dexCount: number | null): string =>
+      dexCount === null ? 'Unknown'
+      : dexCount === 0  ? '0 dex'
+      : dexCount === 1  ? '1 dex'
+      : dexCount === 2  ? '2 dex'
+      : '3+ dex';
+    const axisChipLabel = (axisKey: string, axisName: string): string => {
+      switch (axisKey) {
+        case 'set-uptime':          return 'Set/Uptime';
+        case 'entry-topology':      return 'Entry';
+        case 'midtime-body':        return 'Midtime Body';
+        case 'no-plant-suspension': return 'No-Plant';
+        default:                    return axisName;
+      }
+    };
     const landingGrid: DictionaryLandingGrid = {
       bands: [
         {
@@ -6932,7 +6965,7 @@ export const freestyleService = {
               count:        addGroups.length,
               countSuffix:  'difficulty buckets',
               lensQuestion: 'How layered is the trick?',
-              chips:        ['1 ADD', '4 ADD', '7 ADD'],
+              chips:        addGroups.map(g => g.addLabel),
             },
             {
               label:        'By dex count',
@@ -6940,7 +6973,7 @@ export const freestyleService = {
               count:        dexCountGroups.length,
               countSuffix:  'dex-count buckets',
               lensQuestion: 'How many dex events does it have?',
-              chips:        ['0 dex', '1 dex', '2 dex'],
+              chips:        dexCountGroups.map(g => dexChipLabel(g.dexCount)),
             },
           ],
         },
@@ -6953,7 +6986,7 @@ export const freestyleService = {
               count:        distinctFamilyCount,
               countSuffix:  'families',
               lensQuestion: 'What core movement topology does the trick inherit from?',
-              chips:        ['whirl', 'butterfly', 'mirage'],
+              chips:        familyGroups.map(g => g.familySlug),
             },
             {
               label:        'By set',
@@ -6961,7 +6994,7 @@ export const freestyleService = {
               count:        CANONICAL_SETS.length,
               countSuffix:  'canonical sets',
               lensQuestion: 'What entry launches the movement?',
-              chips:        ['pixie', 'fairy', 'atomic'],
+              chips:        CANONICAL_SETS.map(s => s.slug),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
             },
             {
@@ -6970,7 +7003,7 @@ export const freestyleService = {
               count:        MOVEMENT_SYSTEM_AXES.length,
               countSuffix:  'compositional axes',
               lensQuestion: 'What compositional systems shape the trick?',
-              chips:        ['Set/Uptime', 'Midtime Body', 'No-Plant'],
+              chips:        MOVEMENT_SYSTEM_AXES.map(a => axisChipLabel(a.axisKey, a.axisName)),
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
             },
             {
@@ -6979,7 +7012,7 @@ export const freestyleService = {
               count:        TOPOLOGY_GROUPS.length,
               countSuffix:  'neighborhoods',
               lensQuestion: 'Tricks that FEEL mechanically similar to perform.',
-              chips:        ['Whirl/swirl', 'Pixie uptime', 'Symposium clipper'],
+              chips:        TOPOLOGY_GROUPS.map(g => g.name),
               crossLink:    { label: 'Compare to By family for the canonical view.', href: '/freestyle/tricks?view=family' },
             },
           ],
@@ -6993,7 +7026,7 @@ export const freestyleService = {
               count:        TRACKED_UNPUBLISHED_TOTAL,
               countSuffix:  'tracked names',
               lensQuestion: 'Tracked but not yet promoted to canonical.',
-              chips:        ['PassBack', 'FB.org', 'Holden compilation'],
+              chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'],
             },
           ],
         },
@@ -7404,7 +7437,7 @@ export const freestyleService = {
       sourceOnly: {
         laneSlug:  'source-only',
         label:     'Source-only documented',
-        intro:     'Known names from FootbagMoves / PassBack / footbag.org without enough verified structure yet. Default lane for new observational entries.',
+        intro:     'Known names from FootbagMoves / PassBackFootbag / Footbag.org without enough verified structure yet. Default lane for new observational entries.',
         cards:     sourceOnlyCards,
         cardCount: sourceOnlyCards.length,
       },

@@ -122,26 +122,26 @@ describe('DATW + DLO + rev-whirl: rendered JOB + ADD per curator spec', () => {
     // The notation-summary card's JOB row renders the chain as plain
     // text inside <code> (HTML-escaped). Match the contiguous string.
     expect(res.text).toMatch(/TOE &gt; SAME IN \[DEX\] &gt; SAME IN \[DEX\] &gt; SAME TOE \[DEL\]/);
-    // ADD breakdown.
-    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    // ADD breakdown (Slice D 2026-05-26: `= N ADD` terminator stripped).
+    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('DLO renders JOB "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1) = 3 ADD"', async () => {
+  it('DLO renders JOB "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/double-leg-over');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/SET &gt; OP IN \[DEX\] &gt; OP OUT \[DEX\] &gt; SAME TOE \[DEL\]/);
-    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('rev-whirl renders JOB "CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]" + ADD "xbody(1) + dex(1) + stall(1) = 3 ADD" + ALT "rev(0) + whirl(3) = 3 ADD"', async () => {
+  it('rev-whirl renders JOB + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
     expect(res.status).toBe(200);
     // JOB.
     expect(res.text).toMatch(/CLIP &gt; OP OUT \[DEX\] &gt; OP CLIP \[XBD\] \[DEL\]/);
     // ADD: structural decomposition, not the rev(0) reading.
-    expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)/);
     // ALT: rev formula, NOT in the ADD row.
-    expect(res.text).toMatch(/rev\(0\)\s*\+\s*whirl\(3\)\s*(?:=|&#x3D;)\s*3 ADD/);
+    expect(res.text).toMatch(/rev\(0\)\s*\+\s*whirl\(3\)/);
   });
 
   it('rev-whirl JOB row is NOT labelled "notation pending"', async () => {
@@ -258,17 +258,18 @@ describe('Compound-description slot leakage prevention', () => {
 
 // ── Token normalization: BOD + UNS uppercase ─────────────────────────────
 describe('Token normalization: BOD + UNS uppercase in ADD displays', () => {
+  // Slice D 2026-05-26: `= N ADD` terminator stripped from breakdowns.
   it('flying-inside renders ADD with uppercase BOD(1)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/flying-inside');
-    expect(res.text).toMatch(/BOD\(1\)\s*(?:=|&#x3D;)\s*1 ADD/);
+    expect(res.text).toMatch(/BOD\(1\)/);
     // The lowercase bod(1) form should not appear in ADD displays.
-    expect(res.text).not.toMatch(/>bod\(1\)\s*(?:=|&#x3D;)/);
+    expect(res.text).not.toMatch(/>bod\(1\)</);
   });
 
   it('cloud-kick renders ADD with uppercase UNS(1)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/cloud-kick');
-    expect(res.text).toMatch(/UNS\(1\)\s*(?:=|&#x3D;)\s*1 ADD/);
-    expect(res.text).not.toMatch(/unusual surface\(1\)\s*(?:=|&#x3D;)/);
+    expect(res.text).toMatch(/UNS\(1\)/);
+    expect(res.text).not.toMatch(/unusual surface\(1\)/);
   });
 });
 

@@ -921,8 +921,8 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   // DSC-2 slice 1 — symbolic trick card carries a small optional media chip
-  // ('Tutorial available' / 'Demo only') only when media is present. Tricks
-  // without media render no chip; the absence is the visual signal.
+  // ('Tutorial available' / 'Demo available') only when media is present.
+  // Tricks without media render no chip; the absence is the visual signal.
   // The card root also exposes data-media-coverage so tests can assert
   // tier classification without depending on chip text.
   it('renders a data-media-coverage attribute on every card', async () => {
@@ -948,11 +948,11 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Tutorial available');
   });
 
-  it('renders the "Demo only" chip when a trick has only demo-tier coverage', async () => {
+  it('renders the "Demo available" chip when a trick has only demo-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('dict-card-media-chip dict-card-media-chip--demo');
-    expect(res.text).toContain('Demo only');
+    expect(res.text).toContain('Demo available');
   });
 
   it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media (UNION fix)', async () => {

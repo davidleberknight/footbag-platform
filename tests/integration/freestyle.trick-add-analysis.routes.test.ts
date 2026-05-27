@@ -85,9 +85,11 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
     // Note: paradox-mirage may be first-class and render via the
     // Notation Summary instead; assert the derivation text is present
     // somewhere on the page rather than which container holds it.
+    // Slice D 2026-05-26: trailing `= 3 ADD` is stripped on trick-detail
+    // surfaces (the hero ADD chip is the authoritative total).
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\) (?:=|&#x3D;) 3 ADD/);
+    expect(res.text).toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
   });
 
   it('renders the curator-published derivation verbatim inside a <code> element', async () => {
@@ -95,7 +97,7 @@ describe('Trick-detail Tier-4 ADD block — resolved-formula slugs', () => {
     // Either the ADD-block dl OR the Notation Summary derivation slot
     // carries the derivation; assert presence within a <code> tag.
     expect(res.text).toMatch(
-      /<code[^>]*>paradox\(\+1\) \+ mirage\(2\) &#x3D; 3 ADD<\/code>/,
+      /<code[^>]*>paradox\(\+1\) \+ mirage\(2\)<\/code>/,
     );
   });
 
@@ -152,6 +154,10 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     for (const slug of FIRST_CLASS_PILOT_SLUGS) {
       sweep = sweep.replace(new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g'), '');
     }
+    // Slice D 2026-05-26: the `= 3 ADD` terminator is stripped from
+    // trick-detail + first-class browse breakdowns, so this negative
+    // assertion is now trivially satisfied; it still pins the contract
+    // that the Tier-4 derivation-fields class is browse-card-forbidden.
     expect(sweep).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
     expect(sweep).not.toMatch(/class="trick-add-analysis-fields"/);
   });
