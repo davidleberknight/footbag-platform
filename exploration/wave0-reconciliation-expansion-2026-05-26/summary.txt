@@ -1,0 +1,38 @@
+Wave 0 — Reconciliation expansion summary
+==================================================
+
+Per-file extraction:
+  footbagmoves-3adds.txt                 124 raw    120 unique-after-norm
+  footbagmoves-3-4adds.txt               187 raw    177 unique-after-norm
+  footbagmoves-4adds.txt                  94 raw     91 unique-after-norm
+  footbagmoves-5adds.txt                 246 raw    244 unique-after-norm
+  footbagmoves-5-6adds.txt               165 raw    165 unique-after-norm
+  footbagmoves-sample.txt                140 raw    140 unique-after-norm
+  passback-dicrionary.txt                519 raw    516 unique-after-norm
+  pb-dict2.txt                            41 raw     41 unique-after-norm
+  fborg-1add.txt                          34 raw     17 unique-after-norm
+  fborg-2add.txt                          26 raw     26 unique-after-norm
+  fborg-3add.txt                          60 raw     60 unique-after-norm
+  fborg-4add.txt                          90 raw     90 unique-after-norm
+  fborg-5add.txt                          59 raw     59 unique-after-norm
+  fborg-6add.txt                          22 raw     22 unique-after-norm
+  fborg-7add.txt                           6 raw      6 unique-after-norm
+  paradoxMoves.txt                        57 raw     57 unique-after-norm
+  pixieMoves.txt                          21 raw     21 unique-after-norm
+  gyroMoves.txt                            9 raw      9 unique-after-norm
+  blurryMoves.txt                         18 raw     18 unique-after-norm
+  fundamentalmoves.txt                    18 raw     18 unique-after-norm
+  moves-on-video.txt                      32 raw     32 unique-after-norm
+  paradox-tutorial.txt                     0 raw      0 unique-after-norm
+  footbag-sets-fborg.txt                  56 raw     55 unique-after-norm
+  chrisHoldenSets.txt                     55 raw     54 unique-after-norm
+  stanford-2.txt                         991 raw    991 unique-after-norm
+
+Corpus total unique normalized names: 2382
+Reconciliation index size:            3176
+Names in BOTH:                        2382
+Delta (corpus ∖ reconciliation):      0
+
+Delta by source attribution:
+
+First 30 delta entries (sample):
