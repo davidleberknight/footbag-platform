@@ -885,3 +885,13 @@ pixie-ducking-clipper,notation,,PIXIE DUCKING CLIPPER,W3b 2026-05-27: JOB per me
 pixie-ducking-clipper,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP CLIP [XBD] [DEL],W3b 2026-05-27: phoenix/assassin chassis with clipper-stall terminal. 4 brackets matches 4 ADD.
 pixie-ducking-illusion,notation,,PIXIE DUCKING ILLUSION,W3b 2026-05-27: JOB per mechanical uppercase rule.
 pixie-ducking-illusion,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP TOE [DEL],W3b 2026-05-27: phoenix/assassin chassis with illusion's OP OUT dex + op-toe terminator. 4 brackets matches 4 ADD.
+pixie-ducking-osis,notation,,PIXIE DUCKING OSIS,W3c 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-osis,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W3c 2026-05-27: phoenix/assassin chassis with osis's body-spin in the inner-dex slot. Double [BOD] per stepping-ducking-osis precedent. 5 brackets matches 5 ADD.
+pixie-ducking-whirl,notation,,PIXIE DUCKING WHIRL,W3c 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-whirl,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL],W3c 2026-05-27: phoenix/assassin chassis with whirl's IN-dex + cross-body clipper terminator. 5 brackets matches 5 ADD.
+pixie-diving-mirage,notation,,PIXIE DIVING MIRAGE,W3c 2026-05-27: JOB per mechanical uppercase rule.
+pixie-diving-mirage,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] >> OP IN [DEX] > OP TOE [DEL],W3c 2026-05-27: darkwalk chassis with mirage's OP IN dex + op-toe terminator. 4 brackets matches 4 ADD.
+pixie-diving-pickup,notation,,PIXIE DIVING PICKUP,W3c 2026-05-27: JOB per mechanical uppercase rule.
+pixie-diving-pickup,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] >> OP IN [DEX] > SAME TOE [DEL],W3c 2026-05-27: darkwalk chassis with pickup's same-toe terminator. 4 brackets matches 4 ADD.
+pixie-diving-whirl,notation,,PIXIE DIVING WHIRL,W3c 2026-05-27: JOB per mechanical uppercase rule.
+pixie-diving-whirl,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL],W3c 2026-05-27: darkwalk chassis with whirl's IN-dex + cross-body clipper terminator. 5 brackets matches 5 ADD.
