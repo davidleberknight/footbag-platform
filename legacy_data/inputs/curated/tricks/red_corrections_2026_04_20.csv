@@ -865,3 +865,13 @@ quantum-gyro-mirage,notation,,QUANTUM GYRO MIRAGE,W1g 2026-05-27: JOB per mechan
 quantum-gyro-mirage,operational_notation,,TOE > OP IN [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],W1g 2026-05-27: quantum-mirage chassis with gyro (back) SPIN [BOD] inserted between dexes. 4 brackets matches 4 ADD.
 pixie-quantum-butterfly,notation,,PIXIE QUANTUM BUTTERFLY,W1g 2026-05-27: JOB per mechanical uppercase rule.
 pixie-quantum-butterfly,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W1g 2026-05-27: pixie set leading + quantum dex + butterfly terminal. Holden 'Frantic (pixie-quantum)' set system underlies the chassis. 5 brackets matches 5 ADD.
+pixie-flail,notation,,PIXIE FLAIL,W3a 2026-05-27: JOB per mechanical uppercase rule.
+pixie-flail,operational_notation,,TOE > SAME IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W3a 2026-05-27: pixie chassis + flail's no-plant body event + OP OUT dex + toe terminator. 4 brackets matches 4 ADD.
+pixie-torque,notation,,PIXIE TORQUE,W3a 2026-05-27: JOB per mechanical uppercase rule.
+pixie-torque,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W3a 2026-05-27: pixie chassis + torque's IN-dex + back-spin + op-clip terminal. 5 brackets matches 5 ADD.
+pixie-blender,notation,,PIXIE BLENDER,W3a 2026-05-27: JOB per mechanical uppercase rule.
+pixie-blender,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W3a 2026-05-27: pixie chassis + blender chassis (SAME CLIP terminal vs torque's OP CLIP). 5 brackets matches 5 ADD.
+pixie-barrage,notation,,PIXIE BARRAGE,W3a 2026-05-27: JOB per mechanical uppercase rule.
+pixie-barrage,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL],"W3a 2026-05-27: pixie chassis + barrage's OP-IN/SAME-IN double-dex. 4 brackets matches 4 ADD. Distinct from Terraging (Double Pixie) — barrage's first dex is OP IN, not SAME IN."
+pixie-symposium-whirl,notation,,PIXIE SYMPOSIUM WHIRL,W3a 2026-05-27: JOB per mechanical uppercase rule.
+pixie-symposium-whirl,operational_notation,,TOE > SAME IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W3a 2026-05-27: pixie chassis + symposium-whirl's no-plant body event + IN-dex + cross-body clipper terminal. 5 brackets matches 5 ADD.
