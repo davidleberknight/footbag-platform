@@ -38,6 +38,7 @@ test('personal_details: future year rejected inline', async ({ browser, baseURL 
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
 

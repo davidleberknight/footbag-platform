@@ -8,6 +8,7 @@ import {
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
+  insertTag,
   insertClub,
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
@@ -191,7 +192,8 @@ export function seedMemberWithClubCards(
   const clubIds: string[] = [];
 
   for (let i = 0; i < count; i++) {
-    const clubId = insertClub(db, { id: `club-mc-${rand()}`, name: `Test Club ${i + 1}`, city: `City${i + 1}` });
+    const tagId = insertTag(db, { tag_normalized: `#club_e2e_${rand()}`, standard_type: 'club' });
+    const clubId = insertClub(db, { id: `club-mc-${rand()}`, hashtag_tag_id: tagId, name: `Test Club ${i + 1}`, city: `City${i + 1}` });
     clubIds.push(clubId);
 
     const candidateId = insertLegacyClubCandidate(db, {
@@ -242,7 +244,8 @@ export function seedMemberWithLeadershipCard(
   const slug = opts.slug ?? `ldr_${rand()}`;
   const legacyMemberId = `LM-LDR-${rand().toUpperCase()}`;
 
-  const clubId = insertClub(db, { id: `club-ldr-${rand()}`, name: 'Leader Club' });
+  const ldrTagId = insertTag(db, { tag_normalized: `#club_e2e_ldr_${rand()}`, standard_type: 'club' });
+  const clubId = insertClub(db, { id: `club-ldr-${rand()}`, hashtag_tag_id: ldrTagId, name: 'Leader Club' });
 
   createMemberAtTier(db, {
     id: memberId,

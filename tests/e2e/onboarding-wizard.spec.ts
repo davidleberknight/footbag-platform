@@ -11,10 +11,9 @@
 import { test, expect } from '@playwright/test';
 import {
   seedBrandNewPlayer,
-  seedMemberWithAutoLinkCandidate,
   seedMemberMidWizard,
   seedTier0Member,
-} from '../fixtures/personas';
+} from './helpers/onboarding';
 import { insertLegacyMember } from '../fixtures/factories';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
 import { WizardPage } from './pages/wizard.page';
@@ -125,6 +124,7 @@ test('complete personal_details via form fill -> advances to next task', async (
   await wizard.goto('personal_details');
   await expect(wizard.yearInput).toBeVisible();
   await page.locator('#city').fill('Portland');
+  await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
   expect(page.url()).toMatch(/\/register\/wizard\/complete/);

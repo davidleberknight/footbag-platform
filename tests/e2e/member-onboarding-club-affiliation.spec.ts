@@ -46,6 +46,7 @@ test('confirm membership card: resolves and advances', async ({ browser, baseURL
   const wizard = new WizardPage(page);
 
   await wizard.goto('club_affiliations');
+  await page.locator('input[name="activitySignal"][value="active"]').check();
   await wizard.clubYesButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
@@ -69,6 +70,7 @@ test('decline membership card: resolves and advances', async ({ browser, baseURL
   const wizard = new WizardPage(page);
 
   await wizard.goto('club_affiliations');
+  await page.locator('input[name="activitySignal"][value="not_active"]').check();
   await wizard.clubNoButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
@@ -156,6 +158,7 @@ test('multi-card flow: resolve first, see second with updated progress', async (
   const progressBefore = await wizard.clubProgressText.textContent();
   expect(progressBefore).toMatch(/2 clubs to review/i);
 
+  await page.locator('input[name="activitySignal"][value="active"]').check();
   await wizard.clubYesButton.click();
   await page.waitForURL(/\/register\/wizard\/club_affiliations/);
 

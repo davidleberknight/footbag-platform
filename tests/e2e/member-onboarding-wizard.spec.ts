@@ -121,6 +121,7 @@ test('personal_details: valid year saves to DB', async ({ browser, baseURL }) =>
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
   expect(page.url()).toContain('complete');
@@ -171,6 +172,7 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
+  await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('');
   await wizard.saveButton.click();
   await page.waitForURL(/\/register\/wizard\//);
