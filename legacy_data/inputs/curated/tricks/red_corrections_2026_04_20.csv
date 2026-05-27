@@ -1151,3 +1151,45 @@ spinning-superfly,notation,,SPINNING SUPERFLY,W9f 2026-05-27: JOB per mechanical
 spinning-superfly,operational_notation,,CLIP > (back) SPIN [BOD] >> (no plant while) SAME OUT [DEX] [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9f 2026-05-27: spinning prefix + superfly chain. 6 brackets matches 6 ADD.
 quantum-eclipse,notation,,QUANTUM ECLIPSE,W9f 2026-05-27: JOB per mechanical uppercase rule.
 quantum-eclipse,operational_notation,,TOE > OP IN [DEX] (JUMP) [BOD] > OP INSIDE [DEL] > OP TOE [DEL],W9f 2026-05-27: jump-class chassis + quantum's leading OP IN [DEX]. 4 brackets matches 4 ADD.
+ducking-paradox-torque,notation,,DUCKING PARADOX TORQUE,W9g 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-torque,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9g 2026-05-27: ducking-paradox chassis + torque chain. 6 brackets matches 6 ADD.
+ducking-paradox-symposium-mirage,notation,,DUCKING PARADOX SYMPOSIUM MIRAGE,W9h 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-symposium-mirage,operational_notation,,CLIP > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP TOE [DEL],W9h 2026-05-27: stepping-ducking-paradox-symposium-whirl chassis (strip stepping) + mirage terminal. 5 brackets matches 5 ADD.
+ducking-paradox-symposium-illusion,notation,,DUCKING PARADOX SYMPOSIUM ILLUSION,W9h 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-symposium-illusion,operational_notation,,CLIP > DUCK [BOD] > (no plant while) OP OUT [PDX] [BOD] [DEX] > OP TOE [DEL],W9h 2026-05-27: ducking-paradox-symposium chassis with OP OUT direction. 5 brackets matches 5 ADD.
+ducking-paradox-symposium-whirl,notation,,DUCKING PARADOX SYMPOSIUM WHIRL,W9h 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-symposium-whirl,operational_notation,,CLIP > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],W9h 2026-05-27: stepping-ducking-paradox-symposium-whirl with stepping stripped. 6 brackets matches 6 ADD.
+spinning-paradox-symposium-whirl,notation,,SPINNING PARADOX SYMPOSIUM WHIRL,W9h 2026-05-27: JOB per mechanical uppercase rule.
+spinning-paradox-symposium-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],W9h 2026-05-27: spinning swap for ducking in paradox-symposium-whirl chassis. 6 brackets matches 6 ADD.
+spinning-ducking-paradox-mirage,notation,,SPINNING DUCKING PARADOX MIRAGE,W9h 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL],W9h 2026-05-27: spinning-paradox-mirage + ducking insertion. 5 brackets matches 5 ADD.
+spinning-ducking-paradox-whirl,notation,,SPINNING DUCKING PARADOX WHIRL,W9i 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox-mirage chassis + whirl terminal. 6 brackets matches 6 ADD.
+spinning-ducking-paradox-drifter,notation,,SPINNING DUCKING PARADOX DRIFTER,W9i 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-drifter,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox-mirage chassis + drifter terminal. 6 brackets matches 6 ADD.
+spinning-ducking-paradox-blender,notation,,SPINNING DUCKING PARADOX BLENDER,W9i 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-blender,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9i 2026-05-27: spinning-ducking-paradox chassis + blender chain. 7 brackets matches 7 ADD.
+spinning-ducking-paradox-symposium-whirl,notation,,SPINNING DUCKING PARADOX SYMPOSIUM WHIRL,W9i 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-symposium-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],W9i 2026-05-27: spinning-paradox-symposium-whirl chassis + ducking insertion. Stack=4. 7 brackets matches 7 ADD.
+pixie-ducking-symposium-mirage,notation,,PIXIE DUCKING SYMPOSIUM MIRAGE,W9i 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-symposium-mirage,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W9i 2026-05-27: assassin chassis + symposium [BOD] no-plant injection. 5 brackets matches 5 ADD.
+spinning-paradox-double-leg-over,notation,,SPINNING PARADOX DOUBLE LEG OVER,W9j 2026-05-27: JOB per mechanical uppercase rule.
+spinning-paradox-double-leg-over,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9j 2026-05-27: spinning-paradox-mirage chassis + DLO terminal. 5 brackets matches 5 ADD.
+pixie-ducking-double-leg-over,notation,,PIXIE DUCKING DOUBLE LEG OVER,W9j 2026-05-27: JOB per mechanical uppercase rule.
+pixie-ducking-double-leg-over,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9j 2026-05-27: pixie-ducking-legover chassis + DLO terminal. 5 brackets matches 5 ADD.
+spinning-ducking-symposium-double-over-down,notation,,SPINNING DUCKING SYMPOSIUM DOUBLE OVER DOWN,W9j 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-symposium-double-over-down,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9j 2026-05-27: spinning-ducking-symposium chassis on DOD base. Stack=4. 7 brackets matches 7 ADD.
+spinning-ducking-paradox-symposium-mirage,notation,,SPINNING DUCKING PARADOX SYMPOSIUM MIRAGE,W9j 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-paradox-symposium-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP TOE [DEL],W9j 2026-05-27: W9i spinning-ducking-paradox-symposium-whirl chassis + mirage terminal. Stack=4. 6 brackets matches 6 ADD.
+gyro-ducking-symposium-torque,notation,,GYRO DUCKING SYMPOSIUM TORQUE,W9j 2026-05-27: JOB per mechanical uppercase rule.
+gyro-ducking-symposium-torque,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) SAME IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9j 2026-05-27: gyro-symposium-torque chassis + ducking insertion. 7 brackets matches 7 ADD.
+miraging-osis,notation,,MIRAGING OSIS,W9k 2026-05-27: JOB per mechanical uppercase rule.
+miraging-osis,operational_notation,,SET > OP IN [DEX] > (back or front) SPIN [BOD] > SAME or OP CLIP [XBD] [DEL],W9k 2026-05-27: miraging prefix + osis chain. 4 brackets matches 4 ADD.
+miraging-pickup,notation,,MIRAGING PICKUP,W9k 2026-05-27: JOB per mechanical uppercase rule.
+miraging-pickup,operational_notation,,SET > OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL],W9k 2026-05-27: miraging prefix + pickup chain. 3 brackets matches 3 ADD.
+miraging-clipper,notation,,MIRAGING CLIPPER,W9k 2026-05-27: JOB per mechanical uppercase rule.
+miraging-clipper,operational_notation,,SET > OP IN [DEX] > SAME CLIP [XBD] [DEL],W9k 2026-05-27: miraging prefix + clipper-stall terminal. 3 brackets matches 3 ADD.
+miraging-symposium-mirage,notation,,MIRAGING SYMPOSIUM MIRAGE,W9k 2026-05-27: JOB per mechanical uppercase rule.
+miraging-symposium-mirage,operational_notation,,SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W9k 2026-05-27: miraging prefix + symposium-mirage chain. 4 brackets matches 4 ADD.
+miraging-symposium-illusion,notation,,MIRAGING SYMPOSIUM ILLUSION,W9k 2026-05-27: JOB per mechanical uppercase rule.
+miraging-symposium-illusion,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9k 2026-05-27: miraging prefix + symposium-illusion chain. 4 brackets matches 4 ADD.
