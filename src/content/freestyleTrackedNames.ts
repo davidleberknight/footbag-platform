@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 534;
+export const TRACKED_UNPUBLISHED_TOTAL = 533;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'FootbagMoves', names: [
@@ -268,7 +268,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Philibuster', slug: 'philibuster', operationalNotation: 'Toe > Same Out (DEX) > Op Out (DEX) >> Op In (DEX)(XDEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Phobia', slug: 'phobia', operationalNotation: 'Toe > Same Out (DEX) >> (back) Spin (BOD) >> Op In (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Pixie Ducking Legover', slug: 'pixie-ducking-legover' },
-    { displayName: 'Pixie Ducking Mirage', slug: 'pixie-ducking-mirage' },
     { displayName: 'Pixie Ducking Pickup', slug: 'pixie-ducking-pickup' },
     { displayName: 'Pixie Eggbeater', slug: 'pixie-eggbeater' },
     { displayName: 'Pixie Legover', slug: 'pixie-legover' },
