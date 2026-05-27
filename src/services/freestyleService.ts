@@ -124,6 +124,9 @@ import {
   getTrickIntuition,
 } from '../content/freestyleTrickIntuition';
 import {
+  getTrickInterpretation,
+} from '../content/freestyleTrickInterpretations';
+import {
   resolveTrickTier,
 } from '../content/freestyleTrickTier';
 import {
@@ -1174,6 +1177,18 @@ export interface FreestyleTrickContent {
   compressedFrom: {
     label:   'Compressed from' | 'Compressed reading';
     reading: string;
+  } | null;
+  // Naming & interpretation overlay. Populated only when the slug has a
+  // curator-authored entry in freestyleTrickInterpretations.ts. Surfaces a
+  // canonical reading + one or more historical readings + structural
+  // notes that frame the layer separation ("both readings describe the
+  // same trick; the historical reading does not imply a productive
+  // modifier family"). Distinct from the alias slot and from the S5
+  // primary-readings slot — see the module's layer-separation doctrine.
+  interpretation: {
+    canonicalReading:   string;
+    historicalReadings: string[];
+    structuralNotes:    string[];
   } | null;
   // Trick tier (Phase A of trick-detail ontology doctrine, 2026-05-25).
   // 'A' = flagship ontology exemplar (renders L1-L6 layers when authored).
@@ -5795,6 +5810,24 @@ export const freestyleService = {
           // structural compressions (smear, ripwalk, atom-smasher,
           // eggbeater, mobius). See FAMOUS_COMPRESSION_SLUGS doctrine.
           compressedFrom: shapeCompressedFrom(slug),
+          interpretation: (() => {
+            // Naming & interpretation overlay — opt-in, curator-locked.
+            // Surfaces canonical + historical readings for tricks where
+            // multiple naming traditions describe the same movement
+            // (seed entry: eggbeater = atomic legover ≡ illusion + legover).
+            // Layer separation enforced: alias slot, S5 primary-readings,
+            // ADD math, and modifier families are all untouched. The
+            // structural notes carry the "historical reading does not
+            // imply a productive modifier family" framing explicitly so
+            // it stays consistent across entries.
+            const entry = getTrickInterpretation(slug);
+            if (entry === null) return null;
+            return {
+              canonicalReading:   entry.canonicalReading,
+              historicalReadings: [...entry.historicalReadings],
+              structuralNotes:    [...entry.structuralNotes],
+            };
+          })(),
           // ── Trick-detail ontology doctrine — Phase A/B (2026-05-25); §8 amendment ──
           // L1-L6 layered ontology fields. Universal grammar (§8 amendment,
           // post-Phase-C): any trick with curated content renders the

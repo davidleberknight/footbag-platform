@@ -1,0 +1,43 @@
+{{!--
+  Naming & interpretation overlay. Renders only when content.interpretation
+  is non-null — curator-locked per freestyleTrickInterpretations.ts.
+
+  Surfaces canonical reading + historical reading(s) + structural notes
+  for tricks where multiple naming traditions describe the same movement
+  (seed entry: eggbeater). The structural notes carry the layer-
+  separation framing ("both readings describe the same trick; the
+  historical reading does not imply a productive modifier family") so
+  readers understand why a community reading is preserved without it
+  promoting a modifier family.
+
+  Layer separation: this slot is distinct from
+   - aliases (name-form discoverability)
+   - S5 primary readings (atom-level)
+   - equivalence-topology (alternate-derivation paths)
+   - compressed-from (single-name compression of a longer expression)
+  See the content module's JSDoc for the doctrine.
+--}}
+{{#if content.interpretation}}
+<section class="content-section trick-interpretation" aria-label="Naming and interpretation">
+  <div class="section-heading">
+    <h2>Naming &amp; interpretation</h2>
+  </div>
+  <dl class="trick-interpretation-readings">
+    <dt class="trick-interpretation-reading-label">Canonical reading</dt>
+    <dd class="trick-interpretation-reading-value">{{content.interpretation.canonicalReading}}</dd>
+    {{#if content.interpretation.historicalReadings.length}}
+    <dt class="trick-interpretation-reading-label">Historical reading{{#if (gt content.interpretation.historicalReadings.length 1)}}s{{/if}}</dt>
+    {{#each content.interpretation.historicalReadings}}
+    <dd class="trick-interpretation-reading-value trick-interpretation-reading-value--historical">{{this}}</dd>
+    {{/each}}
+    {{/if}}
+  </dl>
+  {{#if content.interpretation.structuralNotes.length}}
+  <ul class="trick-interpretation-notes">
+    {{#each content.interpretation.structuralNotes}}
+    <li>{{this}}</li>
+    {{/each}}
+  </ul>
+  {{/if}}
+</section>
+{{/if}}
