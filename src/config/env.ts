@@ -141,6 +141,13 @@ export interface AppConfig {
   //   undefined. Boot-time guard refuses non-development start.
   // Target: remove after production cutover makes dev autologin unnecessary.
   devAutologinMemberId: string | undefined;
+  // CUTOVER-REMOVE: dev-only payment stub.
+  // Current: when true, the platform exposes a dev-only route that simulates
+  //   a successful Stripe Checkout by creating a payments row with
+  //   status='succeeded' and calling applyPurchaseGrant in one transaction.
+  //   Boot-time guard refuses non-development start.
+  // Target: remove when Stripe integration is wired.
+  devPaymentStub: boolean;
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
   // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
@@ -344,6 +351,34 @@ function loadConfig(): AppConfig {
   if (devAdminGrantTier2 && footbagEnv !== 'development') {
     throw new Error(
       `FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // CUTOVER-REMOVE: dev/staging-only payment stub.
+  // Current: when true, the platform exposes a route that simulates a
+  //   successful Stripe Checkout. Allowed in development and staging;
+  //   production boot refuses.
+  // Target: remove when Stripe integration is wired.
+  const rawDevPaymentStub = process.env.FOOTBAG_DEV_PAYMENT_STUB;
+  let devPaymentStub: boolean;
+  if (rawDevPaymentStub === undefined || rawDevPaymentStub === '') {
+    devPaymentStub = false;
+  } else if (rawDevPaymentStub === '1' || rawDevPaymentStub === 'true') {
+    devPaymentStub = true;
+  } else if (rawDevPaymentStub === '0' || rawDevPaymentStub === 'false') {
+    devPaymentStub = false;
+  } else {
+    throw new Error(
+      `FOOTBAG_DEV_PAYMENT_STUB must be '1', '0', 'true', or 'false', got: ${rawDevPaymentStub}`,
+    );
+  }
+  if (
+    devPaymentStub &&
+    footbagEnv !== 'development' &&
+    footbagEnv !== 'staging'
+  ) {
+    throw new Error(
+      `FOOTBAG_DEV_PAYMENT_STUB is dev/staging-only; set FOOTBAG_ENV to development or staging, or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
     );
   }
 
@@ -640,6 +675,7 @@ function loadConfig(): AppConfig {
     trustProxy,
     devAdminSkipClaimEmail,
     devAdminGrantTier2,
+    devPaymentStub,
     devAutologinMemberId,
     testMemoryPercent,
   };

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { adminController } from '../controllers/adminController';
 import { adminCuratorController } from '../controllers/adminCuratorController';
 import { adminWorkQueueController } from '../controllers/adminWorkQueueController';
+import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
@@ -12,6 +13,8 @@ adminRouter.use(requireAuth, requireAdmin);
 adminRouter.get('/', adminController.index);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
+adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
+adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

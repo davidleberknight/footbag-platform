@@ -1128,7 +1128,31 @@ Permanent operational table recording live club membership for members. Written 
 
 ---
 
-### 4.25 Migration Staging and Bootstrap Tables
+### 4.25 Club Viability Signals
+
+**Table:** `club_viability_signals`
+
+Append-only table recording crowdsourced activity signals for clubs. Written during the onboarding wizard (stages 1A, 1B, 2A, 2B) and from the club detail page by authenticated members. One row per member per club per submission.
+
+- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `club_detail`, `dashboard`. Tracks which surface produced the signal.
+- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and surfaces `never_heard_of_it` as a separate admin-queue count.
+- `source_entity_type` and `source_entity_id`: traceability to the wizard card (`legacy_person_club_affiliation`, `club_bootstrap_leader`, or `legacy_club_candidate`).
+- No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate aggregates all rows.
+
+### 4.26 Club Cleanup Resolutions
+
+**Table:** `club_cleanup_resolutions`
+
+Admin resolution tracking for the club cleanup queue. One row per club per predicate (`UNIQUE` constraint on `club_id, predicate_name`). Prevents resolved or deferred items from reappearing in the admin queue.
+
+- `predicate_name`: identifies which cleanup predicate flagged the item (e.g., `crowdsource_viability`, `leaderless_active`, `stale_provisional`).
+- `resolution` enum: `dismissed`, `deferred`, `demoted`, `archived`.
+- `deferred_until`: ISO timestamp for deferred items. The admin queue re-surfaces deferred items after this timestamp passes.
+- UPSERT semantics: re-resolving the same club-plus-predicate overwrites the prior resolution.
+
+---
+
+### 4.27 Migration Staging and Bootstrap Tables
 
 Three tables are introduced by the legacy data migration in addition to `member_club_affiliations` (§4.24). All three have explicit drop conditions. None are permanent operational tables.
 

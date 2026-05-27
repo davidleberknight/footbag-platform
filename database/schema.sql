@@ -3217,6 +3217,56 @@ CREATE UNIQUE INDEX ux_member_club_affiliations_one_primary
   ON member_club_affiliations(member_id)
   WHERE is_primary = 1 AND is_current = 1;
 
+-- Crowdsource club-viability signals collected during the onboarding wizard
+-- and (future) from club-detail and dashboard surfaces. Append-only: one
+-- row per member per club per source stage. The crowdsource_club_viability
+-- predicate (A_Periodic_Club_Cleanup) aggregates these rows at evaluation
+-- time; "not_sure" responses contribute no signal to any gate.
+CREATE TABLE club_viability_signals (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  member_id TEXT NOT NULL REFERENCES members(id),
+  club_id   TEXT NOT NULL REFERENCES clubs(id),
+
+  source_stage TEXT NOT NULL
+    CHECK (source_stage IN (
+      'stage1a_contact','stage1b_affiliated',
+      'stage2a','stage2b','stage3a',
+      'club_detail','dashboard'
+    )),
+
+  activity_signal TEXT NOT NULL
+    CHECK (activity_signal IN ('active','not_active','not_sure','never_heard_of_it')),
+
+  source_entity_type TEXT,
+  source_entity_id   TEXT
+);
+
+CREATE INDEX idx_club_viability_signals_club   ON club_viability_signals(club_id);
+CREATE INDEX idx_club_viability_signals_member ON club_viability_signals(member_id);
+
+-- Admin cleanup queue resolution tracking. One row per club per predicate
+-- resolution. Prevents resolved/deferred items from reappearing in the queue.
+-- Deferred items have a deferred_until timestamp; they reappear after expiry.
+CREATE TABLE club_cleanup_resolutions (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  club_id        TEXT NOT NULL REFERENCES clubs(id),
+  predicate_name TEXT NOT NULL,
+  resolution     TEXT NOT NULL
+    CHECK (resolution IN ('dismissed','deferred','demoted','archived')),
+  deferred_until TEXT,
+  reason_text    TEXT,
+
+  UNIQUE(club_id, predicate_name)
+);
+
+CREATE INDEX idx_club_cleanup_resolutions_club ON club_cleanup_resolutions(club_id);
+
 -- Permanent operational table: per-member onboarding-wizard task state.
 -- One row per (member_id, task_type). Owned by MemberOnboardingService.
 -- Rows persist for the life of the member; completed tasks remain in place

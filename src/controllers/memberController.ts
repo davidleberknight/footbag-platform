@@ -9,6 +9,8 @@ import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
 import { readIntConfig } from '../services/configReader';
+import { applyDevPaymentStub } from '../services/membershipTieringService';
+import { config } from '../config/env';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
@@ -70,7 +72,7 @@ export const memberController = {
         const flash = readFlash(req);
         let profileNotice: string | undefined;
         if (flash?.kind === FLASH_KIND.PROFILE_UPDATED) {
-          profileNotice = 'Profile updated.';
+          profileNotice = flash.payload || 'Profile updated.';
           clearFlash(res, req);
         }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
@@ -448,6 +450,36 @@ export const memberController = {
     try {
       identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
       res.redirect(303, `/members/${memberKey}/edit`);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  postPurchaseTier(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    if (!config.devPaymentStub) {
+      res.status(403).render('errors/not-found', {
+        seo:  { title: 'Page Not Found' },
+        page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+      });
+      return;
+    }
+    const tier = String(req.body.tier ?? '');
+    if (tier !== 'tier1' && tier !== 'tier2') {
+      res.status(422).render('errors/not-found', {
+        seo:  { title: 'Page Not Found' },
+        page: { sectionKey: '', pageKey: 'error_422', title: 'Invalid Request' },
+      });
+      return;
+    }
+    try {
+      applyDevPaymentStub(req.user!.userId, tier);
+      writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED,
+        tier === 'tier1'
+          ? 'Tier 1 IFPA Member activated (dev stub).'
+          : 'Tier 2 IFPA Organizer Member activated (dev stub).',
+      );
+      res.redirect(303, `/members/${req.params.memberKey}`);
     } catch (err) {
       next(err);
     }

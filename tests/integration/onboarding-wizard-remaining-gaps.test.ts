@@ -115,6 +115,7 @@ describe('two-current-club cap: second current affiliation succeeds, third would
       kind: 'membership',
       candidateId: membershipCard.candidateId,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
 
     expect(result.branch).toBe('confirmed');
@@ -178,6 +179,7 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
       kind: 'leadership',
       candidateId: leaderCard.candidateId,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
 
     const leaders = getClubLeaders(club);

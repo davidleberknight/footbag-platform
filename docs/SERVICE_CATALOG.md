@@ -183,7 +183,7 @@ Owns the per-member outstanding-tasks list for the post-registration wizard and 
 
 Required patterns: tasks are skippable at registration and resumable from the member dashboard; a `skipped` task does not block sign-in. Each task carries state in `member_onboarding_tasks` (`pending`, `skipped`, `completed`, `not_applicable`). Server determines applicability at list construction (e.g., no plausible legacy match → `not_applicable`, never rendered); client cannot bypass. Submission writes the underlying state via the owning service, then transitions the task row to `completed` in the same transaction. Every wizard transition (`start`, `submit`, `skip`, `complete`) emits an `audit_entries` row so the §9.3 signals table is captured uniformly across both entry points. The `legacy_claim` task renders the unified candidate-list view that mixes `legacy_members`, `historical_persons`, and the manual-id lookup; the underlying claim mechanics remain in `IdentityAccessService` and are delegated to.
 
-Task catalog at cutover: `personal_details` (location, date of birth, and competition year, including optional `show_first_competition_year` toggle); `legacy_claim` (delegates to `IdentityAccessService.initiateLegacyClaim` / `consumeAndClaimLegacy` or auto-link); `club_affiliations` (three-stage flow with geographic matching, delegating to the clubs service); `show_competitive_results` (optional metadata, writes to `members`). Task ordering is fixed: `personal_details` first, `legacy_claim` second, `club_affiliations` third, `show_competitive_results` last. Adding a task type registers a new handler in the service-internal catalog; the public interface does not change.
+Task catalog at cutover: `personal_details` (city (required), region (optional), country (required), date of birth (required), competition year, and optional `show_first_competition_year` toggle); `legacy_claim` (delegates to `IdentityAccessService.initiateLegacyClaim` / `consumeAndClaimLegacy` or auto-link); `club_affiliations` (two-stage flow: Stage 1 legacy-linked cards then Stage 2 region-level geographic matching, delegating to the clubs service; wrap-up links to clubs browse page); `show_competitive_results` (optional metadata, writes to `members`). Task ordering is fixed: `personal_details` first, `legacy_claim` second, `club_affiliations` third, `show_competitive_results` last. Adding a task type registers a new handler in the service-internal catalog; the public interface does not change.
 
 
 Persistence: `member_onboarding_tasks` (owned), plus writes via delegated services (`members`, `member_club_affiliations`, `legacy_members.claimed_by_member_id`, etc.). `audit_entries` append.
@@ -231,6 +231,16 @@ Required patterns: SA only (no `deleted_at` on `clubs`; use `clubs_all` for arch
 
 
 
+
+**`ClubCleanupService`** (`src/services/clubCleanupService.ts`)
+
+Owns club viability evaluation (`crowdsource_club_viability` predicate with G1-G4 gates per `A_Periodic_Club_Cleanup`), the `leaderless_active_club` and `stale_provisional_leader` predicates, admin club cleanup queue page shaping, cleanup resolution tracking (defer/dismiss/demote/archive), and club detail page signal submission. Does not own club lifecycle (ClubService), signal collection during onboarding (MemberOnboardingService writes signals), or the daily background process (deferred).
+
+Required patterns: signal aggregation queries derive S1/S2/S3/L1/O1 from `club_viability_signals`, `legacy_club_candidates`, `club_leaders`, and `member_club_affiliations` at evaluation time. Resolutions tracked per club-plus-predicate in `club_cleanup_resolutions` (UNIQUE constraint); deferred items reappear after expiry. Admin queue never exposes which member submitted which signal (signal counts only). All resolutions audit-logged.
+
+Persistence: `club_viability_signals` (read + write for detail page signals), `club_cleanup_resolutions` (owned), `clubs` (status write on resolution), `club_leaders` (read), `member_club_affiliations` (read), `club_bootstrap_leaders` (read), `legacy_club_candidates` (read), `audit_entries` (append).
+
+Side effects: audit append per resolution.
 
 **`EventService`** (`src/services/eventService.ts`)
 

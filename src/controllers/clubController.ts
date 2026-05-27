@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
+import { clubCleanupService } from '../services/clubCleanupService';
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
@@ -233,6 +234,28 @@ export const clubController = {
         res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
         return;
       }
+      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  postSignal(req: Request, res: Response, next: NextFunction): void {
+    const clubKey = req.params.key;
+    const activitySignal = String(req.body.activitySignal ?? '');
+    const validSignals = new Set(['active', 'not_active', 'not_sure', 'never_heard_of_it']);
+    if (!validSignals.has(activitySignal)) {
+      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
+      return;
+    }
+    try {
+      const clubId = clubService.resolveClubIdByKey(clubKey);
+      clubCleanupService.submitClubDetailSignal(
+        req.user!.userId,
+        clubId,
+        activitySignal as 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it',
+      );
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Thanks for the feedback.');
       res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');

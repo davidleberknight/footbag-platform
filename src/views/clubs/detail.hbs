@@ -224,6 +224,19 @@
     {{/if}}
     {{/if}}
 
+    {{#if isAuthenticated}}
+    <section class="club-signal-section mt-6">
+      <p class="text-muted fs-sm fw-600">Help us keep this listing accurate</p>
+      <form method="POST" action="/clubs/{{content.club.clubKey}}/signal" class="stage-signal-form mt-2">
+        <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
+        <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active</label>
+        <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
+        <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
+        <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
+      </form>
+    </section>
+    {{/if}}
+
     {{#each navigation.contextLinks}}
     <div class="club-back-link">
       <a href="{{href}}" class="btn btn-outline">{{label}}</a>

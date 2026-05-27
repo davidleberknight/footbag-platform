@@ -61,6 +61,7 @@ import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { formatDateDisplay } from './dateFormat';
+import { config } from '../config/env';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
@@ -96,6 +97,8 @@ export interface TierStatusView {
   underlyingTierBadgeText: string | null;
   showTier1Upgrade: boolean;
   showTier2Upgrade: boolean;
+  showDevUpgradeForm: boolean;
+  purchaseTierHref: string | null;
 }
 
 export interface QuickAction {
@@ -185,7 +188,7 @@ export interface OwnProfileContent {
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
   showFirstCompetitionYear: boolean;
-  declaredAnchors?: Array<{ id: string; anchorType: string; anchorValue: string }>;
+  declaredAnchors?: Array<{ id: string; anchorType: string; anchorTypeLabel: string; anchorValue: string }>;
   heroData?: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
@@ -451,7 +454,7 @@ export const memberService = {
         heroData,
         profileBase: `/members/${slug}`,
         eventGroups,
-        membership:   buildTierStatusView(row.id),
+        membership:   buildTierStatusView(row.id, slug),
         identity:     buildIdentityLinkView(row.id, slug),
         quickActions: buildQuickActions(slug),
         search,
@@ -619,8 +622,14 @@ export const memberService = {
     const country = normalizeText(input.country) || null;
     const rawDob = normalizeText(input.birthDate);
 
-    if (!city && !region && !country && !rawDob) {
-      throw new ValidationError('Please provide at least one field (location or date of birth).');
+    if (!city) {
+      throw new ValidationError('City is required.');
+    }
+    if (!country) {
+      throw new ValidationError('Country is required.');
+    }
+    if (!rawDob) {
+      throw new ValidationError('Date of birth is required.');
     }
 
     if (city && city.length > 64) {
@@ -864,7 +873,7 @@ function underlyingTierText(underlying: UnderlyingTier): string {
   return `Reverts to ${TIER_BADGE_TEXT[underlying]} when governance ends.`;
 }
 
-function buildTierStatusView(memberId: string): TierStatusView {
+function buildTierStatusView(memberId: string, slug: string): TierStatusView {
   const tier = getTierStatus(memberId);
   const ap = getActivePlayerStatus(memberId);
   const isAp = ap.is_active_player === 1;
@@ -884,13 +893,19 @@ function buildTierStatusView(memberId: string): TierStatusView {
     underlyingTierBadgeText = underlyingTierText(tier.underlying_tier_status);
   }
 
+  const showTier1Upgrade = tier.tier_status === 'tier0';
+  const showTier2Upgrade = tier.tier_status === 'tier0' || tier.tier_status === 'tier1';
+  const canUpgrade = showTier1Upgrade || showTier2Upgrade;
+
   return {
     tierBadgeText: TIER_BADGE_TEXT[tier.tier_status],
     benefitsBlurb: tierBenefitsBlurb(tier.tier_status, isAp),
     activePlayer,
     underlyingTierBadgeText,
-    showTier1Upgrade: tier.tier_status === 'tier0',
-    showTier2Upgrade: tier.tier_status === 'tier0' || tier.tier_status === 'tier1',
+    showTier1Upgrade,
+    showTier2Upgrade,
+    showDevUpgradeForm: config.devPaymentStub && canUpgrade,
+    purchaseTierHref: canUpgrade ? `/members/${slug}/purchase-tier` : null,
   };
 }
 

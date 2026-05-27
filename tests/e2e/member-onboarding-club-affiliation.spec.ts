@@ -90,7 +90,7 @@ test('leadership card: renders role and signal checklist', async ({ browser, bas
 
   await wizard.goto('club_affiliations');
   const heading = await wizard.clubCardHeading.textContent();
-  expect(heading).toMatch(/Did you lead/i);
+  expect(heading).toMatch(/Were you a contact for/i);
   await expect(wizard.signalChecklist).toBeVisible();
   await expect(wizard.clubYesButton).toBeVisible();
 
@@ -163,7 +163,7 @@ test('multi-card flow: resolve first, see second with updated progress', async (
 
   await expect(wizard.clubCardHeading).toBeVisible();
   const heading2 = await wizard.clubCardHeading.textContent();
-  expect(heading2).toMatch(/Were you a member of|Did you lead/i);
+  expect(heading2).toMatch(/Were you a member of|Were you a contact for/i);
 
   await ctx.close();
 });

@@ -2823,6 +2823,7 @@ function findCrossSourceCandidateAfterLegacyClaim(memberId: string, legacyMember
 export interface DeclaredAnchorView {
   id: string;
   anchorType: 'former_surname' | 'old_email';
+  anchorTypeLabel: string;
   anchorValue: string;
 }
 
@@ -2858,6 +2859,7 @@ function listDeclaredAnchors(memberId: string): DeclaredAnchorView[] {
   return rows.map((r) => ({
     id: r.id,
     anchorType: r.anchor_type as 'former_surname' | 'old_email',
+    anchorTypeLabel: r.anchor_type === 'old_email' ? 'Old email' : 'Former name',
     anchorValue: r.anchor_value,
   }));
 }

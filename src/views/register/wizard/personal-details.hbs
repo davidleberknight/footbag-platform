@@ -6,7 +6,7 @@
 
 <div class="wrapper">
   <section>
-    <p>Tell us where you are and when you were born. All fields are optional.</p>
+    <p>Tell us where you are and when you were born.</p>
 
     {{#if content.error}}
       <p class="form-notice" role="alert">{{content.error}}</p>
@@ -14,8 +14,8 @@
 
     <form method="POST" action="/register/wizard/personal_details/submit" class="profile-edit-form">
       <div class="form-field">
-        <label for="city">City</label>
-        <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" />
+        <label for="city">City <span class="text-muted">(required)</span></label>
+        <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" required />
       </div>
 
       <div class="form-field">
@@ -25,13 +25,13 @@
       </div>
 
       <div class="form-field">
-        <label for="country">Country</label>
-        <input type="text" id="country" name="country" maxlength="64" value="{{content.country}}" />
+        <label for="country">Country <span class="text-muted">(required)</span></label>
+        <input type="text" id="country" name="country" maxlength="64" value="{{content.country}}" required />
       </div>
 
       <div class="form-field">
-        <label for="birthDate">Date of birth</label>
-        <input type="date" id="birthDate" name="birthDate" value="{{content.birthDate}}" />
+        <label for="birthDate">Date of birth <span class="text-muted">(required)</span></label>
+        <input type="date" id="birthDate" name="birthDate" value="{{content.birthDate}}" required />
         <small class="form-hint">Your date of birth is private and never shown publicly.</small>
       </div>
 

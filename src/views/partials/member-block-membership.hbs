@@ -23,15 +23,30 @@
     {{/if}}
     <p>{{benefitsBlurb}}</p>
     <p class="membership-tiers-link"><a href="/ifpa">View IFPA membership rules</a></p>
-    {{#if showTier1Upgrade}}
-      <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
-        Upgrade to Tier 1 (Coming soon)
-      </button>
-    {{/if}}
-    {{#if showTier2Upgrade}}
-      <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
-        Upgrade to Tier 2 (Coming soon)
-      </button>
+    {{#if showDevUpgradeForm}}
+      {{#if showTier1Upgrade}}
+        <form method="POST" action="{{purchaseTierHref}}" class="membership-upgrade-form">
+          <input type="hidden" name="tier" value="tier1" />
+          <button type="submit" class="btn btn-primary">Upgrade to Tier 1 (Dev testing)</button>
+        </form>
+      {{/if}}
+      {{#if showTier2Upgrade}}
+        <form method="POST" action="{{purchaseTierHref}}" class="membership-upgrade-form">
+          <input type="hidden" name="tier" value="tier2" />
+          <button type="submit" class="btn btn-primary">Upgrade to Tier 2 (Dev testing)</button>
+        </form>
+      {{/if}}
+    {{else}}
+      {{#if showTier1Upgrade}}
+        <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
+          Upgrade to Tier 1 (Coming soon)
+        </button>
+      {{/if}}
+      {{#if showTier2Upgrade}}
+        <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
+          Upgrade to Tier 2 (Coming soon)
+        </button>
+      {{/if}}
     {{/if}}
   </div>
 </section>

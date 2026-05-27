@@ -2,7 +2,7 @@
 
 > Modernizing **footbag.org** under the auspices of the **International Footbag Players Association (IFPA)**.
 
-This repository contains the open-source modernization project for the global footbag community website.
+This repository contains the open-source modernization project for the global footbag community.
 
 - **Maintainer:** [David Leberknight](https://github.com/davidleberknight) (initially hosted on David's personal GitHub account)
 - **Institutional context:** Developed under IFPA auspices
@@ -14,16 +14,20 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
-- **AT tools, also for sprint scoping and temporary deviations from long-term design:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- **AT tools, for sprint scoping and accepted temporary deviations from long-term design:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
 ## Current Project State
 
 A lot of functionality is done and deployed on AWS. This is the baseline for ongoing work.
 
-Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
+Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
-- The legacy-data pipeline is reproducible, and we are ready to receive  a full data dump from the live footbag.org webmaster. Club data is stale and needs to be cleaned up, along with member data in a multi-step and partly registration-driven process; see `docs/MIGRATION_PLAN.md` §9.
+- The legacy-data pipeline (from a mirror of live site) is done, including major clean up of historical event results data.
+- We are ready to receive the initial data dump from the live footbag.org webmaster (will happen soon).
 - Technical and Functional requirements specs are complete, refer to User Stories and Design Decisions.
+- The Freestyle Dictionary is done, and that's a big deal. Check it out.
+- The Media sharing system works.
+- The Onboarding Wizard works, used to clean up dirty club data, and link up legacy member data to new logins.
 
 ## Contributing
 

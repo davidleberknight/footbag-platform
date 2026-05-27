@@ -199,7 +199,7 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Leadership Wizard Club');
-    expect(res.text).toContain('Did you lead');
+    expect(res.text).toContain('Were you a contact for');
     // No signals seeded -> classification falls back to 'none'.
     expect(res.text).toContain('NONE');
     expect(res.text).toContain('value="leadership"');
@@ -223,7 +223,7 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // of club name; the Beta leadership card renders first even though
     // Alpha is alphabetically earlier.
     expect(res.text).toContain('Beta Club (leadership)');
-    expect(res.text).toContain('Did you lead');
+    expect(res.text).toContain('Were you a contact for');
     expect(res.text).not.toContain('Were you a member of');
   });
 });
@@ -234,7 +234,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_MEMBERSHIP))
       .type('form')
-      .send({ kind: 'membership', candidateId: membershipAffId, userDecision: 'confirm' });
+      .send({ kind: 'membership', candidateId: membershipAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
     // No more cards remaining -> advance to wizard complete (club_affiliations is the last task).
@@ -248,7 +248,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP))
       .type('form')
-      .send({ kind: 'leadership', candidateId: leadershipCblId, userDecision: 'confirm' });
+      .send({ kind: 'leadership', candidateId: leadershipCblId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/complete');
@@ -261,7 +261,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_MULTI))
       .type('form')
-      .send({ kind: 'leadership', candidateId: multiCblBeta, userDecision: 'confirm' });
+      .send({ kind: 'leadership', candidateId: multiCblBeta, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(first.status).toBe(303);
     expect(first.headers.location).toBe('/register/wizard/club_affiliations');
@@ -279,7 +279,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_MULTI))
       .type('form')
-      .send({ kind: 'membership', candidateId: multiAffAlpha, userDecision: 'confirm' });
+      .send({ kind: 'membership', candidateId: multiAffAlpha, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe('/register/wizard/complete');
@@ -297,7 +297,7 @@ describe('POST /register/wizard/club_affiliations/submit — F1 anti-enumeration
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_EMPTY))
       .type('form')
-      .send({ kind: 'membership', candidateId: otherMemberAffId, userDecision: 'confirm' });
+      .send({ kind: 'membership', candidateId: otherMemberAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(404);
     expect(readAffiliationStatus(otherMemberAffId)).toBe(beforeStatus);
@@ -313,7 +313,7 @@ describe('POST /register/wizard/club_affiliations/submit — F1 anti-enumeration
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(orphan))
       .type('form')
-      .send({ kind: 'membership', candidateId: otherMemberAffId, userDecision: 'confirm' });
+      .send({ kind: 'membership', candidateId: otherMemberAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(404);
   });
@@ -325,7 +325,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_EMPTY))
       .type('form')
-      .send({ kind: 'membership', userDecision: 'confirm' });
+      .send({ kind: 'membership', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('candidateId is required');
   });
@@ -345,7 +345,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_EMPTY))
       .type('form')
-      .send({ kind: 'other_kind', candidateId: 'some-id', userDecision: 'confirm' });
+      .send({ kind: 'other_kind', candidateId: 'some-id', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(422);
     expect(res.text).toContain("kind must be one of");
   });
@@ -354,7 +354,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .type('form')
-      .send({ kind: 'membership', candidateId: 'some-id', userDecision: 'confirm' });
+      .send({ kind: 'membership', candidateId: 'some-id', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
   });

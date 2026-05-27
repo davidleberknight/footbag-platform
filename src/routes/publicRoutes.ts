@@ -41,6 +41,7 @@ publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.post
 publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
+publicRouter.post('/clubs/:key/signal',         requireAuth, clubController.postSignal);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
@@ -135,6 +136,7 @@ publicRouter.post('/members/:memberKey/anchors/remove', requireAuth, memberContr
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
+publicRouter.post('/members/:memberKey/purchase-tier', requireAuth, memberController.postPurchaseTier);
 publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
 
@@ -207,6 +209,7 @@ publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireA
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
+publicRouter.post('/register/wizard/club_affiliations/stage-signal',    requireAuth, memberOnboardingController.postStageSignal);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);

@@ -166,7 +166,7 @@ describe('GET /register/wizard/club_affiliations — disambiguation card renderi
       .set('Cookie', cookieFor(MEMBER_LEADERSHIP));
     expect(res.status).toBe(200);
     // Leadership renders first (stage ordering).
-    expect(res.text).toContain('Did you lead Leader Club Helsinki?');
+    expect(res.text).toContain('Were you a contact for Leader Club Helsinki?');
     expect(res.text).not.toContain('Which clubs in Helsinki');
   });
 });
@@ -244,6 +244,7 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
         kind: 'membership',
         candidateId: mixedDenverAff,
         userDecision: 'decline',
+        activitySignal: 'not_sure',
       });
 
     expect(readTaskState(MEMBER_MIXED)).toBe('completed');

@@ -919,6 +919,30 @@ export const legacyClubCandidates = {
      WHERE classification = 'dormant'
        AND display_name LIKE ?
   `); },
+
+  get findByMappedClubId() { return db.prepare(`
+    SELECT id, classification, r1, r2, r3, r4
+      FROM legacy_club_candidates
+     WHERE mapped_club_id = ?
+     LIMIT 1
+  `); },
+
+  get findPrePopulatedByRegion() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country,
+           mapped_club_id
+      FROM legacy_club_candidates
+     WHERE classification = 'pre_populate'
+       AND region = ? AND country = ?
+       AND mapped_club_id IS NOT NULL
+  `); },
+
+  get findOnboardingVisibleByRegion() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country,
+           mapped_club_id
+      FROM legacy_club_candidates
+     WHERE classification = 'onboarding_visible'
+       AND region = ? AND country = ?
+  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -1203,6 +1227,12 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND is_current = 1
   `); },
 
+  get countCurrentByClubId() { return db.prepare(`
+    SELECT COUNT(*) AS c
+      FROM member_club_affiliations
+     WHERE club_id = ? AND is_current = 1
+  `); },
+
   get listCurrentWithClubName() { return db.prepare(`
     SELECT mca.id, mca.club_id, c.name AS club_name,
            REPLACE(t.tag_normalized, '#', '') AS club_key,
@@ -1232,6 +1262,45 @@ export const memberClubAffiliations = {
     SELECT id, is_primary
       FROM member_club_affiliations
      WHERE member_id = ? AND club_id = ? AND is_current = 1
+  `); },
+};
+
+export const clubViabilitySignals = {
+  get insertSignal() { return db.prepare(`
+    INSERT INTO club_viability_signals (
+      id, created_at, created_by,
+      member_id, club_id, source_stage, activity_signal,
+      source_entity_type, source_entity_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get countByClub() { return db.prepare(`
+    SELECT
+      SUM(CASE WHEN activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
+      SUM(CASE WHEN activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
+      SUM(CASE WHEN activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
+      SUM(CASE WHEN activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
+      COUNT(*) AS total_count
+    FROM club_viability_signals
+    WHERE club_id = ?
+  `); },
+
+  get listClubsWithSignals() { return db.prepare(`
+    SELECT
+      cvs.club_id,
+      c.name          AS club_name,
+      c.city          AS club_city,
+      c.country       AS club_country,
+      c.status        AS club_status,
+      SUM(CASE WHEN cvs.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
+      SUM(CASE WHEN cvs.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
+      SUM(CASE WHEN cvs.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
+      SUM(CASE WHEN cvs.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
+      COUNT(*) AS total_count
+    FROM club_viability_signals AS cvs
+    INNER JOIN clubs AS c ON c.id = cvs.club_id
+    GROUP BY cvs.club_id
+    ORDER BY not_active_count DESC, never_heard_count DESC
   `); },
 };
 
@@ -6633,6 +6702,85 @@ export const officialRoster = {
   // Display-name lookup for the CSV header comment ("Generated ... by <name>").
   get findDisplayNameById() { return db.prepare(`
     SELECT display_name FROM members WHERE id = ?
+  `); },
+};
+
+export const clubCleanupResolutions = {
+  get upsert() { return db.prepare(`
+    INSERT INTO club_cleanup_resolutions
+      (id, created_at, created_by, club_id, predicate_name, resolution, deferred_until, reason_text)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(club_id, predicate_name)
+    DO UPDATE SET resolution = excluded.resolution,
+                  deferred_until = excluded.deferred_until,
+                  reason_text = excluded.reason_text,
+                  created_at = excluded.created_at,
+                  created_by = excluded.created_by
+  `); },
+
+  get findByClubAndPredicate() { return db.prepare(`
+    SELECT id, resolution, deferred_until
+    FROM club_cleanup_resolutions
+    WHERE club_id = ? AND predicate_name = ?
+  `); },
+
+  get listActive() { return db.prepare(`
+    SELECT club_id, predicate_name, resolution, deferred_until
+    FROM club_cleanup_resolutions
+    WHERE resolution != 'deferred'
+       OR deferred_until IS NULL
+       OR deferred_until <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+  `); },
+};
+
+export const clubCleanupPredicates = {
+  get leaderlessActiveClubs() { return db.prepare(`
+    SELECT c.id AS club_id, c.name AS club_name,
+           c.city, c.country, c.status,
+           c.updated_at AS last_updated
+    FROM clubs AS c
+    WHERE c.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM club_leaders AS cl WHERE cl.club_id = c.id
+      )
+  `); },
+
+  get staleProvisionalLeaders() { return db.prepare(`
+    SELECT cbl.id AS bootstrap_leader_id,
+           cbl.club_id, c.name AS club_name,
+           c.city, c.country,
+           cbl.role, cbl.created_at AS provisional_since
+    FROM club_bootstrap_leaders AS cbl
+    INNER JOIN clubs AS c ON c.id = cbl.club_id
+    WHERE cbl.status = 'provisional'
+    ORDER BY cbl.created_at ASC
+  `); },
+};
+
+export const payments = {
+  get insertPayment() { return db.prepare(`
+    INSERT INTO payments (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, payment_type, amount_cents, currency,
+      status, descriptor, purchased_tier_status, metadata_json
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  get updateStatus() { return db.prepare(`
+    UPDATE payments
+    SET status = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+};
+
+export const paymentStatusTransitions = {
+  get insertTransition() { return db.prepare(`
+    INSERT INTO payment_status_transitions (
+      id, created_at, created_by,
+      payment_id, event_type,
+      from_status, to_status,
+      transition_at, transition_reason_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 };
 

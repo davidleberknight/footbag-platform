@@ -570,6 +570,63 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
+  it('accepts FOOTBAG_DEV_PAYMENT_STUB=1 when FOOTBAG_ENV=staging', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
+    const { config } = await import('../../src/config/env');
+    expect(config.devPaymentStub).toBe(true);
+  });
+
+  it('throws when FOOTBAG_DEV_PAYMENT_STUB=1 with FOOTBAG_ENV unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_ENV;
+    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_DEV_PAYMENT_STUB is dev\/staging-only/,
+    );
+  });
+
+  it('accepts FOOTBAG_DEV_PAYMENT_STUB=1 when FOOTBAG_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'development';
+    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
+    const { config } = await import('../../src/config/env');
+    expect(config.devPaymentStub).toBe(true);
+  });
+
+  it('defaults FOOTBAG_DEV_PAYMENT_STUB to false when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_DEV_PAYMENT_STUB;
+    const { config } = await import('../../src/config/env');
+    expect(config.devPaymentStub).toBe(false);
+  });
+
+  it('rejects FOOTBAG_DEV_PAYMENT_STUB with an invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_DEV_PAYMENT_STUB = 'maybe';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_DEV_PAYMENT_STUB must be/,
+    );
+  });
+
   // Regression for B9: FOOTBAG_TEST_MEMORY_PERCENT was read via process.env
   // inside operationsPlatformService, ungated. An env injection in production
   // could forge anonymous /health/ready readings. The new boot-time guard
@@ -705,6 +762,24 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
+    );
+  });
+
+  it('throws when FOOTBAG_DEV_PAYMENT_STUB=1 with FOOTBAG_ENV=production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_DEV_PAYMENT_STUB is dev\/staging-only/,
     );
   });
 

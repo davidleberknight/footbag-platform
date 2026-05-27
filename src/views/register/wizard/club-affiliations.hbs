@@ -39,8 +39,8 @@
       {{/if}}
 
       {{#if (eq content.card.kind 'leadership')}}
-        <h2>Did you lead {{content.card.clubName}}?</h2>
-        <p class="text-muted">Role on record: {{content.card.roleLabel}}</p>
+        <h2>Were you a contact for {{content.card.clubName}}?</h2>
+        <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
         {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
         {{#if content.card.clubExternalUrl}}
           <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
@@ -94,6 +94,15 @@
       <form method="POST" action="{{content.submitHref}}" class="mt-6 wizard-card-actions">
         <input type="hidden" name="kind"        value="{{content.card.kind}}" />
         <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
+
+        <fieldset class="activity-signal-fieldset mt-4 mb-4">
+          <legend class="fs-sm fw-600">Is this club still active?</legend>
+          <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
+        </fieldset>
+
         <button type="submit" name="userDecision" value="confirm" class="btn btn-primary">Yes</button>
         <button type="submit" name="userDecision" value="decline" class="btn btn-secondary">No</button>
       </form>
@@ -106,15 +115,23 @@
       {{/if}}
     {{else}}
       {{#if (eq content.stage 'stage2a')}}
-        <h2>Clubs near you</h2>
-        <p class="text-muted fs-sm">These pre-populated clubs match your country. Would you like to join any?</p>
+        <h2>Clubs in your area</h2>
+        <p class="text-muted fs-sm">We're updating our club listings. If you recognize any of these, let us know if they're still active.</p>
         {{#if content.nearbyCandidates.length}}
           <ul class="candidate-list">
             {{#each content.nearbyCandidates}}
               <li class="candidate-card">
-                <div class="candidate-card-name">{{this.displayName}}</div>
+                <div class="candidate-card-name">{{this.display_name}}</div>
                 {{#if this.city}}<div class="candidate-card-meta">{{this.city}}, {{this.country}}</div>{{/if}}
-                <a href="/clubs/{{this.id}}" class="btn btn-secondary mt-2">View club</a>
+                <form method="POST" action="/register/wizard/club_affiliations/stage-signal" class="stage-signal-form mt-2">
+                  <input type="hidden" name="candidateId" value="{{this.id}}" />
+                  <input type="hidden" name="stage" value="stage2a" />
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
+                  <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
+                </form>
               </li>
             {{/each}}
           </ul>
@@ -122,43 +139,33 @@
           <p>No clubs found in your area.</p>
         {{/if}}
       {{else if (eq content.stage 'stage2b')}}
-        <h2>Other clubs in your area</h2>
-        <p class="text-muted fs-sm">These clubs are active in your country.</p>
+        <h2>More clubs in your area</h2>
+        <p class="text-muted fs-sm">Help us confirm whether these clubs are still around.</p>
         {{#if content.nearbyCandidates.length}}
           <ul class="candidate-list">
             {{#each content.nearbyCandidates}}
               <li class="candidate-card">
-                <div class="candidate-card-name">{{this.displayName}}</div>
+                <div class="candidate-card-name">{{this.display_name}}</div>
                 {{#if this.city}}<div class="candidate-card-meta">{{this.city}}, {{this.country}}</div>{{/if}}
+                <form method="POST" action="/register/wizard/club_affiliations/stage-signal" class="stage-signal-form mt-2">
+                  <input type="hidden" name="candidateId" value="{{this.id}}" />
+                  <input type="hidden" name="stage" value="stage2b" />
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
+                  <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
+                  <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
+                </form>
               </li>
             {{/each}}
           </ul>
         {{else}}
           <p>No additional clubs found in your area.</p>
         {{/if}}
-      {{else if (eq content.stage 'stage3a')}}
-        <h2>Search for a club</h2>
-        <form method="GET" action="/register/wizard/club_affiliations" class="login-form">
-          <div class="form-field">
-            <label for="q">Club name</label>
-            <input type="text" id="q" name="q" placeholder="Search by name" />
-          </div>
-          <button type="submit" class="btn btn-secondary">Search</button>
-        </form>
-        {{#if content.searchResults.length}}
-          <ul class="candidate-list mt-4">
-            {{#each content.searchResults}}
-              <li class="candidate-card">
-                <div class="candidate-card-name">{{this.displayName}}</div>
-                {{#if this.city}}<div class="candidate-card-meta">{{this.city}}, {{this.country}}</div>{{/if}}
-              </li>
-            {{/each}}
-          </ul>
-        {{/if}}
       {{else}}
-        <h2>Find or create your club</h2>
-        <p>No matching clubs were found during onboarding.</p>
-        <p class="mt-4"><a href="/clubs" class="btn btn-secondary">Browse clubs</a></p>
+        <h2>What's next</h2>
+        <p>Didn't find your club?</p>
+        <p class="mt-4"><a href="{{content.clubsBrowseHref}}" class="btn btn-secondary">Browse clubs{{#if content.memberCountry}} in {{content.memberCountry}}{{/if}}</a></p>
         {{#if content.canCreateClub}}
           <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
         {{else}}

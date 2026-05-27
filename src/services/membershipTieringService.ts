@@ -10,7 +10,8 @@
  *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
  *
  * Does not own:
- *   - Payment processing (PaymentService when implemented)
+ *   - Payment processing (PaymentService when implemented; `applyDevPaymentStub`
+ *     is a CUTOVER-REMOVE dev shortcut, not the permanent write path)
  *   - Registration (CompetitionParticipationService)
  *   - Active Player lifecycle (ActivePlayerService -- this service calls
  *     `endOnTierUpgrade` / `endOnTier3Grant` in the same transaction as the tier
@@ -41,7 +42,8 @@
  *
  * Persistence:
  *   member_tier_grants, member_tier_current, members (flag and role fields),
- *   mailing_list_subscriptions, news_items, audit_entries, outbox_emails.
+ *   mailing_list_subscriptions, news_items, audit_entries, outbox_emails,
+ *   payments, payment_status_transitions (dev payment stub only).
  *
  * Side effects:
  *   - audit_entries append
@@ -52,6 +54,8 @@
  */
 import {
   memberTier,
+  payments as paymentsDb,
+  paymentStatusTransitions as pstDb,
   transaction,
   type MemberTierCurrentRow,
   type MemberTierGrantLatestRow,
@@ -695,4 +699,72 @@ export function adminOverride(
 
     return { ok: true as const };
   });
+}
+
+function newPaymentId(): string {
+  return `pay_${uuidv7Hex()}`;
+}
+
+function newTransitionId(): string {
+  return `pst_${uuidv7Hex()}`;
+}
+
+/**
+ * Dev-only payment stub: creates a payments row and applies the tier grant.
+ * No Stripe, no webhook. Payment row creation and tier grant run in separate
+ * transactions because applyPurchaseGrant owns its own transaction.
+ *
+ * CUTOVER-REMOVE: remove when Stripe integration is wired.
+ */
+export function applyDevPaymentStub(
+  memberId: string,
+  tier: 'tier1' | 'tier2',
+): { paymentId: string } {
+  const amountCents = tier === 'tier1' ? 2000 : 5000;
+  const now = new Date().toISOString();
+  const paymentId = newPaymentId();
+
+  transaction(() => {
+    paymentsDb.insertPayment.run(
+      paymentId,
+      now, memberId, now, memberId,
+      memberId,
+      'membership',
+      amountCents, 'USD',
+      'pending',
+      `Dev payment stub: ${tier}`,
+      tier,
+      '{}',
+    );
+
+    paymentsDb.updateStatus.run('succeeded', now, memberId, paymentId);
+
+    pstDb.insertTransition.run(
+      newTransitionId(),
+      now, 'dev_payment_stub',
+      paymentId,
+      'dev_payment_stub',
+      'pending', 'succeeded',
+      now,
+      'Dev-only payment stub (no Stripe)',
+    );
+  });
+
+  applyPurchaseGrant(memberId, memberId, paymentId, tier);
+
+  audit({
+    actionType: 'dev_payment_stub',
+    category: 'tier_change',
+    actorType: 'member',
+    actorId: memberId,
+    memberId,
+    reasonText: 'Dev-only payment stub (no Stripe)',
+    metadata: {
+      tier,
+      payment_id: paymentId,
+      amount_cents: amountCents,
+    },
+  });
+
+  return { paymentId };
 }

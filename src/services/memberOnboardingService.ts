@@ -3,6 +3,7 @@ import {
   account,
   clubBootstrapLeaders,
   clubBootstrapLeaderSignals,
+  clubViabilitySignals,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
   memberOnboarding,
@@ -36,6 +37,34 @@ function normalizeToArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
   if (typeof value === 'string') return [value];
   return [];
+}
+
+type ActivitySignal = 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it';
+
+const VALID_ACTIVITY_SIGNALS: ReadonlySet<string> = new Set([
+  'active', 'not_active', 'not_sure', 'never_heard_of_it',
+]);
+
+function writeViabilitySignal(
+  memberId: string,
+  clubId: string,
+  sourceStage: string,
+  activitySignal: ActivitySignal,
+  sourceEntityType: string,
+  sourceEntityId: string,
+): void {
+  const now = new Date().toISOString();
+  clubViabilitySignals.insertSignal.run(
+    `cvs_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+    now,
+    'onboarding_service',
+    memberId,
+    clubId,
+    sourceStage,
+    activitySignal,
+    sourceEntityType,
+    sourceEntityId,
+  );
 }
 
 export const TASK_CATALOG = [
@@ -474,8 +503,8 @@ const CLASSIFICATION_LABELS: Record<'strong' | 'weak' | 'none', string> = {
 };
 
 const ROLE_LABELS: Record<'leader' | 'co-leader', string> = {
-  'leader':    'Leader',
-  'co-leader': 'Co-leader',
+  'leader':    'Primary contact',
+  'co-leader': 'Contact',
 };
 
 const SIGNAL_LABELS: Record<WizardSignalType, string> = {
@@ -656,6 +685,7 @@ function submitMembershipResponse(
   memberId: string,
   candidateId: string,
   userDecision: 'confirm' | 'correct' | 'decline',
+  activitySignal: ActivitySignal | null,
 ): ClubAffiliationsResult {
   const affiliation = legacyPersonClubAffiliations.findById.get(candidateId) as
     | LegacyPersonClubAffiliationRow
@@ -673,6 +703,17 @@ function submitMembershipResponse(
     treatAsDecline ? 'decline' : 'confirm',
   );
 
+  if (activitySignal && result.resolvedClubId) {
+    writeViabilitySignal(
+      memberId,
+      result.resolvedClubId,
+      'stage1b_affiliated',
+      activitySignal,
+      'legacy_person_club_affiliation',
+      candidateId,
+    );
+  }
+
   const actionType =
     result.branch === 'confirmed'
       ? 'wizard.club_affiliations.confirmed'
@@ -689,6 +730,7 @@ function submitMembershipResponse(
     metadata: {
       kind:              'membership',
       user_decision:     userDecision,
+      activity_signal:   activitySignal,
       confirm_branch:    result.branch,
       resolved_club_id:  result.resolvedClubId,
       new_affiliation_id: result.newAffiliationId,
@@ -714,6 +756,7 @@ function submitLeadershipResponse(
   memberId: string,
   candidateId: string,
   userDecision: 'confirm' | 'correct' | 'decline',
+  activitySignal: ActivitySignal | null,
 ): ClubAffiliationsResult {
   const leader = clubBootstrapLeaders.findById.get(candidateId) as
     | ClubBootstrapLeaderRow
@@ -734,6 +777,17 @@ function submitLeadershipResponse(
     return { branch, classification: 'none', actualRole: null, taskState };
   }
 
+  if (activitySignal) {
+    writeViabilitySignal(
+      memberId,
+      leader.club_id,
+      'stage1a_contact',
+      activitySignal,
+      'club_bootstrap_leader',
+      candidateId,
+    );
+  }
+
   const { structural, modifiers, rows } = readSignalsForCandidate(candidateId);
   const result = classifyBootstrapLeader(structural, modifiers);
 
@@ -748,6 +802,7 @@ function submitLeadershipResponse(
       entityId:      candidateId,
       metadata: {
         kind:           'leadership',
+        activity_signal: activitySignal,
         classification: result.classification,
         matched_gate:   result.matchedGate,
         signal_rows:    rows.length,
@@ -776,6 +831,7 @@ function submitLeadershipResponse(
     entityId:      candidateId,
     metadata: {
       kind:             'leadership',
+      activity_signal:  activitySignal,
       classification:   result.classification,
       matched_gate:     result.matchedGate,
       user_decision:    userDecision,
@@ -805,11 +861,11 @@ function submitClubAffiliationsResponse(
   body: Record<string, unknown>,
 ): ClubAffiliationsResult {
   // Body shape: { kind: 'membership' | 'leadership' (default 'leadership'),
-  //               candidateId, userDecision }. `kind` is optional for
-  //               backward-compatibility with direct service callers (tests
-  //               that predate the membership path); the controller-facing
-  //               wrapper (`processClubAffiliationsSubmit`) always sets it
-  //               explicitly from the form's hidden input.
+  //               candidateId, userDecision, activitySignal? }. `kind` is
+  //               optional for backward-compatibility with direct service
+  //               callers (tests that predate the membership path); the
+  //               controller-facing wrapper (`processClubAffiliationsSubmit`)
+  //               always sets it explicitly from the form's hidden input.
   const candidateId  = typeof body.candidateId  === 'string' ? body.candidateId  : '';
   const userDecision = body.userDecision;
   const kindRaw      = typeof body.kind === 'string' ? body.kind : 'leadership';
@@ -829,9 +885,13 @@ function submitClubAffiliationsResponse(
     throw new ValidationError("kind must be one of 'membership', 'leadership'");
   }
 
+  const rawSignal = typeof body.activitySignal === 'string' ? body.activitySignal : null;
+  const activitySignal: ActivitySignal | null =
+    rawSignal && VALID_ACTIVITY_SIGNALS.has(rawSignal) ? rawSignal as ActivitySignal : null;
+
   return kindRaw === 'membership'
-    ? submitMembershipResponse(memberId, candidateId, userDecision)
-    : submitLeadershipResponse(memberId, candidateId, userDecision);
+    ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
+    : submitLeadershipResponse(memberId, candidateId, userDecision, activitySignal);
 }
 
 function submitTaskResponse(memberId: string, taskType: string, response: unknown): void {
@@ -1144,7 +1204,7 @@ function submitDisambiguationResponse(
   const selectedSet = new Set(selectedIds);
   for (const id of allIds) {
     const decision = selectedSet.has(id) ? 'confirm' : 'decline';
-    submitMembershipResponse(memberId, id, decision);
+    submitMembershipResponse(memberId, id, decision, null);
   }
   const taskState = maybeCompleteClubAffiliationsTask(memberId);
   return {
@@ -1209,6 +1269,15 @@ function processClubAffiliationsSubmit(
     };
   }
 
+  const rawSignal = typeof body.activitySignal === 'string' ? body.activitySignal : '';
+  if (!rawSignal || !VALID_ACTIVITY_SIGNALS.has(rawSignal)) {
+    return {
+      kind:      'validation_error',
+      formState: null,
+      message:   'Please select whether this club is still active.',
+    };
+  }
+
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
   const cardsBefore = listWizardCardsForMember(memberId);
@@ -1237,7 +1306,7 @@ function processClubAffiliationsSubmit(
 // geographic matching against legacy_club_candidates.
 // ---------------------------------------------------------------------------
 
-export type ClubAffiliationStage = 'stage1' | 'stage2a' | 'stage2b' | 'stage3a' | 'wrap_up';
+export type ClubAffiliationStage = 'stage1' | 'stage2a' | 'stage2b' | 'wrap_up';
 
 interface NearbyClubCandidate {
   id: string;
@@ -1252,43 +1321,88 @@ function getClubAffiliationStage(memberId: string): ClubAffiliationStage {
   const stage1Cards = listWizardCardsForMember(memberId);
   if (stage1Cards.length > 0) return 'stage1';
 
-  const memberRow = account.findPersonalDetails.get(memberId) as
-    | { country: string | null }
-    | undefined;
-  const country = memberRow?.country ?? null;
+  const { region, country } = getMemberGeo(memberId);
   if (!country) return 'wrap_up';
 
-  const prePopulated = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+  const prePopulated = region
+    ? legacyClubCandidates.findPrePopulatedByRegion.all(region, country) as NearbyClubCandidate[]
+    : [];
   if (prePopulated.length > 0) return 'stage2a';
+  const prePopCountry = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+  if (prePopCountry.length > 0) return 'stage2a';
 
-  const onboardingVisible = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+  const onboardingVisible = region
+    ? legacyClubCandidates.findOnboardingVisibleByRegion.all(region, country) as NearbyClubCandidate[]
+    : [];
   if (onboardingVisible.length > 0) return 'stage2b';
+  const onboardCountry = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+  if (onboardCountry.length > 0) return 'stage2b';
 
-  return 'stage3a';
+  return 'wrap_up';
+}
+
+function getMemberGeo(memberId: string): { city: string | null; region: string | null; country: string | null } {
+  const row = account.findPersonalDetails.get(memberId) as
+    | { city: string | null; region: string | null; country: string | null }
+    | undefined;
+  return { city: row?.city ?? null, region: row?.region ?? null, country: row?.country ?? null };
+}
+
+function sortCityFirst(candidates: NearbyClubCandidate[], memberCity: string | null): NearbyClubCandidate[] {
+  if (!memberCity) return candidates;
+  const cityLower = memberCity.toLowerCase();
+  return candidates.sort((a, b) => {
+    const aMatch = a.city?.toLowerCase() === cityLower ? 0 : 1;
+    const bMatch = b.city?.toLowerCase() === cityLower ? 0 : 1;
+    return aMatch - bMatch;
+  });
 }
 
 function getStage2aCandidates(memberId: string): NearbyClubCandidate[] {
-  const memberRow = account.findPersonalDetails.get(memberId) as
-    | { country: string | null }
-    | undefined;
-  const country = memberRow?.country ?? null;
+  const { city, region, country } = getMemberGeo(memberId);
   if (!country) return [];
-  return legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+  let results: NearbyClubCandidate[];
+  if (region) {
+    results = legacyClubCandidates.findPrePopulatedByRegion.all(region, country) as NearbyClubCandidate[];
+  }
+  if (!region || results!.length === 0) {
+    results = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
+  }
+  return sortCityFirst(results!, city);
 }
 
 function getStage2bCandidates(memberId: string): NearbyClubCandidate[] {
-  const memberRow = account.findPersonalDetails.get(memberId) as
-    | { country: string | null }
-    | undefined;
-  const country = memberRow?.country ?? null;
+  const { city, region, country } = getMemberGeo(memberId);
   if (!country) return [];
-  return legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+  let results: NearbyClubCandidate[];
+  if (region) {
+    results = legacyClubCandidates.findOnboardingVisibleByRegion.all(region, country) as NearbyClubCandidate[];
+  }
+  if (!region || results!.length === 0) {
+    results = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
+  }
+  return sortCityFirst(results!, city);
 }
 
-function searchStage3aCandidates(query: string): NearbyClubCandidate[] {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
-  return legacyClubCandidates.searchDormantByName.all(`%${trimmed}%`) as NearbyClubCandidate[];
+function submitStageSignal(
+  memberId: string,
+  candidateId: string,
+  stage: 'stage2a' | 'stage2b',
+  activitySignal: ActivitySignal,
+): void {
+  const candidate = legacyClubCandidates.findById.get(candidateId) as
+    | { id: string; mapped_club_id: string | null } | undefined;
+  if (!candidate) return;
+  const clubId = candidate.mapped_club_id;
+  if (!clubId) return;
+  writeViabilitySignal(
+    memberId,
+    clubId,
+    stage,
+    activitySignal,
+    'legacy_club_candidate',
+    candidateId,
+  );
 }
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
@@ -1320,5 +1434,5 @@ export const memberOnboardingService = {
   getClubAffiliationStage,
   getStage2aCandidates,
   getStage2bCandidates,
-  searchStage3aCandidates,
+  submitStageSignal,
 };

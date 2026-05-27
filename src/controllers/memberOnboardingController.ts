@@ -59,7 +59,8 @@ interface ClubAffiliationsCardContent {
   stage?:          string;
   canCreateClub?:  boolean;
   nearbyCandidates?: Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
-  searchResults?:  Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
+  clubsBrowseHref?: string;
+  memberCountry?:  string;
 }
 
 interface PersonalDetailsContent {
@@ -212,18 +213,18 @@ function renderClubAffiliationsCard(
 
   const stage = cards.length > 0 ? 'stage1' : memberOnboardingService.getClubAffiliationStage(memberId);
   let nearbyCandidates: Array<{ id: string; displayName: string; city: string | null; country: string | null }> | undefined;
-  let searchResults: typeof nearbyCandidates | undefined;
 
   if (stage === 'stage2a') {
     nearbyCandidates = memberOnboardingService.getStage2aCandidates(memberId);
   } else if (stage === 'stage2b') {
     nearbyCandidates = memberOnboardingService.getStage2bCandidates(memberId);
-  } else if (stage === 'stage3a') {
-    const query = typeof req.query.q === 'string' ? req.query.q : '';
-    if (query) {
-      searchResults = memberOnboardingService.searchStage3aCandidates(query);
-    }
   }
+
+  const prefill = memberService.getPersonalDetailsPrefill(memberId);
+  const memberCountry = prefill.country ?? null;
+  const countrySlug = memberCountry
+    ? memberCountry.toLowerCase().replace(/\s+/g, '_')
+    : null;
 
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Link your primary club' },
@@ -243,7 +244,8 @@ function renderClubAffiliationsCard(
         return tier != null && tier.tier_status !== 'tier0';
       })(),
       nearbyCandidates,
-      searchResults,
+      clubsBrowseHref: countrySlug ? `/clubs/${countrySlug}` : '/clubs',
+      memberCountry,
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
@@ -561,6 +563,37 @@ export const memberOnboardingController = {
     try {
       identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
       res.redirect(303, '/register/wizard/legacy_claim');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  postStageSignal(req: Request, res: Response, next: NextFunction): void {
+    const candidateId = typeof req.body.candidateId === 'string' ? req.body.candidateId : '';
+    const activitySignal = typeof req.body.activitySignal === 'string' ? req.body.activitySignal : '';
+    const stage = typeof req.body.stage === 'string' ? req.body.stage : '';
+
+    if (!candidateId || !activitySignal) {
+      res.redirect(303, '/register/wizard/club_affiliations');
+      return;
+    }
+    if (stage !== 'stage2a' && stage !== 'stage2b') {
+      res.redirect(303, '/register/wizard/club_affiliations');
+      return;
+    }
+    const validSignals = new Set(['active', 'not_active', 'not_sure', 'never_heard_of_it']);
+    if (!validSignals.has(activitySignal)) {
+      res.redirect(303, '/register/wizard/club_affiliations');
+      return;
+    }
+    try {
+      memberOnboardingService.submitStageSignal(
+        req.user!.userId,
+        candidateId,
+        stage,
+        activitySignal as 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it',
+      );
+      res.redirect(303, '/register/wizard/club_affiliations');
     } catch (err) {
       next(err);
     }

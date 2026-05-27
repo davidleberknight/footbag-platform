@@ -95,7 +95,7 @@
       <ul class="mb-4">
         {{#each content.declaredAnchors}}
           <li class="mb-2">
-            <span class="badge">{{#if (eq this.anchorType 'old_email')}}Old email{{else}}Former name{{/if}}</span> {{this.anchorValue}}
+            <span class="badge">{{this.anchorTypeLabel}}</span> {{this.anchorValue}}
             <form method="POST" action="/register/wizard/legacy_claim/anchors/remove" class="inline-form">
               <input type="hidden" name="anchorId" value="{{this.id}}" />
               <button type="submit" class="btn-link text-muted fs-sm">Remove</button>

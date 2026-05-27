@@ -1,0 +1,57 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>{{content.totalItems}} item(s) requiring attention.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.items.length}}
+      <table class="cleanup-queue-table">
+        <thead>
+          <tr>
+            <th>Club</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Predicate</th>
+            <th>Detail</th>
+            <th>Recommendation</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+            <tr>
+              <td class="fw-600">{{this.clubName}}</td>
+              <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
+              <td><span class="badge">{{this.clubStatus}}</span></td>
+              <td class="fs-sm">{{this.predicateLabel}}</td>
+              <td class="text-muted fs-sm">{{this.detail}}</td>
+              <td class="fs-sm">{{this.recommendedAction}}</td>
+              <td>
+                <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
+                  <input type="hidden" name="predicate" value="{{this.predicate}}" />
+                  <select name="action" class="cleanup-action-select">
+                    <option value="demote_inactive">Demote</option>
+                    <option value="archive">Archive</option>
+                    <option value="dismiss">Dismiss</option>
+                    <option value="defer_30">Defer 30d</option>
+                    <option value="defer_90">Defer 90d</option>
+                    <option value="defer_180">Defer 180d</option>
+                  </select>
+                  <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                  <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+                </form>
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p>No clubs require attention. Signals are collected during member onboarding and from club detail pages.</p>
+    {{/if}}
+
+    <p class="mt-6"><a href="/admin">&larr; Admin Dashboard</a></p>
+  </section>
+</div>

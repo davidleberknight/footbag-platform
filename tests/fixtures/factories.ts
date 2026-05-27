@@ -1964,3 +1964,35 @@ export function completeOnboarding(db: BetterSqlite3.Database, memberId: string)
     `).run(`mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, TS);
   }
 }
+
+// ── Club Viability Signals ───────────────────────────────────────────────────
+
+export interface ClubViabilitySignalOverrides {
+  id?: string;
+  member_id?: string;
+  club_id?: string;
+  source_stage?: string;
+  activity_signal?: string;
+  source_entity_type?: string | null;
+  source_entity_id?: string | null;
+}
+
+export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubViabilitySignalOverrides = {}): string {
+  const id = o.id ?? `cvs_${uid()}`;
+  db.prepare(`
+    INSERT INTO club_viability_signals
+      (id, created_at, created_by, member_id, club_id,
+       source_stage, activity_signal, source_entity_type, source_entity_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS,
+    o.member_id ?? `mem_${uid()}`,
+    o.club_id ?? `club_${uid()}`,
+    o.source_stage ?? 'stage1b_affiliated',
+    o.activity_signal ?? 'active',
+    o.source_entity_type ?? null,
+    o.source_entity_id ?? null,
+  );
+  return id;
+}
+
