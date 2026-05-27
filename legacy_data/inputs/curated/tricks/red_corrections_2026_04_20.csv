@@ -841,3 +841,19 @@ inspinning-symposium-mirage,notation,,INSPINNING SYMPOSIUM MIRAGE,W1b 2026-05-27
 inspinning-symposium-mirage,operational_notation,,TOE > (front) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W1b 2026-05-27: inspinning spin then symposium-mirage's no-plant body event + OP IN dex. 4 brackets ([BOD] [BOD] [DEX] [DEL]) matches asserted 4 ADD.
 atomic-inspinning-butterfly,notation,,ATOMIC INSPINNING BUTTERFLY,W1b 2026-05-27: JOB per mechanical uppercase rule.
 atomic-inspinning-butterfly,operational_notation,,TOE > OP OUT [DEX] > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W1b 2026-05-27: atomic-butterfly chassis with inspinning spin injected between dexes. 5 brackets ([DEX] [BOD] [DEX] [XBD] [DEL]) matches asserted 5 ADD.
+quantum-osis,notation,,QUANTUM OSIS,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-osis,operational_notation,,TOE > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W1d 2026-05-27: sibling-derived from quantum-whirl pattern + osis body-spin. 4 brackets matches 4 ADD.
+quantum-pickup,notation,,QUANTUM PICKUP,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-pickup,operational_notation,,TOE > OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL],W1d 2026-05-27: sibling-derived from quantum-mirage pattern + pickup terminal. 3 brackets matches 3 ADD.
+quantum-legover,notation,,QUANTUM LEGOVER,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-legover,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W1d 2026-05-27: sibling-derived from quantum-illusion + legover terminal. 3 brackets matches 3 ADD.
+quantum-butterfly,notation,,QUANTUM BUTTERFLY,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-butterfly,operational_notation,,TOE > OP IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W1d 2026-05-27: sibling-derived from quantum-whirl + butterfly's SAME OUT direction. 4 brackets matches 4 ADD.
+quantum-eggbeater,notation,,QUANTUM EGGBEATER,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-eggbeater,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],W1d 2026-05-27: quantum dex prefixed to eggbeater's two-OUT-dex chassis. 4 brackets matches 4 ADD.
+quantum-blender,notation,,QUANTUM BLENDER,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-blender,operational_notation,,TOE > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W1d 2026-05-27: quantum dex prefixed to blender chassis (same-clip terminal). 5 brackets matches 5 ADD.
+quantum-torque,notation,,QUANTUM TORQUE,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-torque,operational_notation,,TOE > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W1d 2026-05-27: quantum dex prefixed to torque chassis (op-clip terminal). 5 brackets matches 5 ADD.
+quantum-double-over-down,notation,,QUANTUM DOUBLE OVER DOWN,W1d 2026-05-27: JOB per mechanical uppercase rule.
+quantum-double-over-down,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W1d 2026-05-27: quantum dex prefixed to double-over-down chassis. 5 brackets matches 5 ADD.
