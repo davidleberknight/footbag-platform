@@ -907,3 +907,13 @@ atomic-barrage,notation,,ATOMIC BARRAGE,W4a 2026-05-27: JOB per mechanical upper
 atomic-barrage,operational_notation,,TOE > OP OUT [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],W4a 2026-05-27: atomic-butterfly chassis + barrage's SAME IN double-dex chain + toe terminator. 4 brackets matches 4 ADD.
 atomic-clipper,notation,,ATOMIC CLIPPER,W4a 2026-05-27: JOB per mechanical uppercase rule.
 atomic-clipper,operational_notation,,TOE > OP OUT [DEX] > OP CLIP [XBD] [DEL],W4a 2026-05-27: atomic dex prefixed to clipper-stall terminal (cross-body clipper). 3 brackets matches 3 ADD.
+fairy-mirage,notation,,FAIRY MIRAGE,W5a 2026-05-27: JOB per mechanical uppercase rule.
+fairy-mirage,operational_notation,,TOE > SAME OUT [DEX] > OP IN [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + mirage chassis. 3 brackets matches 3 ADD.
+fairy-osis,notation,,FAIRY OSIS,W5a 2026-05-27: JOB per mechanical uppercase rule.
+fairy-osis,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W5a 2026-05-27: fairy set + osis chassis (body-spin + same-clip terminal). 4 brackets matches 4 ADD.
+fairy-blender,notation,,FAIRY BLENDER,W5a 2026-05-27: JOB per mechanical uppercase rule.
+fairy-blender,operational_notation,,TOE > SAME OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W5a 2026-05-27: fairy set + blender chassis. 5 brackets matches 5 ADD.
+fairy-flail,notation,,FAIRY FLAIL,W5a 2026-05-27: JOB per mechanical uppercase rule.
+fairy-flail,operational_notation,,TOE > SAME OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + flail chassis. 4 brackets matches 4 ADD.
+fairy-barrage,notation,,FAIRY BARRAGE,W5a 2026-05-27: JOB per mechanical uppercase rule.
+fairy-barrage,operational_notation,,TOE > SAME OUT [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],W5a 2026-05-27: fairy set + barrage's SAME IN double-dex chain. 4 brackets matches 4 ADD.
