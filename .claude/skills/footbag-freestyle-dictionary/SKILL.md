@@ -188,6 +188,41 @@ Special derivation patterns established this wave:
 - **pt9 X-Dex placement:** for X-Dex named-exception compounds, `[XDEX]` flag goes on the BASE's dex (sumo `> OP IN [DEX] [XDEX] >` pattern; atom-smasher follows)
 - **Direction-reverse (rev-X):** flip dex direction (`OP IN` → `OP OUT`); make entry explicit (`SET` → `CLIP`)
 
+Additional chassis patterns established by the 2026-05-27 comprehensive-coverage wave (W1–W8, 131 promotions across inspinning/quantum/pixie/atomic-pilot/fairy/spinning/gyro/ducking):
+
+- **Gyro chassis flip rule:** gyro = `(back) SPIN [BOD]` + flip base's FIRST dex from `OP` → `SAME` (half-spin same-side reading). Distinct from spinning which keeps `OP` direction. For multi-dex bases only the first dex flips. For zero-dex bases (clipper-stall, toe-stall) gyro and spinning collapse to identical structure — DO NOT promote separate `gyro-clipper` / `gyro-toe` rows. Folk-aliased: `gyro-torque` = `mobius` (5 ADD canonical).
+- **Spinning vs gyro asymmetry:** both use `(back) SPIN [BOD]` notation; differentiator is the dex-direction flip rule above. `spinning-mirage` has `OP IN [DEX]`; `gyro-mirage` has `SAME IN [DEX]`.
+- **Double-spinning / twinspinning = +2 modifier weight** (two back-spin events at the front of the chain). Folk names sonic / peeking / twinspinning are NOT canonical in DB; promote as bare structural slugs `double-spinning-X` / `twinspinning-X`. modifier_links left blank (parallel to inspinning convention — not registered in `freestyle_trick_modifiers`).
+- **Jump-class double-[DEL] terminal:** `pixie-eclipse` / `fairy-eclipse` / `ducking-eclipse` / `gyro-eclipse` share the chassis `... (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL]` — mid-flight inside-stall + landing toe-stall, NO final dex. For `ducking-eclipse` / `gyro-eclipse`, the body modifier (DUCK / SPIN) precedes the JUMP, yielding double-[BOD] front-of-chain.
+- **Triple-[BOD] construction:** when stacking a body modifier (spinning / ducking / symposium) on a base trick that already carries its own body-spin (osis / blender / torque), three `[BOD]` events appear in sequence. Examples: `spinning-ducking-osis` = `CLIP > (back) SPIN [BOD] > DUCK [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`; `gyro-symposium-torque` (triple BOD via spin + no-plant + base spin); `double-spinning-osis`.
+- **Atomic rotational +2 with X-Dex marker (PARTIAL — Wave-2 Q3 pending):** atomic on rotational bases (mirage / whirl / torque / blender / swirl / drifter) contributes +2 ADD via a hidden X-Dex carry; the second atomic dex carries `[XDEX]` bracket (atom-smasher pattern: `TOE > OP OUT [DEX] > OP IN [DEX] [XDEX] > OP TOE [DEL]`). **Deferred from W4 beyond a non-rotational-base pilot (atomic-flail / atomic-barrage / atomic-clipper) until Wave-2 Q3 ruling lands.**
+
+**Wave-based promotion methodology (2026-05-27 W1–W8 pattern):** Each promotion wave runs as 5-row pilot batches via idempotent apply scripts at `exploration/wave1-triage-2026-05-27/wN<letter>_apply.py`. Per batch: derive sibling chassis → verify bracket count = asserted ADD → run apply (which appends to `red_additions` + `red_corrections` via `csv.QUOTE_MINIMAL` append, with row-existence idempotency checks) → `npm run build` → `npm test` (4,690+ tests must pass) → `git add` → hand off commit. Apply scripts are checked into `exploration/wave1-triage-2026-05-27/`; the per-batch staged state IS the audit trail.
+
+**Per-row slug normalization** (see [[feedback_freestyle_slug_normalization]]): "DLO" → `double-leg-over`; "Pdx" → `paradox`; "PS" → `paradox-symposium`; "Symp." → `symposium`; "(same side)" / "(ss)" / "(op)" / "(far)" / "(near)" qualifiers drop from slug (bare structural form is canonical; qualifier becomes alias if needed); "rev-X" preferred over "reverse-X" where rev-X exists in DB.
+
+**Folk-name canonical overlap registry** (always check before promoting a structural-name compound; the structural-form slug should NOT be promoted as a separate row when the folk-form is already canonical — register as state-2 alias or S5 SE-chain reading instead):
+| Structural form | Canonical folk slug | ADD |
+|---|---|---|
+| `pixie-butterfly` | `dimwalk` | 4 |
+| `pixie-mirage` | `smear` | 3 |
+| `pixie-illusion` | (set-system `sailing`, not a trick) | (2 set) |
+| `pixie-ducking-butterfly` | `phoenix` | 5 |
+| `pixie-ducking-mirage` | `assassin` | 4 |
+| `pixie-diving-near-butterfly` | `darkwalk` | 5 |
+| `atomic-legover` | `eggbeater` | 3 |
+| `atomic-pickup` | `omelette` | 3 (Q1 doctrine-conflicted; 2026-05-26 Red packet pending) |
+| `atomic-mirage` | `atom-smasher` | 4 |
+| `atomic-double-over-down` | `fusion` | 5 |
+| `atomic-symposium-mirage` | `witchdoctor` | 5 |
+| `atomic-double-leg-over` | `predator` | 4 |
+| `atomic-ducking-whirl` | `ego` | 6 |
+| `atomic-butterfly` | (canonical as `atomic-butterfly`; folk `legbeater` not canonical) | 4 |
+| `gyro-torque` | `mobius` | 5 |
+| `fairy-torque` | `forque` | 5 |
+| `fairy-ducking-mirage` | `guillotine` | 4 |
+| `reverse-swirling-osis` | `twirl` | 4 (note: `twirl` is NOT `fairy-osis`) |
+
 **Rule 3 — 5-class derivation taxonomy (classify before shipping):**
 
 | Class | Definition | Action |
