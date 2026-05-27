@@ -3011,8 +3011,12 @@ export interface ObservedTrickCardDetail {
   /** Wave 2 / curator blockers preventing canonicalization. */
   blockers:           readonly string[];
   /** Full free-form source citation (e.g. "PassBack dictionary
-   *  (passback-dicrionary.txt)"). The card's sourceBadge + tooltip
-   *  render this implicitly; the detail expansion shows it explicitly. */
+   *  (passback-dictionary.txt)"). The card's sourceBadge + tooltip
+   *  render this implicitly; the detail expansion shows it explicitly.
+   *  Note: the underlying source file is literally named
+   *  passback-dicrionary.txt (misspelling preserved upstream); the
+   *  display string is sanitized to dictionary for the user-facing
+   *  citation. */
   sourceCitation:     string;
 }
 

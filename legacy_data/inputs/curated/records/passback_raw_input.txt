@@ -106,7 +106,7 @@ Mullet        Whirl (op) (ducking) (symp)    3    1    6    Norek    3/17/2010  
 Mullet        Whirl (op) (ducking) (symp)    3    2    6    Ken Somolinos    2/26/2012        https://youtu.be/xPTjAKS7Pu8?t=4    0:04    mid-combo    Mullet_2    Whirl(op)(ducking)(symp)_2
 Nemesis        Barraging Double Down (op)    3        6    David Clavens    12/27/2008        https://www.youtube.com/watch?v=Dmr7zj_c7cY#t=2m05s        Video unavailable; previously verified    Nemesis_    BarragingDoubleDown(op)_
 Omelette        Atomic Illusion (op)    10        4    Derek Littlefield    8/15/2024        https://www.instagram.com/p/C-tI87cuxoZ    3        Omelette_    AtomicIllusion(op)_
-Osis        Osis (ss)    256    2    3    Maruisz Wilk    7/7/2009        https://www.youtube.com/watch?v=eAHKpV-t_04            Osis_2    Osis(ss)_2
+Osis        Osis (ss)    256    2    3    Mariusz Wilk    7/7/2009        https://www.youtube.com/watch?v=eAHKpV-t_04            Osis_2    Osis(ss)_2
 Paste        Pixie Pickup (op)    42    1    3    Jakub Mosciszewski    3/5/2025        https://youtu.be/xVl9Fyc4ino?t=35            Paste_1    PixiePickup(op)_1
 Paste        Pixie Pickup (op)    30    2    3    Derek Littlefield    2/23/2025        https://youtu.be/UcSxoF3Moag?t=4    0:04        Paste_2    PixiePickup(op)_2
 Paste (ss)        Pixie Pickup (ss)    43        3    Krzysztof Sobotka    3/14/2010        https://www.youtube.com/watch?v=haZxU-MjdVY            Paste(ss)_    PixiePickup(ss)_
@@ -156,7 +156,7 @@ Spinning Whirl        Spinning Whirl (op)    25    1    5    SkyLon Smith    11/
 Spinning Whirl        Spinning Whirl (op)    18    2    5    Evan Gatesman    1/27/2013        https://www.youtube.com/watch?v=Lxbt8nxeLRk            SpinningWhirl_2    SpinningWhirl(op)_2
 Spinning Whirl        Spinning Whirl (op)    18    3    5    Jim Penske    9/9/2014        https://www.youtube.com/watch?v=d1Uy768K3cA            SpinningWhirl_3    SpinningWhirl(op)_3
 Stepping Clipper        Stepping Clipper (ss)    27        3    Josh Munstermann    6/8/2009        https://www.youtube.com/watch?v=7LpkJFmYo7k            SteppingClipper_    SteppingClipper(ss)_
-Stepping Ducking Osis        Stepping Osis (op) (ducking)    5        5    Maruisz Wilk    3/14/2010        https://www.youtube.com/watch?v=4wxlFGXA7G8            SteppingDuckingOsis_    SteppingOsis(op)(ducking)_
+Stepping Ducking Osis        Stepping Osis (op) (ducking)    5        5    Mariusz Wilk    3/14/2010        https://www.youtube.com/watch?v=4wxlFGXA7G8            SteppingDuckingOsis_    SteppingOsis(op)(ducking)_
 Stepping Osis        Stepping Osis (ss)    12        4    Evan Gatesman    1/27/2013        https://www.youtube.com/watch?v=yYdCrAcR_GI            SteppingOsis_    SteppingOsis(ss)_
 Superfly        Double Down (op) (symp)    10        5    Anssi Sundberg    2/18/2013        https://youtu.be/6h7yJJoir4s?t=92    1:32        Superfly_    DoubleDown(op)(symp)_
 Swifter        Stepping Swirl (op)    5    1    4    Jim Penske    5/8/2020        https://www.youtube.com/watch?v=misRIkKeX24            Swifter_1    SteppingSwirl(op)_1
