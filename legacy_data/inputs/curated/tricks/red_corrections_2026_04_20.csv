@@ -967,3 +967,63 @@ fairy-gyro-mirage,notation,,FAIRY GYRO MIRAGE,W5f 2026-05-27: JOB per mechanical
 fairy-gyro-mirage,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL],W5f 2026-05-27: gyro-mirage chassis with fairy prefix. 4 brackets matches 4 ADD.
 fairy-double-over-down,notation,,FAIRY DOUBLE OVER DOWN,W5f 2026-05-27: JOB per mechanical uppercase rule.
 fairy-double-over-down,operational_notation,,TOE > SAME OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W5f 2026-05-27: double-over-down chassis with fairy prefix. 5 brackets matches 5 ADD.
+spinning-mirage,notation,,SPINNING MIRAGE,W6a 2026-05-27: JOB per mechanical uppercase rule.
+spinning-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],W6a 2026-05-27: spinning chassis + mirage IN-dex + toe terminator. 3 brackets matches 3 ADD.
+spinning-illusion,notation,,SPINNING ILLUSION,W6a 2026-05-27: JOB per mechanical uppercase rule.
+spinning-illusion,operational_notation,,CLIP > (back) SPIN [BOD] > OP OUT [DEX] > OP TOE [DEL],W6a 2026-05-27: spinning chassis + illusion OUT-dex + toe terminator. 3 brackets matches 3 ADD.
+spinning-legover,notation,,SPINNING LEGOVER,W6a 2026-05-27: JOB per mechanical uppercase rule.
+spinning-legover,operational_notation,,CLIP > (back) SPIN [BOD] > OP OUT [DEX] > SAME TOE [DEL],W6a 2026-05-27: spinning chassis + legover's OUT-dex + same-toe terminator. 3 brackets matches 3 ADD.
+spinning-blender,notation,,SPINNING BLENDER,W6a 2026-05-27: JOB per mechanical uppercase rule.
+spinning-blender,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W6a 2026-05-27: double back-spin chain. 5 brackets matches 5 ADD.
+spinning-swirl,notation,,SPINNING SWIRL,W6a 2026-05-27: JOB per mechanical uppercase rule.
+spinning-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W6a 2026-05-27: spinning chassis + swirl's back-swirl dex + same-clip terminator. 4 brackets matches 4 ADD.
+spinning-toe-stall,notation,,SPINNING TOE STALL,W6b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-toe-stall,operational_notation,,CLIP > (back) SPIN [BOD] > OP TOE [DEL],W6b 2026-05-27: minimal spinning compound (spin + toe stall). 2 brackets matches 2 ADD.
+spinning-guay,notation,,SPINNING GUAY,W6b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-guay,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > SAME INSIDE [DEL],W6b 2026-05-27: spinning chassis + guay's IN-dex + inside-stall terminator. 3 brackets matches 3 ADD.
+spinning-barfly,notation,,SPINNING BARFLY,W6b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-barfly,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W6b 2026-05-27: spinning chassis + barfly's two-SAME-OUT-dex chain + [DEL] [XBD] terminal. 5 brackets matches 5 ADD.
+spinning-symposium-mirage,notation,,SPINNING SYMPOSIUM MIRAGE,W6b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-symposium-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W6b 2026-05-27: spinning-symposium-whirl chassis with mirage's op-toe terminator. 4 brackets matches 4 ADD.
+spinning-double-leg-over,notation,,SPINNING DOUBLE LEG OVER,W6b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-double-leg-over,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W6b 2026-05-27: spinning chassis + double-leg-over chassis. 4 brackets matches 4 ADD.
+spinning-drifter,notation,,SPINNING DRIFTER,W6c 2026-05-27: JOB per mechanical uppercase rule.
+spinning-drifter,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL],W6c 2026-05-27: spinning chassis + drifter chain. 4 brackets matches 4 ADD.
+spinning-ducking-mirage,notation,,SPINNING DUCKING MIRAGE,W6c 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL],W6c 2026-05-27: spinning + DUCK [BOD] + mirage chassis. 4 brackets matches 4 ADD.
+spinning-ducking-illusion,notation,,SPINNING DUCKING ILLUSION,W6c 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-illusion,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP OUT [DEX] > OP TOE [DEL],W6c 2026-05-27: spinning-ducking chassis + illusion OUT-dex + op-toe terminator. 4 brackets matches 4 ADD.
+spinning-ducking-pickup,notation,,SPINNING DUCKING PICKUP,W6c 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-pickup,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > SAME TOE [DEL],W6c 2026-05-27: spinning-ducking chassis + pickup same-toe terminal. 4 brackets matches 4 ADD.
+spinning-ducking-legover,notation,,SPINNING DUCKING LEGOVER,W6c 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-legover,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL],W6c 2026-05-27: spinning-ducking chassis + legover OUT-dex + same-toe terminal. 4 brackets matches 4 ADD.
+spinning-ducking-clipper,notation,,SPINNING DUCKING CLIPPER,W6d 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-clipper,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP CLIP [XBD] [DEL],W6d 2026-05-27: spinning-ducking chassis collapsed to clipper terminal. 4 brackets matches 4 ADD.
+spinning-ducking-osis,notation,,SPINNING DUCKING OSIS,W6d 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-osis,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W6d 2026-05-27: spinning-ducking chassis + osis's body-spin. Triple [BOD]. 5 brackets matches 5 ADD.
+spinning-ducking-whirl,notation,,SPINNING DUCKING WHIRL,W6d 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],W6d 2026-05-27: spinning-ducking chassis + whirl IN-dex + cross-body clipper terminator. 5 brackets matches 5 ADD.
+spinning-ducking-blender,notation,,SPINNING DUCKING BLENDER,W6d 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-blender,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W6d 2026-05-27: spinning-ducking chassis + blender chassis. Triple [BOD]. 6 brackets matches 6 ADD.
+spinning-symposium-eggbeater,notation,,SPINNING SYMPOSIUM EGGBEATER,W6d 2026-05-27: JOB per mechanical uppercase rule.
+spinning-symposium-eggbeater,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W6d 2026-05-27: spinning-symposium-whirl chassis + eggbeater's two-OP-OUT-dex chain. 5 brackets matches 5 ADD.
+spinning-symposium-illusion,notation,,SPINNING SYMPOSIUM ILLUSION,W6e 2026-05-27: JOB per mechanical uppercase rule.
+spinning-symposium-illusion,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W6e 2026-05-27: spinning-symposium-mirage chassis with illusion OUT-dex. 4 brackets matches 4 ADD.
+spinning-symposium-pickup,notation,,SPINNING SYMPOSIUM PICKUP,W6e 2026-05-27: JOB per mechanical uppercase rule.
+spinning-symposium-pickup,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > SAME TOE [DEL],W6e 2026-05-27: spinning-symposium chassis with pickup same-toe terminator. 4 brackets matches 4 ADD.
+double-spinning-clipper,notation,,DOUBLE SPINNING CLIPPER,W6e 2026-05-27: JOB per mechanical uppercase rule.
+double-spinning-clipper,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W6e 2026-05-27: double back-spin + same-clipper terminator. 4 brackets matches 4 ADD.
+double-spinning-osis,notation,,DOUBLE SPINNING OSIS,W6e 2026-05-27: JOB per mechanical uppercase rule.
+double-spinning-osis,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W6e 2026-05-27: triple back-spin (double-spinning + osis's own spin). 5 brackets matches 5 ADD.
+double-spinning-whirl,notation,,DOUBLE SPINNING WHIRL,W6e 2026-05-27: JOB per mechanical uppercase rule.
+double-spinning-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],W6e 2026-05-27: double back-spin + whirl's IN-dex + cross-body clipper. 5 brackets matches 5 ADD.
+double-spinning-butterfly,notation,,DOUBLE SPINNING BUTTERFLY,W6f 2026-05-27: JOB per mechanical uppercase rule.
+double-spinning-butterfly,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W6f 2026-05-27: double back-spin + butterfly's OP OUT dex + cross-body clipper. 5 brackets matches 5 ADD.
+double-spinning-mirage,notation,,DOUBLE SPINNING MIRAGE,W6f 2026-05-27: JOB per mechanical uppercase rule.
+double-spinning-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],W6f 2026-05-27: double back-spin + mirage's OP IN dex + toe terminator. 4 brackets matches 4 ADD.
+spinning-paradox-torque,notation,,SPINNING PARADOX TORQUE,W6f 2026-05-27: JOB per mechanical uppercase rule.
+spinning-paradox-torque,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W6f 2026-05-27: spinning-paradox-whirl chassis + torque's back-spin + op-clip terminator. 6 brackets matches 6 ADD.
+spinning-symposium-swirl,notation,,SPINNING SYMPOSIUM SWIRL,W6f 2026-05-27: JOB per mechanical uppercase rule.
+spinning-symposium-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL],W6f 2026-05-27: spinning-symposium chassis adapted to swirl's back-swirl dex. 5 brackets matches 5 ADD.
+spinning-butterfly-swirl,notation,,SPINNING BUTTERFLY SWIRL,W6f 2026-05-27: JOB per mechanical uppercase rule.
+spinning-butterfly-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W6f 2026-05-27: spinning chassis + butterfly-swirl compound base. 5 brackets matches 5 ADD.
