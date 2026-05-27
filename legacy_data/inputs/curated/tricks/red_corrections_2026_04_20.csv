@@ -833,3 +833,11 @@ inspinning-clipper,notation,,INSPINNING CLIPPER,W1a 2026-05-27: JOB per mechanic
 inspinning-clipper,operational_notation,,TOE > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],W1a 2026-05-27: sibling-derived from inspinning-butterfly with clipper terminal (no dex stage between spin and clip). 3 brackets ([BOD] [XBD] [DEL]) matches asserted 3 ADD.
 inspinning-osis,notation,,INSPINNING OSIS,W1a 2026-05-27: JOB per mechanical uppercase rule.
 inspinning-osis,operational_notation,,TOE > (front) SPIN [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W1a 2026-05-27: double-body-spin construction. Osis base carries its own body-spin; inspinning prefix adds a second (front) spin before it. Double [BOD] precedent per peeking/sonic in Holden sets (CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >). 4 brackets ([BOD] [BOD] [XBD] [DEL]) matches asserted 4 ADD.
+inspinning-toe-stall,notation,,INSPINNING TOE STALL,W1b 2026-05-27: JOB per mechanical uppercase rule.
+inspinning-toe-stall,operational_notation,,TOE > (front) SPIN [BOD] > OP TOE [DEL],W1b 2026-05-27: minimal inspinning compound (spin + toe stall). 2 brackets ([BOD] [DEL]) matches asserted 2 ADD.
+inspinning-flail,notation,,INSPINNING FLAIL,W1b 2026-05-27: JOB per mechanical uppercase rule.
+inspinning-flail,operational_notation,,TOE > (front) SPIN [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W1b 2026-05-27: inspinning spin then flail's no-plant body event. 4 brackets ([BOD] [BOD] [DEX] [DEL]) matches asserted 4 ADD.
+inspinning-symposium-mirage,notation,,INSPINNING SYMPOSIUM MIRAGE,W1b 2026-05-27: JOB per mechanical uppercase rule.
+inspinning-symposium-mirage,operational_notation,,TOE > (front) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W1b 2026-05-27: inspinning spin then symposium-mirage's no-plant body event + OP IN dex. 4 brackets ([BOD] [BOD] [DEX] [DEL]) matches asserted 4 ADD.
+atomic-inspinning-butterfly,notation,,ATOMIC INSPINNING BUTTERFLY,W1b 2026-05-27: JOB per mechanical uppercase rule.
+atomic-inspinning-butterfly,operational_notation,,TOE > OP OUT [DEX] > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W1b 2026-05-27: atomic-butterfly chassis with inspinning spin injected between dexes. 5 brackets ([DEX] [BOD] [DEX] [XBD] [DEL]) matches asserted 5 ADD.
