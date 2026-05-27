@@ -74,12 +74,6 @@ interface PersonalDetailsContent {
   error: string | null;
 }
 
-interface ShowCompetitiveResultsContent {
-  dashboardHref: string;
-  enabled: boolean;
-  error: string | null;
-}
-
 interface WizardCompleteContent {
   dashboardHref: string;
 }
@@ -283,23 +277,6 @@ function renderPersonalDetails(
   } satisfies PageViewModel<PersonalDetailsContent>);
 }
 
-function renderShowCompetitiveResults(
-  req: Request,
-  res: Response,
-  opts: { enabled?: boolean; error?: string | null; statusOverride?: number } = {},
-): void {
-  const prefill = memberService.getCompetitionPrefill(req.user!.userId);
-  const enabled = opts.enabled !== undefined ? opts.enabled : prefill.showCompetitiveResults;
-  res.status(opts.statusOverride ?? 200).render('register/wizard/show-competitive-results', {
-    seo:  { title: 'Show your competition results?' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_show_competitive_results', title: 'Show your competition results?' },
-    content: {
-      dashboardHref: dashboardHrefFor(req),
-      enabled,
-      error: opts.error ?? null,
-    },
-  } satisfies PageViewModel<ShowCompetitiveResultsContent>);
-}
 
 function renderComplete(req: Request, res: Response): void {
   res.status(200).render('register/wizard/complete', {

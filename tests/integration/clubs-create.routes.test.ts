@@ -21,6 +21,7 @@ import {
   insertMemberClubAffiliation,
   createMemberAtTier,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -81,9 +82,13 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: TAG_COLL_ID, slug: TAG_COLL_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: SLUG_DERIVE_ID, slug: SLUG_DERIVE_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: WQ_ID, slug: WQ_SLUG, tier: 'tier1' });
+  for (const mid of [HAPPY_ID, TIER0_ID, VALID_ERR_ID, DUP_ID, TAG_COLL_ID, SLUG_DERIVE_ID, WQ_ID]) {
+    completeOnboarding(db, mid);
+  }
 
   // Already-a-leader member
   createMemberAtTier(db, { id: LEADER_ID, slug: LEADER_SLUG, tier: 'tier1' });
+  completeOnboarding(db, LEADER_ID);
   const leaderClubId = insertClub(db, { name: 'Existing Leader Club', city: 'Portland', country: 'USA' });
   db.prepare(`
     INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
@@ -92,6 +97,7 @@ beforeAll(async () => {
 
   // Capped member: already has 2 club affiliations
   createMemberAtTier(db, { id: CAPPED_ID, slug: CAPPED_SLUG, tier: 'tier1' });
+  completeOnboarding(db, CAPPED_ID);
   const capClub1 = insertClub(db, { name: 'Cap Club 1', city: 'City1', country: 'Country1' });
   const capClub2 = insertClub(db, { name: 'Cap Club 2', city: 'City2', country: 'Country2' });
   insertMemberClubAffiliation(db, CAPPED_ID, capClub1, { is_primary: 1 });

@@ -39,7 +39,7 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3';
 
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, completeOnboarding } from '../fixtures/factories';
 
 // imageProcessingAdapter imports config from env.ts, which freezes its
 // singleton on first import. Defer those module loads to beforeAll so that
@@ -70,7 +70,9 @@ beforeAll(async () => {
   db.exec(schema);
 
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Avatar Owner',  login_email: 'avatarowner@example.com' });
+  completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Avatar Other', login_email: 'avatarother@example.com' });
+  completeOnboarding(db, OTHER_ID);
 
   db.close();
 

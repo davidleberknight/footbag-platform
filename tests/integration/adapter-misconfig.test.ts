@@ -27,6 +27,7 @@ import sharp from 'sharp';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { seedTier1Member } from '../fixtures/personas';
+import { completeOnboarding } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3099');
 
@@ -43,6 +44,7 @@ let ImageProcessingError: typeof import('../../src/adapters/imageProcessingAdapt
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   const persona = seedTier1Member(db, { slug: 'misconfig_owner' });
+  completeOnboarding(db, persona.memberId);
   ownerCookie = persona.cookieHeader;
   ownerSlug = persona.slug;
   db.close();

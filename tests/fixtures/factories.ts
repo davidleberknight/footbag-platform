@@ -1952,3 +1952,15 @@ export function insertActivePlayerVouch(
   );
   return id;
 }
+
+// ── Onboarding Tasks ──────────────────────────────────────────────────────────
+
+export function completeOnboarding(db: BetterSqlite3.Database, memberId: string): void {
+  for (const taskType of ['personal_details', 'legacy_claim', 'club_affiliations']) {
+    db.prepare(`
+      INSERT OR IGNORE INTO member_onboarding_tasks
+        (id, created_at, created_by, updated_at, updated_by, version, member_id, task_type, state, completed_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'completed', ?)
+    `).run(`mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, TS);
+  }
+}

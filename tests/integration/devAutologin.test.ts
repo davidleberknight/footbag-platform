@@ -24,7 +24,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertMember, insertMemberTierGrant } from '../fixtures/factories';
+import { insertMember, insertMemberTierGrant, completeOnboarding } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3085');
 // Required for the middleware's dev branch; env.ts reads this at module
@@ -42,6 +42,7 @@ const MEMBER_SLUG = 'da_valid';
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG });
+  completeOnboarding(db, MEMBER_ID);
   // Tier 1 so the requireTier1Benefits gate on POST routes passes; not
   // strictly required for GET /members/:slug/galleries but keeps the
   // member realistic for any future test extension.

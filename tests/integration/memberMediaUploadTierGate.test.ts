@@ -19,6 +19,7 @@ import {
 } from '../fixtures/testDb';
 import {
   insertMember,
+  completeOnboarding,
   insertMemberTierGrant,
   insertActivePlayerGrant,
   createTestSessionJwt,
@@ -57,10 +58,13 @@ function cookieFor(memberId: string): string {
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'mut_admin', is_admin: 1 });
+  completeOnboarding(db, ADMIN_ID);
   for (const f of FIXTURES) {
     insertMember(db, { id: f.id, slug: f.slug });
+    completeOnboarding(db, f.id);
   }
   insertMember(db, { id: NON_OWNER.id, slug: NON_OWNER.slug });
+  completeOnboarding(db, NON_OWNER.id);
 
   insertActivePlayerGrant(db, {
     member_id: 'mut-t0-ap',

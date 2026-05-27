@@ -20,6 +20,7 @@ import {
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-clubs-auth-${Date.now()}.db`);
@@ -54,6 +55,7 @@ beforeAll(async () => {
     display_name: 'Test Admin',
     is_admin: 1,
   });
+  completeOnboarding(db, 'test-user');
 
   // Club with a known tag key
   const clubId = insertClub(db, {

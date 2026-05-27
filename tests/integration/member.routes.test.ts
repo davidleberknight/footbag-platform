@@ -23,6 +23,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const TEST_DB_PATH      = path.join(os.tmpdir(), `footbag-test-member-profile-${Date.now()}.db`);
@@ -69,7 +70,9 @@ beforeAll(async () => {
   db.exec(schema);
 
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Test Member',  login_email: 'testmember@example.com' });
+  completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member', login_email: 'othermember@example.com' });
+  completeOnboarding(db, OTHER_ID);
 
   // Fully-linked fixture: legacy account claimed + historical person attached.
   const linkedLegacy = insertLegacyMember(db, { real_name: 'Linked Legacy' });
@@ -81,6 +84,7 @@ beforeAll(async () => {
     login_email: 'linkedmember@example.com',
     legacy_member_id: linkedLegacy,
   });
+  completeOnboarding(db, LINKED_ID);
   db.prepare(
     'UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = ? WHERE legacy_member_id = ?',
   ).run(LINKED_ID, '2024-01-12T10:00:00.000Z', linkedLegacy);

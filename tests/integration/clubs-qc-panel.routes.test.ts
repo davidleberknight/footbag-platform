@@ -24,6 +24,7 @@ import {
   insertLegacyPersonClubAffiliation,
   insertMember,
   createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
@@ -49,6 +50,7 @@ beforeAll(async () => {
     login_email: 'qc-test-user@example.com',
     display_name: 'QC Test User',
   });
+  completeOnboarding(db, 'qc-test-user');
 
   // ── Club A: pre_populate with R1 + R3 firing and contact substitute applied.
   const prepopTag = insertTag(db, { standard_type: 'club', tag_normalized: `#${PRE_POPULATE_KEY}` });

@@ -18,6 +18,7 @@ import { simulatedEmailService } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { logger } from '../config/logger';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 
 function isSafePath(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
@@ -186,11 +187,7 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       return;
     }
     issueSessionCookie(res, cookieValue, req);
-    // Land newly-verified members on the onboarding wizard's first task. The
-    // wizard renders the same candidate list and manual-id input regardless
-    // of classifier confidence; the auto_link_confirm card is included in
-    // the candidate list when the classifier returned high/medium, and the
-    // low-confidence banner is rendered server-side when applicable.
+    memberOnboardingService.startTaskList(result.memberId);
     res.redirect(303, '/register/wizard/legacy_claim');
   } catch (err) {
     next(err);

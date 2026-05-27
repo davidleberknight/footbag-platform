@@ -170,7 +170,7 @@ const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'skipped', 'n
 
 function isOnboardingComplete(memberId: string): boolean {
   const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
-  if (rows.length === 0) return true;
+  if (rows.length === 0) return false;
   return rows.every((r) => TERMINAL_STATES.has(r.state));
 }
 

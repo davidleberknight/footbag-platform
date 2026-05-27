@@ -42,6 +42,7 @@ import sharp from 'sharp';
 
 import {
   insertMember,
+  completeOnboarding,
   insertMemberTierGrant,
   createTestSessionJwt,
   insertMediaItem,
@@ -75,8 +76,11 @@ beforeAll(async () => {
   db.exec(schema);
 
   insertMember(db, { id: OWNER_ID,  slug: OWNER_SLUG,  display_name: 'Gallery Owner' });
+  completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID,  slug: OTHER_SLUG,  display_name: 'Other Member' });
+  completeOnboarding(db, OTHER_ID);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'MG Admin', is_admin: 1 });
+  completeOnboarding(db, ADMIN_ID);
   insertMember(db, { id: SYSTEM_ID, slug: 'fh_mg', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
 
   // Grant Tier 1 to OWNER and OTHER so the requireTier1Benefits gate on

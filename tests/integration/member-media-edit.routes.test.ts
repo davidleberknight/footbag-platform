@@ -34,6 +34,7 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import {
   insertMember,
+  completeOnboarding,
   insertMemberTierGrant,
   createTestSessionJwt,
   insertMediaItem,
@@ -84,8 +85,11 @@ beforeAll(async () => {
   db.exec(schema);
 
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'MME Owner' });
+  completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'MME Other' });
+  completeOnboarding(db, OTHER_ID);
   insertMember(db, { id: TIER0_ID, slug: TIER0_SLUG, display_name: 'MME Tier0' });
+  completeOnboarding(db, TIER0_ID);
 
   insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
   insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });

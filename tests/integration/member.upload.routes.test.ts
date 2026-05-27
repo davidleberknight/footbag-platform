@@ -39,6 +39,7 @@ import sharp from 'sharp';
 
 import {
   insertMember,
+  completeOnboarding,
   insertMemberTierGrant,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -78,7 +79,9 @@ beforeAll(async () => {
   db.exec(schema);
 
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'Upload Owner' });
+  completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member' });
+  completeOnboarding(db, OTHER_ID);
 
   // Grant Tier 1 to OWNER and OTHER so the requireTier1Benefits gate on
   // POST /members/:slug/media/upload passes. Without this, every POST 403s
@@ -88,6 +91,7 @@ beforeAll(async () => {
   insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
   insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });
   insertMember(db, { id: ADMIN_ID, slug: ADMIN_SLUG, display_name: 'Admin Uploader', is_admin: 1 });
+  completeOnboarding(db, ADMIN_ID);
   insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier1' });
   // System member row required by createGallery (it computes isFhOwned by
   // comparing ownerMemberId to the system member id). Member-owned galleries
