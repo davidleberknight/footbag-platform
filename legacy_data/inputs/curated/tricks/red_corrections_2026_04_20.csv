@@ -1095,3 +1095,23 @@ stepping-ducking-torque,notation,,STEPPING DUCKING TORQUE,W8c 2026-05-27: JOB pe
 stepping-ducking-torque,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W8c 2026-05-27: stepping-ducking chassis + torque chain. 6 brackets matches 6 ADD.
 ducking-paradox-blender,notation,,DUCKING PARADOX BLENDER,W8c 2026-05-27: JOB per mechanical uppercase rule.
 ducking-paradox-blender,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W8c 2026-05-27: ducking-paradox chassis + blender chain. 6 brackets matches 6 ADD.
+stepping-barfly,notation,,STEPPING BARFLY,W9a 2026-05-27: JOB per mechanical uppercase rule.
+stepping-barfly,operational_notation,,CLIP > OP IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W9a 2026-05-27: stepping leading-[DEX] + barfly's no-plant out-dex chain. 5 brackets matches 5 ADD.
+stepping-pickup,notation,,STEPPING PICKUP,W9a 2026-05-27: JOB per mechanical uppercase rule.
+stepping-pickup,operational_notation,,CLIP > OP IN [DEX] > OP IN [DEX] > SAME TOE [DEL],W9a 2026-05-27: stepping leading-[DEX] + pickup's IN-dex + same-toe terminal. 3 brackets matches 3 ADD.
+stepping-swirl,notation,,STEPPING SWIRL,W9a 2026-05-27: JOB per mechanical uppercase rule.
+stepping-swirl,operational_notation,,CLIP > OP IN [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W9a 2026-05-27: stepping leading-[DEX] + swirl's back-swirl dex + same-clip terminal. 4 brackets matches 4 ADD.
+stepping-flail,notation,,STEPPING FLAIL,W9a 2026-05-27: JOB per mechanical uppercase rule.
+stepping-flail,operational_notation,,CLIP > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9a 2026-05-27: stepping leading-[DEX] + flail's no-plant out-dex + op-toe terminal. 4 brackets matches 4 ADD.
+stepping-dyno,notation,,STEPPING DYNO,W9a 2026-05-27: JOB per mechanical uppercase rule.
+stepping-dyno,operational_notation,,CLIP > OP IN [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9a 2026-05-27: stepping leading-[DEX] + dyno's out-dex + back-spin + same-clip terminal. 5 brackets matches 5 ADD.
+stepping-superfly,notation,,STEPPING SUPERFLY,W9b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-superfly,operational_notation,,CLIP > OP IN [DEX] >> (no plant while) SAME OUT [DEX] [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + superfly's no-plant body chain. 6 brackets matches 6 ADD.
+stepping-symposium-mirage,notation,,STEPPING SYMPOSIUM MIRAGE,W9b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-symposium-mirage,operational_notation,,CLIP > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W9b 2026-05-27: stepping leading-[DEX] + symposium-mirage chain. 4 brackets matches 4 ADD.
+stepping-butterfly-swirl,notation,,STEPPING BUTTERFLY SWIRL,W9b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-butterfly-swirl,operational_notation,,CLIP > OP IN [DEX] > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + butterfly-swirl chain. 5 brackets matches 5 ADD.
+stepping-double-over-down,notation,,STEPPING DOUBLE OVER DOWN,W9b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-double-over-down,operational_notation,,CLIP > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + double-over-down chain. 5 brackets matches 5 ADD.
+stepping-symposium-whirl,notation,,STEPPING SYMPOSIUM WHIRL,W9b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-symposium-whirl,operational_notation,,CLIP > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + symposium-whirl chain. 5 brackets matches 5 ADD.
