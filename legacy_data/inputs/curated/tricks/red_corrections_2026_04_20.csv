@@ -1027,3 +1027,43 @@ spinning-symposium-swirl,notation,,SPINNING SYMPOSIUM SWIRL,W6f 2026-05-27: JOB 
 spinning-symposium-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL],W6f 2026-05-27: spinning-symposium chassis adapted to swirl's back-swirl dex. 5 brackets matches 5 ADD.
 spinning-butterfly-swirl,notation,,SPINNING BUTTERFLY SWIRL,W6f 2026-05-27: JOB per mechanical uppercase rule.
 spinning-butterfly-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W6f 2026-05-27: spinning chassis + butterfly-swirl compound base. 5 brackets matches 5 ADD.
+gyro-osis,notation,,GYRO OSIS,W7a 2026-05-27: JOB per mechanical uppercase rule.
+gyro-osis,operational_notation,,CLIP > (back) SPIN [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W7a 2026-05-27: gyro spin + osis chassis (double back-spin). 4 brackets matches 4 ADD.
+gyro-pickup,notation,,GYRO PICKUP,W7a 2026-05-27: JOB per mechanical uppercase rule.
+gyro-pickup,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME TOE [DEL],W7a 2026-05-27: gyro chassis + pickup SAME IN dex + same-toe terminator. 3 brackets matches 3 ADD.
+gyro-legover,notation,,GYRO LEGOVER,W7a 2026-05-27: JOB per mechanical uppercase rule.
+gyro-legover,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL],W7a 2026-05-27: gyro chassis + legover SAME OUT dex + same-toe terminator. 3 brackets matches 3 ADD.
+gyro-flail,notation,,GYRO FLAIL,W7a 2026-05-27: JOB per mechanical uppercase rule.
+gyro-flail,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME OUT [BOD] [DEX] > OP TOE [DEL],W7a 2026-05-27: gyro chassis + flail's no-plant body+dex flipped to SAME OUT. 4 brackets matches 4 ADD.
+gyro-barfly,notation,,GYRO BARFLY,W7a 2026-05-27: JOB per mechanical uppercase rule.
+gyro-barfly,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W7a 2026-05-27: gyro spin + barfly's two-SAME-OUT-dex chain. 5 brackets matches 5 ADD.
+gyro-blender,notation,,GYRO BLENDER,W7b 2026-05-27: JOB per mechanical uppercase rule.
+gyro-blender,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W7b 2026-05-27: gyro + blender chassis (double back-spin). 5 brackets matches 5 ADD.
+gyro-drifter,notation,,GYRO DRIFTER,W7b 2026-05-27: JOB per mechanical uppercase rule.
+gyro-drifter,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],W7b 2026-05-27: gyro chassis + drifter SAME IN dex + same-clip terminal. 4 brackets matches 4 ADD.
+gyro-eggbeater,notation,,GYRO EGGBEATER,W7b 2026-05-27: JOB per mechanical uppercase rule.
+gyro-eggbeater,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],W7b 2026-05-27: gyro flips eggbeater's first dex. 4 brackets matches 4 ADD.
+gyro-double-pickup,notation,,GYRO DOUBLE PICKUP,W7b 2026-05-27: JOB per mechanical uppercase rule.
+gyro-double-pickup,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL],W7b 2026-05-27: gyro chassis + double-pickup chassis. 4 brackets matches 4 ADD.
+gyro-flurry,notation,,GYRO FLURRY,W7b 2026-05-27: JOB per mechanical uppercase rule.
+gyro-flurry,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL],W7b 2026-05-27: gyro chassis + flurry's 3-dex chain with mid-chain no-plant marker. 5 brackets matches 5 ADD.
+gyro-symposium-torque,notation,,GYRO SYMPOSIUM TORQUE,W7c 2026-05-27: JOB per mechanical uppercase rule.
+gyro-symposium-torque,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W7c 2026-05-27: gyro-symposium chassis + torque's back-spin. Triple [BOD]. 6 brackets matches 6 ADD.
+gyro-symposium-whirl,notation,,GYRO SYMPOSIUM WHIRL,W7c 2026-05-27: JOB per mechanical uppercase rule.
+gyro-symposium-whirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W7c 2026-05-27: spinning-symposium-whirl chassis + gyro SAME IN flip. 5 brackets matches 5 ADD.
+gyro-dada-curve,notation,,GYRO DADA CURVE,W7c 2026-05-27: JOB per mechanical uppercase rule.
+gyro-dada-curve,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL],W7c 2026-05-27: gyro chassis + dada-curve chassis with first-dex flip. 5 brackets matches 5 ADD.
+gyro-double-over-down,notation,,GYRO DOUBLE OVER DOWN,W7c 2026-05-27: JOB per mechanical uppercase rule.
+gyro-double-over-down,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W7c 2026-05-27: gyro chassis + double-over-down with first-dex flip. 5 brackets matches 5 ADD.
+gyro-barrage,notation,,GYRO BARRAGE,W7c 2026-05-27: JOB per mechanical uppercase rule.
+gyro-barrage,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],W7c 2026-05-27: gyro spin prefix + barrage chassis (already SAME IN). 4 brackets matches 4 ADD.
+gyro-guay,notation,,GYRO GUAY,W7d 2026-05-27: JOB per mechanical uppercase rule.
+gyro-guay,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME INSIDE [DEL],W7d 2026-05-27: gyro chassis + guay's inside-stall terminator. 3 brackets matches 3 ADD.
+gyro-butterfly-swirl,notation,,GYRO BUTTERFLY SWIRL,W7d 2026-05-27: JOB per mechanical uppercase rule.
+gyro-butterfly-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W7d 2026-05-27: gyro chassis + butterfly-swirl chassis. 5 brackets matches 5 ADD.
+gyro-symposium-swirl,notation,,GYRO SYMPOSIUM SWIRL,W7d 2026-05-27: JOB per mechanical uppercase rule.
+gyro-symposium-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL],W7d 2026-05-27: gyro-symposium chassis with swirl's back-swirl dex. 5 brackets matches 5 ADD.
+gyro-whirling-swirl,notation,,GYRO WHIRLING SWIRL,W7d 2026-05-27: JOB per mechanical uppercase rule.
+gyro-whirling-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W7d 2026-05-27: gyro chassis + whirling-swirl with first-dex flip. 5 brackets matches 5 ADD.
+gyro-eclipse,notation,,GYRO ECLIPSE,W7d 2026-05-27: JOB per mechanical uppercase rule.
+gyro-eclipse,operational_notation,,CLIP > (back) SPIN [BOD] (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL],W7d 2026-05-27: jump-class chassis with gyro back-spin pre-jump. Double [BOD] front + double [DEL] terminal. 4 brackets matches 4 ADD.
