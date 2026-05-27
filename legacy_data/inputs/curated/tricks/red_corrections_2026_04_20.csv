@@ -857,3 +857,11 @@ quantum-torque,notation,,QUANTUM TORQUE,W1d 2026-05-27: JOB per mechanical upper
 quantum-torque,operational_notation,,TOE > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W1d 2026-05-27: quantum dex prefixed to torque chassis (op-clip terminal). 5 brackets matches 5 ADD.
 quantum-double-over-down,notation,,QUANTUM DOUBLE OVER DOWN,W1d 2026-05-27: JOB per mechanical uppercase rule.
 quantum-double-over-down,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W1d 2026-05-27: quantum dex prefixed to double-over-down chassis. 5 brackets matches 5 ADD.
+quantum-symposium-whirl,notation,,QUANTUM SYMPOSIUM WHIRL,W1g 2026-05-27: JOB per mechanical uppercase rule.
+quantum-symposium-whirl,operational_notation,,TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W1g 2026-05-27: quantum-symposium-mirage chassis + whirl's OP CLIP terminator. 5 brackets matches 5 ADD.
+quantum-ducking-whirl,notation,,QUANTUM DUCKING WHIRL,W1g 2026-05-27: JOB per mechanical uppercase rule.
+quantum-ducking-whirl,operational_notation,,TOE > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],W1g 2026-05-27: quantum-whirl chassis with ducking DUCK [BOD] inserted between the two dexes. 5 brackets matches 5 ADD.
+quantum-gyro-mirage,notation,,QUANTUM GYRO MIRAGE,W1g 2026-05-27: JOB per mechanical uppercase rule.
+quantum-gyro-mirage,operational_notation,,TOE > OP IN [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],W1g 2026-05-27: quantum-mirage chassis with gyro (back) SPIN [BOD] inserted between dexes. 4 brackets matches 4 ADD.
+pixie-quantum-butterfly,notation,,PIXIE QUANTUM BUTTERFLY,W1g 2026-05-27: JOB per mechanical uppercase rule.
+pixie-quantum-butterfly,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W1g 2026-05-27: pixie set leading + quantum dex + butterfly terminal. Holden 'Frantic (pixie-quantum)' set system underlies the chassis. 5 brackets matches 5 ADD.
