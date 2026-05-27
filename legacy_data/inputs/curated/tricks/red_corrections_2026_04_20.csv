@@ -1067,3 +1067,31 @@ gyro-whirling-swirl,notation,,GYRO WHIRLING SWIRL,W7d 2026-05-27: JOB per mechan
 gyro-whirling-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W7d 2026-05-27: gyro chassis + whirling-swirl with first-dex flip. 5 brackets matches 5 ADD.
 gyro-eclipse,notation,,GYRO ECLIPSE,W7d 2026-05-27: JOB per mechanical uppercase rule.
 gyro-eclipse,operational_notation,,CLIP > (back) SPIN [BOD] (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL],W7d 2026-05-27: jump-class chassis with gyro back-spin pre-jump. Double [BOD] front + double [DEL] terminal. 4 brackets matches 4 ADD.
+ducking-drifter,notation,,DUCKING DRIFTER,W8a 2026-05-27: JOB per mechanical uppercase rule.
+ducking-drifter,operational_notation,,TOE > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL],W8a 2026-05-27: ducking chassis + drifter chain. 4 brackets matches 4 ADD.
+ducking-toe-stall,notation,,DUCKING TOE STALL,W8a 2026-05-27: JOB per mechanical uppercase rule.
+ducking-toe-stall,operational_notation,,TOE > DUCK [BOD] > OP TOE [DEL],W8a 2026-05-27: minimal ducking compound. 2 brackets matches 2 ADD.
+ducking-guay,notation,,DUCKING GUAY,W8a 2026-05-27: JOB per mechanical uppercase rule.
+ducking-guay,operational_notation,,TOE > DUCK [BOD] > OP IN [DEX] > SAME INSIDE [DEL],W8a 2026-05-27: ducking chassis + guay's inside-stall terminator. 3 brackets matches 3 ADD.
+ducking-symposium-mirage,notation,,DUCKING SYMPOSIUM MIRAGE,W8a 2026-05-27: JOB per mechanical uppercase rule.
+ducking-symposium-mirage,operational_notation,,TOE > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W8a 2026-05-27: ducking + symposium body events before mirage dex. 4 brackets matches 4 ADD.
+ducking-double-leg-over,notation,,DUCKING DOUBLE LEG OVER,W8a 2026-05-27: JOB per mechanical uppercase rule.
+ducking-double-leg-over,operational_notation,,TOE > DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W8a 2026-05-27: ducking chassis + double-leg-over chain. 4 brackets matches 4 ADD.
+ducking-paradox-whirl,notation,,DUCKING PARADOX WHIRL,W8b 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-whirl,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL],W8b 2026-05-27: ducking-paradox chassis + whirl cross-clip terminal. 5 brackets matches 5 ADD.
+ducking-paradox-drifter,notation,,DUCKING PARADOX DRIFTER,W8b 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-drifter,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL],W8b 2026-05-27: ducking-paradox chassis + drifter same-clip terminal. 5 brackets matches 5 ADD.
+ducking-paradox-flail,notation,,DUCKING PARADOX FLAIL,W8b 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-flail,operational_notation,,TOE > DUCK [BOD] > (no plant while) OP OUT [PDX] [BOD] [DEX] > OP TOE [DEL],W8b 2026-05-27: ducking + flail chassis with paradox marker on no-plant dex. 5 brackets matches 5 ADD.
+stepping-ducking-double-leg-over,notation,,STEPPING DUCKING DOUBLE LEG OVER,W8b 2026-05-27: JOB per mechanical uppercase rule.
+stepping-ducking-double-leg-over,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W8b 2026-05-27: stepping-ducking chassis + double-leg-over chain. 5 brackets matches 5 ADD.
+spinning-ducking-butterfly,notation,,SPINNING DUCKING BUTTERFLY,W8b 2026-05-27: JOB per mechanical uppercase rule.
+spinning-ducking-butterfly,operational_notation,,CLIP > (back) SPIN [BOD] > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W8b 2026-05-27: spinning-ducking chassis + butterfly OP OUT dex + cross-clip terminal. 5 brackets matches 5 ADD.
+ducking-butterfly-swirl,notation,,DUCKING BUTTERFLY SWIRL,W8c 2026-05-27: JOB per mechanical uppercase rule.
+ducking-butterfly-swirl,operational_notation,,TOE > DUCK [BOD] > OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W8c 2026-05-27: ducking chassis + butterfly-swirl chain. 5 brackets matches 5 ADD.
+ducking-eclipse,notation,,DUCKING ECLIPSE,W8c 2026-05-27: JOB per mechanical uppercase rule.
+ducking-eclipse,operational_notation,,TOE > DUCK [BOD] (JUMP) [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL],W8c 2026-05-27: jump-class chassis with DUCK [BOD] pre-jump. 4 brackets matches 4 ADD.
+stepping-ducking-torque,notation,,STEPPING DUCKING TORQUE,W8c 2026-05-27: JOB per mechanical uppercase rule.
+stepping-ducking-torque,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W8c 2026-05-27: stepping-ducking chassis + torque chain. 6 brackets matches 6 ADD.
+ducking-paradox-blender,notation,,DUCKING PARADOX BLENDER,W8c 2026-05-27: JOB per mechanical uppercase rule.
+ducking-paradox-blender,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W8c 2026-05-27: ducking-paradox chassis + blender chain. 6 brackets matches 6 ADD.
