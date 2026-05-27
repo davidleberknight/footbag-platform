@@ -37,6 +37,14 @@ RECON = REPO / 'exploration/vocabulary-reconciliation-audit-2026-05-21/RECONCILI
 MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
 OUT = REPO / 'src/content/freestyleTrackedNames.ts'
 
+# Canonical CSVs read by loader 17. Slugs present in any of these are
+# canonical-published, regardless of the reconciliation CSV's recorded
+# governance_state. Filtering against these as a second gate prevents
+# stale rows from leaking onto the observational page when the
+# reconciliation audit is out of sync with the canonical CSVs.
+TRICKS_CSV = REPO / 'legacy_data/inputs/noise/tricks.csv'
+RED_ADD_CSV = REPO / 'legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv'
+
 SOURCE_PRIORITY = ['footbagmoves', 'fborg', 'passback', 'curator']
 SOURCE_LABEL = {
     'footbagmoves': 'FootbagMoves',
@@ -82,10 +90,40 @@ def main() -> None:
                 if key not in notation or CONF_RANK.get(conf, 0) > CONF_RANK.get(notation[key][2], 0):
                     notation[key] = cand
 
+    # ── canonical-CSV gate: collect slugs already canonical-published ──
+    # Loader 17 reads tricks.csv (column trick_canon) + red_additions
+    # (column canonical_name). Any slug in either CSV is canonical and
+    # must not appear on the observational tracked-names list,
+    # regardless of the reconciliation CSV's recorded governance_state.
+    canonical_slugs: set[str] = set()
+    if TRICKS_CSV.exists():
+        with TRICKS_CSV.open(newline='') as f:
+            for r in csv.DictReader(f):
+                slug = (r.get('trick_canon') or '').strip()
+                if slug:
+                    canonical_slugs.add(slug)
+    if RED_ADD_CSV.exists():
+        with RED_ADD_CSV.open(newline='') as f:
+            for r in csv.DictReader(f):
+                slug = (r.get('canonical_name') or '').strip()
+                if slug:
+                    canonical_slugs.add(slug)
+
     # ── reconciliation audit: the unpublished name set ──────────────
     with RECON.open(newline='') as f:
         recon = list(csv.DictReader(f))
-    unpublished = [r for r in recon if not r['governance_state'].startswith('1')]
+    # Two-gate filter:
+    #   1. governance_state must not be "1 Published Canonical"
+    #   2. slug must not appear in any canonical CSV
+    # The second gate is a safety net for drift between the reconciliation
+    # audit and the canonical CSVs (e.g. when a W-wave promotes a row to
+    # red_additions but the reconciliation audit governance_state isn't
+    # updated in the same change).
+    unpublished = [
+        r for r in recon
+        if not r['governance_state'].startswith('1')
+        and r['slug'].strip() not in canonical_slugs
+    ]
 
     by_source: dict[str, list[dict]] = defaultdict(list)
     seen: set[str] = set()

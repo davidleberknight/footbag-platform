@@ -280,13 +280,14 @@ describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view
 });
 
 describe('Pre-Adrian promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
-  it('TRACKED_UNPUBLISHED_TOTAL decreased after promoted slugs moved to canonical-published state', async () => {
-    // 558 (pre-session) → 554 (after Pre-Adrian promotion of 4 slugs) →
-    // 553 (after held-delay-family slice promoted `wrap`). The exact
-    // current value drifts as more slugs promote out of observational;
-    // assert direction + monotone lower bound.
+  it('TRACKED_UNPUBLISHED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
+    // The total fluctuates: promotion waves drop it; corpus-expansion
+    // waves raise it (Wave 0 added ~1700 names to the reconciliation
+    // audit). The load-bearing check is slug-absence (see the next
+    // assertion below); this count assertion is a sanity ceiling.
     const { TRACKED_UNPUBLISHED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(554);
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBeGreaterThan(0);
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(5000);
   });
 
   it('the 4 promoted slugs do NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {

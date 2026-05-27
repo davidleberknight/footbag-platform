@@ -159,12 +159,16 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
 });
 
 describe('Observational backlog — wrap is no longer counted', () => {
-  it('TRACKED_UNPUBLISHED_TOTAL has decreased from 554 baseline (wrap + later promotions removed it)', async () => {
+  it('TRACKED_UNPUBLISHED_TOTAL is bounded above (wrap + later promotions removed)', async () => {
     const { TRACKED_UNPUBLISHED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    // Was 554 pre-slice; landed at 553 after wrap promotion; subsequent
-    // pre-Adrian polish slices may continue to drop the count. Assert
-    // monotonic decrease rather than a single point-in-time number.
-    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(553);
+    // The total fluctuates: promotion waves drop it; corpus-expansion
+    // waves (e.g. Wave 0 added ~1700 names to the reconciliation audit)
+    // raise it. The load-bearing check is slug-absence (see the wrap
+    // assertion below); this count assertion is a sanity ceiling to
+    // ensure the file regeneration didn't catastrophically multiply
+    // the corpus.
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBeGreaterThan(0);
+    expect(TRACKED_UNPUBLISHED_TOTAL).toBeLessThanOrEqual(5000);
   });
 
   it('wrap does NOT appear in TRACKED_UNPUBLISHED_NAMES', async () => {
@@ -181,7 +185,9 @@ describe('Observational backlog — wrap is no longer counted', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('554 more documented names');
     // Whatever current count is, it should be present as a "more documented names" phrase.
-    expect(res.text).toMatch(/\b5\d\d more documented names\b/);
+    // Match any positive integer; the corpus has grown past the original
+    // 5xx range after the Wave 0 reconciliation expansion.
+    expect(res.text).toMatch(/\b\d+ more documented names\b/);
     expect(res.text).not.toMatch(/#wrap[^a-z-]/);  // negative lookahead so e.g. #wrap-around-X wouldn't match
   });
 });
