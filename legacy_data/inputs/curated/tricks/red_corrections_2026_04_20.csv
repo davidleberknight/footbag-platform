@@ -1193,3 +1193,43 @@ miraging-symposium-mirage,notation,,MIRAGING SYMPOSIUM MIRAGE,W9k 2026-05-27: JO
 miraging-symposium-mirage,operational_notation,,SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],W9k 2026-05-27: miraging prefix + symposium-mirage chain. 4 brackets matches 4 ADD.
 miraging-symposium-illusion,notation,,MIRAGING SYMPOSIUM ILLUSION,W9k 2026-05-27: JOB per mechanical uppercase rule.
 miraging-symposium-illusion,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9k 2026-05-27: miraging prefix + symposium-illusion chain. 4 brackets matches 4 ADD.
+tapping-mirage,notation,,TAPPING MIRAGE,W9l 2026-05-27: JOB per mechanical uppercase rule.
+tapping-mirage,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL],W9l 2026-05-27: tapping-whirl chassis + mirage IN-dex preservation. 3 brackets matches 3 ADD.
+tapping-osis,notation,,TAPPING OSIS,W9l 2026-05-27: JOB per mechanical uppercase rule.
+tapping-osis,operational_notation,,TOE > OP OUT [DEX] >> (back or front) SPIN [BOD] > SAME or OP CLIP [XBD] [DEL],W9l 2026-05-27: tapping chassis + osis chain. 4 brackets matches 4 ADD.
+tapping-pickup,notation,,TAPPING PICKUP,W9l 2026-05-27: JOB per mechanical uppercase rule.
+tapping-pickup,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME TOE [DEL],W9l 2026-05-27: tapping chassis + pickup chain. 3 brackets matches 3 ADD.
+tapping-butterfly,notation,,TAPPING BUTTERFLY,W9l 2026-05-27: JOB per mechanical uppercase rule.
+tapping-butterfly,operational_notation,,TOE > OP OUT [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9l 2026-05-27: tapping-illusion direction-flip precedent on butterfly. 4 brackets matches 4 ADD.
+tapping-clipper,notation,,TAPPING CLIPPER,W9l 2026-05-27: JOB per mechanical uppercase rule.
+tapping-clipper,operational_notation,,TOE > OP OUT [DEX] >> SAME CLIP [XBD] [DEL],W9l 2026-05-27: tapping chassis + clipper-stall terminal. 3 brackets matches 3 ADD.
+tapping-leg-over,notation,,TAPPING LEG OVER,W9m 2026-05-27: JOB per mechanical uppercase rule.
+tapping-leg-over,operational_notation,,TOE > OP OUT [DEX] >> SAME OUT [DEX] > SAME TOE [DEL],W9m 2026-05-27: tapping-illusion direction-flip precedent on legover. 3 brackets matches 3 ADD.
+tapping-eggbeater,notation,,TAPPING EGGBEATER,W9m 2026-05-27: JOB per mechanical uppercase rule.
+tapping-eggbeater,operational_notation,,TOE > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9m 2026-05-27: tapping prefix + eggbeater chain. 4 brackets matches 4 ADD.
+tapping-drifter,notation,,TAPPING DRIFTER,W9m 2026-05-27: JOB per mechanical uppercase rule.
+tapping-drifter,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME CLIP [XBD] [DEL],W9m 2026-05-27: tapping-whirl precedent + drifter terminal. 4 brackets matches 4 ADD.
+tapping-twirl,notation,,TAPPING TWIRL,W9m 2026-05-27: JOB per mechanical uppercase rule.
+tapping-twirl,operational_notation,,TOE > OP OUT [DEX] >> SAME FRONT SWIRL [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9m 2026-05-27: tapping prefix + twirl chain. 5 brackets matches 5 ADD.
+tapping-mobius,notation,,TAPPING MOBIUS,W9m 2026-05-27: JOB per mechanical uppercase rule.
+tapping-mobius,operational_notation,,TOE > OP OUT [DEX] >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],W9m 2026-05-27: tapping prefix + mobius chain. 6 brackets matches 6 ADD.
+tapping-torque,notation,,TAPPING TORQUE,W9n 2026-05-27: JOB per mechanical uppercase rule.
+tapping-torque,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9n 2026-05-27: tapping-whirl chassis + torque chain. 5 brackets matches 5 ADD.
+tapping-double-leg-over,notation,,TAPPING DOUBLE LEG OVER,W9n 2026-05-27: JOB per mechanical uppercase rule.
+tapping-double-leg-over,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9n 2026-05-27: tapping chassis + DLO chain. 4 brackets matches 4 ADD.
+miraging-dyno,notation,,MIRAGING DYNO,W9n 2026-05-27: JOB per mechanical uppercase rule.
+miraging-dyno,operational_notation,,SET > OP IN [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9n 2026-05-27: W9k miraging prefix + dyno chain. 5 brackets matches 5 ADD.
+miraging-symposium-eggbeater,notation,,MIRAGING SYMPOSIUM EGGBEATER,W9n 2026-05-27: JOB per mechanical uppercase rule.
+miraging-symposium-eggbeater,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9n 2026-05-27: W9k miraging-symposium chassis + eggbeater chain. 5 brackets matches 5 ADD.
+symposium-double-over-down,notation,,SYMPOSIUM DOUBLE OVER DOWN,W9n 2026-05-27: JOB per mechanical uppercase rule.
+symposium-double-over-down,operational_notation,,TOE > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9n 2026-05-27: W9c symposium-mirage chassis on DOD base. 5 brackets matches 5 ADD.
+miraging-symposium-double-over-down,notation,,MIRAGING SYMPOSIUM DOUBLE OVER DOWN,W9o 2026-05-27: JOB per mechanical uppercase rule.
+miraging-symposium-double-over-down,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: W9k miraging + W9n symposium-DOD chassis. 6 brackets matches 6 ADD.
+paradox-symposium-eggbeater,notation,,PARADOX SYMPOSIUM EGGBEATER,W9o 2026-05-27: JOB per mechanical uppercase rule.
+paradox-symposium-eggbeater,operational_notation,,CLIP (plant) > (no plant while) SAME OUT [PDX] [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9o 2026-05-27: paradox-symposium-mirage chassis + eggbeater chain. 5 brackets matches 5 ADD.
+tapping-symposium-whirl,notation,,TAPPING SYMPOSIUM WHIRL,W9o 2026-05-27: JOB per mechanical uppercase rule.
+tapping-symposium-whirl,operational_notation,,TOE > OP OUT [DEX] >> (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: W9l tapping prefix + symposium-whirl chain. 5 brackets matches 5 ADD.
+atomic-miraging-butterfly,notation,,ATOMIC MIRAGING BUTTERFLY,W9o 2026-05-27: JOB per mechanical uppercase rule.
+atomic-miraging-butterfly,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: atomic-butterfly canonical + miraging dex injection. 5 brackets matches 5 ADD.
+pixie-miraging-flail,notation,,PIXIE MIRAGING FLAIL,W9o 2026-05-27: JOB per mechanical uppercase rule.
+pixie-miraging-flail,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9o 2026-05-27: pixie prefix + miraging injection + flail body. First pixie+miraging stack. 5 brackets matches 5 ADD.
