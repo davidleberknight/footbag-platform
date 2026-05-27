@@ -1115,3 +1115,39 @@ stepping-double-over-down,notation,,STEPPING DOUBLE OVER DOWN,W9b 2026-05-27: JO
 stepping-double-over-down,operational_notation,,CLIP > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + double-over-down chain. 5 brackets matches 5 ADD.
 stepping-symposium-whirl,notation,,STEPPING SYMPOSIUM WHIRL,W9b 2026-05-27: JOB per mechanical uppercase rule.
 stepping-symposium-whirl,operational_notation,,CLIP > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W9b 2026-05-27: stepping leading-[DEX] + symposium-whirl chain. 5 brackets matches 5 ADD.
+symposium-illusion,notation,,SYMPOSIUM ILLUSION,W9c 2026-05-27: JOB per mechanical uppercase rule.
+symposium-illusion,operational_notation,,SET > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9c 2026-05-27: symposium no-plant [BOD] chassis + illusion chain. 3 brackets matches 3 ADD.
+symposium-butterfly,notation,,SYMPOSIUM BUTTERFLY,W9c 2026-05-27: JOB per mechanical uppercase rule.
+symposium-butterfly,operational_notation,,SET > (no plant while) SAME or OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],W9c 2026-05-27: symposium no-plant [BOD] chassis + butterfly chain. 4 brackets matches 4 ADD.
+symposium-double-leg-over,notation,,SYMPOSIUM DOUBLE LEG OVER,W9c 2026-05-27: JOB per mechanical uppercase rule.
+symposium-double-leg-over,operational_notation,,SET > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9c 2026-05-27: symposium no-plant [BOD] chassis + double-leg-over chain. 4 brackets matches 4 ADD.
+symposium-barfly,notation,,SYMPOSIUM BARFLY,W9c 2026-05-27: JOB per mechanical uppercase rule.
+symposium-barfly,operational_notation,,CLIP >> (no plant while) SAME OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W9c 2026-05-27: symposium no-plant [BOD] chassis + barfly chain. 5 brackets matches 5 ADD.
+symposium-twirl,notation,,SYMPOSIUM TWIRL,W9c 2026-05-27: JOB per mechanical uppercase rule.
+symposium-twirl,operational_notation,,CLIP >> (no plant while) SAME FRONT SWIRL [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9c 2026-05-27: symposium no-plant [BOD] chassis + twirl chain. 5 brackets matches 5 ADD.
+symposium-paradon,notation,,SYMPOSIUM PARADON,W9d 2026-05-27: JOB per mechanical uppercase rule.
+symposium-paradon,operational_notation,,TOE > (no plant while) OP OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9d 2026-05-27: symposium no-plant [BOD] chassis + paradon chain. 5 brackets matches 5 ADD.
+paradox-eggbeater,notation,,PARADOX EGGBEATER,W9d 2026-05-27: JOB per mechanical uppercase rule.
+paradox-eggbeater,operational_notation,,TOE >> SAME OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL],W9d 2026-05-27: paradox direction-flip chassis on eggbeater. 4 brackets matches 4 ADD.
+paradox-flail,notation,,PARADOX FLAIL,W9d 2026-05-27: JOB per mechanical uppercase rule.
+paradox-flail,operational_notation,,CLIP > (no plant while) SAME OUT [PDX] [BOD] [DEX] > OP TOE [DEL],W9d 2026-05-27: paradox direction-flip + entry-flip chassis on flail. 4 brackets matches 4 ADD.
+paradox-flurry,notation,,PARADOX FLURRY,W9d 2026-05-27: JOB per mechanical uppercase rule.
+paradox-flurry,operational_notation,,CLIP > SAME IN [PDX] [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL],W9d 2026-05-27: paradox direction-flip chassis on flurry chain. 5 brackets matches 5 ADD.
+fairy-dyno,notation,,FAIRY DYNO,W9e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-dyno,operational_notation,,TOE > SAME OUT [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W9e 2026-05-27: fairy prefix + dyno chain. 5 brackets matches 5 ADD.
+fairy-twirl,notation,,FAIRY TWIRL,W9e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-twirl,operational_notation,,TOE > SAME OUT [DEX] >> SAME FRONT SWIRL [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W9e 2026-05-27: fairy prefix + twirl chain. 5 brackets matches 5 ADD.
+fairy-mobius,notation,,FAIRY MOBIUS,W9e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-mobius,operational_notation,,TOE > SAME OUT [DEX] >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],W9e 2026-05-27: fairy prefix + mobius chain. 6 brackets matches 6 ADD.
+fairy-butterfly-swirl,notation,,FAIRY BUTTERFLY SWIRL,W9e 2026-05-27: JOB per mechanical uppercase rule.
+fairy-butterfly-swirl,operational_notation,,TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],W9e 2026-05-27: fairy prefix + butterfly-swirl chain. 5 brackets matches 5 ADD.
+pixie-mobius,notation,,PIXIE MOBIUS,W9f 2026-05-27: JOB per mechanical uppercase rule.
+pixie-mobius,operational_notation,,TOE > SAME IN [DEX] >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],W9f 2026-05-27: pixie prefix + mobius chain. 6 brackets matches 6 ADD.
+pixie-barfly,notation,,PIXIE BARFLY,W9f 2026-05-27: JOB per mechanical uppercase rule.
+pixie-barfly,operational_notation,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W9f 2026-05-27: pixie prefix + barfly chain. 5 brackets matches 5 ADD.
+spinning-paradox-drifter,notation,,SPINNING PARADOX DRIFTER,W9f 2026-05-27: JOB per mechanical uppercase rule.
+spinning-paradox-drifter,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL],W9f 2026-05-27: spinning-paradox chassis + drifter terminal. 5 brackets matches 5 ADD.
+spinning-superfly,notation,,SPINNING SUPERFLY,W9f 2026-05-27: JOB per mechanical uppercase rule.
+spinning-superfly,operational_notation,,CLIP > (back) SPIN [BOD] >> (no plant while) SAME OUT [DEX] [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],W9f 2026-05-27: spinning prefix + superfly chain. 6 brackets matches 6 ADD.
+quantum-eclipse,notation,,QUANTUM ECLIPSE,W9f 2026-05-27: JOB per mechanical uppercase rule.
+quantum-eclipse,operational_notation,,TOE > OP IN [DEX] (JUMP) [BOD] > OP INSIDE [DEL] > OP TOE [DEL],W9f 2026-05-27: jump-class chassis + quantum's leading OP IN [DEX]. 4 brackets matches 4 ADD.
