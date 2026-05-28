@@ -706,8 +706,10 @@ describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
     const res = await request(app).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     // UX3f-b unified the family badge into the hero metadata ribbon as
-    // .trick-hero-meta-chip-family with the same link semantics.
-    expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-family"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>whirl family</);
+    // .trick-hero-meta-chip-family. Phase C F1/F2: the chip now carries the
+    // parent-resolved family display name (whirl's parent is the combined
+    // "Whirl / Swirl" family); the href targets the parent family filter.
+    expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-family"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>Whirl \/ Swirl family</);
   });
 
   it('Related Tricks hashtags are identity links (not family links)', async () => {

@@ -11,8 +11,12 @@
  * Contract under test:
  *   - Family view renders the new pedagogy intro paragraph
  *   - ADD view renders the new pedagogy intro paragraph
- *   - The four new family-invariants render under their family headings
- *   - Existing whirl + rev-whirl invariants are preserved (regression)
+ *   - Parent-family invariants (whirl, butterfly, mirage, osis) render under
+ *     their family headings
+ *   - rev-whirl + swirl are child labels under the parent-family skeleton:
+ *     they fold into the Whirl / Swirl parent, so their child invariants no
+ *     longer surface as standalone section lines (the parent whirl invariant
+ *     covers the section)
  *   - No curator-internal language reaches the rendered HTML
  *
  * Design doc:
@@ -129,9 +133,12 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
     expect(res.text).toContain('leggy in dex &gt; ss clipper');
   });
 
-  it('rev-whirl invariant renders (regression)', async () => {
+  it('rev-whirl invariant does NOT render as its own section (folds into Whirl / Swirl)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('leggy out dex &gt; ss clipper');
+    // rev-whirl folds into the Whirl / Swirl parent; only the parent's whirl
+    // invariant surfaces, not the child rev-whirl invariant.
+    expect(res.text).not.toContain('id="family-rev-whirl"');
+    expect(res.text).not.toContain('leggy out dex &gt; ss clipper');
   });
 
   it('butterfly invariant renders (NEW Phase 1)', async () => {
@@ -149,9 +156,10 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
     expect(res.text).toContain('spin &gt; ss clipper');
   });
 
-  it('swirl invariant renders (NEW Phase 1)', async () => {
+  it('swirl invariant does NOT render as its own section (folds into Whirl / Swirl)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('leggy xbd out dex &gt; ss clipper');
+    expect(res.text).not.toContain('id="family-swirl"');
+    expect(res.text).not.toContain('leggy xbd out dex &gt; ss clipper');
   });
 });
 

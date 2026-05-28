@@ -53,7 +53,9 @@ beforeAll(async () => {
     // whirl family
     { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'dex', notation: 'WHIRL', operational_notation: 'SET > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'paradox-whirl', canonical_name: 'paradox whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'PARADOX WHIRL', operational_notation: 'CLIP > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // torque family
+    // osis family — torque children fold into the osis parent (family
+    // skeleton, freestyleParentFamilies.ts). Both rows carry trick_family
+    // 'torque' but render UNDER id="family-osis", not a top-level torque section.
     { slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'TORQUE', operational_notation: 'CLIP > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning-torque', canonical_name: 'spinning torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'SPINNING TORQUE', operational_notation: 'CLIP > (back) SPIN [BOD] > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
   ];
@@ -73,7 +75,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-const FAMILIES = ['mirage', 'legover', 'butterfly', 'whirl', 'torque'];
+// torque folds into the osis parent under the family skeleton, so the
+// rendered top-level section is osis (not torque).
+const FAMILIES = ['mirage', 'legover', 'butterfly', 'whirl', 'osis'];
 const ALL_MEMBERS = ['mirage', 'smear', 'legover', 'magellan', 'butterfly', 'ripwalk', 'whirl', 'paradox-whirl', 'torque', 'spinning-torque'];
 
 function rowFor(html: string, slug: string): string {

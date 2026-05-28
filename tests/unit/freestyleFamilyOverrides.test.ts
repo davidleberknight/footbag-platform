@@ -12,7 +12,6 @@ import {
   resolveFamilyOverride,
   FAMILY_DUAL_MEMBERSHIPS,
   resolveFamilyDualMemberships,
-  RETIRED_FAMILIES,
   isRetiredFamily,
   FAMILY_DISPLAY_NAMES,
   resolveFamilyDisplayName,
@@ -67,20 +66,30 @@ describe('FAMILY_DUAL_MEMBERSHIPS (Slice M additive memberships)', () => {
   });
 });
 
-describe('RETIRED_FAMILIES (Slice M Family-View retirement)', () => {
-  it('clipper-stall is the sole retired family in this slice', () => {
+describe('RETIRED_FAMILIES (Family-view route-outs)', () => {
+  it('retires the foundational surfaces (clipper-stall, clipper, toe-stall)', () => {
     expect(isRetiredFamily('clipper-stall')).toBe(true);
-    expect(RETIRED_FAMILIES.size).toBe(1);
+    expect(isRetiredFamily('clipper')).toBe(true);
+    expect(isRetiredFamily('toe-stall')).toBe(true);
   });
 
-  it('returns false for active families', () => {
-    expect(isRetiredFamily('whirl')).toBe(false);
-    expect(isRetiredFamily('osis')).toBe(false);
-    expect(isRetiredFamily('drifter')).toBe(false);
-    expect(isRetiredFamily('torque')).toBe(false);
-    expect(isRetiredFamily('blender')).toBe(false);
-    expect(isRetiredFamily('clipper')).toBe(false);   // distinct from clipper-stall
-    expect(isRetiredFamily('butterfly')).toBe(false);
+  it('retires representative modifier-ecosystem + alternative-surface route-outs', () => {
+    // Membership of the full route-out set is exhaustively asserted in
+    // freestyleParentFamilies.test.ts; here we spot-check the kinds.
+    expect(isRetiredFamily('pixie')).toBe(true);                  // modifier ecosystem
+    expect(isRetiredFamily('cross-body-sole-stall')).toBe(true);  // alternative surface
+    expect(isRetiredFamily('2-bag-juggling')).toBe(true);         // multi-bag primitive
+  });
+
+  it('does NOT retire parent families or labels that fold/defer into the view', () => {
+    // Parents render top-level; children fold into a live parent; deferred
+    // labels keep their own section. None are route-outs.
+    expect(isRetiredFamily('whirl')).toBe(false);      // parent
+    expect(isRetiredFamily('osis')).toBe(false);       // parent
+    expect(isRetiredFamily('butterfly')).toBe(false);  // parent
+    expect(isRetiredFamily('torque')).toBe(false);     // folds into osis
+    expect(isRetiredFamily('blender')).toBe(false);    // folds into osis
+    expect(isRetiredFamily('drifter')).toBe(false);    // deferred, own section
   });
 });
 

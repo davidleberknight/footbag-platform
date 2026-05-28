@@ -155,8 +155,65 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
 // family-view surface.
 // ─────────────────────────────────────────────────────────────────────────
 
+// Family ruling pass (2026-05-28) — route-outs. These family labels are NOT
+// productive movement lineages and are removed from the Family-view browse
+// surface so the view shows only the 8 canonical parent families plus
+// still-deferred labels. The rows, their trick_family data, notation,
+// glossary concepts, and other browse views are untouched; reversible by
+// deleting an entry. Four route-out kinds:
+//   - Modifier ecosystems: a modifier (pixie/fairy/…) recombines across many
+//     base tricks; it is an axis, not a family (browse via Movement System /
+//     By Modifier).
+//   - Alternative surfaces: a contact surface (sole / heel / cross-body /
+//     cloud / head-neck-shoulder / flying), not a family (browse via the
+//     Alternative Surfaces grouping on Movement System).
+//   - Foundational surfaces: toe-stall / clipper(-stall) are base primitives,
+//     highly visible in glossary + notation + neighborhoods, but not parent
+//     families.
+//   - Multi-bag / kick primitives: juggling counts and bare kick/spin tokens
+//     are not movement lineages.
 export const RETIRED_FAMILIES: ReadonlySet<string> = new Set<string>([
+  // Foundational surfaces / base primitives
   'clipper-stall',
+  'clipper',
+  'toe-stall',
+  // Modifier ecosystems
+  'pixie',
+  'fairy',
+  'atomic',
+  'quantum',
+  'surging',
+  'terrage',
+  'spyro',
+  'pogo',
+  'rooted',
+  'sailing',
+  'shooting',
+  'furious',
+  // Alternative surfaces
+  'cross-body-sole-stall',
+  'sole-stall',
+  'heel-stall',
+  'sole-kick',
+  'inside-stall',
+  'outside-stall',
+  'head-stall',
+  'neck-stall',
+  'shoulder-stall',
+  'forehead-stall',
+  'cloud-stall',
+  'cloud-kick',
+  'knee-stall',
+  'dragonfly-kick',
+  'flying-inside',
+  'flying-outside',
+  // Multi-bag / kick primitives
+  '2-bag-juggling',
+  '3-bag-juggling',
+  'spin',
+  'double-spin',
+  'double-knee',
+  'knee-clipper',
 ]);
 
 /**

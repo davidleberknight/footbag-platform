@@ -1,39 +1,28 @@
 /**
- * Integration tests for Slice J — Rev-Whirl sibling terminal family
- * (Stage A, 2026-05-16).
+ * Integration tests for the rev-whirl override + its place under the
+ * parent-family skeleton.
  *
- * Long-term contract pinned:
+ * Two reversible TypeScript content layers compose here:
  *
- *   The Rev-Whirl family is a TRUE sibling terminal family of Whirl,
- *   not a related-subgroup or topology. It has its own conserved
- *   ending mechanic (front whirl > op clipper [XBD]). Three rows
- *   move out of whirl-family by curator override:
+ *   1. The rev-whirl override (freestyleFamilyOverrides.ts) re-buckets three
+ *      whirl-family rows under the intermediate `rev-whirl` label:
+ *        - rev-whirl (the canonical direction-variant anchor)
+ *        - hatchet (SAME FRONT WHIRL [DEX] > OP CLIP [XBD])
+ *        - mullet  (SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD])
+ *      The override also carries the "Rev Whirl" display name and the
+ *      rev-whirl shared-structure invariant text. These content-module
+ *      facts are unchanged and still asserted below.
  *
- *     - rev-whirl (the canonical direction-variant anchor)
- *     - hatchet (mechanics-confirmed: SAME FRONT WHIRL [DEX] > OP CLIP [XBD])
- *     - mullet  (mechanics-confirmed: SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD])
+ *   2. The parent-family skeleton (freestyleParentFamilies.ts) then folds the
+ *      `rev-whirl` label INTO the Whirl / Swirl parent. So in the rendered
+ *      Family view, rev-whirl/hatchet/mullet are subordinate rows under the
+ *      Whirl / Swirl section — there is no top-level "Rev Whirl" section.
  *
- *   Explicitly deferred (stay in whirl-family pending curator decision):
+ *   Deferred / hybrid rows (tomahawk, surreal, montage) stay in whirl-family;
+ *   rev-up is dropped from family view by its self-bucket singleton override.
  *
- *     - rev-up    — folk-name direction variant; no op-notation
- *     - tomahawk  — folk-name compound; structural decomposition uncertain
- *     - surreal   — hybrid: chain says whirl-family; op-notation says
- *                   front-whirl. Stays in whirl-family by chain identity.
- *     - montage   — same hybrid pattern.
- *
- *   Slice J's contract:
- *
- *   1. Curator override module produces the right family mapping.
- *   2. Family-view section renders a "Rev Whirl family" heading.
- *   3. The three migrated rows appear under the new section, NOT
- *      under the Whirl family.
- *   4. Deferred rows (rev-up, tomahawk, surreal, montage) stay in
- *      whirl-family.
- *   5. Rev-Whirl family section carries its own shared-structure
- *      invariant line.
- *   6. Whirl family invariant line still renders.
- *   7. NO database `trick_family` column UPDATE. Override is
- *      reversible TypeScript content.
+ *   No database `trick_family` column is updated; both layers are reversible
+ *   TypeScript content.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -159,53 +148,41 @@ describe('Family override — content module', () => {
   });
 });
 
-describe('Family View — Rev-Whirl section renders', () => {
-  it('renders a Rev Whirl family section with the curator display name', async () => {
+describe('Family View — rev-whirl folds into the Whirl / Swirl parent', () => {
+  it('does NOT render a top-level Rev-Whirl family section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('id="family-rev-whirl"');
-    // Display name uses the curator override, not the default capitalize.
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=rev-whirl">Rev Whirl family<\/a>/);
+    // rev-whirl is now a child label of the Whirl / Swirl parent: no
+    // top-level section, no "Rev Whirl family" heading.
+    expect(res.text).not.toContain('id="family-rev-whirl"');
+    expect(res.text).not.toMatch(/Rev Whirl family<\/a>/);
   });
 
-  it('renders the Rev-Whirl invariant line inside the new section', async () => {
+  it('renders rev-whirl, hatchet, mullet INSIDE the Whirl / Swirl section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
-    const sectionStart = res.text.indexOf('id="family-rev-whirl"');
+    const sectionStart = res.text.indexOf('id="family-whirl"');
     expect(sectionStart).toBeGreaterThan(-1);
-    const sectionEnd = res.text.indexOf('</section>', sectionStart);
-    const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    expect(sectionHtml).toContain('class="trick-family-shared-structure"');
-    expect(sectionHtml).toMatch(/Shared terminal structure: <code>leggy out dex &gt; ss clipper<\/code>/);
-  });
-
-  it('renders rev-whirl, hatchet, mullet INSIDE the Rev-Whirl section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
-    const sectionStart = res.text.indexOf('id="family-rev-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
     for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
       expect(
         sectionHtml,
-        `${slug} should appear inside the Rev-Whirl family section`,
+        `${slug} should fold into the Whirl / Swirl parent section`,
       ).toContain(`data-trick-slug="${slug}"`);
     }
   });
 
-  it('Rev-Whirl family section sits immediately after Whirl in FAMILY_ORDER', async () => {
+  it('renders the combined "Whirl / Swirl" display name on the parent', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
-    const whirlIdx    = res.text.indexOf('id="family-whirl"');
-    const revWhirlIdx = res.text.indexOf('id="family-rev-whirl"');
-    expect(whirlIdx).toBeGreaterThan(-1);
-    expect(revWhirlIdx).toBeGreaterThan(whirlIdx);
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=whirl">Whirl \/ Swirl family<\/a>/);
   });
 });
 
-describe('Whirl Family — preserves invariant + drops the migrated rows', () => {
-  it('Whirl family section still renders with the Slice I invariant', async () => {
+describe('Whirl / Swirl Family — invariant + folded children', () => {
+  it('Whirl / Swirl family section still renders the whirl invariant', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
@@ -214,7 +191,7 @@ describe('Whirl Family — preserves invariant + drops the migrated rows', () =>
     expect(sectionHtml).toMatch(/Shared terminal structure: <code>leggy in dex &gt; ss clipper<\/code>/);
   });
 
-  it('rev-whirl, hatchet, mullet do NOT appear in the Whirl section', async () => {
+  it('rev-whirl, hatchet, mullet appear in the Whirl / Swirl section (folded in)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
@@ -223,8 +200,8 @@ describe('Whirl Family — preserves invariant + drops the migrated rows', () =>
     for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
       expect(
         sectionHtml,
-        `${slug} should NOT appear in the Whirl section after Slice J Stage A`,
-      ).not.toContain(`data-trick-slug="${slug}"`);
+        `${slug} should fold into the Whirl / Swirl parent section`,
+      ).toContain(`data-trick-slug="${slug}"`);
     }
   });
 
@@ -259,10 +236,5 @@ describe('Whirl Family — preserves invariant + drops the migrated rows', () =>
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
     expect(sectionHtml).toContain('data-trick-slug="montage"');
-    // And NOT in the Rev-Whirl section.
-    const revWhirlStart = res.text.indexOf('id="family-rev-whirl"');
-    const revWhirlEnd = res.text.indexOf('</section>', revWhirlStart);
-    const revWhirlHtml = res.text.slice(revWhirlStart, revWhirlEnd);
-    expect(revWhirlHtml).not.toContain('data-trick-slug="montage"');
   });
 });

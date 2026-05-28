@@ -19,8 +19,8 @@
       {{#if content.trickTag}}
       <span class="trick-hero-meta-chip trick-hero-meta-chip-tag">{{content.trickTag}}</span>
       {{/if}}
-      {{#if content.dictEntry.trickFamily}}
-      <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a>
+      {{#if content.familyChip}}
+      <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}</a>
       {{/if}}
       {{#if content.dictEntry}}
         {{#if content.dictEntry.isModifier}}

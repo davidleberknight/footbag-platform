@@ -3,10 +3,13 @@
  *
  * Covers four behaviors introduced in Slice M:
  *
- *   1. Branch-family dual-membership — torque + blender appear in both
- *      osis-family AND their own branch family; drifter appears in
- *      drifter-family. Cards in the dual-membership case render with
- *      identical shape across both family sections.
+ *   1. Osis-lineage folding — under the parent-family skeleton
+ *      (freestyleParentFamilies.ts), torque + blender (and their branch
+ *      members mobius / paradox-torque / paradox-blender / mind-bender) fold
+ *      INTO the osis parent as subordinate rows; they no longer render as
+ *      their own top-level families. drifter remains a deferred family of its
+ *      own (no parent entry yet), with high-plains-drifter re-bucketed in via
+ *      the family override.
  *
  *   2. Clipper-Stall family retirement — Family View no longer renders
  *      an id="family-clipper-stall" section. The clipper-stall row
@@ -122,25 +125,16 @@ afterAll(() => cleanupTestDb(dbPath));
 // 1. Branch-family dual-membership
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice M — branch-family dual-membership (Family View)', () => {
-  it('torque-family renders with torque as its anchor (alongside osis-family lineage)', async () => {
+describe('Family skeleton — torque + blender fold into osis (Family View)', () => {
+  it('torque does NOT render as a top-level family (folds into osis)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('id="family-torque"');
-    // The anchor card must be present inside the torque-family section.
-    const start = res.text.indexOf('id="family-torque"');
-    const end = res.text.indexOf('<section', start + 1);
-    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(section).toContain('data-trick-slug="torque"');
+    expect(res.text).not.toContain('id="family-torque"');
   });
 
-  it('blender-family renders with blender as its anchor', async () => {
+  it('blender does NOT render as a top-level family (folds into osis)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('id="family-blender"');
-    const start = res.text.indexOf('id="family-blender"');
-    const end = res.text.indexOf('<section', start + 1);
-    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(section).toContain('data-trick-slug="blender"');
+    expect(res.text).not.toContain('id="family-blender"');
   });
 
   it('drifter-family renders with drifter as its anchor + high-plains-drifter re-bucketed in', async () => {
@@ -163,14 +157,18 @@ describe('Slice M — branch-family dual-membership (Family View)', () => {
     expect(section).toContain('data-trick-slug="blender"');
   });
 
-  it('FAMILY_ORDER places torque + blender adjacent to osis', async () => {
+  it('the torque + blender branch members also fold into the osis section', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    const iOsis    = res.text.indexOf('id="family-osis"');
-    const iTorque  = res.text.indexOf('id="family-torque"');
-    const iBlender = res.text.indexOf('id="family-blender"');
-    expect(iOsis).toBeGreaterThan(-1);
-    expect(iTorque).toBeGreaterThan(iOsis);
-    expect(iBlender).toBeGreaterThan(iTorque);
+    const start = res.text.indexOf('id="family-osis"');
+    const end = res.text.indexOf('<section', start + 1);
+    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
+    for (const slug of ['mobius', 'paradox-torque', 'paradox-blender', 'mind-bender']) {
+      expect(section, `${slug} should fold into the osis section`).toContain(`data-trick-slug="${slug}"`);
+    }
+    // ...and none of them render as their own top-level family.
+    for (const slug of ['mobius', 'paradox-torque', 'paradox-blender', 'mind-bender']) {
+      expect(res.text).not.toContain(`id="family-${slug}"`);
+    }
   });
 });
 
