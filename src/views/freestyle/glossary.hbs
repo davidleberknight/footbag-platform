@@ -56,6 +56,82 @@
     </p>
   </aside>
 
+  {{! ── Reading the dictionary — platform-ontology orientation (additive
+       framing, 2026-05-28). Explains the trick-row contract, the six browse
+       views, and the five kinds of object the platform deliberately keeps
+       separate. Foundational orientation; the §Families taxonomy rewrite is a
+       separate, post-ruling slice (do NOT harden hierarchy language here). }}
+  <section class="content-section" id="section-reading-the-dictionary">
+    <h2 class="section-heading">Reading the dictionary</h2>
+    <p>
+      Before the movement vocabulary, three things about how the dictionary
+      presents tricks: the <strong>row</strong> every trick shares, the six
+      <strong>browse views</strong> that regroup those rows, and the five
+      <strong>kinds of object</strong> the platform keeps separate &mdash; where
+      older footbag vocabularies often used one flat name for all of them.
+    </p>
+
+    <h3 class="section-heading">The trick row</h3>
+    <p class="detail-muted">Every trick renders as the same two-line row in every browse view; only the grouping above it changes.</p>
+    <div class="glossary-row-contract">
+      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 1</span> canonical trick name &middot; <code>#hashtag</code> &middot; optional <strong>&equiv;</strong> interpretation / decomposition reading &middot; optional media badge (<em>Tutorial / Demo available</em>)</p>
+      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 2</span> <strong>JOB</strong> operational notation &middot; <strong>ADD</strong> difficulty accounting</p>
+    </div>
+    <p class="detail-muted">
+      There is no separate per-row ADD chip: the ADD magnitude is carried by the
+      view's grouping header plus the line-2 <strong>ADD</strong> formula. JOB
+      (<a href="#section-notation">notation</a>) and ADD
+      (<a href="#section-add-accounting">accounting</a>) are the two halves of
+      line 2 &mdash; both are explained in full below.
+    </p>
+
+    <h3 class="section-heading">The six browse views</h3>
+    <p class="detail-muted">Same rows, six lenses. Each answers a different question.</p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>View</th><th>Groups by</th><th>Reveals</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks?view=add">By ADD</a></td><td>difficulty buckets</td><td>how layered a trick is</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=family">By family</a></td><td>conserved terminal mechanic</td><td>structural lineage</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=sets">By modifier</a></td><td>the set / body modifier used</td><td>what transforms the base</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=movement-system">By movement system</a></td><td>four conceptual axes (+ alternative surfaces)</td><td>the compositional system</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a></td><td>&ldquo;feels mechanically similar&rdquo;</td><td>exploratory similarity, not a canonical taxonomy</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=dex-count">By dex count</a></td><td>number of dex events</td><td>mechanical complexity</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="section-heading">Five kinds of object (and why they stay separate)</h3>
+    <p>
+      Older footbag vocabularies flattened families, modifiers, surfaces,
+      aliases, and decompositions into one undifferentiated name-space. The
+      platform keeps them separate because each is a <em>different kind of
+      thing</em>, governed by different rules &mdash; conflating them is what
+      makes a flat vocabulary confusing.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Kind</th><th>What it is</th><th>Example</th><th>Where it lives</th></tr></thead>
+        <tbody>
+          <tr><td>Canonical family</td><td>a true structural lineage sharing a conserved terminal mechanic</td><td>whirl, mirage, legover</td><td>By family</td></tr>
+          <tr><td>Modifier ecosystem</td><td>a system that transforms many bases; has no terminal mechanic of its own</td><td>pixie, ducking, spinning</td><td>By modifier</td></tr>
+          <tr><td>Alternative surface</td><td>an unusual catch surface, not a movement lineage</td><td>sole, heel, cloud, cross-body sole</td><td>Movement system &rarr; Alternative surfaces</td></tr>
+          <tr><td>Movement neighborhood</td><td>tricks that <em>feel</em> mechanically similar &mdash; an exploratory lens, not a taxonomy</td><td>Hippy downtime dex</td><td>Movement Neighborhoods</td></tr>
+          <tr><td>Alias / decomposition label</td><td>another name for, or a reading of, an existing trick &mdash; descriptive, not a new trick</td><td>ATW = around-the-world; eggbeater &equiv; atomic legover</td><td>(no own view; shown on the trick)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      The boundaries: a <strong>canonical family</strong> has its own terminal
+      mechanic; a <strong>modifier ecosystem</strong> only transforms one; an
+      <strong>alternative surface</strong> is a contact surface, not a lineage; a
+      <strong>neighborhood</strong> is &ldquo;feels similar,&rdquo; not &ldquo;is
+      structurally the same&rdquo;; and an <strong>interpretation reading</strong>
+      (the <strong>&equiv;</strong> on line 1) describes an equivalence &mdash; it
+      does not make the read-as name a productive modifier.
+    </p>
+  </section>
+
   <section class="content-section" id="section-core-concepts">
     <h2 class="section-heading">Movement Basics</h2>
     <p>
@@ -362,6 +438,18 @@
       <a href="/freestyle/tricks?view=family">family-view browse</a> renders every trick.
     </p>
 
+    <p class="glossary-note">
+      <strong>Family labels are transitional.</strong> The current set is
+      fine-grained &mdash; many labels are singletons or descend from a broader
+      anchor, and several &ldquo;families&rdquo; are really
+      <a href="#section-modifiers">modifier ecosystems</a>, alternative surfaces,
+      or aliases (see <a href="#section-reading-the-dictionary">the five kinds of
+      object</a>). A future taxonomy pass will consolidate them into a smaller
+      set of <em>parent</em> families with child sub-families, and the canonical
+      family count will shrink. Today&rsquo;s labels are a structural browse aid,
+      not a settled taxonomy.
+    </p>
+
     <h3 class="section-heading">Root terminal families</h3>
     <p class="detail-muted">Primitive structural anchors &mdash; atoms with their own terminal mechanic.</p>
     <div class="glossary-family-card-grid" aria-label="Root terminal families">
@@ -451,6 +539,18 @@
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
       <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone &rarr;</a>
     </h2>
+
+    <p>
+      Modifiers form <strong>ecosystems</strong>. A single modifier transforms
+      <em>many</em> different base tricks: set ecosystems (pixie, fairy,
+      stepping, quantum, atomic) reshape the entry; body / rotational ecosystems
+      (ducking, gyro, spinning) reshape the midtime. An ecosystem is
+      <strong>not a family</strong> &mdash; it has no terminal mechanic of its
+      own; it modifies a base that does. That is why pixie appears across
+      pixie-illusion, pixie-mobius, and symposium-pixie rather than as a family
+      of its own. Browse a single ecosystem under
+      <a href="/freestyle/tricks?view=sets">By modifier</a>.
+    </p>
 
     {{> freestyle-modifier-reference}}
   </section>

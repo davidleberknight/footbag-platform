@@ -5845,6 +5845,32 @@ section.home-media { padding-top: 0; }
 /* §8 ADD-accounting weight tables. Compact tabular reference for atom
    + modifier weights. Restraint-first: no heavy borders, alternating
    row backgrounds for scanability. */
+.glossary-row-contract {
+  margin: 8px 0 14px 0;
+  border: 1px solid #d8d2c0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.glossary-row-contract-line {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.glossary-row-contract-line + .glossary-row-contract-line {
+  border-top: 1px solid #ece6d4;
+  background: #fcfaf3;
+}
+.glossary-row-contract-label {
+  display: inline-block;
+  min-width: 3.4em;
+  margin-right: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a7a40;
+}
 .glossary-add-weight-table-wrap {
   margin: 8px 0 18px 0;
   overflow-x: auto;
