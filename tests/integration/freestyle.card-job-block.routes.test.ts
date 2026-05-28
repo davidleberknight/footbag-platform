@@ -9,7 +9,7 @@
  *      labeled `.dict-card-notation-block` with a leading "JOB" label
  *      span — not as loose body text. The detail-page convention
  *      ("Set notation" labeled section) extends to cards.
- *      (The ADD view uses a distinct two-line `.dict-add-row` contract,
+ *      (The ADD view uses a distinct two-line `.dict-trick-row` contract,
  *      pinned separately in freestyle.add-view-rows.routes.test.ts.)
  *
  *   2. /freestyle/tricks?view=sets renders LINKED trick cards
@@ -168,7 +168,7 @@ describe('JOB-block rendering across browse views (no raw operational notation o
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear', async () => {
     // Run against the densest shared-card view (the ADD view uses the distinct
-    // dict-add-row contract, not dict-card-notation).
+    // dict-trick-row contract, not dict-card-notation).
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     // Every dict-card-notation occurrence must sit inside a dict-card-notation-block wrapper.
     // We check by ensuring the substring before each dict-card-notation occurrence (within

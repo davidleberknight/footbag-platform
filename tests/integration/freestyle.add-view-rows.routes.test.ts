@@ -2,11 +2,11 @@
  * /freestyle/tricks?view=add — two-line row contract (2026-05-27).
  *
  * Every promoted trick row obeys the SAME two-line structure:
- *   Line 1 (.dict-add-row-head): name · hashtag · optional ≡ interpretation · optional media
- *   Line 2 (.dict-add-row-notation): JOB: <op notation> · ADD: <formula | bare N>
+ *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
+ *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
  *
  * Hard rules pinned:
- *   - Every row uses the .dict-add-row wrapper (uniform structure).
+ *   - Every row uses the .dict-trick-row wrapper (uniform structure).
  *   - No green ADD chip (.dict-card-add) inside ADD-view rows.
  *   - Interpretation slot appears only when meaningful (2-bag-juggling has none).
  *   - JOB + ADD always present on line 2 (honest pending/unrated when unknown).
@@ -94,13 +94,13 @@ describe('ADD view — uniform two-line row contract', () => {
     expect(res.text).toMatch(/id="add-\d+"/);
   });
 
-  it('every example trick uses the same .dict-add-row wrapper', async () => {
+  it('every example trick uses the same .dict-trick-row wrapper', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
-      expect(w, `${slug} missing .dict-add-row`).toMatch(/class="dict-add-row/);
-      expect(w, `${slug} missing line-1 head`).toMatch(/class="dict-add-row-head"/);
-      expect(w, `${slug} missing line-2 notation`).toMatch(/class="dict-add-row-notation"/);
+      expect(w, `${slug} missing .dict-trick-row`).toMatch(/class="dict-trick-row/);
+      expect(w, `${slug} missing line-1 head`).toMatch(/class="dict-trick-row-head"/);
+      expect(w, `${slug} missing line-2 notation`).toMatch(/class="dict-trick-row-notation"/);
     }
   });
 
@@ -113,27 +113,27 @@ describe('ADD view — uniform two-line row contract', () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
-      expect(w, `${slug} missing JOB label`).toMatch(/class="dict-add-row-label">JOB</);
-      expect(w, `${slug} missing ADD label`).toMatch(/class="dict-add-row-label">ADD</);
+      expect(w, `${slug} missing JOB label`).toMatch(/class="dict-trick-row-label">JOB</);
+      expect(w, `${slug} missing ADD label`).toMatch(/class="dict-trick-row-label">ADD</);
     }
   });
 
   it('2-bag-juggling: no interpretation slot; line 2 has JOB + ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const w = cardWindow(res.text, '2-bag-juggling');
-    expect(w).not.toMatch(/class="dict-add-row-interpretation"/);
-    expect(w).toMatch(/class="dict-add-row-label">JOB</);
-    expect(w).toMatch(/class="dict-add-row-label">ADD</);
+    expect(w).not.toMatch(/class="dict-trick-row-interpretation"/);
+    expect(w).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(w).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
   it('drifter: line 1 has ≡ interpretation; line 2 has JOB + ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const w = cardWindow(res.text, 'drifter');
-    expect(w).toMatch(/class="dict-add-row-interpretation"/);
+    expect(w).toMatch(/class="dict-trick-row-interpretation"/);
     // drifter ≡ miraging clipper from the symbolic-equivalences module
     expect(w).toMatch(/miraging/);
-    expect(w).toMatch(/class="dict-add-row-label">JOB</);
-    expect(w).toMatch(/class="dict-add-row-label">ADD</);
+    expect(w).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(w).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
   it('ducking-guay and ducking-mirage render with identical row structure', async () => {
@@ -141,7 +141,7 @@ describe('ADD view — uniform two-line row contract', () => {
     const guay = cardWindow(res.text, 'ducking-guay');
     const mirage = cardWindow(res.text, 'ducking-mirage');
     // Same wrapper + same line-1/line-2 scaffolding + same JOB/ADD labels.
-    for (const marker of ['class="dict-add-row', 'class="dict-add-row-head"', 'class="dict-add-row-notation"', 'class="dict-add-row-label">JOB<', 'class="dict-add-row-label">ADD<']) {
+    for (const marker of ['class="dict-trick-row', 'class="dict-trick-row-head"', 'class="dict-trick-row-notation"', 'class="dict-trick-row-label">JOB<', 'class="dict-trick-row-label">ADD<']) {
       expect(guay).toContain(marker);
       expect(mirage).toContain(marker);
     }
@@ -153,13 +153,13 @@ describe('ADD view — uniform two-line row contract', () => {
   it('media badge renders on line 1 (inside the head), not line 2', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     // Seed a media row: drifter has none here, so just assert the structural
-    // rule — when media chip class appears, it is within dict-add-row-head.
+    // rule — when media chip class appears, it is within dict-trick-row-head.
     // (No media seeded in this fixture; assert the negative isn't violated.)
     const w = cardWindow(res.text, 'drifter');
-    if (/dict-add-row-media/.test(w)) {
-      const headIdx = w.indexOf('dict-add-row-head');
-      const notationIdx = w.indexOf('dict-add-row-notation');
-      const mediaIdx = w.indexOf('dict-add-row-media');
+    if (/dict-trick-row-media/.test(w)) {
+      const headIdx = w.indexOf('dict-trick-row-head');
+      const notationIdx = w.indexOf('dict-trick-row-notation');
+      const mediaIdx = w.indexOf('dict-trick-row-media');
       expect(mediaIdx).toBeGreaterThan(headIdx);
       expect(mediaIdx).toBeLessThan(notationIdx);
     }
@@ -167,13 +167,13 @@ describe('ADD view — uniform two-line row contract', () => {
 
   it('operational notation appears ONLY inside the JOB slot (never loose)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    // Bracket tokens like [DEX] must sit inside a dict-add-row-job-value code element.
+    // Bracket tokens like [DEX] must sit inside a dict-trick-row-job-value code element.
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {
       const before = res.text.substring(Math.max(0, m.index - 260), m.index);
       // Each bracket token must be preceded (within the window) by the JOB value code open tag.
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-add-row-job-value|op-token/);
+      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
     }
   });
 });

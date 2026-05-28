@@ -128,17 +128,17 @@
   {{! ── Default ADD-grouped view — two-line row contract (2026-05-27).
        Every row: line 1 = name/hashtag/≡interpretation/media; line 2 =
        JOB: + ADD:. No green ADD chip (the value is in the section header
-       + the line-2 ADD: formula). See dictionary-trick-card-add-row.hbs. }}
+       + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
-  <section class="content-section trick-add-group trick-group--add-rows" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
+  <section class="content-section trick-add-group trick-group--trick-rows" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-add-row-stack">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card-add-row}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>
@@ -215,8 +215,9 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Family view — registry density.
-      Cards are identical to ADD view; only grouping + family-anchor underline differs. }}
+  {{! ── Family view — two-line row contract (2026-05-27 migration).
+      Same generalized dictionary-trick-row partial as the ADD view; only the
+      grouping (family sections + family-anchor sublabel) differs. }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyViewIntro}}
   <p class="browse-view-intro">{{content.familyViewIntro}}</p>
@@ -224,7 +225,7 @@
   <p class="family-view-ordering-note"><em>Families are ordered by structural anchor weight, not alphabetically. Whirl, butterfly, mirage, osis, and other foundational families anchor the most compound rows.</em></p>
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
-  <section class="content-section trick-family-group trick-group--registry" id="family-{{familySlug}}" data-anchor-style="solid">
+  <section class="content-section trick-family-group trick-group--trick-rows" id="family-{{familySlug}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
@@ -243,9 +244,9 @@
     {{#if crossLink}}
     <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
     {{/if}}
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>

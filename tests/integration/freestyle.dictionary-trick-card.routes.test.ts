@@ -163,10 +163,10 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
   });
 
   it('renders the ADD-view two-line row stack container', async () => {
-    // The ADD view uses its own two-line dict-add-row contract (NOT the shared
+    // The ADD view uses its own two-line dict-trick-row contract (NOT the shared
     // dict-card-stack; that lives on the other browse views).
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-add-row-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
@@ -230,7 +230,7 @@ describe('dictionary-trick-card — required slots', () => {
     // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view renders
     // registry density. The equivalence wrapper picks up the --inline modifier
     // class. The token text content is identical to what ADD View shows.
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     // Ripwalk: chain reading 'stepping butterfly'
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
     // Mobius: 'gyro torque' reading
@@ -364,7 +364,7 @@ describe('dictionary-trick-card — required slots', () => {
     // the pending-notation cue; the ≡ readings already convey structural
     // composition. Tested in browse density where the placeholder can
     // appear at all.
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
@@ -418,7 +418,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // Operational tokens are now suppressed when a ≡ reading is present;
     // op-token markup lives on cards without ≡ readings (atoms / fallback)
     // and on the trick-detail page.
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
     const montageEnd = res.text.indexOf('</article>', montageStart);
@@ -489,10 +489,13 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=butterfly">Butterfly family<\/a><\/h2>/);
   });
 
-  it('family section renders the dict-card-stack with shared cards', async () => {
+  it('family section renders the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('dict-card-stack');
-    // The cards inside the family section carry data-trick-slug from our seeded set.
+    // Family migrated to the generalized two-line row contract; it no longer
+    // uses the shared dict-card-stack.
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).not.toContain('dict-card-stack');
+    // The rows inside the family section carry data-trick-slug from our seeded set.
     expect(res.text).toContain('data-trick-slug="butterfly"');
     expect(res.text).toContain('data-trick-slug="ripwalk"');
   });
@@ -520,10 +523,12 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)',
 });
 
 describe('other dictionary views — slice-by-slice migration', () => {
-  it('/freestyle/tricks?view=family returns 200 and uses the shared card (slice 2 migrated)', async () => {
+  it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract (2026-05-27)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('dict-card-stack');
+    // Family migrated off the shared dict-card to the generalized dict-trick-row.
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('/freestyle/tricks?view=component returns 200 and uses the shared card (slice 3A migrated)', async () => {
@@ -551,10 +556,11 @@ describe('other dictionary views — slice-by-slice migration', () => {
   it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
     // 2026-05-24: ?view=sets removed from this card-uniformity contract (it
     // uses compact-list density, not the dictionary-trick-card partial).
-    // 2026-05-27: ?view=add removed too — the ADD view now renders its own
-    // two-line dict-add-row contract, not the shared dict-card-stack. The
-    // card-uniformity contract holds for the remaining shared-card views.
-    for (const view of ['family', 'category', 'component']) {
+    // 2026-05-27: ?view=add AND ?view=family removed — both now render the
+    // two-line dict-trick-row contract, not the shared dict-card-stack. The
+    // card-uniformity contract holds only for the not-yet-migrated views
+    // (category / component), which still use the shared card.
+    for (const view of ['category', 'component']) {
       const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);

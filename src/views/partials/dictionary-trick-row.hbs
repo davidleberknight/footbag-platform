@@ -1,0 +1,88 @@
+{{!--
+  dictionary-trick-row.hbs — the generalized two-line trick-row contract.
+  View-agnostic: rendered by every migrated browse view (ADD, Family, and
+  subsequent views) for a uniform row presentation. Grouping (ADD bucket,
+  family section, etc.) is the view template's responsibility; this partial
+  renders one row. Every row obeys the SAME structure:
+
+  Line 1 (.dict-trick-row-head):
+    - trick name (linked anchor; plain span when external-only)
+    - hashtag (#slug identity)
+    - interpretation subtitle  — `≡ <reading>`  (optional, only when meaningful)
+    - media badge              — Tutorial/Demo available (optional, after interpretation)
+
+  Line 2 (.dict-trick-row-notation):
+    - JOB:  <operational notation tokens>  (or "notation pending" when absent)
+    - ADD:  <derived formula>              (or bare "N" when no formula; "?" when unrated)
+
+  HARD RULES (enforced by this contract):
+    - NO green ADD chip on the row. The ADD value is carried by the
+      view's grouping header (ADD bucket / family section) + the line-2
+      ADD: formula.
+    - Operational notation appears ONLY in the line-2 JOB: slot, never as
+      loose body text and never in the interpretation slot.
+    - JOB + ADD slots always render on line 2 when known; when unknown the
+      slot is preserved with an honest pending/unknown label (row structure
+      never changes between rows).
+
+  Consumes: DictionaryTrickCard view-model.
+--}}
+<article class="dict-trick-row{{#if isExternalOnly}} dict-trick-row--external-placeholder{{/if}}"
+         data-trick-slug="{{slug}}"
+         data-media-coverage="{{mediaCoverage}}">
+  <div class="dict-trick-row-head">
+    {{#if isExternalOnly}}
+      <span class="dict-trick-row-title">{{displayName}}</span>
+    {{else}}
+      <a class="dict-trick-row-title" href="{{href}}">{{displayName}}</a>
+    {{/if}}
+    <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+
+    {{#if tokenizedEquivalences.length}}
+      <span class="dict-trick-row-interpretation" aria-label="Interpretation reading">
+        <span class="core-trick-equiv-sigil">&equiv;</span>
+        {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}" data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}" data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+      </span>
+    {{/if}}
+
+    {{#if hasReferenceMedia}}
+      <span class="dict-trick-row-media dict-trick-row-media--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
+    {{/if}}
+
+    {{#if statusBadge}}
+      <span class="dict-trick-row-status">{{statusBadge}}</span>
+    {{/if}}
+    {{#if pendingDecomposition}}
+      <span class="dict-trick-row-pending" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+    {{/if}}
+  </div>
+
+  <div class="dict-trick-row-notation">
+    <span class="dict-trick-row-job">
+      <span class="dict-trick-row-label">JOB</span>
+      {{#if operationalNotation}}
+        <code class="dict-trick-row-job-value">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+      {{else if firstClassChainValue}}
+        {{!-- First-class atoms/tricks suppress operationalNotation; their JOB
+             chain rides firstClassChainValue (a plain curator string). --}}
+        <code class="dict-trick-row-job-value">{{firstClassChainValue}}</code>
+      {{else}}
+        <span class="dict-trick-row-job-value dict-trick-row-pending-value">notation pending</span>
+      {{/if}}
+    </span>
+    <span class="dict-trick-row-add">
+      <span class="dict-trick-row-label">ADD</span>
+      {{#if addViewFormula}}
+        <code class="dict-trick-row-add-value">{{addViewFormula}}</code>
+      {{else if adds}}
+        <code class="dict-trick-row-add-value">{{adds}}</code>
+      {{else}}
+        <span class="dict-trick-row-add-value dict-trick-row-pending-value">unrated</span>
+      {{/if}}
+    </span>
+  </div>
+
+  {{#if placeholderNote}}
+  <p class="dict-trick-row-placeholder-note">{{placeholderNote}}</p>
+  {{/if}}
+</article>

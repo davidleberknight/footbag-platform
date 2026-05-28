@@ -7438,45 +7438,45 @@ a.dict-card-title:hover {
 /* ── ADD-view two-line row contract (2026-05-27) ──────────────────────────
    Every /freestyle/tricks?view=add row: line 1 = name/hashtag/≡/media;
    line 2 = JOB: + ADD:. No green ADD chip. Uniform structure across rows. */
-.dict-add-row-stack {
+.dict-trick-row-stack {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
 }
-.dict-add-row {
+.dict-trick-row {
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 5px;
   background: #fff;
 }
-.dict-add-row--external-placeholder {
+.dict-trick-row--external-placeholder {
   border-style: dashed;
   opacity: 0.85;
 }
-.dict-add-row-head {
+.dict-trick-row-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.3rem;
 }
-.dict-add-row-title {
+.dict-trick-row-title {
   font-weight: 600;
   font-size: 0.98rem;
   color: var(--text-strong, #1e293b);
 }
-a.dict-add-row-title:hover { text-decoration: underline; }
-.dict-add-row-hashtag {
+a.dict-trick-row-title:hover { text-decoration: underline; }
+.dict-trick-row-hashtag {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 0.78rem;
   color: var(--text-muted, #94a3b8);
 }
-.dict-add-row-interpretation {
+.dict-trick-row-interpretation {
   font-size: 0.85rem;
   color: var(--text-secondary, #475569);
 }
-.dict-add-row-interpretation .core-trick-equiv-sigil { color: var(--text-muted, #94a3b8); margin-right: 0.15em; }
-.dict-add-row-media {
+.dict-trick-row-interpretation .core-trick-equiv-sigil { color: var(--text-muted, #94a3b8); margin-right: 0.15em; }
+.dict-trick-row-media {
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -7485,27 +7485,27 @@ a.dict-add-row-title:hover { text-decoration: underline; }
   background: var(--bg-subtle, #f1f5f9);
   color: var(--text-secondary, #475569);
 }
-.dict-add-row-status,
-.dict-add-row-pending {
+.dict-trick-row-status,
+.dict-trick-row-pending {
   font-size: 0.74rem;
   color: var(--text-muted, #94a3b8);
   font-style: italic;
 }
-.dict-add-row-notation {
+.dict-trick-row-notation {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 1.4rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 0.82rem;
 }
-.dict-add-row-job,
-.dict-add-row-add {
+.dict-trick-row-job,
+.dict-trick-row-add {
   display: flex;
   align-items: baseline;
   gap: 0.4em;
   min-width: 0;
 }
-.dict-add-row-label {
+.dict-trick-row-label {
   flex: 0 0 auto;
   font-size: 0.64rem;
   font-weight: 700;
@@ -7516,17 +7516,17 @@ a.dict-add-row-title:hover { text-decoration: underline; }
   padding: 0.05rem 0.4rem;
   border-radius: 3px;
 }
-.dict-add-row-job-value,
-.dict-add-row-add-value {
+.dict-trick-row-job-value,
+.dict-trick-row-add-value {
   color: var(--text-subtle, #64748b);
   word-break: normal;
   overflow-wrap: break-word;
 }
-.dict-add-row-pending-value {
+.dict-trick-row-pending-value {
   font-style: italic;
   color: var(--text-muted, #94a3b8);
 }
-.dict-add-row-placeholder-note {
+.dict-trick-row-placeholder-note {
   margin: 0.3rem 0 0;
   font-size: 0.78rem;
   color: var(--text-muted, #94a3b8);

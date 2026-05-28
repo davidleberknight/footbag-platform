@@ -187,18 +187,17 @@ describe('Family View — formula visibility on whirl compounds', () => {
   });
 });
 
-describe('ADD view vs Family view — distinct contracts, shared identity data', () => {
-  // 2026-05-27: the ADD view renders the two-line dict-add-row contract;
-  // the Family view renders the shared dict-card. The two are no longer
-  // expected to be DOM-identical. What stays shared across both: the
-  // data-trick-slug, the detail-page link target, and the ADD value.
-  // blurry-whirl is the remaining non-first-class whirl-family compound;
-  // its sole chain reading ("blurry whirl") is tautological, so the
-  // interpretation slot stays empty on both views.
+describe('ADD view and Family view — shared two-line row contract', () => {
+  // 2026-05-27: both the ADD view and the Family view render the same
+  // generalized two-line dict-trick-row contract; only the grouping differs.
+  // What stays shared: data-trick-slug, the dict-trick-row-title detail link,
+  // and the ADD value on the line-2 ADD slot. blurry-whirl is the remaining
+  // non-first-class whirl-family compound; its sole chain reading ("blurry
+  // whirl") is tautological, so the interpretation slot stays empty on both.
   const IDENTITY_PILOTS = ['blurry-whirl'];
 
   for (const slug of IDENTITY_PILOTS) {
-    it(`'${slug}' renders its own contract in each view (shared slug, link, ADD value)`, async () => {
+    it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
       const app = createApp();
       const addView    = await request(app).get('/freestyle/tricks?view=add');
       const familyView = await request(app).get('/freestyle/tricks?view=family');
@@ -207,40 +206,35 @@ describe('ADD view vs Family view — distinct contracts, shared identity data',
 
       const pilot = WHIRL_PILOTS.find(p => p.slug === slug)!;
       const escapedHref = `/freestyle/tricks/${slug}`.replace(/\//g, '\\/');
+      const rowRe = (s: string) => new RegExp(`<article class="dict-trick-row[\\s\\S]*?data-trick-slug="${s}"[\\s\\S]*?<\\/article>`);
 
-      const addRegion = addView.text.match(
-        new RegExp(`<article class="dict-add-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
-      );
-      const familyRegion = familyView.text.match(
-        new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
-      );
-      expect(addRegion, `add-row not found in ADD view for ${slug}`).not.toBeNull();
-      expect(familyRegion, `card region not found in family view for ${slug}`).not.toBeNull();
+      const addRegion    = addView.text.match(rowRe(slug));
+      const familyRegion = familyView.text.match(rowRe(slug));
+      expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
+      expect(familyRegion, `dict-trick-row not found in family view for ${slug}`).not.toBeNull();
 
-      // Detail link reachable in both views, with each view's anchor class.
-      expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(
-        new RegExp(`<a class="dict-add-row-title" href="${escapedHref}">${pilot.name}<\\/a>`),
-      );
-      expect(familyView.text, `Family view missing canonical-name link for ${slug}`).toMatch(
-        new RegExp(`<a class="dict-card-title" href="${escapedHref}">${pilot.name}<\\/a>`),
-      );
+      // Same dict-trick-row-title detail link in BOTH views.
+      const linkPat = new RegExp(`<a class="dict-trick-row-title" href="${escapedHref}">${pilot.name}<\\/a>`);
+      expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(linkPat);
+      expect(familyRegion![0], `Family view missing detail link for ${slug}`).toMatch(linkPat);
 
-      // ADD value reachable in both: Family via the N-ADD chip; ADD via the
-      // ADD-grouped section header + the row's line-2 ADD slot (no green chip).
-      expect(familyRegion![0]).toContain(`${pilot.adds} ADD`);
+      // ADD value: line-2 ADD slot in both; the green shared-card chip never
+      // appears on the row. ADD view groups by ADD bucket (id="add-N").
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain('class="dict-add-row-add"');
+      expect(addRegion![0]).toContain('class="dict-trick-row-add"');
+      expect(familyRegion![0]).toContain('class="dict-trick-row-add"');
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
+      expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 
       // Tautological "blurry whirl" reading is suppressed on BOTH views, so
       // neither echoes its modifier/base as ≡ tokens.
       const [modifierToken, baseToken] = pilot.name.split(' ');
       const modifierPattern = new RegExp(`sem-token[^>]*>${modifierToken}<`);
       const basePattern     = new RegExp(`sem-token[^>]*>${baseToken}<`);
-      expect(addRegion![0], `ADD view should not echo tautological tokens for ${slug}`).not.toMatch(modifierPattern);
-      expect(addRegion![0], `ADD view should not echo tautological tokens for ${slug}`).not.toMatch(basePattern);
-      expect(familyRegion![0], `Family view should not echo tautological tokens for ${slug}`).not.toMatch(modifierPattern);
-      expect(familyRegion![0], `Family view should not echo tautological tokens for ${slug}`).not.toMatch(basePattern);
+      expect(addRegion![0]).not.toMatch(modifierPattern);
+      expect(addRegion![0]).not.toMatch(basePattern);
+      expect(familyRegion![0]).not.toMatch(modifierPattern);
+      expect(familyRegion![0]).not.toMatch(basePattern);
     });
   }
 });

@@ -416,7 +416,7 @@ describe('GET /freestyle/tricks', () => {
     // No standalone op-notation chip (shared-card class) on the ADD-view row.
     expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
     // Line 2 carries the labeled JOB slot including the (midtime) marker.
-    expect(atwCard).toMatch(/dict-add-row-label">JOB</);
+    expect(atwCard).toMatch(/dict-trick-row-label">JOB</);
     expect(atwCard).toMatch(/\(midtime\)/);
     // Leg-over orthographic noise still filtered out everywhere.
     expect(res.text).not.toContain('leg over');
@@ -447,11 +447,11 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    // ADD view uses the two-line dict-add-row contract: no table header; the
+    // ADD view uses the two-line dict-trick-row contract: no table header; the
     // JOB chain (or an interpretation reading) renders on the row, not in a
     // table column.
     expect(res.text).not.toContain('<th>Notation</th>');
-    expect(res.text).toMatch(/dict-add-row-job-value|dict-add-row-interpretation/);
+    expect(res.text).toMatch(/dict-trick-row-job-value|dict-trick-row-interpretation/);
   });
 
   it('does not list modifier rows in the category groups', async () => {
@@ -931,22 +931,22 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     const res = await request(app).get('/freestyle/tricks?view=add');
     // ADD-view rows with data-media-coverage="none" must not render the media
     // badge inside their <article>. Locate one such row and assert.
-    const cardMatch = res.text.match(/<article class="dict-add-row[^>]*data-media-coverage="none"[^>]*>([\s\S]*?)<\/article>/);
+    const cardMatch = res.text.match(/<article class="dict-trick-row[^>]*data-media-coverage="none"[^>]*>([\s\S]*?)<\/article>/);
     expect(cardMatch).not.toBeNull();
-    expect(cardMatch![1]).not.toContain('dict-add-row-media');
+    expect(cardMatch![1]).not.toContain('dict-trick-row-media');
   });
 
   it('renders the "Tutorial available" chip when a trick has tutorial-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-add-row-media dict-add-row-media--tutorial');
+    expect(res.text).toContain('dict-trick-row-media dict-trick-row-media--tutorial');
     expect(res.text).toContain('Tutorial available');
   });
 
   it('renders the "Demo available" chip when a trick has only demo-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-add-row-media dict-add-row-media--demo');
+    expect(res.text).toContain('dict-trick-row-media dict-trick-row-media--demo');
     expect(res.text).toContain('Demo available');
   });
 
@@ -964,15 +964,15 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(cardClose).toBeGreaterThan(slugIdx);
     const cardBlock = res.text.slice(slugIdx, cardClose);
     expect(cardBlock).toContain('Tutorial available');
-    expect(cardBlock).toContain('dict-add-row-media--tutorial');
+    expect(cardBlock).toContain('dict-trick-row-media--tutorial');
   });
 
   it('renders ≡ symbolic-equivalence readings on the ADD-view row', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     // The ADD-view two-line row carries the tokenized ≡ reading on line 1 in
-    // the `.dict-add-row-interpretation` slot (when a meaningful reading exists).
-    expect(res.text).toMatch(/class="dict-add-row-interpretation"/);
+    // the `.dict-trick-row-interpretation` slot (when a meaningful reading exists).
+    expect(res.text).toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 

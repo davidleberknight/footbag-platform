@@ -228,13 +228,12 @@ describe('Family View — Slice A3 chain entries surface as visible formulas', (
   });
 });
 
-describe('ADD View and Family View — distinct contracts, shared first reading', () => {
-  // 2026-05-27: ADD view = two-line dict-add-row contract; Family view =
-  // shared dict-card. The two are no longer DOM-identical. What stays
-  // shared across both: data-trick-slug, the detail link target, the ADD
-  // value, and the first-reading ≡ tokens (rendered in the ADD-row
-  // interpretation slot and the dict-card equivalence row respectively).
-  // One representative non-first-class pilot per family.
+describe('ADD View and Family View — shared two-line row contract, shared first reading', () => {
+  // 2026-05-27: both ADD and Family render the same generalized two-line
+  // dict-trick-row contract; only the grouping differs. Shared across both:
+  // data-trick-slug, the dict-trick-row-title detail link, the ADD value on
+  // the line-2 ADD slot, and the first-reading ≡ tokens in the line-1
+  // interpretation slot. One representative non-first-class pilot per family.
   const IDENTITY_PILOTS = [
     'tripwalk',         // butterfly family, "stepping quantum butterfly" — 3-token reading
     'sidewalk',         // butterfly family, "stepping near butterfly" — uses SIDE_POSITIONAL token
@@ -243,7 +242,7 @@ describe('ADD View and Family View — distinct contracts, shared first reading'
   ];
 
   for (const slug of IDENTITY_PILOTS) {
-    it(`'${slug}' renders its own contract per view (shared slug, link, ADD value, ≡ tokens)`, async () => {
+    it(`'${slug}' renders the same two-line row contract in ADD and Family views`, async () => {
       const pilot = ALL_PILOTS.find(p => p.slug === slug)!;
       const app = createApp();
       const addView    = await request(app).get('/freestyle/tricks?view=add');
@@ -251,42 +250,30 @@ describe('ADD View and Family View — distinct contracts, shared first reading'
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
-      const addRegion = addView.text.match(
-        new RegExp(`<article class="dict-add-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
-      );
-      const familyRegion = familyView.text.match(
-        new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
-      );
-      expect(addRegion, `ADD add-row not found for ${slug}`).not.toBeNull();
-      expect(familyRegion, `Family card region not found for ${slug}`).not.toBeNull();
+      const rowRe = new RegExp(`<article class="dict-trick-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`);
+      const addRegion    = addView.text.match(rowRe);
+      const familyRegion = familyView.text.match(rowRe);
+      expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
+      expect(familyRegion, `dict-trick-row not found in Family view for ${slug}`).not.toBeNull();
 
-      // Detail link reachable in both views, with each view's anchor class.
-      expect(addRegion![0]).toMatch(
-        new RegExp(`<a class="dict-add-row-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`),
-      );
-      expect(familyRegion![0]).toMatch(
-        new RegExp(`<a class="dict-card-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`),
-      );
+      // Same dict-trick-row-title detail link in BOTH views.
+      const linkPat = new RegExp(`<a class="dict-trick-row-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`);
+      expect(addRegion![0]).toMatch(linkPat);
+      expect(familyRegion![0]).toMatch(linkPat);
 
-      // ADD value reachable in both: Family via N-ADD chip; ADD via the
-      // ADD-grouped section header + the row's line-2 ADD slot (no green chip).
-      expect(familyRegion![0]).toContain(`${pilot.adds} ADD`);
+      // ADD value: line-2 ADD slot in both; green chip never on the row.
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain('class="dict-add-row-add"');
+      expect(addRegion![0]).toContain('class="dict-trick-row-add"');
+      expect(familyRegion![0]).toContain('class="dict-trick-row-add"');
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
+      expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 
-      // First-reading ≡ tokens render in both views (ADD interpretation slot
-      // + dict-card equivalence row).
+      // First-reading ≡ tokens render in the line-1 interpretation slot of
+      // both views.
       for (const token of pilot.firstReadingTokens) {
         const tokenPattern = new RegExp(`sem-token[^>]*>${token}<`);
-        expect(
-          addRegion![0],
-          `ADD view missing first-reading token '${token}' for ${slug}`,
-        ).toMatch(tokenPattern);
-        expect(
-          familyRegion![0],
-          `Family view missing first-reading token '${token}' for ${slug}`,
-        ).toMatch(tokenPattern);
+        expect(addRegion![0], `ADD view missing first-reading token '${token}' for ${slug}`).toMatch(tokenPattern);
+        expect(familyRegion![0], `Family view missing first-reading token '${token}' for ${slug}`).toMatch(tokenPattern);
       }
     });
   }

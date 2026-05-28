@@ -135,7 +135,7 @@ describe('Family invariant — rendered on Family View', () => {
 
     const headingIdx   = sectionHtml.indexOf('class="section-heading"');
     const invariantIdx = sectionHtml.indexOf('class="trick-family-shared-structure"');
-    const stackIdx     = sectionHtml.indexOf('class="dict-card-stack');
+    const stackIdx     = sectionHtml.indexOf('class="dict-trick-row-stack');
 
     expect(headingIdx).toBeGreaterThan(-1);
     expect(invariantIdx).toBeGreaterThan(headingIdx);
@@ -157,16 +157,17 @@ describe('Family invariant — rendered on Family View', () => {
 });
 
 describe('Family invariant — does NOT destabilize card rendering', () => {
-  it('Whirl family cards still render with the canonical registry-density contract', async () => {
+  it('Whirl family rows render with the two-line dict-trick-row contract (2026-05-27)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    // The cards inside the whirl section still use the registry-density
-    // class. The PRESENTATION_UNIFICATION_SLICE contract is intact.
-    expect(sectionHtml).toContain('class="dict-card dict-card--registry');
-    // The cards do NOT carry the invariant line — invariant is family-level only.
+    // Family migrated to the generalized two-line row; rows use dict-trick-row,
+    // not the shared dict-card.
+    expect(sectionHtml).toContain('class="dict-trick-row');
+    expect(sectionHtml).not.toContain('class="dict-card dict-card--registry');
+    // The rows do NOT carry the invariant line — invariant is family-level only.
     const cardStart = sectionHtml.indexOf('data-trick-slug="paradox-whirl"');
     expect(cardStart).toBeGreaterThan(-1);
     const cardEnd = sectionHtml.indexOf('</article>', cardStart);
