@@ -172,10 +172,11 @@ import {
   type ObservationalGovernanceLane,
 } from '../content/freestyleObservationalTricks';
 import {
-  TRACKED_UNPUBLISHED_NAMES,
-  TRACKED_UNPUBLISHED_TOTAL,
-  type TrackedNameGroup,
-} from '../content/freestyleTrackedNames';
+  OBSERVATIONAL_UNIVERSE,
+  OBSERVATIONAL_UNIVERSE_STATS,
+  DOCTRINE_BLOCKING_QUESTIONS,
+  type ObservationalUniverseRow,
+} from '../content/freestyleObservationalUniverse';
 import {
   DERIVATION_PILOT_ENTRIES,
   type DerivationPanelEntry,
@@ -3102,36 +3103,162 @@ export interface ObservedTrickCard {
   detailExpansion:  ObservedTrickCardDetail;
 }
 
+// ── v2 Emerging Vocabulary governance surface (Phase E) ──────────────────
+// Derived from the generated freestyleObservationalUniverse module
+// (overlap-safe: in_db=false, governance_state∉{1,2}). Observational layer
+// only — every figure is observationally extrapolated, never canonical.
+
+export interface ObservationalStat {
+  label: string;
+  value: string;   // pre-formatted (e.g. '243', '16%')
+  hint:  string;
+}
+
+export interface ObservationalCard {
+  name:               string;
+  /** Proposed canonical slug; NOT a live route. */
+  slug:               string;
+  sourceBadge:        string;
+  sourceLabel:        string;
+  ecosystem:          string;
+  parentFamily:       string;
+  /** 'ADD 3 (extrapolated)' or null when not derived. NEVER a canonical ADD. */
+  addLabel:           string | null;
+  /** ADD-accounting string, or null. */
+  decomposition:      string | null;
+  parserConfidence:   string;   // high | medium | low | ''
+  doctrineConfidence: string;   // stable | blocked | policy-dependent | ''
+  /** Curator note merged from the legacy curator module, when present. */
+  curatorNote:        string | null;
+  hasDetails:         boolean;
+}
+
+export interface ObservationalEcosystemGroup {
+  ecosystem: string;
+  label:     string;
+  count:     number;
+  cards:     readonly ObservationalCard[];
+}
+
+export interface ObservationalEcosystemRow {
+  ecosystem:  string;
+  label:      string;
+  ready:      number;
+  frontier:   number;
+  doctrine:   number;
+  unresolved: number;
+  total:      number;
+}
+
+export interface ObservationalDoctrineCluster {
+  key:              string;
+  label:            string;
+  count:            number;
+  blockingQuestion: string;
+  sampleNames:      readonly string[];
+}
+
+export interface ObservationalSummaryRow {
+  name:   string;
+  source: string;
+}
+
+export interface ObservationalSummarySection {
+  total:       number;
+  intro:       string;
+  sampleCards: readonly ObservationalCard[];
+  fullList:    readonly ObservationalSummaryRow[];
+}
+
 export interface FreestyleObservationalContent {
-  /** Observed-trick cards sorted by the source's numeric ADD claim
-   *  ascending (entries with no claim sort last), with displayName as
-   *  secondary tiebreak. Cards still carry per-source external-claim
-   *  labels (e.g. 'PB claim: 4'); the labels remain source-attributed
-   *  and NEVER framed as canonical ADD. */
-  cards:                readonly ObservedTrickCard[];
-  /** Cards bucketed into 4 governance lanes (2026-05-24 slice). Each
-   *  lane is an explicit governance bucket — curator-authored per
-   *  entry, NOT keyword-heuristic. Default lane is 'source-only'. */
-  lanes:                ObservationalLanesView;
-  totalEntries:         number;
-  /** Unique source badges represented (e.g. ['PB','FM']) for the page
-   *  header source-summary chip strip. */
-  sources:              readonly ObservedSourceBadge[];
-  /** Static framing prose rendered above the cards. */
-  layerNote:            string;
-  /** Cross-links to related canonical surfaces. */
-  canonicalReferences:  readonly { label: string; href: string }[];
-  /** The wider tracked-but-unpublished name corpus — trick names
-   *  documented across freestyle's source corpora that are not yet
-   *  canonically published, grouped by documenting source. Each name
-   *  carries an optional operational notation where the reconciliation
-   *  master already records one. A coverage index, distinct from the
-   *  detailed cards above. Grouped by source (not ADD) per this page's
-   *  no-ADD-claim-grouping contract. */
-  trackedNames:         readonly TrackedNameGroup[];
-  trackedNamesTotal:    number;
-  /** Honest, non-defensive framing prose for the tracked-names section. */
-  trackedNamesNote:     string;
+  stats:               readonly ObservationalStat[];
+  statsNote:           string;
+  layerNote:           string;
+  /** Section A — clean mechanical promotions, grouped by ecosystem. */
+  readyTotal:          number;
+  readyGroups:         readonly ObservationalEcosystemGroup[];
+  /** Section B — per-ecosystem frontier matrix + curator-confirm cards. */
+  ecosystemMatrix:     readonly ObservationalEcosystemRow[];
+  frontierTotal:       number;
+  frontierGroups:      readonly ObservationalEcosystemGroup[];
+  /** Section C — doctrine bottleneck clusters. */
+  doctrineTotal:       number;
+  doctrineClusters:    readonly ObservationalDoctrineCluster[];
+  /** Section D — folk-name / historical unresolved. */
+  folk:                ObservationalSummarySection;
+  /** Section E — parser uncertainty / unresolved syntax. */
+  parser:              ObservationalSummarySection;
+  sources:             readonly { badge: string; label: string }[];
+  canonicalReferences: readonly { label: string; href: string }[];
+  generatedOn:         string;
+  isEmpty:             boolean;
+}
+
+const OBSERVED_SOURCE_LABELS: Record<string, string> = {
+  PB: 'PassBack', FM: 'FootbagMoves', SG: 'Stanford shorthand',
+  FB: 'Footbag.org', FF: 'Footbag Finland', IFPA: 'IFPA', MULTI: 'Multiple sources',
+};
+
+const OBSERVED_ECOSYSTEM_LABELS: Record<string, string> = {
+  'pixie': 'Pixie', 'fairy': 'Fairy', 'stepping': 'Stepping', 'quantum': 'Quantum',
+  'atomic': 'Atomic', 'ducking': 'Ducking', 'spinning/gyro': 'Spinning / Gyro',
+  'symposium/paradox': 'Symposium / Paradox', 'whirl/osis/other': 'Whirl / Osis',
+  'blurry/furious': 'Blurry / Furious', 'weaving': 'Weaving', 'pogo': 'Pogo',
+  'shooting': 'Shooting', 'other': 'Other', '(unclassified)': 'Other compounds',
+};
+
+function observedSourceLabel(badge: string): string {
+  return OBSERVED_SOURCE_LABELS[badge] ?? badge;
+}
+
+function observedEcosystemLabel(slug: string): string {
+  return OBSERVED_ECOSYSTEM_LABELS[slug]
+    ?? (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : 'Other');
+}
+
+function shapeObservationalCard(
+  row: ObservationalUniverseRow,
+  curatorNotes: ReadonlyMap<string, string>,
+): ObservationalCard {
+  const note = curatorNotes.get(row.slug) ?? null;
+  const addLabel = row.provisionalAdd ? `ADD ${row.provisionalAdd} (extrapolated)` : null;
+  const decomposition = row.decomposition || null;
+  return {
+    name:               row.name,
+    slug:               row.slug,
+    sourceBadge:        row.source,
+    sourceLabel:        observedSourceLabel(row.source),
+    ecosystem:          row.ecosystem,
+    parentFamily:       row.parentFamily,
+    addLabel,
+    decomposition,
+    parserConfidence:   row.parserConfidence,
+    doctrineConfidence: row.doctrineConfidence,
+    curatorNote:        note,
+    hasDetails:         Boolean(decomposition) || Boolean(note),
+  };
+}
+
+function groupObservationalCardsByEcosystem(
+  cards: readonly ObservationalCard[],
+): ObservationalEcosystemGroup[] {
+  const byEco = new Map<string, ObservationalCard[]>();
+  for (const c of cards) {
+    const key = c.ecosystem || '(unclassified)';
+    const arr = byEco.get(key);
+    if (arr) arr.push(c);
+    else byEco.set(key, [c]);
+  }
+  const addOf = (c: ObservationalCard): number =>
+    c.addLabel ? parseInt(c.addLabel.replace(/[^0-9]/g, ''), 10) || 99 : 99;
+  return [...byEco.entries()]
+    .map(([ecosystem, list]) => ({
+      ecosystem,
+      label: observedEcosystemLabel(ecosystem),
+      count: list.length,
+      cards: [...list].sort((a, b) => (addOf(a) - addOf(b)) || a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
 }
 
 // ── Observational view-model shaping helpers ─────────────────────────────
@@ -7253,8 +7380,8 @@ export const freestyleService = {
             {
               label:        'Emerging vocabulary',
               href:         '/freestyle/observational',
-              count:        TRACKED_UNPUBLISHED_TOTAL,
-              countDisplay: fmtCount(TRACKED_UNPUBLISHED_TOTAL),
+              count:        OBSERVATIONAL_UNIVERSE_STATS.total,
+              countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
               countSuffix:  'observational names',
               lensQuestion: 'Tracked but not yet promoted to canonical.',
               chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'],
@@ -7724,51 +7851,104 @@ export const freestyleService = {
   },
 
   getObservationalLayerPage(): PageViewModel<FreestyleObservationalContent> {
-    // Layer-separation invariant: this view-model is the ONLY place
-    // observational entries surface. No DB query — content-module-driven
-    // per [[feedback_reversible_content_governance]].
-    const cardsUnsorted = OBSERVATIONAL_TRICKS
-      .filter(t => t.status !== 'rejected')
-      .map(shapeObservedTrickCard);
+    // Layer-separation invariant: observational entries surface ONLY here.
+    // Content-module-driven (the generated freestyleObservationalUniverse,
+    // overlap-safe by construction) per [[feedback_reversible_content_
+    // governance]]. No DB query, no canonical promotion, no request-time CSV
+    // read; provisional ADD/decomposition are observationally extrapolated.
+    const universe = OBSERVATIONAL_UNIVERSE;
+    const stats = OBSERVATIONAL_UNIVERSE_STATS;
 
-    const cards = sortObservedCardsByClaim(cardsUnsorted);
-
-    // Source-chip set: union of OBSERVATIONAL_TRICKS badges (governance-
-    // lane cards) AND TRACKED_UNPUBLISHED_NAMES source labels (the
-    // "more documented names" corpus rendered below). Stanford shorthand
-    // is in TRACKED_NAMES but not in OBSERVATIONAL_TRICKS, so without
-    // this widening the chip strip under-represents the full tracked
-    // universe.
-    const seenBadges = new Set<ObservedSourceBadge>(collectObservedSourceBadges(cards));
-    for (const grp of TRACKED_UNPUBLISHED_NAMES) {
-      const lbl = grp.sourceLabel.toLowerCase();
-      if (lbl.includes('stanford'))    seenBadges.add('SG'); // Stanford shorthand → SG slot
-      else if (lbl.includes('footbagmoves')) seenBadges.add('FM');
-      else if (lbl.includes('passback'))     seenBadges.add('PB');
-      else if (lbl.includes('footbag.org'))  seenBadges.add('FB');
+    // Curator-note overrides: preserve the hand-authored notes from the legacy
+    // curator module, keyed by slug. Notes only — no lane forcing, no data.
+    const curatorNotes = new Map<string, string>();
+    for (const t of OBSERVATIONAL_TRICKS) {
+      if (t.curatorNote) curatorNotes.set(t.folkSlug, t.curatorNote);
     }
-    const sourceOrder: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'FB', 'OTHER'];
-    const sources = sourceOrder.filter(b => seenBadges.has(b));
+    const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
+    const inSection = (s: string) => universe.filter(r => r.section === s);
 
-    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging
-    // Vocabulary". The page is the canonicalization incubator, not a
-    // junk drawer: every entry here is a community-documented trick
-    // whose canonical form is being assembled. The URL stays
-    // /freestyle/observational; backend identifiers stay 'observational'
-    // (public-label-only rename, same pattern as the 2026-05-19
-    // Movement Neighborhoods rename for `topology`).
+    // Section A — clean mechanical promotions, grouped by ecosystem.
+    const readyCards = inSection('ready').map(shape);
+    const readyGroups = groupObservationalCardsByEcosystem(readyCards);
+
+    // Section B — per-ecosystem frontier matrix (intelligibility lens) + the
+    // curator-confirm cards.
+    const ecoKeys = new Set<string>();
+    for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
+    const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
+      const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
+      const c = (s: string) => ofEco.filter(r => r.section === s).length;
+      return {
+        ecosystem:  eco,
+        label:      observedEcosystemLabel(eco),
+        ready:      c('ready'),
+        frontier:   c('frontier'),
+        doctrine:   c('doctrine'),
+        unresolved: c('folk') + c('parser'),
+        total:      ofEco.length,
+      };
+    }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
+    const frontierCards = inSection('frontier').map(shape);
+    const frontierGroups = groupObservationalCardsByEcosystem(frontierCards);
+
+    // Section C — doctrine bottleneck clusters.
+    const doctrineRows = inSection('doctrine');
+    const doctrineClusters: ObservationalDoctrineCluster[] =
+      ['blurry/furious', 'weaving', 'pogo', 'shooting', 'other']
+        .map(key => {
+          const rows = doctrineRows.filter(r => r.cluster === key);
+          return {
+            key,
+            label:            observedEcosystemLabel(key),
+            count:            rows.length,
+            blockingQuestion: DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Curator / Red ruling pending.',
+            sampleNames:      rows.slice(0, 6).map(r => r.name),
+          };
+        })
+        .filter(c => c.count > 0);
+
+    // Sections D + E — summarized: sample cards + a full list behind disclosure.
+    const summarize = (section: string, intro: string): ObservationalSummarySection => {
+      const rows = inSection(section);
+      return {
+        total:       rows.length,
+        intro,
+        sampleCards: rows.slice(0, 6).map(shape),
+        fullList:    rows.map(r => ({ name: r.name, source: r.source })),
+      };
+    };
+    const folk = summarize('folk',
+      'Names whose canonical equivalence is uncertain: folk shorthand, historical ' +
+      'vocabulary, legacy source names, and compression labels. Documented, not yet resolved.');
+    const parser = summarize('parser',
+      'Names the parser cannot yet fully read: unknown modifier tokens, ambiguous ' +
+      'terminal mechanics, or unresolved syntax. Honest coverage gaps, not failures.');
+
+    const statBlocks: ObservationalStat[] = [
+      { label: 'Observational names', value: String(stats.total),                hint: 'documented, not yet canonical' },
+      { label: 'Promotion-ready',     value: `${stats.promotionReadyPct}%`,      hint: `${stats.ready} clean candidates` },
+      { label: 'Doctrine-blocked',    value: `${stats.doctrineBlockedPct}%`,     hint: 'concentrated in a few ecosystems' },
+      { label: 'Folk / unresolved',   value: `${stats.folkUnresolvedPct}%`,      hint: 'historical + uncertain equivalence' },
+      { label: 'Canonical coverage',  value: `${stats.canonicalCoveragePct}%`,   hint: `${stats.canonicalPublished} of ${stats.universeTotal} names published` },
+    ];
+
+    const sources = Object.keys(stats.sources).map(badge => ({
+      badge, label: observedSourceLabel(badge),
+    }));
+
     return {
       seo: {
         title: 'Emerging Vocabulary',
         description:
-          'Freestyle trick names documented across the community whose canonical ' +
-          'form is being assembled. The next-wave publication frontier.',
+          'The frontier of the freestyle movement language: community-documented trick ' +
+          'names classified by how close each is to canonical promotion.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Emerging Vocabulary',
-        intro:      'Names community-documented across freestyle’s source corpora. Each entry is being canonicalized; when its JOB notation and ADD accounting are settled, it moves into the trick dictionary.',
+        intro:      'A governed view of the observational universe: what is promotion-ready, what is doctrine-blocked, and what remains unresolved. Every reading here is observationally extrapolated, never canonical.',
       },
       navigation: {
         breadcrumbs: [
@@ -7777,33 +7957,32 @@ export const freestyleService = {
         ],
       },
       content: {
-        cards,
-        lanes:               this.buildObservationalLanes(cards),
-        totalEntries:        cards.length,
-        sources,
+        stats: statBlocks,
+        statsNote:
+          'Derived from the Phase E reconciliation of every documented trick name. ' +
+          'Overlap-safe: nothing here duplicates a published canonical trick or alias.',
         layerNote:
-          'These are community-documented freestyle trick names. Each one is ' +
-          'a canonicalization candidate: its JOB notation and ADD accounting ' +
-          'are being worked out, and once settled it joins the canonical ' +
-          'trick dictionary. Until then it carries a tracked tag instead of ' +
-          'a canonical hashtag, and no detail page yet.',
+          'These are community-documented freestyle trick names being canonicalized. ' +
+          'Provisional ADD and decomposition are observationally extrapolated — they ' +
+          'are NOT canonical, carry a tracked tag rather than a hashtag, and have no ' +
+          'detail page until a curator promotes them.',
+        readyTotal:    readyCards.length,
+        readyGroups,
+        ecosystemMatrix,
+        frontierTotal: frontierCards.length,
+        frontierGroups,
+        doctrineTotal: doctrineRows.length,
+        doctrineClusters,
+        folk,
+        parser,
+        sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
           { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
           { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
         ],
-        trackedNames:      TRACKED_UNPUBLISHED_NAMES,
-        trackedNamesTotal: TRACKED_UNPUBLISHED_TOTAL,
-        trackedNamesNote:
-          'Observational names tracked for future review. ' +
-          'Each is documented in at least one external source ' +
-          '(Stanford shorthand, FootbagMoves, footbag.org, PassBack) ' +
-          'but has NOT been promoted to the canonical Trick Dictionary. ' +
-          'Some are unresolved aliases; some are doctrine-blocked rows ' +
-          'awaiting curator rulings; some are untriaged. None should be ' +
-          'read as immediately promotable. Grouped by the source that ' +
-          'documents each name; where a symbolic decomposition is already ' +
-          'on record, it is shown alongside the name.',
+        generatedOn: stats.generatedOn,
+        isEmpty:     universe.length === 0,
       },
     };
   },

@@ -238,19 +238,6 @@ describe('Movement-system / By-set axis disambiguation', () => {
 });
 
 describe('/freestyle/observational — Emerging Vocabulary copy + source chips', () => {
-  it('tracked-names heading says "observational names awaiting review", not "more documented names"', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/observational names awaiting review/i);
-    expect(res.text).not.toMatch(/more documented names/);
-  });
-
-  it('tracked-names note frames the corpus as awaiting review, with multiple stages (unresolved alias / doctrine-blocked / untriaged)', async () => {
-    const res = await request(await createApp()).get('/freestyle/observational');
-    expect(res.text).toMatch(/Observational names tracked for future review/i);
-    expect(res.text).toMatch(/None.{0,40}immediately promotable/i);
-  });
-
   it('source chip strip includes Stanford shorthand (TRACKED_NAMES has stanford-source-labeled groups)', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     // Stanford shorthand label should appear in the chip strip (or below in tracked-names).

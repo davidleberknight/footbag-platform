@@ -7170,6 +7170,167 @@ section.home-media { padding-top: 0; }
   color: #6a5d3f;
 }
 
+/* ── Emerging Vocabulary v2 governance surface ────────────────────────── */
+.observed-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 4px 0 8px 0;
+}
+.observed-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  background: #faf7f0;
+  border: 1px solid #e2d9c2;
+  border-radius: 5px;
+}
+.observed-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #3a3326;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.observed-stat-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a5340;
+  margin-top: 2px;
+}
+.observed-stat-hint {
+  font-size: 0.72rem;
+  color: #8a8270;
+  margin-top: 2px;
+}
+.observed-stats-note {
+  font-size: 0.82rem;
+  margin: 0 0 14px 0;
+}
+.observed-section {
+  margin: 22px 0;
+}
+.observed-section-intro {
+  font-size: 0.9rem;
+  color: #5a5340;
+  margin: 4px 0 12px 0;
+  max-width: 70ch;
+}
+.observed-eco-group {
+  margin: 12px 0;
+}
+.observed-eco-heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4a4232;
+  margin: 10px 0 6px 0;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #ece6d4;
+}
+/* ADD + confidence chips on cards */
+.observed-add {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5a3a18;
+  background: #f4e6cf;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
+}
+.observed-conf {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  border-radius: 3px;
+  padding: 1px 6px;
+  background: #eceae3;
+  color: #6a6553;
+}
+.observed-conf--high   { background: #cfe6d2; color: #295238; }
+.observed-conf--medium { background: #f4e6cf; color: #6a4f1a; }
+.observed-conf--low    { background: #efe2d8; color: #7a5a44; }
+.observed-conf--stable           { background: #cfe6d2; color: #295238; }
+.observed-conf--blocked          { background: #efd3d3; color: #7a2e2e; }
+.observed-conf--policy-dependent { background: #e6dcc0; color: #6a5a2a; }
+.observed-card-source-badge--MULTI { background: #e4dcef; color: #4a3a6a; }
+.observed-card-source-badge--IFPA  { background: #d6e6d0; color: #2a5230; }
+/* v2 card-meta carries several chips; wrap + left-align (overrides the
+   single-reading space-between rule above). */
+.observed-card .observed-card-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+/* Ecosystem frontier matrix */
+.observed-matrix-wrap { overflow-x: auto; margin: 8px 0 14px 0; }
+.observed-matrix {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+.observed-matrix th,
+.observed-matrix td {
+  text-align: right;
+  padding: 5px 10px;
+  border-bottom: 1px solid #ece6d4;
+  font-variant-numeric: tabular-nums;
+}
+.observed-matrix th { color: #5a5340; font-weight: 600; }
+.observed-matrix th:first-child,
+.observed-matrix td:first-child { text-align: left; }
+.observed-matrix-eco { color: #3a3326; font-weight: 500; }
+/* Doctrine bottleneck clusters */
+.observed-cluster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.observed-cluster {
+  padding: 10px 12px;
+  background: #fdf6f4;
+  border: 1px solid #e6cccc;
+  border-radius: 5px;
+}
+.observed-cluster-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.observed-cluster-head h3 { margin: 0; font-size: 1rem; color: #6a2e2e; }
+.observed-cluster-count {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #7a2e2e;
+  font-variant-numeric: tabular-nums;
+}
+.observed-cluster-q { margin: 5px 0; font-size: 0.85rem; color: #5a4a4a; }
+.observed-cluster-samples { margin: 4px 0 0 0; font-size: 0.78rem; }
+/* Full-list disclosure (folk / parser sections) */
+.observed-fulllist { margin: 10px 0; }
+.observed-fulllist-summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5a5340;
+}
+.observed-fulllist-grid {
+  margin-top: 8px;
+  columns: 3;
+  column-gap: 22px;
+}
+@media (max-width: 768px) {
+  .observed-fulllist-grid { columns: 2; }
+}
+@media (max-width: 480px) {
+  .observed-stats { grid-template-columns: 1fr 1fr; }
+  .observed-card-grid { grid-template-columns: 1fr; }
+  .observed-cluster-grid { grid-template-columns: 1fr; }
+  .observed-fulllist-grid { columns: 1; }
+  .observed-matrix { font-size: 0.78rem; }
+  .observed-matrix th,
+  .observed-matrix td { padding: 4px 6px; }
+}
+
 /* PassBack-vs-IFPA ADD framing — §3c subsection on /freestyle/add-analysis */
 .passback-add-framing-prose {
   margin: 8px 0 14px 0;

@@ -1,0 +1,31 @@
+{{!--
+  Summarized observational section (Folk-name unresolved / Parser uncertainty).
+  Renders an ObservationalSummarySection passed as `section`, with `title` +
+  `anchor` hash params. Counts + intro + a small card sample up top; the full
+  name list sits behind a <details> so it is available but not visually
+  dominant (governance-surface, not a flat dump).
+--}}
+{{#if section.total}}
+<section class="observed-section" id="{{anchor}}" aria-label="{{title}}">
+  <div class="section-heading">
+    <h2>{{title}}</h2>
+    <span class="section-count">{{section.total}}</span>
+  </div>
+  <p class="observed-section-intro">{{section.intro}}</p>
+  {{#if section.sampleCards.length}}
+  <div class="observed-card-grid">
+    {{#each section.sampleCards}}{{> observed-card-fields}}{{/each}}
+  </div>
+  {{/if}}
+  {{#if section.fullList.length}}
+  <details class="observed-fulllist">
+    <summary class="observed-fulllist-summary">Show all {{section.total}} names</summary>
+    <ul class="observational-tracked-list observed-fulllist-grid">
+      {{#each section.fullList}}
+      <li>{{name}} <span class="tracked-tag">{{source}}</span></li>
+      {{/each}}
+    </ul>
+  </details>
+  {{/if}}
+</section>
+{{/if}}

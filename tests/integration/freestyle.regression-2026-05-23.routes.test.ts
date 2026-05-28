@@ -214,22 +214,6 @@ describe('Item 1: dictionary landing browse strip — no Observed Tricks tab', (
   });
 });
 
-// ── Item 2 — observational sort by claim ─────────────────────────────────
-describe('Item 2: observed tricks sorted by source claim numeric', () => {
-  it('renders a claim-1 card before a claim-3 card in the cards block', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/observational');
-    expect(res.status).toBe(200);
-    // 'Big Orange' has proposedAddTotal=1, 'Bladerunner' has proposedAddTotal=3.
-    // Under claim-asc sort, Big Orange must precede Bladerunner.
-    const orangeIdx = res.text.indexOf('Big Orange');
-    const bladeIdx  = res.text.indexOf('Bladerunner');
-    expect(orangeIdx).toBeGreaterThan(0);
-    expect(bladeIdx).toBeGreaterThan(0);
-    expect(orangeIdx).toBeLessThan(bladeIdx);
-  });
-});
-
 // ── Item 3 — PassBack tutorial link active on freestyle landing + media ──
 describe('Item 3: PassBack tutorial link active on both entry points', () => {
   it('freestyle landing renders an active anchor to gallery_passback_tutorials', async () => {

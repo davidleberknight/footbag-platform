@@ -1,30 +1,17 @@
 {{!--
-  /freestyle/observational — observational-layer trick entries.
+  /freestyle/observational — Emerging Vocabulary governance surface (v2).
 
-  Layer-separation contract (per
-  exploration/freestyle-public-coherence-wave-2026-05-18/
-  curated_vs_observational_boundary.md):
+  Derived mechanically from the generated observational universe
+  (freestyleObservationalUniverse, overlap-safe: in_db=false,
+  governance_state∉{1,2}). Observational layer ONLY:
 
-    - Cards on this surface are visually distinct from canonical cards
-      (a distinct "tracked tag" rather than a canonical hashtag chip,
-      no canonical ADD chip, no trick-detail link).
-    - Each card carries a source badge with tooltip attribution.
-    - Status chip surfaces curator-review state.
-    - NO links to /freestyle/tricks/{folkSlug} (these entries have no
-      canonical detail page).
-
-  Density contract:
-
-    - Compact 2-line default visible per card.
-    - <details> expansion for additional readings, formula, curator
-      note, blockers, full source citation.
-    - Flat list sorted by the source's numeric ADD claim ascending
-      (entries without a numeric claim sort last); displayName is the
-      secondary tiebreak. The numeric value is the source's own claim,
-      surfaced for readability of source-claimed difficulty order. It
-      is NOT a canonical ADD assertion.
-    - Per-card external-claim label uses 'PB claim: 4' framing
-      (source-attributed) rather than '4 ADD' (canonical-implying).
+    - provisional ADD / decomposition are observationally extrapolated,
+      NEVER canonical;
+    - cards carry a tracked tag (not a canonical hashtag), no detail-page
+      link, no media;
+    - the page reads as a governance / control surface: stats first, then
+      actionable promotion candidates, then doctrine bottlenecks, then
+      summarized folk / parser material with full lists behind disclosure.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -42,125 +29,143 @@
 
 <div class="wrapper freestyle-observational observed-page">
   <section class="content-section">
-    <p class="observational-layer-note">{{content.layerNote}}</p>
 
-    <p class="observational-canonical-refs">
-      Where the official tricks live:
-      {{#each content.canonicalReferences}}
-        {{#unless @first}} &middot; {{/unless}}<a href="{{href}}">{{label}}</a>
-      {{/each}}
+    {{#if content.isEmpty}}
+    <p class="observational-empty-state">
+      No observational entries currently staged. The
+      <a href="/freestyle/tricks">trick dictionary</a> carries the canonical curated set.
     </p>
+    {{else}}
+
+    {{! ── Statistics banner ── }}
+    <div class="observed-stats" aria-label="Observational universe statistics">
+      {{#each content.stats}}
+      <div class="observed-stat">
+        <span class="observed-stat-value">{{value}}</span>
+        <span class="observed-stat-label">{{label}}</span>
+        <span class="observed-stat-hint">{{hint}}</span>
+      </div>
+      {{/each}}
+    </div>
+    <p class="observed-stats-note text-muted">{{content.statsNote}}</p>
 
     {{#if content.sources.length}}
     <p class="observed-source-strip" aria-label="Sources represented on this page">
       Sources:
       {{#each content.sources}}
-        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{this}}">{{#if (eq this "SG")}}Stanford shorthand{{else if (eq this "PB")}}PassBack{{else if (eq this "FM")}}FootbagMoves{{else if (eq this "FB")}}Footbag.org{{else if (eq this "FF")}}Footbag Finland{{else}}{{this}}{{/if}}</span>
+        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{badge}}">{{label}}</span>
       {{/each}}
     </p>
     {{/if}}
 
-    {{#if content.totalEntries}}
-      <p class="observed-count-strip" aria-label="Total observational entries">
-        <strong>{{content.totalEntries}}</strong> observational tricks pending canonical review, grouped into four governance lanes below.
+    <p class="observational-layer-note">{{content.layerNote}}</p>
+
+    {{! ── Section A — Ready for Promotion (grouped by ecosystem) ── }}
+    {{#if content.readyTotal}}
+    <section class="observed-section" id="ready-for-promotion" aria-label="Ready for promotion">
+      <div class="section-heading">
+        <h2>Ready for promotion</h2>
+        <span class="section-count">{{content.readyTotal}}</span>
+      </div>
+      <p class="observed-section-intro">
+        High-confidence, mechanically derivable structures with a clean ADD reading —
+        awaiting curator review only. Grouped by ecosystem.
       </p>
-
-      {{! ── Governance lanes (2026-05-24 slice). Four lanes; each lane
-          renders only when it has entries. Cards retain the same shape
-          as the previous flat grid; the lane sections are the only
-          structural change. }}
-      {{#with content.lanes}}
-
-      {{#if promotionQueue.cardCount}}
-      <section class="observed-lane observed-lane--promotion-queue" id="lane-promotion-queue" aria-label="Promotion queue lane">
-        <div class="section-heading">
-          <h2>{{promotionQueue.label}}</h2>
-          <span class="section-count">{{promotionQueue.cardCount}}</span>
-        </div>
-        <p class="observed-lane-intro">{{promotionQueue.intro}}</p>
+      {{#each content.readyGroups}}
+      <div class="observed-eco-group">
+        <h3 class="observed-eco-heading">{{label}} <span class="text-muted">({{count}})</span></h3>
         <div class="observed-card-grid">
-          {{#each promotionQueue.cards}}
-            {{> observed-card-fields}}
-          {{/each}}
+          {{#each cards}}{{> observed-card-fields}}{{/each}}
         </div>
-      </section>
-      {{/if}}
-
-      {{#if formulaReview.cardCount}}
-      <section class="observed-lane observed-lane--formula-review" id="lane-formula-review" aria-label="Formula review lane">
-        <div class="section-heading">
-          <h2>{{formulaReview.label}}</h2>
-          <span class="section-count">{{formulaReview.cardCount}}</span>
-        </div>
-        <p class="observed-lane-intro">{{formulaReview.intro}}</p>
-        <div class="observed-card-grid">
-          {{#each formulaReview.cards}}
-            {{> observed-card-fields}}
-          {{/each}}
-        </div>
-      </section>
-      {{/if}}
-
-      {{#if doctrineBlocked.cardCount}}
-      <section class="observed-lane observed-lane--doctrine-blocked" id="lane-doctrine-blocked" aria-label="Doctrine blocked lane">
-        <div class="section-heading">
-          <h2>{{doctrineBlocked.label}}</h2>
-          <span class="section-count">{{doctrineBlocked.cardCount}}</span>
-        </div>
-        <p class="observed-lane-intro">{{doctrineBlocked.intro}}</p>
-        <div class="observed-card-grid">
-          {{#each doctrineBlocked.cards}}
-            {{> observed-card-fields}}
-          {{/each}}
-        </div>
-      </section>
-      {{/if}}
-
-      {{#if sourceOnly.cardCount}}
-      <section class="observed-lane observed-lane--source-only" id="lane-source-only" aria-label="Source-only documented lane">
-        <div class="section-heading">
-          <h2>{{sourceOnly.label}}</h2>
-          <span class="section-count">{{sourceOnly.cardCount}}</span>
-        </div>
-        <p class="observed-lane-intro">{{sourceOnly.intro}}</p>
-        <div class="observed-card-grid">
-          {{#each sourceOnly.cards}}
-            {{> observed-card-fields}}
-          {{/each}}
-        </div>
-      </section>
-      {{/if}}
-
-      {{/with}}
-    {{else}}
-    <p class="observational-empty-state">
-      No observational entries currently staged. The
-      <a href="/freestyle/tricks">trick dictionary</a> carries the
-      canonical curated set.
-    </p>
+      </div>
+      {{/each}}
+    </section>
     {{/if}}
 
-    {{#if content.trackedNames.length}}
-    <div id="tracked-vocabulary" class="observational-tracked">
-      <h2>{{content.trackedNamesTotal}} observational names awaiting review</h2>
-      <p class="text-muted">{{content.trackedNamesNote}}</p>
-      {{#each content.trackedNames}}
-      <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>
-      <ul class="observational-tracked-list">
-        {{#each names}}
-        <li>{{displayName}} <span class="tracked-tag">{{slug}}</span>{{#if operationalNotation}} <span class="observational-tracked-formula">&equiv; <code>{{operationalNotation}}</code></span>{{/if}}</li>
-        {{/each}}
-      </ul>
+    {{! ── Section B — Ecosystem Frontiers (matrix + confirm cards) ── }}
+    {{#if content.ecosystemMatrix.length}}
+    <section class="observed-section" id="ecosystem-frontiers" aria-label="Ecosystem frontiers">
+      <div class="section-heading">
+        <h2>Ecosystem frontiers</h2>
+      </div>
+      <p class="observed-section-intro">
+        The observational universe by ecosystem — how much of each is promotion-ready,
+        on the curator-confirm frontier, doctrine-blocked, or still unresolved.
+      </p>
+      <div class="observed-matrix-wrap">
+        <table class="observed-matrix">
+          <thead>
+            <tr><th>Ecosystem</th><th>Ready</th><th>Frontier</th><th>Doctrine</th><th>Unresolved</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            {{#each content.ecosystemMatrix}}
+            <tr>
+              <td class="observed-matrix-eco">{{label}}</td>
+              <td>{{ready}}</td><td>{{frontier}}</td><td>{{doctrine}}</td><td>{{unresolved}}</td>
+              <td class="fw-600">{{total}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{#if content.frontierTotal}}
+      <p class="observed-section-intro">
+        Curator-confirm candidates ({{content.frontierTotal}}) — one small judgment from promotion-ready:
+      </p>
+      {{#each content.frontierGroups}}
+      <div class="observed-eco-group">
+        <h3 class="observed-eco-heading">{{label}} <span class="text-muted">({{count}})</span></h3>
+        <div class="observed-card-grid">
+          {{#each cards}}{{> observed-card-fields}}{{/each}}
+        </div>
+      </div>
       {{/each}}
-    </div>
+      {{/if}}
+    </section>
+    {{/if}}
+
+    {{! ── Section C — Doctrine Bottlenecks (clusters) ── }}
+    {{#if content.doctrineTotal}}
+    <section class="observed-section" id="doctrine-bottlenecks" aria-label="Doctrine bottlenecks">
+      <div class="section-heading">
+        <h2>Doctrine bottlenecks</h2>
+        <span class="section-count">{{content.doctrineTotal}}</span>
+      </div>
+      <p class="observed-section-intro">
+        These are not random unresolved tricks — they are governance bottlenecks
+        concentrated in a few ecosystems, each waiting on a single ontology ruling.
+        Resolve the ruling and the whole cluster unblocks.
+      </p>
+      <div class="observed-cluster-grid">
+        {{#each content.doctrineClusters}}
+        <div class="observed-cluster">
+          <div class="observed-cluster-head">
+            <h3>{{label}}</h3>
+            <span class="observed-cluster-count">{{count}}</span>
+          </div>
+          <p class="observed-cluster-q">{{blockingQuestion}}</p>
+          {{#if sampleNames.length}}
+          <p class="observed-cluster-samples text-muted">e.g. {{#each sampleNames}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</p>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+    </section>
+    {{/if}}
+
+    {{! ── Section D — Folk-name / historical unresolved ── }}
+    {{> observed-summary-section section=content.folk title="Folk-name & historical unresolved" anchor="folk-unresolved"}}
+
+    {{! ── Section E — Parser uncertainty / unresolved syntax ── }}
+    {{> observed-summary-section section=content.parser title="Parser uncertainty" anchor="parser-uncertainty"}}
+
     {{/if}}
 
     <p class="observational-footer">
-      The canonical trick definitions live in the
-      <a href="/freestyle/tricks">Trick Dictionary</a>,
-      <a href="/freestyle/operators">Operators &amp; Modifiers</a>,
-      and <a href="/freestyle/glossary">Glossary</a>. Each entry above
-      is a canonicalization candidate for an upcoming publication wave.
+      Canonical trick definitions live in the
+      {{#each content.canonicalReferences}}{{#unless @first}}, {{/unless}}<a href="{{href}}">{{label}}</a>{{/each}}.
+      Every entry above is a canonicalization candidate, not an official trick.
+      <span class="text-muted">Generated {{content.generatedOn}}.</span>
     </p>
   </section>
 </div>

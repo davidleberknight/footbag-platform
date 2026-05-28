@@ -595,31 +595,9 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('renders the observational layer note + canonical references', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.text).toContain('class="observational-layer-note"');
-    expect(res.text).toMatch(/where the official tricks live/i);
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).toContain('href="/freestyle/add-analysis"');
-  });
-
-  it('renders the observational-safe expansion cohort (≥ 50 entries across claim buckets)', async () => {
-    // 2026-05-23 Slice 7-OBS-A: 9 PassBack folk-name compounds promoted
-    // to canonical under FM dex-count convention (bladerunner /
-    // bling-blang / cold-fusion / flurricane / golden-shower / goliath /
-    // gybas / motion-sickness / pandemonium). Combined with prior Wave 5
-    // + Wave 7 promotions the observational cohort floor sits in the
-    // 50-55 range; the assertion stays generous.
-    const res = await request(createApp()).get('/freestyle/observational');
-    // Spot-check from the residual observational-safe cohort. Includes
-    // the folk-/semantic-frontier names that remain post-Slice-7-OBS-A.
-    for (const name of [
-      'Anonymous', 'GDLO', 'Ghost', 'Johnny Vodka', 'Kiwi',
-      'Pandora’s Box', 'Trixie', 'Your Mom',
-    ]) {
-      const probe = name.split(/[’']/)[0];
-      expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
-    }
-    const cards = res.text.match(/class="observed-card"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(50);
   });
 
   it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
@@ -668,56 +646,6 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toMatch(/observed-card-source-badge--PB/);
   });
 
-  it('every card carries a status chip with a pre-shaped tone class', async () => {
-    // The status chip replaces the old "Status: ..." prose line. Tone
-    // variants are neutral / accent / muted; pending-review entries use
-    // the neutral tone.
-    const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toMatch(/class="observed-card-status-chip observed-card-status-chip--neutral"/);
-  });
-
-  it('renders cards as a flat alphabetical list (NO canonical ADD-bucket grouping)', async () => {
-    // Observed tricks are NOT canonical resolved tricks; grouping by
-    // external ADD claim would imply canonical classification this
-    // layer does not have the authority to assert. The page renders
-    // a single flat sorted card grid.
-    const res = await request(createApp()).get('/freestyle/observational');
-    // No bucket heading classes at all (legacy from prior canonical-
-    // implying grouping).
-    expect(res.text).not.toMatch(/class="observed-bucket-heading"/);
-    expect(res.text).not.toMatch(/class="observed-bucket-count"/);
-    // No "N ADD" headers either (canonical-implying).
-    expect(res.text).not.toMatch(/<h2[^>]*>\s*\d+ ADD/);
-    // Exactly one observed-card-grid element exists (the flat list).
-    const grids = res.text.match(/class="observed-card-grid"/g) ?? [];
-    expect(grids.length).toBe(1);
-  });
-
-  it('orders cards by the source claim numeric (asc), with displayName as the tiebreak', async () => {
-    // 2026-05-23 regression slice: observational cards now sort by
-    // the source's numeric claim (proposedAddTotal) ascending, with
-    // entries lacking a claim sorting last and displayName tiebreaking
-    // within an equal-claim bucket. Use two known fixture rows:
-    //   - 'Big Orange' has proposedAddTotal=1
-    //   - 'Bladerunner' has proposedAddTotal=3
-    // Big Orange must precede Bladerunner under claim-asc.
-    const res = await request(createApp()).get('/freestyle/observational');
-    const orangeIdx = res.text.indexOf('Big Orange');
-    const bladeIdx  = res.text.indexOf('Bladerunner');
-    expect(orangeIdx).toBeGreaterThan(0);
-    expect(bladeIdx).toBeGreaterThan(0);
-    expect(orangeIdx).toBeLessThan(bladeIdx);
-  });
-
-  it('cards with extra readings or notes render a <details> expansion', async () => {
-    // hasDetails fires when any of additionalReadings, formula, note,
-    // or blockers is non-empty. Bladerunner's merged entry has two
-    // readings, so it must have <details>.
-    const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toMatch(/class="observed-card-details"/);
-    expect(res.text).toMatch(/class="observed-card-details-summary"[^>]*>\s*More/);
-  });
-
   it('renders the source-summary chip strip beneath canonical references', async () => {
     // content.sources collects unique source badges represented across
     // the page. Renders only when content.sources.length > 0.
@@ -764,21 +692,6 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
       expect(cardsRegion, `forbidden detail-page link for observational ${folkSlug}`)
         .not.toContain(`/freestyle/tricks/${folkSlug}`);
     }
-  });
-
-  it('observational ADD framing: cards show source-attributed external claims, NOT canonical ADD chips', async () => {
-    // Observed tricks are NOT canonical resolved tricks. Per-card
-    // external-claim labels are framed by source ('PB claim: 4',
-    // 'FM claim: 5') rather than as canonical ADD values. The bare
-    // 'N ADD' label is explicitly forbidden in this layer.
-    const res = await request(createApp()).get('/freestyle/observational');
-    // Source-attributed external-claim label present.
-    expect(res.text).toMatch(/class="observed-card-external-claim"[^>]*>(PB|FM|SG|FF|OTHER) claim: \d+</);
-    // Bare 'N ADD' label NOT present on cards (was the canonical-implying
-    // form that this refactor explicitly removed).
-    expect(res.text).not.toMatch(/class="observed-card-add"/);
-    // No canonical chip styling on observed cards.
-    expect(res.text).not.toMatch(/class="observed-card"[^>]*>[\s\S]{0,400}class="dict-card-add"/);
   });
 
   it('observational entries do NOT appear on canonical /freestyle/tricks index', async () => {
