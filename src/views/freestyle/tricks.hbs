@@ -375,15 +375,15 @@
 
   {{#if content.topologyView.groups.length}}
   {{#each content.topologyView.groups}}
-  <section class="content-section trick-topology-group trick-group--registry" id="{{anchorId}}" data-anchor-style="dotted">
+  <section class="content-section trick-topology-group trick-group--trick-rows" id="{{anchorId}}" data-anchor-style="dotted">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
       <span class="section-count">{{memberCount}}</span>
     </div>
     <p class="topology-group-definition">{{bodyDefinition}}</p>
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>

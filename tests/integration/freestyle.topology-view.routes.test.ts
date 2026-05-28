@@ -16,7 +16,7 @@
  *   - Cards sort ADD ascending then trick name
  *   - Empty groups hidden
  *   - Each group's heading carries a one-line body-mechanics definition
- *   - Shared dict-card-stack partial used
+ *   - Generalized two-line dictionary-trick-row partial used
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -267,9 +267,10 @@ describe('topology view — group rendering', () => {
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?view=topology#topology-hippy-downtime-dex">Hippy downtime dex<\/a><\/h2>/);
   });
 
-  it('group sections use the shared dict-card-stack container', async () => {
+  it('group sections use the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('cards within a group sort ADD ascending then name (leggy: legover 2 ADD before whirl 3 before swirl 3 before montage 7)', async () => {
@@ -316,17 +317,22 @@ describe('topology view — intentional cross-group membership', () => {
 // 7. Card-uniformity contract still holds
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('topology view — card-uniformity invariant', () => {
-  it('uses the shared dictionary-trick-card partial (data-trick-slug + tokenized formula content)', async () => {
-    // 2026-05-24 curator rendered-output audit: the standalone op-notation
-    // chip was suppressed for first-class tricks. The tokenized formula
-    // content (op-token + sem-token spans) still renders on browse
-    // cards via the first-class secondary row's JOB line + via
-    // tokenizedEquivalences for non-first-class compounds.
+describe('topology view — row-uniformity invariant', () => {
+  it('uses the generalized two-line dict-trick-row partial (data-trick-slug + tokenized formula content)', async () => {
+    // Neighborhoods (topology) migrated to the two-line dict-trick-row contract
+    // (2026-05-27). Token markup still renders: op-tokens in the line-2 JOB
+    // value, sem-tokens in the line-1 interpretation slot.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    expect(res.text).toMatch(/<article class="dict-card[^"]*"\s+data-trick-slug="/);
-    // Token markup appears somewhere on the page (op-token via the
-    // first-class JOB row, or sem-token via tokenizedEquivalences).
+    expect(res.text).toMatch(/<article class="dict-trick-row[^"]*"[^>]*data-trick-slug="/);
     expect(res.text).toMatch(/class="(?:op-token|sem-token)/);
+  });
+
+  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
+    const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="whirl"[\s\S]*?<\/article>/);
+    expect(m).not.toBeNull();
+    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
   });
 });
