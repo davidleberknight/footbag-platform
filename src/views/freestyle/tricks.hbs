@@ -172,62 +172,44 @@
       movement explanation, equivalence readings, derived / related
       systems, and provenance. Phase B will add /freestyle/sets/<slug>
       detail pages. }}
+  {{! ── By Set view — modifier-grouped trick lists (answers "which tricks
+       use this set?"). Distinct from the Set Encyclopedia at /freestyle/sets
+       which answers "what is this set system?" — that surface remains
+       separate and intentional. This view uses content.setGroups (the
+       trick-grouping projection); content.setsBrowseView (the encyclopedia
+       projection) is reserved for /freestyle/sets. }}
   {{#if (eq content.activeView "sets")}}
-  <p class="browse-view-intro">{{content.setsBrowseView.intro}}</p>
-  <p class="sets-view-total detail-muted"><strong>{{content.setsBrowseView.totalSets}}</strong> canonical sets across {{content.setsBrowseView.subtypeSections.length}} subtypes.</p>
+  <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  {{#if content.setGroups.length}}
+  <p class="sets-view-total detail-muted"><strong>{{content.setGroups.length}}</strong> sets and modifiers exercised by the active dictionary.</p>
 
-  {{#each content.setsBrowseView.subtypeSections}}
-  <section class="content-section set-subtype-section" id="set-subtype-{{key}}" aria-label="{{label}}">
+  <nav class="sets-view-jump" aria-label="Set / modifier jump">
+    {{#each content.setGroups}}
+      <a href="#set-{{modifierSlug}}">{{modifierName}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+
+  {{#each content.setGroups}}
+  <section class="content-section trick-set-group trick-group--registry" id="set-{{modifierSlug}}" data-anchor-style="solid">
     <div class="section-heading">
-      <h2>{{label}}</h2>
-      <span class="section-count">{{count}}</span>
+      <h2><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h2>
+      <span class="section-count">{{trickCount}}</span>
     </div>
-    <p class="set-subtype-intro">{{intro}}</p>
-    <div class="set-card-grid">
-      {{#each cards}}
-      <article class="set-card set-card--{{source}}" id="set-{{slug}}" data-set-slug="{{slug}}">
-        <header class="set-card-head">
-          <h3 class="set-card-name">{{displayName}}</h3>
-          <code class="set-card-hashtag">{{hashtag}}</code>
-        </header>
-        <code class="set-card-formula">{{formula}}</code>
-        <p class="set-card-movement">{{movementExplanation}}</p>
-        {{#if equivalenceReadings.length}}
-        <ul class="set-card-equivalences">
-          {{#each equivalenceReadings}}<li>{{this}}</li>{{/each}}
-        </ul>
-        {{/if}}
-        {{#if derivedSystems.length}}
-        <p class="set-card-relations"><strong>Derived systems:</strong>
-          {{#each derivedSystems}}<a href="{{href}}" class="set-relation-link">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-        {{#if relatedSystems.length}}
-        <p class="set-card-relations"><strong>Related systems:</strong>
-          {{#each relatedSystems}}<a href="{{href}}" class="set-relation-link">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-        <footer class="set-card-footer">
-          <span class="set-card-source set-card-source--{{source}}">{{sourceLabel}}</span>
-          {{#if auditStatusLabel}}<span class="set-card-audit set-card-audit--{{auditStatus}}">{{auditStatusLabel}}</span>{{/if}}
-          <span class="set-card-citation">{{sourceCitation}}</span>
-        </footer>
-        {{#if showDetailLink}}
-        <a class="set-card-detail-link" href="{{detailHref}}">View set details &rarr;</a>
-        {{else}}
-        <p class="set-card-detail-placeholder">Detail page coming in Phase B.</p>
-        {{/if}}
-      </article>
+    <p class="trick-set-group-meta detail-muted">
+      {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
+    </p>
+    <div class="dict-card-stack dict-card-stack--registry">
+      {{#each tricks}}
+        {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
   </section>
   {{/each}}
-
-  <aside class="content-section sets-alt-surfaces-cross-link" aria-label="Alternate surfaces (distinct ontology layer)">
-    <h2>{{content.setsBrowseView.altSurfacesCrossLink.heading}}</h2>
-    <p>{{content.setsBrowseView.altSurfacesCrossLink.framing}}</p>
-    <p><a class="sets-alt-surfaces-cta" href="{{content.setsBrowseView.altSurfacesCrossLink.movementSystemHref}}">{{content.setsBrowseView.altSurfacesCrossLink.ctaLabel}} &rarr;</a></p>
-  </aside>
+  {{else}}
+  <section class="content-section">
+    <p class="detail-muted"><em>No tricks currently link to a registered modifier. As the dictionary expands, this view populates from <code>freestyle_trick_modifier_links</code>.</em></p>
+  </section>
+  {{/if}}
   {{/if}}
 
   {{! ── Family view — registry density.

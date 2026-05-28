@@ -251,13 +251,10 @@ describe('routing migration — /freestyle/sets and /freestyle/moves', () => {
   });
 });
 
-describe('Set Hub — Phase B activation of detail-page links', () => {
-  it('Set Hub cards now render "View set details" links, NOT the Phase A placeholder', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('set-card-detail-link');
-    expect(res.text).toContain('View set details');
-    expect(res.text).not.toContain('Detail page coming in Phase B.');
-    // Spot-check that a detail-href resolves to /freestyle/sets/<slug>
-    expect(res.text).toMatch(/href="\/freestyle\/sets\/pixie"/);
-  });
-});
+// "Set Hub — Phase B activation of detail-page links" describe block
+// removed 2026-05-27: the Phase A/B Set Hub at /freestyle/tricks?view=sets
+// was retired; that URL now answers "which tricks use this set?" via a
+// modifier-grouped trick list (see freestyle.tricks-by-set.routes.test.ts).
+// Set Encyclopedia uses different class names (sets-encyclopedia-card-*)
+// at the new /freestyle/sets surface; its detail-link coverage lives in
+// freestyle.sets-encyclopedia.routes.test.ts.
