@@ -1049,7 +1049,7 @@ describe('GET /freestyle/tricks?view=sets — dedicated By Set view (2026-05-24)
     expect(res.status).toBe(200);
     // Active-state toggle entry confirms the new view took effect (and
     // is no longer an alias to the soft-retired component view).
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
     // Confirm we are NOT showing the soft-retired component view's
     // retirement notice (i.e. the legacy alias is gone).
     expect(res.text).not.toContain('class="component-view-retirement-notice"');

@@ -2320,13 +2320,23 @@ export interface FreestyleTrickDexCountGroup {
 // of canonical tricks that use it via freestyle_trick_modifier_links.
 // modifierType ('set' | 'body' | 'rotational-qualifier') drives the
 // section-header grouping in the template.
+//
+// Cards are full DictionaryTrickCard view-models (NOT FreestyleTrickIndexRow).
+// The dictionary-trick-card partial expects DictionaryTrickCard's shape —
+// displayName, href, addsLabel, operationalNotation.tokens,
+// tokenizedEquivalences, mediaCoverage, etc. — so the trick titles render
+// as linked anchors and the standardized JOB block fires consistently
+// across every browse view. Earlier sketch (pre-2026-05-27) used
+// FreestyleTrickIndexRow here, which left most card fields blank and
+// reduced the rendered output to bare hashtags. The DictionaryTrickCard
+// shape closes that gap.
 export interface FreestyleSetGroup {
   modifierSlug: string;
   modifierName: string;
   modifierType: string;
   addBonus: number;
   addBonusRotational: number;
-  tricks: FreestyleTrickIndexRow[];
+  cards: DictionaryTrickCard[];
   trickCount: number;
 }
 
@@ -6599,7 +6609,7 @@ export const freestyleService = {
     // tricks are skipped (table-driven, not enumerated). Sets-type
     // modifiers are surfaced before body-type modifiers via the SQL ORDER BY.
     const allActiveTrickRowsForSets = allRows.filter(r => r.is_active === 1);
-    const allActiveTrickRowsBySlug = new Map<string, FreestyleTrickRow>();
+    const allActiveTrickRowsBySlug = new Map<string, FreestyleTrickRowWithStatus>();
     for (const r of allActiveTrickRowsForSets) allActiveTrickRowsBySlug.set(r.slug, r);
 
     const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
@@ -6611,7 +6621,7 @@ export const freestyleService = {
       modifierType: string;
       addBonus: number;
       addBonusRotational: number;
-      tricks: FreestyleTrickRow[];
+      tricks: FreestyleTrickRowWithStatus[];
     }>();
     for (const lr of linkRows) {
       // Only include tricks that survive the activeFamily filter applied earlier
@@ -6636,15 +6646,30 @@ export const freestyleService = {
         bucket.tricks.push(trickRow);
       }
     }
-    const setGroups: FreestyleSetGroup[] = [...setGroupAccumulator.values()].map(b => ({
-      modifierSlug: b.modifierSlug,
-      modifierName: b.modifierName,
-      modifierType: b.modifierType,
-      addBonus: b.addBonus,
-      addBonusRotational: b.addBonusRotational,
-      tricks: b.tricks.map(r => shapeTrickIndexRow(r, ctx)),
-      trickCount: b.tricks.length,
-    }));
+    const setGroups: FreestyleSetGroup[] = [...setGroupAccumulator.values()].map(b => {
+      // Sort tricks by ADD ascending then slug alphabetical for stable
+      // section ordering. Shape both views: indexRow (intermediate) +
+      // DictionaryTrickCard (the partial's view-model) so the cards
+      // surface the full standardized JOB block + linked title + ADD chip
+      // + media chip, consistent with by-ADD / by-family / by-movement-
+      // system views.
+      const sorted = [...b.tricks].sort((x, y) => {
+        const ax = Number(x.adds ?? Number.POSITIVE_INFINITY);
+        const ay = Number(y.adds ?? Number.POSITIVE_INFINITY);
+        return ax - ay || x.slug.localeCompare(y.slug);
+      });
+      const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
+      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!));
+      return {
+        modifierSlug: b.modifierSlug,
+        modifierName: b.modifierName,
+        modifierType: b.modifierType,
+        addBonus: b.addBonus,
+        addBonusRotational: b.addBonusRotational,
+        cards,
+        trickCount: sorted.length,
+      };
+    });
 
     // ---- Set Hub view (?view=sets) -------------------------------------
     // Phase A of the set-system refactor (2026-05-25). Sets are first-class
@@ -6930,7 +6955,7 @@ export const freestyleService = {
       ALTERNATIVE_SURFACES.groups.map(group => {
         const tricks: AlternativeSurfaceTrickView[] = group.tricks
           .map(slug => allActiveTrickRowsBySlug.get(slug))
-          .filter((row): row is FreestyleTrickRow => row !== undefined)
+          .filter((row): row is FreestyleTrickRowWithStatus => row !== undefined)
           .map(row => ({
             slug:                row.slug,
             displayName:         row.canonical_name,
@@ -7046,7 +7071,7 @@ export const freestyleService = {
               chips:        familyGroups.map(g => g.familySlug),
             },
             {
-              label:        'By set',
+              label:        'By modifier',
               href:         '/freestyle/tricks?view=sets',
               count:        CANONICAL_SETS.length,
               countSuffix:  'canonical sets',
@@ -7518,7 +7543,22 @@ export const freestyleService = {
 
     const cards = sortObservedCardsByClaim(cardsUnsorted);
 
-    const sources = collectObservedSourceBadges(cards);
+    // Source-chip set: union of OBSERVATIONAL_TRICKS badges (governance-
+    // lane cards) AND TRACKED_UNPUBLISHED_NAMES source labels (the
+    // "more documented names" corpus rendered below). Stanford shorthand
+    // is in TRACKED_NAMES but not in OBSERVATIONAL_TRICKS, so without
+    // this widening the chip strip under-represents the full tracked
+    // universe.
+    const seenBadges = new Set<ObservedSourceBadge>(collectObservedSourceBadges(cards));
+    for (const grp of TRACKED_UNPUBLISHED_NAMES) {
+      const lbl = grp.sourceLabel.toLowerCase();
+      if (lbl.includes('stanford'))    seenBadges.add('SG'); // Stanford shorthand → SG slot
+      else if (lbl.includes('footbagmoves')) seenBadges.add('FM');
+      else if (lbl.includes('passback'))     seenBadges.add('PB');
+      else if (lbl.includes('footbag.org'))  seenBadges.add('FB');
+    }
+    const sourceOrder: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'FB', 'OTHER'];
+    const sources = sourceOrder.filter(b => seenBadges.has(b));
 
     // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging
     // Vocabulary". The page is the canonicalization incubator, not a
@@ -7565,12 +7605,15 @@ export const freestyleService = {
         trackedNames:      TRACKED_UNPUBLISHED_NAMES,
         trackedNamesTotal: TRACKED_UNPUBLISHED_TOTAL,
         trackedNamesNote:
-          'Beyond the detailed entries above, these trick names are ' +
-          "documented across freestyle's source corpora but are not yet " +
-          'published in the canonical Trick Dictionary. They are known and ' +
-          'tracked — staged for review, not omitted. Grouped by the source ' +
-          'that documents each name; where a symbolic decomposition is ' +
-          'already on record, it is shown alongside the name.',
+          'Observational names tracked for future review. ' +
+          'Each is documented in at least one external source ' +
+          '(Stanford shorthand, FootbagMoves, footbag.org, PassBack) ' +
+          'but has NOT been promoted to the canonical Trick Dictionary. ' +
+          'Some are unresolved aliases; some are doctrine-blocked rows ' +
+          'awaiting curator rulings; some are untriaged. None should be ' +
+          'read as immediately promotable. Grouped by the source that ' +
+          'documents each name; where a symbolic decomposition is already ' +
+          'on record, it is shown alongside the name.',
       },
     };
   },
@@ -7981,7 +8024,7 @@ export const freestyleService = {
     }));
 
     const crossLinks: EncyclopediaCrossLinks = {
-      dictionaryBysetLabel:  'Trick Dictionary — tricks grouped by set',
+      dictionaryBysetLabel:  'Trick Dictionary — tricks grouped by modifier',
       dictionaryBysetHref:   '/freestyle/tricks?view=sets',
       compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
       compositionalHubHref:  '/freestyle/compositional-sets',
@@ -8018,7 +8061,7 @@ export const freestyleService = {
         intro:
           'What is each set as a system? This index lists the named uptime movement ' +
           'primitives the rest of the language composes from. For "which tricks use this ' +
-          'set?", see the Trick Dictionary\'s By Set view.',
+          'set?", see the Trick Dictionary\'s By Modifier view.',
         totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
         subtypeSections,
         subtypeMiniToc,

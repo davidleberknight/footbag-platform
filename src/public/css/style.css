@@ -7434,6 +7434,45 @@ a.dict-card-title:hover {
   overflow-wrap: break-word;
   margin: 0;
 }
+
+/* JOB block container — wraps the operational-notation row with a small
+   "JOB" label prefix so the notation reads as a labeled metadata block,
+   consistent with the detail page's "Set notation" section, NOT as
+   loose body text. Applies across all browse views (ADD / family /
+   movement-system / sets / dex-count). */
+.dict-card-notation-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  margin: 0.25rem 0 0.1rem;
+}
+.dict-card-notation-block .dict-card-notation {
+  flex: 1 1 auto;
+  margin: 0;
+}
+.dict-card-notation-label {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  background: var(--bg-subtle, #f1f5f9);
+  padding: 0.06rem 0.4rem;
+  border-radius: 3px;
+  user-select: none;
+}
+.dict-card--registry .dict-card-notation-block {
+  display: inline-flex;
+  margin: 0;
+  gap: 0.35em;
+}
+.dict-card--registry .dict-card-notation-block .dict-card-notation {
+  display: inline;
+  text-indent: 0;
+  padding-inline-start: 0;
+}
 .dict-card-notation .op-token {
   display: inline-block;
   white-space: nowrap;       /* prevent mid-token wrapping (incl. fused tokens like "front whirl") */

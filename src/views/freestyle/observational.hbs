@@ -55,7 +55,7 @@
     <p class="observed-source-strip" aria-label="Sources represented on this page">
       Sources:
       {{#each content.sources}}
-        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{this}}">{{this}}</span>
+        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{this}}">{{#if (eq this "SG")}}Stanford shorthand{{else if (eq this "PB")}}PassBack{{else if (eq this "FM")}}FootbagMoves{{else if (eq this "FB")}}Footbag.org{{else if (eq this "FF")}}Footbag Finland{{else}}{{this}}{{/if}}</span>
       {{/each}}
     </p>
     {{/if}}
@@ -142,7 +142,7 @@
 
     {{#if content.trackedNames.length}}
     <div id="tracked-vocabulary" class="observational-tracked">
-      <h2>{{content.trackedNamesTotal}} more documented names</h2>
+      <h2>{{content.trackedNamesTotal}} observational names awaiting review</h2>
       <p class="text-muted">{{content.trackedNamesNote}}</p>
       {{#each content.trackedNames}}
       <h3>{{sourceLabel}} <span class="text-muted">({{names.length}})</span></h3>

@@ -137,7 +137,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).not.toContain('class="component-view-retirement-notice"');
     // The dedicated By Set view's active toggle marker confirms the new
     // routing took effect.
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 });
 

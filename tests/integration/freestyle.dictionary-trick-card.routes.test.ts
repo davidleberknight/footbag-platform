@@ -536,7 +536,7 @@ describe('other dictionary views — slice-by-slice migration', () => {
     // component alias. It now renders the dedicated By Set browse view
     // (compact-list density, NOT dict-card-stack registry density).
     // Active-toggle marker confirms the routing.
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By set</);
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 
   it('/freestyle/tricks?view=category returns 200 and uses the shared card (slice 3B migrated)', async () => {

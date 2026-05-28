@@ -721,10 +721,13 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   it('renders the source-summary chip strip beneath canonical references', async () => {
     // content.sources collects unique source badges represented across
     // the page. Renders only when content.sources.length > 0.
+    // Chip labels were changed 2026-05-27 from raw badge codes (PB/FM/SG)
+    // to human-readable source names (PassBack / FootbagMoves / Stanford
+    // shorthand). The CSS class still carries the badge code.
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.text).toMatch(/class="observed-source-strip"/);
     expect(res.text).toMatch(
-      /class="observed-source-strip-item observed-source-strip-item--PB"[^>]*>PB</,
+      /class="observed-source-strip-item observed-source-strip-item--PB"[^>]*>PassBack</,
     );
   });
 

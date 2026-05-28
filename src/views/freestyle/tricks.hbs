@@ -111,9 +111,9 @@
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "sets")}}
-      <span class="trick-view-toggle-active">By set</span>
+      <span class="trick-view-toggle-active">By modifier</span>
     {{else}}
-      <a href="/freestyle/tricks?view=sets">By set</a>
+      <a href="/freestyle/tricks?view=sets">By modifier</a>
     {{/if}}
   </nav>
   {{#unless (eq content.activeView "add")}}
@@ -199,7 +199,7 @@
       {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
     </p>
     <div class="dict-card-stack dict-card-stack--registry">
-      {{#each tricks}}
+      {{#each cards}}
         {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
@@ -403,8 +403,8 @@
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
+  <p class="browse-view-intro"><strong>By movement system = the four higher-level conceptual axes</strong> (set/uptime · entry topology · midtime body · no-plant suspension). Each axis groups the modifiers that belong to it. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
-  <p class="movement-system-cross-link detail-muted">For sets as first-class systems (what is pixie / fairy / stepping / etc.?), see the <a href="/freestyle/sets">Set Encyclopedia</a>. For sets as tricks themselves (uptime motion analogues to ATW / orbit / pickup etc.), see <a href="/freestyle/compositional-sets">Compositional Sets</a>. For tricks grouped by their entry set, see <a href="/freestyle/tricks?view=sets">By set</a>.</p>
 
   {{! Axis-jump nav. Mirror of the Component view's pattern. }}
   <nav class="movement-axis-jump" aria-label="Movement System axes">

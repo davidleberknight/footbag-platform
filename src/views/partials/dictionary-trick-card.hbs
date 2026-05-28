@@ -46,7 +46,7 @@
         {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </span>
     {{else if operationalNotation}}
-      <code class="dict-card-notation dict-card-notation--inline" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+      <span class="dict-card-notation-block dict-card-notation-block--inline" aria-label="Set notation"><span class="dict-card-notation-label">JOB</span><code class="dict-card-notation dict-card-notation--inline">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code></span>
     {{/if}}
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
@@ -92,7 +92,10 @@
       </p>
       {{/each}}
     {{else if operationalNotation}}
-      <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+      <div class="dict-card-notation-block" aria-label="Set notation">
+        <span class="dict-card-notation-label">JOB</span>
+        <code class="dict-card-notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+      </div>
     {{/if}}
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>

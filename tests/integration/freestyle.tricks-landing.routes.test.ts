@@ -116,7 +116,7 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     // (operators/modifiers are reference vocabulary, not a dictionary
     // grouping axis). The /freestyle/operators reference page is still
     // reachable via the aside line below the toggle.
-    expect(nav).toContain('By set');
+    expect(nav).toContain('By modifier');
     expect(nav).not.toContain('href="/freestyle/operators"');
     // 2026-05-23: the duplicate Observed Tricks link was removed from
     // the dictionary browse strip. Observed Tricks remains reachable

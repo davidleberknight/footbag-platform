@@ -152,7 +152,7 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
   it('200s and renders the By Set view shell', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="trick-view-toggle-active">By set<');
+    expect(res.text).toContain('class="trick-view-toggle-active">By modifier<');
   });
 
   it('intro explains the page answers "which tricks use this set?"', async () => {
@@ -246,7 +246,7 @@ describe('/freestyle/sets — Set Encyclopedia remains separate', () => {
 
   it('/freestyle/sets does NOT include the By Set browse-view markup', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
-    expect(res.text).not.toContain('class="trick-view-toggle-active">By set<');
+    expect(res.text).not.toContain('class="trick-view-toggle-active">By modifier<');
     expect(res.text).not.toContain('class="sets-view-jump"');
   });
 });

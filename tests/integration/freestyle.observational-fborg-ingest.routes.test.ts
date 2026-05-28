@@ -173,7 +173,9 @@ describe('/freestyle/observational — tracked-vocabulary section', () => {
 
   it('renders the tracked-vocabulary section grouped by source', async () => {
     const block = await trackedBlock();
-    expect(block).toContain('more documented names');
+    // Heading copy renamed 2026-05-27 from "more documented names" to
+    // "observational names awaiting review" (Emerging Vocabulary repair).
+    expect(block).toContain('observational names awaiting review');
     // Grouped by documenting source — the three source groups.
     expect(block).toContain('FootbagMoves');
     expect(block).toContain('footbag.org');

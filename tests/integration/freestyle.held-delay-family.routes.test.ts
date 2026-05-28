@@ -183,11 +183,11 @@ describe('Observational backlog — wrap is no longer counted', () => {
   it('/freestyle/observational page renders the current tracked count, not the pre-slice 554', async () => {
     const res = await request(await createApp()).get('/freestyle/observational');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('554 more documented names');
-    // Whatever current count is, it should be present as a "more documented names" phrase.
-    // Match any positive integer; the corpus has grown past the original
-    // 5xx range after the Wave 0 reconciliation expansion.
-    expect(res.text).toMatch(/\b\d+ more documented names\b/);
+    expect(res.text).not.toContain('554 observational names awaiting review');
+    // Whatever current count is, it should be present as the tracked-names
+    // heading. Copy was changed 2026-05-27 from "more documented names" to
+    // "observational names awaiting review" (Emerging Vocabulary repair).
+    expect(res.text).toMatch(/\b\d+ observational names awaiting review\b/);
     expect(res.text).not.toMatch(/#wrap[^a-z-]/);  // negative lookahead so e.g. #wrap-around-X wouldn't match
   });
 });
