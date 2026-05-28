@@ -4,11 +4,13 @@
  * Post-2026-05-27 rendered-surface repair pass. Pins the four
  * observation-rooted fixes:
  *
- *   1. Across ALL browse views (ADD / family / movement-system / sets),
- *      the operational-notation row on each card renders inside a
+ *   1. Across the SHARED-card browse views (family / movement-system /
+ *      sets), the operational-notation row on each card renders inside a
  *      labeled `.dict-card-notation-block` with a leading "JOB" label
  *      span — not as loose body text. The detail-page convention
  *      ("Set notation" labeled section) extends to cards.
+ *      (The ADD view uses a distinct two-line `.dict-add-row` contract,
+ *      pinned separately in freestyle.add-view-rows.routes.test.ts.)
  *
  *   2. /freestyle/tricks?view=sets renders LINKED trick cards
  *      (dictionary-trick-card partial with DictionaryTrickCard view-model)
@@ -112,20 +114,22 @@ function expectJobBlockRender(text: string, slug: string) {
 }
 
 describe('JOB-block rendering across browse views (no raw operational notation outside the labeled block)', () => {
-  it('By ADD: cards with operational notation render the JOB-block label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'fairy-mirage');
-    expectJobBlockRender(res.text, 'quantum-mirage');
-    expectJobBlockRender(res.text, 'atomic-illusion');
-    expectJobBlockRender(res.text, 'ducking-toe-stall');
-  });
-
   it('By family: cards with operational notation render the JOB-block label', async () => {
+    // Family view only renders families with >1 member (singletons are
+    // dropped), so assert on the multi-member mirage family.
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expectJobBlockRender(res.text, 'fairy-mirage');
     expectJobBlockRender(res.text, 'quantum-mirage');
+  });
+
+  it('By dex-count: cards with operational notation render the JOB-block label', async () => {
+    // dex-count buckets every active trick (no size filter), so it covers
+    // singleton-family tricks the family view drops.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    expect(res.status).toBe(200);
+    expectJobBlockRender(res.text, 'atomic-illusion');
+    expectJobBlockRender(res.text, 'ducking-toe-stall');
   });
 
   it('By movement system: cards with operational notation render the JOB-block label', async () => {
@@ -147,8 +151,11 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     // symbolic-equivalences content module AND has operational notation.
     // The 2026-05-27 normalization removed the prior EITHER/OR: the
     // interpretation subtitle (slot 3) and the JOB block (slot 5) are now
-    // independent slots — both must appear on the same card.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    // independent slots — both must appear on the same card. Asserted on the
+    // dex-count view (renders every active trick, including the torque
+    // singleton mobius); the ADD view's distinct two-line contract is pinned
+    // in freestyle.add-view-rows.routes.test.ts.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const idx = res.text.indexOf('data-trick-slug="mobius"');
     expect(idx).toBeGreaterThan(-1);
     const window = res.text.substring(idx, idx + 4000);
@@ -160,8 +167,9 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear', async () => {
-    // Run against the most card-dense view.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    // Run against the densest shared-card view (the ADD view uses the distinct
+    // dict-add-row contract, not dict-card-notation).
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     // Every dict-card-notation occurrence must sit inside a dict-card-notation-block wrapper.
     // We check by ensuring the substring before each dict-card-notation occurrence (within
     // a small window) contains the wrapper open tag.

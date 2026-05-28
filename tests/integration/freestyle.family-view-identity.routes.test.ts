@@ -187,59 +187,53 @@ describe('Family View — formula visibility on whirl compounds', () => {
   });
 });
 
-describe('Cross-view identity — ADD view vs Family view', () => {
-  // Wave 3 (2026-05-22): paradox-whirl + spinning-whirl removed —
-  // promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl (Wave 2).
-  // Their tautological chain readings (= canonical names) are now
-  // suppressed on first-class cards; structural decomposition surfaces
-  // through the first-class summary row instead. blurry-whirl is the
-  // only remaining non-first-class whirl-family compound and the only
-  // pilot that still exercises the cross-view-identity contract for
-  // tautological chain rendering.
+describe('ADD view vs Family view — distinct contracts, shared identity data', () => {
+  // 2026-05-27: the ADD view renders the two-line dict-add-row contract;
+  // the Family view renders the shared dict-card. The two are no longer
+  // expected to be DOM-identical. What stays shared across both: the
+  // data-trick-slug, the detail-page link target, and the ADD value.
+  // blurry-whirl is the remaining non-first-class whirl-family compound;
+  // its sole chain reading ("blurry whirl") is tautological, so the
+  // interpretation slot stays empty on both views.
   const IDENTITY_PILOTS = ['blurry-whirl'];
 
   for (const slug of IDENTITY_PILOTS) {
-    it(`renders identical canonical identity for '${slug}' in ADD and Family views`, async () => {
+    it(`'${slug}' renders its own contract in each view (shared slug, link, ADD value)`, async () => {
       const app = createApp();
       const addView    = await request(app).get('/freestyle/tricks?view=add');
       const familyView = await request(app).get('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
-      // Both views carry the same data-trick-slug attribute.
-      expect(addView.text).toContain(`data-trick-slug="${slug}"`);
-      expect(familyView.text).toContain(`data-trick-slug="${slug}"`);
-
-      // Extract the trick's canonical name from the seed data; both views
-      // must include the canonical-name anchor link to /freestyle/tricks/{slug}.
       const pilot = WHIRL_PILOTS.find(p => p.slug === slug)!;
-      const expectedHref = `/freestyle/tricks/${slug}`;
-      const hrefPattern = new RegExp(
-        `<a class="dict-card-title" href="${expectedHref.replace(/\//g, '\\/')}">${pilot.name}<\\/a>`,
-      );
-      expect(addView.text,    `ADD view missing canonical-name link for ${slug}`).toMatch(hrefPattern);
-      expect(familyView.text, `Family view missing canonical-name link for ${slug}`).toMatch(hrefPattern);
+      const escapedHref = `/freestyle/tricks/${slug}`.replace(/\//g, '\\/');
 
-      // Both views must include the ADD chip text for this trick.
-      const addsLabel = `${pilot.adds} ADD`;
-      // The chip appears in card region for each view; use a permissive match.
       const addRegion = addView.text.match(
-        new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
+        new RegExp(`<article class="dict-add-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
       );
       const familyRegion = familyView.text.match(
         new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
       );
-      expect(addRegion, `card region not found in ADD view for ${slug}`).not.toBeNull();
+      expect(addRegion, `add-row not found in ADD view for ${slug}`).not.toBeNull();
       expect(familyRegion, `card region not found in family view for ${slug}`).not.toBeNull();
-      expect(addRegion![0]).toContain(addsLabel);
-      expect(familyRegion![0]).toContain(addsLabel);
 
-      // 2026-05-24 curator rendered-output audit: the universal
-      // tautological-reading filter now drops chain readings whose
-      // text equals the canonical name. blurry-whirl's sole reading is
-      // "blurry whirl" (tautological), so the ≡ slot stays empty on
-      // both views. The cross-view identity contract still holds for
-      // title link + ADD chip + data-trick-slug.
+      // Detail link reachable in both views, with each view's anchor class.
+      expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(
+        new RegExp(`<a class="dict-add-row-title" href="${escapedHref}">${pilot.name}<\\/a>`),
+      );
+      expect(familyView.text, `Family view missing canonical-name link for ${slug}`).toMatch(
+        new RegExp(`<a class="dict-card-title" href="${escapedHref}">${pilot.name}<\\/a>`),
+      );
+
+      // ADD value reachable in both: Family via the N-ADD chip; ADD via the
+      // ADD-grouped section header + the row's line-2 ADD slot (no green chip).
+      expect(familyRegion![0]).toContain(`${pilot.adds} ADD`);
+      expect(addView.text).toContain(`id="add-${pilot.adds}"`);
+      expect(addRegion![0]).toContain('class="dict-add-row-add"');
+      expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
+
+      // Tautological "blurry whirl" reading is suppressed on BOTH views, so
+      // neither echoes its modifier/base as ≡ tokens.
       const [modifierToken, baseToken] = pilot.name.split(' ');
       const modifierPattern = new RegExp(`sem-token[^>]*>${modifierToken}<`);
       const basePattern     = new RegExp(`sem-token[^>]*>${baseToken}<`);

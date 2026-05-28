@@ -68,7 +68,7 @@ describe('symposium-pixie detail page — first-class JOB + ADD', () => {
   });
 
   it('symposium-pixie browse card renders JOB + ADD inline (not "notation pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="symposium-pixie"');
     expect(idx).toBeGreaterThan(-1);

@@ -149,8 +149,8 @@ describe('Pixie-clipper detail pages — first-class JOB + ADD', () => {
 });
 
 describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
-  it('pixie-opposite-clipper card on /freestyle/tricks?view=add renders JOB + ADD inline', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+  it('pixie-opposite-clipper card on /freestyle/tricks?view=dex-count renders JOB + ADD inline', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="pixie-opposite-clipper"');
     expect(idx).toBeGreaterThan(-1);
@@ -163,7 +163,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   });
 
   it('pixie-same-clipper card renders JOB + ADD inline', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="pixie-same-clipper"');
     expect(idx).toBeGreaterThan(-1);

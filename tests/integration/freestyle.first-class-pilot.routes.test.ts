@@ -272,8 +272,8 @@ describe('First-class trick pilot — non-first-class control slugs', () => {
 });
 
 describe('First-class trick pilot — browse-card secondary row', () => {
-  it.each(PILOT_SLUGS)('renders the compact secondary row for %s in /freestyle/tricks?view=add', async (slug) => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+  it.each(PILOT_SLUGS)('renders the compact secondary row for %s in /freestyle/tricks?view=dex-count', async (slug) => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     // The pilot slug's browse card carries a .dict-card-first-class-row
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
@@ -284,8 +284,8 @@ describe('First-class trick pilot — browse-card secondary row', () => {
     expect(cardRegion).toContain('class="dict-card-first-class-row"');
   });
 
-  it('non-first-class slugs do NOT render the secondary row in /freestyle/tricks?view=add', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+  it('non-first-class slugs do NOT render the secondary row in /freestyle/tricks?view=dex-count', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     // mobius remains non-first-class (H6 fails: gyro(+2) + torque(4) = 6,
     // but official=5 — composite-modifier issue pending Wave 2 gyro
     // doctrine resolution). blur was promoted into FIRST_CLASS_TIER_2 in

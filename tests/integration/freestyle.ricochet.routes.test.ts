@@ -68,7 +68,7 @@ describe('ricochet detail page — first-class JOB + ADD', () => {
   });
 
   it('ricochet browse card renders JOB + ADD inline (not "notation pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="ricochet"');
     expect(idx).toBeGreaterThan(-1);

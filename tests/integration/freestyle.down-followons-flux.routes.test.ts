@@ -148,7 +148,7 @@ describe('Down-family follow-ons + flux detail pages — first-class JOB + ADD',
 
 describe('Down-family follow-ons + flux browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three browse cards render JOB + ADD inline (not "notation pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['pixie-double-over-down', 'scorpions-tail', 'flux']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

@@ -138,7 +138,7 @@ describe('Down-family detail pages — first-class JOB + ADD', () => {
 
 describe('Down-family browse rendering — FIRST_CLASS_TIER_2', () => {
   it('all three down-family browse cards render JOB + ADD (not "notation pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['double-over-down', 'down-double-down', 'down-diver']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

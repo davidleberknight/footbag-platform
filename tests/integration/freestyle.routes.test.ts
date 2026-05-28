@@ -1846,7 +1846,7 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
     // pill (curator-authored via freestyleUnresolvedCompounds.ts) is the only
     // honest "pending" surface; "core atom" implementation language never
     // leaks to public.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     for (const slug of ['mirage', 'butterfly']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
@@ -2428,18 +2428,18 @@ describe('Freestyle glossary — Batch 4: compression-flow visual continuity (Sl
 
 describe('Freestyle dictionary — Batch 4: unified symbolic-object styling', () => {
   it('dict-card-title elements still render (CSS unification adds # via ::before)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="dict-card-title"/);
   });
 
   it('dict-card-add elements still render the ADD label (CSS unification restyles as chip)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     // ADD spans still carry the dict-card-add class; only visual treatment changed.
     expect(res.text).toMatch(/class="dict-card-add[^"]*"/);
   });
 
   it('dict-card class is preserved (no rename); CSS now uses shared symbolic-object hierarchy', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="dict-card[^"]*"/);
   });
 });
@@ -2459,7 +2459,7 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
     // `core-trick-equivalence dict-card-equivalence` wrapper class on the
     // tokenized ≡ reading. The ≡ sigil span is present in markup on both
     // densities (CSS hides it visually in registry).
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence/);
     expect(res.text).toMatch(/class="core-trick-equiv-sigil">&equiv;<\/span>/);
   });
@@ -2511,7 +2511,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     // "JOB:" line. The around-the-world ≡ ATW alias remains suppressed
     // from atom browse cards (no chip slot to take); it stays
     // accessible on the trick-detail page + glossary.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);

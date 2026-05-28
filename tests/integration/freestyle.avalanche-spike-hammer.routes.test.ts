@@ -117,7 +117,7 @@ describe('Avalanche + spike-hammer detail pages — first-class JOB + ADD', () =
 
 describe('Avalanche + spike-hammer browse rendering — FIRST_CLASS_TIER_2', () => {
   it('both browse cards render JOB + ADD inline (not "notation pending")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['avalanche', 'spike-hammer']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);

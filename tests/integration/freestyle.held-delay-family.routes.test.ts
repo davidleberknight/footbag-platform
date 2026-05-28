@@ -143,9 +143,9 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
     ['wrap'],
     ['butterfly-kick'],
   ] as const)(
-    '%s renders the first-class JOB row on the ADD browse view (no "notation pending")',
+    '%s renders the first-class JOB row on a shared-card browse view (no "notation pending")',
     async (slug) => {
-      const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+      const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       // First-class row present

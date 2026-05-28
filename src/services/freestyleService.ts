@@ -2067,6 +2067,13 @@ export interface DictionaryTrickCard {
   firstClassChainLabel:        'JOB' | 'OPERATIONAL' | null;  // null suppresses the chain row
   firstClassChainValue:        string | null;
   firstClassAddBreakdown:      string | null;
+  // ADD-view two-line row contract (2026-05-27). The line-2 "ADD:"
+  // formula string, derived in priority order: curator RESOLVED_FORMULAS
+  // → atomic decomposition → mechanical modifier-link derivation
+  // (sum-verified against canonical adds) → null. When null the ADD-view
+  // partial renders a bare "ADD: N" (honest; never fabricated). Used only
+  // by the ADD-view density; other views ignore it.
+  addViewFormula:              string | null;
   // True when the trick is first-class but its operational/Job chain is
   // genuinely absent upstream (no curator op-notation in DB, no atomic
   // flag-decomposition chain, no derivable form). Triggers an honest
@@ -4427,6 +4434,13 @@ interface TrickIndexShapingContext {
   // Per-row status overrides for the listAllWithPending path; absent when
   // shaping a plain active row (defaults: isActive=1, reviewStatus='curated').
   statusBySlug?: Map<string, { isActive: number; reviewStatus: string }>;
+  // ADD-view two-line row contract (2026-05-27): per-trick modifier links
+  // (ordered) + a slug→numeric-adds lookup, so shapeDictionaryTrickCard
+  // can derive the line-2 "ADD: mod(+b) + base(N)" formula mechanically
+  // from validated structured data (not inference). Absent maps degrade
+  // gracefully to a bare "ADD: N" line.
+  modifierLinksByTrickSlug?: Map<string, { slug: string; name: string; addBonus: number; addBonusRotational: number }[]>;
+  addsBySlug?: Map<string, number>;
 }
 
 const EXTERNAL_PLACEHOLDER_NOTE =
@@ -4466,10 +4480,49 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 // "aliases:" text row stops surfacing problematic entries (frigidosis,
 // leg-over, reverse-swirl, etc.).
 // ─────────────────────────────────────────────────────────────────────────
+// ADD-view line-2 formula derivation. Priority: curator RESOLVED_FORMULAS
+// → atomic flag decomposition → mechanical modifier-link derivation
+// (sum-verified against canonical adds) → null (caller renders bare "ADD: N").
+// Never fabricates: the modifier-link branch only emits when the component
+// sum equals the row's canonical ADD, guarding against rotational-bonus
+// mismatches and other drift.
+const ADD_FORMULA_ROTATIONAL_BASES = new Set(['mirage', 'whirl', 'torque', 'blender', 'swirl', 'drifter']);
+function deriveAddViewFormula(
+  row: FreestyleTrickRowWithStatus,
+  indexRow: FreestyleTrickIndexRow,
+  ctx?: TrickIndexShapingContext,
+): string | null {
+  const published = RESOLVED_FORMULAS_BY_SLUG.get(indexRow.slug);
+  if (published) return stripDerivationAddTerminator(published.derivation);
+  const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(indexRow.slug);
+  if (atomic) return stripDerivationAddTerminator(atomic.decomposition);
+  const links = ctx?.modifierLinksByTrickSlug?.get(indexRow.slug);
+  const baseSlug = row.base_trick;
+  const totalAdds = Number(indexRow.adds);
+  if (links && links.length && baseSlug && baseSlug !== indexRow.slug
+      && ctx?.addsBySlug && Number.isFinite(totalAdds)) {
+    const baseAdds = ctx.addsBySlug.get(baseSlug);
+    if (baseAdds !== undefined) {
+      const baseRotational = ADD_FORMULA_ROTATIONAL_BASES.has(baseSlug);
+      const parts: string[] = [];
+      let sum = baseAdds;
+      for (const m of links) {
+        const bonus = baseRotational ? m.addBonusRotational : m.addBonus;
+        parts.push(`${m.name}(+${bonus})`);
+        sum += bonus;
+      }
+      parts.push(`${baseSlug}(${baseAdds})`);
+      if (sum === totalAdds) return parts.join(' + ');
+    }
+  }
+  return null;
+}
+
 function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
   groupAnchor: string | null = null,
+  ctx?: TrickIndexShapingContext,
 ): DictionaryTrickCard {
   // Emergency public-readiness slice 2026-05-19: when the row is one of
   // the 12 curator-authoritative core atoms, source operational notation
@@ -4643,6 +4696,7 @@ function shapeDictionaryTrickCard(
     firstClassChainValue,
     firstClassAddBreakdown,
     firstClassChainIncomplete,
+    addViewFormula:             deriveAddViewFormula(row, indexRow, ctx),
   };
 }
 
@@ -6312,11 +6366,35 @@ export const freestyleService = {
         .map(r => trickNameToSlug(r.trick_name!)),
     );
 
+    // ADD-view formula derivation context (2026-05-27 two-line row contract).
+    // modifierLinksByTrickSlug: ordered modifier list per trick (for the
+    // "mod(+bonus) + base(N)" line-2 ADD formula). addsBySlug: numeric ADD
+    // by slug (base lookup + sum-verification). Both built from the same
+    // listTricksByModifier query the By-modifier view uses.
+    const addFormulaLinkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const modifierLinksByTrickSlug = new Map<string, { slug: string; name: string; addBonus: number; addBonusRotational: number }[]>();
+    for (const lr of addFormulaLinkRows) {
+      const arr = modifierLinksByTrickSlug.get(lr.trick_slug) ?? [];
+      if (!arr.some(m => m.slug === lr.modifier_slug)) {
+        arr.push({ slug: lr.modifier_slug, name: lr.modifier_name, addBonus: lr.add_bonus, addBonusRotational: lr.add_bonus_rotational });
+      }
+      modifierLinksByTrickSlug.set(lr.trick_slug, arr);
+    }
+    const addsBySlug = new Map<string, number>();
+    for (const r of allRowsUnfiltered) {
+      const n = Number(r.adds);
+      if (Number.isFinite(n)) addsBySlug.set(r.slug, n);
+    }
+
     const ctx: TrickIndexShapingContext = {
       slugsWithRecords,
       aliasesByTrickSlug,
       mediaCoverageBySlug,
       statusBySlug,
+      modifierLinksByTrickSlug,
+      addsBySlug,
     };
 
     // Active rows only for category / family groupings (existing semantics:
@@ -6360,7 +6438,7 @@ export const freestyleService = {
     const buildCategoryGroup = (cat: string, rows: FreestyleTrickRowWithStatus[]): FreestyleTrickGroup => {
       const sorted = sortCategoryRows(rows);
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!));
+      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, null, ctx));
       return {
         category: cat,
         label:    CATEGORY_LABELS[cat] ?? cat,
@@ -6458,7 +6536,7 @@ export const freestyleService = {
       // BROWSE-REFACTOR-1 Slice 1: pass the familySlug as the group anchor
       // so semantic tokens matching it carry isFamilyAnchor=true (solid
       // underline at render time).
-      const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug));
+      const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug, ctx));
       // Display name resolution: prefer curator override (e.g.,
       // 'rev-whirl' → 'Rev Whirl'); otherwise default capitalize.
       const familyName =
@@ -6515,7 +6593,7 @@ export const freestyleService = {
         addNumeric,
         addLabel,
         tricks: sorted.map(e => e.indexRow),
-        cards:  sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+        cards:  sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx)),
       };
     };
     const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
@@ -6580,7 +6658,7 @@ export const freestyleService = {
         dexCount,
         dexLabel,
         bucketId,
-        cards: sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+        cards: sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx)),
       };
     };
     const dexNumericKeys = [...dexBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
@@ -6659,7 +6737,7 @@ export const freestyleService = {
         return ax - ay || x.slug.localeCompare(y.slug);
       });
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!));
+      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, null, ctx));
       return {
         modifierSlug: b.modifierSlug,
         modifierName: b.modifierName,
@@ -6832,7 +6910,7 @@ export const freestyleService = {
         bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
         memberCount:    sorted.length,
         anchorId:       `component-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug)),
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug, ctx)),
       };
     };
 
@@ -6892,7 +6970,7 @@ export const freestyleService = {
         bodyDefinition: def.definition,
         memberCount:    matched.length,
         anchorId:       `topology-${def.slug}`,
-        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug)),
+        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug, ctx)),
       };
     };
 
@@ -6942,7 +7020,7 @@ export const freestyleService = {
         compositionGloss: resolveModifierCompositionGloss(bucket.modifierSlug),
         memberCount:    sorted.length,
         anchorId:       `movement-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug)),
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug, ctx)),
       };
     };
 

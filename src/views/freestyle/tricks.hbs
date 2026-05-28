@@ -125,17 +125,20 @@
   <p class="trick-view-toggle-aside">For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   {{/unless}}
 
-  {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
+  {{! ── Default ADD-grouped view — two-line row contract (2026-05-27).
+       Every row: line 1 = name/hashtag/≡interpretation/media; line 2 =
+       JOB: + ADD:. No green ADD chip (the value is in the section header
+       + the line-2 ADD: formula). See dictionary-trick-card-add-row.hbs. }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
-  <section class="content-section trick-add-group trick-group--registry" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
+  <section class="content-section trick-add-group trick-group--add-rows" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-add-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-card-add-row}}
       {{/each}}
     </div>
   </section>

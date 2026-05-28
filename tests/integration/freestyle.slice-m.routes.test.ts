@@ -248,8 +248,8 @@ describe('Slice M — paradox composition gloss (Movement System view)', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Slice M — unresolved-compound pill', () => {
-  it('renders the pending pill on each curator-flagged folk-derived row in ADD view', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+  it('renders the pending pill on each curator-flagged folk-derived row (shared-card view)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     // For each unresolved slug seeded into the fixture, the rendered
     // card must carry the pending-pill marker. Post Pre-Red sweep
@@ -266,7 +266,7 @@ describe('Slice M — unresolved-compound pill', () => {
   });
 
   it('does NOT render the pill on non-flagged rows', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     // Sanity rows that should NOT carry the pill. tomahawk explicitly
     // included to verify the Pre-Red 2026-05-16 removal from
     // UNRESOLVED_COMPOUNDS took effect.
@@ -283,7 +283,7 @@ describe('Slice M — unresolved-compound pill', () => {
   });
 
   it('renders the pill text "pending decomposition refinement" in italics', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/<span class="dict-card-pending-pill"[^>]*><em>pending decomposition refinement<\/em><\/span>/);
   });
 });

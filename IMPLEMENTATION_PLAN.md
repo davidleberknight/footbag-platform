@@ -26,6 +26,14 @@ Wizard card forms collect a 3-option activity signal (active / not_active / not_
 
 Three of seven A_Periodic_Club_Cleanup predicates are implemented: `crowdsource_club_viability` (G1-G4 gates), `leaderless_active_club`, `stale_provisional_leader`. Remaining four (orphan_legacy_id, purged_member, inactive_onboarding, convergent_auto_merge) and the daily background job are deferred. Admin queue supports defer/snooze (30/90/180 days) and resolution tracking via `club_cleanup_resolutions` table.
 
+### Freestyle dictionary two-line row contract — ADD view migrated, other browse views pending
+
+`/freestyle/tricks?view=add` renders the two-line `dict-add-row` contract: line 1 = trick name + hashtag + optional decomposition/interpretation reading + optional media badge; line 2 = JOB notation + ADD notation (no green `dict-card-add` chip on the row; the ADD value rides the ADD-grouped section header + the line-2 ADD slot). Partial `dictionary-trick-card-add-row.hbs`; service field `addViewFormula` on `DictionaryTrickCard`.
+
+The other browse views (`family`, `movement-system`, `sets`/by-modifier, `dex-count`, neighborhoods) still render the shared `dictionary-trick-card` (registry/browse density, first-class secondary row). Target: migrate every browse view to the same two-line row contract, then retire or shrink the shared `dictionary-trick-card`. The shared-card layout is NOT long-term doctrine.
+
+Test note: shared-card assertions that previously ran against `?view=add` were repointed to `?view=dex-count` (a still-shared-card view) as a temporary safe harbor so the ADD-view contract could land. `dex-count` is not the permanent home for those assertions. When each view migrates to the two-line contract, move its assertions onto the two-line contract rather than preserving the old shared-card markup. Cross-view-identity tests (`presentation-hierarchy`, `family-view-identity`, `family-view-identity-extended`) were rewritten so ADD is no longer expected to equal Family; the old ADD==Family identity invariant is intentionally dead. VIEW_CATALOG's card-rendering standard still describes the shared-card model for the ADD view and needs a doc-sync pass (with approval) once the migration direction is confirmed.
+
 ### Deferred test infrastructure (no current-slice work)
 
 - **Playwright tagging** (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`).

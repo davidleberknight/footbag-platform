@@ -165,7 +165,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
     '%s no longer renders "JOB: notation pending" on its browse card',
     async (slug) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
+      const res = await request(app).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('dict-card-first-class-line--incomplete');
@@ -177,7 +177,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
     '%s renders the JOB row with its derived operationalNotation verbatim',
     async (slug, expectedJob) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
+      const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
       expect(card).toContain('<span class="dict-card-first-class-label">JOB:</span>');
       expect(card).toContain(expectedJob);
@@ -259,7 +259,7 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
     '%s (bucket %s) still renders "JOB: notation pending" after the Bucket A backfill',
     async (slug) => {
       const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
+      const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
       expect(card).toContain('dict-card-first-class-line--incomplete');
       expect(card).toContain('notation pending');

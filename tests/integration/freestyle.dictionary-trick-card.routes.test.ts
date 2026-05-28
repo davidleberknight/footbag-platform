@@ -162,9 +162,12 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the dict-card stack container', async () => {
+  it('renders the ADD-view two-line row stack container', async () => {
+    // The ADD view uses its own two-line dict-add-row contract (NOT the shared
+    // dict-card-stack; that lives on the other browse views).
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-add-row-stack');
+    expect(res.text).not.toContain('dict-card-stack');
   });
 
   it('renders ADD-group sections with anchor IDs', async () => {
@@ -183,21 +186,21 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 
 describe('dictionary-trick-card — required slots', () => {
   it('renders title slot as a link to the trick detail page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
   });
 
   it('renders the #slug tag-identity chip on every card', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#ripwalk</span>');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#mobius</span>');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#montage</span>');
   });
 
   it('renders ADD label slot for every seeded trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>2 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>4 ADD<\/span>/);
@@ -213,7 +216,7 @@ describe('dictionary-trick-card — required slots', () => {
     // op-token role taxonomy itself is exercised on trick-detail pages
     // and on the first-class secondary row's JOB line, which both
     // continue to tokenize via the same renderer.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
     // chip is suppressed on browse cards.
     const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
@@ -398,7 +401,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // duplicated the JOB row below). toe-stall is a core atom + first-
     // class, so its op-notation now surfaces via the first-class
     // secondary row's labeled "JOB:" line instead.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
     const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
     expect(toeStallCard).not.toBeNull();
@@ -546,11 +549,12 @@ describe('other dictionary views — slice-by-slice migration', () => {
   });
 
   it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
-    // 2026-05-24: ?view=sets removed from this card-uniformity contract.
-    // The dedicated By Set view uses compact-list density rendering, not
-    // the dictionary-trick-card partial. The card-uniformity contract
-    // still holds for the older registry-density views.
-    for (const view of ['add', 'family', 'category', 'component']) {
+    // 2026-05-24: ?view=sets removed from this card-uniformity contract (it
+    // uses compact-list density, not the dictionary-trick-card partial).
+    // 2026-05-27: ?view=add removed too — the ADD view now renders its own
+    // two-line dict-add-row contract, not the shared dict-card-stack. The
+    // card-uniformity contract holds for the remaining shared-card views.
+    for (const view of ['family', 'category', 'component']) {
       const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);

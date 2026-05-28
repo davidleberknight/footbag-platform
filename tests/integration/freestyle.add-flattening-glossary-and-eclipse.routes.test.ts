@@ -137,7 +137,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
   });
 
   it('eclipse appears in the FIRST_CLASS_TIER_2 cohort (browse card renders JOB + ADD)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     // Locate the eclipse card
     const idx = res.text.indexOf('data-trick-slug="eclipse"');

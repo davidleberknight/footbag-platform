@@ -228,24 +228,22 @@ describe('Family View — Slice A3 chain entries surface as visible formulas', (
   });
 });
 
-describe('Cross-view identity — ADD View and Family View render identical first reading', () => {
-  // One representative pilot per family. The full identity contract
-  // (same canonical name + ADD chip + first-reading tokens across views)
-  // must hold for each.
+describe('ADD View and Family View — distinct contracts, shared first reading', () => {
+  // 2026-05-27: ADD view = two-line dict-add-row contract; Family view =
+  // shared dict-card. The two are no longer DOM-identical. What stays
+  // shared across both: data-trick-slug, the detail link target, the ADD
+  // value, and the first-reading ≡ tokens (rendered in the ADD-row
+  // interpretation slot and the dict-card equivalence row respectively).
+  // One representative non-first-class pilot per family.
   const IDENTITY_PILOTS = [
     'tripwalk',         // butterfly family, "stepping quantum butterfly" — 3-token reading
     'sidewalk',         // butterfly family, "stepping near butterfly" — uses SIDE_POSITIONAL token
     'tap',              // mirage family, "atomic near mirage" — uses SIDE_POSITIONAL token
     'sumo',             // mirage family, "nuclear mirage" — pure modifier+base
-    // paradox-torque removed 2026-05-22: promoted into FIRST_CLASS_TIER_2
-    // (Wave 2 RESOLVED_FORMULAS promotion). Its tautological "paradox
-    // torque" chain reading is now suppressed on first-class cards.
-    // The other 4 pilots still exercise the cross-view-identity contract
-    // across butterfly (2) and mirage (2) families.
   ];
 
   for (const slug of IDENTITY_PILOTS) {
-    it(`renders identical canonical identity for '${slug}' in ADD and Family views`, async () => {
+    it(`'${slug}' renders its own contract per view (shared slug, link, ADD value, ≡ tokens)`, async () => {
       const pilot = ALL_PILOTS.find(p => p.slug === slug)!;
       const app = createApp();
       const addView    = await request(app).get('/freestyle/tricks?view=add');
@@ -253,32 +251,32 @@ describe('Cross-view identity — ADD View and Family View render identical firs
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);
 
-      // Both views carry the data-trick-slug attribute on the card.
-      expect(addView.text).toContain(`data-trick-slug="${slug}"`);
-      expect(familyView.text).toContain(`data-trick-slug="${slug}"`);
-
       const addRegion = addView.text.match(
-        new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
+        new RegExp(`<article class="dict-add-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
       );
       const familyRegion = familyView.text.match(
         new RegExp(`data-trick-slug="${slug}"[\\s\\S]*?<\\/article>`),
       );
-      expect(addRegion, `ADD card region not found for ${slug}`).not.toBeNull();
+      expect(addRegion, `ADD add-row not found for ${slug}`).not.toBeNull();
       expect(familyRegion, `Family card region not found for ${slug}`).not.toBeNull();
 
-      // Canonical-name link present in both views.
-      const hrefPattern = new RegExp(
-        `<a class="dict-card-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`,
+      // Detail link reachable in both views, with each view's anchor class.
+      expect(addRegion![0]).toMatch(
+        new RegExp(`<a class="dict-add-row-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`),
       );
-      expect(addRegion![0]).toMatch(hrefPattern);
-      expect(familyRegion![0]).toMatch(hrefPattern);
+      expect(familyRegion![0]).toMatch(
+        new RegExp(`<a class="dict-card-title" href="/freestyle/tricks/${slug}">${pilot.name}<\\/a>`),
+      );
 
-      // ADD label present in both views.
-      const addsLabel = `${pilot.adds} ADD`;
-      expect(addRegion![0]).toContain(addsLabel);
-      expect(familyRegion![0]).toContain(addsLabel);
+      // ADD value reachable in both: Family via N-ADD chip; ADD via the
+      // ADD-grouped section header + the row's line-2 ADD slot (no green chip).
+      expect(familyRegion![0]).toContain(`${pilot.adds} ADD`);
+      expect(addView.text).toContain(`id="add-${pilot.adds}"`);
+      expect(addRegion![0]).toContain('class="dict-add-row-add"');
+      expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 
-      // First-reading tokens identical across views.
+      // First-reading ≡ tokens render in both views (ADD interpretation slot
+      // + dict-card equivalence row).
       for (const token of pilot.firstReadingTokens) {
         const tokenPattern = new RegExp(`sem-token[^>]*>${token}<`);
         expect(
