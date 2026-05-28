@@ -140,9 +140,18 @@ describe('resolveTrickKind() — content module discriminator', () => {
     expect(resolveTrickKind('spinning')).toBe('modifier');
     expect(resolveTrickKind('ducking')).toBe('modifier');
     expect(resolveTrickKind('symposium')).toBe('modifier');
-    // Category='body' override for `spin` (per user 2026-05-16: spin is a
-    // modifier, not a 1-ADD trick).
-    expect(resolveTrickKind('spin')).toBe('modifier');
+    // `spyro` (category='body' folk rotational descriptor) is modifier-only.
+    expect(resolveTrickKind('spyro')).toBe('modifier');
+  });
+
+  it('classifies the bare-name spinning kicks as kind=trick (kick-doctrine dual-role)', () => {
+    // #spin / #double-spin are historically-recognized bare-name kicks (kick
+    // implied) and are canonical first-class tricks, findable in the browse
+    // views. The spinning CONCEPT still acts as a modifier inside compounds
+    // via the separate `spinning` slug (asserted above) — dual-role, not a
+    // contradiction.
+    expect(resolveTrickKind('spin')).toBe('trick');
+    expect(resolveTrickKind('double-spin')).toBe('trick');
   });
 
   it('classifies set primitives as kind=operator', () => {

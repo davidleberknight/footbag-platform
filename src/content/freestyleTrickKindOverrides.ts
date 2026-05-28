@@ -54,12 +54,27 @@ export type FreestyleTrickKind =
   | 'surface'
   | 'pending-review';
 
-// All 11 slugs with category='modifier' in freestyle_tricks as of 2026-05-16,
-// plus one category='body' override that is really a modifier (spin).
+// Body / set modifiers: structural-role rows that transform a base trick.
+// barraging and stepping are curator-recognized set-cluster modifiers in the
+// operator board; the DB category column places them here, and the modifier
+// classification is preserved per the DB.
 //
-// Note: barraging and stepping are curator-recognized as set-cluster
-// modifiers in the operator board, but the DB category column places them
-// here. Modifier classification preserved per DB.
+// Kick-doctrine exception — dual-role vocabulary. The bare-name spinning
+// kicks `spin` (#spin) and `double-spin` (#double-spin) are deliberately NOT
+// in this set. They are canonical first-class tricks: historically-recognized
+// bare-name kicks whose kick terminator is implied, members of the kick
+// family alongside around-the-world-kick / dragonfly-kick / butterfly-kick.
+// So they resolve to kind='trick' and surface in the trick-browse views.
+// The spinning CONCEPT still acts as a modifier inside compounds, but through
+// the separate `spinning` slug below (spinning-whirl, double-spinning-mirage);
+// `spin`/`spinning` is a dual-role vocabulary pair, not a contradiction. This
+// is the narrow kick-doctrine exception, NOT a rule that every rotational term
+// becomes a standalone trick.
+//
+// `spyro` is the counter-case: a folk synonym for a spinning-class rotational
+// descriptor (DB row category='body' adds=1), not a standalone scoring
+// element. It stays modifier-only and out of the trick-browse views, and
+// survives as folk vocabulary in the glossary.
 const MODIFIER_SLUGS = new Set<string>([
   'barraging',
   'blazing',
@@ -72,23 +87,9 @@ const MODIFIER_SLUGS = new Set<string>([
   'symposium',
   'tapping',
   'terraging',
-  // category='body' overrides:
-  'spin',
-  // Formula Accountability Slice 2026-05-17: spyro is a folk synonym for
-  // a spinning-class body operator (see glossary §11 spyro→inspin mapping
-  // and the 2026-05-17 classification_drift_report). The DB row carries
-  // category='body' adds=1 but the trick is not a standalone scoring
-  // element — it's a rotational descriptor. Filtering it out of the
-  // public 1-ADD trick list. Preserved in glossary §11 as folk vocabulary.
+  // Modifier-only folk rotational descriptor (category='body'). NOT a kick:
+  // see the dual-role note above for why spin/double-spin are excluded here.
   'spyro',
-  // Emergency public-readiness slice 2026-05-19 (Notation Normalization
-  // Wave follow-on): double-spin is a body/operator concept, not a
-  // standalone trick — same status as `spin`. It is not a settled
-  // canonical trick row absent a bag-contact resolution. Curator ruling.
-  // Filters it off the canonical trick browse views (ADD / family /
-  // movement-system / topology / category). The DB row stays active for
-  // operator-layer surfaces (glossary / movement-system as a modifier).
-  'double-spin',
 ]);
 
 // All 9 slugs with category='set' in freestyle_tricks as of 2026-05-16.
