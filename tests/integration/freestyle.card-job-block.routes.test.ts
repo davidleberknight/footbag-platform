@@ -64,6 +64,10 @@ beforeAll(async () => {
     { slug: 'ducking-toe-stall', canonical_name: 'ducking toe stall', adds: '2', base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'compound', notation: 'DUCKING TOE STALL', operational_notation: 'TOE > DUCK [BOD] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'atomic-illusion', canonical_name: 'atomic illusion', adds: '3', base_trick: 'illusion', trick_family: 'illusion', category: 'compound', notation: 'ATOMIC ILLUSION', operational_notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning-paradox-mirage', canonical_name: 'spinning paradox mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', notation: 'SPINNING PARADOX MIRAGE', operational_notation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    // mobius is in freestyleSymbolicEquivalences.ts → gets a tokenizedEquivalence
+    // (≡) reading AND has operational notation. The normalization contract
+    // requires BOTH to render (not either/or).
+    { slug: 'mobius', canonical_name: 'mobius', adds: '5', base_trick: 'mobius', trick_family: 'torque', category: 'compound', notation: 'MOBIUS', operational_notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
@@ -136,6 +140,23 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expect(res.status).toBe(200);
     expectJobBlockRender(res.text, 'fairy-mirage');
     expectJobBlockRender(res.text, 'spinning-paradox-mirage');
+  });
+
+  it('a card with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
+    // mobius carries a tokenizedEquivalence (≡ gyro-torque chain) from the
+    // symbolic-equivalences content module AND has operational notation.
+    // The 2026-05-27 normalization removed the prior EITHER/OR: the
+    // interpretation subtitle (slot 3) and the JOB block (slot 5) are now
+    // independent slots — both must appear on the same card.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+    const idx = res.text.indexOf('data-trick-slug="mobius"');
+    expect(idx).toBeGreaterThan(-1);
+    const window = res.text.substring(idx, idx + 4000);
+    // Slot 3: the ≡ interpretation subtitle.
+    expect(window).toMatch(/class="core-trick-equivalence dict-card-equivalence/);
+    // Slot 5: the labeled JOB block — present even though the ≡ reading exists.
+    expect(window).toMatch(/class="dict-card-notation-block/);
+    expect(window).toMatch(/class="dict-card-notation-label">JOB</);
   });
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear', async () => {

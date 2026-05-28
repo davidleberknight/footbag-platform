@@ -1,27 +1,44 @@
 {{!--
   dictionary-trick-card.hbs — the canonical symbolic trick card.
 
-  One renderer; progressive density (sparse plus deep through the same
-  template). In browse density, operational notation is the visual center
-  of gravity; in registry density, the notation-first hierarchy takes over.
+  CANONICAL CARD RENDERING CONTRACT (2026-05-27 normalization pass).
+  Every card — first-class or not, in every browse view — renders the
+  SAME slot order; empty slots are hidden. No slot is mutually
+  exclusive with another. This replaced the prior 2-tier
+  EITHER/OR (≡ reading XOR operational notation) which produced three
+  incompatible visual modes (proper cards / raw op dumps / folk-name
+  subtitle cards).
+
+  Slot order (top → bottom, both densities):
+    1. canonical title (linked anchor; plain span when external-only)
+    2. hashtag (#slug identity)
+    3. interpretation subtitle — `≡ <reading>` from tokenizedEquivalences
+       (chain registry + alias governance). OPTIONAL. The human-readable
+       decomposition / folk-name equivalence. Does NOT suppress the JOB
+       block.
+    4. JOB block — operational notation, ALWAYS rendered inside the
+       labeled `.dict-card-notation-block` (leading "JOB" pill). This is
+       the ONLY place raw operational notation may appear; it never
+       floats as loose body text. Suppressed (null) for first-class
+       cards, whose JOB/ADD render in the first-class-row partial below.
+    5. ADD chip — labeled `N ADD` (`? ADD` when unrated).
+    6. pending-decomposition pill / media chip / status badge (metadata).
+    7. first-class-row (isFirstClass only) — the labeled `JOB:` / `ADD:`
+       breakdown rows; honest "JOB: notation pending" when upstream
+       op-notation is genuinely absent.
+    8. coreAtomLabel — neutral "core atom — <desc>" fallback line for
+       the 12 core atoms when no chain reading / op-notation applies, so
+       foundational atoms don't render emptier than their compounds.
+
+  HARD RULE: operational notation appears ONLY inside the JOB block
+  (`.dict-card-notation-block` / first-class-row). Never as loose text.
 
   Two density modes controlled by the partial parameter:
       {{> dictionary-trick-card density="registry"}}  — inline single-line
       {{> dictionary-trick-card density="browse"}}    — vertical stack (default)
 
-  Notation rendering follows a 2-tier suppression hierarchy in both
-  densities:
-    Tier 1: tokenizedEquivalences (chain registry + alias governance) —
-            renders `≡ <reading>` lines with role-classified tokens.
-    Tier 2: operationalNotation (parser-derived) — muted styling
-            fallback when no chain reading exists.
-  When neither is present, the notation row is silent; the card shows
-  title + ADD chip only. The pendingDecomposition pill (rendered
-  separately below the notation row) explicitly flags rows whose
-  decomposition is curator-paced.
-
   Consumes: DictionaryTrickCard view-model from freestyleService.
-  Used by: tricks.hbs across the five browse views.
+  Used by: tricks.hbs across the browse views.
 --}}
 
 {{#if (eq density "registry")}}
@@ -40,12 +57,15 @@
     {{/if}}
     <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
 
+    {{! Slot 3 — interpretation subtitle (optional). Does NOT suppress the JOB block. }}
     {{#if tokenizedEquivalences.length}}
       <span class="core-trick-equivalence dict-card-equivalence dict-card-equivalence--inline">
         <span class="core-trick-equiv-sigil">&equiv;</span>
         {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </span>
-    {{else if operationalNotation}}
+    {{/if}}
+    {{! Slot 5 — JOB block (operational notation). Independent of slot 3. }}
+    {{#if operationalNotation}}
       <span class="dict-card-notation-block dict-card-notation-block--inline" aria-label="Set notation"><span class="dict-card-notation-label">JOB</span><code class="dict-card-notation dict-card-notation--inline">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code></span>
     {{/if}}
 
@@ -84,6 +104,7 @@
     {{/if}}
     <span class="dict-card-hashtag" aria-label="Tag identity">{{hashtag}}</span>
 
+    {{! Slot 3 — interpretation subtitle(s) (optional). Does NOT suppress the JOB block. }}
     {{#if tokenizedEquivalences.length}}
       {{#each tokenizedEquivalences}}
       <p class="core-trick-equivalence dict-card-equivalence">
@@ -91,7 +112,9 @@
         {{#each this}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </p>
       {{/each}}
-    {{else if operationalNotation}}
+    {{/if}}
+    {{! Slot 5 — JOB block (operational notation). Independent of slot 3. }}
+    {{#if operationalNotation}}
       <div class="dict-card-notation-block" aria-label="Set notation">
         <span class="dict-card-notation-label">JOB</span>
         <code class="dict-card-notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
