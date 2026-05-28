@@ -9,7 +9,7 @@
  *   - Each axis carries the curator-authored definition prose
  *   - Modifier groups render under their axis with anchor 'movement-{slug}'
  *   - Group bodyDefinition prose renders when COMPONENT_DEFINITIONS supplies one
- *   - Cards render via the canonical dictionary-trick-card partial (registry density)
+ *   - Rows render via the generalized two-line dictionary-trick-row partial
  *   - Cards within a group sort ADD ascending then by name
  *   - Empty axes are absent from the rendered DOM
  *   - Other view branches don't bleed in (no Component / Topology section headings)
@@ -167,9 +167,31 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks?view=movement-system — cards', () => {
-  it('renders dictionary-trick-cards in registry density', async () => {
+  it('renders the two-line dict-trick-row stack (2026-05-27 migration)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toContain('dict-card-stack--registry');
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).not.toContain('dict-card-stack');
+  });
+
+  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
+    const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="pixie-illusion"[\s\S]*?<\/article>/);
+    expect(m).not.toBeNull();
+    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
+    // JOB resolves from the row's operational notation.
+    expect(m![0]).toMatch(/class="dict-trick-row-job-value">/);
+  });
+
+  it('the modifier-composition gloss row coexists with the two-line rows in a group', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    const groupStart = res.text.indexOf('id="movement-pixie"');
+    expect(groupStart).toBeGreaterThan(-1);
+    const groupEnd = res.text.indexOf('<section', groupStart + 1);
+    const slice = groupEnd > -1 ? res.text.substring(groupStart, groupEnd) : res.text.substring(groupStart);
+    expect(slice).toContain('movement-group-composition-gloss');
+    expect(slice).toContain('dict-trick-row-stack');
   });
 
   it('renders pixie-illusion (ADD 3) before dimwalk (ADD 4) inside the pixie group', async () => {

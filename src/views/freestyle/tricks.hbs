@@ -426,7 +426,7 @@
     </div>
     <p class="movement-axis-definition">{{axisDefinition}}</p>
     {{#each groups}}
-    <section class="trick-movement-group trick-group--registry" id="{{anchorId}}" data-anchor-style="solid">
+    <section class="trick-movement-group trick-group--trick-rows" id="{{anchorId}}" data-anchor-style="solid">
       <div class="movement-group-heading">
         <h3><a href="/freestyle/tricks?view=movement-system#{{anchorId}}">{{modifierName}}</a></h3>
         <span class="section-count">{{memberCount}}</span>
@@ -437,9 +437,9 @@
       {{#if compositionGloss}}
       <p class="movement-group-composition-gloss"><em>{{compositionGloss}}</em></p>
       {{/if}}
-      <div class="dict-card-stack dict-card-stack--registry">
+      <div class="dict-trick-row-stack">
         {{#each cards}}
-          {{> dictionary-trick-card density="registry"}}
+          {{> dictionary-trick-row}}
         {{/each}}
       </div>
     </section>

@@ -142,11 +142,12 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expectTwoLineJob(res.text, 'ducking-toe-stall');
   });
 
-  it('By movement system: cards with operational notation render the JOB-block label', async () => {
+  it('By movement system (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
+    // Movement System migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'fairy-mirage');
-    expectJobBlockRender(res.text, 'quantum-mirage');
+    expectTwoLineJob(res.text, 'fairy-mirage');
+    expectTwoLineJob(res.text, 'quantum-mirage');
   });
 
   it('By set: cards with operational notation render the JOB-block label', async () => {
@@ -173,11 +174,11 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear on shared-card views', async () => {
-    // The shared-card JOB-block-wrapper invariant applies to the not-yet-
-    // migrated shared-card views (movement-system / sets / category /
-    // component). Migrated views (ADD / Family / Dex) use dict-trick-row-job-
-    // value — see freestyle.add-view-rows / family-view-rows for that contract.
-    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
+    // The shared-card JOB-block-wrapper invariant applies to the still-shared
+    // views. Asserted on category (a stable shared-card view, not in the
+    // active two-line migration sequence). Migrated views (ADD / Family / Dex /
+    // Movement System) use dict-trick-row-job-value — see the *-view-rows tests.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=category');
     const re = /<code class="dict-card-notation/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(res.text)) !== null) {
