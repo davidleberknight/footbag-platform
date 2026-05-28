@@ -5923,16 +5923,36 @@ export const freestyleService = {
             };
           })(),
           descriptionIsPlaceholder: (() => {
-            // Placeholder-description suppressor (Phase A, 2026-05-25).
-            // Match "X-modified Y." / "X-and-Y modified Z." /
-            // "Popular freestyle trick." patterns. DB row is NEVER
-            // mutated; template suppresses render only.
+            // Placeholder-description suppressor.
+            //
+            // Phase A (2026-05-25): catches "X-modified Y." /
+            // "X-and-Y modified Z." / "Popular freestyle trick." patterns.
+            //
+            // Phase A1 (2026-05-27 audit follow-on): also catches
+            // formula-embedded descriptions backfilled during the
+            // W1-W9 promotion waves. Those rows carry the JOB chain
+            // inline (e.g. "Stepping modifier on barfly base. 5 ADD =
+            // stepping(+1) + barfly(4); JOB CLIP > OP IN [DEX] >> ...
+            // Stepping leading-[DEX] chassis prefixed to barfly's
+            // no-plant out-dex chain."). The JOB chain belongs in
+            // notation/operational_notation — not in description prose
+            // — so the page renders the structured-decomposition pill
+            // instead. DB row is NEVER mutated; template suppresses
+            // render only.
+            //
+            // Detection heuristic: any description containing `; JOB `
+            // OR a bracket token (`[DEX]`, `[BOD]`, `[PDX]`, `[XBD]`,
+            // `[DEL]`, `[UNS]`, `[XDEX]`) is a formula-embedded
+            // backfill, not pedagogical prose. ~128 rows post-W9.
             const desc = dictRow?.description ?? null;
             if (!desc) return false;
             const trimmed = desc.trim();
-            return /^[A-Z][a-zA-Z-]+(?:-modified|-and-[a-zA-Z-]+ modified) [a-zA-Z][a-zA-Z -]*\.?$/.test(trimmed)
-                || /^Popular freestyle trick\.?$/i.test(trimmed)
-                || /^Common freestyle trick\.?$/i.test(trimmed);
+            if (/^[A-Z][a-zA-Z-]+(?:-modified|-and-[a-zA-Z-]+ modified) [a-zA-Z][a-zA-Z -]*\.?$/.test(trimmed)) return true;
+            if (/^Popular freestyle trick\.?$/i.test(trimmed)) return true;
+            if (/^Common freestyle trick\.?$/i.test(trimmed)) return true;
+            if (/; JOB /.test(trimmed)) return true;
+            if (/\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/.test(trimmed)) return true;
+            return false;
           })(),
           familyAnchorContext: (() => {
             // Dictionary Pedagogy Phase 3 (2026-05-21). When the
