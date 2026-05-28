@@ -187,3 +187,65 @@ describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', (
     expect(html).toMatch(/<strong>promoted<\/strong>/);
   });
 });
+
+describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () => {
+  it('names the interpretation doctrine and states the descriptive-not-productive core', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>interpretation doctrine<\/strong>/);
+    expect(html).toMatch(/<em>descriptive, never a recipe<\/em>/);
+  });
+
+  it('states historical derivation is not a productive modifier, with eggbeater as the flagship', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/a historical derivation is[\s\S]*?not a productive modifier/);
+    // The boundary: you cannot "apply" a historical reading.
+    expect(html).toMatch(/eggbeater-ing/);
+  });
+
+  it('uses drifter as the compositional-descent reading example', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>compositional descent<\/strong>/);
+    expect(html).toMatch(/&equiv; miraging clipper/);
+  });
+
+  it('enumerates the reading provenances (editorial / historical / compositional / parser / policy)', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>editorial equivalence<\/strong>/);
+    expect(html).toMatch(/<strong>historical derivation<\/strong>/);
+    expect(html).toMatch(/<strong>structural parse<\/strong>/);
+    expect(html).toMatch(/<strong>policy-dependent<\/strong>/);
+  });
+
+  it('preserves the existing four-relationship taxonomy + its legacy anchors', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="vocabulary-relationships"');
+    expect(html).toContain('id="compression-vs-alternate-derivation"');
+    expect(html).toContain('id="symbolic-compression-flow"');
+    // The four relationship types still render beneath the doctrine framing.
+    expect(html).toContain('1. Pure aliases');
+    expect(html).toContain('4. Ontology relationships');
+  });
+});
+
+describe('Glossary framing — Phase D2 step 4 (modifier ecosystem doctrine)', () => {
+  it('renders the lineage-vs-ecosystem test with the "can you do it on its own?" tell', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="lineage-or-ecosystem"');
+    expect(html).toMatch(/<em>can you do it on its own\?<\/em>/);
+  });
+
+  it('renders the lineage-vs-ecosystem contrast table', async () => {
+    const html = await glossary();
+    expect(html).toContain('Productive lineage');
+    expect(html).toContain('Modifier ecosystem');
+    expect(html).toContain('Own terminal mechanic');
+    expect(html).toContain('broadcast across many unrelated bases');
+  });
+
+  it('names symposium and paradox as ecosystem hard cases with a transitional caveat', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>Hard cases: symposium and paradox\.<\/strong>/);
+    // Not over-hardened: the classification is flagged curator-confirmable.
+    expect(html).toMatch(/curator-confirmable/);
+  });
+});
