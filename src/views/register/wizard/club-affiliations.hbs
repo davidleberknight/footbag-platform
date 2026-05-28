@@ -29,7 +29,7 @@
       {{/if}}
 
       {{#if (eq content.card.kind 'membership')}}
-        <h2>Were you a member of {{content.card.clubName}}?</h2>
+        <h2>About {{content.card.clubName}}</h2>
         <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
         {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
         {{#if content.card.clubExternalUrl}}
@@ -39,7 +39,7 @@
       {{/if}}
 
       {{#if (eq content.card.kind 'leadership')}}
-        <h2>Were you a contact for {{content.card.clubName}}?</h2>
+        <h2>About {{content.card.clubName}}</h2>
         <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
         {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
         {{#if content.card.clubExternalUrl}}
@@ -95,19 +95,28 @@
         <input type="hidden" name="kind"        value="{{content.card.kind}}" />
         <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
 
-        <fieldset class="activity-signal-fieldset mt-4 mb-4">
-          <legend class="fs-sm fw-600">Is this club still active?</legend>
-          <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
-          <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
+        <fieldset class="activity-signal-fieldset mt-4 mb-6">
+          <legend class="fs-sm fw-600">
+            {{#if (eq content.card.kind 'membership')}}Were you a member of {{content.card.clubName}}?{{else}}Were you a contact for {{content.card.clubName}}?{{/if}}
+          </legend>
+          <label class="radio-label"><input type="radio" name="userDecision" value="confirm" required /> Yes</label>
+          <label class="radio-label"><input type="radio" name="userDecision" value="decline" required /> No</label>
         </fieldset>
 
-        <button type="submit" name="userDecision" value="confirm" class="btn btn-primary">Yes</button>
-        <button type="submit" name="userDecision" value="decline" class="btn btn-secondary">No</button>
+        <fieldset class="activity-signal-fieldset mt-4 mb-6">
+          <legend class="fs-sm fw-600">Is {{content.card.clubName}} still active?</legend>
+          <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="active" required /> Still active</label>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" required /> Not active anymore</label>
+          <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" required /> Not sure</label>
+        </fieldset>
+
+        <p class="audit-notice text-muted fs-sm mb-4">Both answers required. Your answers will be saved.</p>
+
+        <button type="submit" class="btn btn-primary">Save answers</button>
       </form>
 
-      <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
+      <p class="text-muted fs-sm mt-4">Not the right club? <a href="{{content.clubsBrowseHref}}">Browse all clubs</a> to find yours; you can come back to finish onboarding from your dashboard.</p>
 
       <form method="POST" action="{{content.skipHref}}" class="mt-6">
         <button type="submit" class="btn-link text-muted">Skip remaining clubs for now</button>
@@ -163,9 +172,9 @@
           <p>No additional clubs found in your area.</p>
         {{/if}}
       {{else}}
-        <h2>What's next</h2>
-        <p>Didn't find your club?</p>
-        <p class="mt-4"><a href="{{content.clubsBrowseHref}}" class="btn btn-secondary">Browse clubs{{#if content.memberCountry}} in {{content.memberCountry}}{{/if}}</a></p>
+        <h2>Find your club</h2>
+        <p>We didn't link a club to your account yet. You can browse the clubs map to find your local club, or create a new one if yours isn't listed.</p>
+        <p class="mt-4"><a href="/clubs" class="btn btn-secondary">Clubs map</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-secondary">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
         {{#if content.canCreateClub}}
           <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
         {{else}}

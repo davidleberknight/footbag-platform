@@ -26,11 +26,12 @@ test('membership card: renders club name, confirm/decline buttons', async ({ bro
 
   await wizard.goto('club_affiliations');
   await expect(wizard.clubCardHeading).toBeVisible();
-  const heading = await wizard.clubCardHeading.textContent();
-  expect(heading).toMatch(/Were you a member of/i);
+  const question = await wizard.clubMembershipQuestion.textContent();
+  expect(question).toMatch(/Were you a member of/i);
 
-  await expect(wizard.clubYesButton).toBeVisible();
-  await expect(wizard.clubNoButton).toBeVisible();
+  await expect(wizard.clubYesRadio).toBeVisible();
+  await expect(wizard.clubNoRadio).toBeVisible();
+  await expect(wizard.clubSaveAnswersButton).toBeVisible();
   await expect(wizard.skipRemainingClubsButton).toBeVisible();
 
   await ctx.close();
@@ -47,7 +48,8 @@ test('confirm membership card: resolves and advances', async ({ browser, baseURL
 
   await wizard.goto('club_affiliations');
   await page.locator('input[name="activitySignal"][value="active"]').check();
-  await wizard.clubYesButton.click();
+  await wizard.clubYesRadio.check();
+  await wizard.clubSaveAnswersButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
   expect(page.url()).not.toContain('club_affiliations');
@@ -71,7 +73,8 @@ test('decline membership card: resolves and advances', async ({ browser, baseURL
 
   await wizard.goto('club_affiliations');
   await page.locator('input[name="activitySignal"][value="not_active"]').check();
-  await wizard.clubNoButton.click();
+  await wizard.clubNoRadio.check();
+  await wizard.clubSaveAnswersButton.click();
   await page.waitForURL(/\/register\/wizard\//);
 
   const db2 = openLiveDb();
@@ -91,10 +94,10 @@ test('leadership card: renders role and signal checklist', async ({ browser, bas
   const wizard = new WizardPage(page);
 
   await wizard.goto('club_affiliations');
-  const heading = await wizard.clubCardHeading.textContent();
-  expect(heading).toMatch(/Were you a contact for/i);
+  const question = await wizard.clubMembershipQuestion.textContent();
+  expect(question).toMatch(/Were you a contact for/i);
   await expect(wizard.signalChecklist).toBeVisible();
-  await expect(wizard.clubYesButton).toBeVisible();
+  await expect(wizard.clubYesRadio).toBeVisible();
 
   await ctx.close();
 });
@@ -159,14 +162,15 @@ test('multi-card flow: resolve first, see second with updated progress', async (
   expect(progressBefore).toMatch(/2 clubs to review/i);
 
   await page.locator('input[name="activitySignal"][value="active"]').check();
-  await wizard.clubYesButton.click();
+  await wizard.clubYesRadio.check();
+  await wizard.clubSaveAnswersButton.click();
   await page.waitForURL(/\/register\/wizard\/club_affiliations/);
 
   await expect(wizard.successBanner).toBeVisible();
 
   await expect(wizard.clubCardHeading).toBeVisible();
-  const heading2 = await wizard.clubCardHeading.textContent();
-  expect(heading2).toMatch(/Were you a member of|Were you a contact for/i);
+  const question2 = await wizard.clubMembershipQuestion.textContent();
+  expect(question2).toMatch(/Were you a member of|Were you a contact for/i);
 
   await ctx.close();
 });

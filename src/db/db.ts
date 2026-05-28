@@ -6771,16 +6771,66 @@ export const payments = {
     SET status = ?, updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
+
+  get updateStripeIdentifiers() { return db.prepare(`
+    UPDATE payments
+    SET stripe_checkout_session_id = ?,
+        stripe_payment_intent_id   = ?,
+        last_stripe_event_created  = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  get findById() { return db.prepare(`SELECT * FROM payments WHERE id = ?`); },
+
+  get findBySessionId() { return db.prepare(`
+    SELECT * FROM payments WHERE stripe_checkout_session_id = ?
+  `); },
+
+  get findByPaymentIntentId() { return db.prepare(`
+    SELECT * FROM payments WHERE stripe_payment_intent_id = ?
+  `); },
+
+  get listByMember() { return db.prepare(`
+    SELECT id, created_at, payment_type, amount_cents, currency,
+           status, descriptor, purchased_tier_status
+    FROM payments
+    WHERE member_id = ?
+    ORDER BY created_at DESC
+  `); },
 };
 
 export const paymentStatusTransitions = {
   get insertTransition() { return db.prepare(`
     INSERT INTO payment_status_transitions (
       id, created_at, created_by,
-      payment_id, event_type,
+      payment_id, stripe_event_id, event_type,
       from_status, to_status,
       transition_at, transition_reason_text
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+};
+
+export const stripeEvents = {
+  // Idempotency primitive: PRIMARY KEY (event_id) makes INSERT OR IGNORE a
+  // no-op on redelivery. Service code MUST insert first and short-circuit on
+  // changes=0 to satisfy DD §6.1 webhook idempotency.
+  get insertEventOrIgnore() { return db.prepare(`
+    INSERT OR IGNORE INTO stripe_events
+      (event_id, created_at, event_type, stripe_created, processed_at, processing_status, attempts)
+    VALUES (?, ?, ?, ?, ?, 'processed', 1)
+  `); },
+
+  get markFailed() { return db.prepare(`
+    UPDATE stripe_events
+    SET processing_status = 'failed',
+        attempts          = attempts + 1,
+        last_error        = ?
+    WHERE event_id = ?
+  `); },
+
+  get findByEventId() { return db.prepare(`
+    SELECT * FROM stripe_events WHERE event_id = ?
   `); },
 };
 

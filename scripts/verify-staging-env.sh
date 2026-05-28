@@ -410,6 +410,7 @@ check_set "AWS_REGION" "AWS region"
 check_set "SAFE_BROWSING_ADAPTER" "safe-browsing adapter"
 check_set "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
 check_set "HTTP_REACHABILITY_ADAPTER" "HTTP reachability adapter"
+check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging until Stripe-SDK ships, 'live' on production)"
 
 # Internal-event secret. Must not be the dev default literal (the literal
 # lives in src/config/env.ts:516; do not put it in this script). Check by
@@ -486,7 +487,6 @@ done
 STAGING_ALLOWED_VARS=(
   FOOTBAG_DEV_INITIAL_ADMIN_EMAILS
   FOOTBAG_DEV_ADMIN_SEED_JSON
-  FOOTBAG_DEV_PAYMENT_STUB
 )
 for KEY in "${STAGING_ALLOWED_VARS[@]}"; do
   ACTUAL="${HOST_ENV[$KEY]:-}"

@@ -93,6 +93,7 @@ services:
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
       FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
       # Local-default is fine here because the parity stack runs on a private
@@ -182,6 +183,7 @@ services:
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.

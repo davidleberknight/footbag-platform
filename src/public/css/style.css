@@ -512,6 +512,7 @@ th.sortable:hover { color: var(--primary); }
 }
 .card .btn { margin-top: auto; align-self: flex-start; }
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.card-static:hover { transform: none; box-shadow: var(--shadow-sm); }
 
 .card-title { margin-bottom: 6px; font-weight: 600; font-size: 1.05rem; }
 .card-title a { color: var(--text); font-weight: 600; font-size: 1.05rem; }

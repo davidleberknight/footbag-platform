@@ -1,4 +1,6 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
+import { paymentController } from '../controllers/paymentController';
+import { config } from '../config/env';
 import { homeController } from '../controllers/homeController';
 import { clubController } from '../controllers/clubController';
 import { mediaController } from '../controllers/mediaController';
@@ -137,6 +139,7 @@ publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberControl
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
 publicRouter.post('/members/:memberKey/purchase-tier', requireAuth, memberController.postPurchaseTier);
+publicRouter.get('/members/:memberKey/payments',       requireAuth, paymentController.getPaymentHistory);
 publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
 
@@ -219,3 +222,29 @@ publicRouter.get('/password/reset/:token',  authController.getPasswordReset);
 publicRouter.post('/password/reset/:token', authController.postPasswordReset);
 publicRouter.get('/logout',                 authController.getLogout);
 publicRouter.post('/logout',                authController.postLogout);
+
+// ── Payments (Stripe-flow workflow per DD §6.1) ────────────────────────────
+//
+// The webhook receiver MUST be mounted with express.raw() so Stripe's
+// signature verification has access to the original byte sequence; the
+// global express.json/urlencoded parsers in app.ts skip routes whose
+// Content-Type does not match, but real Stripe webhook deliveries arrive
+// as application/json and would otherwise be consumed by express.json
+// before the controller can verify the signature.
+publicRouter.post(
+  '/payments/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  paymentController.postPaymentWebhook,
+);
+publicRouter.get('/payments/success', requireAuth, paymentController.getPaymentSuccess);
+publicRouter.get('/payments/cancel',  requireAuth, paymentController.getPaymentCancel);
+
+// Stub-mode checkout pass-through: registered only when PAYMENT_ADAPTER=stub.
+// In live mode, members are redirected to checkout.stripe.com instead and
+// these routes never fire. Keeping the registration conditional avoids
+// exposing a stub-only surface in production.
+if (config.paymentAdapter === 'stub') {
+  publicRouter.get('/payments/checkout/:sessionId',         requireAuth, paymentController.getCheckout);
+  publicRouter.post('/payments/checkout/:sessionId/confirm', requireAuth, paymentController.postCheckoutConfirm);
+  publicRouter.post('/payments/checkout/:sessionId/cancel',  requireAuth, paymentController.postCheckoutCancel);
+}

@@ -183,7 +183,7 @@
           </ul>
         {{/if}}
 
-        <form method="POST" action="/members/{{content.memberKey}}/anchors/add" class="mb-4">
+        <form method="POST" action="/members/{{content.memberKey}}/anchors/add" class="card card-static mb-4">
           <div class="form-field">
             <label for="oldEmail">Old email address</label>
             <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" />
@@ -193,12 +193,12 @@
           <button type="submit" class="btn btn-secondary">Add old email</button>
         </form>
 
-        <form method="POST" action="/members/{{content.memberKey}}/anchors/add">
+        <form method="POST" action="/members/{{content.memberKey}}/anchors/add" class="card card-static">
           <div class="form-field">
             <label for="formerSurname">Former surname</label>
             <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" />
             <input type="hidden" name="anchorType" value="former_surname" />
-            <small class="form-hint">If you have legally changed your name since your footbag.org account was created.</small>
+            <small class="form-hint">If you used a different surname on footbag.org, enter it here.</small>
           </div>
           <button type="submit" class="btn btn-secondary">Add former name</button>
         </form>

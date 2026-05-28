@@ -105,7 +105,7 @@
       </ul>
     {{/if}}
 
-    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="mb-4">
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-4">
       <div class="form-field">
         <label for="oldEmail">Email address used on the old footbag.org site</label>
         <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" />
@@ -115,23 +115,15 @@
       <button type="submit" class="btn btn-secondary">Add old email</button>
     </form>
 
-    <div class="mb-6" data-name-change-section>
-      <label class="form-checkbox">
-        <input type="checkbox" data-name-change-toggle />
-        I have legally changed my name since my footbag.org account was created
-      </label>
-      <div class="mt-2" data-name-change-fields>
-        <form method="POST" action="/register/wizard/legacy_claim/anchors/add">
-          <div class="form-field">
-            <label for="formerSurname">Surname used on the old site</label>
-            <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" />
-            <input type="hidden" name="anchorType" value="former_surname" />
-            <small class="form-hint">We will search for records under this name.</small>
-          </div>
-          <button type="submit" class="btn btn-secondary">Add former name</button>
-        </form>
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-6">
+      <div class="form-field">
+        <label for="formerSurname">Surname used on the old site</label>
+        <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" />
+        <input type="hidden" name="anchorType" value="former_surname" />
+        <small class="form-hint">If you used a different surname on footbag.org, enter it here to help us find your account.</small>
       </div>
-    </div>
+      <button type="submit" class="btn btn-secondary">Add former name</button>
+    </form>
 
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
       <button type="submit" class="btn-link text-muted">Skip for now</button>
@@ -144,4 +136,3 @@
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>
-<script src="/js/name-change-toggle.js" defer></script>

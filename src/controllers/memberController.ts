@@ -9,8 +9,7 @@ import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
 import { readIntConfig } from '../services/configReader';
-import { applyDevPaymentStub } from '../services/membershipTieringService';
-import { config } from '../config/env';
+import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
@@ -455,32 +454,28 @@ export const memberController = {
     }
   },
 
-  postPurchaseTier(req: Request, res: Response, next: NextFunction): void {
+  async postPurchaseTier(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnProfile(req)) { renderNotFound(res); return; }
-    if (!config.devPaymentStub) {
-      res.status(403).render('errors/not-found', {
-        seo:  { title: 'Page Not Found' },
-        page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-      });
-      return;
-    }
-    const tier = String(req.body.tier ?? '');
-    if (tier !== 'tier1' && tier !== 'tier2') {
-      res.status(422).render('errors/not-found', {
-        seo:  { title: 'Page Not Found' },
-        page: { sectionKey: '', pageKey: 'error_422', title: 'Invalid Request' },
-      });
-      return;
-    }
+    const tier = String(req.body.tier ?? req.query.tier ?? '');
+    const returnTo =
+      typeof req.body.returnTo === 'string' ? req.body.returnTo
+      : typeof req.query.returnTo === 'string' ? req.query.returnTo
+      : `/members/${req.params.memberKey}`;
     try {
-      applyDevPaymentStub(req.user!.userId, tier);
-      writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED,
-        tier === 'tier1'
-          ? 'Tier 1 IFPA Member activated (dev stub).'
-          : 'Tier 2 IFPA Organizer Member activated (dev stub).',
+      const result = await paymentService.startMembershipPurchase(
+        req.user!.userId,
+        tier,
+        returnTo,
       );
-      res.redirect(303, `/members/${req.params.memberKey}`);
+      res.redirect(303, result.redirectUrl);
     } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('errors/not-found', {
+          seo:  { title: 'Invalid request' },
+          page: { sectionKey: '', pageKey: 'error_422', title: err.message },
+        });
+        return;
+      }
       next(err);
     }
   },

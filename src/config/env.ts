@@ -141,13 +141,12 @@ export interface AppConfig {
   //   undefined. Boot-time guard refuses non-development start.
   // Target: remove after production cutover makes dev autologin unnecessary.
   devAutologinMemberId: string | undefined;
-  // CUTOVER-REMOVE: dev-only payment stub.
-  // Current: when true, the platform exposes a dev-only route that simulates
-  //   a successful Stripe Checkout by creating a payments row with
-  //   status='succeeded' and calling applyPurchaseGrant in one transaction.
-  //   Boot-time guard refuses non-development start.
-  // Target: remove when Stripe integration is wired.
-  devPaymentStub: boolean;
+  // PaymentAdapter selector. 'live' wraps the Stripe SDK (currently a
+  // placeholder; the live factory throws until the Stripe-SDK slice ships);
+  // 'stub' is a programmable in-memory simulation that exercises the same
+  // Stripe-shaped webhook plumbing end-to-end. Required to be explicit in
+  // production; production rejects 'stub'.
+  paymentAdapter: 'live' | 'stub';
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
   // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
@@ -354,34 +353,6 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: dev/staging-only payment stub.
-  // Current: when true, the platform exposes a route that simulates a
-  //   successful Stripe Checkout. Allowed in development and staging;
-  //   production boot refuses.
-  // Target: remove when Stripe integration is wired.
-  const rawDevPaymentStub = process.env.FOOTBAG_DEV_PAYMENT_STUB;
-  let devPaymentStub: boolean;
-  if (rawDevPaymentStub === undefined || rawDevPaymentStub === '') {
-    devPaymentStub = false;
-  } else if (rawDevPaymentStub === '1' || rawDevPaymentStub === 'true') {
-    devPaymentStub = true;
-  } else if (rawDevPaymentStub === '0' || rawDevPaymentStub === 'false') {
-    devPaymentStub = false;
-  } else {
-    throw new Error(
-      `FOOTBAG_DEV_PAYMENT_STUB must be '1', '0', 'true', or 'false', got: ${rawDevPaymentStub}`,
-    );
-  }
-  if (
-    devPaymentStub &&
-    footbagEnv !== 'development' &&
-    footbagEnv !== 'staging'
-  ) {
-    throw new Error(
-      `FOOTBAG_DEV_PAYMENT_STUB is dev/staging-only; set FOOTBAG_ENV to development or staging, or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
-    );
-  }
-
   // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_INITIAL_ADMIN_EMAILS.
   // Current: dev/staging-only admin-allowlist shortcut. Any production process
   //   seeing this var is mis-configured and must refuse to start. The deploy
@@ -509,6 +480,25 @@ function loadConfig(): AppConfig {
   ) {
     throw new Error(
       'AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3',
+    );
+  }
+
+  const rawPaymentAdapter = process.env.PAYMENT_ADAPTER;
+  let paymentAdapter: 'live' | 'stub';
+  if (rawPaymentAdapter === 'live' || rawPaymentAdapter === 'stub') {
+    paymentAdapter = rawPaymentAdapter;
+  } else if (rawPaymentAdapter) {
+    throw new Error(
+      `PAYMENT_ADAPTER must be 'live' or 'stub', got: ${rawPaymentAdapter}`,
+    );
+  } else if (isProd) {
+    throw new Error('PAYMENT_ADAPTER must be set explicitly in production (no default)');
+  } else {
+    paymentAdapter = 'stub';
+  }
+  if (paymentAdapter === 'stub' && isProd) {
+    throw new Error(
+      "PAYMENT_ADAPTER='stub' is forbidden in production; use PAYMENT_ADAPTER=live (currently fails fast until the Stripe-SDK slice ships)",
     );
   }
 
@@ -675,7 +665,7 @@ function loadConfig(): AppConfig {
     trustProxy,
     devAdminSkipClaimEmail,
     devAdminGrantTier2,
-    devPaymentStub,
+    paymentAdapter,
     devAutologinMemberId,
     testMemoryPercent,
   };

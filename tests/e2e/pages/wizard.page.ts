@@ -68,12 +68,20 @@ export class WizardPage {
     return this.page.locator('h2').first();
   }
 
-  get clubYesButton() {
-    return this.page.locator('.wizard-card-actions button[value="confirm"]');
+  get clubMembershipQuestion() {
+    return this.page.locator('.wizard-card-actions fieldset:first-of-type legend');
   }
 
-  get clubNoButton() {
-    return this.page.locator('.wizard-card-actions button[value="decline"]');
+  get clubYesRadio() {
+    return this.page.locator('.wizard-card-actions input[name="userDecision"][value="confirm"]');
+  }
+
+  get clubNoRadio() {
+    return this.page.locator('.wizard-card-actions input[name="userDecision"][value="decline"]');
+  }
+
+  get clubSaveAnswersButton() {
+    return this.page.locator('.wizard-card-actions button[type="submit"]');
   }
 
   get skipRemainingClubsButton() {

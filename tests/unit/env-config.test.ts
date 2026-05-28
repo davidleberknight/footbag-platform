@@ -67,6 +67,7 @@ function clearAwsWiring(): void {
   delete process.env.INTERNAL_EVENT_SECRET;
   delete process.env.MEDIA_JOB_LEASE_SECONDS;
   delete process.env.MEDIA_JOB_MAX_RETRIES;
+  delete process.env.PAYMENT_ADAPTER;
 }
 
 describe('env config: dev defaults apply when NODE_ENV is not production', () => {
@@ -195,6 +196,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /AWS_REGION is required when JWT_SIGNER=kms/,
     );
@@ -211,6 +213,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.SESSION_SECRET = 'a'.repeat(31);
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SESSION_SECRET must be at least 32 characters in production/,
@@ -228,6 +231,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.SESSION_SECRET = 'a'.repeat(20) + 'changeme' + 'b'.repeat(20);
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SESSION_SECRET appears to contain the \.env\.example placeholder/,
@@ -249,6 +253,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.AWS_REGION = 'us-east-1';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.jwtSigner).toBe('kms');
     expect(config.jwtKmsKeyId).toBe(
@@ -296,6 +301,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.safeBrowsingAdapter).toBe('live');
     expect(config.secretsAdapter).toBe('stub');
@@ -343,6 +349,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SECRETS_ADAPTER = 'live';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_ENV is required when SECRETS_ADAPTER=live/,
     );
@@ -360,6 +367,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
     expect(config.ssmPrefix).toBe('/footbag/staging');
@@ -401,6 +409,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID = 'member-x';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only/,
@@ -440,6 +449,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL = '1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL is dev-only/,
@@ -487,6 +497,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
@@ -536,6 +547,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '0';
     const { config } = await import('../../src/config/env');
     expect(config.devAdminGrantTier2).toBe(false);
@@ -570,7 +582,34 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
-  it('accepts FOOTBAG_DEV_PAYMENT_STUB=1 when FOOTBAG_ENV=staging', async () => {
+  it("defaults PAYMENT_ADAPTER to 'stub' in non-production", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.PAYMENT_ADAPTER;
+    const { config } = await import('../../src/config/env');
+    expect(config.paymentAdapter).toBe('stub');
+  });
+
+  it("accepts PAYMENT_ADAPTER='stub' in development", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    const { config } = await import('../../src/config/env');
+    expect(config.paymentAdapter).toBe('stub');
+  });
+
+  it("accepts PAYMENT_ADAPTER='live' in non-production (factory throws at call time, not at boot)", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.PAYMENT_ADAPTER = 'live';
+    const { config } = await import('../../src/config/env');
+    expect(config.paymentAdapter).toBe('live');
+  });
+
+  it("rejects PAYMENT_ADAPTER='stub' in production", async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
@@ -579,51 +618,40 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
     process.env.SECRETS_ADAPTER = 'live';
-    process.env.FOOTBAG_ENV = 'staging';
+    process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
-    const { config } = await import('../../src/config/env');
-    expect(config.devPaymentStub).toBe(true);
-  });
-
-  it('throws when FOOTBAG_DEV_PAYMENT_STUB=1 with FOOTBAG_ENV unset', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    delete process.env.FOOTBAG_ENV;
-    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
+    process.env.PAYMENT_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_PAYMENT_STUB is dev\/staging-only/,
+      /PAYMENT_ADAPTER='stub' is forbidden in production/,
     );
   });
 
-  it('accepts FOOTBAG_DEV_PAYMENT_STUB=1 when FOOTBAG_ENV=development', async () => {
+  it('rejects PAYMENT_ADAPTER with an invalid value', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_ENV = 'development';
-    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
-    const { config } = await import('../../src/config/env');
-    expect(config.devPaymentStub).toBe(true);
-  });
-
-  it('defaults FOOTBAG_DEV_PAYMENT_STUB to false when unset', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    delete process.env.FOOTBAG_DEV_PAYMENT_STUB;
-    const { config } = await import('../../src/config/env');
-    expect(config.devPaymentStub).toBe(false);
-  });
-
-  it('rejects FOOTBAG_DEV_PAYMENT_STUB with an invalid value', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'development';
-    process.env.FOOTBAG_DEV_PAYMENT_STUB = 'maybe';
+    process.env.PAYMENT_ADAPTER = 'maybe';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_PAYMENT_STUB must be/,
+      /PAYMENT_ADAPTER must be 'live' or 'stub'/,
+    );
+  });
+
+  it('requires PAYMENT_ADAPTER to be set explicitly in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    delete process.env.PAYMENT_ADAPTER;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENT_ADAPTER must be set explicitly in production/,
     );
   });
 
@@ -683,6 +711,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_TEST_MEMORY_PERCENT = '5';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_TEST_MEMORY_PERCENT is dev\/staging-only; refusing production start/,
@@ -701,6 +730,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_TEST_MEMORY_PERCENT = '85';
     const { config } = await import('../../src/config/env');
     expect(config.testMemoryPercent).toBe(85);
@@ -723,6 +753,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID = 'member-x';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only/,
@@ -741,6 +772,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL = '1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL is dev-only/,
@@ -759,27 +791,10 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only/,
-    );
-  });
-
-  it('throws when FOOTBAG_DEV_PAYMENT_STUB=1 with FOOTBAG_ENV=production', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
-    process.env.SES_ADAPTER = 'stub';
-    process.env.SAFE_BROWSING_ADAPTER = 'stub';
-    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
-    process.env.SECRETS_ADAPTER = 'live';
-    process.env.FOOTBAG_ENV = 'production';
-    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.FOOTBAG_DEV_PAYMENT_STUB = '1';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /FOOTBAG_DEV_PAYMENT_STUB is dev\/staging-only/,
     );
   });
 
@@ -795,6 +810,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev\/staging-only/,
@@ -813,6 +829,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
     // Boot succeeds; the allowlist value reaches devShortcuts at runtime.
     await expect(import('../../src/config/env')).resolves.toBeDefined();
@@ -830,6 +847,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'production';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = '   ';
     // Empty/whitespace value is treated as unset (deploy pipeline writes an
     // empty value when the workstation's .local/initial-admins.txt is empty;
@@ -851,6 +869,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     // FOOTBAG_ENV intentionally left unset (clearAwsWiring deleted it).
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev\/staging-only/,
@@ -907,6 +926,7 @@ describe('env config: FOOTBAG_ENV ↔ NODE_ENV cross-invariant', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.FOOTBAG_ENV = 'staging';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
@@ -980,6 +1000,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /MEDIA_STORAGE_S3_BUCKET is required when MEDIA_STORAGE_ADAPTER=s3/,
@@ -991,6 +1012,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'media-bucket-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /AWS_REGION is required.*MEDIA_STORAGE_ADAPTER=s3/,
@@ -1002,6 +1024,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.mediaStorageAdapter).toBe('local');
     expect(config.mediaStorageS3Bucket).toBeUndefined();
@@ -1018,6 +1041,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
     process.env.AWS_REGION = 'us-east-1';
     process.env.INTERNAL_EVENT_SECRET = 'a'.repeat(48);
@@ -1038,6 +1062,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
@@ -1073,6 +1098,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.internalEventSecret).toBeUndefined();
   });
@@ -1481,6 +1507,7 @@ describe('env config: HTTP_REACHABILITY_ADAPTER', () => {
       process.env.SECRETS_ADAPTER = 'stub';
       process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
       process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
       const { config } = await import('../../src/config/env');
       expect(config.httpReachabilityAdapter).toBe(value);
     }
@@ -1522,6 +1549,7 @@ describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     const { config } = await import('../../src/config/env');
     expect(config.allowCuratedSidecarWrites).toBe(false);
   });
@@ -1537,6 +1565,7 @@ describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
     process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
     const { config } = await import('../../src/config/env');
     expect(config.allowCuratedSidecarWrites).toBe(true);

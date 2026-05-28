@@ -61,7 +61,6 @@ import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { formatDateDisplay } from './dateFormat';
-import { config } from '../config/env';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
@@ -97,7 +96,7 @@ export interface TierStatusView {
   underlyingTierBadgeText: string | null;
   showTier1Upgrade: boolean;
   showTier2Upgrade: boolean;
-  showDevUpgradeForm: boolean;
+  showUpgradeForm: boolean;
   purchaseTierHref: string | null;
 }
 
@@ -904,7 +903,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
     underlyingTierBadgeText,
     showTier1Upgrade,
     showTier2Upgrade,
-    showDevUpgradeForm: config.devPaymentStub && canUpgrade,
+    showUpgradeForm: canUpgrade,
     purchaseTierHref: canUpgrade ? `/members/${slug}/purchase-tier` : null,
   };
 }

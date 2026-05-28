@@ -1,0 +1,23 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="payment-success">
+    <div class="card">
+      <h2 class="card-title">{{content.message}}</h2>
+      {{#if content.benefits}}
+        <p>{{content.benefits}}</p>
+      {{/if}}
+      <p class="text-muted fs-sm mt-4">
+        Amount: {{content.amountDisplay}}<br />
+        Reference: {{content.paymentId}}
+      </p>
+      <div class="mt-6">
+        <a href="{{content.continueHref}}" class="btn btn-primary">Continue</a>
+      </div>
+    </div>
+  </section>
+</div>

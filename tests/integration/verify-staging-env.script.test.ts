@@ -46,6 +46,7 @@ const CLEAN_STAGING_ENV = [
   'PORT=3000',
   'IMAGE_PROCESSOR_URL=http://image-worker:4000',
   'TRUST_PROXY=loopback, linklocal, uniquelocal',
+  'PAYMENT_ADAPTER=stub',
 ].join('\n');
 
 interface RunResult {

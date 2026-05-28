@@ -86,13 +86,13 @@ async function getDashboard(memberId: string): Promise<request.Response> {
 }
 
 describe('GET /members/<slug> — Membership block rendering on personal home', () => {
-  it('tier0 no-AP: renders Tier 0 badge + Tier 1 / Tier 2 upgrade CTAs (Coming soon)', async () => {
+  it('tier0 no-AP: renders Tier 0 badge + Tier 1 / Tier 2 upgrade CTAs', async () => {
     const res = await getDashboard(T0_NOAP_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Membership');
     expect(res.text).toContain('Tier 0 Registered Member');
-    expect(res.text).toContain('Upgrade to Tier 1 (Coming soon)');
-    expect(res.text).toContain('Upgrade to Tier 2 (Coming soon)');
+    expect(res.text).toContain('Upgrade to Tier 1');
+    expect(res.text).toContain('Upgrade to Tier 2');
     // Blurb uses second-person "You..." form (no tier-name duplication).
     expect(res.text).toContain('You can browse the platform');
     // Rules link points to the IFPA hub.
@@ -115,7 +115,7 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     const res = await getDashboard(T1_ID);
     expect(res.text).toContain('Tier 1 IFPA Member');
     expect(res.text).not.toContain('Upgrade to Tier 1');
-    expect(res.text).toContain('Upgrade to Tier 2 (Coming soon)');
+    expect(res.text).toContain('Upgrade to Tier 2');
   });
 
   it('tier2: no upgrade CTAs', async () => {

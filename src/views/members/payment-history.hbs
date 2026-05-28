@@ -1,0 +1,38 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="payment-history">
+    {{#if content.rows.length}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Item</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td>{{this.date}}</td>
+              <td>{{this.descriptor}}</td>
+              <td>{{this.amountDisplay}}</td>
+              <td>{{this.status}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p>No payments yet.</p>
+    {{/if}}
+
+    <p class="mt-6">
+      <a href="/members/{{content.memberKey}}" class="btn btn-secondary">Back to profile</a>
+    </p>
+  </section>
+</div>

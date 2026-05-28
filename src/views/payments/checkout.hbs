@@ -1,0 +1,28 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="payment-checkout">
+    <div class="card">
+      <h2 class="card-title">{{content.descriptor}}</h2>
+      <p class="card-meta">{{content.amountDisplay}}</p>
+
+      <p class="text-muted fs-sm mt-4">
+        Stub payment mode &mdash; no real card charge will be processed. Confirming here
+        records a successful payment and applies the membership tier change.
+      </p>
+
+      <div class="payment-checkout-actions mt-6">
+        <form method="POST" action="{{content.confirmHref}}" class="d-inline">
+          <button type="submit" class="btn btn-primary">Confirm and Pay</button>
+        </form>
+        <form method="POST" action="{{content.cancelHref}}" class="d-inline ml-2">
+          <button type="submit" class="btn btn-secondary">Cancel</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</div>
