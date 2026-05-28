@@ -1,0 +1,65 @@
+Phase E — unified classification summary
+==================================================
+Total universe rows: 2460
+
+Governance state (first digit):
+  state 1: 510
+  state 2: 5
+  state 3: 1879
+  state 4: 44
+  state 5: 20
+  state 7: 2
+
+Category (A-F for state-3; CANONICAL/PROMOTED/etc for the rest):
+  A                  1029
+  CANONICAL          510
+  B                  308
+  PROMOTED           248
+  D                  206
+  C                  90
+  PENDING-SYMBOLIC   43
+  POLICY-DEPENDENT   20
+  E                  4
+  AMBIGUOUS          2
+
+Completeness:
+  name-only    1311
+  canonical    755
+  full         394
+
+Live-DB reconciliation:
+  rows whose live DB membership differs from the spine's stale in_db
+    (spine=observational but now canonical — W1-W9 drift): 245
+  state-3 rows that OVERLAP canon (dedup/removal candidates): 242
+  rows whose resolved family is a retired route-out: 61
+
+Source corpus:
+  stanford         851
+  footbagmoves     801
+  passback         396
+  fborg            306
+  multi            58
+  ifpa-canonical   47
+  curator          1
+
+Doctrine-block (category D) concentration by ecosystem:
+  blurry-furious     112
+  weaving            32
+  pogo               27
+  whirl-swirl        22
+  symposium          22
+  ducking            18
+  shooting           18
+  dlo-double-down    13
+  blender-torque     11
+  paradox            10
+  stepping           9
+  pixie              5
+  dragon-rake        4
+  gyro-spyro         4
+  fairy              4
+  quantum            1
+  rail-rooted        1
+  spinning           1
+  inspinning         1
+  eclipse-hop-over   1
