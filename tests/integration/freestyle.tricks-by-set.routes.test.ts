@@ -184,10 +184,11 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
     expect(res.text).toContain('id="set-ducking"');
   });
 
-  it('renders standardized trick cards (dict-card-stack--registry) per section', async () => {
+  it('renders the two-line dict-trick-row stack per section (2026-05-27 migration)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('class="dict-card-stack dict-card-stack--registry"');
-    expect(res.text).toMatch(/class="dict-card dict-card--registry/);
+    expect(res.text).toContain('class="dict-trick-row-stack"');
+    expect(res.text).toMatch(/class="dict-trick-row[ "]/);
+    expect(res.text).not.toContain('dict-card-stack');
   });
 });
 
@@ -252,15 +253,26 @@ describe('/freestyle/sets — Set Encyclopedia remains separate', () => {
 });
 
 describe('/freestyle/tricks?view=sets — card formatting standardization', () => {
-  it('uses the dictionary-trick-card partial output (no raw operational notation outside <code class="dict-card-notation">)', async () => {
+  it('uses the two-line row partial output (no raw operational notation outside the line-2 JOB value)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // If operational notation appears, it MUST be wrapped in the standardized card-notation block.
-    // Negative assertion: free-floating bracketed tokens like "[DEX]" must not appear OUTSIDE a code/span wrapper.
-    // We approximate by ensuring the registry density wrapper is present whenever the notation tokens are.
-    const hasBracketToken = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/.test(res.text);
-    if (hasBracketToken) {
-      expect(res.text).toMatch(/<code class="dict-card-notation/);
+    // Every bracketed op-notation token (e.g. [DEX]) must sit inside the row's
+    // line-2 JOB value (dict-trick-row-job-value) / an op-token span — never
+    // as loose body text.
+    const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(res.text)) !== null) {
+      const before = res.text.substring(Math.max(0, m.index - 260), m.index);
+      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
     }
+  });
+
+  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
+    const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="spinning-paradox-mirage"[\s\S]*?<\/article>/);
+    expect(m).not.toBeNull();
+    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
   it('section count matches the listed trick count per modifier (data integrity)', async () => {

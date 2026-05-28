@@ -193,7 +193,7 @@
   </nav>
 
   {{#each content.setGroups}}
-  <section class="content-section trick-set-group trick-group--registry" id="set-{{modifierSlug}}" data-anchor-style="solid">
+  <section class="content-section trick-set-group trick-group--trick-rows" id="set-{{modifierSlug}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h2>
       <span class="section-count">{{trickCount}}</span>
@@ -201,9 +201,9 @@
     <p class="trick-set-group-meta detail-muted">
       {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
     </p>
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>

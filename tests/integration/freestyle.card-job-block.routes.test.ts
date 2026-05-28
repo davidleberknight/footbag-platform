@@ -189,23 +189,26 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 });
 
-describe('/freestyle/tricks?view=sets — linked trick cards (not bare hashtags)', () => {
-  it('renders <a class="dict-card-title"> anchors for each listed trick (not plain text)', async () => {
+describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', () => {
+  it('renders <a class="dict-trick-row-title"> anchors for each listed trick (not plain text)', async () => {
+    // By Modifier migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Fairy section must surface the fairy-mirage card with a linked title.
-    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/fairy-mirage">/);
-    // Spinning section must surface the spinning-paradox-mirage card with a linked title.
-    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/spinning-paradox-mirage">/);
+    // Fairy section must surface the fairy-mirage row with a linked title.
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/fairy-mirage">/);
+    // Spinning section must surface the spinning-paradox-mirage row with a linked title.
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/spinning-paradox-mirage">/);
   });
 
-  it('renders the ADD chip + hashtag per card (proof the DictionaryTrickCard shape flows through)', async () => {
+  it('renders the line-2 ADD slot + hashtag per row (no green chip; DictionaryTrickCard shape flows through)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Look for the spinning-paradox-mirage card's ADD chip (4 ADD)
     const slugIdx = res.text.indexOf('data-trick-slug="spinning-paradox-mirage"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
-    expect(window).toMatch(/class="dict-card-add[^"]*"[^>]*>4 ADD</);
-    expect(window).toMatch(/class="dict-card-hashtag"[^>]*>#spinning_paradox_mirage</);
+    // Line 2 carries the ADD value (derived formula), not a green chip.
+    expect(window).toMatch(/class="dict-trick-row-add"/);
+    expect(window).toMatch(/spinning\(\+1\) \+ paradox\(\+1\) \+ mirage\(2\)/);
+    expect(window).not.toMatch(/class="dict-card-add[ "]/);
+    expect(window).toMatch(/class="dict-trick-row-hashtag"[^>]*>#spinning_paradox_mirage</);
   });
 
   it('does NOT render hashtags as the primary UI — every card has a linked title before the hashtag', async () => {
