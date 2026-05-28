@@ -7167,7 +7167,7 @@ export const freestyleService = {
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
             },
             {
-              label:        'Movement neighborhoods',
+              label:        'Movement Neighborhoods',
               href:         '/freestyle/tricks?view=topology',
               count:        TOPOLOGY_GROUPS.length,
               countSuffix:  'neighborhoods',
