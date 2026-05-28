@@ -67,6 +67,7 @@ data/
 # =========================
 *.db
 *.db.bak
+*.db.bak*
 *.sqlite
 *.sqlite3
 
