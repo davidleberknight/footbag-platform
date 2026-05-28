@@ -38,11 +38,19 @@ Test note: there is no longer a single shared-card test "safe harbor". Proxy tes
 
 ### Browse-shell + landing UI cleanup (before Emerging Vocabulary redesign)
 
-Remaining browse-shell consistency items (captured from rendered-surface review; not yet implemented). The top-nav consistency pass and the landing-card count labels are done; what remains:
+Remaining browse-shell consistency items (captured from rendered-surface review; not yet implemented). The top-nav consistency pass, the landing-card count labels, and the per-view scale intros are done; what remains:
 
-1. **View intros should state view-relevant row counts.** The global "N canonical tricks" stat is fine on landing/ADD, but each grouped view should also state its own scale: Family = trick-row memberships (or canonical tricks represented); Movement System = memberships displayed; By Modifier = # modifiers + # memberships; Neighborhoods = 6 categories + # memberships; Dex = 5 buckets + total rows.
-2. **Movement System copy should mention Alternative Surfaces** as part of the movement-language axis model (the view already shapes an `alternativeSurfaces` block below the axes; the intro/axis copy should reference it).
-3. **Neighborhoods intro should list the six category names** near the top: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures (the landing card already previews them; the view itself should too).
+1. **Movement System copy should mention Alternative Surfaces** as part of the movement-language axis model (the view already shapes an `alternativeSurfaces` block below the axes; the intro/axis copy should reference it).
+2. **Neighborhoods intro should list the six category names** near the top: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures (the landing card already previews them; the view itself should too).
+
+### Family hierarchy audit (taxonomy maturity — do NOT redesign in a UI slice)
+
+The current `trick_family` grouping is a flat, fine-grained structural browse aid, not a mature canonical taxonomy. Two surfaces already disagree on scale because they count different things: the landing "By family" card counts ALL distinct `trick_family` labels (e.g. 91, including singletons), while the family VIEW renders only multi-member families (e.g. 38, since singletons are dropped by the `rows.length > 1` filter). Do not present either number as a settled taxonomy; the family-view scale intro already uses cautious "family groupings ... may later roll into broader family hierarchies" wording, and the landing "N families" label may want the same caution. Audit scope:
+
+- Identify parent/child family relationships (which labels nest under a broader anchor).
+- Consolidate or nest fine-grained / singleton families; reconcile the landing count (all labels) vs the view count (multi-member) once hierarchy is decided.
+- Evaluate the candidate ecosystems: osis / torque / blender; whirl / rev-whirl / swirl / twirl; mirage / illusion / pickup / legover; pixie / fairy / stepping.
+- Decide which labels are true trick families vs modifier ecosystems vs movement neighborhoods, and route each to the surface that fits.
 
 ### Deferred test infrastructure (no current-slice work)
 

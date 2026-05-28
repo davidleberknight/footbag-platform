@@ -8886,6 +8886,13 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.95rem;
   line-height: 1.5;
 }
+.browse-view-scale {
+  max-width: 760px;
+  margin: -0.75rem 0 1.25rem;
+  color: var(--text-subtle, #6b7280);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
 .dictionary-intro-glossary-link {
   color: var(--primary, #1bb36b);
   text-decoration: none;

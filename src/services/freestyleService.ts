@@ -2531,6 +2531,14 @@ export interface FreestyleTricksIndexContent {
   // truthy string).
   dictionaryIntro: string | null;
   familyViewIntro: string | null;
+  // Per-view scale sentences (browse-shell cleanup). Each is computed from the
+  // same group arrays the template renders, so the counts always match the
+  // visible sections/cards. Rendered once in the corresponding view's intro.
+  familyScale: string | null;
+  dexCountScale: string | null;
+  movementSystemScale: string | null;
+  setsScale: string | null;
+  topologyScale: string | null;
   /** DL-1+2+5 landing-surface refresh (2026-05-26): 3-band conceptual grid
    *  rendered above the inline view-toggle when on the default landing view.
    *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
@@ -7202,6 +7210,42 @@ export const freestyleService = {
       ],
     };
 
+    // Per-view scale sentences. Counts are derived from the SAME group arrays
+    // the templates render, so they always match the visible sections/cards.
+    const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
+
+    const familyMemberships = familyGroups.reduce((n, g) => n + g.cards.length, 0);
+    const familyDistinct = new Set(familyGroups.flatMap(g => g.cards.map(c => c.slug))).size;
+    const familyScale =
+      `${familyGroups.length} family ${plural(familyGroups.length, 'grouping', 'groupings')} organize tricks by ` +
+      'structural anchor; some are fine-grained and may later roll into broader family hierarchies. ' +
+      `${familyMemberships} trick-row ${plural(familyMemberships, 'membership', 'memberships')} shown` +
+      (familyMemberships > familyDistinct ? ', and some tricks belong to more than one family.' : '.');
+
+    const dexRows = dexCountGroups.reduce((n, g) => n + g.cards.length, 0);
+    const dexCountScale =
+      `${dexCountGroups.length} dex ${plural(dexCountGroups.length, 'bucket', 'buckets')} · ` +
+      `${dexRows} canonical trick ${plural(dexRows, 'row', 'rows')} represented.`;
+
+    const movementMemberships = movementSystemView.axes.reduce(
+      (n, a) => n + a.groups.reduce((m, g) => m + g.cards.length, 0), 0);
+    const movementSystemScale =
+      `${movementSystemView.axes.length} ${plural(movementSystemView.axes.length, 'system / axis', 'systems / axes')} · ` +
+      `${movementMemberships} trick-row ${plural(movementMemberships, 'membership', 'memberships')} shown. ` +
+      'A compound can appear under more than one axis or modifier.';
+
+    const setsMemberships = setGroups.reduce((n, g) => n + g.cards.length, 0);
+    const setsScale =
+      `${setGroups.length} ${plural(setGroups.length, 'modifier', 'modifiers')} · ` +
+      `${setsMemberships} trick-row ${plural(setsMemberships, 'membership', 'memberships')} shown. ` +
+      'A trick that uses more than one modifier appears under each.';
+
+    const topologyMemberships = topologyView.groups.reduce((n, g) => n + g.cards.length, 0);
+    const topologyScale =
+      `${topologyView.groups.length} ${plural(topologyView.groups.length, 'neighborhood', 'neighborhoods')} · ` +
+      `${topologyMemberships} trick-row ${plural(topologyMemberships, 'membership', 'memberships')} shown. ` +
+      'Exploratory, pedagogical grouping, not a canonical taxonomy.';
+
     return {
       seo: {
         title: 'Freestyle Trick Dictionary',
@@ -7251,6 +7295,11 @@ export const freestyleService = {
           'regardless of family) and the Movement System view (which clusters by the modifier ' +
           'axes that transform a base). The shared terminal structure under each family ' +
           'heading below is the invariant that makes the cohort cohere.',
+        familyScale,
+        dexCountScale,
+        movementSystemScale,
+        setsScale,
+        topologyScale,
       },
     };
   },

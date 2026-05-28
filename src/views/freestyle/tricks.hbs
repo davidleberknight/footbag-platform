@@ -151,6 +151,7 @@
       Family views; only the bucketing axis differs. }}
   {{#if (eq content.activeView "dex-count")}}
   <p class="browse-view-intro">Tricks grouped by the number of dex events in their operational notation. How many dex moves does this trick involve?</p>
+  {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
   {{#each content.dexCountGroups}}
   <section class="content-section trick-dex-count-group trick-group--trick-rows" id="{{bucketId}}">
     <div class="section-heading">
@@ -183,6 +184,7 @@
        projection) is reserved for /freestyle/sets. }}
   {{#if (eq content.activeView "sets")}}
   <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
   {{#if content.setGroups.length}}
   <p class="sets-view-total detail-muted"><strong>{{content.setGroups.length}}</strong> sets and modifiers exercised by the active dictionary.</p>
 
@@ -223,6 +225,7 @@
   <p class="browse-view-intro">{{content.familyViewIntro}}</p>
   {{/if}}
   <p class="family-view-ordering-note"><em>Families are ordered by structural anchor weight, not alphabetically. Whirl, butterfly, mirage, osis, and other foundational families anchor the most compound rows.</em></p>
+  {{#if content.familyScale}}<p class="browse-view-scale">{{content.familyScale}}</p>{{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group trick-group--trick-rows" id="family-{{familySlug}}" data-anchor-style="solid">
@@ -372,6 +375,7 @@
   <p class="topology-view-note">
     {{content.topologyView.observationalNote}}
   </p>
+  {{#if content.topologyScale}}<p class="browse-view-scale">{{content.topologyScale}}</p>{{/if}}
 
   {{#if content.topologyView.groups.length}}
   {{#each content.topologyView.groups}}
@@ -409,6 +413,7 @@
   <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
   <p class="browse-view-intro"><strong>By movement system = the four higher-level conceptual axes</strong> (set/uptime · entry topology · midtime body · no-plant suspension). Each axis groups the modifiers that belong to it. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
+  {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}
 
   {{! Axis-jump nav. Mirror of the Component view's pattern. }}
   <nav class="movement-axis-jump" aria-label="Movement System axes">
