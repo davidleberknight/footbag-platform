@@ -140,3 +140,50 @@ describe('Glossary framing — sidebar + non-regression', () => {
     expect(html).toContain('Branch families');
   });
 });
+
+describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', () => {
+  it('row-contract note distinguishes aliases from interpretations and flags non-final readings', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/is <em>not<\/em> an interpretation/);
+    expect(html).toMatch(/not always settled doctrine/);
+  });
+
+  it('explains why a trick appears in several browse views at once', async () => {
+    const html = await glossary();
+    expect(html).toContain('The same trick appears in several of these views at once');
+  });
+
+  it('introduces the productive descendant-lineage middle tier without renaming the families taxonomy', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>productive descendant lineage<\/strong>/);
+    expect(html).toMatch(/such as the drifter lineage/);
+    // The §families root/branch structure is NOT touched in this slice.
+    expect(html).toContain('Root terminal families');
+  });
+
+  it('§surfaces frames foundational vs alternative surfaces with the movement-vs-surface WHY', async () => {
+    const html = await glossary();
+    expect(html).toContain('Surfaces split into two roles');
+    expect(html).toMatch(/<strong>movement structure<\/strong>/);
+    expect(html).toMatch(/surface groupings, not canonical families/);
+  });
+
+  it('§surfaces adds an Implied-contacts subsection with the clipper / flying-clipper asymmetry', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="implicit-contacts"');
+    expect(html).toMatch(/<h3[^>]*>Implied contacts<\/h3>/);
+    // spin → kick implied; clipper → stall default; flying clipper → kick default.
+    expect(html).toMatch(/means a spinning <strong>kick<\/strong>/);
+    expect(html).toMatch(/means a clipper <strong>stall<\/strong>/);
+    expect(html).toMatch(/means a flying clipper <strong>kick<\/strong>/);
+    // knee clipper = surface substitution, not a new lineage.
+    expect(html).toMatch(/<strong>knee contact substitution<\/strong>/);
+  });
+
+  it('advanced-reference adds a "tracking is not canonization" governance note', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="tracking-vs-canonization"');
+    expect(html).toMatch(/<strong>Documentation is not canonization\.<\/strong>/);
+    expect(html).toMatch(/<strong>promoted<\/strong>/);
+  });
+});

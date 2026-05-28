@@ -2385,10 +2385,19 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                ontology relationship), with concrete movement-
     //                centered examples for each. Curator-approved
     //                conceptual expansion; not prose drift.
+    //   215K → 225K  2026-05-28 Phase D pt2 steps 1-2 anchor-safe doctrine
+    //                additions: reading-the-dictionary (alias-vs-interpretation
+    //                caution, why-multiple-views line, descendant-lineage
+    //                middle-tier note); §surfaces (foundational-vs-alternative
+    //                framing + Implied-contacts subsection: spin/clipper/
+    //                flying-clipper asymmetry + knee-clipper surface
+    //                substitution); advanced-reference (tracking-is-not-
+    //                canonization governance note). Curator-requested
+    //                ontology codification; not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(215_000);
+    expect(res.text.length).toBeLessThan(225_000);
   });
 });
 
