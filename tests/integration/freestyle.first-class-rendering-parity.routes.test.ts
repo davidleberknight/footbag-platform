@@ -257,15 +257,14 @@ describe('First-class rendering parity — osis golden', () => {
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const card = cardFor('osis', res.text);
-    // First-class summary row present
-    expect(card).toContain('dict-card-first-class-row');
-    // JOB row carries curator-authored operational chain
-    expect(card).toMatch(/JOB:[\s\S]+\[set\][\s\S]+spin/);
-    // ADD row carries atomic flag-decomposition (Slice D 2026-05-26: `= N
-    // ADD` terminator stripped; the hero/registry ADD chip is the total).
+    // Line-2 notation present (JOB + ADD)
+    expect(card).toContain('dict-trick-row-notation');
+    // JOB value carries the curator-authored operational chain
+    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*\[set\][\s\S]+spin/);
+    // ADD value carries the atomic flag-decomposition breakdown.
     expect(card).toContain('spin(1) + xbod(1) + stall(1)');
-    // NOT in incomplete-state
-    expect(card).not.toContain('dict-card-first-class-line--incomplete');
+    // JOB resolved (not pending)
+    expect(card).not.toContain('dict-trick-row-pending-value');
     expect(card).not.toContain('notation pending');
   });
 });
@@ -276,10 +275,10 @@ describe('First-class rendering parity — tautological-chain suppression', () =
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor('paradox-mirage', res.text);
     // The chain reading "paradox mirage" must NOT appear inside the
-    // dict-card-equivalence (chain row). It may legitimately appear
+    // dict-trick-row-interpretation (chain row). It may legitimately appear
     // in the title, but not as a ≡ reading.
     expect(card).not.toMatch(
-      /<span class="core-trick-equivalence dict-card-equivalence[^>]*">\s*<span class="core-trick-equiv-sigil">[^<]*<\/span>\s*<a[^>]*data-token-slug="paradox"[^>]*>paradox<\/a>\s*<a[^>]*data-token-slug="mirage"[^>]*>mirage<\/a>/,
+      /<span class="core-trick-equivalence dict-trick-row-interpretation[^>]*">\s*<span class="core-trick-equiv-sigil">[^<]*<\/span>\s*<a[^>]*data-token-slug="paradox"[^>]*>paradox<\/a>\s*<a[^>]*data-token-slug="mirage"[^>]*>mirage<\/a>/,
     );
   });
 
@@ -327,7 +326,7 @@ describe('First-class rendering parity — honest incomplete-state', () => {
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
     // Honest incomplete-state line for missing Job notation
-    expect(card).toContain('dict-card-first-class-line--incomplete');
+    expect(card).toContain('dict-trick-row-pending-value');
     expect(card).toContain('notation pending');
     // ADD breakdown rendered (authoritative data wired through)
     expect(card).toContain(expectedAddText);
@@ -340,7 +339,7 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     for (const slug of ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk']) {
       const card = cardFor(slug, res.text);
-      expect(card).not.toContain('dict-card-pending-pill');
+      expect(card).not.toContain('class="dict-trick-row-pending"');
       expect(card).not.toContain('pending decomposition refinement');
     }
   });
@@ -356,10 +355,10 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     // <code> follows JOB: in the chain position.
     for (const slug of ['paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk']) {
       const card = cardFor(slug, res.text);
-      // The literal canonical name must NOT appear as the JOB value
-      // in a curator-style <code class="dict-card-first-class-value">
-      // element. (The title is a separate element.)
-      expect(card).not.toMatch(new RegExp(`<code class="dict-card-first-class-value">${slug.replace(/-/g, ' ')}</code>`, 'i'));
+      // The literal canonical name must NOT appear as the JOB value in the
+      // line-2 <code class="dict-trick-row-job-value"> element (that would be a
+      // fabricated chain echoing the title).
+      expect(card).not.toMatch(new RegExp(`<code class="dict-trick-row-job-value">${slug.replace(/-/g, ' ')}</code>`, 'i'));
     }
   });
 
@@ -415,12 +414,12 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
-    expect(card).toContain('dict-card-first-class-row');
-    expect(card).toContain('JOB:');
+    expect(card).toContain('dict-trick-row-notation');
+    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
     expect(card).toContain(expectedJobText);
     expect(card).toContain(expectedAddText);
-    // No incomplete-state line — both rows populated.
-    expect(card).not.toContain('dict-card-first-class-line--incomplete');
+    // JOB resolved — not the pending placeholder.
+    expect(card).not.toContain('dict-trick-row-pending-value');
     expect(card).not.toContain('notation pending');
   });
 });
@@ -430,14 +429,14 @@ describe('First-class cohort expansion — Tier 1 compound (pendulum)', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor('pendulum', res.text);
-    // Curator-authored op-notation in DB → JOB row populated.
-    expect(card).toContain('JOB:');
-    expect(card).toMatch(/JOB:[\s\S]*?\[DEL\][\s\S]*?\[DEX\]/);
-    // RESOLVED_FORMULAS provides the ADD breakdown.
-    expect(card).toContain('dict-card-first-class-row');
-    expect(card).toMatch(/ADD:[\s\S]*?<code class="dict-card-first-class-value">[^<]+<\/code>/);
-    // No incomplete-state line.
-    expect(card).not.toContain('dict-card-first-class-line--incomplete');
+    // Curator-authored op-notation in DB → line-2 JOB value populated.
+    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*?\[DEL\][\s\S]*?\[DEX\]/);
+    // RESOLVED_FORMULAS provides the line-2 ADD breakdown.
+    expect(card).toContain('dict-trick-row-notation');
+    expect(card).toMatch(/class="dict-trick-row-label">ADD<[\s\S]*?<code class="dict-trick-row-add-value">[^<]+<\/code>/);
+    // JOB resolved — not the pending placeholder.
+    expect(card).not.toContain('dict-trick-row-pending-value');
   });
 });
 
@@ -452,7 +451,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
-    expect(card).toContain('dict-card-first-class-line--incomplete');
+    expect(card).toContain('dict-trick-row-pending-value');
     expect(card).toContain('notation pending');
     expect(card).toContain(expectedAddSubstring);
   });
@@ -475,7 +474,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
 describe('First-class cohort governance — isFirstClass() and getFirstClassTier()', () => {
   // Exercises the helpers indirectly through the rendered first-class
   // summary class. A slug that appears in either tier renders
-  // dict-card-first-class-row; a slug not in any tier does not.
+  // dict-trick-row-notation; a slug not in any tier does not.
   it('every Tier 1 + Tier 2 cohort member renders a first-class summary row', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
@@ -536,7 +535,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
     ];
     for (const slug of cohort) {
       const card = cardFor(slug, res.text);
-      expect(card, `${slug} missing first-class summary row`).toContain('dict-card-first-class-row');
+      expect(card, `${slug} missing first-class summary row`).toContain('dict-trick-row-notation');
     }
   });
 
@@ -550,9 +549,9 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
     // immediate non-cohort sibling). For this DB, seed a row that
     // isn't in either tier. The cohort is enumerated above.
     // Walk through the page: any card NOT in the cohort must lack
-    // dict-card-first-class-row. Sample one such: the bare 'mirage' base
+    // dict-trick-row-notation. Sample one such: the bare 'mirage' base
     // would be Tier 1; pick something safe: there isn't one seeded that
     // ISN'T in cohort. Skip the assertion if no negative sample exists.
-    expect(res.text).toContain('dict-card-first-class-row');  // smoke
+    expect(res.text).toContain('dict-trick-row-notation');  // smoke
   });
 });

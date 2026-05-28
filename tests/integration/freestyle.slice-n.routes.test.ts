@@ -98,10 +98,11 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
     // The chain reading is rendered as semantic tokens; the equivalence
     // sigil + class are the load-bearing render-time markers.
-    expect(window).toContain('dict-card-equivalence');
+    expect(window).toContain('dict-trick-row-interpretation');
     expect(window).toContain('&equiv;');
-    // Operational-notation block must NOT render when a chain exists.
-    expect(window).not.toContain('dict-card-notation--inline');
+    // Two-line contract: the JOB also renders on line 2 alongside the line-1
+    // chain reading (independent slots).
+    expect(window).toMatch(/class="dict-trick-row-job-value">/);
   });
 
   it('food-processor surfaces the Red-locked Blurry-Blender reading', async () => {
@@ -110,7 +111,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-card-equivalence');
+    expect(window).toContain('dict-trick-row-interpretation');
     // The blurry + blender tokens both appear in the first reading.
     expect(window).toMatch(/blurry[\s\S]{0,300}blender/i);
   });
@@ -121,7 +122,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-card-equivalence');
+    expect(window).toContain('dict-trick-row-interpretation');
     expect(window).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
   });
 
@@ -131,9 +132,9 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-card-equivalence');
-    // Long op-notation form should be suppressed by the chain.
-    expect(window).not.toContain('dict-card-notation--inline');
+    expect(window).toContain('dict-trick-row-interpretation');
+    // Two-line contract: JOB also renders on line 2 (independent of the chain).
+    expect(window).toMatch(/class="dict-trick-row-job-value">/);
   });
 });
 
@@ -217,8 +218,8 @@ describe('Slice N — rendering precedence preserved (no regression)', () => {
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    // No chain → operational-notation block renders.
-    expect(window).toContain('dict-card-notation');
-    expect(window).not.toContain('dict-card-equivalence');
+    // No chain → line-2 JOB renders (resolved value), no line-1 interpretation.
+    expect(window).toMatch(/class="dict-trick-row-job-value">/);
+    expect(window).not.toContain('dict-trick-row-interpretation');
   });
 });

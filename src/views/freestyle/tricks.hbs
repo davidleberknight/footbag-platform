@@ -145,14 +145,14 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Dex Count view (notation-display audit Phase 4.1 prototype, 2026-05-24).
+  {{! ── Dex Count view — two-line row contract (2026-05-27 migration).
       Buckets active tricks by the number of [DEX] tokens in their operational
-      notation. Shares the registry-density dictionary-trick-card partial with
-      the ADD view; only the bucketing axis differs. }}
+      notation. Same generalized dictionary-trick-row partial as the ADD and
+      Family views; only the bucketing axis differs. }}
   {{#if (eq content.activeView "dex-count")}}
   <p class="browse-view-intro">Tricks grouped by the number of dex events in their operational notation. How many dex moves does this trick involve?</p>
   {{#each content.dexCountGroups}}
-  <section class="content-section trick-dex-count-group trick-group--registry" id="{{bucketId}}">
+  <section class="content-section trick-dex-count-group trick-group--trick-rows" id="{{bucketId}}">
     <div class="section-heading">
       <h2>{{dexLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
@@ -160,9 +160,9 @@
     {{#unless dexCount}}{{#if (eq bucketId "dex-unknown")}}
     <p class="dex-count-unknown-note"><em>These canonical rows do not yet have operational notation populated. The trick exists; its dex count cannot be derived without notation.</em></p>
     {{/if}}{{/unless}}
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>

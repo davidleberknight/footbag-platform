@@ -271,34 +271,30 @@ describe('First-class trick pilot — non-first-class control slugs', () => {
   });
 });
 
-describe('First-class trick pilot — browse-card secondary row', () => {
-  it.each(PILOT_SLUGS)('renders the compact secondary row for %s in /freestyle/tricks?view=dex-count', async (slug) => {
+describe('First-class trick pilot — two-line JOB+ADD row', () => {
+  it.each(PILOT_SLUGS)('renders the line-2 JOB+ADD notation for %s in /freestyle/tricks?view=dex-count', async (slug) => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    // The pilot slug's browse card carries a .dict-card-first-class-row
+    // The pilot slug's row carries the line-2 notation block (JOB + ADD).
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
-    expect(cardIdx, `card for ${slug} not found in ADD view`).toBeGreaterThan(0);
-    // Slice an upper bound for the card region
+    expect(cardIdx, `row for ${slug} not found in dex-count view`).toBeGreaterThan(0);
     const cardEnd = res.text.indexOf('</article>', cardIdx);
     const cardRegion = res.text.slice(cardIdx, cardEnd);
-    expect(cardRegion).toContain('class="dict-card-first-class-row"');
+    expect(cardRegion).toContain('class="dict-trick-row-notation"');
   });
 
-  it('non-first-class slugs do NOT render the secondary row in /freestyle/tricks?view=dex-count', async () => {
+  it('non-first-class rows render the SAME two-line contract (no first-class visual distinction)', async () => {
+    // 2026-05-27: the two-line row dissolved the first-class secondary-row
+    // visual distinction — every row (first-class or not) renders the same
+    // line-2 JOB+ADD notation. mobius (non-first-class) is the control.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    // mobius remains non-first-class (H6 fails: gyro(+2) + torque(4) = 6,
-    // but official=5 — composite-modifier issue pending Wave 2 gyro
-    // doctrine resolution). blur was promoted into FIRST_CLASS_TIER_2 in
-    // the 2026-05-22 Wave 3 audit-validated promotions; it now legitimately
-    // renders the first-class secondary row and is no longer a valid
-    // negative control here.
-    for (const slug of ['mobius']) {
-      const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
-      if (cardIdx < 0) continue; // not present in this test's seeded view
-      const cardEnd = res.text.indexOf('</article>', cardIdx);
-      const cardRegion = res.text.slice(cardIdx, cardEnd);
-      expect(cardRegion, `${slug} card should NOT carry first-class secondary row`).not.toContain('class="dict-card-first-class-row"');
-    }
+    const cardIdx = res.text.indexOf('data-trick-slug="mobius"');
+    expect(cardIdx).toBeGreaterThan(0);
+    const cardEnd = res.text.indexOf('</article>', cardIdx);
+    const cardRegion = res.text.slice(cardIdx, cardEnd);
+    expect(cardRegion).toContain('class="dict-trick-row-notation"');
+    expect(cardRegion).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(cardRegion).toMatch(/class="dict-trick-row-label">ADD</);
   });
 });
 

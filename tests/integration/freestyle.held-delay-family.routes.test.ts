@@ -143,17 +143,17 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
     ['wrap'],
     ['butterfly-kick'],
   ] as const)(
-    '%s renders the first-class JOB row on a shared-card browse view (no "notation pending")',
+    '%s renders a resolved JOB on its two-line dex-count row (no "notation pending")',
     async (slug) => {
       const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       // First-class row present
-      expect(card).toContain('dict-card-first-class-row');
+      expect(card).toMatch(/class="dict-trick-row-job-value">/);
       // JOB label rendered (not the muted incomplete-state pill)
-      expect(card).toContain('<span class="dict-card-first-class-label">JOB:</span>');
+      expect(card).toMatch(/class="dict-trick-row-label">JOB</);
       expect(card).not.toContain('notation pending');
-      expect(card).not.toContain('dict-card-first-class-line--incomplete');
+      expect(card).not.toContain('dict-trick-row-pending-value');
     },
   );
 });

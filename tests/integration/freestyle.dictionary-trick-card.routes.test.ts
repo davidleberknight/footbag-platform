@@ -186,21 +186,21 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 
 describe('dictionary-trick-card — required slots', () => {
   it('renders title slot as a link to the trick detail page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
   });
 
   it('renders the #slug tag-identity chip on every card', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#ripwalk</span>');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#mobius</span>');
     expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#montage</span>');
   });
 
   it('renders ADD label slot for every seeded trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>2 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>4 ADD<\/span>/);
@@ -216,7 +216,7 @@ describe('dictionary-trick-card — required slots', () => {
     // op-token role taxonomy itself is exercised on trick-detail pages
     // and on the first-class secondary row's JOB line, which both
     // continue to tokenize via the same renderer.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
     // chip is suppressed on browse cards.
     const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
@@ -230,7 +230,7 @@ describe('dictionary-trick-card — required slots', () => {
     // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view renders
     // registry density. The equivalence wrapper picks up the --inline modifier
     // class. The token text content is identical to what ADD View shows.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     // Ripwalk: chain reading 'stepping butterfly'
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
     // Mobius: 'gyro torque' reading
@@ -364,7 +364,7 @@ describe('dictionary-trick-card — required slots', () => {
     // the pending-notation cue; the ≡ readings already convey structural
     // composition. Tested in browse density where the placeholder can
     // appear at all.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
@@ -401,7 +401,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // duplicated the JOB row below). toe-stall is a core atom + first-
     // class, so its op-notation now surfaces via the first-class
     // secondary row's labeled "JOB:" line instead.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
     const toeStallCard = res.text.match(/data-trick-slug="toe-stall"[\s\S]*?<\/article>/);
     expect(toeStallCard).not.toBeNull();
@@ -418,7 +418,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // Operational tokens are now suppressed when a ≡ reading is present;
     // op-token markup lives on cards without ≡ readings (atoms / fallback)
     // and on the trick-detail page.
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
     const montageEnd = res.text.indexOf('</article>', montageStart);

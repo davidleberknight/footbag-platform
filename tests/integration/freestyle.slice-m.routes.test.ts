@@ -261,7 +261,7 @@ describe('Slice M — unresolved-compound pill', () => {
       // Look for the pending-pill class within a short window after the
       // card's data-trick-slug attribute (well under one card's length).
       const window = res.text.substring(idx, idx + 4000);
-      expect(window, `${slug} should carry the pending pill`).toContain('dict-card-pending-pill');
+      expect(window, `${slug} should carry the pending pill`).toContain('class="dict-trick-row-pending"');
     }
   });
 
@@ -278,12 +278,12 @@ describe('Slice M — unresolved-compound pill', () => {
       const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
       const upper = nextCard > -1 ? nextCard : idx + 4000;
       const window = res.text.substring(idx, upper);
-      expect(window, `${slug} should not carry the pending pill`).not.toContain('dict-card-pending-pill');
+      expect(window, `${slug} should not carry the pending pill`).not.toContain('class="dict-trick-row-pending"');
     }
   });
 
   it('renders the pill text "pending decomposition refinement" in italics', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/<span class="dict-card-pending-pill"[^>]*><em>pending decomposition refinement<\/em><\/span>/);
+    expect(res.text).toMatch(/<span class="dict-trick-row-pending"[^>]*><em>pending decomposition refinement<\/em><\/span>/);
   });
 });

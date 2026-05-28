@@ -168,7 +168,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
-      expect(card).not.toContain('dict-card-first-class-line--incomplete');
+      expect(card).not.toContain('dict-trick-row-pending-value');
       expect(card).not.toContain('notation pending');
     },
   );
@@ -179,7 +179,7 @@ describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', (
       const app = await createApp();
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
-      expect(card).toContain('<span class="dict-card-first-class-label">JOB:</span>');
+      expect(card).toMatch(/class="dict-trick-row-label">JOB</);
       expect(card).toContain(expectedJob);
     },
   );
@@ -261,7 +261,7 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
       const app = await createApp();
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
-      expect(card).toContain('dict-card-first-class-line--incomplete');
+      expect(card).toContain('dict-trick-row-pending-value');
       expect(card).toContain('notation pending');
     },
   );

@@ -113,23 +113,33 @@ function expectJobBlockRender(text: string, slug: string) {
   }
 }
 
+// Two-line contract (migrated views: ADD / Family / Dex). Operational notation
+// renders inside the row's resolved line-2 JOB value
+// (<code class="dict-trick-row-job-value">), never loose and never the pending
+// placeholder.
+function expectTwoLineJob(text: string, slug: string) {
+  const idx = text.indexOf(`data-trick-slug="${slug}"`);
+  expect(idx, `row with data-trick-slug="${slug}" not present`).toBeGreaterThan(-1);
+  const window = text.substring(idx, idx + 4000);
+  expect(window).toMatch(/class="dict-trick-row-label">JOB</);
+  expect(window).toMatch(/class="dict-trick-row-job-value">/);
+}
+
 describe('JOB-block rendering across browse views (no raw operational notation outside the labeled block)', () => {
-  it('By family: cards with operational notation render the JOB-block label', async () => {
-    // Family view only renders families with >1 member (singletons are
-    // dropped), so assert on the multi-member mirage family.
+  it('By family (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
+    // Family migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'fairy-mirage');
-    expectJobBlockRender(res.text, 'quantum-mirage');
+    expectTwoLineJob(res.text, 'fairy-mirage');
+    expectTwoLineJob(res.text, 'quantum-mirage');
   });
 
-  it('By dex-count: cards with operational notation render the JOB-block label', async () => {
-    // dex-count buckets every active trick (no size filter), so it covers
-    // singleton-family tricks the family view drops.
+  it('By dex-count (two-line): each row renders its JOB inside the resolved line-2 JOB value', async () => {
+    // Dex migrated to the two-line dict-trick-row contract (2026-05-27).
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'atomic-illusion');
-    expectJobBlockRender(res.text, 'ducking-toe-stall');
+    expectTwoLineJob(res.text, 'atomic-illusion');
+    expectTwoLineJob(res.text, 'ducking-toe-stall');
   });
 
   it('By movement system: cards with operational notation render the JOB-block label', async () => {
@@ -146,33 +156,28 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expectJobBlockRender(res.text, 'spinning-paradox-mirage');
   });
 
-  it('a card with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
-    // mobius carries a tokenizedEquivalence (≡ gyro-torque chain) from the
-    // symbolic-equivalences content module AND has operational notation.
-    // The 2026-05-27 normalization removed the prior EITHER/OR: the
-    // interpretation subtitle (slot 3) and the JOB block (slot 5) are now
-    // independent slots — both must appear on the same card. Asserted on the
-    // dex-count view (renders every active trick, including the torque
-    // singleton mobius); the ADD view's distinct two-line contract is pinned
-    // in freestyle.add-view-rows.routes.test.ts.
+  it('a row with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
+    // mobius carries a tokenizedEquivalence (≡ gyro-torque chain) AND has
+    // operational notation. On the two-line contract both render: the line-1
+    // interpretation slot and the line-2 JOB slot are independent. Asserted on
+    // the dex-count view (renders every active trick, including the torque
+    // singleton mobius).
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const idx = res.text.indexOf('data-trick-slug="mobius"');
     expect(idx).toBeGreaterThan(-1);
     const window = res.text.substring(idx, idx + 4000);
-    // Slot 3: the ≡ interpretation subtitle.
-    expect(window).toMatch(/class="core-trick-equivalence dict-card-equivalence/);
-    // Slot 5: the labeled JOB block — present even though the ≡ reading exists.
-    expect(window).toMatch(/class="dict-card-notation-block/);
-    expect(window).toMatch(/class="dict-card-notation-label">JOB</);
+    // Line 1: the ≡ interpretation slot.
+    expect(window).toMatch(/class="dict-trick-row-interpretation"/);
+    // Line 2: the resolved JOB value — present even though the ≡ reading exists.
+    expect(window).toMatch(/class="dict-trick-row-job-value">/);
   });
 
-  it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear', async () => {
-    // Run against the densest shared-card view (the ADD view uses the distinct
-    // dict-trick-row contract, not dict-card-notation).
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    // Every dict-card-notation occurrence must sit inside a dict-card-notation-block wrapper.
-    // We check by ensuring the substring before each dict-card-notation occurrence (within
-    // a small window) contains the wrapper open tag.
+  it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear on shared-card views', async () => {
+    // The shared-card JOB-block-wrapper invariant applies to the not-yet-
+    // migrated shared-card views (movement-system / sets / category /
+    // component). Migrated views (ADD / Family / Dex) use dict-trick-row-job-
+    // value — see freestyle.add-view-rows / family-view-rows for that contract.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     const re = /<code class="dict-card-notation/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(res.text)) !== null) {

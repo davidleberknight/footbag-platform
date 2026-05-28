@@ -1852,9 +1852,9 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
       expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
       const cardEnd = res.text.indexOf('</article>', idx);
       const card = res.text.slice(idx, cardEnd);
-      // Card still renders; title + ADD chip present.
-      expect(card).toContain('dict-card-title');
-      expect(card).toContain('dict-card-add');
+      // Two-line row still renders; title + line-2 ADD slot present.
+      expect(card).toContain('dict-trick-row-title');
+      expect(card).toContain('dict-trick-row-add');
       // "core atom" prose + class do NOT render to public surfaces.
       expect(card, `${slug} card must not render "core atom" prose`).not.toMatch(/core atom/);
       expect(card).not.toContain('dict-card-equivalence--core-atom');
@@ -2426,21 +2426,21 @@ describe('Freestyle glossary — Batch 4: compression-flow visual continuity (Sl
   });
 });
 
-describe('Freestyle dictionary — Batch 4: unified symbolic-object styling', () => {
-  it('dict-card-title elements still render (CSS unification adds # via ::before)', async () => {
+describe('Freestyle dictionary — Dex view two-line row styling', () => {
+  it('dict-trick-row-title elements render on the dex-count view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/class="dict-card-title"/);
+    expect(res.text).toMatch(/class="dict-trick-row-title"/);
   });
 
-  it('dict-card-add elements still render the ADD label (CSS unification restyles as chip)', async () => {
+  it('dict-trick-row-add (line-2 ADD slot) elements render on the dex-count view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    // ADD spans still carry the dict-card-add class; only visual treatment changed.
-    expect(res.text).toMatch(/class="dict-card-add[^"]*"/);
+    expect(res.text).toMatch(/class="dict-trick-row-add"/);
   });
 
-  it('dict-card class is preserved (no rename); CSS now uses shared symbolic-object hierarchy', async () => {
+  it('the dex-count view renders the dict-trick-row wrapper (migrated off the shared card)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/class="dict-card[^"]*"/);
+    expect(res.text).toMatch(/class="dict-trick-row[^"]*"/);
+    expect(res.text).not.toContain('dict-card-stack');
   });
 });
 
@@ -2455,12 +2455,10 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
   });
 
   it('renders ≡ readings sourced from the curator chain registry', async () => {
-    // BROWSE-REFACTOR-1 Slice 1: both densities use the
-    // `core-trick-equivalence dict-card-equivalence` wrapper class on the
-    // tokenized ≡ reading. The ≡ sigil span is present in markup on both
-    // densities (CSS hides it visually in registry).
+    // On the two-line dex-count rows, the tokenized ≡ reading renders in the
+    // line-1 interpretation slot, carrying the ≡ sigil span.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence/);
+    expect(res.text).toMatch(/class="dict-trick-row-interpretation"/);
     expect(res.text).toMatch(/class="core-trick-equiv-sigil">&equiv;<\/span>/);
   });
 });
@@ -2503,23 +2501,20 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     expect(res.text).not.toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]{0,40}reverse swirl/);
   });
 
-  it('atom dictionary cards surface curator-authored op-notation via the first-class JOB row', async () => {
-    // 2026-05-24 curator rendered-output audit: the standalone op-notation
-    // chip on browse cards was suppressed for first-class tricks (it
-    // duplicated the JOB row below). Atoms are first-class; op-notation
-    // now renders ONLY via the first-class secondary row's labeled
-    // "JOB:" line. The around-the-world ≡ ATW alias remains suppressed
-    // from atom browse cards (no chip slot to take); it stays
-    // accessible on the trick-detail page + glossary.
+  it('atom dictionary rows surface curator-authored op-notation via the two-line JOB slot', async () => {
+    // Atoms (first-class) carry their curator JOB chain on line 2 of the
+    // two-line row (dict-trick-row-job-value), sourced from firstClassChainValue,
+    // including the (midtime) marker. No shared-card op-notation chip.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
     expect(atwIdx).toBeGreaterThan(0);
     const atwCardEnd = res.text.indexOf('</article>', atwIdx);
     const atwCard = res.text.slice(atwIdx, atwCardEnd);
-    // No standalone chip slot.
+    // No shared-card op-notation chip.
     expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
-    // First-class secondary row carries the tokenized JOB line.
-    expect(atwCard).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
+    // Line-2 JOB slot carries the resolved chain incl. the (midtime) marker.
+    expect(atwCard).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(atwCard).toMatch(/class="dict-trick-row-job-value">/);
     expect(atwCard).toMatch(/\(midtime\)/);
   });
 });

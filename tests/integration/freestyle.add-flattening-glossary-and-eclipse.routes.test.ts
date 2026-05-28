@@ -146,8 +146,8 @@ describe('Eclipse — curator-supplied operational notation', () => {
     const articleClose = res.text.indexOf('</article>', idx);
     const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
     // First-class JOB + ADD row present; no "notation pending"
-    expect(card).toContain('dict-card-first-class-row');
-    expect(card).toContain('<span class="dict-card-first-class-label">JOB:</span>');
+    expect(card).toMatch(/class="dict-trick-row-job-value">/);
+    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
     expect(card).not.toContain('notation pending');
   });
 });
