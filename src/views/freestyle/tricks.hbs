@@ -40,7 +40,7 @@
         <article class="dict-landing-card">
           <header class="dict-landing-card-header">
             <h2 class="dict-landing-card-label"><a href="{{href}}">{{label}}</a></h2>
-            <span class="dict-landing-card-count" aria-label="{{count}} {{countSuffix}}">{{count}}</span>
+            <span class="dict-landing-card-count" aria-label="{{countDisplay}} {{countSuffix}}"><span class="dict-landing-card-count-num">{{countDisplay}}</span> {{countSuffix}}</span>
           </header>
           <p class="dict-landing-card-question">{{lensQuestion}}</p>
           {{#if chips.length}}

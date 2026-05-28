@@ -154,6 +154,43 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   });
 });
 
+describe('GET /freestyle/tricks — landing-grid count labels are self-explanatory', () => {
+  // Each portal-card count badge must show a VISIBLE noun (what the number
+  // counts), not only an aria-label. The number sits in a
+  // .dict-landing-card-count-num span; the noun follows as visible text.
+  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifiers', 'systems / axes', 'neighborhoods', 'observational names'];
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
+  it('every portal-card badge renders a visible noun label after the number', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    for (const noun of NOUNS) {
+      const pat = new RegExp(`<span class="dict-landing-card-count-num">[\\d,]+</span> ${esc(noun)}</span>`);
+      expect(res.text, `visible "${noun}" badge`).toMatch(pat);
+    }
+  });
+
+  it('badge aria-labels carry the same "<count> <noun>" text', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    for (const noun of NOUNS) {
+      expect(res.text, `aria "${noun}"`).toMatch(new RegExp(`aria-label="[\\d,]+ ${esc(noun)}"`));
+    }
+  });
+
+  it('large counts are thousands-separated in the visible badge (Emerging vocabulary)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // TRACKED_UNPUBLISHED_TOTAL is well above 999, so the observational-names
+    // badge must render a comma-grouped number in the visible label.
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> observational names<\/span>/);
+  });
+
+  it('no portal-card badge renders a bare number with no noun (old behavior)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // The old badge was `<span class="dict-landing-card-count" ...>91</span>`
+    // (number only). That form must no longer appear.
+    expect(res.text).not.toMatch(/<span class="dict-landing-card-count"[^>]*>\d[\d,]*<\/span>/);
+  });
+});
+
 describe('GET /freestyle/tricks — browse views', () => {
   it('?view=add renders the same ADD ladder', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');

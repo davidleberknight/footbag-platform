@@ -2554,7 +2554,8 @@ export interface DictionaryLandingCard {
   label:        string;         // display label (sentence case)
   href:         string;         // /freestyle/tricks?view=… OR /freestyle/observational
   count:        number;         // bucket / group / row count (per C1 governance)
-  countSuffix:  string;         // 'buckets' / 'families' / 'sets' / etc. (for accessibility)
+  countDisplay: string;         // thousands-separated count for the visible badge (e.g. '1,769')
+  countSuffix:  string;         // noun the count enumerates ('families' / 'modifiers' / ...); rendered visibly next to the number AND in aria
   lensQuestion: string;         // 'How layered is the trick?'
   chips:        readonly string[]; // 3 micro-example chips
   crossLink?:   { label: string; href: string };  // optional in-context cross-link
@@ -7114,6 +7115,7 @@ export const freestyleService = {
         default:                    return axisName;
       }
     };
+    const fmtCount = (n: number): string => n.toLocaleString('en-US');
     const landingGrid: DictionaryLandingGrid = {
       bands: [
         {
@@ -7123,7 +7125,8 @@ export const freestyleService = {
               label:        'By ADD',
               href:         '/freestyle/tricks?view=add',
               count:        addGroups.length,
-              countSuffix:  'difficulty buckets',
+              countDisplay: fmtCount(addGroups.length),
+              countSuffix:  'ADD buckets',
               lensQuestion: 'How layered is the trick?',
               chips:        addGroups.map(g => g.addLabel),
             },
@@ -7131,7 +7134,8 @@ export const freestyleService = {
               label:        'By dex count',
               href:         '/freestyle/tricks?view=dex-count',
               count:        dexCountGroups.length,
-              countSuffix:  'dex-count buckets',
+              countDisplay: fmtCount(dexCountGroups.length),
+              countSuffix:  'dex buckets',
               lensQuestion: 'How many dex events does it have?',
               chips:        dexCountGroups.map(g => dexChipLabel(g.dexCount)),
             },
@@ -7144,6 +7148,7 @@ export const freestyleService = {
               label:        'By family',
               href:         '/freestyle/tricks?view=family',
               count:        distinctFamilyCount,
+              countDisplay: fmtCount(distinctFamilyCount),
               countSuffix:  'families',
               lensQuestion: 'What core movement topology does the trick inherit from?',
               chips:        familyGroups.map(g => g.familySlug),
@@ -7152,7 +7157,8 @@ export const freestyleService = {
               label:        'By modifier',
               href:         '/freestyle/tricks?view=sets',
               count:        CANONICAL_SETS.length,
-              countSuffix:  'canonical sets',
+              countDisplay: fmtCount(CANONICAL_SETS.length),
+              countSuffix:  'modifiers',
               lensQuestion: 'What entry launches the movement?',
               chips:        CANONICAL_SETS.map(s => s.slug),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
@@ -7161,7 +7167,8 @@ export const freestyleService = {
               label:        'By movement system',
               href:         '/freestyle/tricks?view=movement-system',
               count:        MOVEMENT_SYSTEM_AXES.length,
-              countSuffix:  'compositional axes',
+              countDisplay: fmtCount(MOVEMENT_SYSTEM_AXES.length),
+              countSuffix:  'systems / axes',
               lensQuestion: 'What compositional systems shape the trick?',
               chips:        MOVEMENT_SYSTEM_AXES.map(a => axisChipLabel(a.axisKey, a.axisName)),
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
@@ -7170,6 +7177,7 @@ export const freestyleService = {
               label:        'Movement Neighborhoods',
               href:         '/freestyle/tricks?view=topology',
               count:        TOPOLOGY_GROUPS.length,
+              countDisplay: fmtCount(TOPOLOGY_GROUPS.length),
               countSuffix:  'neighborhoods',
               lensQuestion: 'Tricks that FEEL mechanically similar to perform.',
               chips:        TOPOLOGY_GROUPS.map(g => g.name),
@@ -7184,7 +7192,8 @@ export const freestyleService = {
               label:        'Emerging vocabulary',
               href:         '/freestyle/observational',
               count:        TRACKED_UNPUBLISHED_TOTAL,
-              countSuffix:  'tracked names',
+              countDisplay: fmtCount(TRACKED_UNPUBLISHED_TOTAL),
+              countSuffix:  'observational names',
               lensQuestion: 'Tracked but not yet promoted to canonical.',
               chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'],
             },

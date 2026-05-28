@@ -38,13 +38,11 @@ Test note: there is no longer a single shared-card test "safe harbor". Proxy tes
 
 ### Browse-shell + landing UI cleanup (before Emerging Vocabulary redesign)
 
-Now that the six-view two-line row rendering is stable, the browse shell and landing cards need a consistency pass (captured from rendered-surface review; not yet implemented):
+Remaining browse-shell consistency items (captured from rendered-surface review; not yet implemented). The top-nav consistency pass and the landing-card count labels are done; what remains:
 
-1. **Top browse nav is inconsistent across the six views.** Audit the view-toggle / top nav treatment on ADD / Family / Dex / Movement System / By Modifier / Neighborhoods and make it identical across all six.
-2. **Landing-card counts are ambiguous.** The landing portal cards count grouping units, not tricks: "By family 91" = 91 families, "By modifier 43" = 43 modifier/set categories, "Movement neighborhoods 6" = 6 neighborhoods, "By dex count 5" = 5 buckets. Add explicit count wording (e.g. "91 families") so users don't read them as trick counts.
-3. **View intros should state view-relevant row counts.** The global "N canonical tricks" stat is fine on landing/ADD, but each grouped view should also state its own scale: Family = trick-row memberships (or canonical tricks represented); Movement System = memberships displayed; By Modifier = # modifiers + # memberships; Neighborhoods = 6 categories + # memberships; Dex = 5 buckets + total rows.
-4. **Movement System copy should mention Alternative Surfaces** as part of the movement-language axis model (the view already shapes an `alternativeSurfaces` block below the axes; the intro/axis copy should reference it).
-5. **Neighborhoods intro should list the six category names** near the top: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures (the landing card already previews them; the view itself should too).
+1. **View intros should state view-relevant row counts.** The global "N canonical tricks" stat is fine on landing/ADD, but each grouped view should also state its own scale: Family = trick-row memberships (or canonical tricks represented); Movement System = memberships displayed; By Modifier = # modifiers + # memberships; Neighborhoods = 6 categories + # memberships; Dex = 5 buckets + total rows.
+2. **Movement System copy should mention Alternative Surfaces** as part of the movement-language axis model (the view already shapes an `alternativeSurfaces` block below the axes; the intro/axis copy should reference it).
+3. **Neighborhoods intro should list the six category names** near the top: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, Ducking clipper structures (the landing card already previews them; the view itself should too).
 
 ### Deferred test infrastructure (no current-slice work)
 

@@ -10847,6 +10847,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 2px;
+  flex-wrap: wrap;
 }
 .dict-landing-card-label {
   margin: 0;
@@ -10869,6 +10870,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: 1px 8px;
   border-radius: 3px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dict-landing-card-count-num {
+  color: #2a3a4a;
 }
 .dict-landing-card-question {
   margin: 0;
