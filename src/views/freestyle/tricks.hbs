@@ -378,6 +378,11 @@
   {{#if content.topologyScale}}<p class="browse-view-scale">{{content.topologyScale}}</p>{{/if}}
 
   {{#if content.topologyView.groups.length}}
+  <nav class="topology-jump" aria-label="Movement Neighborhood categories">
+    {{#each content.topologyView.groups}}
+      <a href="#{{anchorId}}">{{topologyName}}</a>{{#unless @last}} <span class="topology-jump-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
   {{#each content.topologyView.groups}}
   <section class="content-section trick-topology-group trick-group--trick-rows" id="{{anchorId}}" data-anchor-style="dotted">
     <div class="section-heading">
@@ -411,7 +416,7 @@
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
-  <p class="browse-view-intro"><strong>By movement system = the four higher-level conceptual axes</strong> (set/uptime · entry topology · midtime body · no-plant suspension). Each axis groups the modifiers that belong to it. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-intro"><strong>By movement system = the four higher-level conceptual axes</strong> (set/uptime · entry topology · midtime body · no-plant suspension). Each axis groups the modifiers that belong to it. The model also recognizes <strong>Alternative surfaces</strong> (tricks defined by an unusual catch surface), grouped separately below the four axes. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
   {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}
 
@@ -420,6 +425,7 @@
     {{#each content.movementSystemView.axes}}
       <a href="#{{anchorId}}">{{axisName}}</a>{{#unless @last}} <span class="movement-axis-jump-sep">·</span> {{/unless}}
     {{/each}}
+    {{#if content.movementSystemView.alternativeSurfaces.groups.length}} <span class="movement-axis-jump-sep">·</span> <a href="#alt-surfaces">Alternative surfaces</a>{{/if}}
   </nav>
 
   {{#if content.movementSystemView.axes.length}}

@@ -7984,6 +7984,24 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #a3a3a3;
   margin: 0 2px;
 }
+.topology-jump {
+  margin: 0 0 24px 0;
+  padding: 8px 12px;
+  background: transparent;
+  border-bottom: 1px solid #e8e4d3;
+  font-size: 0.9rem;
+}
+.topology-jump a {
+  color: #2d2d24;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+.topology-jump a:hover { text-decoration: underline; }
+.topology-jump-sep {
+  color: #a3a3a3;
+  margin: 0 2px;
+}
 .trick-movement-axis {
   margin-top: 36px;
 }

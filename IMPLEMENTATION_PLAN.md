@@ -45,12 +45,21 @@ Remaining browse-shell consistency items (captured from rendered-surface review;
 
 ### Family hierarchy audit (taxonomy maturity — do NOT redesign in a UI slice)
 
-The current `trick_family` grouping is a flat, fine-grained structural browse aid, not a mature canonical taxonomy. Two surfaces already disagree on scale because they count different things: the landing "By family" card counts ALL distinct `trick_family` labels (e.g. 91, including singletons), while the family VIEW renders only multi-member families (e.g. 38, since singletons are dropped by the `rows.length > 1` filter). Do not present either number as a settled taxonomy; the family-view scale intro already uses cautious "family groupings ... may later roll into broader family hierarchies" wording, and the landing "N families" label may want the same caution. Audit scope:
+The current `trick_family` grouping is a flat, fine-grained structural browse aid, not a mature canonical taxonomy. Curator goal: a SMALLER set of canonical families. The ~91 family labels are too flat and include things that should not be canonical families at all (curator example: `cross-body-sole-stall` should NOT be a family — it belongs under an alternative-surface / unusual-surface grouping, not the family taxonomy). Two surfaces already disagree on scale because they count different things: the landing "By family" card counts ALL distinct `trick_family` labels (e.g. 91, including singletons), while the family VIEW renders only multi-member families (e.g. 38, since singletons are dropped by the `rows.length > 1` filter). Do not present either number as a settled taxonomy; the family-view scale intro already uses cautious "family groupings ... may later roll into broader family hierarchies" wording, and the landing "N families" label may want the same caution.
 
-- Identify parent/child family relationships (which labels nest under a broader anchor).
-- Consolidate or nest fine-grained / singleton families; reconcile the landing count (all labels) vs the view count (multi-member) once hierarchy is decided.
-- Evaluate the candidate ecosystems: osis / torque / blender; whirl / rev-whirl / swirl / twirl; mirage / illusion / pickup / legover; pixie / fairy / stepping.
-- Decide which labels are true trick families vs modifier ecosystems vs movement neighborhoods, and route each to the surface that fits.
+This is a future taxonomy/governance slice — schedule it BEFORE the Emerging Vocabulary redesign or any major new promotions, and do NOT change family-grouping implementation inside a browse-shell/UI slice.
+
+Goals:
+- Reduce the canonical family count; consolidate micro-families into broader parent families.
+- Separate true trick families from: alternative surfaces, modifier ecosystems, movement neighborhoods, one-off terminal-surface variants, and alias / decomposition labels.
+- Reconcile the landing count (all labels) vs the view count (multi-member) once hierarchy is decided.
+
+Candidate consolidation / re-routing areas:
+- osis / torque / blender (likely an osis-anchored hierarchy).
+- whirl / rev-whirl / swirl / twirl (hierarchy or neighborhood framing).
+- mirage / illusion / pickup / legover.
+- pixie / fairy / stepping / quantum / atomic — probably modifier ECOSYSTEMS, not canonical families.
+- alternate surfaces (sole / heel / cloud / cross-body-sole) — probably SURFACE groupings, not families.
 
 ### Deferred test infrastructure (no current-slice work)
 

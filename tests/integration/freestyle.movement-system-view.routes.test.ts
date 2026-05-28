@@ -138,6 +138,15 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
     expect(res.text).toContain('movement-axis-definition');
   });
 
+  it('the intro copy mentions Alternative surfaces as part of the movement-language model', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    // Target the movement-system intro specifically (the generic dictionaryIntro
+    // at the top of every view also uses .browse-view-intro).
+    const introMatch = res.text.match(/<p class="browse-view-intro"><strong>By movement system[\s\S]*?<\/p>/);
+    expect(introMatch, 'movement-system intro paragraph').not.toBeNull();
+    expect(introMatch![0]).toMatch(/Alternative surfaces/);
+  });
+
   it('renders modifier groups with anchor "movement-{slug}"', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('id="movement-pixie"');

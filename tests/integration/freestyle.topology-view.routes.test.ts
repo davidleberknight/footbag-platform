@@ -149,6 +149,25 @@ describe('topology view — Movement Neighborhoods framing', () => {
     expect(res.text).toMatch(/Movement Neighborhoods/);
     expect(res.text).toMatch(/share a movement feel/i);
   });
+
+  it('the intro jump-nav lists all six neighborhood category names', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const navMatch = res.text.match(/<nav class="topology-jump"[\s\S]*?<\/nav>/);
+    expect(navMatch, 'topology-jump nav').not.toBeNull();
+    const nav = navMatch![0];
+    for (const name of [
+      'Hippy downtime dex',
+      'Leggy dex',
+      'Whirl / swirl structures',
+      'Pixie uptime dex',
+      'Symposium clipper structures',
+      'Ducking clipper structures',
+    ]) {
+      expect(nav, `jump nav lists "${name}"`).toContain(name);
+    }
+    // Caveat still present elsewhere on the view.
+    expect(res.text).toMatch(/Exploratory/);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
