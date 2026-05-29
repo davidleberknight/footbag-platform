@@ -21,6 +21,18 @@
  * editing this list re-shapes the public menu with no schema or DB change. It
  * does NOT change canonical trick membership or family classification.
  *
+ * Inclusion principle. HARD RULE: a public family root must have MORE THAN 2 active member tricks
+ * (>= 3); a 2-or-fewer-member grouping is never a first-class public family root. Beyond that count
+ * gate, entries are terminal-identity TOPOLOGY families — a structure the trick
+ * lands into, whose recognizable downside signature descendants preserve even as modifiers stack
+ * on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators are
+ * surfaced via the movement-system / glossary-fundamentals layer, NOT as family roots here. ATW
+ * (around-the-world) is the canonical example: foundational and heavily taught, but used within
+ * tricks rather than inherited as a terminal topology, so it is intentionally absent below.
+ * Sparse derivative micro-clusters (low-count direction-reverses or motifs of a parent family) are
+ * likewise excluded as primary roots; they remain reachable via ?family= and would surface in a
+ * future minor/derived band rather than as first-class family roots.
+ *
  * Order is curator-meaningful (roughly: parent anchors first, then named
  * descendant lineages / notable families). Counts are derived at render time
  * from active trick membership — never hard-coded here.
@@ -41,20 +53,15 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'pickup',            label: 'Pickup' },
   { slug: 'whirl',             label: 'Whirl' },
   { slug: 'osis',              label: 'Osis' },
-  { slug: 'around-the-world',  label: 'Around-the-World' },
   { slug: 'eclipse',           label: 'Eclipse' },
   { slug: 'drifter',           label: 'Drifter' },
-  { slug: 'infinity',          label: 'Infinity' },
   { slug: 'barrage',           label: 'Barrage' },
-  { slug: 'reverse-drifter',   label: 'Reverse Drifter' },
   { slug: 'dada-curve',        label: 'Dada-Curve' },
   { slug: 'barfly',            label: 'Barfly' },
   { slug: 'dyno',              label: 'Dyno' },
   { slug: 'paradon',           label: 'Paradon' },
   { slug: 'double-over-down',  label: 'Double-Over-Down' },
-  { slug: 'down-double-down',  label: 'Down-Double-Down' },
   { slug: 'flurry',            label: 'Flurry' },
   { slug: 'flail',             label: 'Flail' },
   { slug: 'butterfly-swirl',   label: 'Butterfly-Swirl' },
-  { slug: 'superfly',          label: 'Superfly' },
 ];
