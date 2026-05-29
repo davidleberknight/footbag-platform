@@ -7929,14 +7929,18 @@ export const freestyleService = {
 
     // Typed counters (publication-integrity doctrine): the intake-queue size is a
     // count of tracked NAMES (aliases, wording variants, modifier combinations),
-    // never unique tricks; the published count is a NAME count that collapses to
-    // fewer distinct structures. Never present a lexical total as a trick count.
+    // never unique tricks. The Phase-1 intake buckets collapse those names to the
+    // scholarly frontier metric `unresolvedStructures` — distinct names with no
+    // canonical home that are not aliases, resolved compounds, duplicates, or
+    // single-source noise. Never present a lexical total as a trick count.
+    const bn = (k: string): number => stats.intakeBuckets[k]?.names ?? 0;
+    const aliasesAndDupes = bn('alias_candidate') + bn('equivalence_candidate') + bn('duplicate_source_variant');
     const statBlocks: ObservationalStat[] = [
-      { label: 'Intake queue',        value: String(stats.total),               hint: 'tracked names under review, not unique tricks' },
-      { label: 'Promotion-ready',     value: `${stats.promotionReadyPct}%`,      hint: `${stats.ready} clean candidates` },
-      { label: 'Doctrine-blocked',    value: `${stats.doctrineBlockedPct}%`,     hint: 'concentrated in a few ecosystems' },
-      { label: 'Folk / unresolved',   value: `${stats.folkUnresolvedPct}%`,      hint: 'historical + uncertain equivalence' },
-      { label: 'Canonical published', value: String(stats.canonicalPublished),   hint: `${stats.publishedDistinctStructures} distinct structures; ${stats.universeTotal} documented names in the full universe` },
+      { label: 'Unresolved structures', value: String(stats.unresolvedStructures), hint: 'distinct multi-source names with no canonical home yet (the real frontier)' },
+      { label: 'Intake queue',          value: String(stats.total),                hint: 'tracked names under review, not unique tricks' },
+      { label: 'Aliases & duplicates',  value: String(aliasesAndDupes),            hint: 'collapse to existing tricks; never counted as structures' },
+      { label: 'Doctrine-blocked',      value: String(bn('doctrine_blocked')),     hint: 'gated on a curator / Red ruling' },
+      { label: 'Canonical published',   value: String(stats.canonicalPublished),   hint: `${stats.publishedDistinctStructures} distinct structures; ${stats.universeTotal} documented names in the full universe` },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
@@ -7965,11 +7969,15 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          'Derived from the Phase E reconciliation of every documented trick name. ' +
-          'Overlap-safe: nothing here duplicates a published canonical trick or alias. ' +
-          'These are documented names, not unique tricks: many are aliases, wording ' +
-          'variants, or modifier combinations of existing tricks. The published count ' +
-          'is a name count and collapses to fewer distinct structures.',
+          `Derived from the Phase E reconciliation of every documented trick name. ` +
+          `Overlap-safe: nothing here duplicates a published canonical trick or alias. ` +
+          `These are documented names, not unique tricks. Of ${stats.total} tracked names, ` +
+          `${bn('alias_candidate') + bn('equivalence_candidate')} collapse to an existing trick (aliases / equivalences), ` +
+          `${bn('duplicate_source_variant')} are wording or source duplicates, ` +
+          `${bn('parser_generated_compound')} are resolved modifier combinations, ` +
+          `${bn('doctrine_blocked')} are doctrine-blocked, ` +
+          `${bn('low_confidence_noise')} are single-source uncorroborated names, and only ` +
+          `${stats.unresolvedStructures} are genuinely unresolved unique structures.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated — they ' +

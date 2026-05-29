@@ -66,8 +66,24 @@ def badge(corpus: str) -> str:
 def main() -> None:
     rows: list[dict] = []
 
+    # n_sources corroboration signal (single source ⇒ low_confidence_noise) sourced
+    # from the classified universe; keyed by slug (max across rows for that slug).
+    classified = read(IMPL / "CLASSIFIED_UNIVERSE.csv")
+    nsources: dict[str, int] = {}
+    for c in classified:
+        s = (c.get("slug", "") or "").strip()
+        try:
+            n = int((c.get("n_sources", "") or "0") or 0)
+        except ValueError:
+            n = 0
+        if s:
+            nsources[s] = max(nsources.get(s, 0), n)
+
+    def corroborated(slug: str) -> bool:
+        return nsources.get((slug or "").strip(), 0) >= 2
+
     def row(name, slug, source, ecosystem, parent, section, cluster,
-            pconf, dconf, add, decomp, job, fc):
+            pconf, dconf, add, decomp, job, fc, intake):
         return {
             "name": name, "slug": slug, "source": badge(source),
             "ecosystem": ecosystem or "", "parentFamily": parent or "",
@@ -75,19 +91,24 @@ def main() -> None:
             "parserConfidence": pconf or "", "doctrineConfidence": dconf or "",
             "provisionalAdd": add or "", "decomposition": decomp or "",
             "semanticJob": job or "", "failureClass": fc or "",
+            "intakeBucket": intake, "lexicalVariants": [],
         }
 
+    # clean + curator-confirm rows are mechanically-derivable modifier+base
+    # compositions: under the unique-trick doctrine they are modifier combinations
+    # of an existing base (modifier_links candidates), NOT unresolved unique
+    # structures. They are fully RESOLVED compositions → parser_generated_compound.
     for r in read(PACKET / "promotion_candidates_clean.csv"):
         rows.append(row(r["name"], r["proposed_slug"], r["source_corpus"], r["ecosystem"],
                         r["parent_family"], "ready", "", r["parser_confidence"],
                         r["doctrine_confidence"], r["proposed_add"], r["add_accounting"],
-                        r["proposed_job_semantic"], ""))
+                        r["proposed_job_semantic"], "", "parser_generated_compound"))
 
     for r in read(PACKET / "promotion_candidates_curator_confirm.csv"):
         rows.append(row(r["name"], r["proposed_slug"], r["source_corpus"], r["ecosystem"],
                         r["parent_family"], "frontier", "", r["parser_confidence"],
                         r["doctrine_confidence"], r["proposed_add"], r["add_accounting"],
-                        r["proposed_job_semantic"], ""))
+                        r["proposed_job_semantic"], "", "parser_generated_compound"))
 
     for r in read(PACKET / "promotion_candidates_deferred.csv"):
         db = r["deferral_bucket"]
@@ -96,19 +117,64 @@ def main() -> None:
         if db == "doctrine-sensitive":
             section = "doctrine"
             cluster = eco if eco in DOCTRINE_CLUSTERS else "other"
+            intake = "doctrine_blocked"
         elif db == "alias-collapse":
+            # Routed OUT of the old "folk" bucket: these collapse to an existing
+            # canonical and never count as structures. (Phase 1 folds the
+            # alias-vs-equivalence distinction here; equivalence_candidate is
+            # split out in a later phase via the CLASSIFIED_UNIVERSE equivalent_to
+            # signal.)
             section, cluster = "folk", ""
+            intake = "alias_candidate"
         elif fc == "folk-name-opacity":
             section, cluster = "folk", ""
+            intake = "unresolved_structure" if corroborated(r["slug"]) else "low_confidence_noise"
         else:
             section, cluster = "parser", ""
+            intake = "unresolved_structure" if corroborated(r["slug"]) else "low_confidence_noise"
         rows.append(row(r["name"], r["slug"], r["source_corpus"], eco, "",
-                        section, cluster, "", r["doctrine_confidence"], "", "", "", fc))
+                        section, cluster, "", r["doctrine_confidence"], "", "", "", fc, intake))
+
+    # ── lexical-duplicate collapse (Phase 1) ──
+    # Same canonical slug across rows is wording/source drift, not distinct
+    # structures. Keep the first occurrence as the survivor (fold variant names
+    # into its lexicalVariants); retag later occurrences `duplicate_source_variant`
+    # so they never count as structures. Rows are retained for provenance; the
+    # distinct-slug + bucket counts do the deduping.
+    _first: dict[str, dict] = {}
+    for r in rows:
+        s = r["slug"]
+        if s in _first:
+            if r["name"] != _first[s]["name"] and r["name"] not in _first[s]["lexicalVariants"]:
+                _first[s]["lexicalVariants"].append(r["name"])
+            r["intakeBucket"] = "duplicate_source_variant"
+        else:
+            _first[s] = r
 
     # ── stats (headline scale of the governed universe) ──
-    classified = read(IMPL / "CLASSIFIED_UNIVERSE.csv")
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
     total = len(rows)
+
+    # ── intake-bucket classification (Phase 1 — governance-workflow taxonomy) ──
+    # Each row carries an intakeBucket. Distinct-SLUG counts per bucket are the
+    # honest figures (names dedupe to structures). The scholarly metric is
+    # `unresolvedStructures`: distinct slugs that are genuinely unresolved — NOT
+    # aliases, NOT resolved modifier compounds, NOT lexical duplicates, NOT noise.
+    BUCKETS = [
+        "alias_candidate", "equivalence_candidate", "duplicate_source_variant",
+        "parser_generated_compound", "unresolved_structure", "doctrine_blocked",
+        "low_confidence_noise",
+    ]
+    _bnames = {b: 0 for b in BUCKETS}
+    _bslugs: dict[str, set] = {b: set() for b in BUCKETS}
+    for r in rows:
+        b = r["intakeBucket"]
+        _bnames[b] = _bnames.get(b, 0) + 1
+        _bslugs.setdefault(b, set()).add(r["slug"])
+    intake_buckets = {
+        b: {"names": _bnames[b], "distinctStructures": len(_bslugs[b])} for b in BUCKETS
+    }
+    unresolved_structures = len(_bslugs["unresolved_structure"])
 
     # ── Typed-counter resolution (single source: CLASSIFIED_UNIVERSE.csv) ──
     # `total` is the INTAKE-QUEUE size (promotion-packet rows) — a work subset, NOT
@@ -145,6 +211,9 @@ def main() -> None:
         "aliasEquivalentNames": alias_equivalent_names,
         "observationalUniverseNames": observational_universe_names,
         "observationalUniverseDistinctStructures": observational_universe_distinct,
+        # Phase 1 intake-bucket classification + the scholarly frontier metric.
+        "intakeBuckets": intake_buckets,
+        "unresolvedStructures": unresolved_structures,
         "ready": by_section["ready"],
         "frontier": by_section["frontier"],
         "doctrineBlocked": by_section["doctrine"],
@@ -192,6 +261,12 @@ def main() -> None:
         "  semanticJob: string;\n"
         "  /** Parser failure class for unresolved rows; '' when derived. */\n"
         "  failureClass: string;\n"
+        "  /** Phase-1 intake bucket: alias_candidate | equivalence_candidate |\n"
+        "   *  duplicate_source_variant | parser_generated_compound |\n"
+        "   *  unresolved_structure | doctrine_blocked | low_confidence_noise. */\n"
+        "  intakeBucket: string;\n"
+        "  /** Folded wording/source variants of this slug (on the surviving row). */\n"
+        "  lexicalVariants: string[];\n"
         "}\n\n"
         "export interface ObservationalUniverseStats {\n"
         "  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */\n"
@@ -205,6 +280,10 @@ def main() -> None:
         "  /** Full observational universe (governance states 3/4/5/7), single-sourced from CLASSIFIED_UNIVERSE. */\n"
         "  observationalUniverseNames: number;\n"
         "  observationalUniverseDistinctStructures: number;\n"
+        "  /** Phase-1 intake buckets: per-bucket name + distinct-structure counts. */\n"
+        "  intakeBuckets: Record<string, { names: number; distinctStructures: number }>;\n"
+        "  /** Distinct genuinely-unresolved structures (the scholarly frontier metric). */\n"
+        "  unresolvedStructures: number;\n"
         "  ready: number;\n"
         "  frontier: number;\n"
         "  doctrineBlocked: number;\n"

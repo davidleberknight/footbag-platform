@@ -55,12 +55,27 @@ describe('GET /freestyle/observational — governance surface', () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
+    expect(html).toContain('Unresolved structures');
     expect(html).toContain('Intake queue');
-    expect(html).toContain('Promotion-ready');
+    expect(html).toContain('Aliases &amp; duplicates');
     expect(html).toContain('Doctrine-blocked');
     expect(html).toContain('Canonical published');
     // The headline total comes straight from the generated stats.
     expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.total));
+  });
+
+  it('surfaces the Phase-1 intake-bucket frontier metric (unresolved unique structures)', async () => {
+    const html = await page();
+    // The scholarly frontier metric: distinct genuinely-unresolved structures.
+    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.unresolvedStructures));
+    expect(html).toMatch(/no canonical home yet/);
+    // The statsNote tells the collapse story: tracked names -> a small frontier.
+    expect(html).toMatch(/genuinely unresolved unique structures/);
+    expect(html).toMatch(/collapse to an existing trick/);
+    // The 7 buckets reconcile to the intake total.
+    const ib = OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets;
+    const sum = Object.values(ib).reduce((a, b) => a + b.names, 0);
+    expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
   it('frames counts honestly per the unique-trick doctrine (lexical totals are never tricks)', async () => {

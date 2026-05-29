@@ -205,9 +205,37 @@ counts without re-classifying), THEN the generator re-classification (§3/§4), 
 - Row data unchanged (deterministic regeneration); no DB writes. Tests:
   `freestyle.observational.routes.test.ts` asserts the honest framing; `freestyle.tricks-landing`
   updated to the new badge noun.
-- **Still future work (the §3/§4 re-classification):** the 7-bucket `intakeBucket` +
-  `collapsesTo` fields and routing `alias-collapse` out of the count. This slice delivered the
-  typed-counter contract + honest wording; it did NOT yet re-classify the 1701 intake rows.
+### 8.2 Phase-1 intake bucketing — IMPLEMENTED 2026-05-28
+
+The generator now assigns every row an `intakeBucket` (7-way) + folds wording/source
+duplicates into `lexicalVariants`, and emits per-bucket `{names, distinctStructures}` plus the
+scholarly frontier metric `unresolvedStructures`. Rules use existing packet signals only (no
+structural-signature IDs, no parser hardening, no aggressive merging):
+
+| Bucket | Rule (existing signal) | Names |
+|--------|------------------------|------:|
+| `alias_candidate` | deferred `deferral_bucket == 'alias-collapse'` (routed OUT of the old "folk") | 415 |
+| `equivalence_candidate` | (Phase 1 folds into alias_candidate; split later via CLASSIFIED `equivalent_to`) | 0 |
+| `duplicate_source_variant` | slug already seen on an earlier row (folded into the survivor's `lexicalVariants`) | 54 (→42 distinct) |
+| `parser_generated_compound` | clean + curator_confirm rows (resolved modifier+base compositions) | 221 |
+| `unresolved_structure` | junk-or-observational-only, **multi-source** (`n_sources>=2`) | **15** |
+| `doctrine_blocked` | deferred `deferral_bucket == 'doctrine-sensitive'` | 266 |
+| `low_confidence_noise` | junk-or-observational-only, single-source (`n_sources<=1`) | 730 |
+
+**Outcome:** the surface now answers "how many unresolved unique structures remain?" =
+**15** (down from the 1701 lexical headline). The `statsNote` renders the full collapse story;
+the banner leads with the `Unresolved structures` metric. Buckets reconcile exactly to 1701.
+
+**Tunable knob (flagged to curator):** `unresolved_structure` is gated on `n_sources>=2`. The
+corpus is single-source-dominant (only 58 of 2460 names carry 2+ sources), so single-source
+`folk-name-opacity` names (a large share of the 730) currently route to `low_confidence_noise`.
+If named-but-undecoded folk names should count as the serious frontier, flip that one rule
+(`corroborated()` in the generator) and `unresolvedStructures` rises to ~340. One-line,
+reversible.
+
+**Still deferred (later phases):** structural-signature IDs; splitting `equivalence_candidate`
+from `alias_candidate` via the CLASSIFIED `equivalent_to` join; migrating the page's 5-section UI
+onto the bucket taxonomy; parser-ontology hardening; doctrine adjudication.
 
 ---
 
