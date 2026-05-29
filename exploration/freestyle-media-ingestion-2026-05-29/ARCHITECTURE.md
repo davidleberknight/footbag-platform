@@ -76,6 +76,31 @@ Classified against the current tag model:
 Net: the educational media graph the sprint actually needs is fully expressible as namespaced tags on
 `media_items`. Only the relational (person/event/record) edges need a cross-track decision.
 
+### 3a. Direct vs indirect coverage — the teaches / components-covered layer
+
+A `#<slug>` tag asserts only **direct dedicated coverage**: this clip is *about* that trick. The
+coverage audit (`candidates/EXEMPLAR_CORPUS.md`) surfaced that this is one of three distinct coverage
+types, and the flat tag model expresses only the first:
+
+1. **Direct dedicated** — clip tagged `#<slug>`, teaching/showing that trick as its subject.
+2. **Embedded instructional** — the trick is taught *inside* another trick's tutorial (e.g. `orbit`
+   inside the TT "Around The World" lesson; an atom inside a compound lesson like TT #15 "Around The
+   World Toe Stall" or TT #31 "Symposium Mirage Stall").
+3. **Demo / reference** — appears in a performance/record clip with no teaching intent.
+
+Tagging an embedded-covered trick with `#<slug>` would be misleading (the clip is not *about* it), so
+the tag model cannot honestly represent (2) or (3). This makes "indirect coverage" a fourth weakly
+served linkage type alongside person / event / record / progression: a different *kind* of edge, not
+a different entity namespace.
+
+**Proposed (not built): a `teaches` / `implies` / `components-covered` relationship layer** — an edge
+from a media item to the tricks it covers *indirectly*, carrying its own relation type, kept distinct
+from the direct `#<slug>` tag. It would let `orbit` register as embedded-covered via the ATW tutorial
+without a false `#orbit` tag, and would correct the coverage-metric undercount (direct `#slug` counts
+miss all embedded/reference reach). Reversible and curator-governed like the rest of §6; defer the
+build, but treat this as the next design direction for the media-graph relationship layer once the
+direct-tag conventions (§6) land.
+
 ---
 
 ## 4. Media taxonomy

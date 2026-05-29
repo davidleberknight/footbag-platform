@@ -48,10 +48,11 @@ demonstrated inside a compound's tutorial is pedagogically covered without a ded
 
 **Future relationship layer (proposed, not built):** a `teaches` / `implies` / `components-covered`
 edge from a media item to the tricks it covers *indirectly*, distinct from the direct `#slug` tag.
-This is another linkage type the flat tag model does not express, so it belongs alongside the
-linkage-semantics work in `ARCHITECTURE.md` §3. It would let `orbit` register as embedded-covered via
-the ATW tutorial without a misleading dedicated `#orbit` tag, and would correct the undercount above.
-Do not build it now; record it as the next design direction for the media-graph relationship layer.
+This is another linkage type the flat tag model does not express. It is now recorded in the design
+architecture at `ARCHITECTURE.md` §3a (direct vs indirect coverage). It would let `orbit` register as
+embedded-covered via the ATW tutorial without a misleading dedicated `#orbit` tag, and would correct
+the undercount above. Do not build it now; it is the next design direction for the media-graph
+relationship layer once the direct-tag conventions (§6) land.
 
 ## The exemplar corpus (18)
 
