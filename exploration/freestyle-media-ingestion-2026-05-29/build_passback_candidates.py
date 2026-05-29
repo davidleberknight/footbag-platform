@@ -43,7 +43,8 @@ OPERATOR_FORMS = {
     "symposium": "symposium", "pixie": "pixie", "fairy": "fairy",
     "ducking": "ducking", "diving": "diving", "atomic": "atomic",
     "stepping": "stepping", "nuclear": "nuclear", "whirling": "whirling",
-    "swirling": "swirling", "barraging": "barraging", "blurry": "blurry",
+    "swirling": "swirling", "barraging": "barraging", "baragging": "barraging",  # baragging = source typo (curator-ruled 2026-05-29)
+    "blurry": "blurry",
     "tapping": "tapping", "gyro": "gyro", "quantum": "quantum",
     "terraging": "terraging", "weaving": "weaving", "backside": "backside",
     "blazing": "blazing", "furious": "furious", "pogo": "pogo",
