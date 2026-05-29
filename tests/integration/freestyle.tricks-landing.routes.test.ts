@@ -21,6 +21,7 @@ import {
 import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3120');
@@ -53,6 +54,16 @@ beforeAll(async () => {
     add_bonus:     1,
     modifier_type: 'body',
   });
+  // A set-uptime modifier linked to an active trick, so the By-modifier
+  // landing card surfaces the set-uptime cluster (and its #cluster-set-uptime
+  // anchor) rather than rendering empty.
+  insertFreestyleTrickModifier(db, {
+    slug:          'pixie',
+    modifier_name: 'pixie',
+    add_bonus:     1,
+    modifier_type: 'set',
+  });
+  insertFreestyleTrickModifierLink(db, 'mirage', 'pixie');
 
   db.close();
   createApp = await importApp();
@@ -158,7 +169,7 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   // Each portal-card count badge must show a VISIBLE noun (what the number
   // counts), not only an aria-label. The number sits in a
   // .dict-landing-card-count-num span; the noun follows as visible text.
-  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifiers', 'axes + surfaces', 'neighborhoods', 'tracked names'];
+  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'tracked names'];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
   it('every portal-card badge renders a visible noun label after the number', async () => {
@@ -174,6 +185,33 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     for (const noun of NOUNS) {
       expect(res.text, `aria "${noun}"`).toMatch(new RegExp(`aria-label="[\\d,]+ ${esc(noun)}"`));
     }
+  });
+
+  // NB: Handlebars escapes '=' in attribute output to '&#x3D;', so href patterns
+  // use a tolerant '[^"]*' across the query-string separator.
+  it('portal-card chips are jump-links into subsections, with derived hit counts', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Chips render as anchor links (not plain spans) into per-bucket anchors.
+    expect(res.text).toMatch(/<a class="dict-landing-card-chip" href="\/freestyle\/tricks\?view[^"]*add#add-\d+"/);
+    expect(res.text).toMatch(/<a class="dict-landing-card-chip" href="\/freestyle\/tricks\?view[^"]*dex-count#dex-/);
+    // Derived counts surface in a count span.
+    expect(res.text).toContain('dict-landing-card-chip-count');
+  });
+
+  it('By family lists the curated 23 public families as ?family= jump-links', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">23<\/span> families/);
+    for (const slug of ['mirage', 'around-the-world', 'eclipse', 'superfly']) {
+      expect(res.text, `family link ${slug}`).toMatch(new RegExp(`href="/freestyle/tricks\\?family[^"]*${slug}"`));
+    }
+  });
+
+  it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d+<\/span> modifier groups/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*sets#cluster-set-uptime"/);
+    // The broad, non-entry lens copy.
+    expect(res.text).toMatch(/What named operator, set, or modifier appears in the trick\?/);
   });
 
   it('large counts are thousands-separated in the visible badge (Emerging vocabulary)', async () => {

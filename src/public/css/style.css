@@ -11118,11 +11118,23 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .dict-landing-card-chip {
   display: inline-block;
-  color: var(--text-secondary, #555);
+  color: var(--link, #2a6f9e);
+  text-decoration: none;
+}
+.dict-landing-card-chip:hover {
+  text-decoration: underline;
+}
+.dict-landing-card-chip-count {
+  color: var(--text-subtle, #aaa);
+  font-size: 0.85em;
 }
 .dict-landing-card-chip-sep {
   color: var(--text-subtle, #aaa);
   margin: 0 2px;
+}
+.sets-cluster-blurb {
+  margin: -2px 0 10px;
+  font-size: 0.92rem;
 }
 .dict-landing-card-open {
   margin: 4px 0 0;

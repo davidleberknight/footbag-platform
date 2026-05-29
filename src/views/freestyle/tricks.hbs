@@ -44,8 +44,8 @@
           </header>
           <p class="dict-landing-card-question">{{lensQuestion}}</p>
           {{#if chips.length}}
-          <p class="dict-landing-card-chips" aria-label="Examples">
-            {{#each chips}}<span class="dict-landing-card-chip">{{this}}</span>{{#unless @last}} <span class="dict-landing-card-chip-sep">·</span> {{/unless}}{{/each}}
+          <p class="dict-landing-card-chips" aria-label="Jump to section">
+            {{#each chips}}<a class="dict-landing-card-chip" href="{{href}}">{{label}}{{#if count}} <span class="dict-landing-card-chip-count">{{count}}</span>{{/if}}</a>{{#unless @last}} <span class="dict-landing-card-chip-sep">·</span> {{/unless}}{{/each}}
           </p>
           {{/if}}
           <p class="dict-landing-card-open"><a href="{{href}}">Open &rarr;</a></p>
@@ -131,7 +131,7 @@
        + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
-  <section class="content-section trick-add-group trick-group--trick-rows" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
+  <section class="content-section trick-add-group trick-group--trick-rows" id="{{anchorId}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
@@ -185,29 +185,38 @@
   {{#if (eq content.activeView "sets")}}
   <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
-  {{#if content.setGroups.length}}
-  <p class="sets-view-total detail-muted"><strong>{{content.setGroups.length}}</strong> sets and modifiers exercised by the active dictionary.</p>
+  {{#if content.setsClusterView.length}}
+  <p class="sets-view-total detail-muted"><strong>{{content.setGroups.length}}</strong> sets and modifiers, grouped into {{content.setsClusterView.length}} clusters. Each cluster expands into its individual modifiers below.</p>
 
-  <nav class="sets-view-jump" aria-label="Set / modifier jump">
-    {{#each content.setGroups}}
-      <a href="#set-{{modifierSlug}}">{{modifierName}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+  <nav class="sets-view-jump" aria-label="Modifier cluster jump">
+    {{#each content.setsClusterView}}
+      <a href="#cluster-{{key}}">{{label}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
 
-  {{#each content.setGroups}}
-  <section class="content-section trick-set-group trick-group--trick-rows" id="set-{{modifierSlug}}" data-anchor-style="solid">
+  {{#each content.setsClusterView}}
+  <section class="content-section sets-cluster" id="cluster-{{key}}" data-anchor-style="solid">
     <div class="section-heading">
-      <h2><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h2>
-      <span class="section-count">{{trickCount}}</span>
+      <h2>{{label}}</h2>
+      <span class="section-count">{{groups.length}}</span>
     </div>
-    <p class="trick-set-group-meta detail-muted">
-      {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
-    </p>
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
-    </div>
+    <p class="sets-cluster-blurb detail-muted">{{blurb}}</p>
+    {{#each groups}}
+    <section class="trick-set-group trick-group--trick-rows" id="set-{{modifierSlug}}" data-anchor-style="dotted">
+      <div class="section-heading">
+        <h3><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h3>
+        <span class="section-count">{{trickCount}}</span>
+      </div>
+      <p class="trick-set-group-meta detail-muted">
+        {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
+      </p>
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
+    </section>
+    {{/each}}
   </section>
   {{/each}}
   {{else}}

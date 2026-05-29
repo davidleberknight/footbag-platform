@@ -227,12 +227,17 @@ describe('/freestyle/tricks?view=sets — findability of representative ecosyste
     expect(res.text).toMatch(/id="set-ducking"[\s\S]+?ducking-mirage/);
   });
 
-  it('jump nav surfaces all sections at the top of the page', async () => {
+  it('cluster jump nav surfaces clusters; individual modifier anchors preserved for drill-down', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.text).toContain('class="sets-view-jump"');
-    expect(res.text).toMatch(/href="#set-spinning"/);
-    expect(res.text).toMatch(/href="#set-fairy"/);
-    expect(res.text).toMatch(/href="#set-paradox"/);
+    // jump nav links to the higher-level clusters
+    expect(res.text).toMatch(/href="#cluster-set-uptime"/);
+    expect(res.text).toMatch(/href="#cluster-rotational-body"/);
+    expect(res.text).toMatch(/href="#cluster-no-plant-timing"/);
+    // individual modifier sections + anchors still exist (drill-down + deep-links)
+    expect(res.text).toMatch(/id="set-spinning"/);
+    expect(res.text).toMatch(/id="set-fairy"/);
+    expect(res.text).toMatch(/id="set-paradox"/);
   });
 });
 

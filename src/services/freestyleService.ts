@@ -109,6 +109,8 @@ import {
 import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
+import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
+import { MODIFIER_CLUSTERS, clusterForModifier } from '../content/freestyleModifierClusters';
 import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
@@ -2000,6 +2002,7 @@ export interface FreestyleTrickGroup {
 export interface FreestyleTrickAddGroup {
   addNumeric: number | null;
   addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
+  anchorId: string;            // pre-shaped section anchor: 'add-0'..'add-N', 'add-unrated'. Avoids the 0-is-falsy template footgun and stays correct for future 8/9 ADD buckets.
   tricks: FreestyleTrickIndexRow[];
   // DSC-2 slice 1: shared symbolic trick cards. Built alongside the legacy
   // `tricks` rows so other views can continue rendering inline markup while
@@ -2518,6 +2521,9 @@ export interface FreestyleTricksIndexContent {
   // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
   // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
   setGroups: FreestyleSetGroup[];
+  // ?view=sets cluster grouping (organizational): non-empty clusters in display
+  // order, each wrapping its active modifier groups.
+  setsClusterView: SetsClusterView[];
   // DSC-2 slice 3A: component view (?view=component). Body + set modifier
   // axes only; topology + archetype axes deferred to a later slice.
   componentView: ComponentBrowseView;
@@ -2575,8 +2581,26 @@ export interface DictionaryLandingCard {
   countDisplay: string;         // thousands-separated count for the visible badge (e.g. '1,769')
   countSuffix:  string;         // noun the count enumerates ('families' / 'modifiers' / ...); rendered visibly next to the number AND in aria
   lensQuestion: string;         // 'How layered is the trick?'
-  chips:        readonly string[]; // 3 micro-example chips
+  // Jump-menu entries: each links to its subsection/page anchor, with an
+  // optional derived hit count (null when not available).
+  chips:        readonly DictionaryLandingChip[];
   crossLink?:   { label: string; href: string };  // optional in-context cross-link
+}
+
+export interface DictionaryLandingChip {
+  label: string;
+  href:  string;                // anchor or page link the chip jumps to
+  count: number | null;         // derived hit count; null when unavailable
+}
+
+// Higher-level modifier cluster for the grouped ?view=sets page (organizational
+// UX; individual modifier groups nest underneath). Reversible content grouping,
+// not ontology — see freestyleModifierClusters.ts.
+export interface SetsClusterView {
+  key:    string;               // `cluster-{key}` section anchor
+  label:  string;
+  blurb:  string;
+  groups: FreestyleSetGroup[];  // active modifier groups in this cluster
 }
 
 export interface FreestyleFamilyGroup {
@@ -6782,6 +6806,7 @@ export const freestyleService = {
       return {
         addNumeric,
         addLabel,
+        anchorId: addNumeric != null ? `add-${addNumeric}` : 'add-unrated',
         tricks: sorted.map(e => e.indexRow),
         cards:  sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx)),
       };
@@ -7306,6 +7331,28 @@ export const freestyleService = {
       }
     };
     const fmtCount = (n: number): string => n.toLocaleString('en-US');
+
+    // Public-family hit counts (curated 23-family browse layer): active-trick
+    // count per raw trick_family, for the By-family jump menu.
+    const familyTrickCounts = new Map<string, number>();
+    for (const r of activeRows) {
+      if (!isTrickRow(r)) continue;
+      const f = (r.trick_family ?? '').trim();
+      if (f) familyTrickCounts.set(f, (familyTrickCounts.get(f) ?? 0) + 1);
+    }
+
+    // Modifier clusters (organizational UX): bucket the active modifier setGroups
+    // into curated higher-level clusters for the By-modifier jump menu + the
+    // grouped sets page. Reversible content map; modifiers not listed in a
+    // cluster fall through to 'other'; empty clusters are dropped.
+    const setsClusterView: SetsClusterView[] = MODIFIER_CLUSTERS
+      .map(c => ({
+        key:    c.key,
+        label:  c.label,
+        blurb:  c.blurb,
+        groups: setGroups.filter(g => clusterForModifier(g.modifierSlug) === c.key),
+      }))
+      .filter(c => c.groups.length > 0);
     const landingGrid: DictionaryLandingGrid = {
       bands: [
         {
@@ -7318,7 +7365,7 @@ export const freestyleService = {
               countDisplay: fmtCount(addGroups.length),
               countSuffix:  'ADD buckets',
               lensQuestion: 'How layered is the trick?',
-              chips:        addGroups.map(g => g.addLabel),
+              chips:        addGroups.map(g => ({ label: g.addLabel, href: `/freestyle/tricks?view=add#${g.anchorId}`, count: g.tricks.length })),
             },
             {
               label:        'By dex count',
@@ -7327,7 +7374,7 @@ export const freestyleService = {
               countDisplay: fmtCount(dexCountGroups.length),
               countSuffix:  'dex buckets',
               lensQuestion: 'How many dex events does it have?',
-              chips:        dexCountGroups.map(g => dexChipLabel(g.dexCount)),
+              chips:        dexCountGroups.map(g => ({ label: dexChipLabel(g.dexCount), href: `/freestyle/tricks?view=dex-count#${g.bucketId}`, count: g.cards.length })),
             },
           ],
         },
@@ -7337,20 +7384,25 @@ export const freestyleService = {
             {
               label:        'By family',
               href:         '/freestyle/tricks?view=family',
-              count:        renderedFamilyCount,
-              countDisplay: fmtCount(renderedFamilyCount),
+              // Curated public-display family roster (distinct from the 8 parent
+              // anchors and the raw trick_family labels); see freestylePublicFamilies.ts.
+              count:        PUBLIC_DISPLAY_FAMILIES.length,
+              countDisplay: fmtCount(PUBLIC_DISPLAY_FAMILIES.length),
               countSuffix:  'families',
               lensQuestion: 'What core movement topology does the trick inherit from?',
-              chips:        familyGroups.map(g => g.familySlug),
+              chips:        PUBLIC_DISPLAY_FAMILIES.map(f => ({ label: f.label, href: `/freestyle/tricks?family=${f.slug}`, count: familyTrickCounts.get(f.slug) ?? 0 })),
             },
             {
               label:        'By modifier',
               href:         '/freestyle/tricks?view=sets',
-              count:        CANONICAL_SETS.length,
-              countDisplay: fmtCount(CANONICAL_SETS.length),
-              countSuffix:  'modifiers',
-              lensQuestion: 'What entry launches the movement?',
-              chips:        CANONICAL_SETS.map(s => s.slug),
+              // Grouped into higher-level clusters (organizational UX; individual
+              // modifiers nest under each on the page). Broad operator/ingredient
+              // lens, NOT an entry-only taxonomy.
+              count:        setsClusterView.length,
+              countDisplay: fmtCount(setsClusterView.length),
+              countSuffix:  'modifier groups',
+              lensQuestion: 'What named operator, set, or modifier appears in the trick?',
+              chips:        setsClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=sets#cluster-${c.key}`, count: c.groups.reduce((n, g) => n + g.cards.length, 0) })),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
             },
             {
@@ -7362,17 +7414,20 @@ export const freestyleService = {
               // Alternative Surfaces grouping (parallel layer, not a fifth axis).
               countSuffix:  'axes + surfaces',
               lensQuestion: 'What compositional systems shape the trick?',
-              chips:        [...MOVEMENT_SYSTEM_AXES.map(a => axisChipLabel(a.axisKey, a.axisName)), 'Alternative Surfaces'],
+              chips:        [
+                ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.groups.reduce((n, g) => n + g.cards.length, 0) })),
+                { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.tricks.length, 0) },
+              ],
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
             },
             {
               label:        'Movement Neighborhoods',
               href:         '/freestyle/tricks?view=topology',
-              count:        TOPOLOGY_GROUPS.length,
-              countDisplay: fmtCount(TOPOLOGY_GROUPS.length),
+              count:        topologyView.groups.length,
+              countDisplay: fmtCount(topologyView.groups.length),
               countSuffix:  'neighborhoods',
-              lensQuestion: 'Tricks that FEEL mechanically similar to perform.',
-              chips:        TOPOLOGY_GROUPS.map(g => g.name),
+              lensQuestion: 'Mechanical similarity clusters that cut across families, modifiers, and ADD.',
+              chips:        topologyView.groups.map(g => ({ label: g.topologyName, href: `/freestyle/tricks?view=topology#${g.anchorId}`, count: g.memberCount })),
               crossLink:    { label: 'Compare to By family for the canonical view.', href: '/freestyle/tricks?view=family' },
             },
           ],
@@ -7387,7 +7442,7 @@ export const freestyleService = {
               countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
               countSuffix:  'tracked names',
               lensQuestion: 'Tracked names under review, not unique tricks.',
-              chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'],
+              chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
             },
           ],
         },
@@ -7458,6 +7513,7 @@ export const freestyleService = {
         groups,
         familyGroups,
         setGroups,
+        setsClusterView,
         componentView,
         topologyView,
         movementSystemView,
