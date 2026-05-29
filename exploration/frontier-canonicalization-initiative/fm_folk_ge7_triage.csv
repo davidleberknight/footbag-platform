@@ -1,49 +1,49 @@
-slug,fm_add,official_add,fborg_add,fm_technical_name,decomposed_structure,matched_canonical,corroborated,doctrine_gates,unrecognized_tokens,tier,frontier_status,action
-big-apple-sauce,9,,,Spinning Paradox Miraging Symposium Torque,spinning-miraging-symposium-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-carousel,9,,,Surging Ducking Paradox Symposium Whirling Rake,spinning-stepping-ducking-symposium-whirling-rake,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-assassin-ss,8,,,Pixie Mirage (ss) (diving),pixie-diving-mirage,pixie-diving-mirage,no,,,B,alias-on-existing,structural duplication -> alias-wire to pixie-diving-mirage (gauntlet pattern)
-surging-ducking-paradox-torque,8,,,Surging Ducking Paradox Torque,spinning-stepping-ducking-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-your-sister,8,,,Flailing ss Symposium Double Over Down,symposium-double-over-down,,no,DOD-policy,flailing,C,parser_blocked,unrecognized token(s): flailing -> operator-triage / incomplete decomposition
-alpine-big-apple,7,,,Gyro Ducking Symposium Torque,gyro-ducking-symposium-torque,gyro-ducking-symposium-torque,no,,,B,alias-on-existing,structural duplication -> alias-wire to gyro-ducking-symposium-torque (gauntlet pattern)
-apocalypse,7,,,Pixie Miraging Symposium Miraging Legover,pixie-miraging-symposium-legover,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-atomotion,7,,,Atomic Motion,atomic,,no,,motion,C,parser_blocked,unrecognized token(s): motion -> operator-triage / incomplete decomposition
-big-papa-smurf,7,,,Surfing ss Blender,blender,,no,,surfing,C,parser_blocked,unrecognized token(s): surfing -> operator-triage / incomplete decomposition
-bill-ted-s-excellent-adventure,7,,,Flailing ss Symposium Eggbeater,symposium-eggbeater,,no,,flailing,C,parser_blocked,unrecognized token(s): flailing -> operator-triage / incomplete decomposition
-blue-widow,7,,,Pixie Spinning Paradox Symposium Whirl,pixie-spinning-symposium-whirl,blue-widow,no,,,B,already-canonical,already canonical/alias — no action
-blurry-chainsaw-massacre,7,,,Blurry Illusioning Paradox Symposium Eggbeater,blurry-symposium-eggbeater,,no,blurry-transitivity,,C,frontier_review,doctrine gate(s): blurry-transitivity -> Red
-chainsaw-massacre,7,,,Bubba Paradox Symposium Eggbeater,symposium-eggbeater,chainsaw-massacre,no,,bubba,B,already-canonical,already canonical/alias — no action
-clown-face,7,,,Furious Eggbeater,furious-eggbeater,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-cold-fusion,7,,,Nuclear Double Over Down,nuclear-double-over-down,,no,DOD-policy,,C,frontier_review,doctrine gate(s): DOD-policy -> Red
-dorshanatrix,7,,,Railing Symposium Mirage,symposium-mirage,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition
-floatation,7,,,Floating Butterfly,butterfly,,no,,floating,C,parser_blocked,unrecognized token(s): floating -> operator-triage / incomplete decomposition
-flying-fish,7,,,Railing Ducking Mirage,ducking-mirage,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition
-gangsta-party,7,,,Spinning Ducking Paradox Blender,spinning-ducking-blender,gangsta-party,no,,,B,already-canonical,already canonical/alias — no action
-gauntlet,7,7,,Blurry Ducking Torque,blurry-ducking-torque,gauntlet,yes,blurry-transitivity,,B,already-canonical,already canonical/alias — no action
-genesis,7,,,Furious Whirl,furious-whirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-genuphobia,7,,,Fairy Spyro Symposium Torque,fairy-symposium-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-icarus,7,,,Atomic Ducking Torque,atomic-ducking-torque,,no,atomic-rotational-Q3,,C,frontier_review,doctrine gate(s): atomic-rotational-Q3 -> Red
-kyttyra,7,,,Far Whirling Bent Symposium Swirling Osis,whirling-symposium-swirling-osis,,no,,bent,C,parser_blocked,unrecognized token(s): bent -> operator-triage / incomplete decomposition
-liquifier,7,,,Splicing ss Blender,blender,,no,,splicing,C,parser_blocked,unrecognized token(s): splicing -> operator-triage / incomplete decomposition
-margaritaville,7,,,Surging Paradox Blender,spinning-stepping-blender,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-moirius,7,,,Spyro Symposium Torquescrew,symposium-spyro,,no,,torquescrew,C,parser_blocked,unrecognized token(s): torquescrew -> operator-triage / incomplete decomposition
-montage,7,7,,Spinning Ducking Paradox Symposium Whirl,spinning-ducking-symposium-whirl,montage,yes,,,B,already-canonical,already canonical/alias — no action
-nebula,7,,,Furious Double Legover,furious-legover,,no,,double,C,parser_blocked,unrecognized token(s): double -> operator-triage / incomplete decomposition
-nemesis-swirl,7,,,Barraging Barfly Swirl,barraging-swirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-odula,7,,,Blurry Zulu Blender,blurry-blender,,no,blurry-transitivity,zulu,C,parser_blocked,unrecognized token(s): zulu -> operator-triage / incomplete decomposition
-oh-wheely,7,,,Nuclear Nova,nuclear,,no,,nova,C,parser_blocked,unrecognized token(s): nova -> operator-triage / incomplete decomposition
-overlord,7,,,Pixie Spinning Paradox Blender,pixie-spinning-blender,overlord,no,,,B,already-canonical,already canonical/alias — no action
-rage,7,,,Furious Symposium Mirage,furious-symposium-mirage,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-rail-warrior,7,,,Railing Ducking Butterfly,ducking-butterfly,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition
-redwetter,7,,,Shooting Eggbeater,shooting-eggbeater,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-sasquatch,7,,,Blurry Symposium Whirling XBD Rake,blurry-symposium-whirling-rake,,no,blurry-transitivity,xbd,C,parser_blocked,unrecognized token(s): xbd -> operator-triage / incomplete decomposition
-shooting-star,7,,,Shooting Star,shooting,,no,,star,C,parser_blocked,unrecognized token(s): star -> operator-triage / incomplete decomposition
-shooting-torque,7,,,Shooting Torque,shooting-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-stepping-ducking-paradox-blender,7,7,,Stepping Ducking Paradox Blender,stepping-ducking-blender,stepping-ducking-paradox-blender,yes,,,B,already-canonical,already canonical/alias — no action
-stepping-ducking-ps-whirl,7,,,Stepping Ducking PS Whirl,stepping-ducking-whirl,stepping-ducking-ps-whirl,no,,ps,B,already-canonical,already canonical/alias — no action
-stepping-ps-whirling-x-body-rake,7,,,Stepping P.S. Whirling x-body Rake,stepping-whirling-rake,,no,,p.s|x-body,C,parser_blocked,"unrecognized token(s): p.s,x-body -> operator-triage / incomplete decomposition"
-super-ego,7,,,Atomic Ducking Blender,atomic-ducking-blender,,no,atomic-rotational-Q3,,C,frontier_review,doctrine gate(s): atomic-rotational-Q3 -> Red
-superdeeduperfly,7,,,Spinning Ducking Symposium Double Over Down,spinning-ducking-symposium-double-over-down,spinning-ducking-symposium-double-over-down,no,DOD-policy,,B,alias-on-existing,structural duplication -> alias-wire to spinning-ducking-symposium-double-over-down (gauntlet pattern)
-swirlwind,7,,,Spinning Paradox Symposium Whirling Swirl,spinning-symposium-whirling-swirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration
-syberian-express,7,,,Stepping Ducking Far Motion,stepping-ducking,,no,,motion,C,parser_blocked,unrecognized token(s): motion -> operator-triage / incomplete decomposition
-warp,7,,,Warping Mirage,mirage,,no,,warping,C,parser_blocked,unrecognized token(s): warping -> operator-triage / incomplete decomposition
-your-mom,7,,,Atomic os Symposium Double Over Down,atomic-symposium-double-over-down,,no,DOD-policy,os,C,parser_blocked,unrecognized token(s): os -> operator-triage / incomplete decomposition
+slug,fm_add,official_add,fborg_add,fm_technical_name,decomposed_structure,matched_canonical,corroborated,doctrine_gates,unrecognized_tokens,tier,frontier_status,action,verification
+big-apple-sauce,9,,,Spinning Paradox Miraging Symposium Torque,spinning-miraging-symposium-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+carousel,9,,,Surging Ducking Paradox Symposium Whirling Rake,spinning-stepping-ducking-symposium-whirling-rake,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+assassin-ss,8,,,Pixie Mirage (ss) (diving),pixie-diving-mirage,pixie-diving-mirage,no,,,B,alias-on-existing,structural duplication -> alias-wire to pixie-diving-mirage (gauntlet pattern),"VERIFY FAIL 2026-05-29 (REJECTED): fm=8 vs pixie-diving-mirage 4-ADD; the (ss) same-side qualifier was dropped by the matcher, so the structural match is false. NOT an alias -> route to above-7 FM-only adjudication."
+surging-ducking-paradox-torque,8,,,Surging Ducking Paradox Torque,spinning-stepping-ducking-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+your-sister,8,,,Flailing ss Symposium Double Over Down,symposium-double-over-down,,no,DOD-policy,flailing,C,parser_blocked,unrecognized token(s): flailing -> operator-triage / incomplete decomposition,
+alpine-big-apple,7,,,Gyro Ducking Symposium Torque,gyro-ducking-symposium-torque,alpine-big-apple,no,,,B,already-canonical,already canonical/alias — no action,WIRED 2026-05-29: verified structural alias -> gyro-ducking-symposium-torque (ADD 7=7; exact modifier-set+base match; unique target). Alias live.
+apocalypse,7,,,Pixie Miraging Symposium Miraging Legover,pixie-miraging-symposium-legover,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+atomotion,7,,,Atomic Motion,atomic,,no,,motion,C,parser_blocked,unrecognized token(s): motion -> operator-triage / incomplete decomposition,
+big-papa-smurf,7,,,Surfing ss Blender,blender,,no,,surfing,C,parser_blocked,unrecognized token(s): surfing -> operator-triage / incomplete decomposition,
+bill-ted-s-excellent-adventure,7,,,Flailing ss Symposium Eggbeater,symposium-eggbeater,,no,,flailing,C,parser_blocked,unrecognized token(s): flailing -> operator-triage / incomplete decomposition,
+blue-widow,7,,,Pixie Spinning Paradox Symposium Whirl,pixie-spinning-symposium-whirl,blue-widow,no,,,B,already-canonical,already canonical/alias — no action,
+blurry-chainsaw-massacre,7,,,Blurry Illusioning Paradox Symposium Eggbeater,blurry-symposium-eggbeater,,no,blurry-transitivity,,C,frontier_review,doctrine gate(s): blurry-transitivity -> Red,
+chainsaw-massacre,7,,,Bubba Paradox Symposium Eggbeater,symposium-eggbeater,chainsaw-massacre,no,,bubba,B,already-canonical,already canonical/alias — no action,
+clown-face,7,,,Furious Eggbeater,furious-eggbeater,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+cold-fusion,7,,,Nuclear Double Over Down,nuclear-double-over-down,,no,DOD-policy,,C,frontier_review,doctrine gate(s): DOD-policy -> Red,
+dorshanatrix,7,,,Railing Symposium Mirage,symposium-mirage,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition,
+floatation,7,,,Floating Butterfly,butterfly,,no,,floating,C,parser_blocked,unrecognized token(s): floating -> operator-triage / incomplete decomposition,
+flying-fish,7,,,Railing Ducking Mirage,ducking-mirage,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition,
+gangsta-party,7,,,Spinning Ducking Paradox Blender,spinning-ducking-blender,gangsta-party,no,,,B,already-canonical,already canonical/alias — no action,
+gauntlet,7,7,,Blurry Ducking Torque,blurry-ducking-torque,gauntlet,yes,blurry-transitivity,,B,already-canonical,already canonical/alias — no action,
+genesis,7,,,Furious Whirl,furious-whirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+genuphobia,7,,,Fairy Spyro Symposium Torque,fairy-symposium-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+icarus,7,,,Atomic Ducking Torque,atomic-ducking-torque,,no,atomic-rotational-Q3,,C,frontier_review,doctrine gate(s): atomic-rotational-Q3 -> Red,
+kyttyra,7,,,Far Whirling Bent Symposium Swirling Osis,whirling-symposium-swirling-osis,,no,,bent,C,parser_blocked,unrecognized token(s): bent -> operator-triage / incomplete decomposition,
+liquifier,7,,,Splicing ss Blender,blender,,no,,splicing,C,parser_blocked,unrecognized token(s): splicing -> operator-triage / incomplete decomposition,
+margaritaville,7,,,Surging Paradox Blender,spinning-stepping-blender,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+moirius,7,,,Spyro Symposium Torquescrew,symposium-spyro,,no,,torquescrew,C,parser_blocked,unrecognized token(s): torquescrew -> operator-triage / incomplete decomposition,
+montage,7,7,,Spinning Ducking Paradox Symposium Whirl,spinning-ducking-symposium-whirl,montage,yes,,,B,already-canonical,already canonical/alias — no action,
+nebula,7,,,Furious Double Legover,furious-legover,,no,,double,C,parser_blocked,unrecognized token(s): double -> operator-triage / incomplete decomposition,
+nemesis-swirl,7,,,Barraging Barfly Swirl,barraging-swirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+odula,7,,,Blurry Zulu Blender,blurry-blender,,no,blurry-transitivity,zulu,C,parser_blocked,unrecognized token(s): zulu -> operator-triage / incomplete decomposition,
+oh-wheely,7,,,Nuclear Nova,nuclear,,no,,nova,C,parser_blocked,unrecognized token(s): nova -> operator-triage / incomplete decomposition,
+overlord,7,,,Pixie Spinning Paradox Blender,pixie-spinning-blender,overlord,no,,,B,already-canonical,already canonical/alias — no action,
+rage,7,,,Furious Symposium Mirage,furious-symposium-mirage,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+rail-warrior,7,,,Railing Ducking Butterfly,ducking-butterfly,,no,,railing,C,parser_blocked,unrecognized token(s): railing -> operator-triage / incomplete decomposition,
+redwetter,7,,,Shooting Eggbeater,shooting-eggbeater,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+sasquatch,7,,,Blurry Symposium Whirling XBD Rake,blurry-symposium-whirling-rake,,no,blurry-transitivity,xbd,C,parser_blocked,unrecognized token(s): xbd -> operator-triage / incomplete decomposition,
+shooting-star,7,,,Shooting Star,shooting,,no,,star,C,parser_blocked,unrecognized token(s): star -> operator-triage / incomplete decomposition,
+shooting-torque,7,,,Shooting Torque,shooting-torque,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+stepping-ducking-paradox-blender,7,7,,Stepping Ducking Paradox Blender,stepping-ducking-blender,stepping-ducking-paradox-blender,yes,,,B,already-canonical,already canonical/alias — no action,
+stepping-ducking-ps-whirl,7,,,Stepping Ducking PS Whirl,stepping-ducking-whirl,stepping-ducking-ps-whirl,no,,ps,B,already-canonical,already canonical/alias — no action,
+stepping-ps-whirling-x-body-rake,7,,,Stepping P.S. Whirling x-body Rake,stepping-whirling-rake,,no,,p.s|x-body,C,parser_blocked,"unrecognized token(s): p.s,x-body -> operator-triage / incomplete decomposition",
+super-ego,7,,,Atomic Ducking Blender,atomic-ducking-blender,,no,atomic-rotational-Q3,,C,frontier_review,doctrine gate(s): atomic-rotational-Q3 -> Red,
+superdeeduperfly,7,,,Spinning Ducking Symposium Double Over Down,spinning-ducking-symposium-double-over-down,spinning-ducking-symposium-double-over-down,no,DOD-policy,,B,alias-on-existing,structural duplication -> alias-wire to spinning-ducking-symposium-double-over-down (gauntlet pattern),HELD 2026-05-29: target spinning-ducking-symposium-double-over-down is in the DOD-policy cluster; do not verify-to-wire until the DOD doctrine is ruled.
+swirlwind,7,,,Spinning Paradox Symposium Whirling Swirl,spinning-symposium-whirling-swirl,,no,,,B,frontier_review,clean decomp but FM-only -> needs source corroboration,
+syberian-express,7,,,Stepping Ducking Far Motion,stepping-ducking,,no,,motion,C,parser_blocked,unrecognized token(s): motion -> operator-triage / incomplete decomposition,
+warp,7,,,Warping Mirage,mirage,,no,,warping,C,parser_blocked,unrecognized token(s): warping -> operator-triage / incomplete decomposition,
+your-mom,7,,,Atomic os Symposium Double Over Down,atomic-symposium-double-over-down,,no,DOD-policy,os,C,parser_blocked,unrecognized token(s): os -> operator-triage / incomplete decomposition,

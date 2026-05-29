@@ -49,6 +49,15 @@ for slug, base in conn.execute("SELECT slug, base_trick FROM freestyle_tricks WH
     b = re.sub(r"[^a-z0-9]+","-",(base or "").lower()).strip("-")
     struct_index[(frozenset(modlinks.get(slug,set())), b)] = slug
 
+# Curator verification verdicts on the structural-alias candidates (2026-05-29 individual review),
+# recorded alongside the automated triage. The automated columns show what the matcher found; this
+# column records the human ruling after verification (which can override a matcher false-positive).
+VERIFIED_VERDICTS = {
+    "alpine-big-apple": "WIRED 2026-05-29: verified structural alias -> gyro-ducking-symposium-torque (ADD 7=7; exact modifier-set+base match; unique target). Alias live.",
+    "assassin-ss": "VERIFY FAIL 2026-05-29 (REJECTED): fm=8 vs pixie-diving-mirage 4-ADD; the (ss) same-side qualifier was dropped by the matcher, so the structural match is false. NOT an alias -> route to above-7 FM-only adjudication.",
+    "superdeeduperfly": "HELD 2026-05-29: target spinning-ducking-symposium-double-over-down is in the DOD-policy cluster; do not verify-to-wire until the DOD doctrine is ruled.",
+}
+
 def decompose(tech):
     s = " "+tech.lower()+" "
     for ph,rep in MULTIWORD:
@@ -121,7 +130,8 @@ for slug,fm,off,fb,tech in sorted(best.values(), key=lambda x:(-x[1],x[0])):
     out.append({"slug":slug,"fm_add":fm,"official_add":off or "","fborg_add":fb or "",
       "fm_technical_name":tech,"decomposed_structure":struct,"matched_canonical":matched,
       "corroborated":"yes" if corroborated else "no","doctrine_gates":"|".join(dgates),
-      "unrecognized_tokens":"|".join(unknown),"tier":tier,"frontier_status":status,"action":action})
+      "unrecognized_tokens":"|".join(unknown),"tier":tier,"frontier_status":status,"action":action,
+      "verification":VERIFIED_VERDICTS.get(slug,"")})
 
 with OUT.open("w",newline="",encoding="utf-8") as f:
     w=csv.DictWriter(f,fieldnames=list(out[0].keys()),lineterminator="\n"); w.writeheader(); w.writerows(out)
