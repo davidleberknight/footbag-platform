@@ -7383,8 +7383,8 @@ export const freestyleService = {
               href:         '/freestyle/observational',
               count:        OBSERVATIONAL_UNIVERSE_STATS.total,
               countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
-              countSuffix:  'observational names',
-              lensQuestion: 'Tracked but not yet promoted to canonical.',
+              countSuffix:  'tracked names',
+              lensQuestion: 'Tracked names under review, not unique tricks.',
               chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'],
             },
           ],
@@ -7927,12 +7927,16 @@ export const freestyleService = {
       'Names the parser cannot yet fully read: unknown modifier tokens, ambiguous ' +
       'terminal mechanics, or unresolved syntax. Honest coverage gaps, not failures.');
 
+    // Typed counters (publication-integrity doctrine): the intake-queue size is a
+    // count of tracked NAMES (aliases, wording variants, modifier combinations),
+    // never unique tricks; the published count is a NAME count that collapses to
+    // fewer distinct structures. Never present a lexical total as a trick count.
     const statBlocks: ObservationalStat[] = [
-      { label: 'Observational names', value: String(stats.total),                hint: 'documented, not yet canonical' },
+      { label: 'Intake queue',        value: String(stats.total),               hint: 'tracked names under review, not unique tricks' },
       { label: 'Promotion-ready',     value: `${stats.promotionReadyPct}%`,      hint: `${stats.ready} clean candidates` },
       { label: 'Doctrine-blocked',    value: `${stats.doctrineBlockedPct}%`,     hint: 'concentrated in a few ecosystems' },
       { label: 'Folk / unresolved',   value: `${stats.folkUnresolvedPct}%`,      hint: 'historical + uncertain equivalence' },
-      { label: 'Canonical coverage',  value: `${stats.canonicalCoveragePct}%`,   hint: `${stats.canonicalPublished} of ${stats.universeTotal} names published` },
+      { label: 'Canonical published', value: String(stats.canonicalPublished),   hint: `${stats.publishedDistinctStructures} distinct structures; ${stats.universeTotal} documented names in the full universe` },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
@@ -7962,7 +7966,10 @@ export const freestyleService = {
         stats: statBlocks,
         statsNote:
           'Derived from the Phase E reconciliation of every documented trick name. ' +
-          'Overlap-safe: nothing here duplicates a published canonical trick or alias.',
+          'Overlap-safe: nothing here duplicates a published canonical trick or alias. ' +
+          'These are documented names, not unique tricks: many are aliases, wording ' +
+          'variants, or modifier combinations of existing tricks. The published count ' +
+          'is a name count and collapses to fewer distinct structures.',
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated — they ' +

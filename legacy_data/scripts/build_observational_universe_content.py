@@ -109,6 +109,24 @@ def main() -> None:
     classified = read(IMPL / "CLASSIFIED_UNIVERSE.csv")
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
     total = len(rows)
+
+    # ── Typed-counter resolution (single source: CLASSIFIED_UNIVERSE.csv) ──
+    # `total` is the INTAKE-QUEUE size (promotion-packet rows) — a work subset, NOT
+    # the universe and NOT unique tricks. The UNIVERSE census below is computed
+    # straight from the classified universe so the two populations are never
+    # conflated in a public headline. Distinct-structure counts collapse lexical
+    # wording/source variants to one slug: these are the ontology-honest figures,
+    # while the *name* counts are publication/lexical. (Cross-file reconciliation:
+    # 2460 universe = 510 published + 5 alias/equiv + 1945 observational; published
+    # 510 names collapse to ~507 distinct structures and ~499 live canonical tricks.)
+    def _gov1(c: dict) -> str:
+        return (c.get("governance_state", "") or "")[:1]
+    published_distinct = len({(c.get("slug", "") or "") for c in classified if _gov1(c) == "1"})
+    alias_equivalent_names = sum(1 for c in classified if _gov1(c) == "2")
+    _obs_states = {"3", "4", "5", "7"}
+    _obs_universe = [c for c in classified if _gov1(c) in _obs_states]
+    observational_universe_names = len(_obs_universe)
+    observational_universe_distinct = len({(c.get("slug", "") or "") for c in _obs_universe})
     by_section = Counter(r["section"] for r in rows)
     by_source = Counter(r["source"] for r in rows)
     derivable = by_section["ready"] + by_section["frontier"]
@@ -121,6 +139,12 @@ def main() -> None:
         "total": total,
         "canonicalPublished": canonical,
         "universeTotal": classified_total,
+        # Typed counters (publication = names; distinct = unique structures). The
+        # published name count is NOT a unique-trick count.
+        "publishedDistinctStructures": published_distinct,
+        "aliasEquivalentNames": alias_equivalent_names,
+        "observationalUniverseNames": observational_universe_names,
+        "observationalUniverseDistinctStructures": observational_universe_distinct,
         "ready": by_section["ready"],
         "frontier": by_section["frontier"],
         "doctrineBlocked": by_section["doctrine"],
@@ -170,9 +194,17 @@ def main() -> None:
         "  failureClass: string;\n"
         "}\n\n"
         "export interface ObservationalUniverseStats {\n"
+        "  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */\n"
         "  total: number;\n"
+        "  /** Published canonical NAMES (publication count, not unique tricks). */\n"
         "  canonicalPublished: number;\n"
         "  universeTotal: number;\n"
+        "  /** Distinct published structures (slugs); the 510 published names collapse to these. */\n"
+        "  publishedDistinctStructures: number;\n"
+        "  aliasEquivalentNames: number;\n"
+        "  /** Full observational universe (governance states 3/4/5/7), single-sourced from CLASSIFIED_UNIVERSE. */\n"
+        "  observationalUniverseNames: number;\n"
+        "  observationalUniverseDistinctStructures: number;\n"
         "  ready: number;\n"
         "  frontier: number;\n"
         "  doctrineBlocked: number;\n"

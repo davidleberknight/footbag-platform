@@ -30,9 +30,17 @@ export interface ObservationalUniverseRow {
 }
 
 export interface ObservationalUniverseStats {
+  /** Intake-queue size: promotion-packet rows (a work subset, NOT the universe, NOT unique tricks). */
   total: number;
+  /** Published canonical NAMES (publication count, not unique tricks). */
   canonicalPublished: number;
   universeTotal: number;
+  /** Distinct published structures (slugs); the 510 published names collapse to these. */
+  publishedDistinctStructures: number;
+  aliasEquivalentNames: number;
+  /** Full observational universe (governance states 3/4/5/7), single-sourced from CLASSIFIED_UNIVERSE. */
+  observationalUniverseNames: number;
+  observationalUniverseDistinctStructures: number;
   ready: number;
   frontier: number;
   doctrineBlocked: number;
@@ -1756,6 +1764,10 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "total": 1701,
     "canonicalPublished": 510,
     "universeTotal": 2460,
+    "publishedDistinctStructures": 507,
+    "aliasEquivalentNames": 5,
+    "observationalUniverseNames": 1945,
+    "observationalUniverseDistinctStructures": 1944,
     "ready": 243,
     "frontier": 31,
     "doctrineBlocked": 266,

@@ -158,7 +158,7 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   // Each portal-card count badge must show a VISIBLE noun (what the number
   // counts), not only an aria-label. The number sits in a
   // .dict-landing-card-count-num span; the noun follows as visible text.
-  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifiers', 'systems / axes', 'neighborhoods', 'observational names'];
+  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifiers', 'systems / axes', 'neighborhoods', 'tracked names'];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
   it('every portal-card badge renders a visible noun label after the number', async () => {
@@ -178,9 +178,9 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
 
   it('large counts are thousands-separated in the visible badge (Emerging vocabulary)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // TRACKED_UNPUBLISHED_TOTAL is well above 999, so the observational-names
-    // badge must render a comma-grouped number in the visible label.
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> observational names<\/span>/);
+    // The intake-queue total is well above 999, so the tracked-names badge must
+    // render a comma-grouped number in the visible label.
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> tracked names<\/span>/);
   });
 
   it('no portal-card badge renders a bare number with no noun (old behavior)', async () => {

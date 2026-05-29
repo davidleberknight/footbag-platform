@@ -55,12 +55,25 @@ describe('GET /freestyle/observational — governance surface', () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    expect(html).toContain('Observational names');
+    expect(html).toContain('Intake queue');
     expect(html).toContain('Promotion-ready');
     expect(html).toContain('Doctrine-blocked');
-    expect(html).toContain('Canonical coverage');
+    expect(html).toContain('Canonical published');
     // The headline total comes straight from the generated stats.
     expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.total));
+  });
+
+  it('frames counts honestly per the unique-trick doctrine (lexical totals are never tricks)', async () => {
+    const html = await page();
+    // The intake-queue size is labelled as tracked names under review, not tricks.
+    expect(html).toMatch(/tracked names under review, not unique tricks/);
+    // The published count is paired with distinct-structure context (name vs structure).
+    expect(html).toMatch(/distinct structures/);
+    // Explicit "not unique tricks" disclaimer accompanies the visible lexical totals.
+    expect(html).toMatch(/documented names, not unique tricks/);
+    // Never present a lexical total as "tricks".
+    expect(html).not.toMatch(/observational tricks/i);
+    expect(html).not.toMatch(/\b1701\s+tricks/i);
   });
 
   it('renders Ready-for-Promotion grouped by ecosystem with confidence cards', async () => {
