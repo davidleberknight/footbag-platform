@@ -12,15 +12,46 @@ ADD. An obscure 7-ADD compound does not.
 
 ## Coverage audit
 
-- 514 active tricks. **86 (16%)** have any video media; **49 (9%)** have a TUTORIAL-tier clip
-  (tt_youtube / anz_trikz / footbagspot / foundations / polini / everything-footbag).
-- The other ~91% of active tricks have no video at all; the corpus below is the high-leverage anchor
-  set, not a coverage-completion effort.
-- **Core atoms (12):** 11 of 12 carry a tutorial-tier clip. The lone gap is **`orbit`** — a core
-  atom with zero media.
-- **Tutorial gaps among foundational nodes (the actionable finds):**
-  - NO MEDIA: `orbit` (core atom), `flurry` (4-ADD legover family generator).
-  - DEMO/RECORD only (no tutorial): `blender`, `barrage`, `mobius` (+ `dyno`, `smear` as runners-up).
+Coverage here means **direct dedicated `#slug` media** only: a video tagged for that specific trick
+as its subject. That is the narrowest of three coverage types (see "Coverage types" below), so these
+metrics deliberately **undercount** real pedagogical reach.
+
+- 514 active tricks. **86 (16%)** have a direct dedicated video; **49 (9%)** a direct dedicated
+  TUTORIAL-tier clip (tt_youtube / anz_trikz / footbagspot / foundations / polini / everything-footbag).
+- These percentages count only direct `#slug` tags. They do NOT count **embedded** instructional
+  coverage (a trick taught inside another trick's tutorial) or demo/reference appearances, so true
+  pedagogical coverage is meaningfully higher than 9%.
+- **Core atoms (12):** 11 of 12 carry a direct dedicated tutorial clip. The 12th, **`orbit`**, has
+  no dedicated clip but IS embedded-covered inside the TT "Around The World" tutorial (TT #14/#15).
+  It is NOT a true zero-media gap (correction, 2026-05-29).
+- **Genuine direct-coverage gaps / weak spots among foundational nodes:**
+  - NO direct media, no obvious embedded home: `flurry` (4-ADD legover family generator).
+  - DEMO/RECORD only (no tutorial): `blender`, `barrage`, `mobius` (+ `dyno`, `smear` runners-up).
+  - Embedded-covered, dedicated clip optional later: `orbit` (inside ATW).
+
+## Coverage types (audit refinement, 2026-05-29)
+
+The single `#slug` metric conflates three different things. Future audits and any future "tutorial
+available" affordance must distinguish:
+
+1. **Direct dedicated coverage** — a clip tagged `#<slug>` that teaches or shows that trick as its
+   subject. (What the 16% / 9% metrics measure.)
+2. **Embedded instructional coverage** — the trick is taught *inside* another trick's tutorial:
+   `orbit` inside ATW; `toe-stall` inside any toe-terminated lesson; a component inside a compound
+   lesson such as TT #15 "Around The World Toe Stall" or TT #31 "Symposium Mirage Stall".
+3. **Demo / reference coverage** — the trick appears in a performance/record clip with no teaching
+   intent (most `passback_records` / `shred_global` entries).
+
+The current metric sees only (1), so it undercounts (2) and (3). This almost certainly affects other
+foundational primitives and progression concepts, not just orbit: any atom or component reliably
+demonstrated inside a compound's tutorial is pedagogically covered without a dedicated tagged item.
+
+**Future relationship layer (proposed, not built):** a `teaches` / `implies` / `components-covered`
+edge from a media item to the tricks it covers *indirectly*, distinct from the direct `#slug` tag.
+This is another linkage type the flat tag model does not express, so it belongs alongside the
+linkage-semantics work in `ARCHITECTURE.md` §3. It would let `orbit` register as embedded-covered via
+the ATW tutorial without a misleading dedicated `#orbit` tag, and would correct the undercount above.
+Do not build it now; record it as the next design direction for the media-graph relationship layer.
 
 ## The exemplar corpus (18)
 
@@ -40,7 +71,7 @@ node; UPGRADE = only demo/record exists, wants a tutorial; GAP = no media at all
 | 9 | toe-stall | primal stall / entry vocabulary | 1 | COVERED (tt+anz) | confirm |
 | 10 | around-the-world | iconic dex primitive (ATW) | 2 | COVERED (tt) | confirm |
 | 11 | pickup | pickup family root | 2 | COVERED (anz) | confirm |
-| 12 | orbit | core atom (one of the 12) | 2 | **GAP** | **ingest tutorial** |
+| 12 | orbit | core atom (one of the 12) | 2 | EMBEDDED (TT ATW #14/#15) | optional dedicated clip later (not a gap) |
 | 13 | paradox-mirage | paradox-operator exemplar · BOP component (glossary-defined run concept) | 3 | THIN (tt only) | confirm; consider 2nd clip |
 | 14 | symposium-mirage | symposium-operator exemplar · no-plant timing | 3 | COVERED (tt) | confirm |
 | 15 | barrage | `barraging`-operator host · double-dex mirage | 3 | **UPGRADE** | ingest tutorial (demo exists) |
@@ -51,7 +82,7 @@ node; UPGRADE = only demo/record exists, wants a tutorial; GAP = no media at all
 Deliberately excluded (runners-up, restraint): `dyno`, `smear`, `drifter` (already covered),
 `eggbeater` (already covered), `torque` (already covered). The corpus anchors roles, not every node.
 
-## Candidate packets (the 5 action items)
+## Candidate packets (4 ingestion/upgrade items; orbit deferred)
 
 Each packet is a data candidate for Dave's gallery-edit-tool. Proposed tags assume the taxonomy
 module (`ARCHITECTURE.md` §6, `#kind-*` / `#family-*` conventions) lands first. **URL is left blank
@@ -59,9 +90,9 @@ on purpose:** the verify-external-URLs forever-rule forbids extrapolated URLs, s
 must supply and HTTP-confirm each clip. I am not guessing video IDs.
 
 ```
-slug: orbit            | gap   | proposed tags: #curated #orbit #family-orbit #kind-tutorial
-  tier: TUTORIAL preferred | source: TBD (no TT lesson; check anz_trikz / footbag_foundations)
-  note: core atom with zero media — highest-priority foundational gap | url: NEEDS curator-supplied + HTTP-verified
+slug: orbit            | DEFERRED (not a gap) | embedded-covered inside TT ATW (#14/#15)
+  optional dedicated #orbit clip later IF a clear orbit-subject tutorial exists; no priority; do not
+  ingest now. Better resolved by the future teaches/components-covered layer than a dedicated tag.
 
 slug: flurry           | gap   | proposed tags: #curated #flurry #family-legover #kind-tutorial
   tier: TUTORIAL preferred | source: TBD | note: 4-ADD legover family generator (flurricane parent)
@@ -90,7 +121,8 @@ pass on Dave's track, not new ingestion.
 This document defines WHICH exemplars matter and WHY, with full proposed metadata. The remaining
 steps are Dave's gallery/media track and require his tool + HTTP-verified URLs:
 
-1. Source + HTTP-verify a clip for each of the 5 action items (no URL extrapolation).
+1. Source + HTTP-verify a clip for each of the 4 active items (no URL extrapolation); orbit is
+   deferred (embedded-covered).
 2. Create the `media_items` rows (system curator uploader, `source_id`, `#curated`).
 3. Apply the linkage/kind tags once the taxonomy module (`ARCHITECTURE.md` §6) is approved.
 
