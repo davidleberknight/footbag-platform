@@ -1837,15 +1837,15 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "FB": 128,
       "MULTI": 27
     },
-    "generatedOn": "2026-05-28"
+    "generatedOn": "2026-05-29"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
   {
-    "blurry/furious": "Does `blurry`/`furious` carry +2 on rotational bases? (Red Q1.A)",
+    "blurry/furious": "Does blurry / furious carry +2 on rotational bases? (open ruling)",
     "weaving": "Weaving movement structure unruled.",
-    "pogo": "Pogo structural / ADD reading unruled (Red Wave-3 Q3).",
+    "pogo": "Pogo structural / ADD reading unruled.",
     "shooting": "Shooting structural reading unruled.",
-    "other": "Curator / Red ruling pending."
+    "other": "Ruling pending."
   };
 

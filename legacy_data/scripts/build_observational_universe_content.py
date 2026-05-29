@@ -53,12 +53,14 @@ INTAKE_BUCKETS = [
     "promotion_ready", "doctrine_pending", "unresolved_candidate",
     "alias", "equivalence", "duplicate_variant", "low_confidence", "doctrine_unresolved",
 ]
+# Public-facing (renders on /freestyle/observational): no individual names, no
+# internal ruling identifiers (per the no-individual-names-on-freestyle-views rule).
 BLOCKING_QUESTION = {
-    "blurry/furious": "Does `blurry`/`furious` carry +2 on rotational bases? (Red Q1.A)",
+    "blurry/furious": "Does blurry / furious carry +2 on rotational bases? (open ruling)",
     "weaving": "Weaving movement structure unruled.",
-    "pogo": "Pogo structural / ADD reading unruled (Red Wave-3 Q3).",
+    "pogo": "Pogo structural / ADD reading unruled.",
     "shooting": "Shooting structural reading unruled.",
-    "other": "Curator / Red ruling pending.",
+    "other": "Ruling pending.",
 }
 # corpus → short source badge (reuses the template's PB/FM/SG/FB chip vocab)
 SOURCE_BADGE = {

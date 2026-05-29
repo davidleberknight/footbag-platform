@@ -7007,7 +7007,7 @@ export const freestyleService = {
         'Sets are first-class compositional vocabulary — the named movement primitives that ' +
         'open a trick. Each card is a set ontology object: hashtag, formula, movement ' +
         'explanation, equivalence notes, derived and related systems, and source ' +
-        'provenance. Phase B will add a detail page per set. For the body-modifier ' +
+        'provenance; each card links to its own set detail page. For the body-modifier ' +
         'vocabulary (paradox, spinning, ducking, symposium, etc.), see the Operators & ' +
         'Modifiers reference page.',
       totalSets:            subtypeSections.reduce((n, s) => n + s.count, 0),
@@ -7358,9 +7358,11 @@ export const freestyleService = {
               href:         '/freestyle/tricks?view=movement-system',
               count:        MOVEMENT_SYSTEM_AXES.length,
               countDisplay: fmtCount(MOVEMENT_SYSTEM_AXES.length),
-              countSuffix:  'systems / axes',
+              // The four primary compositional axes PLUS a separately-modeled
+              // Alternative Surfaces grouping (parallel layer, not a fifth axis).
+              countSuffix:  'axes + surfaces',
               lensQuestion: 'What compositional systems shape the trick?',
-              chips:        MOVEMENT_SYSTEM_AXES.map(a => axisChipLabel(a.axisKey, a.axisName)),
+              chips:        [...MOVEMENT_SYSTEM_AXES.map(a => axisChipLabel(a.axisKey, a.axisName)), 'Alternative Surfaces'],
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
             },
             {
@@ -7413,7 +7415,8 @@ export const freestyleService = {
       (n, a) => n + a.groups.reduce((m, g) => m + g.cards.length, 0), 0);
     const movementSystemScale =
       `${movementSystemView.axes.length} ${plural(movementSystemView.axes.length, 'system / axis', 'systems / axes')} · ` +
-      `${movementMemberships} trick-row ${plural(movementMemberships, 'membership', 'memberships')} shown. ` +
+      `${movementMemberships} trick-row ${plural(movementMemberships, 'membership', 'memberships')} shown, ` +
+      'plus a separately-grouped Alternative Surfaces layer below the axes. ' +
       'A compound can appear under more than one axis or modifier.';
 
     const setsMemberships = setGroups.reduce((n, g) => n + g.cards.length, 0);
@@ -7904,7 +7907,7 @@ export const freestyleService = {
             key,
             label:            observedEcosystemLabel(key),
             count:            rows.length,
-            blockingQuestion: DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Curator / Red ruling pending.',
+            blockingQuestion: DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Ruling pending.',
             sampleNames:      rows.slice(0, 6).map(r => r.name),
           };
         })
@@ -7966,7 +7969,7 @@ export const freestyleService = {
         stats: statBlocks,
         statsNote:
           `A mature canonical ontology with a substantial, governed expansion frontier, ` +
-          `derived from the Phase E reconciliation of every documented trick name (overlap-safe: ` +
+          `derived from a reconciliation of every documented trick name (overlap-safe: ` +
           `nothing here duplicates a published canonical trick). The ${stats.canonicalOntology} ` +
           `published canonical structures sit above a promotion frontier of ${stats.promotionFrontier} ` +
           `mechanically coherent candidate structures (${bn('promotion_ready')} promotable now, ` +
