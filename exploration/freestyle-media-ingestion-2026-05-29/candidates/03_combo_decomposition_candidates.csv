@@ -1,0 +1,301 @@
+passback_name,reading_index,ordered_components,raw_reading
+Anonymous,0,Spinning > far > Miraging > Symp. > Miraging > Refraction,Spinning far Miraging Symp. Miraging Refraction
+Archnemesis,0,Barraging > near > Double > Down,Barraging near Double Down
+Armaggedon,0,Miraging > Symp. > Eggbeater,Miraging Symp. Eggbeater
+Assassin,0,Pixie > Ducking > far > Mirage,Pixie Ducking far Mirage
+Atom Bomb,0,Flailing > far > Symp. > Mirage,Flailing far Symp. Mirage
+Atom Bomb,1,Full > Symp. > Atomsmasher,Full Symp. Atomsmasher
+Atomsmasher,0,Atomic > far > Mirage,Atomic far Mirage
+ATW,0,toe>ss > leggy > in > dex>ss > toe,toe>ss leggy in dex>ss toe
+Badger,0,Symp. > Butterfly > Swirl,Symp. Butterfly Swirl
+Barfly,0,Clipper > far > Double > Down,Clipper far Double Down
+Barfry,0,Nuclear > near > Butterfly,Nuclear near Butterfly
+Barrage,0,double-dex > Mirage,double-dex Mirage
+Barroque,0,double-dex > Torque,double-dex Torque
+Barroque,1,(downtime) > Barraging > far > Osis,(downtime) Barraging far Osis
+Bedwetter,0,Stepping > far > Eggbeater,Stepping far Eggbeater
+Big Apple,0,Spinning > near > Symp. > Torque,Spinning near Symp. Torque
+Big Apple,1,Symp. > Mobius,Symp. Mobius
+Big Applesauce,0,Spinning > far > Miraging > Symp. > Torque,Spinning far Miraging Symp. Torque
+Big Orange,0,Spinning > near > Symp. > Flux,Spinning near Symp. Flux
+Big Orange,1,Rev. > Big > Apple,Rev. Big Apple
+Blackula,0,Toe > near > Symp. > Double > Down,Toe near Symp. Double Down
+Blackula,1,Symp > DOD,Symp DOD
+Bladerunner,0,Atomic > far > Eggbeater,Atomic far Eggbeater
+Blaze,0,Whirling > far > Mirage,Whirling far Mirage
+Blender,0,(downtime) > Whirling > Osis,(downtime) Whirling Osis
+Bling Blang,0,(uptime) > Whirling > near > Whip,(uptime) Whirling near Whip
+Blink,0,(downtime) > Twisting > near > Toe,(downtime) Twisting near Toe
+Blizzard,0,Stepping > far > Illusion,Stepping far Illusion
+Blur,0,Stepping > far > Mirage,Stepping far Mirage
+Blurrage,0,Stepping > far > Barrage,Stepping far Barrage
+Blurrier,0,Stepping > near > Double > Down,Stepping near Double Down
+Blurriest,0,Stepping > far > Double > Down,Stepping far Double Down
+Blurtigo,0,Stepping > Ducking > far > Drifter,Stepping Ducking far Drifter
+Bullwhip,0,Spinning > near > Double > Down,Spinning near Double Down
+Butterfly,0,(downtime) > hippy > out > dex>ss > clipper,(downtime) hippy out dex>ss clipper
+Cardinal Swirl,0,triple-dex > Swirl,triple-dex Swirl
+Catacomb,0,Pixie > near > Drifter,Pixie near Drifter
+Chainsaw Massacre,0,(downtime) > Illusioning > Symp. > Illusioning > Legover,(downtime) Illusioning Symp. Illusioning Legover
+Chainsaw Massacre,1,(downtime) > Illusioning > Symp. > Eggbeater,(downtime) Illusioning Symp. Eggbeater
+Cheese Processor,0,Surging > Ducking > far > Blender,Surging Ducking far Blender
+Clipper,0,xbd > inside > stall,xbd inside stall
+Cloud,0,"Calf > Stall > w/ > leg > in > ""Whirl"" > position","Calf Stall w/ leg in ""Whirl"" position"
+Clownface,0,Barraging > far > Eggbeater,Barraging far Eggbeater
+Cold Fusion,0,Nuclear > far > Double > Down,Nuclear far Double Down
+Cold Fusion,1,Pdx. > Fusion,Pdx. Fusion
+Colossus,0,Spinning > Diving > near > Symp. > Whirl,Spinning Diving near Symp. Whirl
+Creature,0,(downtime) > Miraging > Symp. > Illusion,(downtime) Miraging Symp. Illusion
+Dada Curve,0,(downtime) > Miraging > far > Symp. > Butterfly,(downtime) Miraging far Symp. Butterfly
+Darkwalk,0,Pixie > Diving > near > Butterfly,Pixie Diving near Butterfly
+DATW/Double ATW,0,double-dex > ATW,double-dex ATW
+DDD/Down Double Down,0,Clipper > near > Double > Down,Clipper near Double Down
+Delusion,0,double-dex > Illusion,double-dex Illusion
+Dimmier,0,Pixie > near > Double > Down,Pixie near Double Down
+Dimmiest,0,Pixie > far > Double > Down,Pixie far Double Down
+Dimwalk,0,Pixie > far > Butterfly,Pixie far Butterfly
+"DLO (""dee-ell-oh"")",0,(downtime) > Miraging > far > Legover,(downtime) Miraging far Legover
+DOD/Double Over Down,0,Toe > near > Double > Down,Toe near Double Down
+Dolomite,0,Toe > far > Symp. > Double > Down,Toe far Symp. Double Down
+Double Down,0,double-dex > Butterfly,double-dex Butterfly
+Dragon,0,Xbd > Outside > Stall,Xbd Outside Stall
+Drifter,0,(downtime) > Miraging > far > Clipper,(downtime) Miraging far Clipper
+DSO,0,double-dex > Legover,double-dex Legover
+Dyno,0,(downtime) > Whipping > Osis,(downtime) Whipping Osis
+E-Walk,0,Frantic > op > Butterfly,Frantic op Butterfly
+Eggbeater,0,(downtime) > Illusioning > Legover,(downtime) Illusioning Legover
+Ego,0,Atomic > far > Blender,Atomic far Blender
+Enterrage,0,Terraging > Legover,Terraging Legover
+Enterrage,1,(midtime) > Toe > near > Flurry,(midtime) Toe near Flurry
+Fairy (archaic),0,Midtime > Toe > near > Illusion,Midtime Toe near Illusion
+Fairy Beater,0,Fairy > far > Butterfly,Fairy far Butterfly
+Fear,0,Fairy > far > Mirage,Fairy far Mirage
+Fission,0,Barraging > far > Illusion,Barraging far Illusion
+Flail,0,Symp. > Illusion,Symp. Illusion
+Flapper,0,Xbd > Sole > Stall,Xbd Sole Stall
+Flare,0,Symp. > Whirling > far > Mirage,Symp. Whirling far Mirage
+Flurricane,0,Gyro > Flurry,Gyro Flurry
+Flurry,0,(midtime) > Barraging > far > Legover,(midtime) Barraging far Legover
+Flux,0,(downtime) > Illusioning > far > Osis,(downtime) Illusioning far Osis
+Fog,0,Stepping > far > DLO,Stepping far DLO
+Food Processor,0,Stepping > far > Blender,Stepping far Blender
+Frankenstein,0,Fairy > near > Swirling > near > Swirl,Fairy near Swirling near Swirl
+Frankenstein,1,Phasing > near > Swirl,Phasing near Swirl
+Frankenstein,2,Fairy > Ripstein,Fairy Ripstein
+Fudge,0,Fairy > far > Illusion,Fairy far Illusion
+Fury,0,Barraging > far > Mirage,Barraging far Mirage
+Fusion,0,Atomic > far > Double > Down,Atomic far Double Down
+Gangsta Party,0,Spinning > Ducking > far > Blender,Spinning Ducking far Blender
+Gary Coleman,0,BS > Reactor,BS Reactor
+Gary Coleman,1,Atomic > far > Symp. > Whirl,Atomic far Symp. Whirl
+Gauntlet,0,Stepping > Ducking > Torque,Stepping Ducking Torque
+"GDLO (""gee-dee-ell-oh"")",0,Gyro > DLO,Gyro DLO
+Genesis,0,Barraging > far > Whirl,Barraging far Whirl
+Ghost,0,Whirling > Rake,Whirling Rake
+Golden Shower,0,Stepping > Ducking > far > Symp. > Eggbeater,Stepping Ducking far Symp. Eggbeater
+Goliath,0,Pixie > Ducking > far > DLO,Pixie Ducking far DLO
+Goliath,1,Alpine > Smog,Alpine Smog
+Gravedigger,0,Stepping > near > Torque,Stepping near Torque
+Green Eggs and Ham,0,Stepping > Ducking > far > Swivel,Stepping Ducking far Swivel
+Grifter,0,(downtime) > Illusioning > far > Clipper,(downtime) Illusioning far Clipper
+GYBAS/Grab Your Balls and Squeeze,0,Stepping > far > Dyno,Stepping far Dyno
+Hatchet,0,Clipper > Diving > near > Whirl,Clipper Diving near Whirl
+Heart,0,Frantic > far > Double > Down > Swirl,Frantic far Double Down Swirl
+High Plains Drifter,0,double-dex > Drifter/(midtime) > Barraging > far > Clipper,double-dex Drifter/(midtime) Barraging far Clipper
+Icarus,0,Atomic > Ducking > far > Torque,Atomic Ducking far Torque
+Id,0,Atomic > Ducking > far > Double > Down,Atomic Ducking far Double Down
+Id,1,Alpine > Fusion,Alpine Fusion
+Illusion,0,(downtime) > leggy > out > dex>op > toe,(downtime) leggy out dex>op toe
+Irish Cream,0,Atomic > Gyro > Torque,Atomic Gyro Torque
+Irish Cream,1,Tapping > Mobius,Tapping Mobius
+Jackknife,0,Stepping > Diving > ss > Butterfly,Stepping Diving ss Butterfly
+Jackknife,1,Alpine > Sidewalk,Alpine Sidewalk
+"Janiwalker (""johnny walker"")",0,Barraging > far > Butterfly,Barraging far Butterfly
+Johnny Vodka,0,Pixie > Mobius,Pixie Mobius
+Kilo,0,Miraging > Kilo,Miraging Kilo
+King Koopa,0,Spinning > Ducking > far > Symp.Torque,Spinning Ducking far Symp.Torque
+King Koopa,1,Alpine > Super > Mario,Alpine Super Mario
+Kiwi,0,Tapping > Double > Down,Tapping Double Down
+Lawn Moir,0,Slicing > far > Butterfly,Slicing far Butterfly
+Legbeater,0,Atomic > far > Butterfly,Atomic far Butterfly
+Legbreaker,0,Flailing > far > Butterfly,Flailing far Butterfly
+Legbreaker,1,Symp. > Atomic > far > Butterfly,Symp. Atomic far Butterfly
+Legeater,0,(downtime) > Miraging > Pickup,(downtime) Miraging Pickup
+Legover,0,(downtime) > leggy > out > dex>ss > toe,(downtime) leggy out dex>ss toe
+Leviathon,0,Stepping > Ducking > far > Double > Down,Stepping Ducking far Double Down
+Locomotion,0,Stepping > far > Motion,Stepping far Motion
+Maelstrom,0,Spinning > Ducking > far > Whirl,Spinning Ducking far Whirl
+Maelstrom,1,Alpine > Spinning > Whirl,Alpine Spinning Whirl
+Maelstrom,2,Spinning > Tomahawk,Spinning Tomahawk
+Magellan,0,Pixie > near > Legover,Pixie near Legover
+Mama Curve,0,(downtime) > Illusioning > far > Symp. > Butterfly,(downtime) Illusioning far Symp. Butterfly
+Mantis,0,Spinning > near > Eggbeater,Spinning near Eggbeater
+Marius,0,Spinning > Torque,Spinning Torque
+Massacre,0,(downtime) > Illusioning > Flail,(downtime) Illusioning Flail
+Matador,0,Nuclear > far > Butterfly,Nuclear far Butterfly
+Merkon,0,Spinning > Legover,Spinning Legover
+Merlin,0,(downtime) > Miraging > Symp.Mirage,(downtime) Miraging Symp.Mirage
+Mind Bender,0,Clipper > Ducking > far > Blender,Clipper Ducking far Blender
+Mirage,0,(downtime) > hippy > in > dex>op > toe,(downtime) hippy in dex>op toe
+Mobius,0,Gyro > Torque,Gyro Torque
+Moby Dick,0,Mobiusscrew,Mobiusscrew
+Moby Dick,1,Gyro > Torquescrew,Gyro Torquescrew
+Mofly,0,(downtime) > Miraging > far > Symp. > Double > Down,(downtime) Miraging far Symp. Double Down
+Monster,0,Symp. > Swirling > Gyro > Inside,Symp. Swirling Gyro Inside
+Montage,0,Spinning > Ducking > far > Symp. > Whirl,Spinning Ducking far Symp. Whirl
+Morpheus,0,Spinning > Ducking > far > Drifter,Spinning Ducking far Drifter
+Morpheus,1,Alpine > Void,Alpine Void
+Mortal Kombat,0,Stepping > Ducking > far > Grifter,Stepping Ducking far Grifter
+Motion,0,Double > Down > near > Osis,Double Down near Osis
+Motion Sickness,0,Spinning > far > Motion,Spinning far Motion
+Mullet,0,Clipper > Ducking > far > Symp. > Whirl,Clipper Ducking far Symp. Whirl
+Mullet,1,Symp. > Tomahwak,Symp. Tomahwak
+Nallegam,0,Fairy > near > Pickup,Fairy near Pickup
+Nebula,0,Barraging > far > DLO,Barraging far DLO
+Nemesis,0,Barraging > far > Double > Down,Barraging far Double Down
+Nemosis,0,Barraging > far > Motion,Barraging far Motion
+Nemosis,1,Nemesis > Osis,Nemesis Osis
+Nova,0,Symp. > DLO,Symp. DLO
+Orbit,0,toe>ss > leggy > out > dex>ss > toe,toe>ss leggy out dex>ss toe
+Osis,0,(downtime) > Gyro > Clipper,(downtime) Gyro Clipper
+Pandemonium,0,Pixie > far > Symp. > Eggbeater,Pixie far Symp. Eggbeater
+Pandemonium,1,BS > Pigbeater,BS Pigbeater
+Pandora's Box,0,Gyro > Pickup,Gyro Pickup
+Paradon,0,Toe > far > Double > Down,Toe far Double Down
+Paratoxic,0,Pdx. > Toxic,Pdx. Toxic
+Parkwalk,0,Pixie > near > Butterfly,Pixie near Butterfly
+Paste,0,Pixie > far > Pickup,Pixie far Pickup
+Phobia,0,Fairy > Mobius,Fairy Mobius
+Phobia,1,Fairy > Gyro > Torque,Fairy Gyro Torque
+Phoenix,0,Pixie > Ducking > Butterfly,Pixie Ducking Butterfly
+Pickup,0,(downtime) > leggy > in > dex>ss > toe,(downtime) leggy in dex>ss toe
+Pigbeater,0,Pixie > far > Eggbeater,Pixie far Eggbeater
+Pixie (archaic),0,Midtime > Toe > near > Mirage,Midtime Toe near Mirage
+Plasma,0,Quantum > far > Double > Down,Quantum far Double Down
+PLO,0,Pixie > far > Legover,Pixie far Legover
+POD,0,Pixie > DOD,Pixie DOD
+POD,1,Pixie > near > Double > Down,Pixie near Double Down
+Pogo,0,Pogo > far > Mirage,Pogo far Mirage
+Pogo,1,(uptime) > Symp. > Miraging > far > Mirage,(uptime) Symp. Miraging far Mirage
+Porque,0,Pixie > Torque,Pixie Torque
+Predator,0,Atomic > far > DLO,Atomic far DLO
+PS Whirl,0,Pdx > Symp > Whirl,Pdx Symp Whirl
+PS Whirl,1,Clipper > far > Symp > Whirl,Clipper far Symp Whirl
+Quark,0,Quantum > far > Torque,Quantum far Torque
+Rage,0,BS > Fury,BS Fury
+Rage,1,(uptime) > Baragging > far > Symp. > Mirage,(uptime) Baragging far Symp. Mirage
+Rake,0,Toe > Stall > dragged > from > Xbd > position,Toe Stall dragged from Xbd position
+Reactor,0,Atomic > far > Whirl,Atomic far Whirl
+Reaper,0,Clipper > far > DSO,Clipper far DSO
+Refraction,0,Butterfy > near > Osis,Butterfy near Osis
+Revstein,0,double-dex > Twist,double-dex Twist
+Revup,0,(downtime) > Twisting > near > Pickup,(downtime) Twisting near Pickup
+Ripcurl,0,Stepping > near > Butterfly > Swirl,Stepping near Butterfly Swirl
+Ripcurl,1,Sidewalk > Swirl,Sidewalk Swirl
+Ripped Warrior,0,Stepping > Ducking > Butterfly,Stepping Ducking Butterfly
+Ripped Warrior,1,Alpine > Ripwalk,Alpine Ripwalk
+Ripstein,0,double-dex > Swirl,double-dex Swirl
+Ripstein,1,Swirling > near > Swirl,Swirling near Swirl
+Riptide,0,Stepping > far > Butterfly > Swirl,Stepping far Butterfly Swirl
+Riptide,1,Ripwalk > Swirl,Ripwalk Swirl
+Ripwalk,0,Stepping > far > Butterfly,Stepping far Butterfly
+Rotor,0,(downtime) > Swirling > Gyro > Inside > Stall,(downtime) Swirling Gyro Inside Stall
+Royale,0,Clipper > far > Grifter,Clipper far Grifter
+Schmoe,0,Stepping > near > Legover,Stepping near Legover
+Scorpion's Tail,0,Spinning > far > Double > Down,Spinning far Double Down
+Shaft,0,Clipper > near > Symp. > Double > Down,Clipper near Symp. Double Down
+Shaft,1,Symp. > DDD,Symp. DDD
+Shooting Star,0,Shooting > far > Double > Down,Shooting far Double Down
+Shooting Star,1,Pogo > Nuclear > far > Double > Down,Pogo Nuclear far Double Down
+Sidewinder,0,Fairy > Spinning > near > Barraging > far > Buterfly,Fairy Spinning near Barraging far Buterfly
+Sidewinder,1,Fairy > Gyro > Janiwalker,Fairy Gyro Janiwalker
+Sidwalk,0,Stepping > near > Butterfly,Stepping near Butterfly
+Skullsmasher,0,Atomic > Ducking > far > Mirage,Atomic Ducking far Mirage
+Skullsmasher,1,Alpine > Atomsmasher,Alpine Atomsmasher
+Slapdown,0,Quantum > near > Butterfly,Quantum near Butterfly
+Smear,0,Pixie > Mirage,Pixie Mirage
+Smog,0,Pixie > far > DLO,Pixie far DLO
+Smoke,0,Pixie > far > Drifter,Pixie far Drifter
+Smudge,0,Pixie > Illusion,Pixie Illusion
+Snowflake,0,Drifter > Rake,Drifter Rake
+Spanishfly,0,Clipper > Ducking > far > Double > Down,Clipper Ducking far Double Down
+Spender,0,Spinning > far > Blender,Spinning far Blender
+Spikehammer,0,Stepping > Ducking > Mirage,Stepping Ducking Mirage
+Sumo,0,Nuclear > far > Mirage,Nuclear far Mirage
+Sunilwalk,0,Barraging > near > Butterfly,Barraging near Butterfly
+Super Ego,0,Atomic > Ducking > Blender,Atomic Ducking Blender
+Super Mario,0,Spinning > far > Symp. > Torque,Spinning far Symp. Torque
+Super Mario,1,Symp. > Marius,Symp. Marius
+Superdeeduperfly,0,Spinning > Ducking > Superfly,Spinning Ducking Superfly
+Superdeeduperfly,1,Alpine > Superduperfly,Alpine Superduperfly
+Superduperfly,0,Spinning > Superfly,Spinning Superfly
+Superfly,0,Clipper > far > Symp. > Double > Down,Clipper far Symp. Double Down
+Surge,0,Surging > far > Mirage,Surging far Mirage
+Surreal,0,Surging > far > Whirl,Surging far Whirl
+Swifter,0,Stepping > far > Swirl,Stepping far Swirl
+Swirl,0,(downtime) > xbd > leggy > out > dex>ss > clipper,(downtime) xbd leggy out dex>ss clipper
+Swirlwind,0,Spinning > far > Symp. > Whirling > Swirl,Spinning far Symp. Whirling Swirl
+Swirlwind,1,Whirlwind > Swirl,Whirlwind Swirl
+Swivel,0,Symp. > Twirl,Symp. Twirl
+Tap,0,Atomic > near > Mirage,Atomic near Mirage
+Tapdown,0,Atomic > near > Butterfly,Atomic near Butterfly
+TATW/Triple ATW,0,triple-dex > ATW,triple-dex ATW
+Terrage,0,(midtime) > Toe > near > Barrage,(midtime) Toe near Barrage
+Terrage,1,"double-dex > ""Pixie""","double-dex ""Pixie"""
+Terrawhirl,0,Toe > midtime > near > Whirr,Toe midtime near Whirr
+Terrawhirl,1,Terraging > near > Clipper,Terraging near Clipper
+Tobius,0,Toe > Mobius,Toe Mobius
+Tobius,1,Toe > Spinning > near > Torque,Toe Spinning near Torque
+Toe Blur,0,Quantum > far > Mirage,Quantum far Mirage
+Tomahawk,0,Clipper > Ducking > far > Whirl,Clipper Ducking far Whirl
+Tombstone,0,Stepping > near > Drifter,Stepping near Drifter
+Torch-R-Rack,0,Stepping > far > Symp. > Double > Down,Stepping far Symp. Double Down
+Torch-R-Rack,1,BS > Blurriest,BS Blurriest
+Torque,0,(downtime) > Miraging > far > Osis,(downtime) Miraging far Osis
+Torquescrew,0,Torque > Dyno,Torque Dyno
+Torquescrew,1,(downtime) > Miraging > Dyno,(downtime) Miraging Dyno
+Toxic,0,(downtime) > Miraging > far > Symp. > Whirl,(downtime) Miraging far Symp. Whirl
+Triage,0,triple-dex > Mirage,triple-dex Mirage
+Trifly,0,Clipper > far > triple-dex > Butterfly,Clipper far triple-dex Butterfly
+Triple Switch,0,triple-dex > Legover,triple-dex Legover
+Tripwalk,0,Quantum > far > Butterfly,Quantum far Butterfly
+Trixie,0,(midtime) > Toe > near > Triage,(midtime) Toe near Triage
+Trixie,1,"triple-dex > ""Pixie""","triple-dex ""Pixie"""
+TSO,0,triple-dex > Legover,triple-dex Legover
+Twirl,0,(downtime) > Twisting > near > Osis,(downtime) Twisting near Osis
+Twist,0,Rev. > Swirl,Rev. Swirl
+Venom,0,Surging > far > Double > Down,Surging far Double Down
+Vertigo,0,Clipper > Ducking > far > Drifter,Clipper Ducking far Drifter
+Void,0,Spinning > far > Drifter,Spinning far Drifter
+Voodoo,0,Clipper > far > (downtime) > Miraging > Symp. > Mirage,Clipper far (downtime) Miraging Symp. Mirage
+Voodoo,1,Pdx. > Merlin,Pdx. Merlin
+Vortex,0,Spinning > near > Drifter,Spinning near Drifter
+Walkover,0,Inside > Stall>place > foot > on > ground>step > over > into > Clipper,Inside Stall>place foot on ground>step over into Clipper
+Walkover,1,or > reverse > direction,or reverse direction
+Warp,0,Warping > Mirage,Warping Mirage
+Warp,1,(uptime) > Symp. > Illusioning > Illusioning > Mirage,(uptime) Symp. Illusioning Illusioning Mirage
+Warp,2,(uptime) > Symp. > Eggbeating > Mirage,(uptime) Symp. Eggbeating Mirage
+Wauxspin,0,Butterfly > Gyro > Toe,Butterfly Gyro Toe
+Whale Tail,0,Gryo > DLO,Gryo DLO
+What!?,0,Butterfly > Symp. > Twisting > near > Toe,Butterfly Symp. Twisting near Toe
+What!?,1,Butterfly > Symp. > Blink,Butterfly Symp. Blink
+Whip,0,Rev. > Whirl,Rev. Whirl
+Whirl,0,(downtime) > leggy > in > dex>ss > clipper,(downtime) leggy in dex>ss clipper
+Whirlwalk,0,Whirling > far > Whirl,Whirling far Whirl
+Whirlwind,0,Spinning > far > Symp. > Whirl,Spinning far Symp. Whirl
+Whirlygig,0,Stepping > far > Symp. > Whirl,Stepping far Symp. Whirl
+Whirr,0,double-dex > Whirl,double-dex Whirl
+Wrap,0,Inside > Stall > moved > to > Clipper > Stall,Inside Stall moved to Clipper Stall
+Wrap,1,or > reverse > direction,or reverse direction
+Your Mom,0,Atomic > far > Symp. > Double > Down,Atomic far Symp. Double Down
+Your Mom,1,BS > Fusion,BS Fusion
+Your Sister,0,Full > Symp > Kiwi,Full Symp Kiwi
+Bladerunner,0,Atomic > Eggbeater,Atomic Eggbeater
+DSO,0,Double > Switchover,Double Switchover
+Eggbeater,0,Illusioning > Legover,Illusioning Legover
+Flurry,0,Barraging > Legover,Barraging Legover
+Magellan,0,Pixie > ss > Legover,Pixie ss Legover
+Pigbeater,0,Pixie > op > Eggbeater,Pixie op Eggbeater
+PLO,0,Pixie > Legover,Pixie Legover
+Smear,0,Pixie > op > Mirage,Pixie op Mirage
+Smog,0,Pixie > op > DLO,Pixie op DLO

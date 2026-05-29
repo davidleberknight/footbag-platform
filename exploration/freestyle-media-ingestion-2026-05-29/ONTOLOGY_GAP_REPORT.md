@@ -34,19 +34,21 @@ need a paired family override since `blender`→osis and `drifter`→clipper-sta
 
 ## Bucket 2 — Canonical but missing formula (active, `operational_notation` empty)
 
-From the cohort specifically (subset of the 50 dictionary-wide):
+From the cohort specifically (subset of the dictionary-wide pool, now 48 after the 2026-05-29
+backfill). Status updated 2026-05-29 after the curator-ruled backfill slice:
 
 | Slug | Family | Status |
 |---|---|---|
-| atomic | atomic | active, curated, no op_notation |
-| atomic-torque | torque | active, expert_reviewed, no op_notation |
-| paradox-blender | blender | active, expert_reviewed, no op_notation |
-| fusion | dod | active, curated, no op_notation |
-| walk-over | walk-over | active, expert_reviewed, no op_notation |
+| paradox-blender | blender | DONE 2026-05-29: `SET > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]` (computed_adds 5 = adds 5) |
+| fusion | dod | DONE 2026-05-29: `TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]` (computed_adds 5 = adds 5) |
+| atomic-torque | torque | BLOCKED — Red Wave-2 Q3 (atomic +2 on a rotational base; X-Dex/hidden-carry rule deferred until ruling) |
+| atomic | atomic | BLOCKED — Wave-2 atomic-family-scope; standalone set primitive, not a [DEX] chain |
+| walk-over | walk-over | PARKED — curator ruling pending (2-ADD body primitive; no clean sibling; PassBack-prose source needs curator-authored bracket form) |
 
-`atomic` and `walk-over` are notable: foundational/atom-adjacent names carrying no movement notation.
-These are backfill candidates (derive op_notation from FB.org or sibling pattern), not promotions, and
-are not Red-gated since the rows already exist.
+The two DONE rows were derived via the canonical path (red_corrections + loader 19 + parser-populate),
+ADD-math verified per row. The held rows turned out to be the hard residue, not low-hanging fruit:
+`atomic` / `atomic-torque` are doctrine-blocked (not merely unfilled), and `walk-over` is a
+curator-authored call. "Rows exist" does not imply "op_notation is derivable now."
 
 ---
 
@@ -120,13 +122,15 @@ a negligible gap relative to the not-yet-canonicalized backlog (Bucket 1).
 | Bucket | Count (cohort) | Gate |
 |---|---|---|
 | Not yet canonicalized | 7 named | Red Wave 2 |
-| Missing formula (backfill) | 5 cohort / 50 dict-wide | not gated (rows exist) |
+| Missing formula | 2 done / 2 Wave-2 blocked / 1 parked (cohort); 48 dict-wide remain | see Bucket 2 |
 | Already canonical (no action) | ~13 | — |
 | Combo/progression (media, not ontology) | 3 | media-graph, not promotion |
 | Naming variants/aliases | 3 | curator alias review |
 | Ambiguous/under-matched | 3 classes | human existence check first |
 | Missing detail page (inactive) | 2 dict-wide | low priority |
 
-Highest-leverage next actions (none requiring Red Wave 2): op_notation backfill of the 5 cohort rows
-in Bucket 2, and the existence-check pass over `new_candidates.csv` (Bucket 6) so the real promotion
-backlog (Bucket 1) is accurately sized before the gate lifts.
+Bucket 2 op_notation backfill is done where it could be (paradox-blender + fusion, 2026-05-29);
+`atomic` / `atomic-torque` are Wave-2 blocked and `walk-over` awaits a curator ruling. Remaining
+highest-leverage next action (no Red Wave 2 needed): the existence-check pass over
+`new_candidates.csv` (Bucket 6) so the real promotion backlog (Bucket 1) is accurately sized before
+the gate lifts.
