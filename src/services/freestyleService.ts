@@ -7927,20 +7927,16 @@ export const freestyleService = {
       'Names the parser cannot yet fully read: unknown modifier tokens, ambiguous ' +
       'terminal mechanics, or unresolved syntax. Honest coverage gaps, not failures.');
 
-    // Typed counters (publication-integrity doctrine): the intake-queue size is a
-    // count of tracked NAMES (aliases, wording variants, modifier combinations),
-    // never unique tricks. The Phase-1 intake buckets collapse those names to the
-    // scholarly frontier metric `unresolvedStructures` — distinct names with no
-    // canonical home that are not aliases, resolved compounds, duplicates, or
-    // single-source noise. Never present a lexical total as a trick count.
+    // Three-layer ontology (publication-integrity doctrine): a mature canonical
+    // ontology, a substantial governed expansion frontier, and a broader lexical
+    // archive. The frontier counts distinct mechanically-coherent candidate
+    // structures; the archive (aliases, duplicates, single-source noise, unresolved
+    // doctrine) is documented vocabulary, never counted as candidate tricks.
     const bn = (k: string): number => stats.intakeBuckets[k]?.names ?? 0;
-    const aliasesAndDupes = bn('alias_candidate') + bn('equivalence_candidate') + bn('duplicate_source_variant');
     const statBlocks: ObservationalStat[] = [
-      { label: 'Unresolved structures', value: String(stats.unresolvedStructures), hint: 'distinct multi-source names with no canonical home yet (the real frontier)' },
-      { label: 'Intake queue',          value: String(stats.total),                hint: 'tracked names under review, not unique tricks' },
-      { label: 'Aliases & duplicates',  value: String(aliasesAndDupes),            hint: 'collapse to existing tricks; never counted as structures' },
-      { label: 'Doctrine-blocked',      value: String(bn('doctrine_blocked')),     hint: 'gated on a curator / Red ruling' },
-      { label: 'Canonical published',   value: String(stats.canonicalPublished),   hint: `${stats.publishedDistinctStructures} distinct structures; ${stats.universeTotal} documented names in the full universe` },
+      { label: 'Canonical tricks',   value: String(stats.canonicalOntology),  hint: 'fully reviewed and published' },
+      { label: 'Promotion frontier', value: String(stats.promotionFrontier),  hint: `mechanically coherent candidate structures (${bn('promotion_ready')} promotable now, ${bn('doctrine_pending')} awaiting a doctrine ruling, ${bn('unresolved_candidate')} corroborated multi-source)` },
+      { label: 'Lexical archive',    value: String(stats.lexicalArchive),     hint: 'aliases, variants, folk names, single-source observations (documented vocabulary, not unique tricks)' },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
@@ -7958,7 +7954,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Emerging Vocabulary',
-        intro:      'A governed view of the observational universe: what is promotion-ready, what is doctrine-blocked, and what remains unresolved. Every reading here is observationally extrapolated, never canonical.',
+        intro:      'A mature canonical ontology with a substantial, governed expansion frontier. This surface tracks the promotion frontier (mechanically coherent candidate structures on track to canonical) above the broader lexical archive of historical and community vocabulary. Every reading here is observationally extrapolated, never canonical.',
       },
       navigation: {
         breadcrumbs: [
@@ -7969,15 +7965,18 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          `Derived from the Phase E reconciliation of every documented trick name. ` +
-          `Overlap-safe: nothing here duplicates a published canonical trick or alias. ` +
-          `These are documented names, not unique tricks. Of ${stats.total} tracked names, ` +
-          `${bn('alias_candidate') + bn('equivalence_candidate')} collapse to an existing trick (aliases / equivalences), ` +
-          `${bn('duplicate_source_variant')} are wording or source duplicates, ` +
-          `${bn('parser_generated_compound')} are resolved modifier combinations, ` +
-          `${bn('doctrine_blocked')} are doctrine-blocked, ` +
-          `${bn('low_confidence_noise')} are single-source uncorroborated names, and only ` +
-          `${stats.unresolvedStructures} are genuinely unresolved unique structures.`,
+          `A mature canonical ontology with a substantial, governed expansion frontier, ` +
+          `derived from the Phase E reconciliation of every documented trick name (overlap-safe: ` +
+          `nothing here duplicates a published canonical trick). The ${stats.canonicalOntology} ` +
+          `published canonical structures sit above a promotion frontier of ${stats.promotionFrontier} ` +
+          `mechanically coherent candidate structures (${bn('promotion_ready')} promotable now, ` +
+          `${bn('doctrine_pending')} awaiting a doctrine ruling, ${bn('unresolved_candidate')} ` +
+          `corroborated multi-source candidates) and a lexical archive of ${stats.lexicalArchive} ` +
+          `documented names that are not unique tricks: ${bn('alias') + bn('equivalence')} collapse ` +
+          `to an existing trick, ${bn('duplicate_variant')} are wording or source duplicates, ` +
+          `${bn('low_confidence')} are single-source uncorroborated names, and ${bn('doctrine_unresolved')} ` +
+          `are structurally-unresolved doctrine terminology. The frontier is a governed expansion ` +
+          `program, not a cleanup queue.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated — they ' +

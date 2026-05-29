@@ -40,6 +40,19 @@ IMPL = REPO / "exploration/phase-e-implementation-2026-05-28"
 OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 
 DOCTRINE_CLUSTERS = {"blurry/furious", "weaving", "pogo", "shooting"}
+# Doctrine clusters whose STRUCTURE is known (blocked only on an ADD / classification
+# ruling, not on the movement reading) — these are promotion-frontier eligible. The
+# remaining doctrine clusters are structural-reading questions → lexical archive.
+# (Curator-set line, 2026-05-28; reversible — edit this set to retune the frontier.)
+COHERENT_DOCTRINE_CLUSTERS = {"blurry/furious", "symposium/paradox"}
+# Three-layer ontology: frontier buckets are promotable candidate structures; archive
+# buckets are lexical history (never counted as candidate tricks).
+FRONTIER_BUCKETS = {"promotion_ready", "doctrine_pending", "unresolved_candidate"}
+ARCHIVE_BUCKETS = {"alias", "equivalence", "duplicate_variant", "low_confidence", "doctrine_unresolved"}
+INTAKE_BUCKETS = [
+    "promotion_ready", "doctrine_pending", "unresolved_candidate",
+    "alias", "equivalence", "duplicate_variant", "low_confidence", "doctrine_unresolved",
+]
 BLOCKING_QUESTION = {
     "blurry/furious": "Does `blurry`/`furious` carry +2 on rotational bases? (Red Q1.A)",
     "weaving": "Weaving movement structure unruled.",
@@ -91,24 +104,23 @@ def main() -> None:
             "parserConfidence": pconf or "", "doctrineConfidence": dconf or "",
             "provisionalAdd": add or "", "decomposition": decomp or "",
             "semanticJob": job or "", "failureClass": fc or "",
-            "intakeBucket": intake, "lexicalVariants": [],
+            "intakeBucket": intake, "lexicalVariants": [], "layer": "",
         }
 
-    # clean + curator-confirm rows are mechanically-derivable modifier+base
-    # compositions: under the unique-trick doctrine they are modifier combinations
-    # of an existing base (modifier_links candidates), NOT unresolved unique
-    # structures. They are fully RESOLVED compositions → parser_generated_compound.
+    # clean + curator-confirm rows are mechanically-coherent modifier+base
+    # compositions with stable doctrine: promotion-frontier candidates that are
+    # promotable now (modeled later as a canonical row or a modifier_link).
     for r in read(PACKET / "promotion_candidates_clean.csv"):
         rows.append(row(r["name"], r["proposed_slug"], r["source_corpus"], r["ecosystem"],
                         r["parent_family"], "ready", "", r["parser_confidence"],
                         r["doctrine_confidence"], r["proposed_add"], r["add_accounting"],
-                        r["proposed_job_semantic"], "", "parser_generated_compound"))
+                        r["proposed_job_semantic"], "", "promotion_ready"))
 
     for r in read(PACKET / "promotion_candidates_curator_confirm.csv"):
         rows.append(row(r["name"], r["proposed_slug"], r["source_corpus"], r["ecosystem"],
                         r["parent_family"], "frontier", "", r["parser_confidence"],
                         r["doctrine_confidence"], r["proposed_add"], r["add_accounting"],
-                        r["proposed_job_semantic"], "", "parser_generated_compound"))
+                        r["proposed_job_semantic"], "", "promotion_ready"))
 
     for r in read(PACKET / "promotion_candidates_deferred.csv"):
         db = r["deferral_bucket"]
@@ -117,21 +129,20 @@ def main() -> None:
         if db == "doctrine-sensitive":
             section = "doctrine"
             cluster = eco if eco in DOCTRINE_CLUSTERS else "other"
-            intake = "doctrine_blocked"
+            # structurally-coherent doctrine clusters (known structure, blocked only
+            # on an ADD / classification ruling) are promotion-frontier; the rest are
+            # structural-reading questions → lexical archive.
+            intake = "doctrine_pending" if eco in COHERENT_DOCTRINE_CLUSTERS else "doctrine_unresolved"
         elif db == "alias-collapse":
-            # Routed OUT of the old "folk" bucket: these collapse to an existing
-            # canonical and never count as structures. (Phase 1 folds the
-            # alias-vs-equivalence distinction here; equivalence_candidate is
-            # split out in a later phase via the CLASSIFIED_UNIVERSE equivalent_to
-            # signal.)
+            # Collapses to an existing canonical: lexical archive, never a candidate.
             section, cluster = "folk", ""
-            intake = "alias_candidate"
+            intake = "alias"
         elif fc == "folk-name-opacity":
             section, cluster = "folk", ""
-            intake = "unresolved_structure" if corroborated(r["slug"]) else "low_confidence_noise"
+            intake = "unresolved_candidate" if corroborated(r["slug"]) else "low_confidence"
         else:
             section, cluster = "parser", ""
-            intake = "unresolved_structure" if corroborated(r["slug"]) else "low_confidence_noise"
+            intake = "unresolved_candidate" if corroborated(r["slug"]) else "low_confidence"
         rows.append(row(r["name"], r["slug"], r["source_corpus"], eco, "",
                         section, cluster, "", r["doctrine_confidence"], "", "", "", fc, intake))
 
@@ -147,34 +158,42 @@ def main() -> None:
         if s in _first:
             if r["name"] != _first[s]["name"] and r["name"] not in _first[s]["lexicalVariants"]:
                 _first[s]["lexicalVariants"].append(r["name"])
-            r["intakeBucket"] = "duplicate_source_variant"
+            r["intakeBucket"] = "duplicate_variant"
         else:
             _first[s] = r
+
+    # ── three-layer assignment ── frontier (promotable candidate structures) vs
+    # lexical archive (aliases / duplicates / single-source noise / unresolved
+    # doctrine). Canonical ontology is a separate layer (published, not in intake).
+    for r in rows:
+        r["layer"] = "frontier" if r["intakeBucket"] in FRONTIER_BUCKETS else "archive"
 
     # ── stats (headline scale of the governed universe) ──
     canonical = sum(1 for c in classified if c["governance_state"].startswith("1"))
     total = len(rows)
 
-    # ── intake-bucket classification (Phase 1 — governance-workflow taxonomy) ──
-    # Each row carries an intakeBucket. Distinct-SLUG counts per bucket are the
-    # honest figures (names dedupe to structures). The scholarly metric is
-    # `unresolvedStructures`: distinct slugs that are genuinely unresolved — NOT
-    # aliases, NOT resolved modifier compounds, NOT lexical duplicates, NOT noise.
-    BUCKETS = [
-        "alias_candidate", "equivalence_candidate", "duplicate_source_variant",
-        "parser_generated_compound", "unresolved_structure", "doctrine_blocked",
-        "low_confidence_noise",
-    ]
-    _bnames = {b: 0 for b in BUCKETS}
-    _bslugs: dict[str, set] = {b: set() for b in BUCKETS}
+    # ── intake-bucket classification + three-layer ontology ──
+    # Each row carries an intakeBucket and a layer (frontier | archive). Distinct-
+    # SLUG counts per bucket are the honest figures (names dedupe to structures).
+    # The public story is three layers: canonical ontology (~500, published) /
+    # promotion frontier (mechanically coherent candidate structures) / lexical
+    # archive (aliases, duplicates, single-source noise, unresolved doctrine).
+    _bnames = {b: 0 for b in INTAKE_BUCKETS}
+    _bslugs: dict[str, set] = {b: set() for b in INTAKE_BUCKETS}
     for r in rows:
         b = r["intakeBucket"]
         _bnames[b] = _bnames.get(b, 0) + 1
         _bslugs.setdefault(b, set()).add(r["slug"])
     intake_buckets = {
-        b: {"names": _bnames[b], "distinctStructures": len(_bslugs[b])} for b in BUCKETS
+        b: {"names": _bnames[b], "distinctStructures": len(_bslugs[b])} for b in INTAKE_BUCKETS
     }
-    unresolved_structures = len(_bslugs["unresolved_structure"])
+    # Layer counts are SURVIVOR-based (one layer per distinct slug): a slug's layer
+    # is its canonical-occurrence bucket, so duplicate rows never double-count it.
+    # frontier + archive therefore partition the distinct-slug universe exactly.
+    frontier_slugs = {s for s, fr in _first.items() if fr["intakeBucket"] in FRONTIER_BUCKETS}
+    archive_slugs = {s for s, fr in _first.items() if fr["intakeBucket"] in ARCHIVE_BUCKETS}
+    promotion_frontier = len(frontier_slugs)
+    lexical_archive = len(archive_slugs)
 
     # ── Typed-counter resolution (single source: CLASSIFIED_UNIVERSE.csv) ──
     # `total` is the INTAKE-QUEUE size (promotion-packet rows) — a work subset, NOT
@@ -211,9 +230,16 @@ def main() -> None:
         "aliasEquivalentNames": alias_equivalent_names,
         "observationalUniverseNames": observational_universe_names,
         "observationalUniverseDistinctStructures": observational_universe_distinct,
-        # Phase 1 intake-bucket classification + the scholarly frontier metric.
+        # Three-layer ontology + intake-bucket classification.
+        # canonicalOntology: published distinct structures (Layer 1).
+        # promotionFrontier: distinct mechanically-coherent candidate structures
+        #   (Layer 2 = promotion_ready + doctrine_pending + unresolved_candidate).
+        # lexicalArchive: distinct archived names (Layer 3 = aliases / duplicates /
+        #   single-source noise / unresolved doctrine).
+        "canonicalOntology": published_distinct,
+        "promotionFrontier": promotion_frontier,
+        "lexicalArchive": lexical_archive,
         "intakeBuckets": intake_buckets,
-        "unresolvedStructures": unresolved_structures,
         "ready": by_section["ready"],
         "frontier": by_section["frontier"],
         "doctrineBlocked": by_section["doctrine"],
@@ -261,10 +287,12 @@ def main() -> None:
         "  semanticJob: string;\n"
         "  /** Parser failure class for unresolved rows; '' when derived. */\n"
         "  failureClass: string;\n"
-        "  /** Phase-1 intake bucket: alias_candidate | equivalence_candidate |\n"
-        "   *  duplicate_source_variant | parser_generated_compound |\n"
-        "   *  unresolved_structure | doctrine_blocked | low_confidence_noise. */\n"
+        "  /** Intake bucket. Frontier: promotion_ready | doctrine_pending |\n"
+        "   *  unresolved_candidate. Archive: alias | equivalence |\n"
+        "   *  duplicate_variant | low_confidence | doctrine_unresolved. */\n"
         "  intakeBucket: string;\n"
+        "  /** Three-layer ontology: 'frontier' (promotable candidate) | 'archive' (lexical history). */\n"
+        "  layer: string;\n"
         "  /** Folded wording/source variants of this slug (on the surviving row). */\n"
         "  lexicalVariants: string[];\n"
         "}\n\n"
@@ -280,10 +308,13 @@ def main() -> None:
         "  /** Full observational universe (governance states 3/4/5/7), single-sourced from CLASSIFIED_UNIVERSE. */\n"
         "  observationalUniverseNames: number;\n"
         "  observationalUniverseDistinctStructures: number;\n"
-        "  /** Phase-1 intake buckets: per-bucket name + distinct-structure counts. */\n"
+        "  /** Three-layer ontology (distinct structures). canonicalOntology = published;\n"
+        "   *  promotionFrontier = mechanically-coherent candidates; lexicalArchive = history. */\n"
+        "  canonicalOntology: number;\n"
+        "  promotionFrontier: number;\n"
+        "  lexicalArchive: number;\n"
+        "  /** Per-bucket name + distinct-structure counts (8 intake buckets). */\n"
         "  intakeBuckets: Record<string, { names: number; distinctStructures: number }>;\n"
-        "  /** Distinct genuinely-unresolved structures (the scholarly frontier metric). */\n"
-        "  unresolvedStructures: number;\n"
         "  ready: number;\n"
         "  frontier: number;\n"
         "  doctrineBlocked: number;\n"

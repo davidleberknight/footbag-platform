@@ -237,6 +237,36 @@ reversible.
 from `alias_candidate` via the CLASSIFIED `equivalent_to` join; migrating the page's 5-section UI
 onto the bucket taxonomy; parser-ontology hardening; doctrine adjudication.
 
+### 8.3 Three-layer ontology revision — IMPLEMENTED 2026-05-28
+
+The Phase-1 framing understated the frontier (15) by treating mechanically-coherent compounds
+and doctrine-pending rows as "resolved / non-frontier." Curator-confirmed revision to a
+**three-layer** public story:
+
+| Layer | Definition | Count |
+|-------|-----------|------:|
+| **Canonical ontology** | published canonical structures | **507** |
+| **Promotion frontier** | distinct mechanically-coherent candidate structures | **337** |
+| **Lexical archive** | aliases / duplicates / single-source noise / unresolved doctrine | **1,310** |
+
+Frontier (337) + archive (1,310) = 1,647 distinct intake slugs (survivor-based; one layer per slug).
+
+**Revised 8 intake buckets** (renamed from Phase 1):
+- *Frontier:* `promotion_ready` (221, was parser_generated_compound) · `doctrine_pending` (101,
+  structurally-coherent doctrine clusters) · `unresolved_candidate` (15, corroborated multi-source).
+- *Archive:* `alias` (415) · `equivalence` (0) · `duplicate_variant` (54→42 distinct) ·
+  `low_confidence` (730 single-source) · `doctrine_unresolved` (165, structural-reading questions).
+
+**The doctrine-coherence line (curator-set, reversible):** `COHERENT_DOCTRINE_CLUSTERS =
+{blurry/furious, symposium/paradox}` → frontier; weaving / pogo / shooting / other → archive.
+This is the knob that sets the frontier at 337; edit that one set in the generator to retune.
+
+**Surfaced:** generator emits `canonicalOntology` / `promotionFrontier` / `lexicalArchive` + a
+per-row `layer` (frontier|archive). Banner leads with the three layers; intro + statsNote frame a
+"mature canonical ontology with a substantial, governed expansion frontier — a governed expansion
+program, not a cleanup queue." Row data deterministic; no DB writes. `unresolvedStructures` (the
+old single headline) removed, superseded by `promotionFrontier`.
+
 ---
 
 ## 9. Adjustment to the brief's framing

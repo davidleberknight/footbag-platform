@@ -51,41 +51,42 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the statistics banner reflecting the classified universe', async () => {
+  it('renders the three-layer ontology banner (canonical / frontier / archive)', async () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    expect(html).toContain('Unresolved structures');
-    expect(html).toContain('Intake queue');
-    expect(html).toContain('Aliases &amp; duplicates');
-    expect(html).toContain('Doctrine-blocked');
-    expect(html).toContain('Canonical published');
-    // The headline total comes straight from the generated stats.
-    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.total));
+    expect(html).toContain('Canonical tricks');
+    expect(html).toContain('Promotion frontier');
+    expect(html).toContain('Lexical archive');
+    // The three layer values come straight from the generated stats.
+    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.canonicalOntology));
+    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.promotionFrontier));
+    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.lexicalArchive));
   });
 
-  it('surfaces the Phase-1 intake-bucket frontier metric (unresolved unique structures)', async () => {
+  it('frames the promotion frontier as a substantial governed expansion program', async () => {
     const html = await page();
-    // The scholarly frontier metric: distinct genuinely-unresolved structures.
-    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.unresolvedStructures));
-    expect(html).toMatch(/no canonical home yet/);
-    // The statsNote tells the collapse story: tracked names -> a small frontier.
-    expect(html).toMatch(/genuinely unresolved unique structures/);
-    expect(html).toMatch(/collapse to an existing trick/);
-    // The 7 buckets reconcile to the intake total.
+    expect(html).toMatch(/mature canonical ontology with a substantial, governed expansion frontier/);
+    expect(html).toMatch(/mechanically coherent candidate structures/);
+    expect(html).toMatch(/governed expansion\s+program, not a cleanup queue/);
+    // Frontier = promotion_ready + doctrine_pending + unresolved_candidate (distinct).
     const ib = OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets;
+    const frontierDistinct = ib.promotion_ready.distinctStructures
+      + ib.doctrine_pending.distinctStructures
+      + ib.unresolved_candidate.distinctStructures;
+    expect(frontierDistinct).toBe(OBSERVATIONAL_UNIVERSE_STATS.promotionFrontier);
+    // The 8 intake buckets reconcile (by names) to the intake total.
     const sum = Object.values(ib).reduce((a, b) => a + b.names, 0);
     expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
-  it('frames counts honestly per the unique-trick doctrine (lexical totals are never tricks)', async () => {
+  it('frames counts honestly: the archive is documented vocabulary, never unique tricks', async () => {
     const html = await page();
-    // The intake-queue size is labelled as tracked names under review, not tricks.
-    expect(html).toMatch(/tracked names under review, not unique tricks/);
-    // The published count is paired with distinct-structure context (name vs structure).
-    expect(html).toMatch(/distinct structures/);
-    // Explicit "not unique tricks" disclaimer accompanies the visible lexical totals.
-    expect(html).toMatch(/documented names, not unique tricks/);
+    // The archive is explicitly not unique tricks.
+    expect(html).toMatch(/documented vocabulary, not unique tricks|not unique tricks/);
+    // Aliases, duplicates, single-source noise stay OUT of the frontier.
+    expect(html).toMatch(/collapse\s+to an existing trick/);
+    expect(html).toMatch(/single-source uncorroborated names/);
     // Never present a lexical total as "tricks".
     expect(html).not.toMatch(/observational tricks/i);
     expect(html).not.toMatch(/\b1701\s+tricks/i);
