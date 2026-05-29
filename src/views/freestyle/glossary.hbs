@@ -210,6 +210,12 @@
             <span class="glossary-core-atom-adds" aria-label="{{adds}}">{{adds}}</span>
           </header>
           <p class="glossary-core-atom-lead">{{lead}}</p>
+          {{#if movementIntuition}}
+          <p class="glossary-core-atom-intuition">
+            <span class="glossary-core-atom-intuition-label">Feels like</span>
+            {{movementIntuition}}
+          </p>
+          {{/if}}
           <p class="glossary-core-atom-foundational">{{foundationalNote}}</p>
           {{#if familyRole}}
           <p class="glossary-core-atom-family-role">{{familyRole}}</p>
@@ -352,11 +358,18 @@
       <li>Mirage uses one dex.</li>
       <li>Double Around the World uses two dexes.</li>
     </ul>
+    <dl class="glossary-term-list">
+      <dt id="term-dexless">Dexless</dt>
+      <dd>A trick or component that contains no dex. Dexes are so central to freestyle that the absence of one is itself a named category.</dd>
+    </dl>
 
     <h3 class="section-heading">Motion style</h3>
     <dl class="glossary-term-list">
       <dt id="term-hippy-leggy">Hippy vs leggy</dt>
       <dd>Every dex is one of two motion styles. A <em>hippy</em> dex draws its motion from the hip: the thigh circles the bag. A <em>leggy</em> dex draws its motion from the knee: the calf circles the bag.</dd>
+
+      <dt id="term-full-half-dex">Full vs half dex</dt>
+      <dd>A dex's <em>fullness</em> is how far the leg circles the bag. A <em>full</em> dex circles the bag entirely &mdash; the leg starts on one side, circles, and returns to the same side. A <em>half</em> dex circles only partway, finishing on the opposite side.</dd>
 
       <dt id="term-x-dex">X-Dex</dt>
       <dd>A dexterity performed in a crossed-body position. The <a href="/freestyle/tricks/atom-smasher">Atom Smasher</a>, for example, uses an X-dex.</dd>
@@ -388,7 +401,7 @@
       <dd>A dex that grazes the shoe surface during the circle. Distinct from a clean thin dex by the audible / visible shoe contact.</dd>
 
       <dt id="term-the">The</dt>
-      <dd>A component whose motion misses the window entirely &mdash; the leg moves but the bag doesn't pass through. Typically counted as a fault.</dd>
+      <dd>Pronounced &ldquo;thuh,&rdquo; not &ldquo;thee.&rdquo; A component that is attempted but completely missed &mdash; a dex that misses the window entirely, or a duck done completely above the head. Typically counted as a fault.</dd>
 
       <dt id="term-scoopy">Scoopy</dt>
       <dd>A dex with extra under-bag character, where the leg cups beneath the bag during the circle rather than circling cleanly around it.</dd>
@@ -403,16 +416,35 @@
       <dd>Poorly controlled execution. The dex completes but the motion is unclear or the bag's path is uneven.</dd>
 
       <dt id="term-pulled">Pulled</dt>
-      <dd>A set or dex that drifts out of position mid-component. The bag pulls away from the intended path; recovery is possible but the component is no longer clean.</dd>
+      <dd>A set where the bag is dragged through an uptime dex or a spin before the intended component happens &mdash; for example, a stepping set where the leg passes over the bag while it stays on the set foot. Used interchangeably with <a href="#term-slurry">slurry</a>.</dd>
 
       <dt id="term-slurry">Slurry</dt>
-      <dd>A dex completed too early &mdash; the leg finishes its circle before the bag has fully passed through the window.</dd>
+      <dd>Synonym for a <a href="#term-pulled">pulled</a> set: the bag is dragged through an uptime dex or spin before the intended component fires.</dd>
 
       <dt id="term-froggy">Froggy</dt>
-      <dd>Body motion begins before the set completes. The next component fires too soon; the trick reads rushed.</dd>
+      <dd>A pulled spin &mdash; a spin that drags the bag through before the intended component happens.</dd>
 
       <dt id="term-over-dexed">Over-dexed</dt>
       <dd>A dex with too much motion for what the trick requires &mdash; extra leg travel that doesn't serve the structure. Common in early learners working a new dex pattern.</dd>
+    </dl>
+
+    <h3 class="section-heading">Ducks</h3>
+    <p>A <strong>duck</strong> dips the head so the bag passes around the neck. Four directional variations differ by which way the head moves and where the bag ends up (the <a href="#section-modifiers">ducking ecosystem</a> covers how these modify a base):</p>
+    <dl class="glossary-term-list">
+      <dt id="term-ducking">Ducking</dt>
+      <dd>Head moves toward the bag; the bag falls to the opposite side from the head.</dd>
+
+      <dt id="term-weaving">Weaving</dt>
+      <dd>Head moves toward the bag; the bag falls to the same side the head moved.</dd>
+
+      <dt id="term-diving">Diving</dt>
+      <dd>Head moves over the bag and back under to its original position; the bag falls to the same side as the initial head movement.</dd>
+
+      <dt id="term-zulu">Zulu</dt>
+      <dd>Head moves over the bag and back under to its original position; the bag falls to the opposite side from the initial head movement.</dd>
+
+      <dt id="term-crowny">Crowny</dt>
+      <dd>A duck-quality term: a duck performed with just the very top of the head &mdash; the duck-world parallel to a thin or <a href="#term-shoey">shoey</a> dex.</dd>
     </dl>
     <p class="glossary-section-next">Next &mdash; <a href="#section-timing-sets">Timing &amp; Sets</a> places each component on the trick's parabolic arc.</p>
   </section>
@@ -471,6 +503,8 @@
       <dd>After the peak. The bag is falling toward the catch.</dd>
       <dt id="term-phases-sides">Phases and sides</dt>
       <dd>Tricks break into the three phases above by bag direction. A <strong>side modifier</strong> &mdash; same-side (<code>ss</code> / near) or opposite (<code>op</code> / far) &mdash; connects each component to its predecessor. <code>ss</code> is implied for clipper-led tricks; <code>op</code> for toe-led tricks.</dd>
+      <dt id="term-attack">Attack</dt>
+      <dd>How quickly a player begins the next phase's component. A transition that has to fire aggressively &mdash; like attacking the mirage quickly after the stepping set in Blur &mdash; is said to need a fast attack.</dd>
     </dl>
   </section>
 
@@ -486,25 +520,47 @@
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
-      A <strong>family</strong> shares a conserved terminal mechanic. Two
-      cohorts surface on this page: <strong>root terminal families</strong>
-      are primitive structural anchors with their own terminal mechanic;
-      <strong>branch families</strong> are named compounds that are
-      themselves productive family anchors AND descend from a root via a
-      chain reading. Modifier and topology systems (paradox, symposium,
-      spinning, ducking) are entry / topology layers &mdash; not terminal
-      families.
+      A <strong>family</strong> is a <strong>productive movement lineage</strong>:
+      a group of tricks that share a conserved <strong>terminal mechanic</strong>,
+      decompose into the same skeleton, and carry a substantial set of named
+      descendants the community actually reasons about. A family is not merely
+      &ldquo;any trick that has spin-offs.&rdquo; Modifier and topology systems
+      (paradox, symposium, spinning, ducking) are entry / topology layers &mdash;
+      not families.
     </p>
+
+    <h3 class="section-heading">What makes a family?</h3>
+    <p>
+      Whirl is the model &mdash; every whirl ends <em>leggy-in dexterity into a
+      same-side cross-body clipper</em>, and dozens of tricks are built on that
+      ending. Two things look like families but are not.
+      <strong>Foundational surfaces</strong> (toe, clipper) are where
+      <em>most</em> tricks end, so grouping by them would bury everything
+      together and teach nothing &mdash; they live under
+      <a href="#section-surfaces">contact surfaces</a>, not here.
+      <strong>Modifier ecosystems</strong> (pixie, ducking, spinning) reshape a
+      trick but have no ending of their own &mdash; they live under
+      <a href="#section-modifiers">modifiers</a>.
+    </p>
+    <p>
+      Structural objects sit in three tiers. A <strong>parent family</strong> is
+      a top-level lineage with its own terminal mechanic &mdash; the eight
+      recognized parents are mirage, illusion, butterfly, legover, pickup,
+      whirl / swirl, osis, and around-the-world. A <strong>child
+      sub-family</strong> folds into a parent (swirl and rev-whirl under whirl;
+      torque and blender under osis). Between the two sits the
+      <strong>productive descendant lineage</strong>: compositional in origin yet
+      productive in its own right &mdash; the drifter lineage (a
+      &ldquo;miraging clipper&rdquo; that spun off reverse-drifter and
+      high-plains-drifter), barrage, paradon, flurry. The browse shows these as
+      their own groups; a parent family they are not.
+    </p>
+
     <p class="detail-muted">
-      Tricks that anchor a family carry a dual role. A
-      <strong>family-anchor trick</strong> is a canonical trick that
-      <em>also</em> acts as the productive root of a movement family or
-      topology neighborhood &mdash; whirl, butterfly, mirage, osis,
-      legover, torque, blender, drifter, barrage, blur. Every
-      family-anchor trick is a trick (with its own trick-detail page);
-      not every trick is a family-anchor (flurry, witchdoctor, and
-      paradox-mirage are tricks but not family-anchors). The family
-      cards below render only family-anchor tricks; the dictionary's
+      A <strong>family-anchor trick</strong> is a canonical trick that also acts
+      as the productive root of a family &mdash; it has its own trick-detail page.
+      Not every trick is a family anchor (flurry, witchdoctor, and paradox-mirage
+      are tricks, not anchors). The cards below render anchors; the dictionary's
       <a href="/freestyle/tricks?view=family">family-view browse</a> renders every trick.
     </p>
 
@@ -514,23 +570,36 @@
       anchor, and several &ldquo;families&rdquo; are really
       <a href="#section-modifiers">modifier ecosystems</a>, alternative surfaces,
       or aliases (see <a href="#section-reading-the-dictionary">the five kinds of
-      object</a>). A future taxonomy pass will consolidate them into a smaller
-      set of <em>parent</em> families with child sub-families, and the canonical
+      object</a>). The carded set is being reconciled to a smaller set of
+      <em>parent</em> families with child sub-families, and the canonical
       family count will shrink. Today&rsquo;s labels are a structural browse aid,
       not a settled taxonomy.
     </p>
 
-    <h3 class="section-heading">Root terminal families</h3>
-    <p class="detail-muted">Primitive structural anchors &mdash; atoms with their own terminal mechanic.</p>
-    <div class="glossary-family-card-grid" aria-label="Root terminal families">
+    <p class="glossary-note">
+      <strong>Where the edges blur.</strong> Some groupings are pragmatic, not
+      provable. The rotational cluster <strong>whirl / swirl / twirl</strong> is
+      grouped together because the community reasons about them together, not
+      because there is one airtight mechanic. <strong>illusion / pickup /
+      legover</strong> share a leggy-over feel that resists a single boundary.
+      <strong>eclipse / butterfly-swirl</strong> and the <strong>drifter</strong>
+      lineage are historical and cultural clusters as much as structural ones.
+      The browse is a learning aid; some of its lines are drawn by usage and
+      judgement, and a future ruling may move them &mdash; which is why some
+      labels still render as their own groups.
+    </p>
+
+    <h3 class="section-heading">Parent families</h3>
+    <p class="detail-muted">Top-level lineages with their own terminal mechanic. Four of the eight recognized parents are carded here (whirl, butterfly, mirage, osis); illusion, legover, pickup, and around-the-world are recognized parents whose cards are still being authored.</p>
+    <div class="glossary-family-card-grid" aria-label="Parent families">
       {{#each content.rootTerminalFamilies}}
       {{> glossary-family-card}}
       {{/each}}
     </div>
 
-    <h3 class="section-heading">Branch families</h3>
-    <p class="detail-muted">Named compounds that descend from a root via a chain reading and themselves anchor a family.</p>
-    <div class="glossary-family-card-grid" aria-label="Branch families">
+    <h3 class="section-heading">Descendant lineages &amp; sub-families</h3>
+    <p class="detail-muted">Named compounds that descend from a parent via a chain reading. Some fold under a parent as child sub-families (swirl and rev-whirl under whirl; torque and blender under osis); others are productive descendant lineages in their own right (drifter, barrage). Their exact tier is being finalized.</p>
+    <div class="glossary-family-card-grid" aria-label="Descendant lineages and sub-families">
       {{#each content.branchFamilies}}
       {{> glossary-family-card}}
       {{/each}}
@@ -550,22 +619,6 @@
       is the atom itself.
     </p>
     {{> core-tricks-grid tricks=content.otherFoundationalAtoms idPrefix="term-"}}
-
-    <details class="glossary-family-card-observational">
-      <summary class="glossary-family-card-observational-summary">
-        <span class="glossary-family-card-observational-title">Whirl as central attractor</span>
-        <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
-      </summary>
-      <p class="glossary-family-card-observational-body glossary-network-attractor-note">
-        Network analysis of 22 years of Sick3 sequences shows
-        <a href="/freestyle/tricks/whirl">whirl</a> as the central attractor of the
-        freestyle trick network &mdash; sequences converge on it as a stable
-        resolution point. <a href="/freestyle/tricks?family=whirl">Blurry whirl</a>
-        functions as the most common opening element. The transition
-        <em>blurry whirl &rarr; whirl</em> is the most documented two-trick
-        structure in the corpus.
-      </p>
-    </details>
 
     {{#if content.familyTrees.length}}
     <details class="glossary-family-card-observational">
@@ -1164,9 +1217,9 @@
     <p>
       Some compound modifier labels are folk shorthand for two-operator
       stacks. <em>Blurry</em> is the canonical example:
-      <code>blurry = stepping + paradox</code>. The workbook decomposes
-      composite labels via a registry so the additive math surfaces the
-      atom-level operators (see <a href="/freestyle/tricks/blur">Blur</a> below).
+      <code>blurry = stepping + paradox</code>. Composite labels like this are
+      decomposed into their underlying operators so the additive math surfaces
+      at the atom level (see <a href="/freestyle/tricks/blur">Blur</a> below).
     </p>
 
     <h3>Decomposition chains</h3>
@@ -1225,7 +1278,7 @@
       <p class="glossary-family-card-observational-body">
         Several compounds carry open ADD questions where the computed value
         and the official value disagree (mobius, sumo). These are tracked as
-        governance-blocked at the workbook layer; trick-detail pages render
+        open governance questions; trick-detail pages render
         the official value with the divergence noted. The counting-frame
         doctrine (whether [PDX] is independently flag-counted vs absorbed
         into the dex flag) is the source of most multi-source disagreements;

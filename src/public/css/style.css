@@ -5595,6 +5595,21 @@ section.home-media { padding-top: 0; }
   font-size: 0.95rem;
   line-height: 1.5;
 }
+.glossary-core-atom-intuition {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.glossary-core-atom-intuition-label {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+}
 .glossary-core-atom-foundational {
   margin: 0;
   font-size: 0.88rem;

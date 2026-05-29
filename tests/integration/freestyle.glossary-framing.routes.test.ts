@@ -109,9 +109,8 @@ describe('Glossary framing — family-hierarchy direction note (additive, no rew
     expect(html).toMatch(/Family labels are transitional/);
     expect(html).toMatch(/<em>parent<\/em> families with child sub-families/);
     expect(html).toMatch(/family count will shrink/);
-    // It sits within the existing families section (which is NOT rewritten).
     expect(html).toContain('id="section-families"');
-    expect(html).toContain('Root terminal families');
+    expect(html).toContain('Parent families');
   });
 });
 
@@ -134,10 +133,13 @@ describe('Glossary framing — sidebar + non-regression', () => {
     expect(html).toContain('href="#section-notation"');
   });
 
-  it('does not rewrite the families taxonomy (root/branch family structure intact)', async () => {
+  it('§families uses the parent / descendant-lineage / sub-family model (root/branch retired)', async () => {
     const html = await glossary();
-    expect(html).toContain('Root terminal families');
-    expect(html).toContain('Branch families');
+    expect(html).toContain('Parent families');
+    expect(html).toContain('Descendant lineages &amp; sub-families');
+    // The retired vocabulary no longer renders.
+    expect(html).not.toContain('Root terminal families');
+    expect(html).not.toContain('Branch families');
   });
 });
 
@@ -157,8 +159,6 @@ describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', (
     const html = await glossary();
     expect(html).toMatch(/<strong>productive descendant lineage<\/strong>/);
     expect(html).toMatch(/such as the drifter lineage/);
-    // The §families root/branch structure is NOT touched in this slice.
-    expect(html).toContain('Root terminal families');
   });
 
   it('§surfaces frames foundational vs alternative surfaces with the movement-vs-surface WHY', async () => {
@@ -247,5 +247,34 @@ describe('Glossary framing — Phase D2 step 4 (modifier ecosystem doctrine)', (
     expect(html).toMatch(/<strong>Hard cases: symposium and paradox\.<\/strong>/);
     // Not over-hardened: the classification is flagged curator-confirmable.
     expect(html).toMatch(/curator-confirmable/);
+  });
+});
+
+describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-lineage rewrite)', () => {
+  it('embeds the "What makes a family?" explainer with the whirl model + the two non-family failure modes', async () => {
+    const html = await glossary();
+    expect(html).toContain('What makes a family?');
+    expect(html).toMatch(/Whirl is the model/);
+    expect(html).toMatch(/Foundational surfaces<\/strong> \(toe, clipper\)/);
+    expect(html).toMatch(/Modifier ecosystems<\/strong> \(pixie, ducking, spinning\)/);
+  });
+
+  it('teaches the three-tier structural-object model (parent / child sub-family / descendant lineage)', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>parent family<\/strong>/);
+    expect(html).toMatch(/<strong>child\s+sub-family<\/strong>/);
+    expect(html).toMatch(/eight\s+recognized parents are mirage, illusion, butterfly, legover, pickup,\s+whirl \/ swirl, osis, and around-the-world/);
+  });
+
+  it('carries the fuzzy-boundary humility clause', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/<strong>Where the edges blur\.<\/strong>/);
+    expect(html).toMatch(/whirl \/ swirl \/ twirl/);
+    expect(html).toMatch(/a future ruling may move them/);
+  });
+
+  it('the parent-family grid is honest that 4 of 8 parents are not yet carded', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/illusion, legover, pickup, and around-the-world are recognized parents whose cards are still being authored/);
   });
 });

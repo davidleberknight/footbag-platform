@@ -320,7 +320,7 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
     ],
     equivalenceChains: [],
     observationalProse:
-      'Whirl functions as a central attractor in the freestyle ontology: it appears as a connector trick in many run architectures, it anchors the gyro branch family via torque, and it generates the "whirling X" modifier form that applies to any base trick. The branch lineage flows: whirl → torque (gyro family root) → blender, mobius, drifter.',
+      'Whirl functions as a central attractor in the freestyle ontology: it appears as a connector trick in many run architectures, it anchors the gyro lineage via torque, and it generates the "whirling X" modifier form that applies to any base trick. The lineage flows: whirl → torque → blender, mobius, drifter.',
   },
 
   // ─── flurry ─────────────────────────────────────────────────────────

@@ -3009,6 +3009,7 @@ export interface LanguageOfFreestyleAtomCard {
   adds:             string;        // pre-formatted, e.g. "2 ADD"
   detailHref:       string;
   lead:             string;        // movement-physical
+  movementIntuition: string;       // embodied coaching cue (what it feels like)
   foundationalNote: string;        // cultural / why-foundational
   familyRole:       string;        // optional secondary; empty string ok
 }
@@ -7166,7 +7167,7 @@ export const freestyleService = {
     const topologyView: TopologyBrowseView = {
       layerSource:       'observational',
       observationalNote:
-        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families: hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
+        'Movement Neighborhoods group tricks that share a movement feel, timing pattern, or structural relationship across families. Six neighborhoods are recognized: Hippy downtime dex, Leggy dex, Whirl / swirl structures, Pixie uptime dex, Symposium clipper structures, and Ducking clipper structures. They are a way to explore similarity, not an official family classification. The family view remains the structural reference.',
       groups: TOPOLOGY_GROUPS
         .map(buildTopologyGroup)
         .filter(g => g.memberCount > 0),
@@ -7802,6 +7803,7 @@ export const freestyleService = {
           adds:             `${c.adds} ADD`,
           detailHref:       `/freestyle/tricks/${c.slug}`,
           lead:             c.lead,
+          movementIntuition: c.movementIntuition,
           foundationalNote: c.foundationalNote,
           familyRole:       c.familyRole,
         })),

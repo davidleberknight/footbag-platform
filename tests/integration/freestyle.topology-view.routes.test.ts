@@ -150,6 +150,26 @@ describe('topology view — Movement Neighborhoods framing', () => {
     expect(res.text).toMatch(/share a movement feel/i);
   });
 
+  it('the intro note itself names all six neighborhood categories', async () => {
+    // The jump-nav only renders groups with at least one member, so the
+    // framing note must independently name all six so the scheme reads
+    // up front regardless of which groups currently populate.
+    const res = await request(createApp()).get('/freestyle/tricks?view=topology');
+    const noteMatch = res.text.match(/<p class="topology-view-note">[\s\S]*?<\/p>/);
+    expect(noteMatch, 'topology-view-note paragraph').not.toBeNull();
+    const note = noteMatch![0];
+    for (const name of [
+      'Hippy downtime dex',
+      'Leggy dex',
+      'Whirl / swirl structures',
+      'Pixie uptime dex',
+      'Symposium clipper structures',
+      'Ducking clipper structures',
+    ]) {
+      expect(note, `note names "${name}"`).toContain(name);
+    }
+  });
+
   it('the intro jump-nav lists all six neighborhood category names', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     const navMatch = res.text.match(/<nav class="topology-jump"[\s\S]*?<\/nav>/);

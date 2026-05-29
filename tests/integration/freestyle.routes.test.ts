@@ -1621,11 +1621,25 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('glossary §5 carries the whirl network-attractor note', async () => {
+  it('glossary §5 carries the whirl network-attractor note exactly once', async () => {
+    // The note lives solely on the whirl family card's observationalNote;
+    // a prior standalone static duplicate (before the family-tree block)
+    // was removed. Guard against the duplicate returning.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('glossary-network-attractor-note');
-    expect(res.text).toMatch(/central attractor/);
+    expect(res.text).toContain('Whirl as central attractor');
     expect(res.text).toMatch(/blurry whirl\s*&rarr;\s*whirl|blurry whirl\s*→\s*whirl/);
+    const occurrences = (res.text.match(/central attractor of the\s+freestyle trick network/g) ?? []).length;
+    expect(occurrences, 'network-attractor note renders exactly once').toBe(1);
+  });
+
+  it('glossary keeps internal/developer jargon out of user-facing prose', async () => {
+    // Public-facing prose hygiene: registry names, sprint/ruling refs, and
+    // internal tooling words must not leak onto the rendered glossary.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).not.toMatch(/MODIFIER_COMPOSITIONS/);
+    expect(res.text).not.toMatch(/\bpt8\b/);
+    expect(res.text).not.toMatch(/Red pt\d/);
+    expect(res.text).not.toMatch(/[Ww]orkbook/);
   });
 
   it('glossary §7 carries the operator-notation framing paragraph', async () => {
@@ -2227,6 +2241,54 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
     expect(res.text).toContain('id="term-phases-sides"');
   });
 
+  it('§3 "the" entry carries the PassBack pronunciation disambiguation + missed-component definition', async () => {
+    // "the" ("thuh", not "thee") is a real footbag term per the PassBack
+    // glossary, not a typo: a component attempted but completely missed.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const idx = res.text.indexOf('id="term-the"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = res.text.slice(idx, idx + 400);
+    expect(slice).toMatch(/thuh/);
+    expect(slice).toMatch(/attempted but completely missed/);
+  });
+
+  it('§3 Motion style includes the full-vs-half dex fullness entry', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="term-full-half-dex"');
+    const idx = res.text.indexOf('id="term-full-half-dex"');
+    const slice = res.text.slice(idx, idx + 400);
+    expect(slice).toMatch(/full/i);
+    expect(slice).toMatch(/half/i);
+  });
+
+  it('§3 pulled/slurry/froggy follow the PassBack drag-through definitions', async () => {
+    // Reconciled to the PassBack glossary: pulled and slurry are synonyms
+    // (bag dragged through an uptime dex/spin before the intended component);
+    // froggy is specifically a pulled spin.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const pulled = res.text.slice(res.text.indexOf('id="term-pulled"'), res.text.indexOf('id="term-pulled"') + 400);
+    expect(pulled).toMatch(/dragged through an uptime dex/);
+    const froggy = res.text.slice(res.text.indexOf('id="term-froggy"'), res.text.indexOf('id="term-froggy"') + 400);
+    expect(froggy).toMatch(/pulled spin/);
+  });
+
+  it('§3 carries the new PassBack dex/duck-quality terms', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    for (const id of [
+      'term-dexless', 'term-ducking', 'term-weaving',
+      'term-diving', 'term-zulu', 'term-crowny',
+    ]) {
+      expect(res.text, `glossary carries ${id}`).toContain(`id="${id}"`);
+    }
+  });
+
+  it('§4 Timing carries the PassBack "attack" term', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="term-attack"');
+    const idx = res.text.indexOf('id="term-attack"');
+    expect(res.text.slice(idx, idx + 400)).toMatch(/how quickly/i);
+  });
+
   it('Symposium-mechanic micro-entry carries the single-leg-jump definition', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const idx = res.text.indexOf('id="term-symposium-mech"');
@@ -2307,10 +2369,21 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                substitution); advanced-reference (tracking-is-not-
     //                canonization governance note). Curator-requested
     //                ontology codification; not prose drift.
+    //   225K → 230K  2026-05-28 §1 core trick atoms band gains an embodied
+    //                "Feels like" movement-intuition cue per atom (one
+    //                coaching-cue sentence each, distinct from the
+    //                descriptive lead). Curator-authored pedagogy layer;
+    //                short single sentences, not prose drift.
+    //   230K → 235K  2026-05-28 Phase D2 step 3 §families doctrine rewrite:
+    //                three-tier structural-object model (parent family /
+    //                child sub-family / productive descendant lineage) +
+    //                "What makes a family?" explainer + fuzzy-boundary
+    //                humility clause, replacing the root/branch model.
+    //                Curator-authored doctrine codification, not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(225_000);
+    expect(res.text.length).toBeLessThan(235_000);
   });
 });
 

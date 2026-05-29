@@ -350,7 +350,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '4 ADD',
     components: 'Miraging operator (+1) on osis (3).',
     derivation: 'miraging(+1) + osis(3) = 4 ADD',
-    whyNote:    'Settled by pt11 as the official reading of "miraging osis". Anchors its own branch family (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
+    whyNote:    'The official reading of "miraging osis". Anchors its own descendant lineage (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
   },
   {
     trickName:  'Atom Smasher',

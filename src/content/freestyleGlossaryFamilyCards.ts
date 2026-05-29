@@ -3,16 +3,18 @@
  * ================================
  *
  * Curator-authored family card data for /freestyle/glossary §5 (Core
- * Trick Families). Two cohorts:
+ * Trick Families). Two cohorts (`kind`):
  *
- *   - Root terminal families: foundational ontology anchors with their
+ *   - 'root-terminal' = parent families: top-level lineages with their
  *     own conserved terminal mechanic. The family base trick IS that
  *     terminal structure in its simplest form.
  *
- *   - Branch families: named compounds that are themselves productive
- *     family anchors AND descend from a root terminal via a chain.
- *     A branch family is a family in its own right AND a descendant of
- *     a root; both relationships are real.
+ *   - 'branch' = descendant lineages & child sub-families: named
+ *     compounds that descend from a parent via a chain reading. Some
+ *     fold under a parent as child sub-families (torque/blender → osis;
+ *     swirl/rev-whirl → whirl); others are productive descendant
+ *     lineages in their own right (drifter, barrage). Final tier
+ *     assignment is curator-paced; see the glossary fuzzy-boundary note.
  *
  * Each card preserves the #term-{slug} anchor for inbound deep-links
  * from the trick dictionary, history page, and external surfaces
@@ -118,10 +120,19 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['torque (≡ miraging osis)', 'blender (≡ whirling osis)'],
     observationalNotes: [],
   },
+];
+
+// ─────────────────────────────────────────────────────────────────────────
+// Descendant lineages & child sub-families. Each descends from a parent
+// via a chain reading; some fold under the parent as a sub-family, others
+// stand as productive descendant lineages. (kind = 'branch')
+// ─────────────────────────────────────────────────────────────────────────
+
+export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
   {
     slug:              'swirl',
     displayName:       'Swirl',
-    kind:              'root-terminal',
+    kind:              'branch',
     canonicalFormula:  'CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['paradox swirl', 'hop over swirl', 'butterfly swirl'],
@@ -132,7 +143,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
   {
     slug:              'rev-whirl',
     displayName:       'Rev Whirl',
-    kind:              'root-terminal',
+    kind:              'branch',
     canonicalFormula:  'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,
     commonDescendants: ['hatchet', 'mullet', 'rev-up'],
@@ -141,18 +152,10 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Whirl ↔ rev-whirl mirror pair',
-        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling-terminal-family example, same structural anchor, mirror terminal mechanics.',
+        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling example — same structural anchor, mirror terminal mechanics.',
       },
     ],
   },
-];
-
-// ─────────────────────────────────────────────────────────────────────────
-// Branch families (6). Each branch is its own productive family anchor
-// AND descends from a root via a chain reading.
-// ─────────────────────────────────────────────────────────────────────────
-
-export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
   {
     slug:              'torque',
     displayName:       'Torque',
@@ -164,8 +167,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['mobius', 'fury', 'blurry torque'],
     observationalNotes: [
       {
-        title: 'Branch lineage to osis',
-        body:  'Torque ≡ miraging osis under the symbolic-compression doctrine. The lineage is preserved on the torque trick-detail page as a chain reading. Torque is a branch family in its own right AND a descendant of osis.',
+        title: 'Sub-family of osis',
+        body:  'Torque ≡ miraging osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque folds under osis as a sub-family while remaining a productive lineage in its own right.',
       },
     ],
   },
@@ -180,8 +183,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['food processor (≡ blurry blender)', 'pogo paradox blender'],
     observationalNotes: [
       {
-        title: 'Branch lineage to osis',
-        body:  'Blender ≡ whirling osis. Same lineage pattern as torque: a branch family that also descends from osis via chain reading. The whirling operator adds the back-spin component.',
+        title: 'Sub-family of osis',
+        body:  'Blender ≡ whirling osis. Same pattern as torque: a sub-family that folds under osis via a chain reading while staying productive in its own right. The whirling operator adds the back-spin component.',
       },
     ],
   },
@@ -196,8 +199,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['royale (≡ paradox reverse drifter)', 'vortex (≡ gyro drifter)'],
     observationalNotes: [
       {
-        title: 'Branch lineage to clipper',
-        body:  'Drifter ≡ miraging clipper. The mirage operator transforms a clipper-set entry into the drifter terminal; the family descends from the clipper-anchored set primitives.',
+        title: 'Descendant lineage from clipper',
+        body:  'Drifter ≡ miraging clipper. The mirage operator transforms a clipper-set entry into the drifter terminal; this productive descendant lineage grows from the clipper-anchored set primitives.',
       },
     ],
   },
@@ -224,7 +227,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Composite-modifier composition',
-        body:  'Blur ≡ stepping paradox mirage per Red pt8. The blurry modifier label is a folk shorthand for the two-operator stepping+paradox stack; per the First-Class ADD Convergence Rule the workbook resolves blur arithmetic via the MODIFIER_COMPOSITIONS registry.',
+        body:  'Blur ≡ stepping paradox mirage. The "blurry" label is folk shorthand for the two-operator stepping + paradox stack; its ADD is resolved as that composition rather than by adding the two modifiers independently.',
       },
     ],
   },

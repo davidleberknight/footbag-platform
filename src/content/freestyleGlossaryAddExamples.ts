@@ -53,7 +53,7 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     officialAdd:       4,
     derivation:        'stepping(+1) + paradox(+1) + mirage(2) = 4 ADD',
     status:            'canonical',
-    observationalNote: 'The blurry modifier label is folk shorthand for the stepping+paradox stack. Workbook decomposes composite labels via the MODIFIER_COMPOSITIONS registry to surface the underlying additive structure.',
+    observationalNote: 'The "blurry" label is folk shorthand for the stepping + paradox stack; composite labels like this are decomposed into their underlying operators to surface the additive structure.',
   },
   {
     slug:              'mobius',
