@@ -16,9 +16,13 @@ every step is curator + Red-gated.
   systems — `review_status`, the parser's `add_formula_status`, the `policy_dependent` parser cases,
   and the observational `intakeBucket` — into one reversible frontier-status taxonomy. It does not
   stand up a separate status system alongside them.
-- **8/9-ADD support stays future-proofing, not current-data work.** The active canonical set tops out
-  at 7 ADD (zero 8/9-ADD rows exist), so 8/9 handling is preparatory governance; current effort
-  targets the existing 6/7-ADD outliers.
+- **8/9-ADD readiness is an explicit design target of this initiative, not deferred work.** The active
+  canonical set currently tops out at 7 ADD (no 8/9-ADD rows yet), but the frontier-governance, parser,
+  and canonicalization architecture should be designed now to prepare for eventual 8/9-ADD
+  formalization. The initiative actively targets unresolved high-complexity compositional derivations,
+  edge-case symbolic compression, policy-dependent ADD interpretation, and 8/9-ADD adjudication
+  readiness — alongside the existing 6/7-ADD outliers. Do not optimize solely around current 7-ADD
+  territory, and do not frame 8/9-ADD as distant hypothetical work. (Design only; nothing built yet.)
 
 ## Strategic frame
 
@@ -49,9 +53,12 @@ flight (reversible-content governance).
 
 ## Two grounding facts that scope the sprint
 
-- **8/9-ADD is currently empty.** Active population tops out at 7-ADD (12 rows); 6-ADD has 42. So the
-  sprint is (a) *preparatory* governance for when 8/9 arrives, and (b) adjudication of the existing
-  6/7-ADD outliers. It is not a backlog-burn.
+- **8/9-ADD readiness is a first-class design target, even with no 8/9-ADD row yet.** Active
+  population tops out at 7-ADD (12 rows; 6-ADD has 42). The architecture is prepared NOW for eventual
+  8/9-ADD formalization rather than deferred until rows appear: the sprint targets the existing
+  6/7-ADD outliers AND the high-complexity frontier (unresolved compositional derivations, edge-case
+  symbolic compression, policy-dependent ADD interpretation) that 8/9 will demand. It is not a
+  backlog-burn, and 8/9-ADD is not treated as irrelevant-until-it-exists.
 - **A parser-frontier queue already exists:** the 34 `policy_dependent` rows are exactly Tier C
   candidates. Start there for the parser-proof workflow rather than inventing a new queue.
 
@@ -112,6 +119,23 @@ Per-trick proof surface, essential for 8/9-ADD: formula → symbolic decompositi
 derived ADD → equivalent compressions → parser confidence → known aliases → observed media. (Curator
 example: Ripstein = Ripwalk + spinning-osis resolution → derived ADD 7.) Builds on the existing
 trick-detail S5/S9 slots + parser output; a new rendering layer, Dave-adjacent for the public surface.
+
+## Phased execution sequence (7-ADD-first)
+
+The initiative explicitly includes **expanding and strengthening the 7-ADD tier**, not only preparing
+for 8/9-ADD. **Do not jump to 8/9-ADD formalization before the 7-ADD frontier is solid.** Order:
+
+1. **Stabilize + extend the 7-ADD catalog.** Verify the existing 7-ADD rows (currently 12), extend
+   coverage of established 7-ADD compositions, and resolve their notation / ADD-math / equivalence
+   consistency. This is the load-bearing base of the frontier.
+2. **Identify candidates above 7-ADD.** Audit unresolved high-complexity tricks and promotable
+   candidates that resolve at 7+ (including the 34 `policy_dependent` parser cases and observational
+   frontier rows), classifying solved-vs-unsolved per the tier model.
+3. **Formalize 8/9-ADD readiness.** With a verified 7-ADD base and a sized above-7 candidate set, build
+   the clean 8/9-ADD adjudication pathways (status taxonomy, parser-proof, Eagle intake once defined).
+
+Each phase is a separate read-only / staging pass with curator gating; phase N+1 does not start until
+phase N's outputs are curator-confirmed. Proposal only; nothing built yet.
 
 ## Deliverables (when the sprint runs)
 
