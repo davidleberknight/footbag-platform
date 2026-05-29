@@ -69,3 +69,26 @@ So ≥7 growth here is an **adjudication / governance problem**, not a discovery
 strategic transition. The high-leverage next moves are all decision-work: (1) wire the 3 verified
 structural aliases, (2) rule the 3 doctrine clusters (Red), (3) triage the new operators, (4) seek
 corroboration for the 13 FM-only clean-decomps. None are bulk-promotion.
+
+## Curator guidance on the 3 alias opportunities (2026-05-29)
+
+**Do NOT bulk-wire all three. Treat each individually** — these per-candidate rulings supersede the
+uniform "alias-wire" recommendation above:
+
+- **alpine-big-apple → gyro-ducking-symposium-torque** — cleanest candidate; lead case for a future
+  structural-alias review. Clean full decomposition, all registered operators, exact structural match.
+- **superdeeduperfly → spinning-ducking-symposium-double-over-down** — **hold; doctrine-sensitive.** The
+  target sits in the DOD-policy cluster; do not wire until the DOD ADD-interpretation doctrine is ruled.
+- **assassin-ss → pixie-diving-mirage** — **careful scrutiny required.** The compressed `ss` (same-side)
+  semantics may carry ambiguity; confirm the `ss` reading does not change the structural identity before
+  treating it as a plain alias.
+
+This reinforces the distinction the triage is teaching: **symbolic novelty ≠ structural novelty.** A new
+folk name over an existing structure is symbolic-only (alias); only a genuinely new structure is
+structural novelty (candidate canonical).
+
+**Forward strategic thread (not actioned here):** the family-threshold refinement (≥4 ADD for public
+family roots) is looking increasingly correct — the ontology is separating *productive topology roots*
+from *sparse compressive edge structures*. This should eventually inform public-family presentation,
+glossary philosophy, and frontier-governance explanation; capture in the charter / public-family layer
+when that work is taken up.
