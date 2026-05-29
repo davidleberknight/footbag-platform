@@ -120,6 +120,70 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['torque (≡ miraging osis)', 'blender (≡ whirling osis)'],
     observationalNotes: [],
   },
+  {
+    slug:              'illusion',
+    displayName:       'Illusion',
+    kind:              'root-terminal',
+    canonicalFormula:  'SET > OP OUT [DEX] > OP TOE [DEL]',
+    familyAnchorAdds:  2,
+    commonDescendants: ['paradox illusion', 'spinning illusion', 'ducking illusion', 'atomic illusion'],
+    siblingFamilies:   ['mirage', 'pickup', 'legover'],
+    notableCompounds:  ['flail', 'blizzard', 'smudge'],
+    observationalNotes: [
+      {
+        title: 'Mirror of mirage',
+        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy downtime dexes that finish on an opposite-foot toe delay.',
+      },
+    ],
+  },
+  {
+    slug:              'legover',
+    displayName:       'Legover',
+    kind:              'root-terminal',
+    canonicalFormula:  'SET > OP OUT [DEX] > SAME TOE [DEL]',
+    familyAnchorAdds:  2,
+    commonDescendants: ['eggbeater', 'double leg over', 'flurry', 'spinning legover'],
+    siblingFamilies:   ['illusion', 'pickup', 'mirage'],
+    notableCompounds:  ['eggbeater (≡ atomic legover)', 'flurry', 'merkon'],
+    observationalNotes: [
+      {
+        title: 'Root of the leg-over axis',
+        body:  'Legover introduces the leg-over body axis (distinct from the hippy axis) as a compositional primitive. Eggbeater is its atomic form (eggbeater ≡ atomic legover); flurry and the double-leg-over extend the lineage.',
+      },
+    ],
+  },
+  {
+    slug:              'pickup',
+    displayName:       'Pickup',
+    kind:              'root-terminal',
+    canonicalFormula:  'SET > OP IN [DEX] > SAME TOE [DEL]',
+    familyAnchorAdds:  2,
+    commonDescendants: ['double pickup', 'spinning pickup', 'ducking pickup', 'paste'],
+    siblingFamilies:   ['mirage', 'illusion', 'legover'],
+    notableCompounds:  ['omelette', 'paste', 'legeater'],
+    observationalNotes: [
+      {
+        title: 'Upward-catching dex',
+        body:  'Structurally distinct from mirage despite the same ADD: pickup scoops under the bag, introducing the upward-catching dex axis. It anchors paste, legeater, and the spinning / ducking pickup compounds.',
+      },
+    ],
+  },
+  {
+    slug:              'around-the-world',
+    displayName:       'Around-the-World',
+    kind:              'root-terminal',
+    canonicalFormula:  'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',
+    familyAnchorAdds:  2,
+    commonDescendants: ['double around the world', 'triple around the world', 'around-the-world kick'],
+    siblingFamilies:   ['orbit'],
+    notableCompounds:  ['double around the world (DATW)'],
+    observationalNotes: [
+      {
+        title: 'Orbit-class primitive',
+        body:  'One of the first compositional moves the sport recognized — proof that a leg circling the bag is a single primitive, not separate actions. Commonly abbreviated ATW; orbit is its reverse-direction counterpart.',
+      },
+    ],
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

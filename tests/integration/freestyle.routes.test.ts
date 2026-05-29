@@ -2380,10 +2380,16 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                "What makes a family?" explainer + fuzzy-boundary
     //                humility clause, replacing the root/branch model.
     //                Curator-authored doctrine codification, not prose drift.
+    //   235K → 245K  2026-05-28 family cards authored for the 4 formerly-
+    //                uncarded parent families (illusion / legover / pickup /
+    //                around-the-world); the §families parent grid now shows
+    //                all 8 parents. Net add is 4 cards minus the 4 atoms the
+    //                service removes from "Other foundational atoms". Sourced
+    //                from the curator-locked atom registry + DB, not drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(235_000);
+    expect(res.text.length).toBeLessThan(245_000);
   });
 });
 

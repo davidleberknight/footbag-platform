@@ -273,8 +273,17 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/a future ruling may move them/);
   });
 
-  it('the parent-family grid is honest that 4 of 8 parents are not yet carded', async () => {
+  it('cards all eight parent families, including the four formerly-uncarded parents', async () => {
     const html = await glossary();
-    expect(html).toMatch(/illusion, legover, pickup, and around-the-world are recognized parents whose cards are still being authored/);
+    expect(html).toMatch(/All eight recognized parents are carded here/);
+    for (const id of ['term-illusion', 'term-legover', 'term-pickup', 'term-around-the-world']) {
+      expect(html, `parent card ${id}`).toContain(`id="${id}"`);
+    }
+  });
+
+  it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/leggy super-family is ever[\s\S]{0,20}recognized, it belongs on the/);
+    expect(html).toMatch(/movement-neighborhood/);
   });
 });
