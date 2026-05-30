@@ -1,0 +1,21 @@
+
+PART A — operator-intake token attestation (corpus-wide occurrence)
+
+   198x (114 distinct names)  double       [PB|canonical_db|fborg_insert_staging|fborg_text|fm_inventory|fm_symbolic_grammar|passback_intake|passback_source_links|stanford_corpus|tracked_names_ts]
+    52x (33 distinct names)  zulu         [fm_inventory|fm_symbolic_grammar|stanford_corpus|tracked_names_ts]
+    25x (11 distinct names)  motion       [PB|fm_inventory|fm_symbolic_grammar|observational_ts|passback_intake|stanford_corpus|tracked_names_ts]
+    21x (21 distinct names)  xbd          [PB|stanford_corpus]
+    14x (14 distinct names)  flailing     [PB|stanford_corpus]
+     7x (2 distinct names)  warp         [PB|fm_inventory|fm_symbolic_grammar|passback_intake|stanford_corpus|tracked_names_ts]
+     7x (3 distinct names)  nova         [PB|canonical_db|fm_inventory|fm_symbolic_grammar|passback_intake|stanford_corpus]
+     7x (2 distinct names)  star         [PB|fm_symbolic_grammar|observational_ts|passback_intake|stanford_corpus|tracked_names_ts]
+     6x (2 distinct names)  torquescrew  [PB|fm_inventory|fm_symbolic_grammar|passback_intake|tracked_names_ts]
+     2x (2 distinct names)  floating     [stanford_corpus]
+     2x (1 distinct names)  x-body       [fm_symbolic_grammar|tracked_names_ts]
+     2x (1 distinct names)  p.s          [fm_symbolic_grammar|tracked_names_ts]
+     1x (1 distinct names)  warping      [PB]
+     0x (0 distinct names)  railing      []
+     0x (0 distinct names)  surfing      []
+     0x (0 distinct names)  splicing     []
+     0x (0 distinct names)  os           []
+     0x (0 distinct names)  bent         []
