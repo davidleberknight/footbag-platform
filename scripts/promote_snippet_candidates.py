@@ -102,7 +102,9 @@ def parse_youtube_id(url: str) -> str | None:
     qs = parse_qs(p.query)
     if "v" in qs and qs["v"]:
         return qs["v"][0]
-    m = re.match(r"^/(embed|v)/([A-Za-z0-9_-]{11})", p.path)
+    # /shorts/<id> is a YouTube video-URL form (Shorts); the id is a normal
+    # 11-char video id, so treat it like /embed/ and /v/.
+    m = re.match(r"^/(embed|v|shorts)/([A-Za-z0-9_-]{11})", p.path)
     return m.group(2) if m else None
 
 
@@ -234,8 +236,16 @@ def emit_sidecar(
     tags = [f"#{slug}", "#freestyle", "#trick"]
     if source_id == "passback_records":
         tags.append("#passback_records")
+
+    # Normalize YouTube Shorts (/shorts/<id>) to the canonical watch?v= form. The
+    # downstream seeder's video-id parser only understands watch?v= and youtu.be,
+    # so storing the canonical URL lets it resolve the same id with no seeder change.
+    video_url = row["url"].strip()
+    if platform == "youtube" and "/shorts/" in urlparse(video_url).path:
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+
     sidecar = {
-        "videoUrl":      row["url"].strip(),
+        "videoUrl":      video_url,
         "videoPlatform": platform,
         "title":         make_title(row),
         "creator":       make_creator(row),
