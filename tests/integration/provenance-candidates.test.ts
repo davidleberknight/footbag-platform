@@ -12,11 +12,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { buildProvenanceCandidates } from '../../scripts/build-provenance-candidates';
 
 const DB_PATH = path.resolve(
-  process.cwd(),
-  `test-provenance-${Date.now()}-${process.pid}.db`,
+  os.tmpdir(),
+  `footbag-test-provenance-${Date.now()}-${process.pid}.db`,
 );
 
 function seed(db: BetterSqlite3.Database): void {

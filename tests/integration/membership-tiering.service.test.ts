@@ -393,6 +393,99 @@ describe('removeGovernanceTier3', () => {
   });
 });
 
+describe('applyAutoLinkRevertGrantInTx', () => {
+  it('preserves a paid tier when reverting a legacy-claim grant (regression: B12)', () => {
+    const id = freshMember();
+    // Paid Tier 1, then a legacy-claim grant (HoF honors) that lifted to Tier 2.
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+    mts.applyLegacyClaimGrantInTx(id, id, true, false, {});
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    // Reverts to the paid Tier 1, not Tier 0.
+    expect(mts.getTierStatus(id)).toEqual({
+      tier_status: 'tier1',
+      underlying_tier_status: null,
+    });
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'revoke',
+      old_tier_status: 'tier2',
+      new_tier_status: 'tier1',
+      reason_code: 'legacy.auto_link_reported_incorrect',
+    });
+  });
+
+  it('falls back to tier0 when the member held no non-legacy upgrade', () => {
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(id, id, true, false, {}); // tier0 -> tier2 via honors
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier0');
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'revoke',
+      new_tier_status: 'tier0',
+    });
+  });
+
+  it('preserves governance Tier 3 and its underlying when reverting a legacy claim', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
+    mts.setGovernanceTier3(ADMIN_ID, id); // tier3, underlying tier2
+    mts.applyLegacyClaimGrantInTx(id, id, true, false, {});
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    expect(mts.getTierStatus(id)).toEqual({
+      tier_status: 'tier3',
+      underlying_tier_status: 'tier2',
+    });
+  });
+});
+
+describe('applyPurchaseGrantInTx downgrade guard', () => {
+  it('does not downgrade a Tier 3 member when a lower-tier purchase lands (regression: B15)', () => {
+    const id = freshMember();
+    mts.setGovernanceTier3(ADMIN_ID, id); // tier3, underlying tier1
+    const before = tierGrants(id).length;
+
+    mts.applyPurchaseGrantInTx(id, id, freshPayment(id, 'tier1'), 'tier1');
+
+    expect(mts.getTierStatus(id)).toEqual({
+      tier_status: 'tier3',
+      underlying_tier_status: 'tier1',
+    });
+    expect(tierGrants(id)).toHaveLength(before);
+  });
+
+  it('does not write a lower-tier purchase grant for a Tier 2 member', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
+    const before = tierGrants(id).length;
+
+    mts.applyPurchaseGrantInTx(id, id, freshPayment(id, 'tier1'), 'tier1');
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    expect(tierGrants(id)).toHaveLength(before);
+  });
+
+  it('still applies a genuine upgrade (Tier 1 member buys Tier 2)', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+
+    mts.applyPurchaseGrantInTx(id, id, freshPayment(id, 'tier2'), 'tier2');
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier2');
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'grant',
+      new_tier_status: 'tier2',
+      reason_code: 'purchase.tier2',
+    });
+  });
+});
+
 describe('adminOverride', () => {
   it('writes a correct row with the mandatory reason text', () => {
     const id = freshMember();

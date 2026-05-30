@@ -12,6 +12,7 @@ const MEMBER_T0_TIER2 = 'pay-svc-t0-tier2';
 const MEMBER_FAIL     = 'pay-svc-fail';
 const MEMBER_CANCEL   = 'pay-svc-cancel';
 const MEMBER_IDEMP    = 'pay-svc-idemp';
+const MEMBER_DBL      = 'pay-svc-dbl';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -20,6 +21,7 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_FAIL,     slug: 't0_fail',      display_name: 'Failer',   login_email: 'fail@example.com' });
   insertMember(db, { id: MEMBER_CANCEL,   slug: 't0_cancel',    display_name: 'Canceler', login_email: 'cancel@example.com' });
   insertMember(db, { id: MEMBER_IDEMP,    slug: 't0_idemp',     display_name: 'Idemp',    login_email: 'idemp@example.com' });
+  insertMember(db, { id: MEMBER_DBL,      slug: 't0_dbl',       display_name: 'Doubler',  login_email: 'dbl@example.com' });
   db.close();
   await importApp();
 });
@@ -38,8 +40,8 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     getPaymentAdapter();
     const result = await paymentService.startMembershipPurchase(MEMBER_T0_TIER1, 'tier1', `/members/t0_buy_tier1`);
     const stub = getStubPaymentAdapterForTests()!;
-    const event = stub.buildStubWebhookEvent(result.sessionId);
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub');
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(result.sessionId);
+    paymentService.handleWebhook(rawBody, signature);
 
     const testDb = new BetterSqlite3(dbPath);
     try {
@@ -87,8 +89,8 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     getPaymentAdapter();
     const result = await paymentService.startMembershipPurchase(MEMBER_T0_TIER2, 'tier2', `/members/t0_buy_tier2`);
     const stub = getStubPaymentAdapterForTests()!;
-    const event = stub.buildStubWebhookEvent(result.sessionId);
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub');
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(result.sessionId);
+    paymentService.handleWebhook(rawBody, signature);
 
     const testDb = new BetterSqlite3(dbPath);
     try {
@@ -111,8 +113,8 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     stub.setNextOutcome('failure');
 
     const result = await paymentService.startMembershipPurchase(MEMBER_FAIL, 'tier1', `/members/t0_fail`);
-    const event = stub.buildStubWebhookEvent(result.sessionId);
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub');
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(result.sessionId);
+    paymentService.handleWebhook(rawBody, signature);
 
     const testDb = new BetterSqlite3(dbPath);
     try {
@@ -139,8 +141,8 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     stub.setNextOutcome('cancel');
 
     const result = await paymentService.startMembershipPurchase(MEMBER_CANCEL, 'tier1', `/members/t0_cancel`);
-    const event = stub.buildStubWebhookEvent(result.sessionId);
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub');
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(result.sessionId);
+    paymentService.handleWebhook(rawBody, signature);
 
     const testDb = new BetterSqlite3(dbPath);
     try {
@@ -159,10 +161,11 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     getPaymentAdapter();
     const stub = getStubPaymentAdapterForTests()!;
     const result = await paymentService.startMembershipPurchase(MEMBER_IDEMP, 'tier1', `/members/t0_idemp`);
-    const event = stub.buildStubWebhookEvent(result.sessionId);
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(result.sessionId);
+    const eventId = (JSON.parse(rawBody) as { id: string }).id;
 
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub');
-    await paymentService.handleWebhook(JSON.stringify(event), 'stub'); // replay
+    paymentService.handleWebhook(rawBody, signature);
+    paymentService.handleWebhook(rawBody, signature); // replay
 
     const testDb = new BetterSqlite3(dbPath);
     try {
@@ -178,9 +181,31 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
 
       const stripeEvent = testDb.prepare(
         'SELECT * FROM stripe_events WHERE event_id = ?',
-      ).get(event.id) as Record<string, unknown>;
+      ).get(eventId) as Record<string, unknown>;
       expect(stripeEvent.processing_status).toBe('processed');
       expect(stripeEvent.attempts).toBe(1);
+    } finally {
+      testDb.close();
+    }
+  });
+
+  it('B4: a second pending membership purchase for the same member is rejected', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { ConflictError } = await import('../../src/services/serviceErrors');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+
+    await paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`);
+    await expect(
+      paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const testDb = new BetterSqlite3(dbPath);
+    try {
+      const pending = testDb.prepare(
+        "SELECT COUNT(*) AS c FROM payments WHERE member_id = ? AND status = 'pending' AND payment_type = 'membership'",
+      ).get(MEMBER_DBL) as { c: number };
+      expect(pending.c).toBe(1);
     } finally {
       testDb.close();
     }

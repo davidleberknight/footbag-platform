@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { createTestDb } from '../fixtures/testDb';
 
 interface TemplateRow {
@@ -26,8 +27,8 @@ describe('email_templates seeds', () => {
 
   beforeEach(() => {
     dbPath = path.join(
-      process.cwd(),
-      `test-ets-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+      os.tmpdir(),
+      `footbag-test-ets-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
     );
     db = createTestDb(dbPath);
   });

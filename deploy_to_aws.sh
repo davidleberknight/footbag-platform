@@ -37,6 +37,7 @@ MODE_CODE_ONLY=0   # -k / --keep-staging-db: no DB ops at all.
 MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
 DB_REBUILD_INVOLVED=0   # default mode runs the full pipeline → DB rebuild.
 SEED_DEV_ADMINS=0   # --seed-dev-admins: opt-in dev-admin seed after deploy (CUTOVER-REMOVE).
+SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
 
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
@@ -44,6 +45,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -k|--keep-staging-db)  MODE_CODE_ONLY=1; HAS_MODE=1 ;;
     -r|--reuse-local-db)   MODE_REUSE=1;     HAS_MODE=1 ;;
     --seed-dev-admins)     SEED_DEV_ADMINS=1 ;;
+    --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
   esac
 done
 if (( HAS_MODE == 0 )); then
@@ -139,6 +141,21 @@ if (( SEED_DEV_ADMINS == 1 )); then
       echo "Recommendation: grep -v '^[[:space:]]*//' .local/staging-admin-seed.json | jq -e . to see the parse error." >&2
       exit 1
     fi
+  fi
+fi
+
+# CUTOVER-REMOVE: --seed-test-personas is allowlisted to a single explicit
+# deploy target: DEPLOY_TARGET=footbag-staging. Any other target is refused
+# before the SSH connection. The persona catalog is code (canonicalPersonas.ts),
+# so this flag carries a signal only; there is no .local JSON payload to
+# pre-validate (contrast --seed-dev-admins). Defense in depth: seedConfig.ts
+# still throws on import when FOOTBAG_ENV=production.
+if (( SEED_TEST_PERSONAS == 1 )); then
+  _persona_target="${DEPLOY_TARGET:-footbag-staging}"
+  if [[ "$_persona_target" != "footbag-staging" ]]; then
+    echo "ERROR: --seed-test-personas is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_persona_target')." >&2
+    echo "Recommendation: persona seeding must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
+    exit 1
   fi
 fi
 

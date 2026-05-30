@@ -226,13 +226,16 @@ publicRouter.post('/logout',                authController.postLogout);
 // ── Payments (Stripe-flow workflow per DD §6.1) ────────────────────────────
 //
 // The webhook receiver MUST be mounted with express.raw() so Stripe's
-// signature verification has access to the original byte sequence; the
-// global express.json/urlencoded parsers in app.ts skip routes whose
-// Content-Type does not match, but real Stripe webhook deliveries arrive
-// as application/json and would otherwise be consumed by express.json
-// before the controller can verify the signature.
+// signature verification has access to the original byte sequence. Real Stripe
+// deliveries arrive as application/json, which the global express.json() in
+// app.ts would otherwise consume before the controller runs; app.ts therefore
+// skips STRIPE_WEBHOOK_PATH explicitly. The route is also exempt from the
+// Origin-pin CSRF gate (it authenticates via the Stripe-Signature HMAC, not an
+// Origin header) per DD §3.3. The path is one shared constant so the
+// parser-skip and the origin exemption can never drift from the route.
+export const STRIPE_WEBHOOK_PATH = '/payments/webhook';
 publicRouter.post(
-  '/payments/webhook',
+  STRIPE_WEBHOOK_PATH,
   express.raw({ type: 'application/json', limit: '1mb' }),
   paymentController.postPaymentWebhook,
 );
@@ -247,4 +250,5 @@ if (config.paymentAdapter === 'stub') {
   publicRouter.get('/payments/checkout/:sessionId',         requireAuth, paymentController.getCheckout);
   publicRouter.post('/payments/checkout/:sessionId/confirm', requireAuth, paymentController.postCheckoutConfirm);
   publicRouter.post('/payments/checkout/:sessionId/cancel',  requireAuth, paymentController.postCheckoutCancel);
+  publicRouter.post('/payments/checkout/:sessionId/decline', requireAuth, paymentController.postCheckoutDecline);
 }

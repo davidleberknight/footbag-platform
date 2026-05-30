@@ -10,7 +10,7 @@ import { runExternalUrlBootScan } from './services/externalUrlBootScan';
 //   the Tier 2 invariant repair on every startup.
 // Target: remove this import and the initDevShortcuts() call below before
 //   production cutover.
-import { initDevShortcuts } from './dev-shortcuts/runtime';
+import { initDevShortcuts } from './dev-bootstrap/runtime';
 
 const app = createApp();
 

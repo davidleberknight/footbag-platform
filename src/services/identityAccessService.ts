@@ -80,14 +80,13 @@ import { getCommunicationService } from './communicationService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
-// CUTOVER-REMOVE: dev/staging admin shortcuts.
-// Current: applyDevStagingBootstrapAdmin and shouldSkipClaimEmailForAdmin are
-//   active in dev/staging only; the env-config fail-fast guard prevents the
-//   flag enabling them from being set in production.
-// Target: remove this import and all call sites (the bootstrap call in
-//   registerMember and the skip-claim branch in claimLegacyByEmailKnown)
-//   at production go-live.
-import { applyDevStagingBootstrapAdmin, shouldSkipClaimEmailForAdmin } from '../dev-shortcuts/runtime';
+// CUTOVER-REMOVE: dev/staging admin bootstrap convenience.
+// Current: applyDevStagingBootstrapAdmin (the registration-time admin
+//   allowlist) is active in dev/staging only; the env-config fail-fast guard
+//   prevents its trigger from being set in production.
+// Target: remove this import and the bootstrap call in registerMember at
+//   production go-live, when the SSM-token first-admin claim is the only path.
+import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
 import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
@@ -165,8 +164,8 @@ export interface PasswordForgotSentContent {
   email?: string;
   /**
    * Simulated-email card view-model. Populated only when SES_ADAPTER=stub
-   * (dev) or SES_SANDBOX_MODE=1 (staging sandbox); null in production.
-   * Mirrors the pattern in /register/check-email so developers can complete
+   * (dev and staging); null in production. Mirrors the pattern in
+   * /register/check-email so developers can complete
    * the password-reset flow without leaving the page.
    */
   emailPreview?: SimulatedEmailPreview;
@@ -194,7 +193,7 @@ export interface ClaimFormContent {
   lowConfidenceBanner?: boolean;
   /**
    * Simulated-email card for the post-submit sent state. Populated only
-   * when SES_ADAPTER=stub (dev) or SES_SANDBOX_MODE=1 (staging sandbox);
+   * when SES_ADAPTER=stub (dev and staging);
    * null in production. Mirrors the pattern in /register/check-email so
    * developers can complete the claim flow without leaving the page.
    */
@@ -311,7 +310,7 @@ export interface LinkHistoryContent {
   candidates: LinkHistoryCandidate[];
   /**
    * Sent-state notice for redirect-back-to-wizard after a manual legacy
-   * claim. Carries the simulated-email card (dev/sandbox only) and an
+   * claim. Carries the simulated-email card (stub adapter; dev and staging) and an
    * optional dev outcomeNote when the silent anti-enumeration paths fired.
    */
   sentNotice: {
@@ -528,8 +527,36 @@ async function registerMember(
   confirmPassword: string,
   realName: string,
   displayName: string,
+  ip: string,
   requestedSlug?: string,
 ): Promise<RegisterResult> {
+  // Rate-limit by caller IP before any validation or argon2 hashing, so a tight
+  // loop of distinct-email registrations from one source cannot flood the outbox
+  // or exhaust CPU. Mirrors attemptLogin's IP-keyed bucket.
+  const maxAttempts = readIntConfig('register_rate_limit_max_attempts', 10);
+  const windowMinutes = readIntConfig('register_rate_limit_window_minutes', 15);
+  const rl = rateLimitHit(`register:${ip}`, maxAttempts, windowMinutes);
+  if (!rl.allowed) {
+    const ipHash = createHash('sha256').update(ip).digest('hex');
+    appendAuditEntry({
+      actionType: 'auth.register_rate_limited',
+      category: 'auth',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'registration_attempt',
+      entityId: ipHash,
+      metadata: {
+        retryAfterSeconds: rl.retryAfterSeconds,
+        windowMinutes,
+        maxAttempts,
+      },
+    });
+    throw new RateLimitedError(
+      'Too many registration attempts. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
+
   const trimmedRealName = realName.trim();
   const trimmedDisplayName = displayName.trim() || trimmedRealName;
   const trimmedEmail = email.trim();
@@ -1296,7 +1323,14 @@ function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId
 
   const hp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
   if (hp) {
-    legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
+    // The link write is WHERE historical_person_id IS NULL; a 0-row result means
+    // this member already holds an HP link (e.g. from a prior direct-HP claim
+    // that left legacy_member_id NULL, which checkAlreadyClaimed does not catch).
+    // Roll the whole claim back rather than proceeding with a stale link.
+    const linked = legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
+    if (linked.changes === 0) {
+      throw new ValidationError('Your account is already linked to a historical player record.');
+    }
     legacyClaim.mergeHistoricalPersonFields.run(
       hp.country,
       hp.hof_member,
@@ -1775,24 +1809,10 @@ function initiateLegacyClaim(
     return { kind: 'auto_linked' };
   }
 
-  // CUTOVER-REMOVE: dev-admin shortcut that skips the email step.
-  // Current: when the requesting member is a dev-admin (per
-  //   shouldSkipClaimEmailForAdmin), the legacy claim is merged inline
-  //   without sending a verification email; env-config blocks this branch
-  //   in production. Other dev shortcuts are catalogued in
-  //   src/dev-shortcuts/runtime.ts.
-  // Target: remove this whole branch at production go-live; production
-  //   admins recover legacy claims via manualLegacyClaimRecovery.
-  if (shouldSkipClaimEmailForAdmin(requestingMemberId)) {
-    transaction(() => {
-      claimLegacyAccountInTx(requestingMemberId, row!.legacy_member_id);
-    });
-    return { kind: 'auto_linked' };
-  }
-
-  // Email path requires a deliverable address. After the shortcuts above are
-  // declined (or unavailable), a stub legacy_members row with no legacy_email
-  // collapses to the same neutral no_match outcome a missing row would.
+  // Email path requires a deliverable address. A stub legacy_members row with
+  // no legacy_email collapses to the same neutral no_match outcome a missing
+  // row would on this declared-email path; it remains claimable through the
+  // wizard historical-person card-confirm path.
   if (!row.legacy_email) return { kind: 'no_match' };
 
   // Per-target cap: once a single legacy mailbox has received
@@ -2417,10 +2437,17 @@ async function completePasswordReset(
     entityId: consumed.memberId,
   });
 
-  // Confirmation email, best-effort.
-  try {
-    if (member.login_email) {
-      getCommunicationService().enqueueEmail({
+  // Confirmation email. Use the strict enqueue + operational-error pattern
+  // (mirroring changePassword) so a degraded outbox during a reset leaves an
+  // operator signal instead of a silent drop: the "your password was changed"
+  // notice is the only out-of-band cue a member gets if the forgot-password
+  // flow is abused during an outbox-degradation window. Unlike changePassword,
+  // the failure is NOT re-thrown — the reset token is single-use and already
+  // consumed, so the caller must still complete the success path (session
+  // re-issue + redirect); the audit row carries the operator signal.
+  if (member.login_email) {
+    try {
+      getCommunicationService().enqueueEmailOrFail({
         // Pin to the consumed token row id so re-issue on worker restart
         // between SES-send and outbox-mark-sent collapses to the same row.
         idempotencyKey: `pwresetconfirm:${consumed.tokenRowId}`,
@@ -2431,9 +2458,17 @@ async function completePasswordReset(
           'Your IFPA Footbag password was reset via the password-reset link.\n\n' +
           'If this was not you, contact admin@footbag.org immediately.',
       });
+    } catch (err) {
+      recordOperationalError({
+        actionType: 'auth.password_reset_notification_failed',
+        category: 'auth',
+        entityType: 'member',
+        entityId: consumed.memberId,
+        reasonText:
+          'Password reset committed but confirmation-email enqueue failed.',
+        cause: err,
+      });
     }
-  } catch {
-    // Swallow, the reset itself committed.
   }
 
   return {

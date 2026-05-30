@@ -308,6 +308,61 @@ describe('claimLegacyAccount — single tier grant per claim', () => {
   });
 });
 
+// ─── Stale HP-link guard (regression: B13) ──────────────────────────────────
+//
+// The member↔HP link write is WHERE historical_person_id IS NULL. A member who
+// previously direct-claimed a historical person (historical_person_id set,
+// legacy_member_id still NULL — a state checkAlreadyClaimed does not catch) must
+// not silently keep a stale link while a new legacy claim's tier grant lands.
+// The claim must throw and roll back instead.
+
+describe('claimLegacyAccount — stale HP link guard', () => {
+  it('rejects a legacy claim when the member already holds a historical-person link', () => {
+    const memberId      = nextId('mem');
+    const priorHpId     = nextId('hp');
+    const priorLegacyId = nextId('legmem');
+    const targetLegacyId = nextId('legmem');
+    const targetHpId     = nextId('hp');
+
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: memberId,
+      slug: `slug_${memberId}`,
+      login_email: `${memberId}@example.com`,
+    });
+    // Prior direct-HP claim left historical_person_id set, legacy_member_id NULL.
+    insertHistoricalPerson(db, {
+      person_id: priorHpId,
+      person_name: 'Prior HP',
+      legacy_member_id: priorLegacyId,
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run(priorHpId, memberId);
+    // Target legacy account carries its own HP back-link.
+    insertHistoricalPerson(db, {
+      person_id: targetHpId,
+      person_name: 'Target HP',
+      legacy_member_id: targetLegacyId,
+    });
+    db.close();
+
+    expect(() => svc.claimLegacyAccount(memberId, targetLegacyId))
+      .toThrow(/already linked to a historical/i);
+
+    // Member's HP link is unchanged and the legacy claim rolled back fully.
+    const m = memberRow(memberId);
+    expect(m.historical_person_id).toBe(priorHpId);
+    expect(m.legacy_member_id).toBeNull();
+
+    const cdb = new BetterSqlite3(dbPath, { readonly: true });
+    const lm = cdb.prepare(
+      'SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?',
+    ).get(targetLegacyId) as { claimed_by_member_id: string | null };
+    cdb.close();
+    expect(lm.claimed_by_member_id).toBeNull();
+  });
+});
+
 // ─── Token atomicity ─────────────────────────────────────────────────────────
 //
 // consumeAndClaimLegacy must consume the token AND run the merge in ONE

@@ -356,7 +356,7 @@ systemctl status footbag --no-pager -l
 # deploy-rebuild-remote.sh. Runs only when the workstation passed a
 # non-empty FOOTBAG_DEV_ADMIN_SEED_JSON (set by --seed-dev-admins).
 # Transient: not written to /srv/footbag/env. Runs inside the web
-# container via `node dist/dev-shortcuts/seed.js` (compiled at
+# container via `node dist/dev-bootstrap/seed.js` (compiled at
 # build time; no tsx in the runtime image). The container reads
 # FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts throws
 # on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
@@ -381,8 +381,32 @@ if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
         -f "$LIVE_DIR/docker/docker-compose.yml" \
         -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
         exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-shortcuts/seed.js'; then
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-bootstrap/seed.js'; then
     echo "    WARNING: dev-admin seed step exited non-zero." >&2
+    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
+    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+  fi
+fi
+
+# CUTOVER-REMOVE: post-deploy persona-catalog seed. Mirrors the same block in
+# deploy-rebuild-remote.sh. Runs only when the workstation passed
+# SEED_TEST_PERSONAS=yes (set by --seed-test-personas). Signal only: the
+# persona catalog is code (dist/testkit/canonicalPersonas.js), so there
+# is no JSON payload and no stdin pipe. The seed runner is idempotent (skips
+# existing slugs). Runs inside the web container via
+# `node dist/testkit/personaSeedRunner.js`. FOOTBAG_ENV is NOT overridden
+# here: the container reads it from /srv/footbag/env per host; seedConfig.ts
+# throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
+# also allowlists --seed-test-personas to DEPLOY_TARGET=footbag-staging only.
+if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
+  echo "==> Running persona-catalog seed..."
+  if ! docker compose \
+      --env-file "$ENV_PATH" \
+      -f "$LIVE_DIR/docker/docker-compose.yml" \
+      -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
+      exec -T \
+      web node dist/testkit/personaSeedRunner.js; then
+    echo "    WARNING: persona-catalog seed step exited non-zero." >&2
     echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
     echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
   fi

@@ -173,22 +173,6 @@ if grep -q '^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$' "$ENV_PATH"; then
   rm -f /srv/footbag/footbag.db /srv/footbag/footbag.db-wal /srv/footbag/footbag.db-shm
 fi
 
-# One-shot migration: SES_SANDBOX_MODE seed. Default 1 on first deploy of either
-# environment: SES is in sandbox on day 0 until AWS grants production access.
-# After SES production access is granted, the operator edits /srv/footbag/env
-# to set SES_SANDBOX_MODE=0 and redeploys; the if-not-already-set check below
-# preserves that operator edit on subsequent deploys.
-if ! grep -q '^SES_SANDBOX_MODE=' "$ENV_PATH"; then
-  echo "    Seeding SES_SANDBOX_MODE=1 into env file (initial SES sandbox default)..."
-  echo 'SES_SANDBOX_MODE=1' >> "$ENV_PATH"
-  if [[ "$FOOTBAG_ENV" == "production" ]]; then
-    echo "    NOTE: production seed is also 1 because SES is in sandbox on day 0." >&2
-    echo "    NOTE: after AWS grants SES production access, edit /srv/footbag/env" >&2
-    echo "          to set SES_SANDBOX_MODE=0 and redeploy. Without this flip," >&2
-    echo "          /register/check-email shows a stale sandbox warning banner." >&2
-  fi
-fi
-
 # One-shot migration: MEDIA_STORAGE_ADAPTER seed. Both staging and production
 # read/write member uploads through the S3 media bucket via the runtime
 # adapter; without this, docker-compose.prod.yml's fail-fast on the var
@@ -256,7 +240,6 @@ JWT_SIGNER_VAL=$(require_env JWT_SIGNER)
 JWT_KMS_KEY_ID_VAL=$(require_env JWT_KMS_KEY_ID)
 SES_ADAPTER_VAL=$(require_env SES_ADAPTER)
 SES_FROM_IDENTITY_VAL=$(require_env SES_FROM_IDENTITY)
-SES_SANDBOX_MODE_VAL=$(require_env SES_SANDBOX_MODE)
 AWS_REGION_VAL=$(require_env AWS_REGION)
 AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
 FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
@@ -524,7 +507,7 @@ systemctl status footbag.service --no-pager -l
 #   once the production first-admin SSM-token flow is the only bootstrap
 #   mechanism.
 #
-# Runs inside the web container via `node dist/dev-shortcuts/seed.js`
+# Runs inside the web container via `node dist/dev-bootstrap/seed.js`
 # (compiled at build time; no tsx in the runtime image). The container
 # reads FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts
 # throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh
@@ -545,8 +528,32 @@ if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
   # guard if this code ever ran on a production host.
   if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
       | compose_cmd exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-shortcuts/seed.js'; then
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-bootstrap/seed.js'; then
     echo "    WARNING: dev-admin seed step exited non-zero." >&2
+    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
+    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+  fi
+fi
+
+# CUTOVER-REMOVE: post-deploy persona-catalog seed.
+# Current: runs only when the workstation passed SEED_TEST_PERSONAS=yes (set by
+#   --seed-test-personas). Signal only: the persona catalog is code
+#   (dist/testkit/canonicalPersonas.js), so there is no JSON payload and
+#   no stdin pipe. The seed runner is idempotent (skips existing slugs), so a
+#   re-run incrementally adds newly-added catalog personas.
+# Target: remove this block and the SEED_TEST_PERSONAS pathway at production
+#   cutover.
+#
+# Runs inside the web container via `node dist/testkit/personaSeedRunner.js`
+# (compiled at build time; no tsx in the runtime image). FOOTBAG_ENV is NOT
+# overridden here: the container reads it from /srv/footbag/env per host;
+# seedConfig.ts throws on import when FOOTBAG_ENV='production'. The
+# deploy_to_aws.sh wrapper also allowlists --seed-test-personas to
+# DEPLOY_TARGET=footbag-staging only.
+if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
+  echo "    Running persona-catalog seed..."
+  if ! compose_cmd exec -T web node dist/testkit/personaSeedRunner.js; then
+    echo "    WARNING: persona-catalog seed step exited non-zero." >&2
     echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
     echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
   fi

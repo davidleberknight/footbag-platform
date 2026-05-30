@@ -12,11 +12,6 @@
  *       in one transaction. Production has a separate single-shot bootstrap
  *       path (SSM-token claim via `/admin/bootstrap-claim`, deferred
  *       slice).
- *   - FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID + FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION
- *       Auth middleware skips the cookie path and authenticates as the
- *       named member id (or slug). Dev only.
- *   - FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL
- *       Admin members skip the legacy-claim mailbox-control proof. Dev only.
  *   - FOOTBAG_DEV_ADMIN_GRANT_TIER2
  *       Backfill repair pass for legacy admin accounts that pre-date the
  *       unified bootstrap. Iterates is_admin=1 members and writes a Tier 2
@@ -26,83 +21,17 @@
  *     this module reports its presence in the boot banner but does not
  *     auto-run it). Dev + staging only.
  */
-import { Request } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { account, auth as authDb, registration, transaction } from '../db/db';
+import { account, registration, transaction } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { appendAuditEntry } from '../services/auditService';
 import {
   applyAdminTier2InvariantGrant,
   applyAdminTier2InvariantGrantInTx,
-  getTierStatus,
 } from '../services/membershipTieringService';
 
-interface SessionMemberRow {
-  id: string;
-  slug: string | null;
-  display_name: string | null;
-  password_version: number;
-  is_admin: number;
-}
-
-/**
- * If FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is set in dev mode, look up that
- * member and authenticate the request without consulting the cookie.
- * Returns true when req.user has been populated; the caller should
- * short-circuit any further auth processing.
- */
-export function applyDevAutologin(req: Request): boolean {
-  const devAutologinId =
-    config.footbagEnv === 'development'
-      ? process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID
-      : undefined;
-  if (!devAutologinId) return false;
-
-  let row = authDb.findMemberForSession.get(devAutologinId) as
-    | SessionMemberRow
-    | undefined;
-  if (!row) {
-    row = authDb.findMemberForSessionBySlug.get(devAutologinId) as
-      | SessionMemberRow
-      | undefined;
-  }
-  if (!row) return false;
-
-  const expectedVersionRaw = process.env.FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION;
-  if (expectedVersionRaw !== undefined && expectedVersionRaw !== '') {
-    const expectedVersion = Number(expectedVersionRaw);
-    if (
-      !Number.isFinite(expectedVersion) ||
-      row.password_version !== expectedVersion
-    ) {
-      return false;
-    }
-  }
-
-  req.isAuthenticated = true;
-  req.user = {
-    userId: row.id,
-    slug: row.slug ?? row.id,
-    role: row.is_admin ? 'admin' : 'member',
-    displayName: row.display_name ?? undefined,
-  };
-  return true;
-}
-
-/**
- * True when FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1 in dev AND the member
- * is admin. Used by the legacy-claim service to bypass the email-control
- * proof during dev testing.
- */
-export function shouldSkipClaimEmailForAdmin(memberId: string): boolean {
-  if (!config.devAdminSkipClaimEmail) return false;
-  const adminRow = account.getIsAdmin.get(memberId) as
-    | { is_admin: number }
-    | undefined;
-  return adminRow?.is_admin === 1;
-}
 
 export interface InitialAdminEmailsOptions {
   footbagEnv?: string;
@@ -300,40 +229,6 @@ export function repairAdminTier2Invariant(
 export function initDevShortcuts(): void {
   if (config.footbagEnv !== 'development') return;
 
-  const autologinId = process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID;
-  let autologinSummary: {
-    slug: string;
-    admin: 'yes' | 'no';
-    tier: string;
-  } | null = null;
-  if (autologinId) {
-    try {
-      const member = authDb.findMemberForSession.get(autologinId) as
-        | SessionMemberRow
-        | undefined ??
-        (authDb.findMemberForSessionBySlug.get(autologinId) as
-          | SessionMemberRow
-          | undefined);
-      if (member) {
-        let tierLabel = 'unknown';
-        try {
-          tierLabel = getTierStatus(member.id).tier_status;
-        } catch {
-          tierLabel = 'unreadable';
-        }
-        autologinSummary = {
-          slug: member.slug ?? member.id,
-          admin: member.is_admin === 1 ? 'yes' : 'no',
-          tier: tierLabel,
-        };
-      } else {
-        logger.warn('dev autologin: member id not found in DB', { id: autologinId });
-      }
-    } catch (err) {
-      logger.warn('dev autologin lookup failed', { error: String(err) });
-    }
-  }
-
   let repairSummary: { repaired: number; skipped: number } | null = null;
   if (config.devAdminGrantTier2) {
     try {
@@ -364,25 +259,10 @@ export function initDevShortcuts(): void {
   }
 
   logger.info('dev shortcuts', {
-    autologin: autologinSummary?.slug ?? 'off',
-    autologin_admin: autologinSummary?.admin ?? 'n/a',
-    autologin_tier: autologinSummary?.tier ?? 'n/a',
-    claim_email_skip: config.devAdminSkipClaimEmail ? 'yes' : 'no',
+    persona_switch: 'GET /dev/switch?as=<slug>',
     admin_tier2_repair: config.devAdminGrantTier2
       ? `yes (repaired=${repairSummary?.repaired ?? 0}, skipped=${repairSummary?.skipped ?? 0})`
       : 'no',
     dev_admin_seed_file: seedFilePresent ? 'present' : 'absent',
   });
-
-  if (
-    autologinSummary?.admin === 'yes' &&
-    (autologinSummary.tier === 'tier0' || autologinSummary.tier === 'tier1') &&
-    !config.devAdminGrantTier2
-  ) {
-    logger.warn(
-      'dev autologin: admin member is not Tier 2+ (admins require Tier 2+ as a prerequisite). ' +
-      'Set FOOTBAG_DEV_ADMIN_GRANT_TIER2=1 to repair, or run ' +
-      '`./scripts/manage-dev-admin-seed.sh --seed-dev-admins`.',
-    );
-  }
 }

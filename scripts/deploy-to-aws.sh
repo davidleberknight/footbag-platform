@@ -72,6 +72,12 @@ MODIFIERS
                                maintainer admin accounts. Allowlisted to
                                DEPLOY_TARGET=footbag-staging only.
                                CUTOVER-REMOVE.
+  --seed-test-personas         After the deploy completes, run the persona
+                               catalog seed inside the web container. The
+                               catalog is code (canonicalPersonas.ts), so this
+                               carries a signal only (no JSON payload). Seed is
+                               idempotent (skips existing slugs). Allowlisted to
+                               DEPLOY_TARGET=footbag-staging only. CUTOVER-REMOVE.
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
@@ -134,6 +140,11 @@ SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
 # Target: remove this flag and the seed pathway once the production
 #   first-admin SSM-token flow is the only bootstrap mechanism.
 SEED_DEV_ADMINS="no"
+# CUTOVER-REMOVE: --seed-test-personas flag.
+# Current: post-deploy seeds the canonical persona catalog into dev/staging
+#   only; not part of the production path. Signal only, no JSON payload.
+# Target: remove this flag and the seed pathway at production cutover.
+SEED_TEST_PERSONAS="no"
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently.
@@ -167,6 +178,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     --seed-dev-admins)     SEED_DEV_ADMINS="yes" ;;
+    --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -302,6 +314,7 @@ echo "    replace staging:  ${REPLACE_STAGING}"
 echo "    sync media:       yes (incremental)"
 echo "    clean S3 sync:    ${WIPE_S3}"
 echo "    seed dev admins:  ${SEED_DEV_ADMINS}"
+echo "    seed personas:    ${SEED_TEST_PERSONAS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
 
@@ -407,6 +420,13 @@ export CURATOR_SEED="${CURATOR_SEED:-yes}"
 # The staging-side remote scripts then run the seed inside the web
 # container.
 export SEED_DEV_ADMINS
+
+# CUTOVER-REMOVE: SEED_TEST_PERSONAS, explicit opt-in; defaults to no. The
+# leaf scripts (deploy-code.sh / deploy-rebuild.sh) thread this signal through
+# the SSH cat-pipe env block; the staging-side remote scripts then run the
+# persona-catalog seed inside the web container. No JSON payload (the catalog
+# is code).
+export SEED_TEST_PERSONAS
 
 # SYNC_MEDIA: always yes when shipping anything (additive rsync).
 export SYNC_MEDIA="yes"

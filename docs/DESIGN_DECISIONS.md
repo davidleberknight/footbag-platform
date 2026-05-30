@@ -24,6 +24,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.11 Configuration Model](#111-configuration-model)
   - [1.12 Internal-only Subtrees](#112-internal-only-subtrees)
   - [1.13 Curator Content Source of Truth](#113-curator-content-source-of-truth)
+  - [1.14 Test-data Harness](#114-test-data-harness)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -65,6 +66,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [5.4 Outbox Pattern for Emails](#54-outbox-pattern-for-emails)
   - [5.5 Canonical Email Addresses](#55-canonical-email-addresses)
   - [5.6 Dev and Staging Email Preview](#56-dev-and-staging-email-preview)
+  - [5.7 Adapter contract parity for security-sensitive paths](#57-adapter-contract-parity-for-security-sensitive-paths)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -75,6 +77,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [6.7 Static Assets and CDN Strategy](#67-static-assets-and-cdn-strategy)
   - [6.8 Image Processing](#68-image-processing)
   - [6.9 Voting](#69-voting)
+  - [6.10 Stripe webhook signing secret environment scope](#610-stripe-webhook-signing-secret-environment-scope)
 - [7. DevOps](#7-devops)
   - [7.1 Dev/Prod Parity](#71-devprod-parity)
   - [7.2 AWS Lightsail and Credentials](#72-aws-lightsail-and-credentials)
@@ -624,6 +627,111 @@ Impact:
 
 The admin UI, the seeder, and the gallery render paths share a single mental model: `/curated/` is authoritative; everything else is derived. New curator content types follow the same pattern (sidecar JSON in git, seeder writes the row, admin UI mutates the sidecar).
 
+## 1.14 Test-data Harness
+
+Decision:
+
+The src/testkit/ subtree provides a composable test-data
+harness with three layers: a composition primitive that builds a
+member plus all supporting rows (tier grant, legacy-claim linkage,
+historical-person link, club affiliations and leadership, onboarding-
+wizard progress, payment history, mailing-list subscriptions, audit
+trail) from a single structured spec; a maintainer-curated canonical
+catalog of named personas with coverage annotations; and a per-
+developer extension layer (.local/-scoped, gitignored, schema-
+validated) for ad-hoc personas. Two browser-facing affordances support
+manual use: a route that issues a session cookie for any persona, and
+a listing view of all loaded personas with one-click switching. The
+harness is permanent test infrastructure: it is active in development
+and staging, excluded from the production image at build time, never
+enabled at runtime in production, and never source-deleted at cutover.
+Both affordances are gated to development and staging by
+config.footbagEnv with a production hard-guard, audit-log every
+issuance, and contain any persona-password literals via the §3.2
+single-source pattern.
+
+Rationale:
+
+- Without a shared composition primitive, every test slice reinvents
+  the row-building logic for the same member-plus-supporting-rows
+  shape. Drift between test fixtures, dev-shortcut seeds, and the
+  canonical reference set is inevitable.
+- A factory-style composition primitive lets test fixtures and dev-
+  shortcut seeds invoke the same code. A persona's shape is identical
+  whether instantiated in-process for a Vitest test or seeded in-
+  database for a browser session, so behavior verified by a test
+  reflects behavior reachable from a browser.
+- The three-layer split separates concerns. The primitive owns row-
+  building. The canonical catalog owns the maintainer-shared reference
+  set with coverage notes that document which testing dimensions each
+  persona exercises. The per-developer extension owns ad-hoc additions
+  without polluting the shared reference.
+- Two browser affordances (switch route plus listing view) cover both
+  expert use (direct URL with persona slug) and discovery use (paid
+  testers who do not read code browse the listing to find personas).
+- Browser cookie issuance uses the same JWT primitive as the production
+  login path (§3.2), not a parallel auth-bypass mechanism. The harness
+  chooses which member to act as; the cookie itself is real and
+  verified by the same middleware production uses.
+- Single-source containment of persona-password literals keeps the
+  literal out of the production image and grep-confirmable to a single
+  file. Personas seed only in development and staging, so their
+  detection markers are zero-residue in any production database by
+  construction.
+
+Requirements:
+
+- Composition primitive reuses the row-building primitives already
+  used by tests/fixtures/factories.ts. No parallel row-building code
+  path.
+- Canonical catalog persona entries carry coverage notes that
+  enumerate the testing dimensions the persona exercises (tier, admin
+  role, legacy state, club state, payment history shape, etc.).
+- Per-developer extension layer schema-validates against the same
+  spec the canonical catalog uses. Schema violations fail loud at load
+  time, not silently at use time.
+- Both browser affordances are active in development and staging and
+  refused in production, gated by config.footbagEnv with a production
+  hard-guard.
+- Every cookie-issuance writes an audit entry with
+  actor_type='dev-shortcut'.
+- Detection markers (file-path prefix, reason_code value, audit
+  action_type) are grep-able; because personas seed only in
+  development and staging, the markers are zero-residue in any
+  production database.
+
+Trade-offs:
+
+- The harness adds dev-environment DB state at boot. Acceptable: the
+  cost is bounded (one row per persona times supporting rows), seed
+  cost is one-time per dev-DB reset, and the alternative is per-test
+  fixture re-derivation that recurs every test run.
+- Per-developer extension layer can diverge across developers over
+  time. Acceptable: the layer is explicitly gitignored, paid-tester
+  workflows reference the canonical catalog only, and divergence
+  cannot pollute the shared reference.
+- Catalog grows monotonically as the testing surface expands.
+  Acceptable: a new test slice adds one persona, not a new fixture
+  mechanism. The catalog doubles as a coverage matrix that surfaces
+  gaps.
+
+Impact:
+
+- Test fixtures and dev-shortcut seeds share one row-building
+  primitive. Future changes to the schema for member, tier_grant,
+  legacy_member, historical_person, club_affiliation, etc. update one
+  primitive, not two.
+- Paid testers receive a discoverable inventory of personas via the
+  listing view rather than a code-reading task.
+- Future test slices (onboarding, legacy claim, clubs, anti-
+  enumeration, search, events, donations) add personas to the
+  canonical catalog instead of inventing fixture rows. Coverage grows
+  monotonically.
+- The harness is excluded from the production image at build time and
+  never enabled in production; its detection markers are
+  grep-confirmable as zero-residue in any production database. It is
+  not part of the cutover-removal surface.
+
 # 2. Data Model
 
 ## 2.1 Schema and Versioning
@@ -1020,7 +1128,7 @@ Requirements:
 
 - The Tier 2 prerequisite from `A_Manage_Admin_Role` is satisfied as a side effect of every successful grant. Bootstrap does not check Tier 2 as a precondition (tier data may not exist on day one); it writes the Tier 2 row atomically alongside the admin flag. Steady-state checks the prerequisite at request time.
 
-- Dev and staging bootstrap is an email allowlist matched at registration time. Source: the workstation file `.local/initial-admins.txt` (gitignored), parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-shortcuts/runtime.ts`.
+- Dev and staging bootstrap is an email allowlist matched at registration time. Source: the workstation file `.local/initial-admins.txt` (gitignored), parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 
 - Production bootstrap is a single-shot SSM-stored claim token. Source: `/footbag/production/app/bootstrap/admin_token` as a SecureString parameter, generated and stored by a System Administrator during initial provisioning. A logged-in member submits the token at `/admin/bootstrap-claim`; the endpoint reads the SSM value via `SecretsAdapter`, performs constant-time comparison, writes the `is_admin=1` plus Tier 2 grant plus audit row atomically, then deletes the SSM parameter. The parameter's absence closes the bootstrap; a second claim attempt returns the same response shape regardless of token validity.
 
@@ -1523,7 +1631,7 @@ Legacy migration security rules:
 - Auto-link sends no notification emails. The wizard's confirmation card (post-stage, at first sign-in) is the only post-link member-facing surface. Effects (tier upgrade, attribution, badges) apply only after the member explicitly confirms.
 - Member-confirmation of a wizard card is sufficient proof for a claim to take effect. The audit row carries an evidence-strength tag (`declared_anchor_only`, `currently_controls_modern_email_matching_legacy`, `mailbox_control_via_link_click`, `admin_vetted_evidence`); the tag drives the admin oversight feed (for honors-bearing direct claims) and any dispute-resolution path.
 - Member-declared identity anchors (former surnames, declared old emails) are always private: visible only to the member themselves and to admin. They participate in claim matching but never appear on public surfaces, member search, or any cross-member listing.
-- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the optional email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev shortcut lives in `src/dev-shortcuts/runtime.ts`, which is the authoritative enumeration.
+- Production has no admin email-skip; admins requiring manual recovery use the member-initiated admin help request flow (`A_Review_Member_Link_Help_Requests`) with full audit trail and access controls. A legacy claim takes effect on wizard-card confirmation without any email roundtrip (the mailbox-control round-trip is optional and only upgrades the audit evidence tier, per `M_Claim_Legacy_Account`), so a stub `legacy_members` row with no `legacy_email` remains claimable through the historical-person card-confirm path. A dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of the dev/staging bootstrap conveniences lives in `src/dev-bootstrap/runtime.ts`, which is the authoritative enumeration.
 - Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications.
 - **Surname matching across claim paths.** Both the wizard-confirmed candidate flow and the direct historical-record claim path match against the member's current real-name surname OR any declared former surname (see member-declared anchors above). A member whose legal name changed between their legacy identity and current account declares the former surname on their profile or at signup; the claim path then resolves normally. Surname mismatches that the platform cannot resolve through declared anchors route to the member-initiated admin help request.
 - **Cookie domain widening (`Domain=.footbag.org`).** The session cookie is widened to the apex so the legacy archive subdomain receives it. Retained `*.footbag.org` subdomains under the legacy host's parallel-role window therefore also receive the cookie. HTTPS is non-negotiable on every retained subdomain; a plain-HTTP retained subdomain would leak the session token in cleartext. The CSRF Origin-pin middleware (§3.3) is the cross-subdomain defense against a malicious form on a retained host.
@@ -2364,38 +2472,165 @@ Impact:
 
 Decision:
 
-Email-gated landing pages (e.g., post-registration `/register/check-email`, and future equivalents for password reset and change-email) render a conditional in-page preview card whose content is driven by two configuration flags: `config.sesAdapter` and `config.sesSandboxMode`. A single shared service (`simulatedEmailService.getEmailPreview()`) and Handlebars partial (`simulated-email-card`) produce the three rendering modes so every email-gated page in the application uses the same preview pattern.
+Email-gated landing pages render a conditional in-page preview card
+driven by the SES adapter. SES_ADAPTER=stub in dev and staging;
+SES_ADAPTER=live in production only. A shared service
+(simulatedEmailService.getEmailPreview()) and Handlebars partial
+(simulated-email-card) produce the preview so every email-gated page
+in the application uses the same pattern.
 
-| `sesAdapter` | `sesSandboxMode` | Card | Purpose |
-|---|---|---|---|
-| `stub` | (ignored) | Dev preview | Table of captured `StubSesAdapter` in-memory messages with subject, body, and extracted action link. Newest first. Empty state when no messages have been sent. |
-| `live` | `true` | Staging sandbox warning | Warning card naming the SES sandbox constraint, the tester-allow-list contact, and the four AWS SES mailbox-simulator recipient addresses (success, bounce, complaint, suppressionlist) with a link to AWS documentation. |
-| `live` | `false` | (no card) | Real production. Page renders the standard "check your email" copy with no developer or staging affordance. |
+| sesAdapter | Card | Purpose |
+|---|---|---|
+| stub | In-page preview | Table of captured StubSesAdapter in-memory messages with subject, body, and extracted action link. Newest first. Empty state when no messages have been sent. |
+| live | (no card) | Production. Page renders the standard 'check your email' copy with no preview affordance. |
 
 Rationale:
 
-- Dev needs to see the just-sent email inline to complete email-gated flows quickly. A separate dev-outbox page requires an extra navigation hop and hides the fact that an email was actually captured.
-- Staging runs under AWS SES sandbox until production access is granted (see §5.4). Testers who register with an unverified address otherwise receive a silently broken flow: account is saved, no email arrives, no indication why. The staging card explains the constraint and steers testers to either the allow-list or the AWS mailbox simulator.
-- Decoupling the sandbox-state signal (`SES_SANDBOX_MODE`) from the adapter choice (`SES_ADAPTER`) means a future staging-with-production-access or pre-prod-with-sandbox environment renders correctly without code changes.
-- The AWS SES mailbox-simulator addresses (`success@`, `bounce@`, `complaint@`, `suppressionlist@` at `simulator.amazonses.com`) work in sandbox without recipient verification, do not count against the daily quota, and do not affect reputation metrics. They are the AWS-documented way to exercise delivery, bounce, and complaint paths during staging testing.
+- Paid testers and maintainers exercise email-gated flows
+  (registration verification, password reset, claim-token
+  confirmation, contact-admin acknowledgement, mailing-list
+  confirmation, future Stripe receipts) on both dev and staging. A
+  consistent in-app preview card across both environments lets
+  testers click the captured link without dependency on inbox
+  delivery.
+- AWS SES sandbox restricts delivery to pre-verified recipient
+  addresses. Engaging paid testers under sandbox requires per-tester
+  AWS-console verification before they can receive mail, which scales
+  poorly and risks bounces against the production domain's sender
+  reputation.
+- The §5.4 outbox_emails.body_text scrub stays immediate and mandatory
+  in all environments. Dev and staging previews read from the in-
+  memory StubSesAdapter buffer, not from outbox_emails, preserving
+  the body-scrub contract via the in-memory adapter pattern.
+- Stub on staging keeps deliverability testing out of the application
+  path. Real-email deliverability is reserved for single-purpose
+  tools (mail-tester.com, GlockApps, Litmus) against a canonical
+  sending address, and for controlled production-dogfooding rollouts.
+- Production is the only environment with live SES delivery. The
+  first real send happens in production with a controlled rollout,
+  not during paid-tester walkthrough on staging.
 
 Requirements:
 
-- `simulatedEmailService.getEmailPreview()` returns a discriminated-union view-model: `{mode: 'dev', messages}` when `sesAdapter === 'stub'`; `{mode: 'sandbox', contactEmail, simulatorAddresses, docsUrl}` when `sesAdapter === 'live'` and `sesSandboxMode === true`; `null` otherwise.
-- The partial is reusable across any email-gated page. Controllers pass the result as `content.emailPreview` on the `PageViewModel`; the template renders the partial when the value is truthy.
-- Dev-mode preview reads from the `StubSesAdapter` in-memory buffer, not from `outbox_emails`. This preserves the §5.4 body-text scrub contract: the scrub operates on the DB row, while adapter memory is scrub-exempt and holds the original content for the lifetime of the process.
-- Sandbox-mode copy enumerates the four mailbox-simulator addresses explicitly. Testers do not need to consult AWS documentation to exercise delivery-path variants.
-- `SES_SANDBOX_MODE` env var is boolean (accepts `1`, `0`, `true`, `false`), default `false`, fail-fast on any other value. The flag is ignored when `SES_ADAPTER === 'stub'`.
+- simulatedEmailService.getEmailPreview() returns a discriminated-
+  union view-model: {mode: 'dev', messages} when sesAdapter === 'stub';
+  null otherwise.
+- The partial is reusable across any email-gated page. Controllers
+  pass the result as content.emailPreview on the PageViewModel; the
+  template renders the partial when the value is truthy.
+- Dev and staging previews read from the StubSesAdapter in-memory
+  buffer, not from outbox_emails. This preserves the §5.4 body-text
+  scrub contract: the scrub operates on the DB row, while adapter
+  memory is scrub-exempt and holds the original content for the
+  lifetime of the process.
+- Production boot refuses SES_ADAPTER=stub. Non-production boot
+  refuses SES_ADAPTER=live.
 
 Trade-offs:
 
-- Two SES-related env vars (`SES_ADAPTER` and `SES_SANDBOX_MODE`) instead of one. Separation is intentional: `SES_ADAPTER` chooses the code path; `SES_SANDBOX_MODE` signals the AWS account state. Conflating them would require a code change to handle post-production-access staging or pre-prod-with-sandbox combinations.
-- An in-app dev preview rather than an external mail catcher (MailHog, Mailpit, Mailtrap) keeps local setup zero-dependency but means emails cannot be inspected in a real email client during dev. An operator who needs real-client rendering can point the staging host at a test inbox.
+- Real-email deliverability is not exercised on staging. Acceptable:
+  deliverability testing is a separate, single-purpose activity using
+  dedicated tools against a canonical sending address; bouncing test
+  emails against the production domain risks sender reputation.
+- Two SES adapters today (stub and live). Adding a third adapter
+  value for SMTP-capture sinks (e.g., a Mailtrap-style adapter) is
+  the future upgrade path if staging requires real-SMTP-shape
+  rehearsal without inbox pollution. Production stays on live.
+- An in-app preview card rather than an external mail catcher
+  (MailHog, Mailpit, Mailtrap) keeps local setup zero-dependency. The
+  SMTP-capture adapter expansion is the way to add an external test
+  inbox if it becomes valuable.
 
 Impact:
 
-- The previously separate `/internal/dev-outbox` page and its route, controller, service, template, and tests are retired.
-- CommunicationService and the outbox worker are unchanged; the preview is a read-only view of `StubSesAdapter` memory in dev and a static warning in staging.
+- Staging Docker compose and scripts/verify-staging-env.sh set
+  SES_ADAPTER=stub; non-stub on staging fails boot.
+- Production sets SES_ADAPTER=live; non-live on production fails boot.
+- The in-page preview card on email-gated landing pages serves as
+  the captured-email surface for dev and staging.
+- Future link-bearing email categories (Stripe payment receipts,
+  event registration confirmations, donation acknowledgements)
+  inherit the card on dev and staging at zero plumbing cost.
+
+## 5.7 Adapter contract parity for security-sensitive paths
+
+Decision:
+
+Stub and live adapters honor contract parity for security-sensitive
+code paths. Stub adapters that synthesize signed payloads (Stripe
+webhooks, JWT, any HMAC-signed inbound event) sign their synthetic
+payloads with a deterministic literal constant, and the same
+verifier that production runs against the live secret validates them
+against the stub constant. Stub signing literals are permanent test
+infrastructure and live co-located with the stub adapter that uses
+them (e.g. STUB_WEBHOOK_SECRET in src/adapters/paymentAdapter.ts),
+never in the delete-at-cutover dev-bootstrap subtree, and are never
+shared with any production secret value. They ship in the production
+image but are refused at boot, not excluded from it.
+
+Rationale:
+
+- Stub adapters that bypass signature verification leave the
+  verification code path dark in every test. Refactors, middleware-
+  order changes, and library upgrades that silently break verification
+  fail loudly in production on the first real webhook delivery, not
+  in tests.
+- Signature handling is the most expensive class of webhook bug to
+  debug in production: it produces silent rejections, intermittent
+  failures depending on event order, and signature errors that
+  surface as 400 responses to the external sender (Stripe retries
+  indefinitely until the error class is fixed).
+- Using a deterministic stub literal that the same verifier validates
+  means the verification middleware is exercised by every integration
+  test and every manual stub click-through. Bypass branches are
+  eliminated by construction.
+- Stub signing literals follow the §1.14 single-source containment
+  pattern. Unlike the dev-bootstrap stand-ins, the signed-stub parity
+  infrastructure is permanent; its production containment is a
+  boot-time refusal of stub-prefixed secrets, not cutover deletion.
+- Contract parity scopes narrowly to security-sensitive paths
+  (signing, verification, authn). Other adapter contract surfaces
+  (request shape, response shape, error mapping) follow the standard
+  mock-or-stub pattern at the integration-test layer.
+
+Requirements:
+
+- Stub adapters that synthesize signed payloads sign with a
+  deterministic literal constant matching the verifier's expected
+  scheme (e.g., HMAC-SHA256 with t=<ts>,v1=<hex> for Stripe webhooks).
+- The same verifier code path runs in stub and live modes; the
+  adapter selection determines which secret is used, not whether
+  verification runs.
+- Stub signing secret literals live co-located with their stub
+  adapter under single-source containment, regression-tested for
+  non-leakage.
+- Stub secrets are deterministic for in-test reproducibility but
+  production-equivalent in cryptographic shape (length, encoding,
+  algorithm compatibility).
+- A tamper-and-reject integration test for each signed-payload type
+  asserts the verifier rejects a payload with a mutated signature.
+
+Trade-offs:
+
+- Stub adapter implementations carry signing logic that production
+  live adapters do not need (live adapters receive pre-signed
+  payloads from the external service). Acceptable: the signing logic
+  is small and isolated to the stub adapter.
+- Stub signing literals are permanent and therefore not part of the
+  cutover-audit surface; the prod-refusal guard, not the cutover
+  audit, is what keeps them out of production use.
+
+Impact:
+
+- New stub adapters (current: payment; future webhook-receiving
+  integrations such as Stripe Connect, Slack, GitHub) implement
+  signing as part of the stub contract, not as a test-only
+  afterthought.
+- The signature-verification middleware is exercised by every
+  relevant integration test, surfacing regressions in test runs
+  rather than in production.
+- Test patterns receive the stub-signed header rather than placeholder
+  strings on signed-payload inputs.
 
 # 6. External Services and Integrations
 
@@ -2423,7 +2658,7 @@ The platform uses two distinct Stripe payment models:
 
 Payment recurrence is derived from Stripe subscription linkage, not duplicated on individual payment rows. payments_base identifies recurring-donation charges via recurring_subscription_id and joins to the subscription tables for current subscription lifecycle state. The schema intentionally does not duplicate subscription recurrence fields (for example recurrence type/active/start state) on each payment row to avoid drift between payment records and subscription state.  
 
-- Stripe webhook idempotency is enforced by tracking processed event IDs in a stripe_events table with event_id as primary key. When webhooks arrive, the handler first checks if the event_id already exists. If found, the handler returns 200 immediately without reprocessing, preventing duplicate tier upgrades, duplicate payment records, and duplicate refund processing. For one-time payments: insert into stripe_events first; on conflict return 200. In one DB transaction, load/update local payment by payment_intent_id. Apply a monotonic state machine; record last_stripe_event_created to ignore older events. For subscription events: insert into stripe_events first; on conflict return 200. In one DB transaction, load/update the local donation subscription record by stripeSubscriptionId and process the event type. Mark each event processed with attempts and last_error.
+- Stripe webhook idempotency is enforced by tracking processed event IDs in a stripe_events table with event_id as primary key. When webhooks arrive, the handler first checks if the event_id already exists. If found, the handler returns 200 immediately without reprocessing, preventing duplicate tier upgrades, duplicate payment records, and duplicate refund processing. For one-time payments: in one DB transaction, claim the event_id in stripe_events (INSERT OR IGNORE) and load/update the local payment by payment_intent_id under a monotonic state machine; a claim finding the id already present is a no-op duplicate. The claim shares the mutation's transaction, so a processing failure rolls it back and Stripe's redelivery re-runs cleanly. A signature failure returns 400 with no state; a recoverable processing failure returns 400 so Stripe retries; processed, duplicate, and unhandled-type events return 200. Record last_stripe_event_created to ignore older events. For subscription events: insert into stripe_events first; on conflict return 200. In one DB transaction, load/update the local donation subscription record by stripeSubscriptionId and process the event type. Mark each event processed with attempts and last_error.
 
 Trade-offs:
 
@@ -2928,6 +3163,89 @@ Tally authorization and audit: Only administrators (users holding the admin role
 These authorization and timing checks are enforced in application services. The database schema provides the required vote state, timestamps, and immutable audit-supporting structures but does not implement the voting workflow state machine.
 
 Alternative Considered: Third-Party Vendor (ElectionBuddy): Evaluated to reduce development effort. Would provide hosted ballot casting, encryption, tallying, integrity verification. Rejected because: Development savings consumed by ongoing vendor costs, and also the ElectionBuddy integration would not be a small effort either. Vendor dependency for critical democratic infrastructure creates governance risk. Data sovereignty concerns. Architectural inconsistency (external API vs file-based simplicity). Server-side encryption approach keeps keys secure vs vendor-controlled encryption. One-time investment of time preferred over permanent vendor relationship.
+
+## 6.10 Stripe webhook signing secret environment scope
+
+Decision:
+
+Stripe webhook signing secrets are environment-scoped: each
+environment has its own STRIPE_WEBHOOK_SECRET env var sourced from
+an environment-specific origin. Local development sources a rotating
+secret from `stripe listen` CLI output; staging runs
+PAYMENT_ADAPTER=stub and validates against the deterministic stub
+literal (§5.7); production sources the Live-mode whsec_ from AWS SSM
+Parameter Store. Webhook verification accepts only the active
+environment's secret.
+
+Rationale:
+
+- Mixing Test-mode and Live-mode Stripe webhook secrets across
+  environments is the most commonly debugged Stripe signature-error
+  class. Environment-scope eliminates the failure mode at the
+  configuration layer rather than at signature-verification runtime.
+- Live secrets in non-production environments are a frequent source
+  of accidental cross-environment leaks: a developer running staging
+  locally with the production secret can sign events that production
+  will accept. Environment-scope makes this impossible by
+  construction.
+- Source-per-environment (Stripe CLI for dev, stub literal for
+  staging, SSM for prod) matches the §3.6 secrets-management
+  pattern: every secret has exactly one canonical source per
+  environment with no fallback or default that could mask a missing
+  configuration.
+- Reading the secret once at boot, with rotation requiring a
+  restart, simplifies the in-process state machine: no thread-safe
+  secret reload, no race between rotation and incoming webhook
+  handling. The cost (app restart on rotation) is paid by operator
+  action, not by application complexity.
+
+Requirements:
+
+- STRIPE_WEBHOOK_SECRET env var is read once at boot via
+  src/config/env.ts.
+- In local development, the secret value comes from
+  `stripe listen --forward-to localhost:3000/payments/webhook`
+  output (Stripe CLI prints a fresh whsec_ per invocation).
+- In staging, the live secret value is unused at runtime; staging
+  runs PAYMENT_ADAPTER=stub and validates against the adapter-
+  co-located stub literal (STUB_WEBHOOK_SECRET) per §5.7.
+- In production, the secret value comes from an environment-specific
+  AWS SSM Parameter Store entry. Production boot refuses an empty or
+  default value.
+- Production boot refuses any secret value that matches the stub
+  literal pattern. Stub and live secrets are never interchangeable.
+- Rotation: an operator updates the SSM parameter and restarts the
+  application. The application reads the new value at boot and
+  discards in-flight events signed with the prior key (Stripe will
+  retry).
+
+Trade-offs:
+
+- Rotation requires app restart. Acceptable: rotation is infrequent
+  (incident-driven, not scheduled), restart is fast (under 30
+  seconds per §1.8 container memory allocation), and the alternative
+  (live secret reload with thread-safe state) adds complexity for
+  negligible operational benefit.
+- Local dev requires the Stripe CLI installed and running alongside
+  the app. Acceptable: the CLI is a one-time install, the
+  developer's workflow already involves multiple terminal panes for
+  dev/test, and the CLI provides bonus features (event triggering,
+  dashboard linkage).
+
+Impact:
+
+- src/config/env.ts declares STRIPE_WEBHOOK_SECRET as required when
+  PAYMENT_ADAPTER=live and reads from a single env var.
+- Production deployment populates STRIPE_WEBHOOK_SECRET from SSM at
+  container start, alongside other §3.6 secrets.
+- The dev recipe in docs/TESTING.md §16 instructs running
+  `stripe listen --forward-to localhost:3000/payments/webhook`
+  alongside `./run_dev.sh` and copying the printed whsec_ into the
+  local environment.
+- Cross-environment secret leakage (e.g., a dev environment
+  accidentally using a production secret) becomes a boot-time
+  configuration error rather than a silent acceptance of
+  inappropriate webhook events.
 
 # 7. DevOps
 

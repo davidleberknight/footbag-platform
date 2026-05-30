@@ -25,7 +25,6 @@ export interface AppConfig {
   jwtLocalKeypairPath: string;
   awsRegion: string | undefined;
   sesAdapter: 'live' | 'stub';
-  sesSandboxMode: boolean;
   sesFromIdentity: string | undefined;
   safeBrowsingAdapter: 'live' | 'stub';
   // SecretsAdapter: Node consumers read SSM-stored third-party secrets
@@ -116,15 +115,6 @@ export interface AppConfig {
   // comma-separated subnet/IP list — anything Express's setting accepts.
   // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
   trustProxy: number | boolean | string;
-  // CUTOVER-REMOVE: dev-only legacy-claim email bypass.
-  // Current: when true, admin members complete a legacy account claim via the
-  //   unified link-history wizard's manual-id input without the mailbox-control
-  //   email roundtrip. Strictly additive, disabled by default. Boot-time guard
-  //   refuses non-development start. Exists because dev fixture sets may lack
-  //   legacy_email matches for the operator's admin account.
-  // Target: remove after production cutover confirms the email roundtrip is
-  //   reliable; production admins recover via manualLegacyClaimRecovery.
-  devAdminSkipClaimEmail: boolean;
   // CUTOVER-REMOVE: dev-only Tier 2 backfill for admin members.
   // Current: when true, the boot orchestrator ensures every is_admin=1 member
   //   has a current Tier 2 ledger row, inserting a dev_admin_invariant_repair
@@ -134,19 +124,17 @@ export interface AppConfig {
   // Target: remove once the dev seed flow reliably provisions Tier 2 for
   //   admin accounts.
   devAdminGrantTier2: boolean;
-  // CUTOVER-REMOVE: dev-only autologin member id.
-  // Current: when set, auth middleware skips the cookie path entirely so a
-  //   stale cookie cannot silently authenticate as a different member than
-  //   the configured autologin. Empty-string and unset both surface as
-  //   undefined. Boot-time guard refuses non-development start.
-  // Target: remove after production cutover makes dev autologin unnecessary.
-  devAutologinMemberId: string | undefined;
   // PaymentAdapter selector. 'live' wraps the Stripe SDK (currently a
   // placeholder; the live factory throws until the Stripe-SDK slice ships);
   // 'stub' is a programmable in-memory simulation that exercises the same
   // Stripe-shaped webhook plumbing end-to-end. Required to be explicit in
   // production; production rejects 'stub'.
   paymentAdapter: 'live' | 'stub';
+  // Stripe webhook signing secret. Required when paymentAdapter='live' (the
+  // live verifier validates inbound Stripe-Signature headers against it).
+  // Undefined in stub mode, where the verifier uses the adapter-co-located
+  // STUB_WEBHOOK_SECRET instead. Production refuses a stub-prefixed value.
+  stripeWebhookSecret: string | undefined;
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
   // value instead of reading /sys/fs/cgroup/memory.{max,current}, so tests
@@ -281,58 +269,28 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: fail-fast guard for the dev autologin bypass.
-  // Current: a process with FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID set outside
-  //   development is mis-configured and must not start. Per-request gate in
-  //   auth middleware is a second layer, not a substitute.
-  // Target: remove with the autologin feature at production cutover.
-  if (process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID && footbagEnv !== 'development') {
+  // SES adapter must match the deployment environment: production sends real
+  // email (live); development and staging use the in-process stub so no real
+  // mail leaves those environments. FOOTBAG_ENV (the deployment environment),
+  // not NODE_ENV, is the discriminator, because dev containers pin
+  // NODE_ENV=production for hardening parity while still running the stub.
+  if (footbagEnv === 'production' && sesAdapter !== 'live') {
     throw new Error(
-      `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+      `SES_ADAPTER must be 'live' when FOOTBAG_ENV=production (got '${sesAdapter}'); production sends real email`,
     );
   }
-
-  const devAutologinMemberId =
-    process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID || undefined;
-
-  // CUTOVER-REMOVE: fail-fast guard for the autologin password_version check.
-  // Current: companion var to FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID; refuses
-  //   non-development boot so a misconfigured staging or prod process cannot
-  //   rely on the per-request gate alone.
-  // Target: remove with the autologin feature at production cutover.
   if (
-    process.env.FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION &&
-    footbagEnv !== 'development'
+    (footbagEnv === 'development' || footbagEnv === 'staging') &&
+    sesAdapter !== 'stub'
   ) {
     throw new Error(
-      `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+      `SES_ADAPTER must be 'stub' when FOOTBAG_ENV=${footbagEnv} (got '${sesAdapter}'); non-production must not send real email`,
     );
   }
 
-  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL.
-  // Current: dev-only, same posture as the autologin guards above.
-  // Target: remove when the skip-claim-email bypass is decommissioned.
-  const rawDevAdminSkip = process.env.FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL;
-  let devAdminSkipClaimEmail: boolean;
-  if (rawDevAdminSkip === undefined || rawDevAdminSkip === '') {
-    devAdminSkipClaimEmail = false;
-  } else if (rawDevAdminSkip === '1' || rawDevAdminSkip === 'true') {
-    devAdminSkipClaimEmail = true;
-  } else if (rawDevAdminSkip === '0' || rawDevAdminSkip === 'false') {
-    devAdminSkipClaimEmail = false;
-  } else {
-    throw new Error(
-      `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL must be '1', '0', 'true', or 'false', got: ${rawDevAdminSkip}`,
-    );
-  }
-  if (devAdminSkipClaimEmail && footbagEnv !== 'development') {
-    throw new Error(
-      `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
-    );
-  }
 
   // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_ADMIN_GRANT_TIER2.
-  // Current: dev-only, same posture as the autologin guards above.
+  // Current: dev-only fail-fast, same posture as the skip-claim-email guard.
   // Target: remove when the dev Tier 2 auto-grant is decommissioned.
   const rawDevAdminTier2 = process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
   let devAdminGrantTier2: boolean;
@@ -425,18 +383,6 @@ function loadConfig(): AppConfig {
     }
   }
 
-  const rawSesSandbox = process.env.SES_SANDBOX_MODE;
-  let sesSandboxMode: boolean;
-  if (rawSesSandbox === undefined || rawSesSandbox === '') {
-    sesSandboxMode = false;
-  } else if (rawSesSandbox === '1' || rawSesSandbox === 'true') {
-    sesSandboxMode = true;
-  } else if (rawSesSandbox === '0' || rawSesSandbox === 'false') {
-    sesSandboxMode = false;
-  } else {
-    throw new Error(`SES_SANDBOX_MODE must be '1', '0', 'true', or 'false', got: ${rawSesSandbox}`);
-  }
-
   const awsRegion = process.env.AWS_REGION || undefined;
 
   const rawImageUrl = process.env.IMAGE_PROCESSOR_URL;
@@ -496,9 +442,25 @@ function loadConfig(): AppConfig {
   } else {
     paymentAdapter = 'stub';
   }
-  if (paymentAdapter === 'stub' && isProd) {
+  // Gate on the deployment environment (FOOTBAG_ENV), not NODE_ENV: staging pins
+  // NODE_ENV=production for hardening parity while legitimately running the stub
+  // adapter (same discriminator the SES guard above uses). Only true production
+  // forbids the stub.
+  if (paymentAdapter === 'stub' && footbagEnv === 'production') {
     throw new Error(
       "PAYMENT_ADAPTER='stub' is forbidden in production; use PAYMENT_ADAPTER=live (currently fails fast until the Stripe-SDK slice ships)",
+    );
+  }
+
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || undefined;
+  if (paymentAdapter === 'live' && !stripeWebhookSecret) {
+    throw new Error(
+      "STRIPE_WEBHOOK_SECRET is required when PAYMENT_ADAPTER='live'",
+    );
+  }
+  if (isProd && stripeWebhookSecret?.startsWith('whsec_stub')) {
+    throw new Error(
+      'STRIPE_WEBHOOK_SECRET must not be a stub secret in production (whsec_stub-prefixed values are dev/test only)',
     );
   }
 
@@ -635,7 +597,6 @@ function loadConfig(): AppConfig {
     jwtLocalKeypairPath,
     awsRegion,
     sesAdapter,
-    sesSandboxMode,
     sesFromIdentity,
     safeBrowsingAdapter,
     secretsAdapter,
@@ -663,10 +624,9 @@ function loadConfig(): AppConfig {
     sseHeartbeatSeconds,
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
-    devAdminSkipClaimEmail,
     devAdminGrantTier2,
     paymentAdapter,
-    devAutologinMemberId,
+    stripeWebhookSecret,
     testMemoryPercent,
   };
 }

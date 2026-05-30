@@ -1,14 +1,14 @@
 /**
  * Permanent contract: every runtime Dockerfile defaults to stripping the
- * dist/dev-shortcuts/ subtree unless the builder explicitly opts in
+ * dist/testkit/ and dist/dev-bootstrap/ subtrees unless the builder explicitly opts in
  * via `INCLUDE_DEV_SHORTCUTS=1`. Production builds set the arg to 0
  * (deploy-rebuild.sh + docker-compose.prod.yml overrides), so the prod
  * image never carries the dev-shortcuts code path.
  *
  * Defense-in-depth gate. Other layers:
- *   - src/dev-shortcuts/seedConfig.ts: module-import throw under
+ *   - src/dev-bootstrap/seedConfig.ts: module-import throw under
  *     FOOTBAG_ENV=production.
- *   - src/dev-shortcuts/runtime.ts: per-call short-circuit when
+ *   - src/dev-bootstrap/runtime.ts: per-call short-circuit when
  *     footbagEnv is not 'development' or 'staging'.
  *   - src/config/env.ts: boot-time fail-fast on FOOTBAG_DEV_* env vars in
  *     non-development environments.
@@ -41,10 +41,11 @@ describe.each(DOCKERFILES)('%s: dev-shortcuts strip contract', (relPath) => {
     expect(content).toMatch(/^ARG\s+INCLUDE_DEV_SHORTCUTS\s*=\s*0\s*$/m);
   });
 
-  it('removes dist/dev-shortcuts when INCLUDE_DEV_SHORTCUTS != 1', () => {
+  it('removes dist/testkit and dist/dev-bootstrap when INCLUDE_DEV_SHORTCUTS != 1', () => {
     expect(content).toMatch(
       /RUN\s+if\s+\[\s*"\$INCLUDE_DEV_SHORTCUTS"\s*!=\s*"1"\s*\]/,
     );
-    expect(content).toMatch(/rm\s+-rf[^\n]*dist\/dev-shortcuts/);
+    expect(content).toMatch(/rm\s+-rf[^\n]*dist\/testkit/);
+    expect(content).toMatch(/rm\s+-rf[^\n]*dist\/dev-bootstrap/);
   });
 });

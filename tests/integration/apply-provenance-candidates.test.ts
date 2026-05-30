@@ -10,11 +10,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { applyProvenanceCandidates, CsvRow } from '../../scripts/apply-provenance-candidates';
 
 const DB_PATH = path.resolve(
-  process.cwd(),
-  `test-apply-prov-${Date.now()}-${process.pid}.db`,
+  os.tmpdir(),
+  `footbag-test-apply-prov-${Date.now()}-${process.pid}.db`,
 );
 
 function freshDb(): BetterSqlite3.Database {

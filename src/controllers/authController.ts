@@ -93,8 +93,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     realName?: string; displayName?: string; slug?: string; email?: string; password?: string; confirmPassword?: string;
   };
 
-  const renderError = (msg: string) => {
-    res.status(422).render('auth/register', {
+  const renderError = (msg: string, status = 422) => {
+    res.status(status).render('auth/register', {
       seo: { title: 'Register' },
       page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
@@ -114,6 +114,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       confirmPassword ?? '',
       realName ?? '',
       displayName ?? '',
+      req.ip ?? 'unknown',
       slug ?? '',
     );
     // No session cookie is set; the member must verify via email first.
@@ -121,6 +122,11 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
   } catch (err) {
     if (err instanceof ValidationError) {
       renderError(err.message);
+      return;
+    }
+    if (err instanceof RateLimitedError) {
+      if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      renderError(err.message, 429);
       return;
     }
     if (err instanceof ServiceUnavailableError) {
@@ -298,7 +304,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
   const { email } = req.body as { email?: string };
   try {
     await identityAccessService.requestPasswordReset(email ?? '');
-    // Simulated email card on dev / sandbox so the operator can complete the
+    // Simulated email card on dev and staging (stub adapter) so the operator can complete the
     // reset flow without leaving the page; null in production. Filtered to
     // password-reset URLs so a stale verify-email card from earlier in the
     // session doesn't confuse the operator.

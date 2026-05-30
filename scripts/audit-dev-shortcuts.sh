@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # scripts/audit-dev-shortcuts.sh -- cutover audit gate.
 #
-# Runs the four prefix-queries that detect rows persisted by any of the
-# dev shortcuts (seed, register-allowlist bootstrap, tier2 invariant
-# repair). All four counts must be zero before a production deploy. Exits
-# non-zero if any count > 0; suitable for use as a CI gate at cutover.
+# Runs the prefix-queries that detect rows persisted by any of the dev
+# shortcuts (seed, register-allowlist bootstrap, tier2 invariant repair,
+# test-data persona harness). All counts must be zero before a production
+# deploy. Exits non-zero if any count > 0; suitable for use as a CI gate at
+# cutover.
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db). Works on any
 # environment (dev, staging, production-DB-attached-for-audit); has no
@@ -49,7 +50,13 @@ c3=$(run_count "action_type invariant_repair" \
 c4=$(run_count "created_by dev-shortcuts/*" \
   "SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';")
 
-total=$((c1 + c2 + c3 + c4))
+c5=$(run_count "reason_code dev_persona_seed" \
+  "SELECT COUNT(*) FROM member_tier_grants WHERE reason_code = 'dev_persona_seed.tier_grant';")
+
+c6=$(run_count "action_type dev_persona/switch" \
+  "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('dev_persona_seed','dev_switch_persona');")
+
+total=$((c1 + c2 + c3 + c4 + c5 + c6))
 
 echo
 if [[ "${total}" -eq 0 ]]; then

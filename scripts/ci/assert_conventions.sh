@@ -22,11 +22,13 @@ violations=0
 # leaking into raw SQL surfaces.
 #
 # Allowlisted exceptions:
-#   - src/dev-shortcuts/**   dev-only seed/override tooling; not a service
+#   - src/testkit/**         permanent test scaffolding (persona row builders); not a service
+#   - src/dev-bootstrap/**   dev-only seed/override tooling; not a service
 echo "[conventions] check: .prepare( outside src/db/db.ts"
 hits=$(grep -rn --include='*.ts' '\.prepare(' src/ \
   | grep -v '^src/db/db\.ts:' \
-  | grep -v '^src/dev-shortcuts/' \
+  | grep -v '^src/testkit/' \
+  | grep -v '^src/dev-bootstrap/' \
   || true)
 if [ -n "$hits" ]; then
   echo "$hits" >&2
@@ -61,7 +63,8 @@ fi
 # bypass that contract.
 #
 # Allowlisted exceptions:
-#   - src/dev-shortcuts/**                  dev-only tooling; not production code
+#   - src/testkit/**                        permanent test scaffolding; not production code
+#   - src/dev-bootstrap/**                  dev-only tooling; not production code
 #   - src/imageWorker.ts                          separate-process entry-point with its own env bootstrap (per file header)
 #
 # Comment-only mentions (lines whose match is inside a // comment) are
@@ -71,7 +74,8 @@ echo "[conventions] check: process.env reads outside src/config/env.ts"
 hits=$(grep -rn --include='*.ts' 'process\.env' src/ \
   | grep -v -E ':[0-9]+:[[:space:]]*//' \
   | grep -v '^src/config/env\.ts:' \
-  | grep -v '^src/dev-shortcuts/' \
+  | grep -v '^src/testkit/' \
+  | grep -v '^src/dev-bootstrap/' \
   | grep -v '^src/imageWorker\.ts:' \
   || true)
 if [ -n "$hits" ]; then

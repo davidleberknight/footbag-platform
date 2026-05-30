@@ -1,7 +1,12 @@
 /**
  * Shared HTTP-layer helper for setting the session JWT cookie. Centralizes
  * the cookie-option block (httpOnly, sameSite, maxAge, secure detection)
- * so cookie-attribute changes happen in one place.
+ * so cookie-attribute changes happen in one place. Also marks the response
+ * no-store: a response that carries Set-Cookie must never be stored by a
+ * browser or shared cache, otherwise one member's session could be replayed
+ * to another. This covers the unauthenticated entry points (login, email
+ * verify, password reset) that the request-level no-store middleware misses
+ * because the request itself is not yet authenticated.
  */
 import { Request, Response } from 'express';
 import {
@@ -14,6 +19,8 @@ export function issueSessionCookie(
   cookieValue: string,
   req: Request,
 ): void {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
   res.cookie(SESSION_COOKIE_NAME, cookieValue, {
     httpOnly: true,
     sameSite: 'lax',

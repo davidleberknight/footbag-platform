@@ -53,6 +53,7 @@ import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as c
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PageViewModel } from '../types/page';
@@ -64,6 +65,21 @@ import { formatDateDisplay } from './dateFormat';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
+
+// Records a forensic audit row for a member self-service profile/PII mutation.
+// Metadata carries the touched field names only (never the new values), so the
+// trail stays free of the PII it exists to make traceable.
+function auditProfileUpdate(memberId: string, fields: readonly string[]): void {
+  appendAuditEntry({
+    actionType: 'member.profile_updated',
+    category: 'profile_change',
+    actorType: 'member',
+    actorMemberId: memberId,
+    entityType: 'member',
+    entityId: memberId,
+    metadata: { fields: [...fields] },
+  });
+}
 
 export interface MemberSearchEntry {
   displayName: string;
@@ -573,6 +589,10 @@ export const memberService = {
       row.id,
     );
     memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
+    auditProfileUpdate(row.id, [
+      'bio', 'city', 'region', 'country', 'phone', 'emailVisibility',
+      'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
+    ]);
   },
 
   getCompetitionPrefill(memberId: string): {
@@ -685,6 +705,10 @@ export const memberService = {
       firstCompetitionYear, showFirstCompetitionYear,
       now, memberId,
     );
+    auditProfileUpdate(memberId, [
+      'city', 'region', 'country', 'birthDate',
+      'firstCompetitionYear', 'showFirstCompetitionYear',
+    ]);
   },
 
   setFirstCompetitionYear(memberId: string, rawYear: unknown): void {
@@ -692,6 +716,7 @@ export const memberService = {
     const now = new Date().toISOString();
     if (raw === '') {
       account.updateMemberFirstCompetitionYear.run(null, now, memberId);
+      auditProfileUpdate(memberId, ['firstCompetitionYear']);
       return;
     }
     const parsed = parseInt(raw, 10);
@@ -700,6 +725,7 @@ export const memberService = {
       throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
     }
     account.updateMemberFirstCompetitionYear.run(parsed, now, memberId);
+    auditProfileUpdate(memberId, ['firstCompetitionYear']);
   },
 
   setShowCompetitiveResults(memberId: string, rawEnabled: unknown): void {
@@ -711,6 +737,7 @@ export const memberService = {
         ? 1
         : 0;
     account.updateMemberShowCompetitiveResults.run(value, new Date().toISOString(), memberId);
+    auditProfileUpdate(memberId, ['showCompetitiveResults']);
   },
 
   searchMembers(query: string): MemberSearchResult {

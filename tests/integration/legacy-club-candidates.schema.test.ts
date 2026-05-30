@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { createTestDb } from '../fixtures/testDb';
 import {
   insertLegacyClubCandidate,
@@ -28,8 +29,8 @@ describe('legacy_club_candidates.classification', () => {
 
   beforeEach(() => {
     dbPath = path.join(
-      process.cwd(),
-      `test-classification-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+      os.tmpdir(),
+      `footbag-test-classification-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
     );
     db = createTestDb(dbPath);
   });

@@ -1,5 +1,5 @@
 /**
- * Schema-coupling canary for src/dev-shortcuts/seed.ts.
+ * Schema-coupling canary for src/dev-bootstrap/seed.ts.
  *
  * The dev-admin-seed script writes raw INSERTs into `members`,
  * `member_tier_grants`, and `audit_entries`. A schema column rename,
@@ -25,12 +25,12 @@ const { dbPath } = setTestEnv('3094');
 process.env.FOOTBAG_ENV = 'development';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let seedModule: typeof import('../../src/dev-shortcuts/seed');
+let seedModule: typeof import('../../src/dev-bootstrap/seed');
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
-  seedModule = await import('../../src/dev-shortcuts/seed');
+  seedModule = await import('../../src/dev-bootstrap/seed');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -113,7 +113,7 @@ describe('dev-shortcuts/seedConfig — env-guard contract', () => {
     delete process.env.FOOTBAG_ENV;
     try {
       await expect(
-        import('../../src/dev-shortcuts/seedConfig'),
+        import('../../src/dev-bootstrap/seedConfig'),
       ).rejects.toThrow(/seedConfig may only be imported in FOOTBAG_ENV in \{development, staging\}/);
     } finally {
       process.env.FOOTBAG_ENV = prior;
@@ -125,7 +125,7 @@ describe('dev-shortcuts/seedConfig — env-guard contract', () => {
     process.env.FOOTBAG_ENV = 'production';
     try {
       await expect(
-        import('../../src/dev-shortcuts/seedConfig'),
+        import('../../src/dev-bootstrap/seedConfig'),
       ).rejects.toThrow(/seedConfig may only be imported in FOOTBAG_ENV in \{development, staging\}/);
     } finally {
       process.env.FOOTBAG_ENV = prior;
@@ -136,7 +136,7 @@ describe('dev-shortcuts/seedConfig — env-guard contract', () => {
     const prior = process.env.FOOTBAG_ENV;
     process.env.FOOTBAG_ENV = 'staging';
     try {
-      const m = await import('../../src/dev-shortcuts/seedConfig');
+      const m = await import('../../src/dev-bootstrap/seedConfig');
       expect(m.DEV_ADMIN_SEED_REASON_CODE).toBe('dev_admin_seed.admin_tier2');
       expect(m.DEV_ADMIN_SEED_AUDIT_ACTION_TYPE).toBe('grant_admin_dev_seed');
       expect(m.DEV_ADMIN_SEED_CREATED_BY).toBe('dev-shortcuts/seed');

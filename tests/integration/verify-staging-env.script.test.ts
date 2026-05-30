@@ -32,7 +32,7 @@ const CLEAN_STAGING_ENV = [
   `SESSION_SECRET=${'a'.repeat(48)}`,
   'JWT_SIGNER=kms',
   `JWT_KMS_KEY_ID=${TF_ENV.TF_JWT_KMS_KEY_ARN}`,
-  'SES_ADAPTER=live',
+  'SES_ADAPTER=stub',
   `SES_FROM_IDENTITY=${TF_ENV.TF_SES_SENDER}`,
   'MEDIA_STORAGE_ADAPTER=s3',
   `MEDIA_STORAGE_S3_BUCKET=${TF_ENV.TF_MEDIA_BUCKET}`,
@@ -156,9 +156,11 @@ describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
     expect(result.stdout).toMatch(/FAIL +JWT KMS key ARN matches terraform/);
   });
 
-  it('SES_FROM_IDENTITY drift from terraform → FAIL', () => {
-    const env = mutate(/SES_FROM_IDENTITY=.+/, 'SES_FROM_IDENTITY=wrong@example.com');
-    const result = runScript({ envFilePath: writeEnvFile(env) });
+  it('SES_FROM_IDENTITY drift from terraform → FAIL (production, where live SES is checked)', () => {
+    const env = mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production')
+      .replace('SES_ADAPTER=stub', 'SES_ADAPTER=live')
+      .replace(/SES_FROM_IDENTITY=.+/, 'SES_FROM_IDENTITY=wrong@example.com');
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toMatch(/FAIL +SES sender identity matches terraform/);
   });
@@ -214,13 +216,6 @@ describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
 });
 
 describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
-  it('FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID set on staging → FAIL (production-forbidden everywhere)', () => {
-    const env = CLEAN_STAGING_ENV + '\nFOOTBAG_DEV_AUTOLOGIN_MEMBER_ID=admin-1';
-    const result = runScript({ envFilePath: writeEnvFile(env) });
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toMatch(/FAIL +production-forbidden dev shortcut: FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID/);
-  });
-
   it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS set on staging → PASS (staging-allowed)', () => {
     const env = CLEAN_STAGING_ENV + '\nFOOTBAG_DEV_INITIAL_ADMIN_EMAILS=admin@example.com';
     const result = runScript({ envFilePath: writeEnvFile(env) });
@@ -232,7 +227,10 @@ describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
 
   it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS set on production → FAIL', () => {
     const env =
-      mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production') +
+      mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production').replace(
+        'SES_ADAPTER=stub',
+        'SES_ADAPTER=live',
+      ) +
       '\nFOOTBAG_DEV_INITIAL_ADMIN_EMAILS=admin@example.com';
     const result = runScript({
       envFilePath: writeEnvFile(env),
@@ -261,28 +259,17 @@ describe('verify-staging-env.sh — advisory checks', () => {
     expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY unset/);
   });
 
-  it('SES_SANDBOX_MODE=1 on production → FAIL', () => {
-    const env =
-      mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production') + '\nSES_SANDBOX_MODE=1';
-    const result = runScript({
-      envFilePath: writeEnvFile(env),
-      target: 'production',
-    });
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain('production must be out of sandbox');
-  });
-
-  it('SES_SANDBOX_MODE=1 on staging → PASS (staging-acceptable)', () => {
-    const env = CLEAN_STAGING_ENV + '\nSES_SANDBOX_MODE=1';
-    const result = runScript({ envFilePath: writeEnvFile(env) });
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/PASS +SES sandbox: SES_SANDBOX_MODE on/);
-  });
-
-  it('SES_SANDBOX_MODE off on staging → WARN advisory, exit 0', () => {
+  it('SES_ADAPTER=stub on staging → PASS (staging runs the stub adapter)', () => {
     const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/WARN +SES sandbox: SES_SANDBOX_MODE is off on staging/);
+    expect(result.stdout).toMatch(/PASS +SES adapter/);
+  });
+
+  it('SES_ADAPTER=live on staging → FAIL (live SES is production-only)', () => {
+    const env = mutate(/SES_ADAPTER=stub/, 'SES_ADAPTER=live');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +SES adapter/);
   });
 });
 

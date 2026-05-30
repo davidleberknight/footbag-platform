@@ -6,7 +6,7 @@ import * as path from 'node:path';
  * Source-grep regression: the production tiering service must never emit
  * a `dev_admin_seed.*` reason code. The `dev_admin_seed.admin_tier2`
  * marker (and any future `dev_admin_seed.*` namespace) is reserved for
- * src/dev-shortcuts/seed.ts and is filtered out of audit / ledger
+ * src/dev-bootstrap/seed.ts and is filtered out of audit / ledger
  * / stats queries by exact match.
  *
  * This test catches a copy-paste regression where someone inlines a

@@ -210,6 +210,18 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).toContain('Jane Footbag');
   });
 
+  // Decisive substring-vs-prefix assertion: "ootbag" is an interior substring
+  // of "Footbag" but is not a prefix of any whole name or any word in it. A
+  // prefix matcher would return no results; substring matching (the contract,
+  // LIKE '%term%') returns Jane Footbag.
+  it('matches an interior substring, not just a word prefix', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ootbag`).set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Jane Footbag');
+    expect(res.text).not.toContain('No members found');
+  });
+
   it('includes historical persons in results', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=lebe`).set('Cookie', searcherCookie());

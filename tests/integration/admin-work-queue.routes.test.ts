@@ -179,6 +179,40 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(res.status).toBe(404);
   });
 
+  // Anti-enumeration: resolving an already-resolved item returns 404, the same
+  // status (and body) an unknown id returns, so a caller cannot tell "already
+  // handled" apart from "never existed". The service guard requires
+  // status === 'open' (contactRequestService), mapping non-open rows to
+  // NotFoundError → 404.
+  it('already-resolved id → 404, indistinguishable from an unknown id', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+
+    const first = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'Fixed it.' });
+    expect(first.status).toBe(303);
+
+    const second = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'again' });
+    expect(second.status).toBe(404);
+
+    const unknown = await request(app)
+      .post(`/admin/work-queue/wq_never_existed_zz/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'again' });
+    expect(unknown.status).toBe(404);
+
+    // Same not-found body for both: no existence leak.
+    expect(second.text).toBe(unknown.text);
+  });
+
   it('non-admin POST → 403', async () => {
     const app = createApp();
     const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);

@@ -397,9 +397,15 @@ fi
 check_equals "JWT_SIGNER" "kms" "JWT signer"
 check_equals "JWT_KMS_KEY_ID" "$TF_JWT_KMS_KEY_ARN" "JWT KMS key ARN matches terraform"
 
-# SES.
-check_equals "SES_ADAPTER" "live" "SES adapter"
-check_equals "SES_FROM_IDENTITY" "$TF_SES_SENDER" "SES sender identity matches terraform"
+# SES. Staging runs the stub adapter: email-gated flows use the in-page
+# simulated-email card, and live SES delivery happens in production only.
+# Production is the sole environment with the live adapter + sender identity.
+if [[ "$TARGET" == "staging" ]]; then
+  check_equals "SES_ADAPTER" "stub" "SES adapter (staging runs the stub adapter; live SES is production-only)"
+else
+  check_equals "SES_ADAPTER" "live" "SES adapter"
+  check_equals "SES_FROM_IDENTITY" "$TF_SES_SENDER" "SES sender identity matches terraform"
+fi
 
 # Media storage.
 check_equals "MEDIA_STORAGE_ADAPTER" "s3" "media storage adapter"
@@ -474,9 +480,6 @@ echo "Dev-shortcut posture for $TARGET:"
 
 # Production-forbidden regardless of FOOTBAG_ENV value.
 DEV_VARS_PROD_FORBIDDEN=(
-  FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID
-  FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION
-  FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL
   FOOTBAG_DEV_ADMIN_GRANT_TIER2
 )
 for KEY in "${DEV_VARS_PROD_FORBIDDEN[@]}"; do
@@ -512,27 +515,6 @@ if [[ -n "${HOST_ENV[TRUST_PROXY]:-}" ]]; then
 else
   check_warn "trust proxy: TRUST_PROXY unset; env.ts will default to 'loopback, linklocal, uniquelocal' under NODE_ENV=production. Acceptable; explicit is recommended."
 fi
-
-SES_SANDBOX_ACTUAL="${HOST_ENV[SES_SANDBOX_MODE]:-}"
-case "$SES_SANDBOX_ACTUAL" in
-  ""|"0"|"false")
-    if [[ "$TARGET" == "staging" ]]; then
-      check_warn "SES sandbox: SES_SANDBOX_MODE is off on staging. Confirm staging SES is out of sandbox in the AWS console; otherwise unverified-recipient sends will dead-letter."
-    else
-      check_pass "SES sandbox: SES_SANDBOX_MODE off (expected on production)"
-    fi
-    ;;
-  "1"|"true")
-    if [[ "$TARGET" == "production" ]]; then
-      check_fail "SES sandbox: SES_SANDBOX_MODE is on; production must be out of sandbox"
-    else
-      check_pass "SES sandbox: SES_SANDBOX_MODE on (staging-acceptable)"
-    fi
-    ;;
-  *)
-    check_fail "SES sandbox: SES_SANDBOX_MODE='$SES_SANDBOX_ACTUAL' is not a valid boolean"
-    ;;
-esac
 
 # -----------------------------------------------------------------------------
 # Summary.

@@ -16,10 +16,11 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /ifpa — IFPA governance hub', () => {
-  it('returns 200', async () => {
+  it('returns 200 and renders the IFPA page body (not an empty/wrong template)', async () => {
     const app = createApp();
     const res = await request(app).get('/ifpa');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('IFPA Bylaws');
   });
 
   it('shows the page heading', async () => {

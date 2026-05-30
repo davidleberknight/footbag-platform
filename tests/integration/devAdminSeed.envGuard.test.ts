@@ -1,5 +1,5 @@
 /**
- * Permanent contract: src/dev-shortcuts/seedConfig refuses to import
+ * Permanent contract: src/dev-bootstrap/seedConfig refuses to import
  * when FOOTBAG_ENV is 'production' (or unset / any other value). The
  * dev-admin seed path must not be loadable in a production process even
  * if a misconfigured deploy left the dev-shortcuts subtree in the
@@ -35,7 +35,7 @@ function importInChildProcess(footbagEnv: string | undefined): {
         '--yes',
         'tsx',
         '-e',
-        "import('./src/dev-shortcuts/seedConfig.js').then(() => process.exit(0)).catch((e) => { console.error(e?.message ?? String(e)); process.exit(1); });",
+        "import('./src/dev-bootstrap/seedConfig.js').then(() => process.exit(0)).catch((e) => { console.error(e?.message ?? String(e)); process.exit(1); });",
       ],
       { cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 },
     );

@@ -149,6 +149,29 @@ describe('bio validation', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('1000 characters');
   });
+
+  // Adversarial unicode: an RTL override (U+202E), a zero-width joiner
+  // (U+200D), a Cyrillic homoglyph (U+0430), and an HTML/script payload.
+  // normalizeText only trims, so the interior control + homoglyph chars are
+  // stored verbatim; the profile view double-stashes {{content.bio}} so the
+  // script is HTML-escaped and never executes.
+  it('stores control/homoglyph chars verbatim and HTML-escapes the bio on render', async () => {
+    const bio = 'pa\u202Eyback\u200D \u0430dmin <script>alert(1)</script>';
+    const res = await postEdit({ bio });
+    expect(res.status).toBe(303);
+    expect(readMember().bio).toBe(bio);
+
+    const view = await request(createApp())
+      .get(`/members/${MEMBER_SLUG}`)
+      .set('Cookie', ownCookie());
+    expect(view.status).toBe(200);
+    // Script payload escaped, not live.
+    expect(view.text).not.toContain('<script>alert(1)</script>');
+    expect(view.text).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    // Control + homoglyph chars survive into the rendered HTML verbatim.
+    expect(view.text).toContain('\u202E');
+    expect(view.text).toContain('\u0430');
+  });
 });
 
 // ── All fields empty ──────────────────────────────────────────────────────────
@@ -181,5 +204,43 @@ describe('phone whitespace trimming', () => {
     expect(res.status).toBe(303);
     const row = readMember();
     expect(row.phone).toBe('555-1234');
+  });
+});
+
+// ── Audit trail (BUG_HUNT B8) ─────────────────────────────────────────────────
+
+describe('profile update writes an audit row', () => {
+  it('POST /members/:slug/edit appends member.profile_updated with field names (no PII values)', async () => {
+    const res = await postEdit({ bio: 'Audited bio', city: 'Auditville', phone: '555-0000' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      `SELECT action_type, category, actor_type, actor_member_id, entity_type, entity_id, metadata_json
+         FROM audit_entries
+        WHERE action_type = 'member.profile_updated' AND entity_id = ?
+        ORDER BY created_at DESC LIMIT 1`,
+    ).get(MEMBER_ID) as
+      | {
+          action_type: string; category: string; actor_type: string;
+          actor_member_id: string; entity_type: string; entity_id: string;
+          metadata_json: string;
+        }
+      | undefined;
+    db.close();
+
+    expect(row).toBeDefined();
+    expect(row!.category).toBe('profile_change');
+    expect(row!.actor_type).toBe('member');
+    expect(row!.actor_member_id).toBe(MEMBER_ID);
+    expect(row!.entity_type).toBe('member');
+
+    const meta = JSON.parse(row!.metadata_json) as { fields: string[] };
+    expect(Array.isArray(meta.fields)).toBe(true);
+    expect(meta.fields).toContain('bio');
+    expect(meta.fields).toContain('city');
+    // The audit metadata must NOT carry the new PII values.
+    expect(row!.metadata_json).not.toContain('Audited bio');
+    expect(row!.metadata_json).not.toContain('Auditville');
   });
 });

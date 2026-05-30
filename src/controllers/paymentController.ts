@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { paymentService } from '../services/paymentService';
+import { paymentService, RecoverableWebhookError } from '../services/paymentService';
 import { getPaymentAdapter, type StubPaymentAdapter } from '../adapters/paymentAdapter';
+import { WebhookSignatureError } from '../adapters/stripeWebhook';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { ValidationError, NotFoundError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
-import { PageViewModel } from '../types/page';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,68 +27,6 @@ function renderNotFound(res: Response): void {
     seo:  { title: 'Page Not Found' },
     page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
   });
-}
-
-interface CheckoutContent {
-  sessionId: string;
-  descriptor: string;
-  amountDisplay: string;
-  amountCents: number;
-  currency: string;
-  confirmHref: string;
-  cancelHref: string;
-  tier: 'tier1' | 'tier2' | null;
-}
-
-interface SuccessContent {
-  paymentId: string;
-  paymentType: 'membership' | 'donation' | 'event_registration';
-  purchasedTierStatus: 'tier1' | 'tier2' | null;
-  amountDisplay: string;
-  message: string;
-  benefits: string;
-  continueHref: string;
-}
-
-interface CancelContent {
-  reason: 'canceled' | 'failed' | 'unknown';
-  message: string;
-  continueHref: string;
-  tryAgainHref: string | null;
-}
-
-interface PaymentHistoryRow {
-  date: string;
-  descriptor: string;
-  amountDisplay: string;
-  status: string;
-}
-
-interface PaymentHistoryContent {
-  memberKey: string;
-  rows: PaymentHistoryRow[];
-}
-
-function formatAmount(cents: number, currency: string): string {
-  return `$${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
-}
-
-function membershipSuccessMessage(tier: 'tier1' | 'tier2' | null): { message: string; benefits: string } {
-  if (tier === 'tier1') {
-    return {
-      message: 'Tier 1 IFPA Member activated!',
-      benefits:
-        'You can now vote in IFPA elections, participate on IFPA committees, and access IFPA-member-only areas of footbag.org.',
-    };
-  }
-  if (tier === 'tier2') {
-    return {
-      message: 'Tier 2 IFPA Organizer Member activated!',
-      benefits:
-        'You can now access organizer features, including applying for event sanctioning, requesting sponsorship, sending community announcements to announce@footbag.org, and accessing organizer-only areas of footbag.org.',
-    };
-  }
-  return { message: 'Payment received.', benefits: '' };
 }
 
 // ── Controller ──────────────────────────────────────────────────────────────
@@ -123,20 +61,7 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
-      res.render('payments/checkout', {
-        seo:  { title: 'Confirm payment' },
-        page: { sectionKey: '', pageKey: 'payment_checkout', title: 'Confirm payment' },
-        content: {
-          sessionId,
-          descriptor: payment.descriptor,
-          amountCents: payment.amount_cents,
-          currency: payment.currency,
-          amountDisplay: formatAmount(payment.amount_cents, payment.currency),
-          confirmHref: `/payments/checkout/${sessionId}/confirm`,
-          cancelHref: `/payments/checkout/${sessionId}/cancel`,
-          tier: payment.purchased_tier_status,
-        },
-      } satisfies PageViewModel<CheckoutContent>);
+      res.render('payments/checkout', paymentService.getCheckoutPage(payment));
     } catch (err) {
       handleControllerError(err, res, next, 'payment checkout controller');
     }
@@ -163,11 +88,12 @@ export const paymentController = {
         return;
       }
 
-      // Build the synthetic event for whichever outcome was recorded against
-      // the session. Default outcome is 'success'; tests can override via
-      // setNextOutcome before the session was created.
-      const event = adapter.buildStubWebhookEvent(sessionId);
-      await paymentService.handleWebhook(JSON.stringify(event), 'stub-no-signature');
+      // Build and sign the synthetic event for whichever outcome was recorded
+      // against the session, then feed it through the same verifier and handler
+      // a real Stripe delivery uses. Default outcome is 'success'; tests can
+      // override via setNextOutcome before the session was created.
+      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
+      paymentService.handleWebhook(rawBody, signature);
 
       const target = session.outcome === 'success' ? session.successUrl : session.cancelUrl;
       res.redirect(303, substitutePlaceholders(target, sessionId));
@@ -197,11 +123,41 @@ export const paymentController = {
         return;
       }
       adapter.overrideSessionOutcome(sessionId, 'cancel');
-      const event = adapter.buildStubWebhookEvent(sessionId);
-      await paymentService.handleWebhook(JSON.stringify(event), 'stub-no-signature');
+      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
+      paymentService.handleWebhook(rawBody, signature);
       res.redirect(303, substitutePlaceholders(session.cancelUrl, sessionId));
     } catch (err) {
       handleControllerError(err, res, next, 'payment checkout cancel controller');
+    }
+  },
+
+  /**
+   * POST /payments/checkout/:sessionId/decline (stub mode only)
+   * Tester affordance that exercises the payment-failure path: forces the stub
+   * outcome to 'failure', so buildSignedStubWebhookEvent synthesises a
+   * payment_intent.payment_failed event that the webhook handler transitions
+   * pending -> failed (no tier grant). Mirrors postCheckoutCancel; redirects to
+   * the cancel URL, where the cancel page renders the failure variant.
+   */
+  async postCheckoutDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const sessionId = req.params.sessionId;
+      const adapter = getPaymentAdapter() as StubPaymentAdapter;
+      const session = adapter.sessions.get(sessionId);
+      if (!session) {
+        renderNotFound(res);
+        return;
+      }
+      if (req.user?.userId !== session.memberId) {
+        renderNotFound(res);
+        return;
+      }
+      adapter.overrideSessionOutcome(sessionId, 'failure');
+      const { rawBody, signature } = adapter.buildSignedStubWebhookEvent(sessionId);
+      paymentService.handleWebhook(rawBody, signature);
+      res.redirect(303, substitutePlaceholders(session.cancelUrl, sessionId));
+    } catch (err) {
+      handleControllerError(err, res, next, 'payment checkout decline controller');
     }
   },
 
@@ -225,25 +181,8 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
-      const fallback = `/members/${req.user.slug}`;
-      const continueHref = safeReturnTo(req.query.returnTo, fallback);
-      const { message, benefits } = payment.payment_type === 'membership'
-        ? membershipSuccessMessage(payment.purchased_tier_status)
-        : { message: 'Payment received.', benefits: '' };
-
-      res.render('payments/success', {
-        seo:  { title: 'Payment confirmed' },
-        page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment confirmed' },
-        content: {
-          paymentId: payment.id,
-          paymentType: payment.payment_type,
-          purchasedTierStatus: payment.purchased_tier_status,
-          amountDisplay: formatAmount(payment.amount_cents, payment.currency),
-          message,
-          benefits,
-          continueHref,
-        },
-      } satisfies PageViewModel<SuccessContent>);
+      const continueHref = safeReturnTo(req.query.returnTo, `/members/${req.user.slug}`);
+      res.render('payments/success', paymentService.getPaymentSuccessPage(payment, continueHref));
     } catch (err) {
       handleControllerError(err, res, next, 'payment success controller');
     }
@@ -260,31 +199,24 @@ export const paymentController = {
       const payment = sessionId
         ? paymentService.getPaymentBySessionId(sessionId)
         : null;
-      // Owner-check only if we found a payment row. Anonymous /cancel
-      // visits (e.g., bookmarked) still render the generic copy.
-      if (payment && payment.member_id !== req.user?.userId) {
+      // requireAuth guarantees an authenticated member; capture it (defensive
+      // 404 if the gate is ever misconfigured).
+      const user = req.user;
+      if (!user) {
         renderNotFound(res);
         return;
       }
-      const fallback = req.user ? `/members/${req.user.slug}` : '/';
-      const continueHref = safeReturnTo(req.query.returnTo, fallback);
-      const tryAgainHref =
-        payment && payment.payment_type === 'membership' && payment.purchased_tier_status && req.user
-          ? `/members/${req.user.slug}/purchase-tier?tier=${payment.purchased_tier_status}&returnTo=${encodeURIComponent(continueHref)}`
-          : null;
-
-      const reason: CancelContent['reason'] =
-        payment?.status === 'failed' ? 'failed' :
-        payment?.status === 'canceled' ? 'canceled' : 'unknown';
-      const message = reason === 'failed'
-        ? 'Your payment could not be completed. Your membership tier has not changed.'
-        : 'Your payment was not completed. Your membership tier has not changed.';
-
-      res.render('payments/cancel', {
-        seo:  { title: 'Payment not completed' },
-        page: { sectionKey: '', pageKey: 'payment_cancel', title: 'Payment not completed' },
-        content: { reason, message, continueHref, tryAgainHref },
-      } satisfies PageViewModel<CancelContent>);
+      // Enforce ownership when the session_id resolves to a payment row
+      // (anti-enumeration: 404 on mismatch).
+      if (payment && payment.member_id !== user.userId) {
+        renderNotFound(res);
+        return;
+      }
+      const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
+      res.render(
+        'payments/cancel',
+        paymentService.getPaymentCancelPage(payment, { continueHref, slug: user.slug }),
+      );
     } catch (err) {
       handleControllerError(err, res, next, 'payment cancel controller');
     }
@@ -292,11 +224,17 @@ export const paymentController = {
 
   /**
    * POST /payments/webhook
-   * Stripe webhook receiver. Mounted with express.raw for the raw body
-   * needed to verify Stripe-Signature. In stub mode the route is reachable
-   * but verification is a no-op.
+   * Stripe webhook receiver. Mounted with express.raw for the raw body needed
+   * to verify Stripe-Signature. The signature is verified identically in stub
+   * and live mode (only the secret differs).
+   *
+   * Status mapping: a verified event (processed / duplicate / ignored) acks 200
+   * so Stripe stops retrying. A bad signature returns 400 with no state written.
+   * A recoverable processing failure (no matching row yet, transient) returns
+   * 400 so Stripe retries; the un-claimed event re-runs cleanly. An unexpected
+   * error returns 500 and trips the alarm via logger.error.
    */
-  async postPaymentWebhook(req: Request, res: Response): Promise<void> {
+  postPaymentWebhook(req: Request, res: Response): void {
     const signature = req.get('stripe-signature') ?? '';
     // express.raw delivers req.body as a Buffer. Treat empty / non-Buffer as
     // a 400 (Stripe always sends a body).
@@ -306,16 +244,24 @@ export const paymentController = {
       return;
     }
     try {
-      await paymentService.handleWebhook(buf.toString('utf8'), signature);
+      paymentService.handleWebhook(buf.toString('utf8'), signature);
       res.status(200).type('text/plain').send('ok');
     } catch (err) {
+      if (err instanceof WebhookSignatureError) {
+        res.status(400).type('text/plain').send('invalid signature');
+        return;
+      }
+      if (err instanceof RecoverableWebhookError) {
+        logger.warn('stripe webhook recoverable failure; returning 400 for retry', {
+          err: err.message,
+        });
+        res.status(400).type('text/plain').send('processing error');
+        return;
+      }
       logger.error('stripe webhook processing failed', {
         err: err instanceof Error ? err.message : String(err),
       });
-      // Stripe retries on non-2xx; we still ack so the idempotency row
-      // (already written by handleWebhook) becomes the source of truth and
-      // operators investigate via the processing_status='failed' row.
-      res.status(200).type('text/plain').send('ok');
+      res.status(500).type('text/plain').send('error');
     }
   },
 
@@ -330,18 +276,10 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
-      const items = paymentService.getPaymentHistoryForMember(req.user.userId);
-      const rows: PaymentHistoryRow[] = items.map((p) => ({
-        date: p.createdAt.slice(0, 10),
-        descriptor: p.descriptor,
-        amountDisplay: formatAmount(p.amountCents, p.currency),
-        status: p.status,
-      }));
-      res.render('members/payment-history', {
-        seo:  { title: 'Payment history' },
-        page: { sectionKey: 'members', pageKey: 'member_payment_history', title: 'Payment history' },
-        content: { memberKey, rows },
-      } satisfies PageViewModel<PaymentHistoryContent>);
+      res.render(
+        'members/payment-history',
+        paymentService.getPaymentHistoryPage(req.user.userId, memberKey),
+      );
     } catch (err) {
       handleControllerError(err, res, next, 'payment history controller');
     }

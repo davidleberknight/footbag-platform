@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-import { getInitialAdminEmails } from '../../src/dev-shortcuts/runtime';
+import { getInitialAdminEmails } from '../../src/dev-bootstrap/runtime';
 
 let tmpDir: string;
 let listPath: string;

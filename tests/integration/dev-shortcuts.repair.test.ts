@@ -1,5 +1,5 @@
 /**
- * Integration tests for src/dev-shortcuts/runtime.ts
+ * Integration tests for src/dev-bootstrap/runtime.ts
  * repairAdminTier2Invariant.
  *
  * The platform admin role requires Tier 2 or Tier 3 status as a
@@ -33,7 +33,7 @@ process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2 = '1';
 const { dbPath } = setTestEnv('3201');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let devShortcutsMod: typeof import('../../src/dev-shortcuts/runtime');
+let devShortcutsMod: typeof import('../../src/dev-bootstrap/runtime');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let tieringMod: typeof import('../../src/services/membershipTieringService');
 
@@ -59,7 +59,7 @@ beforeAll(async () => {
   insertMember(db, { id: NORMIE_T0_ID, slug: 'devrepair_normie_t0' });
   db.close();
 
-  devShortcutsMod = await import('../../src/dev-shortcuts/runtime');
+  devShortcutsMod = await import('../../src/dev-bootstrap/runtime');
   tieringMod = await import('../../src/services/membershipTieringService');
 });
 

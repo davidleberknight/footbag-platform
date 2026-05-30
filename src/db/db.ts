@@ -4265,10 +4265,10 @@ export const auth = {
       AND m.is_deceased = 0
   `); },
 
-  // Dev-autologin convenience: accept a slug when the env var doesn't hold a
-  // raw member id. Used only by authMiddleware's dev branch (gated behind
-  // FOOTBAG_ENV='development'). Returns the same row shape as
-  // findMemberForSession so the dev branch can hand it directly to req.user.
+  // Look a member up by slug for session issuance. Returns the same row shape
+  // as findMemberForSession. Used by the dev-only persona-switch route
+  // (GET /dev/switch?as=<slug>), which mints a real session cookie for the
+  // resolved member; gated behind FOOTBAG_ENV='development'.
   get findMemberForSessionBySlug() { return db.prepare(`
     SELECT
       m.id,
@@ -6280,6 +6280,20 @@ export const memberTier = {
            reason_code, related_payment_id, created_at
     FROM member_tier_grants
     WHERE member_id = ? AND change_type = 'governance_set'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // Latest grant excluding the legacy-claim marker, used by the auto-link
+  // revert to restore the tier the member would hold without the legacy claim.
+  // member_tier_current is last-write-wins, so the revert writes a fresh row
+  // carrying this tier; a member whose only tier came from the legacy claim has
+  // no such row and falls back to tier0.
+  get getLatestNonLegacyClaimGrant() { return db.prepare(`
+    SELECT new_tier_status, new_underlying_tier_status
+    FROM member_tier_grants
+    WHERE member_id = ?
+      AND reason_code != 'legacy.claim_tier_grant'
     ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },

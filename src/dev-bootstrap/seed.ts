@@ -46,13 +46,13 @@
  *   2 one or more conflicts (member exists without dev-admin-seed marker)
  *
  * Usage (dev, via tsx):
- *   FOOTBAG_ENV=development npx tsx src/dev-shortcuts/seed.ts
+ *   FOOTBAG_ENV=development npx tsx src/dev-bootstrap/seed.ts
  *   FOOTBAG_ENV=development FOOTBAG_DB_PATH=./custom.db \
- *     npx tsx src/dev-shortcuts/seed.ts
+ *     npx tsx src/dev-bootstrap/seed.ts
  *
  * Usage (staging, compiled):
  *   FOOTBAG_ENV=staging FOOTBAG_DEV_ADMIN_SEED_JSON='[...]' \
- *     node dist/dev-shortcuts/seed.js
+ *     node dist/dev-bootstrap/seed.js
  */
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
@@ -68,6 +68,7 @@ import {
   DEV_ADMIN_SEED_ENV_VAR_NAME,
   DEV_ADMIN_SEED_DEV_FILE_PATH,
 } from './seedConfig';
+import { parseDbArg, stripJsonComments } from '../testkit/seedCli';
 
 export interface SeedEntry {
   loginEmail: string;
@@ -75,53 +76,6 @@ export interface SeedEntry {
   realName: string;
   /** Optional override; defaults to 'tier2' since admin requires Tier 2+. */
   tier?: 'tier2' | 'tier3';
-}
-
-function parseArgs(argv: string[]): { dbPath: string } {
-  let dbPath = process.env.FOOTBAG_DB_PATH ?? './database/footbag.db';
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--db' && argv[i + 1]) {
-      dbPath = argv[i + 1];
-      i += 1;
-    }
-  }
-  return { dbPath };
-}
-
-/**
- * Strip `//` line comments from a JSONC blob so JSON.parse can consume it.
- * Quoted strings preserve their content (URLs, escaped quotes, etc.).
- */
-function stripJsonComments(raw: string): string {
-  let out = '';
-  let inString = false;
-  let escape = false;
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    if (inString) {
-      out += ch;
-      if (escape) {
-        escape = false;
-      } else if (ch === '\\') {
-        escape = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      out += ch;
-      continue;
-    }
-    if (ch === '/' && raw[i + 1] === '/') {
-      while (i < raw.length && raw[i] !== '\n') i += 1;
-      if (i < raw.length) out += raw[i];
-      continue;
-    }
-    out += ch;
-  }
-  return out;
 }
 
 function parseSeedJson(raw: string, sourceLabel: string): SeedEntry[] {
@@ -288,7 +242,7 @@ export async function seedOne(
 
 async function main(): Promise<number> {
   const repoRoot = path.resolve(__dirname, '..', '..');
-  const { dbPath } = parseArgs(process.argv.slice(2));
+  const { dbPath } = parseDbArg(process.argv.slice(2));
   const env = process.env.FOOTBAG_ENV ?? '<unset>';
 
   const input = readSeedInput(repoRoot);

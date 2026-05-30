@@ -46,7 +46,7 @@ COPY --from=builder /app/dist ./dist
 # Target: remove this ARG and the subtree entirely after production cutover.
 ARG INCLUDE_DEV_SHORTCUTS=0
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/dev-shortcuts; \
+      rm -rf dist/testkit dist/dev-bootstrap; \
     fi
 
 # Copy non-compiled assets that tsc does not process.

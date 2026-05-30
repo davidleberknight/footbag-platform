@@ -10,13 +10,29 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
+### Media storage: `data/media` bad name + mixed purpose (redesign later)
+
+`data/media` (the local `MediaStorageAdapter` root, `config.mediaDir`, `src/config/env.ts`) conflates two purposes under a non-self-documenting name, and the whole `data/` tree is only `data/media/` (gitignored):
+
+1. Dev-runtime media store. `MEDIA_STORAGE_ADAPTER` defaults to `local` only in non-prod; the dev app writes avatars + member gallery uploads here. The curator seed (`scripts/seed_fh_curator.py`, `DEFAULT_MEDIA_DIR=./data/media`) also writes curated bytes here.
+2. Deploy-time seed source for the prod/staging **S3** media bucket. Staging/prod run `MEDIA_STORAGE_ADAPTER=s3` (deploy seeds it) and never read `data/media` at runtime; `./deploy_to_aws.sh --sync-media` rsyncs `data/media/` → host → S3.
+
+Problems to fix properly later:
+- Name reads like generic/shippable data; it is a dev-runtime local media root. Not self-documenting.
+- Mixed purpose lets dev-scratch member uploads ride `--sync-media` into the prod S3 bucket alongside the curated bytes that are legitimately destined for S3.
+- Doc/script disagree on the sync trigger: `scripts/deploy-rebuild.sh:199` gates the `data/media`→S3 rsync behind opt-in `--sync-media`, but `docs/DEVOPS_GUIDE.md:1368` says the additive rsync runs unconditionally on staging deploys. Resolve which is true.
+
+Direction: self-documenting rename + separate dev-scratch from canonical curated bytes + pin the sync trigger + isolate the test. Touches `env.ts` mediaDir default, `docker/docker-compose.yml` + `docker-compose.prod.yml` bind mounts, `scripts/deploy-rebuild.sh` + `scripts/internal/deploy-rebuild-remote.sh` rsync, `scripts/seed_fh_curator.py`, and docs.
+
+Deferred to a dedicated session (self-contained slice; no app-behavior change). Done when: the dev-runtime local media root has a self-documenting name (not `data/media`); curated bytes and dev-scratch member uploads live under separate roots so only curated bytes can ride `--sync-media` to the prod S3 bucket; and the sync trigger is described identically in `scripts/deploy-rebuild.sh` and `docs/DEVOPS_GUIDE.md` (one of: opt-in `--sync-media`, or unconditional-on-staging). The DEVOPS_GUIDE edit is approval-gated. (The `member.galleries.routes.test.ts` per-test `FOOTBAG_MEDIA_DIR` override is already in place, so the `run_all_tests.sh` real-data fingerprint guard stays clean independent of this rename.)
+
 ### DOB as auto-link matching signal (F12)
 
 The `classifyAutoLink` function now uses DOB as a disambiguation signal when multiple name candidates match, but the feature is inert until legacy DOB data populates `legacy_members.birth_date` via the legacy data dump.
 
 ### Dev-only payment stub (FOOTBAG_DEV_PAYMENT_STUB)
 
-`applyDevPaymentStub` creates a `payments` row and applies `applyPurchaseGrant` without Stripe. Gated by `FOOTBAG_DEV_PAYMENT_STUB=1` + `FOOTBAG_ENV=development`; boot-time guard refuses non-development start. Dashboard shows active upgrade form buttons labeled "(Dev testing)" when enabled; disabled "Coming soon" buttons otherwise. Unblock: Stripe integration wires up real PaymentService with webhook handling.
+`applyDevPaymentStub` creates a `payments` row and applies `applyPurchaseGrant` without Stripe. Gated by `FOOTBAG_DEV_PAYMENT_STUB=1` + `FOOTBAG_ENV=development`; boot-time guard refuses non-development start. Dashboard shows active upgrade form buttons labeled "(Dev testing)" when enabled; disabled "Coming soon" buttons otherwise. Unblock: the real PaymentService, webhook verifier, and signed-stub webhook handling now exist; only the live Stripe checkout-session creation (`createCheckoutSession` SDK call) remains. The stub `PAYMENT_ADAPTER` now exercises both the success path (`startMembershipPurchase` → stub checkout → Confirm → signed webhook → tier grant) and the failure path (the checkout Decline button → `payment_intent.payment_failed` → no grant) end-to-end, so `FOOTBAG_DEV_PAYMENT_STUB` may be retireable in favor of the stub adapter (a separate decision, not yet made).
 
 ### Simplified onboarding club-signal collection
 

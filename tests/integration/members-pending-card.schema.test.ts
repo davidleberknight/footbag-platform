@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { createTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 
@@ -24,8 +25,8 @@ describe('members pending_auto_link_card columns', () => {
 
   beforeEach(() => {
     dbPath = path.join(
-      process.cwd(),
-      `test-mpac-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+      os.tmpdir(),
+      `footbag-test-mpac-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
     );
     db = createTestDb(dbPath);
     memberId = insertMember(db);

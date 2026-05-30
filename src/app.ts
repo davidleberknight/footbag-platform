@@ -12,7 +12,11 @@ import { healthRouter }   from './routes/healthRoutes';
 import { internalRouter } from './routes/internalRoutes';
 import { ipcRouter }      from './routes/ipcRoutes';
 import { adminRouter }    from './routes/adminRoutes';
-import { publicRouter }   from './routes/publicRoutes';
+import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
+// Permanent test scaffolding: the persona harness dev router. Mounted only in
+// development and staging (see the mount block below); never mounted in
+// production. Lives in src/testkit/ and is not removed at cutover.
+import { devRouter }      from './testkit/devRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
@@ -172,7 +176,18 @@ export function createApp(): express.Application {
   app.set('views', path.join(process.cwd(), 'src', 'views'));
 
   // ── Body parsing ─────────────────────────────────────────────────────────
-  app.use(express.json());
+  // The Stripe webhook receiver needs the raw, unparsed body to verify the
+  // Stripe-Signature HMAC, so it is mounted with express.raw() at its route and
+  // must be excluded from the global JSON parser (which would otherwise consume
+  // the stream and leave the route with no Buffer to verify).
+  const jsonParser = express.json();
+  app.use((req, res, next) => {
+    // Exact-match skip (Stripe is configured at exactly this path); a different
+    // path falls through to JSON parsing, which is harmless for non-webhook
+    // requests.
+    if (req.path === STRIPE_WEBHOOK_PATH) return next();
+    jsonParser(req, res, next);
+  });
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(config.sessionSecret));
 
@@ -278,6 +293,14 @@ export function createApp(): express.Application {
   app.use('/ipc',      ipcRouter);
   app.use('/internal', internalRouter);
   app.use('/admin',    adminRouter);
+  // Permanent test scaffolding mount. Registered only when footbagEnv is
+  // 'development' or 'staging', so the /dev surface (persona switch + listing)
+  // is reachable in dev and staging but never in production. The harness lives
+  // in src/testkit/ and is not removed at cutover; production exclusion is by
+  // this env-gated mount plus the build-time image strip.
+  if (config.footbagEnv === 'development' || config.footbagEnv === 'staging') {
+    app.use('/dev', devRouter);
+  }
   app.use('/',         publicRouter);
 
   app.use((_req, res) => {

@@ -69,7 +69,6 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
       SES_ADAPTER: ${SES_ADAPTER}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
-      SES_SANDBOX_MODE: ${SES_SANDBOX_MODE}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
       # SecretsAdapter selector. Node consumers fetch SSM-stored third-party
@@ -82,6 +81,10 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (live for production after Stripe-SDK lands, stub for staging)}
+      # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
+      # (production); staging runs stub and leaves it unset. Production sources
+      # the value from SSM into /srv/footbag/env.
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       # Async curator video upload: web POSTs /transcode/dispatch to the worker
       # container (see src/transcodeWorker.ts). Worker pushes state events back
       # to /ipc/job-events on web. INTERNAL_EVENT_SECRET authenticates
@@ -138,7 +141,6 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
       SES_ADAPTER: ${SES_ADAPTER}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
-      SES_SANDBOX_MODE: ${SES_SANDBOX_MODE}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
       # SecretsAdapter selector. Node consumers fetch SSM-stored third-party
@@ -151,6 +153,10 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (live for production after Stripe-SDK lands, stub for staging)}
+      # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
+      # (production); staging runs stub and leaves it unset. Production sources
+      # the value from SSM into /srv/footbag/env.
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       # Curator video transcode dispatch HTTP server (src/transcodeWorker.ts)
       # runs alongside the email-outbox loop in this same node process. Web
       # container POSTs /transcode/dispatch to ${WORKER_INTERNAL_URL}; worker

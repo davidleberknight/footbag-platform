@@ -12,6 +12,12 @@
  *   - `audit_entries.action_type      = 'grant_admin_dev_seed'`
  *   - `member_tier_grants.created_by  = 'dev-shortcuts/seed'`
  *
+ * Persona-harness detection markers (same zero-residue contract):
+ *   - `member_tier_grants.reason_code = 'dev_persona_seed.tier_grant'`
+ *   - `audit_entries.action_type      = 'dev_persona_seed'`     (seed)
+ *   - `audit_entries.action_type      = 'dev_switch_persona'`   (cookie issuance)
+ *   - file-path prefix `src/testkit/persona*`
+ *
  * The fixed password literal below is hard-coded for dev/staging
  * convenience. Each seed run applies it via argon2 at seed time.
  */

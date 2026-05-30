@@ -1,10 +1,9 @@
 /**
  * Integration tests for production-mode rendering of /register/check-email.
  *
- * Simulates real prod: SES_ADAPTER=live + SES_SANDBOX_MODE=0. No card is
- * rendered (neither the dev table nor the staging warning). This is the
- * permanent contract for what end users see once SES is out of sandbox
- * and `SES_SANDBOX_MODE=0` is active.
+ * Simulates real prod: SES_ADAPTER=live. No card is rendered (neither the
+ * dev table nor the staging warning). This is the permanent contract for
+ * what end users see when the live SES transport is active.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -13,7 +12,6 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3073');
 
 process.env.SES_ADAPTER       = 'live';
-process.env.SES_SANDBOX_MODE  = '0';
 process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
 process.env.AWS_REGION        = 'us-east-1';
 
@@ -27,7 +25,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /register/check-email — production mode (SES_ADAPTER=live, SES_SANDBOX_MODE=0)', () => {
+describe('GET /register/check-email — production mode (SES_ADAPTER=live)', () => {
   it('renders the page but no simulated-email or sandbox-warning card', async () => {
     const app = createApp();
     const res = await request(app).get('/register/check-email');

@@ -42,6 +42,9 @@ describe('GET /legal', () => {
     const res = await request(app).get('/legal');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/html/);
+    // Body assertion so a regression to an empty/wrong template is caught here,
+    // not only in the section-specific tests below.
+    expect(res.text).toContain('id="privacy"');
   });
 
   it('renders the three anchored sections', async () => {

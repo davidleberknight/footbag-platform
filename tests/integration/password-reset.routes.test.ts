@@ -185,6 +185,8 @@ describe('POST /password/reset/:token', () => {
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
+    // A response that establishes a session must not be cacheable (regression: B14).
+    expect(res.headers['cache-control']).toMatch(/no-store/);
 
     // DB: password_version should be 2.
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -408,6 +410,79 @@ describe('POST /password/reset/:token — session reissue failure', () => {
       email: MEMBER_EMAIL, password: NEW_PASSWORD,
     });
     expect(login.status).toBe(303);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Confirmation-email enqueue failure on reset completion (BUG_HUNT B6).
+// The reset itself committed; a degraded outbox must leave an operator signal
+// (operational-error audit row) rather than a silent swallow. Unlike the
+// in-profile password change, the failure is NOT surfaced as a 503: the reset
+// token is single-use and already consumed, so the success path must complete.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('POST /password/reset/:token — confirmation-email enqueue failure', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let commsMod: typeof import('../../src/services/communicationService');
+
+  beforeAll(async () => {
+    commsMod = await import('../../src/services/communicationService');
+  });
+
+  afterEach(() => {
+    commsMod.resetCommunicationServiceForTests();
+  });
+
+  it('enqueueEmailOrFail throws → reset still succeeds (303) + operational-error audit row', async () => {
+    expectLoggedError('audit: auth.password_reset_notification_failed');
+    const app = createApp();
+    // Issue the token with the REAL comms so the reset link is delivered.
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+
+    // Now degrade the outbox so the reset-completion confirmation enqueue fails.
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    commsMod.setCommunicationServiceForTests({
+      enqueueEmail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure');
+      },
+      enqueueEmailOrFail: () => {
+        throw new ServiceUnavailableError(
+          'synthetic enqueueEmailOrFail failure for password-reset confirmation',
+        );
+      },
+      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+      }),
+    });
+
+    const res = await request(app)
+      .post(`/password/reset/${token}`)
+      .type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+
+    // The reset succeeds despite the failed confirmation enqueue.
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
+
+    // The password actually rotated (version bumped).
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const verRow = db.prepare('SELECT password_version FROM members WHERE id=?')
+      .get(MEMBER_ID) as { password_version: number };
+    // The operator signal was recorded.
+    const auditRow = db.prepare(
+      `SELECT action_type, category, actor_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'auth.password_reset_notification_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(MEMBER_ID) as
+      | { action_type: string; category: string; actor_type: string }
+      | undefined;
+    db.close();
+
+    expect(verRow.password_version).toBe(2);
+    expect(auditRow).toBeDefined();
+    expect(auditRow!.category).toBe('auth');
+    expect(auditRow!.actor_type).toBe('system');
   });
 });
 

@@ -234,7 +234,7 @@ echo "==> Building Docker images locally (workstation)..."
 # fail interpolation here on the workstation. Image content is identical.
 #
 # CUTOVER-REMOVE: dev-shortcuts inclusion.
-# Current: dev/staging images bake `dist/dev-shortcuts/` so the seed
+# Current: dev/staging images bake `dist/testkit/` and `dist/dev-bootstrap/` so the seed
 #   script is runnable in-container; production images set
 #   INCLUDE_DEV_SHORTCUTS=0 (overriding the base compose default of 1)
 #   so the seed script cannot be invoked even by an operator who manually
@@ -296,7 +296,7 @@ fi
 # FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
 # Current: dev/staging bootstrap reads this allowlist; remote-half refuses
 #   to write the value on production hosts. Same parsing rules as
-#   src/dev-shortcuts/runtime.ts.
+#   src/dev-bootstrap/runtime.ts.
 # Target: remove when the allowlist bootstrap mechanism is retired.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
@@ -343,6 +343,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'FOOTBAG_DEV_ADMIN_SEED_JSON=%q\n' "$DEV_ADMIN_SEED_JSON"
+  printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 

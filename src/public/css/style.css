@@ -11166,3 +11166,24 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-decoration: underline;
   color: var(--text-primary, #222);
 }
+
+/* Dev-only persona harness listing (/dev/personas; development + staging). */
+.dev-persona-list {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+.dev-persona-list th,
+.dev-persona-list td {
+  border: 1px solid var(--border, #ccc);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.dev-persona-list th {
+  background: var(--surface-muted, #f4f4f4);
+}
+.dev-persona-coverage {
+  margin: 0;
+  padding-left: 18px;
+}

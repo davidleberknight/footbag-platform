@@ -1165,6 +1165,13 @@ CREATE INDEX idx_payments_recurring_subscription
   ON payments(recurring_subscription_id)
   WHERE recurring_subscription_id IS NOT NULL;
 
+-- At most one in-flight membership purchase per member: a concurrent
+-- double-submit fails at insert rather than risking two pending rows that
+-- could both complete and double-grant the tier.
+CREATE UNIQUE INDEX ux_payments_one_pending_membership
+  ON payments(member_id)
+  WHERE status = 'pending' AND payment_type = 'membership';
+
 -- Payment status monotonicity guard.
 -- Enforces: pending → succeeded|failed|canceled; succeeded → refunded.
 -- Same-status no-ops are allowed (idempotent Stripe webhook redelivery).

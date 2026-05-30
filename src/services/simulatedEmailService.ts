@@ -1,14 +1,11 @@
 // Shared view-model builder for the "simulated email" card rendered on
 // email-gated pages (/register/check-email, /password/forgot/sent, the legacy
-// claim sent state, and the unified link-history wizard). Three modes:
+// claim sent state, and the unified link-history wizard). Two modes:
 //
-//  - dev:      SES_ADAPTER=stub. Returns the captured in-memory messages
-//              from StubSesAdapter so the developer can finish email flows
-//              without leaving the page.
-//  - sandbox:  SES_ADAPTER=live AND SES_SANDBOX_MODE=1. Returns a marker
-//              view-model so the page renders a one-line staging notice.
-//  - null:     SES_ADAPTER=live AND SES_SANDBOX_MODE=0. Real production:
-//              no card is rendered.
+//  - dev:      SES_ADAPTER=stub (dev and staging). Returns the captured
+//              in-memory messages from StubSesAdapter so a developer or paid
+//              tester can finish email flows without leaving the page.
+//  - null:     SES_ADAPTER=live (production only). No card is rendered.
 //
 // Scrub safety: outbox_emails.body_text is NULLed after send for PII
 // hygiene. That scrub runs on the DB row, not on the stub adapter's
@@ -30,8 +27,7 @@ export interface SimulatedEmailMessage {
 }
 
 export type SimulatedEmailPreview =
-  | { mode: 'dev'; messages: SimulatedEmailMessage[] }
-  | { mode: 'sandbox' };
+  | { mode: 'dev'; messages: SimulatedEmailMessage[] };
 
 const URL_PATTERN = /https?:\/\/\S+/;
 
@@ -108,10 +104,6 @@ export const simulatedEmailService = {
         : all;
 
       return { mode: 'dev', messages };
-    }
-
-    if (config.sesSandboxMode) {
-      return { mode: 'sandbox' };
     }
 
     return null;

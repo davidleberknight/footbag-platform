@@ -33,7 +33,7 @@ Extra fields beyond the general bug report: Browser and OS (if relevant), Releva
 
 ### Migration or onboarding bug
 
-Use this for bugs in registration, email verification, legacy account claim, the onboarding wizard, the direct historical-person claim flow, or any dev-shortcut / autologin path.
+Use this for bugs in registration, email verification, legacy account claim, the onboarding wizard, the direct historical-person claim flow, or any dev-shortcut / persona-switch path.
 
 Extra field: Affected flow (dropdown).
 

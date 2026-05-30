@@ -24,6 +24,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createTestDb, cleanupTestDb } from '../fixtures/testDb';
 
 type EnvSnapshot = Record<string, string | undefined>;
@@ -42,8 +43,8 @@ function restoreEnv(snap: EnvSnapshot): void {
 function makeEmptyDbPath(tag: string): string {
   const uniq = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
   const p = path.join(
-    process.cwd(),
-    `test-db-lazy-${tag}-${Date.now()}-${uniq}.db`,
+    os.tmpdir(),
+    `footbag-test-db-lazy-${tag}-${Date.now()}-${uniq}.db`,
   );
   // Touch the file so SQLite opens an existing-but-empty DB rather than
   // creating a new one (either way works; this just makes the test explicit

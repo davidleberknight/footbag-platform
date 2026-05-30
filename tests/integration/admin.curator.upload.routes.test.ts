@@ -313,6 +313,38 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(res.text).toContain('lowercase letters, digits');
   });
 
+  it('rejects a path-traversal category (.. and slashes) with 422 before any filesystem write', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', '../../etc')
+      .attach('mediaFile', jpeg, 'traversal.jpg');
+    // isValidCategoryName (regex ^[a-z0-9_]+$) rejects the dot-dot/slash
+    // traversal vector; the category dir is never joined or written.
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('lowercase letters, digits');
+  });
+
+  it('photo larger than 25 MB -> 422 (size cap fires before image detection)', async () => {
+    const app = createApp();
+    // uploadPhoto checks photoBuffer.length before detecting the image type,
+    // so a 25 MB + 1 buffer trips the guard without a real large image. The
+    // busboy per-file limit (150 MB, video-sized) lets it through to the
+    // service-layer photo cap.
+    const tooBig = Buffer.alloc(25 * 1024 * 1024 + 1, 0);
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .attach('mediaFile', tooBig, 'huge.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Maximum size is 25 MB');
+  });
+
   it('non-image file -> 422 with error message', async () => {
     const app = createApp();
     const res = await request(app)

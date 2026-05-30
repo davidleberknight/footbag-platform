@@ -34,6 +34,17 @@ afterAll(() => cleanupTestDb(dbPath));
 beforeEach(async () => {
   const { resetPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
   resetPaymentAdapterForTests();
+  // Each test exercises one purchase in isolation. Clear any pending payment
+  // left by a prior test so the one-pending-membership-per-member index
+  // (ux_payments_one_pending_membership) does not reject a fresh start. Pending
+  // rows are FK-leaf (no transition/grant rows reference them until they leave
+  // 'pending'), so this delete is safe.
+  const db = new BetterSqlite3(dbPath);
+  try {
+    db.prepare("DELETE FROM payments WHERE status = 'pending'").run();
+  } finally {
+    db.close();
+  }
 });
 
 describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {

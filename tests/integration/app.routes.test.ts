@@ -649,10 +649,11 @@ describe('GET /', () => {
 // ── Sideline (Sideline) landing ───────────────────────────────────────────
 
 describe('GET /sideline', () => {
-  it('returns 200', async () => {
+  it('returns 200 and renders the Sideline page body (not an empty/wrong template)', async () => {
     const app = createApp();
     const res = await request(app).get('/sideline');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
   });
 
   it('renders the Sideline page title', async () => {
@@ -927,10 +928,11 @@ describe('GET /clubs/club_:clubKey', () => {
 // ── HoF landing ────────────────────────────────────────────────────────────────
 
 describe('GET /hof', () => {
-  it('returns 200', async () => {
+  it('returns 200 and renders the HoF page body (not an empty/wrong template)', async () => {
     const app = createApp();
     const res = await request(app).get('/hof');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('footbaghalloffame.net');
   });
 
   it('includes Hall of Fame heading', async () => {
@@ -970,10 +972,11 @@ describe('GET /hof', () => {
 // ── BAP landing page ──────────────────────────────────────────────────────────
 
 describe('GET /bap', () => {
-  it('returns 200', async () => {
+  it('returns 200 and renders the BAP page body (not an empty/wrong template)', async () => {
     const app = createApp();
     const res = await request(app).get('/bap');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('bigaddposse.com');
   });
 
   it('includes Big Add Posse heading', async () => {

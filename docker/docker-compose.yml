@@ -65,7 +65,7 @@ services:
     environment:
       # NODE_ENV=production keeps this stack a parity test of the deployed
       # configuration. Prod-mode env.ts requires JWT_SIGNER, SES_ADAPTER,
-      # SES_SANDBOX_MODE, IMAGE_PROCESSOR_URL, and a non-placeholder
+      # IMAGE_PROCESSOR_URL, and a non-placeholder
       # SESSION_SECRET; the ${VAR:-default} passthroughs below let the
       # parity stack come up with sensible local defaults (local crypto +
       # stub email) while still letting an operator override per-var via
@@ -81,7 +81,6 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID:-}
       SES_ADAPTER: ${SES_ADAPTER:-stub}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
-      SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
       # SecretsAdapter selector. Local-default reads .local/secrets.json for
@@ -94,6 +93,9 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
+      # Unused in stub mode (stub adapter uses its own whsec_stub secret);
+      # required by env.ts boot only when PAYMENT_ADAPTER=live.
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
       # Local-default is fine here because the parity stack runs on a private
@@ -171,7 +173,6 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID:-}
       SES_ADAPTER: ${SES_ADAPTER:-stub}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
-      SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
       # SecretsAdapter selector. Local-default reads .local/secrets.json for
@@ -184,6 +185,9 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
+      # Unused in stub mode (stub adapter uses its own whsec_stub secret);
+      # required by env.ts boot only when PAYMENT_ADAPTER=live.
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.

@@ -26,7 +26,7 @@ body:
         - legacy account claim (self-serve)
         - direct historical-person claim
         - onboarding wizard
-        - dev autologin or dev-shortcuts
+        - persona test harness (/dev) or dev-bootstrap
         - other
     validations:
       required: true

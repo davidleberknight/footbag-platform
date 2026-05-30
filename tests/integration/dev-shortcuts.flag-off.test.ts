@@ -15,7 +15,7 @@ delete process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
 const { dbPath } = setTestEnv('3202');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let devShortcutsMod: typeof import('../../src/dev-shortcuts/runtime');
+let devShortcutsMod: typeof import('../../src/dev-bootstrap/runtime');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let tieringMod: typeof import('../../src/services/membershipTieringService');
 
@@ -25,7 +25,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'devrepair_off_admin', is_admin: 1 });
   db.close();
-  devShortcutsMod = await import('../../src/dev-shortcuts/runtime');
+  devShortcutsMod = await import('../../src/dev-bootstrap/runtime');
   tieringMod = await import('../../src/services/membershipTieringService');
 });
 

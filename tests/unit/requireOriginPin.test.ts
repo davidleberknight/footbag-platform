@@ -85,6 +85,34 @@ describe('requireOriginPin', () => {
     expect(status).not.toHaveBeenCalled();
   });
 
+  it('passes through POST /payments/webhook with no Origin (server-to-server Stripe)', () => {
+    const { res, status } = makeRes();
+    const next = vi.fn() as unknown as NextFunction;
+    requireOriginPin(makeReq('POST', '/payments/webhook'), res, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(status).not.toHaveBeenCalled();
+  });
+
+  it('passes through POST /payments/webhook regardless of Origin (HMAC-authed)', () => {
+    const { res, status } = makeRes();
+    const next = vi.fn() as unknown as NextFunction;
+    requireOriginPin(
+      makeReq('POST', '/payments/webhook', { Origin: 'https://attacker.example' }),
+      res,
+      next,
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(status).not.toHaveBeenCalled();
+  });
+
+  it('still origin-pins a sibling /payments browser route (exemption is exact, not a prefix)', () => {
+    const { res, status } = makeRes();
+    const next = vi.fn() as unknown as NextFunction;
+    requireOriginPin(makeReq('POST', '/payments/checkout/cs_x/confirm'), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(403);
+  });
+
   it('passes a POST whose Origin exactly matches publicBaseUrl', () => {
     const { res, status } = makeRes();
     const next = vi.fn() as unknown as NextFunction;

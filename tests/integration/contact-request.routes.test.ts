@@ -112,6 +112,29 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Your request has been sent to the IFPA administrator');
   });
+
+  it('tampered contact-submitted flash cookie yields no banner', async () => {
+    const app = createApp();
+    const post = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: 'tamper probe' });
+    expect(post.status).toBe(303);
+    const flashSet = (post.headers['set-cookie'] ?? []).find((c: string) =>
+      c.startsWith('footbag_flash='),
+    );
+    expect(flashSet).toBeTruthy();
+    // Corrupt the trailing signature so cookie-parser's HMAC check fails; the
+    // value drops from req.signedCookies and the banner must not render.
+    const flashValue = flashSet!.split(';')[0];
+    const tampered = `${flashValue.slice(0, -4)}AAAA`;
+    const res = await request(app)
+      .get(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', [ownerCookie(), tampered].join('; '));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Your request has been sent to the IFPA administrator');
+  });
 });
 
 describe('POST /members/:slug/contact-admin', () => {

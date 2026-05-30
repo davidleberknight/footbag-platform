@@ -93,6 +93,20 @@ function slugifyRegion(region: string): string {
   return region.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
+// Serialize a value for embedding in a <script type="application/json"> island.
+// JSON.stringify leaves '<', '>', and '&' raw, so a DB-sourced string such as a
+// club country containing "</script>" would terminate the island and inject
+// markup. Escaping them to their \uXXXX form keeps the payload inside the island
+// while remaining valid JSON (JSON.parse restores the original characters). The
+// strict CSP already blocks script execution; output encoding must not depend on
+// it.
+function toJsonIsland(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 function normalizePublicClubKeyToStoredTag(clubKey: string): string {
   if (!PUBLIC_CLUB_KEY_PATTERN.test(clubKey)) {
     throw new ValidationError('clubKey must match pattern club_{slug}.', {
@@ -761,7 +775,7 @@ export class ClubService {
           countries,
           totalClubs: rows.length,
           totalCountries: countries.length,
-          mapDataJson: JSON.stringify(
+          mapDataJson: toJsonIsland(
             countries.map(({ countryCode: code, countrySlug: slug, country: name, total, memberCount, memberBin }) =>
               ({ code, slug, name, total, memberCount, memberBin }),
             ),

@@ -169,6 +169,8 @@ const DEV_FIXTURE: Record<string, string> = {
   // Dev compose pins NODE_ENV=production for prod-mode hardening parity;
   // env.ts requires PAYMENT_ADAPTER to be set explicitly under prod mode.
   PAYMENT_ADAPTER: 'live',
+  // env.ts requires STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER=live.
+  STRIPE_WEBHOOK_SECRET: 'whsec_live_realvalue',
 };
 
 /**
@@ -185,9 +187,10 @@ const STAGING_FIXTURE: Record<string, string> = {
   AWS_REGION: 'us-east-1',
   JWT_SIGNER: 'kms',
   JWT_KMS_KEY_ID: 'arn:aws:kms:us-east-1:000000000000:key/stub-key',
-  SES_ADAPTER: 'live',
+  // Staging uses the SES stub (DD §5.6: live SES is production-only); a staging
+  // env that set SES_ADAPTER=live would fail boot.
+  SES_ADAPTER: 'stub',
   SES_FROM_IDENTITY: 'noreply@example.com',
-  SES_SANDBOX_MODE: '1',
   SAFE_BROWSING_ADAPTER: 'live',
   HTTP_REACHABILITY_ADAPTER: 'disabled',
   SECRETS_ADAPTER: 'live',
@@ -224,7 +227,6 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   JWT_KMS_KEY_ID: 'arn:aws:kms:us-east-1:111111111111:key/stub-prod-key',
   SES_ADAPTER: 'live',
   SES_FROM_IDENTITY: 'noreply@footbag.org',
-  SES_SANDBOX_MODE: '0',
   SAFE_BROWSING_ADAPTER: 'live',
   HTTP_REACHABILITY_ADAPTER: 'disabled',
   SECRETS_ADAPTER: 'live',
@@ -459,7 +461,7 @@ describe('docker-compose.prod.yml structural invariants', () => {
 
 describe('FOOTBAG_DEV_* placement (dev/staging admin allowlist scope)', () => {
   // Long-term contract: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is the dev/staging
-  // admin allowlist consumed at registration time by src/dev-shortcuts/runtime.ts.
+  // admin allowlist consumed at registration time by src/dev-bootstrap/runtime.ts.
   // The worker and image containers have no consumer (no registration
   // surface, no auth surface). Plumbing the var into worker/image would be
   // misleading at best and a regression risk at worst — env.ts trips a

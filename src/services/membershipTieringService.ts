@@ -140,6 +140,15 @@ function insertGrant(args: InsertGrantArgs): string {
   return id;
 }
 
+// Ordinal rank for downgrade guards. Tier 3 (governance) is the ceiling; a
+// purchase never lowers a member from a higher tier.
+const TIER_RANK: Record<MemberTier, number> = {
+  tier0: 0,
+  tier1: 1,
+  tier2: 2,
+  tier3: 3,
+};
+
 function audit(opts: {
   actionType: string;
   category: string;
@@ -175,10 +184,8 @@ export function getTierStatus(memberId: string): TierStatus {
  * Tier 0 buyers with current Active Player have their AP ended in the same
  * transaction (membership_upgrade_ended_active_player).
  *
- * Phase B will call this inside the same transaction that updates
- * payments.status='succeeded'. APP-006 (refund preserves tier) is enforced
- * by Phase B not calling this on refund; this service is the only purchase
- * write path.
+ * Refund preserves tier (the purchase write path is never invoked on refund);
+ * this service is the only purchase write path.
  */
 export function applyPurchaseGrant(
   actorId: string,
@@ -186,47 +193,70 @@ export function applyPurchaseGrant(
   paymentId: string,
   tier: 'tier1' | 'tier2',
 ): { ok: true } {
-  return transaction(() => {
-    const now = new Date().toISOString();
-    const current = getCurrent(memberId);
+  return transaction(() => applyPurchaseGrantInTx(actorId, memberId, paymentId, tier));
+}
 
-    // End AP BEFORE writing the tier grant: member_active_player_current
-    // gates is_active_player on tier_status='tier0', so once the grant lands
-    // and the view reports tier1+, the AP-end branch becomes a silent no-op.
-    if (current.tier_status === 'tier0') {
-      endOnTierUpgrade(memberId, now);
-    }
+/**
+ * Same as `applyPurchaseGrant` but assumes the caller has already opened a
+ * transaction. Use this when the tier grant must be atomic with another set of
+ * writes (the webhook-success path commits payments.status='succeeded', the
+ * payment_status_transitions row, and this grant in one transaction so a charged
+ * member is never left without the tier). The caller owns the transaction().
+ */
+export function applyPurchaseGrantInTx(
+  actorId: string,
+  memberId: string,
+  paymentId: string,
+  tier: 'tier1' | 'tier2',
+): { ok: true } {
+  const now = new Date().toISOString();
+  const current = getCurrent(memberId);
 
-    insertGrant({
-      actorId,
-      memberId,
-      changeType: 'grant',
-      oldTier: current.tier_status,
-      newTier: tier,
-      oldUnderlying: current.underlying_tier_status,
-      newUnderlying: current.tier_status === 'tier3' ? current.underlying_tier_status : null,
-      reasonCode: tier === 'tier1' ? 'purchase.tier1' : 'purchase.tier2',
-      reasonText: null,
-      relatedPaymentId: paymentId,
-      now,
-    });
-
-    audit({
-      actionType: 'tier.purchase_grant',
-      category: 'tier_change',
-      actorType: 'member',
-      actorId,
-      memberId,
-      reasonText: null,
-      metadata: {
-        from: current.tier_status,
-        to: tier,
-        payment_id: paymentId,
-      },
-    });
-
+  // Never write a downgrade: a purchase grant only ever raises the tier. Guards
+  // the initiation-to-webhook race (an admin tier change landing between
+  // startMembershipPurchase eligibility and webhook processing). A charged
+  // member already at or above the purchased tier keeps their tier; the
+  // over-charge is a refund/credit concern handled elsewhere.
+  if (TIER_RANK[tier] <= TIER_RANK[current.tier_status]) {
     return { ok: true as const };
+  }
+
+  // End AP BEFORE writing the tier grant: member_active_player_current
+  // gates is_active_player on tier_status='tier0', so once the grant lands
+  // and the view reports tier1+, the AP-end branch becomes a silent no-op.
+  if (current.tier_status === 'tier0') {
+    endOnTierUpgrade(memberId, now);
+  }
+
+  insertGrant({
+    actorId,
+    memberId,
+    changeType: 'grant',
+    oldTier: current.tier_status,
+    newTier: tier,
+    oldUnderlying: current.underlying_tier_status,
+    newUnderlying: current.tier_status === 'tier3' ? current.underlying_tier_status : null,
+    reasonCode: tier === 'tier1' ? 'purchase.tier1' : 'purchase.tier2',
+    reasonText: null,
+    relatedPaymentId: paymentId,
+    now,
   });
+
+  audit({
+    actionType: 'tier.purchase_grant',
+    category: 'tier_change',
+    actorType: 'member',
+    actorId,
+    memberId,
+    reasonText: null,
+    metadata: {
+      from: current.tier_status,
+      to: tier,
+      payment_id: paymentId,
+    },
+  });
+
+  return { ok: true as const };
 }
 
 /**
@@ -238,12 +268,12 @@ export function applyPurchaseGrant(
  *
  * No environment gate; callers gate on FOOTBAG_ENV (or other appropriate
  * triggers like SSM-token presence) where required:
- *   - dev/staging registration bootstrap (src/dev-shortcuts/runtime.ts),
+ *   - dev/staging registration bootstrap (src/dev-bootstrap/runtime.ts),
  *     reason_code='dev_admin_register_allowlist.admin_tier2'.
  *     Current: active in dev/staging only; env-config guard blocks in
  *       production.
  *     Target: remove the caller and this bullet at production go-live.
- *   - dev-only backfill repair pass (src/dev-shortcuts/runtime.ts),
+ *   - dev-only backfill repair pass (src/dev-bootstrap/runtime.ts),
  *     reason_code='dev_admin_invariant_repair'.
  *     Current: active in dev/staging only.
  *     Target: remove the caller and this bullet at production go-live.
@@ -492,14 +522,26 @@ export function applyAutoLinkRevertGrantInTx(
   const now = new Date().toISOString();
   const current = getCurrent(memberId);
 
+  // member_tier_current is last-write-wins, so restore the tier the member
+  // would hold with the legacy-claim grant removed: the most recent non-legacy
+  // grant (paid purchase, honor, governance), else tier0. Preserves a paid or
+  // governance-conferred tier; only HoF/BAP held purely from the legacy claim
+  // is dropped. underlying_tier_status is carried only when that preserved row
+  // is governance Tier 3.
+  const prior = memberTier.getLatestNonLegacyClaimGrant.get(memberId) as
+    | { new_tier_status: MemberTier; new_underlying_tier_status: UnderlyingTier | null }
+    | undefined;
+  const preservedTier: MemberTier = prior?.new_tier_status ?? 'tier0';
+  const preservedUnderlying: UnderlyingTier | null = prior?.new_underlying_tier_status ?? null;
+
   insertGrant({
     actorId:          actorMemberId,
     memberId,
     changeType:       'revoke',
     oldTier:          current.tier_status,
-    newTier:          'tier0',
-    oldUnderlying:    null,
-    newUnderlying:    null,
+    newTier:          preservedTier,
+    oldUnderlying:    current.underlying_tier_status,
+    newUnderlying:    preservedUnderlying,
     reasonCode:       'legacy.auto_link_reported_incorrect',
     reasonText:       null,
     relatedPaymentId: null,
@@ -516,7 +558,7 @@ export function applyAutoLinkRevertGrantInTx(
     metadata: {
       ...metadata,
       from: current.tier_status,
-      to:   'tier0',
+      to:   preservedTier,
     },
   });
 }

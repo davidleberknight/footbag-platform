@@ -359,6 +359,48 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(editRes.status).toBe(200);
     expect(editRes.text).toContain('Avatar updated: my-photo.jpg');
   });
+
+  it('avatar over the 5 MB cap is rejected, not stored (busboy truncates at the cap)', async () => {
+    const app = createApp();
+    // Busboy is configured with fileSize: AVATAR_MAX_BYTES (5 MB) and truncates
+    // the stream at the cap, so an over-cap upload can never be stored. The
+    // truncated bytes then fail downstream image validation. The contract
+    // verified here is that an over-cap upload is rejected (422), never a 303
+    // success. (The manual ">cap" guard's dedicated size message is unreachable
+    // because busboy delivers exactly the cap, not more.)
+    const tooBig = Buffer.alloc(5 * 1024 * 1024 + 1, 0);
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', tooBig, 'huge.jpg');
+    expect(res.status).toBe(422);
+    expect(res.headers.location).toBeUndefined();
+  });
+
+  it('tampered avatar flash cookie yields no banner', async () => {
+    const app = createApp();
+    const validJpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 9, g: 9, b: 9 } },
+    }).jpeg().toBuffer();
+    const uploadRes = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', validJpeg, 'tamper.jpg');
+    expect(uploadRes.status).toBe(303);
+    const flashSet = (uploadRes.headers['set-cookie'] ?? []).find((c: string) =>
+      c.startsWith('footbag_flash='),
+    );
+    expect(flashSet).toBeTruthy();
+    // Corrupt the trailing signature bytes so cookie-parser's HMAC check fails;
+    // the value drops from req.signedCookies and the success banner must not show.
+    const flashValue = flashSet!.split(';')[0];
+    const tampered = `${flashValue.slice(0, -4)}AAAA`;
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', [ownCookie(), tampered].join('; '));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Avatar updated');
+  });
 });
 
 // ── POST /members/:memberKey/avatar via the S3 storage adapter ────────────────

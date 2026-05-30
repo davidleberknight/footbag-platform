@@ -259,7 +259,7 @@ Cross-cutting regression classes (cookie attributes, CSRF presence on every stat
 
 ### 5.7 Testing-shortcut regression tests
 
-A named sub-class of security regression. Any testing shortcut (a dev-or-staging-only code path that bypasses production behavior to enable tests, such as login-without-email, persona reset, token surfacing, or internal-event injection) is governed by the dev-shortcuts pattern (§7.5) and must land with the canonical required test set (§7.5.4).
+A named sub-class of security regression. Any dev-or-staging-only code path that bypasses production behavior to enable tests (a persona-switch session, a bootstrap admin grant, token surfacing for email-flow tests, internal-event injection) is governed by the testkit / dev-bootstrap pattern (§7.5) and must land with the canonical required test set (§7.5.4).
 
 ### 5.8 Penetration testing
 
@@ -323,7 +323,7 @@ Authenticated Playwright artifacts contain potentially sensitive material (sessi
 
 ### 6.5 Auth pattern for E2E
 
-Lightweight integration with auth uses the existing `tests/fixtures/personas.ts` helper, which composes a member, tier grant, historical-person link, and JWT into a `Persona` and exports the cookies via `context.addCookies()`. Staging tests use the dev-shortcuts autologin (§7.5.1) where appropriate, never a fresh login chain that depends on receiving an email.
+Lightweight integration with auth uses the existing `tests/fixtures/personas.ts` helper, which composes a member, tier grant, historical-person link, and JWT into a `Persona` and exports the cookies via `context.addCookies()`. Local e2e can also obtain a real session cookie from the persona-switch route (`GET /dev/switch?as=<slug>`, active in development and staging, §7.5.1), never a fresh login chain that depends on receiving an email.
 
 ---
 
@@ -333,10 +333,10 @@ Lightweight integration with auth uses the existing `tests/fixtures/personas.ts`
 
 The platform targets four environments. Each has parity contracts that tests verify.
 
-- *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The dev-shortcuts subsystem is active under `FOOTBAG_ENV=development`.
+- *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
 - *CI.* Runs every test job (typecheck, conventions, unit, integration, db-load smoke, e2e, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
-- *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The dev-shortcuts subsystem is active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
-- *Production.* The real AWS production account. The dev-shortcuts subsystem is absent from the production build (Dockerfile `dist-rm` strips the subtree; boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB).
+- *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
+- *Production.* The real AWS production account. Both `src/testkit/` and `src/dev-bootstrap/` are excluded from the production image at build time (the Dockerfile strips both subtrees when `INCLUDE_DEV_SHORTCUTS=0`); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is the removable set deleted at cutover.
 
 ### 7.2 Adapter parity tests are mandatory
 
@@ -370,52 +370,58 @@ Reset semantics:
 - An operator-runnable reset that re-creates the persona set from the gitignored or secret-manager seed file.
 - The reset uses `bash scripts/manage-dev-admin-seed.sh` (or an equivalent extension), which pipes JSON via stdin per the existing pattern. No password as command-line argument.
 
-### 7.5 Testing shortcuts follow the dev-shortcuts pattern
+### 7.5 Test scaffolding and dev-bootstrap conveniences
 
-The dev-shortcuts subsystem at `src/dev-shortcuts/` is the canonical model for any testing shortcut. A testing shortcut is any dev-or-staging-only code path that bypasses production behavior to enable tests (autologin for Playwright sessions, persona reset, token surfacing for email-verification lifecycle tests, internal-event injection for image-worker tests, legacy-claim bypass for migration regression tests, and so on).
+Two env-gated subtrees hold all dev-or-staging-only code. Both are active under `FOOTBAG_ENV ∈ {development, staging}` and excluded from the production image at build time; they differ in lifecycle.
 
-No testing shortcut lives outside `src/dev-shortcuts/`. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper joins the existing umbrella. The umbrella exists so the entire shortcut surface can be removed in one operation at production cutover; a parallel test-login subsystem defeats that property.
+- `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch?as=<slug>`), the persona listing (`GET /dev/personas`), and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
+- `src/dev-bootstrap/` holds **temporary bootstrap conveniences** that exist only because a production feature is not built yet: the registration-time admin email-allowlist, the dev-admin seed, and the tier2 invariant repair. These are removed at cutover when their production replacement (the SSM-token first-admin claim, the always-enforced admin↔Tier 2 invariant) lands.
 
-#### 7.5.1 Existing umbrella shortcuts
+No dev-or-staging-only code path lives outside these two subtrees. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper belongs in `src/testkit/` (if permanent) or `src/dev-bootstrap/` (if a temporary bootstrap stand-in). Keeping each subtree self-contained lets `src/dev-bootstrap/` be removed in one operation at cutover and keeps `src/testkit/` from depending on it.
 
-The dev-shortcuts subsystem already exposes mechanisms for autologin, skip-claim-email, dev-admin seed, register-allowlist bootstrap, and tier2 invariant repair (see `src/dev-shortcuts/README.md` for env-var triggers and behavior). Testing shortcuts may build on these directly. Each carries audit-marker provenance (`reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`).
+#### 7.5.1 Existing shortcuts
 
-#### 7.5.2 Required properties of a new testing shortcut
+`src/testkit/` exposes the persona harness: seed plus `/dev/switch` and `/dev/personas`, active in development and staging. `src/dev-bootstrap/` exposes the dev-admin seed, the register-allowlist bootstrap, and the tier2 invariant repair (see the subtree READMEs for env-var triggers and behavior). Each carries audit-marker provenance (e.g. `reason_code LIKE 'dev_admin_%'` or `'dev_persona_seed.%'`, `action_type LIKE 'grant_admin_dev_%'` or `'dev_%_persona'`, `created_by LIKE 'dev-shortcuts/%'`). The `dev-shortcuts/*` marker namespace is historical and is kept stable so the cutover audit and existing tests continue to match.
 
-A new testing shortcut added to the umbrella satisfies all of the following:
+#### 7.5.2 Required properties of a dev/staging-only affordance
 
-- Lives in `src/dev-shortcuts/` as part of the self-contained subtree.
-- Is triggered only by a `FOOTBAG_DEV_*` env var or a CLI flag, never by a request from a real browser session.
-- Carries an audit marker prefix that the cutover audit script detects (`reason_code`, `action_type`, and `created_by` all under the `dev_admin_*`, `grant_admin_dev_*`, and `dev-shortcuts/*` namespaces respectively).
+A dev-or-staging-only affordance (a route, seeder, or bypass) satisfies all of the following:
+
+- Lives in `src/testkit/` (permanent) or `src/dev-bootstrap/` (temporary) as part of a self-contained subtree.
+- Is gated to development and staging: a route is mounted only under `FOOTBAG_ENV ∈ {development, staging}` with a production hard-guard; a seeder or bootstrap is triggered only by a `FOOTBAG_DEV_*` env var or a CLI flag and refuses to run in production.
+- Carries audit-marker provenance the cutover audit script detects (the stable `dev_admin_*`, `dev_persona_seed.*`, `grant_admin_dev_*`, and `dev-shortcuts/*` namespaces).
 - Has a boot-time fail-fast guard in `src/config/env.ts` that refuses to start when its trigger is set under `FOOTBAG_ENV=production`.
-- Has a `CUTOVER-REMOVE` marker comment at every callsite outside `src/dev-shortcuts/`.
-- Is removed from production builds by the Dockerfile `dist-rm` rule.
+- Is excluded from the production image by the Dockerfile strip (`INCLUDE_DEV_SHORTCUTS=0` removes both `dist/testkit` and `dist/dev-bootstrap`).
 - Lands with the canonical required test set (§7.5.4).
-- Is removable from the codebase in one operation at cutover (per the cutover-removal procedure in `src/dev-shortcuts/README.md`).
-- Documented in the dev-shortcuts README umbrella listing.
+- For a `src/dev-bootstrap/` convenience: carries a `CUTOVER-REMOVE` marker at every callsite and is removable in one operation at cutover. `src/testkit/` is permanent and is not part of the cutover-removal surface.
+- Documented in its subtree's README.
 
-#### 7.5.3 Secret containment for testing shortcuts
+#### 7.5.3 Secret containment
 
-Secret literals used by testing shortcuts (a seeded persona password, any test-only signing key) live in `src/dev-shortcuts/seedConfig.ts` as the single source. The password-leak regression test (§7.5.4) enforces that the literal appears in exactly one source file and that deploy scripts, helper scripts, and stored hashes do not embed it. Deploy chains pipe seed JSON via stdin; they never pass the password literal as an argument.
+Secret literals (a seeded persona password, a dev-admin seed password, any test-only signing key) live in a single source file: the persona password in `src/testkit/`, the dev-admin password in `src/dev-bootstrap/seedConfig.ts`. The password-leak regression test (§7.5.4) enforces that each literal appears in exactly one source file and that deploy scripts, helper scripts, and stored hashes do not embed it. Deploy chains pipe seed JSON via stdin; they never pass a password literal as an argument.
 
-#### 7.5.4 Canonical required test set for any testing shortcut
+#### 7.5.4 Canonical required test set
 
-A new testing shortcut lands with all of:
+A new dev/staging-only affordance lands with all of:
 
 - *env-guard test.* The module fails fast on import when `FOOTBAG_ENV` is not in `{development, staging}`. Model: `tests/integration/devAdminSeed.envGuard.test.ts`.
-- *production-guard test.* The shortcut's runtime entry points refuse to operate under `FOOTBAG_ENV=production`. Model: `tests/integration/dev-shortcuts.production-guard.test.ts`.
-- *secret-leak test.* If the shortcut introduces a literal secret, that literal appears in exactly one source file (the shortcut's `seedConfig.ts`), is not embedded in seed scripts as a string, is not embedded in deploy scripts, and is stored only as a hash in the DB. Model: `tests/integration/devAdminSeed.passwordLeak.test.ts`.
-- *schema-coupling test.* The shortcut's audit markers (`reason_code`, `action_type`, `created_by`) exist in schema and are populated correctly on every persisted side effect. Model: `tests/integration/devAdminSeed.schemaCoupling.test.ts`.
-- *flag-off test.* The shortcut does nothing when its trigger env var or flag is unset. Model: `tests/integration/dev-shortcuts.flag-off.test.ts`.
-- *repair and idempotency test.* Re-running the shortcut against already-seeded rows is safe and idempotent. Model: `tests/integration/dev-shortcuts.repair.test.ts`.
-- *dockerfile-strip test.* The production Dockerfile `dist-rm` rule removes the shortcut subtree from the production image. Model: `tests/unit/dockerfile-dev-shortcuts-strip.test.ts`.
+- *production-guard test.* Its runtime entry points refuse to operate under `FOOTBAG_ENV=production`. Model: `tests/integration/dev-shortcuts.production-guard.test.ts`.
+- *secret-leak test.* Any literal secret appears in exactly one source file, is not embedded in seed scripts as a string, is not embedded in deploy scripts, and is stored only as a hash in the DB. Model: `tests/integration/devAdminSeed.passwordLeak.test.ts`.
+- *schema-coupling test.* The affordance's audit markers (`reason_code`, `action_type`, `created_by`) exist in schema and are populated correctly on every persisted side effect. Model: `tests/integration/devAdminSeed.schemaCoupling.test.ts`.
+- *flag-off test.* It does nothing when its trigger env var or flag is unset. Model: `tests/integration/dev-shortcuts.flag-off.test.ts`.
+- *repair and idempotency test.* Re-running against already-seeded rows is safe and idempotent. Model: `tests/integration/dev-shortcuts.repair.test.ts`.
+- *image-strip test.* The production Dockerfile removes both the `dist/testkit` and `dist/dev-bootstrap` subtrees from the production image. Model: `tests/unit/dockerfile-dev-shortcuts-strip.test.ts`.
 - *initial-admins parity test* where applicable. Model: `tests/unit/devShortcuts.initialAdminEmails.test.ts`.
 
-These tests describe long-term contracts on the shortcut's safety properties, not sprint-scoped probes. They are tagged `@security`.
+These tests describe long-term contracts on the affordance's safety properties, not sprint-scoped probes. They are tagged `@security`.
 
-### 7.6 No standalone test-only HTTP endpoints
+#### 7.5.5 Per-developer persona extension
 
-A test-only HTTP endpoint (a hypothetical `/__test/login` or `/__test/seed`) is not introduced. The existing autologin and dev-admin-seed mechanisms cover the use cases without exposing a request-time bypass surface. If a future test scenario genuinely requires a request-time bypass, the bypass is added to the dev-shortcuts umbrella with all properties from §7.5.2 and §7.5.4. It is not added as a route under `src/routes/`.
+Beyond the canonical catalog, each developer may keep a gitignored `.local/test-personas.json`: a JSONC array of `PersonaSpec` objects (`//` line comments allowed) merged after the catalog at seed time. `src/testkit/personaSchemaValidator.ts` validates every entry against the full `PersonaSpec` before any row is written, failing with the offending slug and field so a malformed local entry never reaches a DB constraint. The same loader feeds the seed runner and the `/dev/personas` listing, so the page reflects exactly what a seed would create. The file is absent on staging and on a fresh clone, in which case the canonical catalog is the only input. The step-by-step recipe is in §16.6.
+
+### 7.6 Test-only HTTP endpoints live behind the env-gated dev router
+
+A test-only HTTP endpoint is permitted only when its handler lives in `src/testkit/` (or `src/dev-bootstrap/`) and is reachable solely through the dev router, mounted under `FOOTBAG_ENV ∈ {development, staging}` with a production hard-guard. The `/dev/switch` persona-switch route and the `/dev/personas` listing are the worked examples: their handlers and mount glue live in `src/testkit/`, and they are never mounted in production. What stays forbidden is a standalone request-time bypass whose logic escapes these subtrees or that is reachable in a production build (a hypothetical `/__test/login` or `/__test/seed` wired into a permanent router).
 
 ---
 
@@ -486,7 +492,7 @@ Invoked via `npm run test:pentest:heavy` (target script). Browser-driven attack 
 - Header check across every route (a script that walks the route table and asserts security headers).
 - Upload-abuse probes (avatar, media, freestyle music) targeting MIME confusion, polyglot files, oversize, and path traversal.
 - Internal route probing (the `/internal/*` surface is reachable only with the internal event secret; probe asserts that an absent or wrong secret returns the same response shape as a not-found).
-- Audit of any reachable dev-shortcuts callsite from staging or production (the audit script in §9.5 is the canonical mechanism).
+- Audit of any reachable dev-only scaffolding callsite (persona harness / dev-bootstrap) from staging or production (the audit script in §9.5 is the canonical mechanism).
 
 Heavyweight pentest:
 
@@ -516,7 +522,7 @@ The third-party engagement scope is mapped to OWASP ASVS L3 categories that appl
 
 The production build must:
 
-- Strip the `src/dev-shortcuts/` subtree via the Dockerfile `dist-rm` rule.
+- Strip both the `src/testkit/` and `src/dev-bootstrap/` subtrees from the production image (the Dockerfile `INCLUDE_DEV_SHORTCUTS=0` default removes both).
 - Fail fast on boot if any `FOOTBAG_DEV_*` env var is set (the guards in `src/config/env.ts`).
 - Return zero from the audit script against the production DB.
 
@@ -553,7 +559,7 @@ The password-leak regression test (§7.5.4 plus §10.4) enforces that secret lit
 
 ### 10.4 Single-source secret containment
 
-Secret literals (the dev-admin-seed password, any test-only signing key, any test-only token salt) live in exactly one source file each, in `src/dev-shortcuts/seedConfig.ts` or an equivalent guarded module. The secret-leak regression test for the shortcut (§7.5.4) asserts the literal appears in exactly one file and that deploy scripts pipe seed JSON via stdin rather than embedding the literal.
+Secret literals (the dev-admin-seed password, the persona password, any test-only signing key, any test-only token salt) live in exactly one source file each: the dev-admin-seed password in `src/dev-bootstrap/seedConfig.ts`, the persona password in `src/testkit/`, any other test-only literal in its own guarded module. The secret-leak regression test for the shortcut (§7.5.4) asserts the literal appears in exactly one file and that deploy scripts pipe seed JSON via stdin rather than embedding the literal.
 
 ### 10.5 Playwright artifact policy
 
@@ -739,7 +745,7 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Asserting on exact prose or wording.* Tests that pin rendered copy with patterns like `expect(res.text).toContain('exact heading')` or `not.toMatch(/old phrase/)` turn every copy edit into a test failure and train reviewers to ignore the suite. Assert structural intent instead: counts of expected elements, presence of IDs and classes, anchor href shape, response status, data attributes. When a literal string is the contract (an SEO meta description, an explicit error message), production code exports the constant and the test imports it rather than duplicating the literal.
 - *Arbitrary sleeps.* `await page.waitForTimeout(N)` masks race conditions. Wait on observable conditions (selector visibility, network response, app state).
 - *Depending on production data.* Tests that read or assume real production records are brittle and may leak PII into test output.
-- *Depending on real email receipt for routine tests.* The dev-shortcuts autologin and skip-claim-email mechanisms exist to avoid this. Routine tests do not poll a mailbox.
+- *Depending on real email receipt for routine tests.* The persona switch and the captured-email simulated-email-card exist to avoid this. Routine tests do not poll a mailbox.
 - *Making staging tests destructive by default.* Staging tests are read-only or explicitly idempotent and audited per §5.4.
 - *Running penetration tests against production without explicit authorization.* Forbidden per §9.3 and §9.4.
 - *Attacking third-party services.* Forbidden per §9.3.
@@ -748,7 +754,7 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Overusing snapshots.* Snapshot tests are brittle. Prefer explicit assertions on shape or content. Snapshots are acceptable only when the assertion structure is genuinely too large to enumerate (rare).
 - *Ignoring migration edge cases.* Migration testing covers all four confidence outcomes per §8.2; ignoring medium or low confidence cases is forbidden.
 - *Blurring groups and committees into clubs.* Groups and committees (when implemented) are distinct from clubs per `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`. Tests preserve the distinction.
-- *Introducing a test-only HTTP endpoint outside dev-shortcuts.* Forbidden per §7.6.
+- *Introducing a test-only HTTP endpoint outside `src/testkit/` or `src/dev-bootstrap/`.* Forbidden per §7.6.
 
 ### 15.3 Tooling appendix
 
@@ -776,3 +782,79 @@ The platform's testing toolchain consists of:
 - *Cucumber and other BDD frameworks.* Tests describe long-term contracts in straightforward TypeScript; no Gherkin or feature files. Test names describe user-visible behavior; no separate spec layer is maintained.
 - *Snapshot-driven UI testing libraries that produce committed image diffs.* Per §14.3.
 - *Load testing or chaos tooling (k6, Locust, Chaos Monkey, equivalent).* Deferred per §14.3.
+
+---
+
+## 16. Tester runbook: using the persona harness
+
+The persona harness in `src/testkit/` lets a tester act as any seeded member, see captured email without a real inbox, and drive the membership purchase flow without Stripe. It is active under `FOOTBAG_ENV ∈ {development, staging}` and absent from production (§7.5, §7.6). This section is the step-by-step; §7 is the design contract.
+
+### 16.1 What the harness provides
+
+- A curated persona catalog (`src/testkit/canonicalPersonas.ts`) plus an optional per-developer extension (`.local/test-personas.json`), seeded into the dev or staging database.
+- `GET /dev/personas`, a table of every loadable persona (slug, tier, role, coverage notes, source) with a Switch control.
+- `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
+- The simulated-email card, captured outbound email rendered inline on email-gated pages when `SES_ADAPTER=stub`.
+- The stub payment adapter, a checkout pass-through (Confirm, Cancel, Decline) that drives the full purchase flow through the real webhook verifier with no Stripe dependency.
+
+### 16.2 Local quickstart (development)
+
+1. Seed the catalog: `./run_dev.sh --seed-test-personas` (combinable with any rebuild mode; idempotent, a persona whose slug already exists is skipped). To seed without launching, run `./scripts/manage-test-personas.sh --seed-test-personas`.
+2. Open `GET /dev/personas`. Every seeded persona is listed.
+3. Click Switch on a row to become that persona (redirects to `/`). Log out to return to anonymous.
+
+All seeded personas share one fixed test password, defined once in `src/testkit/` and never reproduced in docs. `/dev/switch` needs no password, so prefer it for routine switching and use form login only when the password path itself is under test.
+
+### 16.3 Acting as a persona
+
+`/dev/switch?as=<slug>` looks the persona up by slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `dev_switch_persona` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
+
+### 16.4 Seeing captured email
+
+When `SES_ADAPTER=stub` (the development default and the staging setting), outbound mail is captured in memory instead of sent. Email-gated pages (registration check-email, password-reset sent, legacy-claim sent) render a "Simulated email" card listing the captured messages with their subject, body, and the actionable link (verification, reset, claim). Follow the link to continue the flow without a real inbox. The buffer clears on server restart. This works on both development and staging.
+
+### 16.5 Exercising the purchase flow
+
+The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPTER=stub`, the development default and the staging setting. As a seeded persona:
+
+1. Start a purchase from the member profile (`POST /members/<slug>/purchase-tier`), which redirects to `GET /payments/checkout/<sessionId>`.
+2. The checkout page offers three buttons, each driving the same signed-webhook path a real Stripe delivery uses:
+   - **Confirm and Pay**: payment succeeds, the tier is granted, redirect to the success page.
+   - **Cancel**: payment is canceled, no tier change, redirect to the cancel page.
+   - **Decline payment**: payment fails, no tier change, redirect to the cancel page in its failure variant.
+
+Live Stripe checkout-session creation and the `stripe listen` / `trigger` developer loop are out of scope until the live adapter ships.
+
+### 16.6 Adding your own personas (`.local/test-personas.json`)
+
+The per-developer extension is a gitignored JSON array of `PersonaSpec` objects (JSONC, `//` line comments allowed), merged after the canonical catalog. `slug`, `displayName`, `tier`, and a non-empty `coverageNotes[]` are required; optional dimensions include `isAdmin`, `underlyingTier` (required for `tier3`), `onboardingComplete` or `onboardingTasks`, `payments[]`, `legacy`, `club` or `clubs[]`, `activePlayer`, and `mailingList`. Example:
+
+```json
+[
+  {
+    "slug": "my_tier1_legacy",
+    "displayName": "My Local Tester",
+    "tier": "tier1",
+    "payments": [{ "type": "membership", "status": "succeeded", "purchasedTier": "tier1" }],
+    "legacy": { "linked": false },
+    "coverageNotes": ["tier1", "unlinked legacy match"]
+  }
+]
+```
+
+`src/testkit/personaSchemaValidator.ts` validates every entry before any DB write; a malformed entry fails loudly, naming the slug and the offending field, so a typo never surfaces as an opaque constraint error. Re-run the seed to pick up edits; `/dev/personas` then shows exactly what was loaded. The full `PersonaSpec` surface is documented in `src/testkit/personaFactory.ts`; live examples are in `canonicalPersonas.ts`.
+
+### 16.7 Staging loop
+
+On the staging host the harness is seeded after a deploy with `./deploy_to_aws.sh --seed-test-personas` (allowlisted to the staging target only). `/dev/personas`, `/dev/switch`, the simulated-email card, and the stub purchase flow behave as in development. Operator staging-smoke checks run with `RUN_STAGING_SMOKE=1 npm run test:smoke`.
+
+### 16.8 Pre-flight checklist
+
+- `FOOTBAG_ENV` is `development` or `staging` (the `/dev` surface is absent otherwise).
+- `SES_ADAPTER=stub` (so the simulated-email card renders).
+- `PAYMENT_ADAPTER=stub` (the default in development; the staging setting) for the purchase flow.
+- The database has been seeded (`--seed-test-personas`); `/dev/personas` is non-empty.
+
+### 16.9 Provenance and the cutover audit
+
+Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `dev_persona_seed` or `dev_switch_persona`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.

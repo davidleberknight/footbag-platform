@@ -5,7 +5,7 @@
  * actually reached the staging DB via ./deploy_to_aws.sh --seed-dev-admins,
  * that the stored password is a fresh argon2id hash (never the plaintext
  * literal), and that re-running --seed-dev-admins produces no duplicate
- * audit rows (idempotency contract from src/dev-shortcuts/seed.ts).
+ * audit rows (idempotency contract from src/dev-bootstrap/seed.ts).
  *
  * Transport: scripts/verify-dev-admin-seed.sh uses ssh -t to invoke a
  * sudo'd docker compose exec on the staging host. The operator's sudo
@@ -33,7 +33,7 @@
  *     secret invariant forbids duplicating the literal here in any case.)
  *   - auditRowsSeeded !== membersSeeded: idempotency broken. Re-running
  *     --seed-dev-admins inserted duplicate audit rows; the existing-marker
- *     guard in src/dev-shortcuts/seed.ts:210 was bypassed.
+ *     guard in src/dev-bootstrap/seed.ts:210 was bypassed.
  *
  * Excluded from `npm test` via the test:smoke runner's path filtering;
  * dev and CI never trigger this path.

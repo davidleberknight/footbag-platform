@@ -24,8 +24,14 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-member-gal-${Date.now()}.db`);
+// Member-media uploads in this suite persist through the local media-storage
+// adapter, whose baseDir is config.mediaDir (FOOTBAG_MEDIA_DIR, default
+// ./data/media). Without this override the round-trip upload tests would write
+// into the real media tree; pin it to a temp dir cleaned up in afterAll.
+const TEST_MEDIA_DIR = path.join(os.tmpdir(), `footbag-test-member-gal-media-${Date.now()}`);
 let resetImageProcessingAdapterForTests: (() => void) | null = null;
 process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
+process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.PORT            = '3097';
 process.env.NODE_ENV        = 'test';
 process.env.LOG_LEVEL       = 'error';
@@ -140,6 +146,7 @@ afterAll(async () => {
   if (CURATED_TMP_ROOT) {
     fs.rmSync(CURATED_TMP_ROOT, { recursive: true, force: true });
   }
+  fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true });
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }

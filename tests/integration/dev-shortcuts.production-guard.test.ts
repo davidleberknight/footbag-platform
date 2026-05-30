@@ -21,7 +21,7 @@ process.env.FOOTBAG_ENV = 'development';
 const { dbPath } = setTestEnv('3203');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let devShortcutsMod: typeof import('../../src/dev-shortcuts/runtime');
+let devShortcutsMod: typeof import('../../src/dev-bootstrap/runtime');
 
 const ADMIN_ID = 'devrepair-prodguard-admin';
 
@@ -31,7 +31,7 @@ beforeAll(async () => {
   // guard fails open, the function would write a repair grant for this row.
   insertMember(db, { id: ADMIN_ID, slug: 'devrepair_prodguard_admin', is_admin: 1 });
   db.close();
-  devShortcutsMod = await import('../../src/dev-shortcuts/runtime');
+  devShortcutsMod = await import('../../src/dev-bootstrap/runtime');
 });
 
 afterAll(() => cleanupTestDb(dbPath));

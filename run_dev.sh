@@ -13,14 +13,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Pin the env identity for the dev stack. config.footbagEnv (src/config/env.ts)
-# gates dev-only shortcuts on this value: applyDevAutologin, the
-# .local/initial-admins.txt reader (devShortcuts.ts:154), the Tier-2 invariant
-# repair, and the boot-time guards for FOOTBAG_DEV_AUTOLOGIN_* env vars. Without
-# this export the dev shortcuts silently no-op. Staging/production set
-# FOOTBAG_ENV via /srv/footbag/env on the host (deploy-rebuild-remote.sh:151);
-# the dev workstation has no host env file, so the launcher exports here.
-# `dotenv` does not override existing env vars, so a stray .env entry won't
-# clobber this.
+# gates dev-only shortcuts on this value: the .local/initial-admins.txt reader,
+# the Tier-2 invariant repair, the persona harness (seed + /dev/switch), and
+# the boot-time guards for the FOOTBAG_DEV_* env vars. Without this export the
+# dev shortcuts silently no-op. Staging/production set FOOTBAG_ENV via
+# /srv/footbag/env on the host; the dev workstation has no host env file, so
+# the launcher exports here. `dotenv` does not override existing env vars, so a
+# stray .env entry won't clobber this.
 export FOOTBAG_ENV=development
 
 # Free any port already held by a leaked prior dev process.
@@ -46,15 +45,17 @@ RESET=0
 FROM_CSV=0
 SOUP_TO_NUTS=0
 SEED_DEV_ADMINS=0
+SEED_TEST_PERSONAS=0
 for arg in "$@"; do
   case "$arg" in
-    --reset)            RESET=1 ;;
-    --from-csv)         FROM_CSV=1 ;;
-    --soup-to-nuts)     SOUP_TO_NUTS=1 ;;
-    --seed-dev-admins)  SEED_DEV_ADMINS=1 ;;
+    --reset)               RESET=1 ;;
+    --from-csv)            FROM_CSV=1 ;;
+    --soup-to-nuts)        SOUP_TO_NUTS=1 ;;
+    --seed-dev-admins)     SEED_DEV_ADMINS=1 ;;
+    --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_dev.sh [MODE] [--seed-dev-admins]
+Usage: ./run_dev.sh [MODE] [--seed-dev-admins] [--seed-test-personas]
 
 Local dev launcher.
 
@@ -81,6 +82,12 @@ Dev-admin seeding (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
                    accounts via scripts/manage-dev-admin-seed.sh. Runs
                    after DB bootstrap, before the dev stack starts. Fails
                    loudly if no seed input is present.
+
+Test-data personas (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
+  --seed-test-personas Seeds the canonical persona catalog (plus the optional
+                   per-developer .local/test-personas.json) via
+                   scripts/manage-test-personas.sh. Idempotent. Switch between
+                   them in a browser at http://localhost:3000/dev/switch?as=<slug>.
 
   -h, --help       Show this message.
 
@@ -156,6 +163,14 @@ if (( SEED_DEV_ADMINS == 1 )); then
   fi
   echo "→ Seeding dev-admin accounts..."
   bash scripts/manage-dev-admin-seed.sh --seed-dev-admins
+fi
+
+# CUTOVER-REMOVE: optional test-data persona seed. Runs after DB bootstrap so
+# the harness has a database to insert against. Refuses on production
+# (manage-test-personas.sh enforces); allowed on development and staging.
+if (( SEED_TEST_PERSONAS == 1 )); then
+  echo "→ Seeding test-data personas..."
+  bash scripts/manage-test-personas.sh --seed-test-personas
 fi
 
 # 5. Launch web + image together; trap-based cleanup is in scripts/dev.sh.

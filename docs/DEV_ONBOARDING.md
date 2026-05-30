@@ -475,7 +475,7 @@ The two mechanisms coexist; pick either, both, or neither.
    "
    ```
 
-4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-shortcuts/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
+4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-bootstrap/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
 
 Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
 
@@ -483,52 +483,43 @@ Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audi
 
 ### 1.7.3 Dev-only shortcuts
 
-Six shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-shortcuts/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-shortcuts/seedConfig.ts`.
+Several shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-bootstrap/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-bootstrap/seedConfig.ts`.
 
 | Shortcut | Type | Allowed envs | What it does |
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
-| `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID` | env var | development only | Skips the cookie path and authenticates every request as the named member id or slug. |
-| `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION` | env var | development only | When set, autologin refuses unless the row's `password_version` matches; mirrors prod's stale-session rejection for password-rotation testing. |
-| `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` | env var | development only | Admin members bypass the mailbox-control email roundtrip on legacy claim. |
+| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `dev_switch_persona`. |
+| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog (plus optional `.local/test-personas.json`). Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
 | `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
 | `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
 
 Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
 
-#### Skip the login page on every dev session (devAutologin)
+#### Switch between personas in the browser (/dev/switch)
 
-Removes login friction during local manual testing of tier-gated and member-only flows. Active only when both gates hold simultaneously: `FOOTBAG_ENV=development` AND `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID` is set to a known member id or slug. The boot-time guard in `src/config/env.ts` rejects the second var in any non-development environment, so accidental staging activation is impossible.
+Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then visit the switch route to act as any persona without a login chain:
 
 ```bash
 export FOOTBAG_ENV=development
-export FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID=your_dev_admin_slug
-./run_dev.sh
+./run_dev.sh --seed-test-personas
+# then in a browser:
+#   http://localhost:3000/dev/switch?as=t0_fresh   (tier0)
+#   http://localhost:3000/dev/switch?as=admin_t2    (admin)
 ```
 
-Every request to a protected route auto-authenticates as that member; the cookie path is skipped entirely. Unset both vars to fall back to the cookie-based session path (real login flow).
+The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`; add per-developer personas in the gitignored `.local/test-personas.json` (same JSONC spec).
 
-Optional password-version mirror; set `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION=N` to require a specific value of `members.password_version` for the autologin to accept. Without it, autologin accepts the row's current value (no invalidation in dev). With it, autologin refuses when the row's version drifts away from the configured value, mirroring the production cookie-path's stale-session rejection. Use this when exercising password-rotation flows in dev:
+For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
 
-```bash
-export FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION=1
-```
-
-After configuring the autologin var, run the dev-admin seed so your admin entry from `.local/dev-admin-seed.json` lands as a Tier 2 member:
+To act as a maintainer admin tied to your own `.local/dev-admin-seed.json` entry, run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
 
 ```bash
 ./scripts/manage-dev-admin-seed.sh --seed-dev-admins
 ```
 
-Without this seed, the dashboard membership block will show your account as Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-shortcuts/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email. The dev startup banner prints the autologin'd member's slug, admin flag, and tier on each boot; a Tier 0 admin triggers a warning pointing at this seed step.
+Without a tier grant, the dashboard membership block shows Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-bootstrap/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email.
 
-Optional admin claim-email skip; set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the onboarding wizard's `legacy_claim` manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
-
-```bash
-export FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1
-```
-
-Production has no equivalent shortcut; production admins use the `manualLegacyClaimRecovery` flow.
+A stub `legacy_members` row with no `legacy_email` (for example before the legacy data dump is loaded) is claimable from the onboarding wizard's `legacy_claim` task via the historical-person card-confirm path, which needs no email roundtrip; the mailbox-control round-trip is optional and only upgrades the audit evidence tier. Admins requiring manual recovery use the `manualLegacyClaimRecovery` flow.
 
 Optional admin Tier 2 invariant repair; set `FOOTBAG_DEV_ADMIN_GRANT_TIER2=1` to enforce the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role` on the data side. At boot, the orchestrator finds every `is_admin=1` member whose tier ledger reads below Tier 2 and inserts a `member_tier_grants` row with `reason_code = 'dev_admin_invariant_repair'` plus an `audit_entries` row with `action_type = 'dev_admin_invariant_repair'`. Idempotent (already-Tier-2+ admins skipped). Useful when the dev-admin-seed conflict exit code (2) reports a member that exists outside the seed flow without the matching tier grant. Same fail-fast guard as the other dev vars: rejected at boot in any non-development environment.
 
@@ -557,7 +548,7 @@ The suite is split:
 - `npm run test:watch`; vitest in watch mode for fast iteration.
 - `npm run build`; `tsc -p tsconfig.json` typecheck. Must pass before any PR.
 
-The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, dev autologin slug fallback, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
+The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
 
 #### Writing new tests
 
@@ -3174,6 +3165,18 @@ This is the natural handoff point from onboarding into the longer-lived operatio
 
 ## 8. Path H — Runtime AWS identity and transactional email activation
 
+> [!IMPORTANT]
+> **Staging email is `SES_ADAPTER=stub`; the live-SES-on-staging steps in this path are a
+> superseded early approach, retained for reference.** Staging exercises email-gated flows
+> through the persona test harness and the in-page simulated-email card (DD §5.6), not through
+> live AWS SES, and `env.ts` refuses a `FOOTBAG_ENV=staging` boot with `SES_ADAPTER=live`. The
+> SES steps below (§8.8 sender/recipient verification, the `OutboundEmail` statement in §8.9 4b,
+> the §8.10 5b SES env, and the §8.11 SES smoke test) document the original early-staging
+> live-sandbox-SES procedure. They are kept because Path I reuses the same mechanics for
+> production SES (§9.6-§9.10, §9.12) and remain a useful reference, but they are not current
+> staging configuration. KMS JWT signing in this path IS current and required on staging. Live
+> SES delivery and its validation are production-only (Path I).
+
 ### 8.1 Why this path exists
 
 Earlier paths assume the running app uses only `process.env` and SQLite and makes no AWS API calls at runtime. That assumption held until KMS-backed JWT session signing and SES-backed transactional email were introduced. Those two capabilities require the app to call AWS at request time. Per DD §3.5 and §7.2, the authoritative runtime principal on Lightsail is an assumed IAM role reached through a source-profile credential chain on a root-owned host AWS config; Lightsail has no EC2 instance profile, so this chain is the supported substitute. Path H is the one-time activation runbook that extends the existing deferred runtime role (`aws_iam_role.app_runtime`), creates the source-profile IAM user, stands up the KMS signing key and the SES sender, and wires the chain on the staging host (host config files, `/srv/footbag/env`, and the production compose file).
@@ -3276,6 +3279,9 @@ Record locally:
 Treat the secret access key with the same custody you use for `footbag-operator` credentials. Do not paste it into checked-in files, chat logs, or shared screens. The source-profile user holds only `sts:AssumeRole` (attached in step 4): a leaked key lets an attacker only attempt to assume the runtime role, and revoking the role's trust of this user severs access instantly.
 
 ### 8.8 Step 3 — Verify the SES sandbox sender and test recipient
+
+> Superseded for staging (see the Path H SES note in §8). Staging runs the stub SES adapter;
+> the steps below are retained as the live-SES procedure Path I reuses for production.
 
 Before starting, confirm `noreply@footbag.org` has an active Cloudflare Email Routing rule forwarding to an operator mailbox (per DD §5.5); SES email-identity verification requires clicking a link delivered to that address, and without an inbound route the verification email is dropped silently. If no rule exists, create the Cloudflare rule first.
 
@@ -3433,13 +3439,15 @@ The `Arn` in the output should be `arn:aws:sts::<ACCOUNT>:assumed-role/footbag-s
 ```bash
 sudo tee -a /srv/footbag/env > /dev/null <<'EOF'
 
-# Runtime AWS wiring for KMS JWT signing and SES transactional email.
+# Runtime AWS wiring for KMS JWT signing on staging. Staging email is the stub SES
+# adapter (DD §5.6); SES_FROM_IDENTITY is an unused placeholder kept to satisfy the
+# deploy var check and compose passthrough. The superseded live-sandbox-SES variant
+# (SES_ADAPTER=live) is documented in the Path H SES note above.
 # Long-lived access keys are in /root/.aws/credentials (root-owned, 0600),
 # not here. The app reaches AWS via the assumed-role chain.
 JWT_SIGNER=kms
 JWT_KMS_KEY_ID=<KMS_KEY_ARN_FROM_STEP_1>
-SES_ADAPTER=live
-SES_SANDBOX_MODE=1
+SES_ADAPTER=stub
 SES_FROM_IDENTITY=noreply@footbag.org
 AWS_REGION=us-east-1
 AWS_PROFILE=footbag-staging-runtime
@@ -3464,7 +3472,6 @@ Local-dev reference. The equivalent block for a contributor's local `.env` (comm
 # JWT_KMS_KEY_ID=arn:aws:kms:us-east-1:<ACCOUNT>:key/<KEY_ID>
 # JWT_LOCAL_KEYPAIR_PATH=database/dev-jwt-keypair.pem
 # SES_ADAPTER=stub
-# SES_SANDBOX_MODE=0
 # SES_FROM_IDENTITY=noreply@footbag.org
 # AWS_REGION=us-east-1
 # AWS_PROFILE=footbag-staging-runtime
@@ -3511,7 +3518,10 @@ curl -s -c /tmp/cookies.txt -X POST \
 # and a "kid" that matches the KMS key ARN from step 1.
 ```
 
-Then exercise the SES path.
+Then exercise the SES path. **Superseded for staging** (see the Path H SES note in §8): this
+live-SES validation applies only to the original early-staging approach and is reused by Path I
+for production. On current staging (stub SES) there is no AWS send to validate; captured mail
+appears in the in-page simulated-email card.
 
 **First-send test recipient: use `success@simulator.amazonses.com`.** The SES mailbox simulator is always a safe recipient, does not require verification, and sidesteps the SES account-level suppression list (which silently drops messages to addresses that previously bounced in this account). Using it first isolates the SES IAM + identity path from the end-to-end anti-enumeration and member-row preconditions.
 
@@ -3914,11 +3924,11 @@ Mirror Path H §8.11 against production.
 
 2. Exercise the KMS signing path: issue a login against production and inspect the resulting `footbag_session` cookie's JWT `kid` header to confirm it matches the production KMS key ID.
 
-3. Exercise the SES path: trigger a registration flow and confirm the verification email arrives at a test inbox with DKIM signature present.
+3. Exercise the SES path: trigger a registration flow and confirm the verification email arrives at a test inbox with DKIM signature present. Confirm the `/register/check-email` page renders the standard copy with no in-page preview card (the live-mode posture in DD §5.6).
 
 4. Exercise the bounce path: send to `bounce@simulator.amazonses.com` via the outbox and confirm the suppression row is written (§9.10 step 5).
 
-5. Run `tests/smoke/staging-readiness.test.ts` adapted against production, if a production smoke-readiness test exists.
+5. Run the production email send-path check: `scripts/verify-prod-email.sh --profile footbag-production-runtime --confirm-production` (add `--inbox <operator-address>` for an end-to-end deliverability and DKIM confirmation). It sends through live SES to the AWS mailbox simulator (reputation-safe) and prints the SES MessageId. This complements the staging-pinned KMS/SES wiring assertions in `tests/smoke/staging-readiness.test.ts`.
 
 6. Record in operator notes: production activation date, operator who performed the cutover, KMS key ID, SES production-access approval ticket ID, validated sender identity.
 

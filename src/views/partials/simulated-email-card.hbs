@@ -1,6 +1,6 @@
 {{! Simulated email card. Rendered on email-gated pages when the service
-    returns a non-null view-model. Three modes: dev (table of captured stub
-    messages), sandbox (one-line notice). Production renders nothing because
+    returns a non-null view-model. One mode: dev (table of captured stub
+    messages), used on dev and staging. Production renders nothing because
     the service returns null. }}
 
 {{#if (eq mode "dev")}}
@@ -47,12 +47,5 @@
       <p class="text-muted fs-sm mt-2">If you just registered, this usually means the email address is already in use (anti-enumeration: no visible difference). Try resetting the database or using a different email.</p>
     </div>
   {{/if}}
-</section>
-{{/if}}
-
-{{#if (eq mode "sandbox")}}
-<section class="sec-card sec-card-sandbox" aria-label="Staging email delivery notice">
-  <h2>Staging: SES sandbox</h2>
-  <p>Only pre-verified recipients get real mail. Contact the platform maintainer to be added.</p>
 </section>
 {{/if}}

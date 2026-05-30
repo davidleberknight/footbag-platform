@@ -854,7 +854,7 @@ Story: As a member, I want to search for other members by name so that I can fin
 Success Criteria:
 
 - Search by Display Name.
-- Support prefix matching (e.g., "jane" matches "Jane Doe").
+- Support substring matching (e.g., "foot" matches "Jane Footbag").
 - Minimum 2-character query length; maximum 20 results per page.
 - Members may opt out via `searchable: false` profile flag. `searchable` means eligible for authenticated member lookup only; it does not mean publicly discoverable or contactable.
 - Search results exclude: (a) members with `searchable: false`, (b) members currently in the deletion grace period (account deleted but not yet purged), and (c) deceased members. Only active members with `searchable: true` are returned.
