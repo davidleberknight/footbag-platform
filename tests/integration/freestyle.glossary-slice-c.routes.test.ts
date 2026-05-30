@@ -64,6 +64,18 @@ describe('Glossary §3 — Direction subsection (Slice C)', () => {
     expect(res.text).toMatch(/Out-dex/);
   });
 
+  it('renders the rev(0) direction-reversal explainer naming its base pairs', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="term-rev-zero"');
+    expect(res.text).toMatch(/rev\(0\)/);
+    // names the reverse-pair relationship (illusion is rev(0) mirage)
+    expect(res.text).toMatch(/illusion[\s\S]{0,80}reverse[\s\S]{0,40}mirage/i);
+    // and the modifier-layer instance from the 2026-05-29 ruling
+    expect(res.text).toMatch(/illusioning[\s\S]{0,40}miraging/i);
+  });
+
   it('positions the Direction subsection between Motion style and Execution window', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');

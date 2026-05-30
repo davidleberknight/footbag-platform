@@ -6,7 +6,7 @@ flying inside,1,flying inside,body,,,Inside-leg jumping motion.,expert_reviewed,
 flying outside,1,flying outside,body,,,Outside-leg jumping motion.,expert_reviewed,1,
 hop over,2,hop over,body,,,Jumping leg-over motion.,expert_reviewed,1,
 double spin,2,double spin,body,,,Double rotational body spin.,expert_reviewed,1,
-walk over,2,walk over,body,,,Stepping leg-over motion.,expert_reviewed,1,
+walk over,2,walk over,body,step-over,,Stepping leg-over motion.,expert_reviewed,1,
 spyro,1,spyro,body,,,Inward rotational body move.,expert_reviewed,1,
 surging,2,,compound,,,Surging primitive (decomposes informally as spinning + stepping; not modeled as a structural compound — see review note).,expert_reviewed,1,"Surging Modeling Rule (Red pt5 + memory project_freestyle_state.md): surging is a primitive named compound and is NOT in trick_modifiers. base_trick + modifier_links cleared 2026-05-07 to prevent ADD-math validation from treating it as derivable; spinning+stepping decomposition preserved in description as informal."
 sidewalk,4,butterfly,compound,,stepping,Stepping-modified same-side butterfly.,expert_reviewed,1,'same-side' qualifier not in modifiers table; capturing via alias only for now
@@ -52,7 +52,7 @@ witchdoctor,4,mirage,compound,,atomic|symposium,Atomic + symposium + mirage.,exp
 furious,2,furious,set,,,Furious set; +1 ADD non-rotational / +2 ADD rotational. Standalone 2 ADD set primitive parallel to atomic.,expert_reviewed,1,"Red pt6 2026-05-04: Furious is a SET (distinct from Fury the move). Modifier behavior derived from Fury = furious+paradox+mirage = 2+1+2 = 5."
 pogo,0,pogo,set,,,Pogo set; does not contribute ADD when modifying a base trick.,expert_reviewed,1,"Red pt6 2026-05-04: Pogo is a SET, 0 ADD. Special case: only 0-ADD set primitive."
 terraging,3,terraging,modifier,,,Body modifier; +3 ADD contribution.,expert_reviewed,1,"Red pt8 2026-05-06: Terraging is 3 ADDs. Red corrects pt6 phrasing — NOT 'parallel barraging'. Activated; trick_modifiers row added."
-illusioning,,illusioning,modifier,,,Body modifier underlying omelette; ADD contribution pending Red confirmation.,pending,0,"Red pt6 2026-05-04: Illusioning is a modifier (omelette = illusioning pickup, 3 ADD implies +1). ADD held pending until Red confirms; out of trick_modifiers table."
+illusioning,,illusioning,modifier,,,Reverse-direction form of the miraging modifier.,expert_reviewed,1,"Curator ruling 2026-05-29: illusioning == rev(0) miraging (modifier analog of illusion = rev(0) mirage). ADD +1 (miraging +1, rev(0) +0); resolves omelette = illusioning pickup = 3. Registered in trick_modifiers; supersedes prior Red-Wave-2 routing."
 reverse-drifter,3,reverse-drifter,dex,,,Direction-reversed drifter; separate canonical from drifter per direction-is-structural rule.,expert_reviewed,1,"Red pt6 2026-05-04: Reverse drifter is a separate canonical (not a qualifier of drifter)."
 refraction,3,refraction,dex,,,"Dexterity, 3 ADD.",expert_reviewed,1,"Red pt6 2026-05-04: Refraction confirmed dex (not compound), 3 ADD."
 knee-clipper,2,knee-clipper,surface,,,Knee-based cross-body inside delay surface.,expert_reviewed,1,"Red pt6 2026-05-04: Knee Clipper is a surface (2 ADD). Note: Knee Clipper Kick is a flyer (separate compound, not staged here)."
