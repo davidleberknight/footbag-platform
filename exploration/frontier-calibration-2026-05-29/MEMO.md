@@ -125,6 +125,12 @@ co-occurrence** — confirm these two community lists are genuinely independent 
 other); if they share lineage, the strong tier is effectively single-lineage and collapses toward
 "weak."
 
+> **[RESOLVED 2026-05-29 — `../frontier-stabilization-2026-05-29/` Part B]** FM and Stanford are
+> **partially dependent** (Stanford re-notated a found move list; 166 obscure tricks shared only by the
+> two; identical raw spellings — "Blacula", "Amadeus"). FM∩Stanford counts as **partial corroboration,
+> not strong.** This cohort re-weights to **3 strong** (the fborg-attested Paratoxic/Torch-R-Rack/Whirr)
+> **+ 38 partial.** Read the "41 strong" below as "3 strong + 38 partial."
+
 ### Likely synthetic / deprioritized
 - **49 single-source PassBack folk names** (Archnemesis, Armageddon, Big Applesauce, Blurtigo,
   Clownface, Blackula, Badger…). Most are decomposable and look culturally real, but exist only in
