@@ -24,6 +24,8 @@ Run from repo root:
     python -m pytest legacy_data/tests/test_freestyle_media_coverage_embedded.py -v
 """
 import importlib.util
+import sqlite3
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -92,3 +94,78 @@ def test_clipper_kick_excluded_clipper_stall_included():
     # clipper-stall is the atom; the bare `clipper` slug is the Clipper Kick.
     assert "clipper-stall" in mod.CORE_TRICKS
     assert "clipper" not in mod.CORE_TRICKS
+
+
+# ── unified-graph migration ────────────────────────────────────────────────
+
+def test_classify_primary_strength_by_source():
+    assert mod.classify_primary_strength("tt_youtube") == "STRONG_TUTORIAL"
+    assert mod.classify_primary_strength("anz_trikz") == "STRONG_TUTORIAL"
+    assert mod.classify_primary_strength("shred_global") == "HIGH_QUALITY_DEMO"
+    assert mod.classify_primary_strength("passback_records") == "WEAK_RECORD"
+    # blank / unknown source → weak (covered, not strong)
+    assert mod.classify_primary_strength("") == "WEAK_RECORD"
+    assert mod.classify_primary_strength("some_unknown_src") == "WEAK_RECORD"
+
+
+def test_trick_tag_body_filters_non_trick_tags():
+    assert mod.trick_tag_body("#double-leg-over") == "double-leg-over"
+    # utility, source/domain-prefix tags are not trick references
+    assert mod.trick_tag_body("#curated") is None
+    assert mod.trick_tag_body("#freestyle") is None
+    assert mod.trick_tag_body("#set_pixie") is None
+    assert mod.trick_tag_body("#by_someone") is None
+
+
+def _seed_minimal_db(path):
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE freestyle_tricks (slug TEXT PRIMARY KEY, canonical_name TEXT,
+            category TEXT, adds INTEGER, is_active INTEGER, review_status TEXT,
+            base_trick TEXT, trick_family TEXT);
+        CREATE TABLE media_items (id TEXT PRIMARY KEY, source_id TEXT, caption TEXT);
+        CREATE TABLE media_tags (media_id TEXT, tag_display TEXT);
+    """)
+    con.executemany("INSERT INTO freestyle_tricks VALUES (?,?,?,?,?,?,?,?)", [
+        ("torque", "Torque", "compound", 3, 1, "curated", "osis", "torque"),
+        ("gauntlet", "Gauntlet", "compound", 5, 1, "curated", "", "gauntlet"),
+        ("memberonly", "Member Only", "compound", 4, 1, "curated", "", "x"),
+    ])
+    con.executemany("INSERT INTO media_items VALUES (?,?,?)", [
+        ("m1", "tt_youtube", "35 - Torque Stall"),     # curated strong tutorial
+        ("m2", "shred_global", "Gauntlet demo"),       # curated demo (still strong)
+        ("m3", "", "a member clip"),                   # NOT curated
+    ])
+    con.executemany("INSERT INTO media_tags VALUES (?,?)", [
+        ("m1", "#curated"), ("m1", "#freestyle"), ("m1", "#trick"), ("m1", "#torque"),
+        ("m2", "#curated"), ("m2", "#freestyle"), ("m2", "#trick"), ("m2", "#gauntlet"), ("m2", "#shred_global"),
+        ("m3", "#memberonly"),  # member upload, no #curated → must be excluded
+    ])
+    con.commit()
+    con.close()
+
+
+def test_build_rows_reads_unified_graph_and_counts_curated_media():
+    # The migration's core: coverage comes from curated media_items/media_tags,
+    # NOT the legacy freestyle_media_* graph. gauntlet is exactly the kind of
+    # trick the legacy dashboard missed; it must now read as covered.
+    with tempfile.NamedTemporaryFile(suffix=".db") as tf:
+        _seed_minimal_db(tf.name)
+        con = sqlite3.connect(tf.name)
+        try:
+            rows = {r["slug"]: r for r in mod.build_rows(con)}
+        finally:
+            con.close()
+
+    assert rows["torque"]["primary_strength"] == "STRONG_TUTORIAL"
+    assert rows["torque"]["status"] == "ACTIVE_STRONG_PRIMARY"
+    assert rows["torque"]["priority_bucket"] == "COMPLETE"
+    assert rows["torque"]["total_media_items"] == 1
+
+    # gauntlet covered via a curated demo-tier item (HIGH_QUALITY_DEMO is strong)
+    assert rows["gauntlet"]["is_strong"] == 1
+    assert rows["gauntlet"]["status"] == "ACTIVE_STRONG_PRIMARY"
+
+    # a trick with only a NON-curated (member) item is not counted as covered
+    assert rows["memberonly"]["total_media_items"] == 0
+    assert rows["memberonly"]["status"] == "ACTIVE_NO_PRIMARY"

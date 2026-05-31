@@ -5,10 +5,17 @@ Produces a per-trick coverage row classifying primary strength, media presence,
 and remediation priority. Mirrors the dashboard the team uses to decide which
 tricks need new primary tutorials and which can be left alone.
 
+Source graph:
+  The UNIFIED media graph (media_items + media_tags). A trick is "covered" when
+  a curated media item (one carrying the #curated tag) is tagged with its
+  #<slug>; coverage strength is derived from the item's source_id. The
+  deprecated freestyle_media_* graph is no longer read.
+
 Input:
-  Either an existing DB (--db) or a fresh schema-only temp DB built by running
-  reset-compatible loaders 17 + 19 + 21 + 22 + 23 in sequence. Default behavior
-  is the temp build (matches what the next reset-local-db.sh will produce).
+  --db <path> against a seeded DB is the supported path: curated media_items are
+  populated by scripts/reset-local-db.sh (seed_fh_curator), which this script
+  does NOT run. Default temp-build mode loads only the trick dictionary (loaders
+  17 + 19) and cannot populate media_items, so it exits with guidance to use --db.
 
   Indirect (embedded) instructional coverage — a trick taught inside another
   trick's tutorial — is read from a curator manifest
@@ -27,12 +34,10 @@ Stdout:
   the top priority targets (CORE_GAP first, then WEAK_CORE; EMBEDDED_ONLY excluded).
 
 Validation (non-zero exit on any failure):
-  - no duplicate primary per (entity_type='trick', entity_id)
-  - no media_links.entity_id points to a missing trick slug
-  - pending tricks with media all have is_primary=0
   - report row count == total freestyle_tricks row count
-  - every asset has a valid, non-UNKNOWN tier
+  - every curated media item's (non-blank) source_id is a recognized source
   - every embedded_coverage.csv slug (embedded + host) resolves to a real trick
+  (Non-resolving curated tags are surfaced in the Media-health section, not failed.)
 
 Run:
   python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py
@@ -53,7 +58,6 @@ SCRIPT_DIR = Path(__file__).parent
 LEGACY_DATA_DIR = SCRIPT_DIR.parents[1]
 REPO_ROOT = SCRIPT_DIR.parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
-MEDIA_ASSETS_CSV = LEGACY_DATA_DIR / "inputs" / "curated" / "media" / "media_assets.csv"
 # Curator-authored manifest of indirect (embedded) instructional coverage: a
 # trick taught INSIDE another trick's tutorial, with no dedicated clip of its
 # own (e.g. orbit inside the Around The World lesson). Manual source, not
@@ -64,24 +68,44 @@ REPORT_DIR = LEGACY_DATA_DIR / "reports"
 REPORT_PATH = REPORT_DIR / "freestyle_media_coverage.csv"
 REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
 
-# Per-asset tier values. CANONICAL_TUTORIAL and HIGH_QUALITY_DEMO both count
-# toward strong coverage (is_strong=True); SUPPORTING_DEMO and RECORD do not.
-# UNKNOWN is a hard validation failure — every asset must have a real tier
-# assigned in media_assets.csv.
-VALID_TIERS = {"CANONICAL_TUTORIAL", "HIGH_QUALITY_DEMO", "SUPPORTING_DEMO", "RECORD", "UNKNOWN"}
-STRONG_TIERS = {"CANONICAL_TUTORIAL", "HIGH_QUALITY_DEMO"}
+# Coverage strength is derived from a curated item's source_id (the unified
+# media graph carries no per-item tier column). STRONG = a teaching-tier source;
+# DEMO = demonstration-tier; RECORD = a record clip. A blank source_id on a
+# curated item is treated as weak (covered, but not strong). A non-blank source
+# not recognized here is flagged by validation.
+STRONG_TUTORIAL_SOURCES = {
+    "tt_youtube", "anz_trikz", "footbagspot_passback", "passback_tutorials",
+    "footbagspot_tutorials", "footbag_foundations", "polini_pointers",
+    "everything_footbag",
+}
+DEMO_SOURCES = {"shred_global", "footbag_finland", "flipsider_footbag"}
+RECORD_SOURCES = {"passback_records"}
+KNOWN_SOURCES = STRONG_TUTORIAL_SOURCES | DEMO_SOURCES | RECORD_SOURCES
+# Strength labels that count as strong primary coverage.
+STRONG_STRENGTHS = {"STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
+# Tag-shape vocabulary mirrored from the live media-tag invariant: exact utility
+# words and snake_case domain prefixes are NOT trick references; a bare
+# kebab-case tag is a trick slug.
+UTILITY_EXACT_TAGS = {"freestyle", "trick", "curated", "tricks_of_the_trade", "passback_records"}
+DOMAIN_PREFIXES = ("event_", "demo_", "fh_", "player_", "club_", "set_", "by_")
+
+
+def trick_tag_body(tag_display: str) -> str | None:
+    """Return the trick-slug body of a media tag, or None if it is a utility /
+    domain-prefix tag (not a trick reference)."""
+    body = tag_display.lstrip("#").strip().lower()
+    if not body or body in UTILITY_EXACT_TAGS or body.startswith(DOMAIN_PREFIXES):
+        return None
+    return body
+
+
+# Temp-build loads only the trick dictionary; the unified curated media
+# (media_items) is seeded out-of-band by reset-local-db.sh, not here.
 LOADERS_IN_ORDER = [
     "17_load_trick_dictionary.py",
     "19_load_red_additions.py",
-    "21_load_freestyle_media_sources.py",
-    "22_load_freestyle_media_assets.py",
-    "23_load_freestyle_media_links.py",
 ]
-
-  # Source-tier sets retained as fallback only — used by classify_primary_strength
-# when an asset row is missing its tier value. Tier in media_assets.csv is the
-# source of truth post-migration.
 
 # Media-priority "core" set: tricks whose MISSING tutorial counts as a
 # high-priority coverage gap (CORE_GAP / WEAK_CORE). Intentionally a SUPERSET
@@ -127,23 +151,6 @@ def build_temp_db() -> Path:
     return db_path
 
 
-def load_asset_tiers() -> dict[str, str]:
-    """Load asset_id → tier from the curated CSV (source of truth).
-
-    The DB schema does not yet carry the tier column, so we read it from the
-    CSV directly. When DB schema migration lands (deferred commit M+1), this
-    helper can be replaced with a SQL JOIN.
-    """
-    tiers: dict[str, str] = {}
-    if not MEDIA_ASSETS_CSV.exists():
-        return tiers
-    with MEDIA_ASSETS_CSV.open(newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            tier = (row.get("tier") or "").strip()
-            tiers[row["id"].strip()] = tier or "UNKNOWN"
-    return tiers
-
-
 def load_embedded_coverage() -> dict[str, list[str]]:
     """Load embedded-coverage edges from the curator manifest (source of truth).
 
@@ -165,35 +172,17 @@ def load_embedded_coverage() -> dict[str, list[str]]:
     return out
 
 
-def classify_primary_strength(asset_id: str | None, source_id: str | None,
-                              asset_tier: str | None) -> str:
-    """Tier-first; source-id fallback for backward compatibility.
+def classify_primary_strength(source_id: str) -> str:
+    """Map a curated item's source_id to a coverage-strength label.
 
-    Returns one of: STRONG_TUTORIAL, HIGH_QUALITY_DEMO, SUPPORTING_DEMO,
-    WEAK_RECORD, NONE. Maps tier values onto the strength labels the rest of
-    the dashboard already uses.
+    Returns STRONG_TUTORIAL / HIGH_QUALITY_DEMO / WEAK_RECORD. A blank or
+    unrecognized source_id is treated as weak (covered, not strong); an
+    unrecognized non-blank source is additionally flagged by validation.
     """
-    if asset_id is None or source_id is None:
-        return "NONE"
-
-    # Tier-first (post-migration)
-    if asset_tier == "CANONICAL_TUTORIAL":
+    if source_id in STRONG_TUTORIAL_SOURCES:
         return "STRONG_TUTORIAL"
-    if asset_tier == "HIGH_QUALITY_DEMO":
+    if source_id in DEMO_SOURCES:
         return "HIGH_QUALITY_DEMO"
-    if asset_tier == "SUPPORTING_DEMO":
-        return "SUPPORTING_DEMO"
-    if asset_tier == "RECORD":
-        return "WEAK_RECORD"
-
-    # Fallback (asset_tier blank or UNKNOWN — flagged by validation but the
-    # dashboard still renders so reviewers can see the bad data).
-    if source_id in {"anz_trikz","tt_youtube","footbagspot_passback","footbagspot_tutorials","shred_global","footbag_foundations","polini_pointers","everything_footbag"}:
-        return "STRONG_TUTORIAL"
-    if source_id in {"footbag_finland","flipsider_footbag"}:
-        return "HIGH_QUALITY_DEMO"
-    if source_id == "passback_records":
-        return "WEAK_RECORD"
     return "WEAK_RECORD"
 
 
@@ -237,46 +226,45 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
         FROM freestyle_tricks ORDER BY slug
     """))
 
-    # Pull all trick links + asset metadata in one shot.
-    link_rows = list(conn.execute("""
-        SELECT l.entity_id, l.media_id, l.is_primary,
-               a.title, a.source_id
-        FROM freestyle_media_links l
-        JOIN freestyle_media_assets a ON l.media_id = a.id
-        WHERE l.entity_type = 'trick'
+    # Curated media in the unified graph: a media_item carrying the #curated
+    # tag, joined to its #<trick-slug> tags. One row per (item, trick-tag).
+    item_rows = list(conn.execute("""
+        SELECT lower(t.tag_display), mi.id, COALESCE(mi.source_id, ''), COALESCE(mi.caption, '')
+        FROM media_tags t
+        JOIN media_items mi ON mi.id = t.media_id
+        WHERE EXISTS (SELECT 1 FROM media_tags c
+                      WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
     """))
 
     by_slug: dict[str, list[dict]] = {}
-    for r in link_rows:
-        by_slug.setdefault(r[0], []).append({
-            "media_id": r[1], "is_primary": r[2],
-            "title": r[3], "source_id": r[4],
+    for tag, media_id, source_id, caption in item_rows:
+        body = trick_tag_body(tag)
+        if body is None:
+            continue
+        by_slug.setdefault(body, []).append({
+            "media_id": media_id, "source_id": source_id, "caption": caption,
+            "strength": classify_primary_strength(source_id),
         })
 
-    asset_tiers = load_asset_tiers()
     embedded = load_embedded_coverage()
+    # Best curated item per trick: strongest tier wins.
+    rank = {"STRONG_TUTORIAL": 3, "HIGH_QUALITY_DEMO": 2, "WEAK_RECORD": 1}
 
     rows = []
     for slug, name, cat, adds, is_active, status, base, family in tricks:
-        links = by_slug.get(slug, [])
-        primaries = [l for l in links if l["is_primary"] == 1]
-        primary = primaries[0] if primaries else None
-        primary_tier = asset_tiers.get(primary["media_id"]) if primary else None
-        primary_strength = classify_primary_strength(
-            primary["media_id"] if primary else None,
-            primary["source_id"] if primary else None,
-            primary_tier,
-        )
-        row_status = classify_status(is_active, primary_strength, len(links))
+        items = by_slug.get(slug, [])
+        primary = max(items, key=lambda i: rank[i["strength"]]) if items else None
+        primary_strength = primary["strength"] if primary else "NONE"
+        row_status = classify_status(is_active, primary_strength, len(items))
         embedded_hosts = embedded.get(slug, [])
         embedded_covered = bool(embedded_hosts)
         priority = classify_priority(slug, row_status, embedded_covered)
-        is_strong = primary_tier in STRONG_TIERS if primary else False
+        is_strong = primary_strength in STRONG_STRENGTHS
         # Pedagogical reach: direct dedicated coverage OR embedded coverage.
         # Reported separately from the direct headline; never merged into it.
         has_reach = row_status == "ACTIVE_STRONG_PRIMARY" or embedded_covered
 
-        sources = {l["source_id"] for l in links}
+        sources = {i["source_id"] for i in items}
         rows.append({
             "slug": slug,
             "canonical_name": name,
@@ -287,15 +275,14 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             "is_active": is_active,
             "review_status": status,
             "primary_media_id": primary["media_id"] if primary else "",
-            "primary_title": (primary["title"] if primary else "") or "",
+            "primary_title": (primary["caption"] if primary else "") or "",
             "primary_source_id": primary["source_id"] if primary else "",
             "primary_strength": primary_strength,
-            "primary_tier": primary_tier or "",
             "is_strong": int(is_strong),
-            "total_media_links": len(links),
+            "total_media_items": len(items),
             "has_anztrikz": int("anz_trikz" in sources),
             "has_tt": int("tt_youtube" in sources),
-            "has_passback": int(any(s in sources for s in ("footbagspot_passback", "passback_records"))),
+            "has_passback": int(any(s in sources for s in ("footbagspot_passback", "passback_tutorials", "passback_records"))),
             "has_record": int("passback_records" in sources),
             "embedded_covered": int(embedded_covered),
             "embedded_hosts": "|".join(embedded_hosts),
@@ -306,51 +293,49 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
     return rows
 
 
+def curated_trick_tags(conn: sqlite3.Connection) -> set[str]:
+    """Distinct trick-slug bodies tagged on curated media items."""
+    out: set[str] = set()
+    for (tag,) in conn.execute("""
+        SELECT DISTINCT lower(t.tag_display) FROM media_tags t
+        WHERE EXISTS (SELECT 1 FROM media_tags c
+                      WHERE c.media_id = t.media_id AND lower(c.tag_display) = '#curated')
+    """):
+        body = trick_tag_body(tag)
+        if body is not None:
+            out.add(body)
+    return out
+
+
 def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     errors: list[str] = []
 
-    # 1. no duplicate primary per trick
-    dup = list(conn.execute("""
-        SELECT entity_id, COUNT(*) FROM freestyle_media_links
-        WHERE entity_type='trick' AND is_primary=1
-        GROUP BY entity_id HAVING COUNT(*) > 1
-    """))
-    if dup:
-        errors.append(f"duplicate primaries: {dup}")
+    # Non-resolving curated tags (source / status / topic / other-discipline tags
+    # such as #shred_global, #tutorial, #net) do NOT corrupt coverage — build_rows
+    # only reads tags that match a freestyle_tricks slug — so they are surfaced in
+    # the Media-health section, not hard-failed here.
 
-    # 2. no media_links.entity_id points to a missing trick slug
-    orphans = list(conn.execute("""
-        SELECT l.entity_id FROM freestyle_media_links l
-        LEFT JOIN freestyle_tricks t ON l.entity_id = t.slug
-        WHERE l.entity_type='trick' AND t.slug IS NULL
-    """))
-    if orphans:
-        errors.append(f"orphan trick references: {[o[0] for o in orphans]}")
-
-    # 3. pending tricks with media all have is_primary=0
-    pending_with_primary = list(conn.execute("""
-        SELECT l.entity_id, l.is_primary FROM freestyle_media_links l
-        JOIN freestyle_tricks t ON l.entity_id = t.slug
-        WHERE l.entity_type='trick' AND t.is_active = 0 AND l.is_primary = 1
-    """))
-    if pending_with_primary:
-        errors.append(f"pending trick with is_primary=1: {pending_with_primary}")
-
-    # 4. report row count == total freestyle_tricks
+    # 1. report row count == total freestyle_tricks
     n_tricks = conn.execute("SELECT COUNT(*) FROM freestyle_tricks").fetchone()[0]
     if len(rows) != n_tricks:
         errors.append(f"row count mismatch: report={len(rows)} tricks_table={n_tricks}")
 
-    # 5. asset tier validation (FAIL on UNKNOWN or invalid tier — Tweak #3)
-    asset_tiers = load_asset_tiers()
-    unknown_tier_assets = [aid for aid, t in asset_tiers.items() if t == "UNKNOWN" or not t]
-    invalid_tier_assets = [(aid, t) for aid, t in asset_tiers.items() if t and t != "UNKNOWN" and t not in VALID_TIERS]
-    if unknown_tier_assets:
-        errors.append(f"assets with UNKNOWN tier (must be classified): {unknown_tier_assets[:10]}{'...' if len(unknown_tier_assets) > 10 else ''}")
-    if invalid_tier_assets:
-        errors.append(f"assets with invalid tier value: {invalid_tier_assets[:10]}")
+    # 2. curated media with an unrecognized (non-blank) source_id. Blank is
+    #    allowed (weak/unsourced); a non-blank unknown source means the strength
+    #    map is stale, so name it.
+    bad_src = sorted({
+        r[0] for r in conn.execute("""
+            SELECT DISTINCT COALESCE(mi.source_id, '') FROM media_items mi
+            WHERE EXISTS (SELECT 1 FROM media_tags c
+                          WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
+              AND COALESCE(mi.source_id, '') <> ''
+        """)
+        if r[0] not in KNOWN_SOURCES
+    })
+    if bad_src:
+        errors.append(f"curated media with unrecognized source_id (update strength map): {bad_src}")
 
-    # 6. embedded-coverage manifest slugs must resolve to real trick slugs
+    # 3. embedded-coverage manifest slugs must resolve to real trick slugs
     #    (both the embedded trick and its host). A typo here would silently
     #    mis-mark coverage, so name the offenders and fail.
     embedded = load_embedded_coverage()
@@ -380,8 +365,8 @@ def write_csv(rows: list[dict]) -> None:
         "slug", "canonical_name", "category", "base_trick", "trick_family", "adds",
         "is_active", "review_status",
         "primary_media_id", "primary_title", "primary_source_id", "primary_strength",
-        "primary_tier", "is_strong",
-        "total_media_links", "has_anztrikz", "has_tt", "has_passback", "has_record",
+        "is_strong",
+        "total_media_items", "has_anztrikz", "has_tt", "has_passback", "has_record",
         "embedded_covered", "embedded_hosts", "has_pedagogical_reach",
         "status", "priority_bucket",
     ]
@@ -427,32 +412,28 @@ def build_family_coverage(rows: list[dict]) -> dict:
 
 
 def build_link_health(conn: sqlite3.Connection) -> dict:
-    """4 link-health metrics for the dashboard."""
-    dup = list(conn.execute("""
-        SELECT entity_id, COUNT(*) FROM freestyle_media_links
-        WHERE entity_type='trick' AND is_primary=1
-        GROUP BY entity_id HAVING COUNT(*) > 1
-    """))
-    orphans = [r[0] for r in conn.execute("""
-        SELECT DISTINCT l.entity_id FROM freestyle_media_links l
-        LEFT JOIN freestyle_tricks t ON l.entity_id = t.slug
-        WHERE l.entity_type='trick' AND t.slug IS NULL
-    """)]
-    pending_primary = list(conn.execute("""
-        SELECT l.entity_id FROM freestyle_media_links l
-        JOIN freestyle_tricks t ON l.entity_id = t.slug
-        WHERE l.entity_type='trick' AND t.is_active = 0 AND l.is_primary = 1
-    """))
-    missing_src = list(conn.execute("""
-        SELECT a.id, a.url, a.source_id FROM freestyle_media_assets a
-        LEFT JOIN freestyle_media_sources s ON a.source_id = s.source_id
-        WHERE a.source_id IS NULL OR a.source_id = '' OR s.source_id IS NULL
-    """))
+    """Media-health metrics for the unified curated graph."""
+    valid_slugs = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks")}
+    orphan_tags = sorted(t for t in curated_trick_tags(conn) if t not in valid_slugs)
+    unrecognized_sources = sorted({
+        r[0] for r in conn.execute("""
+            SELECT DISTINCT COALESCE(mi.source_id, '') FROM media_items mi
+            WHERE EXISTS (SELECT 1 FROM media_tags c
+                          WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
+              AND COALESCE(mi.source_id, '') <> ''
+        """)
+        if r[0] not in KNOWN_SOURCES
+    })
+    blank_source = conn.execute("""
+        SELECT COUNT(DISTINCT mi.id) FROM media_items mi
+        WHERE EXISTS (SELECT 1 FROM media_tags c
+                      WHERE c.media_id = mi.id AND lower(c.tag_display) = '#curated')
+          AND COALESCE(mi.source_id, '') = ''
+    """).fetchone()[0]
     return {
-        "duplicate_primaries": dup,
-        "orphan_media_links":  orphans,
-        "pending_links_marked_primary": [r[0] for r in pending_primary],
-        "missing_source_ids": [(r[0], r[1], r[2]) for r in missing_src],
+        "orphan_curated_tags": orphan_tags,
+        "unrecognized_sources": unrecognized_sources,
+        "curated_items_blank_source": blank_source,
     }
 
 
@@ -481,13 +462,16 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     reach = sum(1 for r in rows if r["is_active"] == 1 and r["has_pedagogical_reach"])
     reach_pct = (reach / total_active * 100) if total_active else 0
 
-    # Subcounts within ACTIVE_STRONG_PRIMARY, by per-asset tier
-    strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "CANONICAL_TUTORIAL")
-    strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "HIGH_QUALITY_DEMO")
+    # Subcounts within ACTIVE_STRONG_PRIMARY, by source-derived strength
+    strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "STRONG_TUTORIAL")
+    strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "HIGH_QUALITY_DEMO")
 
     push("# Freestyle media coverage")
     push("")
     push(f"CSV: `{REPORT_PATH.relative_to(REPO_ROOT)}`")
+    push("")
+    push("Source graph: **unified `media_items` / `media_tags`** (curated items only). "
+         "Direct coverage = a curated `#<slug>`-tagged item; strength is derived from `source_id`.")
     push("")
     push("## 1. Coverage summary")
     push("")
@@ -560,23 +544,16 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
         push(f"| {fam} | {b['total']} | {b['strong']} | {b['weak']} | {b['none']} | {b['pending']} | {pct:.0f}% |")
     push("")
 
-    # 4. Link health
-    push("## 4. Link health")
+    # 4. Media health (unified curated graph)
+    push("## 4. Media health")
     push("")
     push("| Check | Count | Detail |")
     push("|---|---|---|")
-    push(f"| duplicate_primaries | {len(link_health['duplicate_primaries'])} | {link_health['duplicate_primaries'] or '-'} |")
-    push(f"| orphan_media_links | {len(link_health['orphan_media_links'])} | {link_health['orphan_media_links'] or '-'} |")
-    push(f"| pending_links_marked_primary | {len(link_health['pending_links_marked_primary'])} | {link_health['pending_links_marked_primary'] or '-'} |")
-    miss = link_health["missing_source_ids"]
-    miss_detail = "-" if not miss else "; ".join(f"{a[0]} ({a[2] or 'NULL'})" for a in miss[:5]) + (f" ... +{len(miss)-5}" if len(miss) > 5 else "")
-    push(f"| missing_source_ids | {len(miss)} | {miss_detail} |")
-    # Tier validation (Tweak #3)
-    asset_tiers = load_asset_tiers()
-    unknown_assets = [aid for aid, t in asset_tiers.items() if t == "UNKNOWN" or not t]
-    invalid_assets = [(aid, t) for aid, t in asset_tiers.items() if t and t != "UNKNOWN" and t not in VALID_TIERS]
-    push(f"| assets_unknown_tier | {len(unknown_assets)} | {unknown_assets[:5] or '-'} |")
-    push(f"| assets_invalid_tier | {len(invalid_assets)} | {invalid_assets[:5] or '-'} |")
+    orphan = link_health["orphan_curated_tags"]
+    push(f"| orphan_curated_tags | {len(orphan)} | {orphan or '-'} |")
+    bad_src = link_health["unrecognized_sources"]
+    push(f"| unrecognized_sources | {len(bad_src)} | {bad_src or '-'} |")
+    push(f"| curated_items_blank_source | {link_health['curated_items_blank_source']} | (counted as weak coverage) |")
     push("")
 
     return "\n".join(out)
@@ -606,6 +583,24 @@ def main() -> None:
     try:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
+        # Preflight: curated media lives in media_items, seeded by
+        # scripts/reset-local-db.sh (seed_fh_curator), which this script does not
+        # run. Temp-build mode therefore has an empty media_items — fail loudly
+        # with the producer + supported path rather than report 0 coverage.
+        n_media = conn.execute("SELECT COUNT(*) FROM media_items").fetchone()[0]
+        if n_media == 0 and owns_db:
+            conn.close()
+            db_path.unlink(missing_ok=True)
+            sys.stderr.write(
+                "media_items is empty in the temp build. Curated media is seeded by "
+                "scripts/reset-local-db.sh (seed_fh_curator), which this script does not run.\n"
+                "Run against a seeded DB:\n"
+                "  python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py "
+                "--db database/footbag.db\n"
+            )
+            sys.exit(2)
+        if n_media == 0:
+            sys.stderr.write("WARNING: media_items is empty in the supplied --db; coverage will read 0.\n")
         try:
             rows = build_rows(conn)
             family_cov = build_family_coverage(rows)
@@ -625,7 +620,7 @@ def main() -> None:
                 print(f"  - {e}", file=sys.stderr)
             sys.exit(2)
         else:
-            print(f"Validation: 6/6 checks passed (incl. asset tier integrity + embedded-coverage manifest).")
+            print(f"Validation: 3/3 checks passed (unified media_items graph + embedded-coverage manifest).")
             print(f"Markdown report: {REPORT_MD_PATH.relative_to(REPO_ROOT)}")
     finally:
         if owns_db:
