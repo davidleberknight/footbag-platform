@@ -81,8 +81,11 @@ ingested (maintainer-track).
 
 ## Recommended follow-ups (each needs sign-off)
 
-- **James-track:** the curator could rule whether the 6 resolver-only folk-names should also
-  surface in S3 or stay resolver-only. (Hop Over Swirl's canonical row is done — see Actions.)
+- **RULED 2026-05-31 — the 6 structural folk-names stay resolver-only** (`freestyle_trick_aliases`,
+  not S3 `aliases_json`). Verified already the case (e.g. blur's `aliases_json` is `[]` while its
+  resolver carries `stepping-paradox-mirage`), so no change was needed. `double-swirl`→ripstein
+  remains the lone S3-rendered alias — a genuine folk *name* (not a decomposition), wired via the
+  red_additions `aliases` column; left as-is. (Hop Over Swirl's canonical row is done — see Actions.)
 - **Maintainer-track:** register a `footbag_org` video source / lift the external-link block to
   ingest the 12 true-missing demos; promote scorpion's-tail's approved record clip.
 
