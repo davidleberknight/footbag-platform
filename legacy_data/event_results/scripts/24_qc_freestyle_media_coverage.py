@@ -83,11 +83,19 @@ LOADERS_IN_ORDER = [
 # when an asset row is missing its tier value. Tier in media_assets.csv is the
 # source of truth post-migration.
 
+# Media-priority "core" set: tricks whose MISSING tutorial counts as a
+# high-priority coverage gap (CORE_GAP / WEAK_CORE). Intentionally a SUPERSET
+# of the 12 irreducible ontology atoms — it contains all of them plus
+# high-value compounds (pixie, fairy, mobius, ...) that warrant a tutorial.
+# The 12 atoms are listed first. Note: clipper-stall is the atom; the bare
+# `clipper` slug is the Clipper Kick (ADD-1 body trick) and is NOT core.
 CORE_TRICKS = {
-    "mirage", "illusion", "pickup", "legover", "butterfly", "clipper",
-    "around-the-world", "pixie", "fairy", "osis", "torque", "blender",
-    "whirl", "drifter", "ripwalk", "smear", "blur", "mobius",
-    "hop-over", "flying-inside", "flying-outside",
+    # the 12 irreducible atoms
+    "toe-stall", "clipper-stall", "around-the-world", "orbit", "legover",
+    "pickup", "mirage", "illusion", "butterfly", "osis", "whirl", "swirl",
+    # high-value compounds whose missing tutorial is a high-priority gap
+    "pixie", "fairy", "torque", "blender", "drifter", "ripwalk",
+    "smear", "blur", "mobius", "hop-over", "flying-inside", "flying-outside",
 }
 
 

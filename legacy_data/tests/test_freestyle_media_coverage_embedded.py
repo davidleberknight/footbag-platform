@@ -52,12 +52,11 @@ def test_manifest_parses_seeded_edges():
 
 
 def test_embedded_edge_shifts_no_primary_off_the_gap_buckets():
-    # orbit has an embedded edge and no dedicated primary; it must read as
-    # EMBEDDED_ONLY (covered indirectly). NOTE: orbit is not in this script's
-    # local CORE_TRICKS set, so without the edge it is LOW_PRIORITY, not
-    # CORE_GAP — but it must still leave that bucket once embedded.
+    # orbit is a core atom with no dedicated primary; without an edge it is a
+    # CORE_GAP, and with its embedded edge it must read as EMBEDDED_ONLY
+    # (covered indirectly), leaving the gap list.
     assert mod.classify_priority("orbit", "ACTIVE_NO_PRIMARY", embedded_covered=True) == "EMBEDDED_ONLY"
-    assert mod.classify_priority("orbit", "ACTIVE_NO_PRIMARY", embedded_covered=False) == "LOW_PRIORITY"
+    assert mod.classify_priority("orbit", "ACTIVE_NO_PRIMARY", embedded_covered=False) == "CORE_GAP"
 
 
 def test_core_trick_core_gap_becomes_embedded_only():
@@ -75,7 +74,21 @@ def test_embedded_does_not_downgrade_covered_trick():
 
 
 def test_embedded_flag_defaults_false_preserves_legacy_behavior():
-    # The new parameter is optional; existing call sites that omit it keep the
-    # pre-change classification.
-    assert mod.classify_priority("orbit", "ACTIVE_NO_PRIMARY") == "LOW_PRIORITY"
-    assert mod.classify_priority("mirage", "ACTIVE_WEAK_PRIMARY") == "WEAK_CORE"
+    # The new parameter is optional; omitting it must equal passing False.
+    for slug, status in (("orbit", "ACTIVE_NO_PRIMARY"), ("mirage", "ACTIVE_WEAK_PRIMARY")):
+        assert mod.classify_priority(slug, status) == mod.classify_priority(slug, status, False)
+
+
+def test_core_set_contains_all_twelve_atoms():
+    # The media-priority core set is a superset of the 12 irreducible atoms.
+    atoms = {
+        "toe-stall", "clipper-stall", "around-the-world", "orbit", "legover",
+        "pickup", "mirage", "illusion", "butterfly", "osis", "whirl", "swirl",
+    }
+    assert atoms <= mod.CORE_TRICKS
+
+
+def test_clipper_kick_excluded_clipper_stall_included():
+    # clipper-stall is the atom; the bare `clipper` slug is the Clipper Kick.
+    assert "clipper-stall" in mod.CORE_TRICKS
+    assert "clipper" not in mod.CORE_TRICKS
