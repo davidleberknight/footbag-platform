@@ -161,7 +161,7 @@ target feeling is *"oh, this video also teaches pixie and fairy"* — never *"th
 | **Trick detail** | Dedicated vs embedded media, clearly distinct | "▶ Tutorial" / "Also taught inside *Around The World*" | Dedicated first; embedded under a lighter "Where else it's taught" line |
 | **Family page** | One exemplar hero + member coverage | "Featured walkthrough: the **whirl family**" | Hero up top; per-member chips below |
 | **Operator page** | Operator demos | "See the **paradox** operator in action" | One representative clip, restrained |
-| **Glossary** | Inline demo on a modifier-feel / concept card | a single embedded clip on the `#modifier-*` card | Collapsed by default (matches existing observational panels) |
+| **Glossary** | Inline demo on a modifier-feel / concept card | a single embedded clip on the `#modifier_*` card | Collapsed by default (matches existing observational panels) |
 | **Set encyclopedia** | Set-list and comparative clips | "This tutorial covers **pixie** and **fairy** together" | On the set-detail page, below the canonical content |
 | **Progression / learn** | Ordered ladders | "Step 3 of the walking-family path" | The pathway surface owns the ordering |
 
@@ -178,7 +178,7 @@ chip on a doctrine-unsettled trick must read as observational, never as a settle
 
 | Phase | Scope | Storage | Surface | Owner | Gate |
 |---|---|---|---|---|---|
-| **1 — passive metadata** | Author the namespaced-tag + relation registry (`#kind-*`, `#family-*`, `#modifier-*`, `#set-*`, `#progression-*`, and the relation vocabulary); tag **new** sidecars at ingest | reversible content module (`src/content/freestyleMediaTaxonomy.ts`, proposed in §6 of the prior sprint) + sidecar `tags[]` | **none** | James-track | **Safe now** |
+| **1 — passive metadata** | Author the namespaced-tag + relation registry (snake_case prefixes matching the live tag validator: `#kind_*`, `#family_*`, `#modifier_*`, `#set_*`, `#progression_*`, plus the relation vocabulary); tag **new** sidecars at ingest | reversible content module (`src/content/freestyleMediaTaxonomy.ts`, proposed in §6 of the prior sprint) + sidecar `tags[]` | **none** | James-track | **Safe now** |
 | **2 — lightweight edges + hidden metrics** | Record `teaches` / `components-covered` / `demonstrates` as curator-asserted edges (still tag/sidecar/content-module, **no schema**); compute the split metrics in the QC dashboard | sidecars + dashboard (scripts 24/25) | internal only | James-track | **Safe now** (mechanism); **specific doctrine-gated edges blocked** (E.2) |
 | **3 — public indirect-coverage surfacing** | Render dedicated-vs-embedded on trick/family/operator/glossary surfaces | read-only consume of Phase 2 data | public | **Dave-track** (UI placement) | Safe for doctrine-clean targets; coordinate with maintainer |
 | **4 — progression / instructional graphs** | Ordered ladders, set-system learning paths | progression namespace + ordering | public | Dave-track | Safe as **pedagogy**; depends on Phase 3 |
