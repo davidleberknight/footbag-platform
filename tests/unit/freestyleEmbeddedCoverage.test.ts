@@ -1,10 +1,11 @@
 /**
  * Drift guard + shape tests for the embedded-coverage bridge module.
  *
- * The curator-edit surface is the CSV manifest
- * (legacy_data/tools/trick_video_discovery/embedded_coverage.csv); the TS module
- * is its service-readable mirror. This guard fails the build if the two drift,
- * so an edit to either without the other is caught immediately.
+ * The CSV manifest (legacy_data/tools/trick_video_discovery/embedded_coverage.csv)
+ * is the source of truth; the TS module is GENERATED from it by
+ * legacy_data/scripts/build_embedded_coverage_content.py. This guard fails the
+ * build if the committed TS is stale (CSV edited without regenerating), so the
+ * generated artifact can never silently drift from its source.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
