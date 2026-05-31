@@ -423,37 +423,6 @@ export const memberController = {
     }
   },
 
-  postAddAnchor(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) { renderNotFound(res); return; }
-    const memberKey = req.params.memberKey;
-    try {
-      identityAccessService.declareAnchor(
-        req.user!.userId,
-        String(req.body.anchorType ?? ''),
-        String(req.body.anchorValue ?? ''),
-      );
-      res.redirect(303, `/members/${memberKey}/edit`);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const vm = memberService.getProfileEditPage(memberKey, err.message);
-        res.status(422).render('members/profile-edit', vm);
-        return;
-      }
-      next(err);
-    }
-  },
-
-  postRemoveAnchor(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) { renderNotFound(res); return; }
-    const memberKey = req.params.memberKey;
-    try {
-      identityAccessService.removeAnchor(req.user!.userId, String(req.body.anchorId ?? ''));
-      res.redirect(303, `/members/${memberKey}/edit`);
-    } catch (err) {
-      next(err);
-    }
-  },
-
   async postPurchaseTier(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnProfile(req)) { renderNotFound(res); return; }
     const tier = String(req.body.tier ?? req.query.tier ?? '');

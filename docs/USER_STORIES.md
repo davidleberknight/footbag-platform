@@ -719,7 +719,7 @@ Card-at-login confirmation:
 
 Declared-anchor entry:
 
-- Within the wizard's claim task, and editable on the profile (see M_Edit_Profile), the member can declare optional anchors: one or more former surnames and one or more old email addresses. Anchors are self-asserted; no proof required for the declaration itself. Anchors are always private (member-and-admin only) per M_Edit_Profile.
+- Within the wizard's claim task, which is the surface for declaring anchors (reached during onboarding and afterward from the profile's legacy-claim link, see M_Edit_Profile), the member can declare optional anchors: one or more former surnames and one or more old email addresses. Anchors are self-asserted; no proof required for the declaration itself. Anchors are always private (member-and-admin only) per M_Edit_Profile.
 - When the member declares a new anchor, the platform re-runs candidate matching against the new value synchronously within the same wizard task; any resulting cards surface in-screen without requiring a sign-out or sign-in cycle. Declared anchors persist; subsequent matching also runs at sign-in for cases where the platform later receives new data (cross-source candidates appearing post-claim, mirror updates, etc.).
 
 Optional mailbox-control upgrade:
@@ -812,7 +812,7 @@ Success Criteria:
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
   - `show_competitive_results` (default on): toggle controlling whether competition results appear on the member's public profile. The member's own profile view always shows their results regardless of toggle state.
-- **Declared identity anchors (always private):**
+- **Declared identity anchors (always private; declared in the legacy-claim task reached from this page, not edited inline here):**
   - `former_surnames` (optional, multi-valued): zero or more surnames the member previously used (e.g. before marriage). Participates in legacy-claim matching alongside the current real-name surname. Never displayed on public surfaces, member search, or any cross-member listing. Visible only to the member and to admin.
   - Declared old emails (optional, multi-valued): email addresses the member previously controlled. Participate in legacy-claim matching against `legacy_members.legacy_email`. Each declared address may optionally be promoted to mailbox-verified evidence via a confirmation-link round-trip (see the umbrella legacy-claim story). Never displayed on public surfaces. Visible only to the member and to admin.
   - Declared anchors are cleared along with claim back-links during PII purge (see M_Delete_Account).

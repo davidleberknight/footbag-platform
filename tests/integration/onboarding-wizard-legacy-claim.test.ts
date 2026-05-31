@@ -492,3 +492,102 @@ describe('claim audit trail', () => {
     expect(countAuditEntries(memberId, 'claim.legacy_account')).toBe(before + 1);
   });
 });
+
+// ── Declared-anchor matching (old email / former surname) ────────────────────
+
+describe('declared-anchor matching in the wizard claim task', () => {
+  it('surfaces a candidate from a declared old email stored case-insensitively', async () => {
+    const stamp = Date.now();
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-ANCHOR-${stamp}`,
+      legacy_email: `Anchor.Case-${stamp}@Example.COM`,
+      real_name: `Anchor Email ${stamp}`,
+      country: 'CA',
+    });
+    const memberId = insertMember(db, {
+      slug: `anchor_email_${stamp}`,
+      login_email: `current-${stamp}@example.com`,
+      real_name: `Different Now ${stamp}`,
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    const addRes = await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/add')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ anchorType: 'old_email', anchorValue: `anchor.case-${stamp}@example.com` });
+    expect(addRes.status).toBe(303);
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(page.text).toContain('Matched via declared old email.');
+    expect(page.text).toContain(`Anchor Email ${stamp}`);
+  });
+
+  it('surfaces no candidate and reveals nothing when a declared email is ambiguous', async () => {
+    const stamp = Date.now();
+    const collide = `ambig-${stamp}@example.com`;
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-AMBIG-E-${stamp}`,
+      legacy_email: collide,
+      real_name: `Ambiguous Email ${stamp}`,
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-AMBIG-U-${stamp}`,
+      legacy_user_id: collide,
+      real_name: `Ambiguous User ${stamp}`,
+    });
+    const memberId = insertMember(db, {
+      slug: `anchor_ambig_${stamp}`,
+      login_email: `cur-ambig-${stamp}@example.com`,
+      real_name: `Ambig Now ${stamp}`,
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/anchors/add')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ anchorType: 'old_email', anchorValue: collide });
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(page.status).toBe(200);
+    expect(page.text).not.toContain(`Ambiguous Email ${stamp}`);
+    expect(page.text).not.toContain(`Ambiguous User ${stamp}`);
+  });
+
+  it('de-duplicates a legacy-only row reachable from two declared anchors', async () => {
+    const stamp = Date.now();
+    const email = `dup-${stamp}@example.com`;
+    const username = `dupuser-${stamp}`;
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-DUP-${stamp}`,
+      legacy_email: email,
+      legacy_user_id: username,
+      real_name: `Dup Person ${stamp}`,
+    });
+    const memberId = insertMember(db, {
+      slug: `anchor_dup_${stamp}`,
+      login_email: `cur-dup-${stamp}@example.com`,
+      real_name: `Dup Now ${stamp}`,
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    for (const value of [email, username]) {
+      await request(createApp())
+        .post('/register/wizard/legacy_claim/anchors/add')
+        .set('Cookie', cookieFor(memberId))
+        .type('form')
+        .send({ anchorType: 'old_email', anchorValue: value });
+    }
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    const occurrences = page.text.split(`Dup Person ${stamp}`).length - 1;
+    expect(occurrences).toBe(1);
+  });
+});

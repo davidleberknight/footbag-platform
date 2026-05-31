@@ -203,7 +203,6 @@ export interface OwnProfileContent {
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
   showFirstCompetitionYear: boolean;
-  declaredAnchors?: Array<{ id: string; anchorType: string; anchorTypeLabel: string; anchorValue: string }>;
   heroData?: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
@@ -525,7 +524,6 @@ export const memberService = {
   ): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
     const cta = buildIdentityCta(row.legacy_member_id !== null, row.historical_person_id !== null, slug);
-    const anchors = identityAccessService.listDeclaredAnchors(row.id);
     return {
       seo:  { title: 'Edit Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile_edit', title: 'Edit Profile' },
@@ -539,7 +537,6 @@ export const memberService = {
         profileUrl: `/members/${slug}`,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
-        declaredAnchors: anchors,
         error,
         avatarError,
         avatarSuccess,

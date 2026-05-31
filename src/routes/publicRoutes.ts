@@ -133,8 +133,6 @@ publicRouter.get('/members',                       memberController.landing);
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',          requireAuth, memberController.getProfileEdit);
 publicRouter.post('/members/:memberKey/edit',         requireAuth, memberController.postProfileEdit);
-publicRouter.post('/members/:memberKey/anchors/add',    requireAuth, memberController.postAddAnchor);
-publicRouter.post('/members/:memberKey/anchors/remove', requireAuth, memberController.postRemoveAnchor);
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);

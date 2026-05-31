@@ -6,7 +6,7 @@
 
 <div class="wrapper">
   <section>
-    <p>Match your account to your past on footbag.org. Pick a record below or search by id.</p>
+    <p>Match your account to your past on footbag.org. Pick a suggested match below, tell us an email address or surname you used on the old site, or search by your old footbag.org ID.</p>
 
     {{#if content.validationMessage}}
       <p class="form-notice" role="alert">{{content.validationMessage}}</p>
@@ -80,16 +80,8 @@
       </ul>
     {{/if}}
 
-    <h2>Other ways to find your records</h2>
-    <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
-      <div class="form-field">
-        <label for="identifier">Old footbag.org member ID, username, or email, or historical-record ID</label>
-        <input type="text" id="identifier" name="identifier" required />
-      </div>
-      <button type="submit" class="btn btn-secondary">Find</button>
-    </form>
-
-    <h3 class="mt-6">Used a different email or name on the old site?</h3>
+    <h2>Help us find your record</h2>
+    <p class="text-muted fs-sm">If you used a different email address or surname on footbag.org, tell us here and we'll look for matching records.</p>
 
     {{#if content.declaredAnchors.length}}
       <ul class="mb-4">
@@ -123,6 +115,15 @@
         <small class="form-hint">If you used a different surname on footbag.org, enter it here to help us find your account.</small>
       </div>
       <button type="submit" class="btn btn-secondary">Add former name</button>
+    </form>
+
+    <h2 class="mt-6">Know your old footbag.org ID or username?</h2>
+    <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
+      <div class="form-field">
+        <label for="identifier">Old footbag.org member ID, username, or email, or historical-record ID</label>
+        <input type="text" id="identifier" name="identifier" required />
+      </div>
+      <button type="submit" class="btn btn-secondary">Find</button>
     </form>
 
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">

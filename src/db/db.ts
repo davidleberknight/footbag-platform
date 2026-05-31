@@ -5935,7 +5935,7 @@ export const legacyMembers = {
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE claimed_by_member_id IS NULL
-      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
+      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ? COLLATE NOCASE)
   `); },
 
   get findByLegacyMemberId() { return db.prepare(`

@@ -1256,7 +1256,7 @@ function lookupLegacyAccount(
     throw new ValidationError('Your account is already linked to a legacy record.');
   }
 
-  const rows = legacyMembers.findAllByIdentifier.all(trimmed, trimmed, trimmed) as LegacyMemberRow[];
+  const rows = legacyMembers.findAllByIdentifier.all(trimmed, trimmed, normalizeEmail(identifier)) as LegacyMemberRow[];
   if (rows.length === 0) return { kind: 'none' };
   if (rows.length > 1) {
     return { kind: 'ambiguous_email', count: rows.length };
@@ -2573,6 +2573,9 @@ async function getLinkHistoryViewForWizard(
 
   const anchors = listDeclaredAnchors(memberId);
   const seenPersonIds = new Set(view.candidates.map((c) => c.personId).filter(Boolean));
+  const seenLegacyMemberIds = new Set(
+    view.candidates.map((c) => c.legacyMemberId).filter(Boolean),
+  );
   for (const anchor of anchors) {
     if (anchor.anchorType === 'former_surname') {
       for (const c of findAutoLinkCandidates(anchor.anchorValue)) {
@@ -2603,8 +2606,9 @@ async function getLinkHistoryViewForWizard(
           if (lmRow) {
             const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(lmRow.legacy_member_id) as HistoricalPersonClaimRow | undefined;
             const personId = backHp?.person_id ?? null;
-            if (!personId || !seenPersonIds.has(personId)) {
+            if (personId ? !seenPersonIds.has(personId) : !seenLegacyMemberIds.has(lmRow.legacy_member_id)) {
               if (personId) seenPersonIds.add(personId);
+              else seenLegacyMemberIds.add(lmRow.legacy_member_id);
               view.candidates.push({
                 claimMode: 'legacy_claim',
                 displayName: lookup.result.displayName ?? lmRow.real_name ?? 'Unknown',
@@ -2622,6 +2626,15 @@ async function getLinkHistoryViewForWizard(
               });
             }
           }
+        } else if (lookup.kind === 'ambiguous_email') {
+          // Declared old email matched multiple legacy rows (duplicate emails in the
+          // legacy dump). The claim flow must not reveal whether an identifier matched
+          // zero, one, or many rows, so surface no candidate and show the member
+          // nothing; log server-side (no email, no count) for operability.
+          logger.warn('legacy_claim.declared_old_email.ambiguous', {
+            memberId,
+            anchorId: anchor.id,
+          });
         }
       } catch {
         // Non-revealing on lookup errors.

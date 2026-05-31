@@ -1095,7 +1095,7 @@ Optional member-asserted profile field carrying a previous surname the member us
 Schema authority: `database/schema.sql`. Contract:
 
 - New column `members.former_surnames` TEXT NULL holding a normalized list of zero or more former surnames (delimiter and normalization spelled out in `database/schema.sql`).
-- Surfaces: optional input on the registration form, editable on the profile, prompted within the wizard's universal claim task (see `M_Complete_Onboarding_Wizard`).
+- Surfaces: optional input on the registration form, prompted within the wizard's universal claim task (reached afterward from the profile's legacy-claim link); see `M_Complete_Onboarding_Wizard`.
 - Privacy: visible only to the member and to admin. Never surfaced on public profile, member search, or any cross-member listing.
 - Cleared on PII purge alongside `members.legacy_member_id` and `members.historical_person_id`.
 
@@ -1106,7 +1106,7 @@ Optional member-asserted profile field carrying zero or more email addresses the
 Schema authority: `database/schema.sql`. Contract:
 
 - New table `member_declared_old_emails` keyed on `(member_id, normalized_email)` with `declared_at`, `verified_via_link_click_at` TEXT NULL, `verification_token_id` TEXT NULL.
-- Surfaces: optional input on the registration form, editable on the profile, prompted within the wizard's universal claim task.
+- Surfaces: optional input on the registration form, prompted within the wizard's universal claim task (reached afterward from the profile's legacy-claim link).
 - Privacy: visible only to the member and to admin. Never surfaced publicly.
 - Cleared on PII purge.
 
@@ -1631,7 +1631,7 @@ Phase 4 activities:
 - New platform live
 - Legacy database retained by the legacy-site webmaster for reference and targeted recovery
 - Members confirm their wizard-staged candidates over time as they sign in
-- Members declare additional anchors (former surname, old emails) on their profiles as needed; the platform re-runs candidate matching against the new anchors
+- Members declare additional anchors (former surname, old emails) in the legacy-claim task (reached from their profile) as needed; the platform re-runs candidate matching against the new anchors
 - Admins process member-initiated help requests (§13) and review the honors-bearing direct-claim oversight feed (§13)
 - Leadership activations accumulate as members register and claim
 

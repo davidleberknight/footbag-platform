@@ -60,6 +60,28 @@ function postEdit(fields: Record<string, string>): request.Test {
     .send(fields);
 }
 
+// ── Legacy-claim anchors removed from Edit Profile ───────────────────────────
+
+describe('Edit Profile no longer hosts legacy-claim anchors', () => {
+  it('does not render the declared-anchor section', async () => {
+    const res = await request(createApp())
+      .get(`/members/${MEMBER_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Used a different email or name on the old site?');
+    expect(res.text).not.toContain('/anchors/add');
+  });
+
+  it('returns 404 for the removed anchor-add route', async () => {
+    const res = await request(createApp())
+      .post(`/members/${MEMBER_SLUG}/anchors/add`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send({ anchorType: 'old_email', anchorValue: 'x@example.com' });
+    expect(res.status).toBe(404);
+  });
+});
+
 // ── firstCompetitionYear ──────────────────────────────────────────────────────
 
 describe('firstCompetitionYear validation', () => {
