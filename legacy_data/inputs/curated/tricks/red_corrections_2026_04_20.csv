@@ -1240,3 +1240,5 @@ double-around-the-world,trick_family,atw,around-the-world,"ATW label reconciliat
 wrap,notation,,WRAP,"Curator ruling 2026-05-29: JOB backfill (mechanical rule, uppercase canonical_name)."
 wrap,operational_notation,,SET > SAME INSIDE [DEL] > OP OUT [DEX] > (into clipper),"Curator ruling 2026-05-29: walk-over == wrap (identical adds + topology). Class B sibling-derived: inside-delay [DEL] + step-over [DEX] = 2 ADD, delay-first per PassBack Walkover decomposition (Inside Stall > step over into Clipper). Curator spot-check qualifiers/terminal annotation."
 walk-over,operational_notation,,SET > SAME INSIDE [DEL] > (plant foot) > OP OUT [DEX] > (into clipper),"Curator ruling 2026-05-29: walk-over == wrap; differs only by the stalling foot placed on the ground = unbracketed (plant foot) annotation (0 ADD, topology identical). Class B; curator spot-check qualifiers."
+hop-over-swirl,notation,,HOP OVER SWIRL,footbag.org Video Moves: mechanical JOB (uppercase canonical)
+hop-over-swirl,operational_notation,,INSIDE > (JUMP) [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL],footbag.org Video Moves: op_notation copied from source

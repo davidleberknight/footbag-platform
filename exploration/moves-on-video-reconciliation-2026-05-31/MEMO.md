@@ -53,6 +53,15 @@ canonical tricks; each equivalence verified against the file's op_notation):
 - No collisions (none of the 7 folk-slugs pre-existed as a trick slug or alias).
 - Aliases land in the live DB on the next reseed (`reset-local-db.sh`, maintainer-owned).
 
+**Added the canonical row for Hop Over Swirl** (the lone footbag.org Video Move with no DB row):
+- red_additions: `hop over swirl` (slug `hop-over-swirl`), 4 ADD, base_trick/family `swirl` (mirrors
+  butterfly-swirl / spinning-swirl / stepping-swirl / whirling-swirl — all swirl-family 4-ADD compounds),
+  category compound, review_status `curated` (footbag.org provenance), is_active 1.
+- red_corrections: `notation = HOP OVER SWIRL` (mechanical JOB) + `operational_notation =
+  INSIDE > (JUMP) [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL]` (copied from footbag.org).
+- Verified: ADD-math 4 brackets = 4 ADD; alias-collapse clear (no existing jump+swirl trick);
+  zero new QC conflicts. Lands on next reseed (run the parser-populate after, per the standing rule).
+
 ## Embedded coverage — held (no honest edges from this file)
 
 The reconciliation surfaced compound→atom relationships, but **no embedded-coverage edge
@@ -72,9 +81,8 @@ ingested (maintainer-track).
 
 ## Recommended follow-ups (each needs sign-off)
 
-- **James-track:** promote a canonical row for **Hop Over Swirl** (footbag.org op_notation in
-  hand); the curator could also rule whether the 6 resolver-only folk-names should also surface
-  in S3 or stay resolver-only.
+- **James-track:** the curator could rule whether the 6 resolver-only folk-names should also
+  surface in S3 or stay resolver-only. (Hop Over Swirl's canonical row is done — see Actions.)
 - **Maintainer-track:** register a `footbag_org` video source / lift the external-link block to
   ingest the 12 true-missing demos; promote scorpion's-tail's approved record clip.
 
