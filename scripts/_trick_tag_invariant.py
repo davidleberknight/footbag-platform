@@ -34,7 +34,7 @@ _SLUG_SHAPE_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 UTILITY_EXACT: frozenset[str] = frozenset({
     "freestyle", "trick", "curated", "tricks_of_the_trade",
-    "passback_records",
+    "passback_records", "footbag_org",
 })
 
 SEMANTIC_PREFIXES: tuple[str, ...] = (
