@@ -10,18 +10,29 @@ Input:
   reset-compatible loaders 17 + 19 + 21 + 22 + 23 in sequence. Default behavior
   is the temp build (matches what the next reset-local-db.sh will produce).
 
+  Indirect (embedded) instructional coverage — a trick taught inside another
+  trick's tutorial — is read from a curator manifest
+  (legacy_data/tools/trick_video_discovery/embedded_coverage.csv) and reported
+  SEPARATELY: it never counts toward the direct strong-coverage headline. A
+  no-primary trick with an embedded edge is bucketed EMBEDDED_ONLY (covered
+  indirectly), not as a gap.
+
 Output:
   legacy_data/reports/freestyle_media_coverage.csv
+  (per-trick row incl. embedded_covered / embedded_hosts / has_pedagogical_reach)
 
 Stdout:
-  Markdown summary with active counts, strong-coverage percentage, and the top
-  20 priority targets (CORE_GAP first, then WEAK_CORE).
+  Markdown summary with active counts, the direct strong-coverage percentage, a
+  separate indirect-coverage block (embedded_covered, pedagogical_reach), and
+  the top priority targets (CORE_GAP first, then WEAK_CORE; EMBEDDED_ONLY excluded).
 
 Validation (non-zero exit on any failure):
   - no duplicate primary per (entity_type='trick', entity_id)
   - no media_links.entity_id points to a missing trick slug
   - pending tricks with media all have is_primary=0
   - report row count == total freestyle_tricks row count
+  - every asset has a valid, non-UNKNOWN tier
+  - every embedded_coverage.csv slug (embedded + host) resolves to a real trick
 
 Run:
   python legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py
@@ -43,6 +54,12 @@ LEGACY_DATA_DIR = SCRIPT_DIR.parents[1]
 REPO_ROOT = SCRIPT_DIR.parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
 MEDIA_ASSETS_CSV = LEGACY_DATA_DIR / "inputs" / "curated" / "media" / "media_assets.csv"
+# Curator-authored manifest of indirect (embedded) instructional coverage: a
+# trick taught INSIDE another trick's tutorial, with no dedicated clip of its
+# own (e.g. orbit inside the Around The World lesson). Manual source, not
+# pipeline-generated. Read-only here; embedded coverage is reported separately
+# and never counts toward the direct strong-coverage headline.
+EMBEDDED_COVERAGE_CSV = LEGACY_DATA_DIR / "tools" / "trick_video_discovery" / "embedded_coverage.csv"
 REPORT_DIR = LEGACY_DATA_DIR / "reports"
 REPORT_PATH = REPORT_DIR / "freestyle_media_coverage.csv"
 REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
@@ -119,6 +136,27 @@ def load_asset_tiers() -> dict[str, str]:
     return tiers
 
 
+def load_embedded_coverage() -> dict[str, list[str]]:
+    """Load embedded-coverage edges from the curator manifest (source of truth).
+
+    Returns {embedded_trick_slug: [host_trick_slug, ...]}. Absent file → empty
+    dict (graceful: a fresh clone or partial state never crashes the dashboard).
+    """
+    out: dict[str, list[str]] = {}
+    if not EMBEDDED_COVERAGE_CSV.exists():
+        return out
+    with EMBEDDED_COVERAGE_CSV.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            emb = (row.get("embedded_trick_slug") or "").strip()
+            host = (row.get("host_trick_slug") or "").strip()
+            if not emb:
+                continue
+            out.setdefault(emb, [])
+            if host:
+                out[emb].append(host)
+    return out
+
+
 def classify_primary_strength(asset_id: str | None, source_id: str | None,
                               asset_tier: str | None) -> str:
     """Tier-first; source-id fallback for backward compatibility.
@@ -165,13 +203,18 @@ def classify_status(is_active: int, primary_strength: str, total_links: int) -> 
     return "PENDING_NO_MEDIA"
 
 
-def classify_priority(slug: str, status: str) -> str:
+def classify_priority(slug: str, status: str, embedded_covered: bool = False) -> str:
     is_core = slug in CORE_TRICKS
     if status == "ACTIVE_STRONG_PRIMARY":
         return "COMPLETE"
     if status in ("PENDING_WITH_MEDIA", "PENDING_NO_MEDIA"):
         return "PENDING_REVIEW"
     if status == "ACTIVE_NO_PRIMARY":
+        # A trick taught inside another trick's tutorial is covered, just not
+        # by a dedicated clip — it is not a gap. Surface it distinctly so it
+        # neither hides among COMPLETE nor inflates the CORE_GAP list.
+        if embedded_covered:
+            return "EMBEDDED_ONLY"
         return "CORE_GAP" if is_core else "LOW_PRIORITY"
     if status == "ACTIVE_WEAK_PRIMARY":
         return "WEAK_CORE" if is_core else "LOW_PRIORITY"
@@ -203,6 +246,7 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
         })
 
     asset_tiers = load_asset_tiers()
+    embedded = load_embedded_coverage()
 
     rows = []
     for slug, name, cat, adds, is_active, status, base, family in tricks:
@@ -216,8 +260,13 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             primary_tier,
         )
         row_status = classify_status(is_active, primary_strength, len(links))
-        priority = classify_priority(slug, row_status)
+        embedded_hosts = embedded.get(slug, [])
+        embedded_covered = bool(embedded_hosts)
+        priority = classify_priority(slug, row_status, embedded_covered)
         is_strong = primary_tier in STRONG_TIERS if primary else False
+        # Pedagogical reach: direct dedicated coverage OR embedded coverage.
+        # Reported separately from the direct headline; never merged into it.
+        has_reach = row_status == "ACTIVE_STRONG_PRIMARY" or embedded_covered
 
         sources = {l["source_id"] for l in links}
         rows.append({
@@ -240,6 +289,9 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             "has_tt": int("tt_youtube" in sources),
             "has_passback": int(any(s in sources for s in ("footbagspot_passback", "passback_records"))),
             "has_record": int("passback_records" in sources),
+            "embedded_covered": int(embedded_covered),
+            "embedded_hosts": "|".join(embedded_hosts),
+            "has_pedagogical_reach": int(has_reach),
             "status": row_status,
             "priority_bucket": priority,
         })
@@ -290,6 +342,27 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     if invalid_tier_assets:
         errors.append(f"assets with invalid tier value: {invalid_tier_assets[:10]}")
 
+    # 6. embedded-coverage manifest slugs must resolve to real trick slugs
+    #    (both the embedded trick and its host). A typo here would silently
+    #    mis-mark coverage, so name the offenders and fail.
+    embedded = load_embedded_coverage()
+    if embedded:
+        valid_slugs = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks")}
+        unknown_embedded = sorted(s for s in embedded if s not in valid_slugs)
+        unknown_hosts = sorted({
+            h for hosts in embedded.values() for h in hosts if h not in valid_slugs
+        })
+        if unknown_embedded:
+            errors.append(
+                f"embedded_coverage.csv embedded_trick_slug not in freestyle_tricks: "
+                f"{unknown_embedded}"
+            )
+        if unknown_hosts:
+            errors.append(
+                f"embedded_coverage.csv host_trick_slug not in freestyle_tricks: "
+                f"{unknown_hosts}"
+            )
+
     return errors
 
 
@@ -301,6 +374,7 @@ def write_csv(rows: list[dict]) -> None:
         "primary_media_id", "primary_title", "primary_source_id", "primary_strength",
         "primary_tier", "is_strong",
         "total_media_links", "has_anztrikz", "has_tt", "has_passback", "has_record",
+        "embedded_covered", "embedded_hosts", "has_pedagogical_reach",
         "status", "priority_bucket",
     ]
     with REPORT_PATH.open("w", newline="", encoding="utf-8") as f:
@@ -391,6 +465,14 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     pending_nomedia = by_status.get("PENDING_NO_MEDIA", 0)
     pct = (strong / total_active * 100) if total_active else 0
 
+    # Indirect (embedded) coverage — reported SEPARATELY, never merged into the
+    # direct strong-coverage headline above. Pedagogical reach = direct strong
+    # OR embedded; it is a distinct, explicitly-labelled metric.
+    embedded_active = sum(1 for r in rows if r["is_active"] == 1 and r["embedded_covered"])
+    embedded_only = sum(1 for r in rows if r["priority_bucket"] == "EMBEDDED_ONLY")
+    reach = sum(1 for r in rows if r["is_active"] == 1 and r["has_pedagogical_reach"])
+    reach_pct = (reach / total_active * 100) if total_active else 0
+
     # Subcounts within ACTIVE_STRONG_PRIMARY, by per-asset tier
     strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "CANONICAL_TUTORIAL")
     strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "HIGH_QUALITY_DEMO")
@@ -411,7 +493,16 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     push(f"| no_primary | {no_prim} |")
     push(f"| pending_with_media | {pending_media} |")
     push(f"| pending_no_media | {pending_nomedia} |")
-    push(f"| strong_coverage_pct | **{pct:.1f}%** |")
+    push(f"| strong_coverage_pct (direct dedicated) | **{pct:.1f}%** |")
+    push("")
+    push("Indirect coverage (reported separately; NOT added to the direct headline above):")
+    push("")
+    push("| Metric | Count |")
+    push("|---|---|")
+    push(f"| embedded_covered (active) | {embedded_active} |")
+    push(f"| &nbsp;&nbsp;&nbsp;embedded_only (no direct primary) | {embedded_only} |")
+    push(f"| pedagogical_reach (incl. embedded) | {reach} |")
+    push(f"| pedagogical_reach_pct (incl. embedded) | {reach_pct:.1f}% |")
     push("")
 
     # 2. Top action list — sort by user-specified priority order
@@ -425,10 +516,13 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
         if r["priority_bucket"] == "WEAK_CORE": return (1, r["slug"])
         return (status_rank.get(r["status"], 99), r["slug"])
 
-    actions = sorted([r for r in rows if r["priority_bucket"] != "COMPLETE"], key=action_key)[:25]
+    # EMBEDDED_ONLY is covered indirectly (taught inside another trick's
+    # tutorial) — not a gap, so it stays off the action list alongside COMPLETE.
+    covered_buckets = {"COMPLETE", "EMBEDDED_ONLY"}
+    actions = sorted([r for r in rows if r["priority_bucket"] not in covered_buckets], key=action_key)[:25]
     push("## 2. Top action list")
     push("")
-    push("Sorted: CORE_GAP → WEAK_CORE → ACTIVE_NO_PRIMARY → ACTIVE_WEAK_PRIMARY → PENDING_REVIEW.")
+    push("Sorted: CORE_GAP → WEAK_CORE → ACTIVE_NO_PRIMARY → ACTIVE_WEAK_PRIMARY → PENDING_REVIEW. EMBEDDED_ONLY excluded (covered indirectly).")
     push("")
     push("| # | Slug | Family | Status | Bucket | Current primary |")
     push("|---|---|---|---|---|---|")
@@ -523,7 +617,7 @@ def main() -> None:
                 print(f"  - {e}", file=sys.stderr)
             sys.exit(2)
         else:
-            print(f"Validation: 5/5 checks passed (incl. asset tier integrity).")
+            print(f"Validation: 6/6 checks passed (incl. asset tier integrity + embedded-coverage manifest).")
             print(f"Markdown report: {REPORT_MD_PATH.relative_to(REPO_ROOT)}")
     finally:
         if owns_db:
