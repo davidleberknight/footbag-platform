@@ -209,6 +209,7 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
       'id="section-composition"',
       'id="section-run-architecture"',
       'id="connective-panels"',
+      'id="inside-clipper-neighborhood"',
       'id="section-advanced-reference"',
       'id="section-community"',
       'id="section-historical"',
@@ -220,5 +221,49 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
       expect(idx, `anchor ${anchor} not in monotonic order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
     }
+  });
+});
+
+describe('GET /freestyle/glossary — inside-delay stationary-transition case study', () => {
+  it('renders the case-study section heading + anchor', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="inside-clipper-neighborhood"');
+    expect(res.text).toMatch(/inside-delay stationary-transition neighborhood/i);
+  });
+
+  it('renders all four neighborhood tricks with detail-page links', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('href="/freestyle/tricks/wrap"');
+    expect(res.text).toContain('href="/freestyle/tricks/walk-over"');
+    expect(res.text).toContain('href="/freestyle/tricks/hop-over"');
+    expect(res.text).toContain('href="/freestyle/tricks/eclipse"');
+    // step-over is an alias of walk-over — surfaced as text, never its own link.
+    expect(res.text).not.toContain('href="/freestyle/tricks/step-over"');
+  });
+
+  it('is badged observational and disclaims canonical-family change', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const start = res.text.indexOf('id="inside-clipper-neighborhood"');
+    const end = res.text.indexOf('id="section-advanced-reference"');
+    const slice = res.text.substring(start, end);
+    expect(slice).toMatch(/movement-neighborhood lens/i);
+    expect(slice).toMatch(/each anchor\s+their own family/i);
+  });
+
+  it('renders eclipse as an explicitly unsettled reading (alignment-rule guard)', async () => {
+    // The observational case study must NOT harden eclipse's decomposition into a
+    // canonical claim, and must not contradict the detail page's op_notation / ADD.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const start = res.text.indexOf('id="inside-clipper-neighborhood"');
+    const end = res.text.indexOf('id="section-advanced-reference"');
+    const slice = res.text.substring(start, end);
+    expect(slice).toMatch(/doctrinally unsettled/i);
+    expect(slice).toMatch(/commonly interpreted as symposium/i);
+  });
+
+  it('links the section from the glossary sidebar', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('href="#inside-clipper-neighborhood"');
   });
 });
