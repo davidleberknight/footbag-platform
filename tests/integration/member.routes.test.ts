@@ -285,6 +285,26 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).not.toContain('Link your old footbag.org account');
     expect(res.text).not.toContain('Link your competition history');
   });
+
+  it('Save is wired to the profile form — form not nested, submit associated', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    // A nested <form> closes the outer form at the first </form> and orphans the
+    // Save button, so the profile silently submits nothing. Guard against it.
+    let depth = 0;
+    let maxDepth = 0;
+    for (const m of res.text.matchAll(/<form\b|<\/form>/g)) {
+      if (m[0] === '</form>') depth -= 1;
+      else { depth += 1; if (depth > maxDepth) maxDepth = depth; }
+    }
+    expect(maxDepth).toBeLessThanOrEqual(1);
+    // Save belongs to the profile form (rendered inside it or via the form= attribute).
+    expect(res.text).toMatch(/<form\b[^>]*\bid="profileEditForm"/);
+    expect(res.text).toMatch(/<button[^>]*\bform="profileEditForm"[^>]*>\s*Save/);
+  });
 });
 
 // ── POST /members/:memberKey/edit ───────────────────────────────────────────────

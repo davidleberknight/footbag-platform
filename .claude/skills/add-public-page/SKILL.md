@@ -81,6 +81,7 @@ Before finishing, review all new or changed templates and CSS for responsive cor
 - **Laptop (768px+):** verify the layout reads well at typical desktop/laptop widths. Check that grids, flex rows, and max-width constraints produce a balanced page.
 - **Phone (480px and below):** verify that every flex row, grid, multi-column layout, and inline element stacks or wraps gracefully. Check the 480px media query block in `style.css` and add rules if the new layout would break at narrow widths.
 - Common pitfalls: horizontal overflow from fixed-width elements, side-by-side rows that do not stack, text truncation, touch targets too small, identity/detail rows that need vertical stacking on narrow screens.
+- **Form structure:** the page's primary `<form>` is not nested inside another form, and its submit control sits inside it or is wired via `form="id"`; independent POST actions are sibling forms, never nested. A nested form closes the outer one early and silently orphans the submit button.
 
 If in doubt about a layout, flag it to the human rather than shipping something that looks broken on mobile.
 

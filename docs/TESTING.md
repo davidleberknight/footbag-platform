@@ -235,6 +235,7 @@ Belongs:
 - Avatar upload and media upload round-trips
 - Public navigation confidence (small sample, not exhaustive)
 - Role-sensitive UI behavior smoke
+- Primary-form submission actually posts (no nested-form orphaning of the submit button). The static no-nested-forms gate in `scripts/ci/assert_conventions.sh` is the cheap floor that catches the markup defect at merge time; an E2E submit is the deep check that the wired-up form reaches its handler.
 
 Does not belong:
 

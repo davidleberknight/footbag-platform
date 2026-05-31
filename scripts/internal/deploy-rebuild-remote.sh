@@ -226,6 +226,40 @@ if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
   echo 'SAFE_BROWSING_ADAPTER=stub' >> "$ENV_PATH"
 fi
 
+# Reconcile SES_ADAPTER for non-production hosts. src/config/env.ts forces the
+# stub adapter on staging and development (so no real mail leaves a
+# non-production environment) and refuses any other value at boot, so the
+# operator has no legitimate choice here; overwriting corrects a stale host
+# value (a non-production host left on the live adapter, say) on the next deploy
+# instead of letting the stack crash-loop. Production is left operator-owned:
+# env.ts requires the live adapter there and SES_FROM_IDENTITY is asserted
+# below, so the value is validated rather than auto-written.
+FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
+if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
+  echo "    Reconciling SES_ADAPTER=stub into env file (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^SES_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'SES_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+fi
+
+# PAYMENT_ADAPTER: seed the stub on a fresh non-production host so the compose
+# ${PAYMENT_ADAPTER:?} guard and env.ts have a value, but do not overwrite an
+# existing one (env.ts permits PAYMENT_ADAPTER=live on staging, for instance to
+# exercise Stripe). Production is operator-set: env.ts forbids 'stub' there and
+# the live factory fails fast until the Stripe-SDK slice ships, so a fresh
+# production host fails loud at the compose guard, the correct unconfigured signal.
+if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
+  if ! grep -q '^PAYMENT_ADAPTER=' "$ENV_PATH"; then
+    echo "    Seeding PAYMENT_ADAPTER=stub into env file (staging/dev default; preserved if already set)..."
+    echo 'PAYMENT_ADAPTER=stub' >> "$ENV_PATH"
+  fi
+fi
+
 NODE_ENV_VAL=$(require_env NODE_ENV)
 LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
@@ -242,7 +276,6 @@ SES_ADAPTER_VAL=$(require_env SES_ADAPTER)
 SES_FROM_IDENTITY_VAL=$(require_env SES_FROM_IDENTITY)
 AWS_REGION_VAL=$(require_env AWS_REGION)
 AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
-FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
 
 # Defense-in-depth refuse-check (workstation half also gates this). The
 # script auto-wipes the S3 media bucket on staging by default; on non-

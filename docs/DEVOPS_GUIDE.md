@@ -1033,6 +1033,7 @@ The script-based deploy path enforces these; manual deploys must check them.
 - `/srv/footbag/env` is owned `root:root` with mode 0600
 - image-digest equality is verified after `docker load`; an ID mismatch aborts the deploy
 - `X_ORIGIN_VERIFY_SECRET` is fetched from SSM and `FOOTBAG_ENV` is reconciled into `/srv/footbag/env` before the compose restart (§5.9)
+- environment-conditional adapter selectors are reconciled before the compose restart: `SES_ADAPTER` is forced to `stub` on staging and development hosts so non-production never sends real mail (production is operator-set to `live` and validated, not overwritten), and `PAYMENT_ADAPTER` is seeded to `stub` where absent on non-production hosts
 - the host SQLite file exists and its parent directory is mounted into the compose stack at `/app/db`, with the DB visible inside the container at `/app/db/footbag.db`
 
 #### Post-deploy verification

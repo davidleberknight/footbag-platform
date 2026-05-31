@@ -171,6 +171,45 @@ if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
   mv "$env_tmp" "$ENV_PATH"
 fi
 
+# Reconcile SES_ADAPTER for non-production hosts. src/config/env.ts forces the
+# stub adapter on staging and development (so no real mail leaves a
+# non-production environment) and refuses any other value at boot, so the
+# operator has no legitimate choice here; overwriting corrects a stale host
+# value (a non-production host left on the live adapter, say) on the next deploy
+# instead of letting the stack crash-loop. Production is left operator-owned:
+# env.ts requires the live adapter there, so the value is validated, not auto-written.
+FOOTBAG_ENV_VAL=$(read_env FOOTBAG_ENV)
+[[ -n "$FOOTBAG_ENV_VAL" ]] || { echo "ERROR: FOOTBAG_ENV missing from $ENV_PATH" >&2; exit 1; }
+if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
+  echo "==> Reconciling SES_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^SES_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'SES_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+fi
+
+# PAYMENT_ADAPTER: seed the stub on a fresh non-production host so the compose
+# ${PAYMENT_ADAPTER:?} guard and env.ts have a value, but do not overwrite an
+# existing one (env.ts permits PAYMENT_ADAPTER=live on staging, for instance to
+# exercise Stripe). Production is operator-set: env.ts forbids 'stub' there and
+# the live factory fails fast until the Stripe-SDK slice ships, so a fresh
+# production host fails loud at the compose guard, the correct unconfigured signal.
+if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
+  if ! grep -q '^PAYMENT_ADAPTER=' "$ENV_PATH"; then
+    echo "==> Seeding PAYMENT_ADAPTER=stub into $ENV_PATH (staging/dev default; preserved if already set)..."
+    env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+    chmod 600 "$env_tmp"
+    chown root:root "$env_tmp"
+    cp "$ENV_PATH" "$env_tmp"
+    printf 'PAYMENT_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+    mv "$env_tmp" "$ENV_PATH"
+  fi
+fi
+
 echo "==> Promoting release (preserving env, DB, media)..."
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media \

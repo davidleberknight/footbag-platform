@@ -114,6 +114,32 @@ if [ -n "$template_csp_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: templates must not nest one <form> inside another.
+# Reason: HTML closes the outer form at the first </form>, silently orphaning
+# every later control and the submit button, so the form submits nothing in the
+# browser. The server-side render still emits all tags, so route tests pass
+# while the page is broken in production (the members/profile-edit.hbs Save
+# regression). When independent actions must interleave with a form's fields,
+# associate the controls via the HTML form="id" attribute instead of nesting.
+# Per-file depth scan: `<form` opens, `</form` closes (`<form` never matches
+# inside `</form>`); flag depth > 1, a close before an open, or any imbalance.
+echo "[conventions] check: nested <form> in src/views/**"
+nested_form_hits=""
+while IFS= read -r f; do
+  if ! awk '
+    { o = gsub(/<form/, "&"); c = gsub(/<\/form/, "&"); depth += o - c;
+      if (depth > 1 || depth < 0) bad = 1 }
+    END { exit (bad || depth != 0) ? 1 : 0 }
+  ' "$f"; then
+    nested_form_hits="${nested_form_hits}${f}: nested or unbalanced <form>\n"
+  fi
+done < <(find src/views -name '*.hbs' | sort)
+if [ -n "$nested_form_hits" ]; then
+  printf '%b' "$nested_form_hits" >&2
+  echo "  FAIL: nested <form> orphans the submit button; associate controls via form=\"id\" instead of nesting" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: every fixture-staging script must declare the real-data guard.
 # Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
 # may hold real data (legacy mirror, canonical CSVs, uploaded media). The

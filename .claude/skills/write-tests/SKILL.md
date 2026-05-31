@@ -65,6 +65,7 @@ Baseline case list:
 - Route ordering: more-specific before catch-all
 - Negative paths: validation failures, boundary values, empty/whitespace input
 - Adversarial: session tampering, double-submit, concurrent claims
+- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler (assert structure in the render, or an E2E submit where browser semantics matter). A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
 
 For catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim), also consider STRIDE-aware threat coverage per `docs/TESTING.md` §4.2 (a vocabulary, not a per-test artifact) and the verification floor in §4.5.
 
