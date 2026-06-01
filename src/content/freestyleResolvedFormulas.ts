@@ -608,7 +608,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'drifter',
     baseAdd:     3,
     totalAdd:    3,
-    derivation:  '[directional: rev] + drifter(3) = 3 ADD',
+    derivation:  'reverse(+0) + drifter(3) = 3 ADD',
     provenance:  'rev/reverse is directional notation (zero-ADD); drifter = 3 ADD core compound. Curator 2026-05-22: rev/reverse is alternate directional notation, not an ADD operator.',
   },
   {
@@ -1356,7 +1356,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'butterfly',
     baseAdd:     3,
     totalAdd:    2,
-    derivation:  'bod(1) + dex(1) = 2 ADD (butterfly kick variant: jump + outward dex, no terminal stall)',
+    derivation:  'bod(1) + dex(1) = 2 ADD — jump + outward dex; kick with no terminal clipper-delay (historical name only, not butterfly-family structure)',
     operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]',  // Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod]; drops the terminal OP CLIP [XBD] that prior IFPA DB row carried. DB correction via red_corrections; overlay carries the resolved formula.
     provenance:  'Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
   },
