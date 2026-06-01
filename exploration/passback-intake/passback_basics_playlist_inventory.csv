@@ -10,7 +10,7 @@ playlist_index,video_id,youtube_url,title,move_name,candidate_slug,resolves_now,
 09,vLpeyHj198g,https://www.youtube.com/watch?v=vLpeyHj198g,Footbag Basics | Mixing stalls,Mixing stalls,mixing-stalls,no,NOT_VOCABULARY,trivial kick / mixing drill — not canonical trick vocabulary
 10,ZdNHsdIToVQ,https://www.youtube.com/watch?v=ZdNHsdIToVQ,Footbag Basics | Around the World,Around the World,around-the-world,yes,CURATABLE,atom/fundamental tutorial; resolves to around-the-world
 11,_kCOEdjr9yk,https://www.youtube.com/watch?v=_kCOEdjr9yk,Footbag Basics | Orbit,Orbit,orbit,yes,CURATABLE,atom/fundamental tutorial; resolves to orbit
-12,hbMofEsEntY,https://www.youtube.com/watch?v=hbMofEsEntY,Footbag Basics | Legover,Legover,leg-over,no,RULING_NEEDED,no canonical slug
+12,hbMofEsEntY,https://www.youtube.com/watch?v=hbMofEsEntY,Footbag Basics | Legover,Legover,legover,no,CURATABLE,resolves to canonical slug legover (core atom)
 13,HRSN02lS5Xs,https://www.youtube.com/watch?v=HRSN02lS5Xs,Footbag Basics | Mirage,Mirage,mirage,yes,CURATABLE,atom/fundamental tutorial; resolves to mirage
 14,eNCEiMlpbjo,https://www.youtube.com/watch?v=eNCEiMlpbjo,Footbag Basics | Illusion,Illusion,illusion,yes,CURATABLE,atom/fundamental tutorial; resolves to illusion
 15,tUtu7J0qTYM,https://www.youtube.com/watch?v=tUtu7J0qTYM,Footbag Basics | Pickup,Pickup,pickup,yes,CURATABLE,atom/fundamental tutorial; resolves to pickup
