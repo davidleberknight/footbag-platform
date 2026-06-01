@@ -23,7 +23,7 @@
  *    `freestyle_tricks.operational_notation` and no atomic flag-
  *    decomposition chain (paradox-mirage, symposium-mirage,
  *    atomic-butterfly, ripwalk on this branch), the first-class
- *    summary partial renders an explicit "JOB: notation pending"
+ *    summary partial renders an explicit "JOB: canonical decomposition pending"
  *    muted line rather than silently hiding the row.
  *
  * The osis card is the golden example: it carries curator op-notation
@@ -70,7 +70,7 @@ beforeAll(async () => {
   // ─── Tier 2: ADD-complete, JOB-pending ───────────────────────────────
   // Compounds with curator-published ADD derivation but no curator
   // operational_notation. Render the ADD breakdown + honest "JOB:
-  // notation pending" line.
+  // canonical decomposition pending" line.
   insertFreestyleTrick(db, { slug: 'paradox-mirage',          canonical_name: 'paradox mirage',          adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
   insertFreestyleTrick(db, { slug: 'symposium-mirage',        canonical_name: 'symposium mirage',        adds: '3', base_trick: 'mirage',     trick_family: 'mirage',    category: 'compound' });
   insertFreestyleTrick(db, { slug: 'atomic-butterfly',        canonical_name: 'atomic butterfly',        adds: '4', base_trick: 'butterfly',  trick_family: 'butterfly', category: 'compound' });
@@ -265,7 +265,7 @@ describe('First-class rendering parity — osis golden', () => {
     expect(card).toContain('spin(1) + xbod(1) + stall(1)');
     // JOB resolved (not pending)
     expect(card).not.toContain('dict-trick-row-pending-value');
-    expect(card).not.toContain('notation pending');
+    expect(card).not.toContain('canonical decomposition pending');
   });
 });
 
@@ -321,13 +321,13 @@ describe('First-class rendering parity — honest incomplete-state', () => {
     // breakdowns; the hero/registry ADD chip carries the total.
     ['paradox-mirage',   'paradox(+1) + mirage(2)'],
     ['atomic-butterfly', 'atomic(+1) + butterfly(3)'],
-  ])('%s renders ADD breakdown + honest "JOB: notation pending" line', async (slug, expectedAddText) => {
+  ])('%s renders ADD breakdown + honest "JOB: canonical decomposition pending" line', async (slug, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
     // Honest incomplete-state line for missing Job notation
     expect(card).toContain('dict-trick-row-pending-value');
-    expect(card).toContain('notation pending');
+    expect(card).toContain('canonical decomposition pending');
     // ADD breakdown rendered (authoritative data wired through)
     expect(card).toContain(expectedAddText);
   });
@@ -340,7 +340,7 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     for (const slug of ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk']) {
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('class="dict-trick-row-pending"');
-      expect(card).not.toContain('pending decomposition refinement');
+      expect(card).not.toContain('decomposition under review');
     }
   });
 
@@ -420,7 +420,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
     expect(card).toContain(expectedAddText);
     // JOB resolved — not the pending placeholder.
     expect(card).not.toContain('dict-trick-row-pending-value');
-    expect(card).not.toContain('notation pending');
+    expect(card).not.toContain('canonical decomposition pending');
   });
 });
 
@@ -452,7 +452,7 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
     expect(card).toContain('dict-trick-row-pending-value');
-    expect(card).toContain('notation pending');
+    expect(card).toContain('canonical decomposition pending');
     expect(card).toContain(expectedAddSubstring);
   });
 
@@ -466,8 +466,8 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     expect(card).toMatch(/data-token-slug="legover"/);
     // ADD breakdown wires through.
     expect(card).toContain('atomic(+1) + legover(2)');
-    // Job notation pending (eggbeater has no curator op-notation).
-    expect(card).toContain('notation pending');
+    // Job canonical decomposition pending (eggbeater has no curator op-notation).
+    expect(card).toContain('canonical decomposition pending');
   });
 });
 

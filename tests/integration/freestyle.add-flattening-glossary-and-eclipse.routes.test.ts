@@ -145,10 +145,10 @@ describe('Eclipse — curator-supplied operational notation', () => {
     const articleOpen  = res.text.lastIndexOf('<article', idx);
     const articleClose = res.text.indexOf('</article>', idx);
     const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
-    // First-class JOB + ADD row present; no "notation pending"
+    // First-class JOB + ADD row present; no "canonical decomposition pending"
     expect(card).toMatch(/class="dict-trick-row-job-value">/);
     expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(card).not.toContain('notation pending');
+    expect(card).not.toContain('canonical decomposition pending');
   });
 });
 

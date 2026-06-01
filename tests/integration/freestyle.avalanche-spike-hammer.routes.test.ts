@@ -116,7 +116,7 @@ describe('Avalanche + spike-hammer detail pages — first-class JOB + ADD', () =
 });
 
 describe('Avalanche + spike-hammer browse rendering — FIRST_CLASS_TIER_2', () => {
-  it('both browse cards render JOB + ADD inline (not "notation pending")', async () => {
+  it('both browse cards render JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     for (const slug of ['avalanche', 'spike-hammer']) {
@@ -126,7 +126,7 @@ describe('Avalanche + spike-hammer browse rendering — FIRST_CLASS_TIER_2', () 
       const articleClose = res.text.indexOf('</article>', idx);
       const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
       expect(card).toMatch(/class="dict-trick-row-job-value">/);
-      expect(card).not.toContain('notation pending');
+      expect(card).not.toContain('canonical decomposition pending');
     }
   });
 });

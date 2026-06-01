@@ -143,7 +143,7 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
     ['wrap'],
     ['butterfly-kick'],
   ] as const)(
-    '%s renders a resolved JOB on its two-line dex-count row (no "notation pending")',
+    '%s renders a resolved JOB on its two-line dex-count row (no "canonical decomposition pending")',
     async (slug) => {
       const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
@@ -152,7 +152,7 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
       expect(card).toMatch(/class="dict-trick-row-job-value">/);
       // JOB label rendered (not the muted incomplete-state pill)
       expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(card).not.toContain('notation pending');
+      expect(card).not.toContain('canonical decomposition pending');
       expect(card).not.toContain('dict-trick-row-pending-value');
     },
   );

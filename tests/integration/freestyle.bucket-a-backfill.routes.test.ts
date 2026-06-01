@@ -11,7 +11,7 @@
  * 1. First-class browse card (15 of 19 slugs): the slug is in
  *    FIRST_CLASS_TIER_2; the dictionary-trick-card-first-class-row
  *    partial renders JOB + ADD from the curator overlay. Before the
- *    backfill, these slugs rendered "JOB: notation pending". After the
+ *    backfill, these slugs rendered "JOB: canonical decomposition pending". After the
  *    backfill, they render the proposed JOB with no pending line.
  *
  * 2. Trick-detail "Set notation" (4 of 19 slugs): the slug is NOT in
@@ -27,9 +27,9 @@
  *
  * - Every Bucket A slug's expected JOB is reachable via the rendering
  *   pipeline (either the browse card or the trick-detail page).
- * - No Bucket A slug renders "JOB: notation pending" on its browse card.
+ * - No Bucket A slug renders "JOB: canonical decomposition pending" on its browse card.
  * - Bucket B/C/D slugs are NOT touched: tricks whose audit-status is
- *   NOT Bucket A still render "JOB: notation pending" when their DB
+ *   NOT Bucket A still render "JOB: canonical decomposition pending" when their DB
  *   op_notation is empty and they have no overlay.
  *
  * Per the slice rules ("controlled content backfill, not auto-derivation
@@ -53,7 +53,7 @@ const { dbPath } = setTestEnv('3158');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 // 15 first-class Bucket A slugs. Browse card renders the JOB row from
-// the RESOLVED_FORMULAS overlay; "notation pending" line disappears.
+// the RESOLVED_FORMULAS overlay; "canonical decomposition pending" line disappears.
 const FIRST_CLASS_BACKFILL = [
   { slug: 'ducking-whirl',            adds: '4', base: 'whirl',           expectedJob: 'TOE &gt; DUCK [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
   { slug: 'spinning-whirl',           adds: '4', base: 'whirl',           expectedJob: 'CLIP &gt; (back) SPIN [BOD] &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]' },
@@ -90,7 +90,7 @@ const ALL_BUCKET_A_SLUGS = [
 ];
 
 // Negative-cohort seeds: a sample of Bucket B/C/D slugs that must STILL
-// render "notation pending" after the Bucket A backfill. Verifies scope.
+// render "canonical decomposition pending" after the Bucket A backfill. Verifies scope.
 const NEGATIVE_COHORT = [
   { slug: 'tapping-whirl', adds: '4', base: 'whirl',  bucket: 'B (tapping grammar inconsistent)' },
   { slug: 'atomic-torque', adds: '6', base: 'torque', bucket: 'C (compound dependency)' },
@@ -162,14 +162,14 @@ function cardFor(slug: string, html: string): string {
 
 describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', () => {
   it.each(FIRST_CLASS_BACKFILL.map(r => [r.slug] as const))(
-    '%s no longer renders "JOB: notation pending" on its browse card',
+    '%s no longer renders "JOB: canonical decomposition pending" on its browse card',
     async (slug) => {
       const app = await createApp();
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       expect(card).not.toContain('dict-trick-row-pending-value');
-      expect(card).not.toContain('notation pending');
+      expect(card).not.toContain('canonical decomposition pending');
     },
   );
 
@@ -256,13 +256,13 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_F
 
 describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
   it.each(NEGATIVE_COHORT.map(r => [r.slug, r.bucket] as const))(
-    '%s (bucket %s) still renders "JOB: notation pending" after the Bucket A backfill',
+    '%s (bucket %s) still renders "JOB: canonical decomposition pending" after the Bucket A backfill',
     async (slug) => {
       const app = await createApp();
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
       expect(card).toContain('dict-trick-row-pending-value');
-      expect(card).toContain('notation pending');
+      expect(card).toContain('canonical decomposition pending');
     },
   );
 

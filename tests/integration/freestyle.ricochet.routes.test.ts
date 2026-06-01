@@ -67,7 +67,7 @@ describe('ricochet detail page — first-class JOB + ADD', () => {
     }
   });
 
-  it('ricochet browse card renders JOB + ADD inline (not "notation pending")', async () => {
+  it('ricochet browse card renders JOB + ADD inline (not "canonical decomposition pending")', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="ricochet"');
@@ -76,6 +76,6 @@ describe('ricochet detail page — first-class JOB + ADD', () => {
     const articleClose = res.text.indexOf('</article>', idx);
     const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
     expect(card).toMatch(/class="dict-trick-row-job-value">/);
-    expect(card).not.toContain('notation pending');
+    expect(card).not.toContain('canonical decomposition pending');
   });
 });

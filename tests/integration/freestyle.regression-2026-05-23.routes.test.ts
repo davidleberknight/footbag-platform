@@ -21,7 +21,7 @@
  *      trick detail pages, and rev(0) lives in the ALT row (not in
  *      the ADD calculation).
  *   7. Rake renders curator-locked JOB notation `SET > SWING TOE [DEL]`
- *      and is not labelled "notation pending".
+ *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" no longer appears in ADD-accounting displays;
  *      `UNS(1)` is the bucket token. The glossary explains UNS.
  *   9. double-around-the-world and double-leg-over surface JOB
@@ -350,7 +350,7 @@ describe('Item 7: rake has curator-locked JOB notation', () => {
     );
     // And the page must not be labelled notation-pending.
     expect(res.text).not.toContain('Notation pending');
-    expect(res.text).not.toContain('notation pending');
+    expect(res.text).not.toContain('canonical decomposition pending');
   });
 });
 

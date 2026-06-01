@@ -144,14 +144,14 @@ describe('DATW + DLO + rev-whirl: rendered JOB + ADD per curator spec', () => {
     expect(res.text).toMatch(/rev\(0\)\s*\+\s*whirl\(3\)/);
   });
 
-  it('rev-whirl JOB row is NOT labelled "notation pending"', async () => {
+  it('rev-whirl JOB row is NOT labelled "canonical decomposition pending"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
     expect(res.text).toMatch(/<dt>JOB<\/dt>/);
     // The notation-summary card's JOB row must carry the actual chain,
     // not the placeholder.
     const summary = res.text.match(/class="trick-notation-summary"[\s\S]+?<\/section>/);
     expect(summary).not.toBeNull();
-    expect(summary![0]).not.toMatch(/notation pending/i);
+    expect(summary![0]).not.toMatch(/canonical decomposition pending/i);
   });
 });
 

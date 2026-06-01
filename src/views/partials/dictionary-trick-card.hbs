@@ -24,7 +24,7 @@
     5. ADD chip — labeled `N ADD` (`? ADD` when unrated).
     6. pending-decomposition pill / media chip / status badge (metadata).
     7. first-class-row (isFirstClass only) — the labeled `JOB:` / `ADD:`
-       breakdown rows; honest "JOB: notation pending" when upstream
+       breakdown rows; honest "JOB: canonical decomposition pending" when upstream
        op-notation is genuinely absent.
     8. coreAtomLabel — neutral "core atom — <desc>" fallback line for
        the 12 core atoms when no chain reading / op-notation applies, so
@@ -72,7 +72,7 @@
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
 
     {{#if pendingDecomposition}}
-    <span class="dict-card-pending-pill" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+    <span class="dict-card-pending-pill" aria-label="Decomposition under review"><em>decomposition under review</em></span>
     {{/if}}
 
     {{#if hasReferenceMedia}}
@@ -124,7 +124,7 @@
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
 
     {{#if pendingDecomposition}}
-    <span class="dict-card-pending-pill" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+    <span class="dict-card-pending-pill" aria-label="Decomposition under review"><em>decomposition under review</em></span>
     {{/if}}
 
     {{#if hasReferenceMedia}}

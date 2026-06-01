@@ -24,7 +24,7 @@
  *
  *   4. Unresolved-compound pill — cards for curator-flagged folk-
  *      derived slugs (rev-up / reaper / surreal / montage /
- *      surgery) render the "pending decomposition refinement" pill;
+ *      surgery) render the "decomposition under review" pill;
  *      other cards do not.
  *
  * Test fixture covers the full Slice M curator pilot plus enough
@@ -280,8 +280,8 @@ describe('Slice M — unresolved-compound pill', () => {
     }
   });
 
-  it('renders the pill text "pending decomposition refinement" in italics', async () => {
+  it('renders the pill text "decomposition under review" in italics', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/<span class="dict-trick-row-pending"[^>]*><em>pending decomposition refinement<\/em><\/span>/);
+    expect(res.text).toMatch(/<span class="dict-trick-row-pending"[^>]*><em>decomposition under review<\/em><\/span>/);
   });
 });

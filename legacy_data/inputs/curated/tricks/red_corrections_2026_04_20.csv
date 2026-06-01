@@ -1248,3 +1248,61 @@ double-orbit,notation,,DOUBLE ORBIT,double-* core-atom JOB (mechanical rule)
 double-orbit,operational_notation,,TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],orbit op + one extra dex (double-* = +1); parity with double-around-the-world; ADD-math 2 DEX + 1 DEL = 3
 butterfly-kick,trick_family,butterfly,butterfly-kick,Kick self-families per sibling convention (cloud-kick/dragonfly-kick/sole-kick); butterfly-kick lacks butterfly's terminal clipper-delay [XBD][DEL] so it is not a butterfly-family member. base_trick=butterfly retained for derivation provenance; kick grouping via kind-overrides.
 around-the-world-kick,trick_family,around-the-world,around-the-world-kick,Kick self-families per sibling convention; ATW-kick has no terminal toe-stall [DEL] so it is not an around-the-world-family member. base_trick retained for derivation provenance.
+atom-bomb,description,,Folk name; decomposes to flailing symposium mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+atomic-eclipse,description,,Atomic-modified eclipse.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+barfly-swirl,description,,Barfly with an added back-swirl dex.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+bladerunner,description,,Folk name; decomposes to atomic eggbeater.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+bling-blang,description,,Folk name; decomposes to whirling reverse whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+bubba,description,,Clipper-entry illusion.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+butterfly-kick,description,,Jumping outward-dex kick; no terminal stall.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+butterfly-swirl,description,,Butterfly with an added back-swirl dex.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+chainsaw-massacre,description,,Folk name; decomposes to bubba paradox symposium eggbeater.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+colossus,description,,Folk name; decomposes to spyro diving symposium whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+darkwalk,description,,Folk name; decomposes to pixie diving butterfly.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+dolomite,description,,Folk name; decomposes to symposium paradon.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ducking-barfly,description,,Ducking-modified barfly.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ducking-illusion,description,,Ducking-modified illusion.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ducking-legover,description,,Ducking-modified legover.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ducking-mirage,description,,Ducking-modified mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ducking-pickup,description,,Ducking-modified pickup.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ego,description,,Folk name; decomposes to atomic ducking whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+fairy-clipper,description,,Fairy-modified clipper.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+fairy-eggbeater,description,,Fairy-modified eggbeater.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+fairy-legover,description,,Fairy-modified legover.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+fairy-pickup,description,,Fairy-modified pickup.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gangsta-party,description,,Folk name; decomposes to spinning ducking paradox blender.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gary-coleman,description,,Folk name; decomposes to atomic symposium whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+goliath,description,,Folk name; decomposes to pixie ducking double legover.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gyro-butterfly,description,,Gyro-modified butterfly.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gyro-double-leg-over,description,,Gyro-modified double leg over.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gyro-illusion,description,,Gyro-modified illusion.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gyro-mirage,description,,Gyro-modified mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+gyro-whirl,description,,Gyro-modified whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+inspinning-butterfly,description,,Inspinning-modified butterfly.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+juno-reactor,description,,Folk-named reactor variant.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+maelstrom,description,,Folk name; decomposes to spinning ducking paradox whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+miraging-eclipse,description,,Mirage-modified eclipse.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+morpheus,description,,Folk name; decomposes to spinning ducking paradox drifter.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+nuclear-illusion,description,,Nuclear-modified illusion.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+nuclear-legover,description,,Nuclear-modified legover.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+nuclear-pickup,description,,Nuclear-modified pickup.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pandemonium,description,,Folk name; decomposes to pixie symposium eggbeater.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+paradon-swirl,description,,Paradon with an added back-swirl dex.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+paradox-illusion,description,,Paradox-modified illusion.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+paradox-ripwalk,description,,Paradox-modified ripwalk.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-eclipse,description,,Pixie-modified eclipse.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-eggbeater,description,,Pixie-modified eggbeater.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-legover,description,,Pixie-modified legover.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-osis,description,,Pixie-modified osis.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-paradon,description,,Pixie-modified paradon.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-pickup,description,,Pixie-modified pickup.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+pixie-whirl,description,,Pixie-modified whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+quantum-drifter,description,,Quantum-modified drifter.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+quantum-symposium-mirage,description,,Quantum-modified symposium mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+reactor,description,,Folk name; decomposes to atomic whirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+ripped-warrior,description,,Folk name; decomposes to stepping ducking far butterfly.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+stepping-ducking-mirage,description,,Stepping-modified ducking mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+stepping-whirling-swirl,description,,Stepping-modified whirling swirl.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+symposium-torque,description,,Symposium-modified torque.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+trixie,description,,Folk name; decomposes to triple pixie.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
+twirl,description,,Folk name; decomposes to reverse swirling osis.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.

@@ -167,7 +167,7 @@ describe('Family View — formula visibility on whirl compounds', () => {
     // ducking-whirl, symposium-whirl excluded 2026-05-22 (Wave 2); paradox-
     // whirl + spinning-whirl excluded 2026-05-22 (Wave 3) — all promoted
     // into FIRST_CLASS_TIER_2. First-class compounds with no curator
-    // op_notation render the honest "JOB: notation pending" incomplete-
+    // op_notation render the honest "JOB: canonical decomposition pending" incomplete-
     // state line in the secondary row — the chain-row pending placeholder
     // this test checks is a different surface. Only blurry-whirl remains
     // non-first-class in the whirl family (composite-modifier compound).

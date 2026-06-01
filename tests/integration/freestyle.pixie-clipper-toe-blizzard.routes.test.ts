@@ -159,7 +159,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
     const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
     expect(card).toMatch(/class="dict-trick-row-job-value">/);
     expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(card).not.toContain('notation pending');
+    expect(card).not.toContain('canonical decomposition pending');
   });
 
   it('pixie-same-clipper card renders JOB + ADD inline', async () => {

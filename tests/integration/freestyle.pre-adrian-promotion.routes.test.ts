@@ -15,7 +15,7 @@
  * Contracts under test:
  *   - Each slug renders 200 on its trick-detail page
  *   - JOB and ADD render verbatim from the curator overlay
- *   - No "JOB: notation pending" pill on these cards
+ *   - No "JOB: canonical decomposition pending" pill on these cards
  *   - No tautological compound-slot leakage (e.g. "around the world kick"
  *     does not appear as a chain reading row that just echoes the title)
  *   - operationalNotation is reachable via the service overlay even when
@@ -167,12 +167,12 @@ describe('Pre-Adrian promotion — JOB renders via tokenized op-notation partial
   );
 });
 
-describe('Pre-Adrian promotion — no "notation pending" leakage', () => {
+describe('Pre-Adrian promotion — no "canonical decomposition pending" leakage', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
-    '%s does NOT render the "JOB: notation pending" incomplete-state line on browse cards',
+    '%s does NOT render the "JOB: canonical decomposition pending" incomplete-state line on browse cards',
     async (slug) => {
       // Browse view first — if the trick is in FIRST_CLASS_TIER_2, its
-      // card on /freestyle/tricks?view=add must NOT show notation pending.
+      // card on /freestyle/tricks?view=add must NOT show canonical decomposition pending.
       const res = await request(await createApp()).get('/freestyle/tricks?view=add');
       // Find this trick's card via the data-trick-slug marker.
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
@@ -184,7 +184,7 @@ describe('Pre-Adrian promotion — no "notation pending" leakage', () => {
       const articleOpen = res.text.lastIndexOf('<article', idx);
       const articleClose = res.text.indexOf('</article>', idx);
       const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
-      expect(card).not.toContain('notation pending');
+      expect(card).not.toContain('canonical decomposition pending');
     },
   );
 });

@@ -12,7 +12,7 @@
     - media badge              — Tutorial/Demo available (optional, after interpretation)
 
   Line 2 (.dict-trick-row-notation):
-    - JOB:  <operational notation tokens>  (or "notation pending" when absent)
+    - JOB:  <operational notation tokens>  (or "canonical decomposition pending" when absent)
     - ADD:  <derived formula>              (or bare "N" when no formula; "?" when unrated)
 
   HARD RULES (enforced by this contract):
@@ -53,7 +53,7 @@
       <span class="dict-trick-row-status">{{statusBadge}}</span>
     {{/if}}
     {{#if pendingDecomposition}}
-      <span class="dict-trick-row-pending" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+      <span class="dict-trick-row-pending" aria-label="Decomposition under review"><em>decomposition under review</em></span>
     {{/if}}
   </div>
 
@@ -67,7 +67,7 @@
              chain rides firstClassChainValue (a plain curator string). --}}
         <code class="dict-trick-row-job-value">{{firstClassChainValue}}</code>
       {{else}}
-        <span class="dict-trick-row-job-value dict-trick-row-pending-value">notation pending</span>
+        <span class="dict-trick-row-job-value dict-trick-row-pending-value">canonical decomposition pending</span>
       {{/if}}
     </span>
     <span class="dict-trick-row-add">
