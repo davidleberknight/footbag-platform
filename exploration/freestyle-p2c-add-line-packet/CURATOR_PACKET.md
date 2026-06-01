@@ -1,5 +1,20 @@
 # Curator-convention packet — P2c ADD-line unresolved flags (2026-06-01)
 
+## Rulings (2026-06-01, curator James)
+
+- **Flag 1 — BOD(1)/bod(1):** RULED **preserve dual + document.** Casing is semantic, not cosmetic:
+  uppercase `BOD(n)` = an operator mapping into the body-modifier ADD bucket (locked `flying-clipper`);
+  lowercase `bod(n)` = a primitive body component summed alongside `dex`/`del` inside an irreducible
+  atom's decomposition (`hop-over`, `butterfly-kick`, `eclipse`). No data change; convention now
+  documented in-code in `freestyleResolvedFormulas.ts`. The locked `flying-clipper` row stands.
+- **Flag 2 — atomic rotational notation:** HELD. Gated on Red Wave-2 Q3; normalize to whatever the
+  ruling implies, not before.
+- **Flag 3 — bigwalk governance citation:** RULED **clean math only.** Public ADD-lines are
+  `operator(+n) + base(n) = total ADD` and nothing else. `bigwalk` now reads
+  `surging(+2) + butterfly(3) = 5 ADD`; the `= spinning + stepping per Red pt2` expansion + attribution
+  are retained verbatim in the `provenance` field (zero information lost). `bigwalk` was the sole
+  derivation violating clean-math.
+
 ## Framing
 
 The P2c audit pass began from an apparent finding of broad ADD-line inconsistency across the

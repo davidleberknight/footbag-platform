@@ -429,6 +429,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // NOT included here — they are 1 ADD body primitives where the flying
   // motion IS the trick (irreducible; no compound +1 stack), parallel
   // to spin / double-spin / hop-over.
+  //
+  // Body-token casing is semantic, not cosmetic: uppercase BOD(n) marks
+  // an operator mapping into the body-modifier ADD bucket (as on
+  // flying-clipper); lowercase bod(n) is a primitive body component
+  // summed alongside dex/del inside an irreducible atom's decomposition
+  // (hop-over, butterfly-kick, eclipse). The two roles are not unified.
 
   {
     slug:        'pendulum',
@@ -1218,7 +1224,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'butterfly',
     baseAdd:     3,
     totalAdd:    5,
-    derivation:  'surging(+2 = spinning + stepping per Red pt2) + butterfly(3) = 5 ADD',
+    derivation:  'surging(+2) + butterfly(3) = 5 ADD',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // Bucket A sibling-derivation per DERIVATION_AUDIT.md (2026-05-25); surging pattern (surge / surreal / venom) + butterfly base; not Red-confirmed.
     provenance:  'surging primitive (2 ADD; decomposes to spinning + stepping per Red pt2); butterfly = 3 ADD core atom. Chain reading "surging butterfly" per freestyleSymbolicEquivalences.ts. Bucket A derivation backfill 2026-05-25.',
   },
