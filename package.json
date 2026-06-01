@@ -19,6 +19,7 @@
     "test:unit": "vitest run tests/unit/",
     "test:integration": "vitest run tests/integration/",
     "test:smoke": "scripts/test-smoke.sh",
+    "test:strong-hash": "FOOTBAG_CHEAP_PASSWORD_HASH=0 vitest run tests/unit/passwordHash.test.ts tests/integration/security.login-timing.test.ts",
     "test:e2e": "playwright test -c tests/playwright.config.ts",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --coverage",
     "test:pre-pr": "npm run build && bash scripts/ci/assert_conventions.sh && npm test",

@@ -61,6 +61,10 @@ secrets/
 # Local media data (photo uploads — never commit)
 # =========================
 data/
+# Local storage-adapter backing (dev stand-in for the S3 bucket) + the
+# ephemeral curated build the deploy ships to S3. Both regenerable; never commit.
+s3-adapter-local/
+.curated-build/
 
 # =========================
 # Databases (local/dev/generated)

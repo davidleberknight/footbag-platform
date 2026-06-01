@@ -59,7 +59,7 @@ from _trick_canonicalization import canonicalize_slug, load_alias_map  # noqa: E
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = "./database/footbag.db"
-DEFAULT_MEDIA_DIR = "./data/media"
+DEFAULT_MEDIA_DIR = "./.curated-build"
 DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 
 # Slice 2: URL-reference freestyle media — embed-eligible hosts only.
@@ -1394,7 +1394,7 @@ def main() -> None:
     args = parser.parse_args()
 
     db_path = args.db or os.environ.get("FOOTBAG_DB_PATH", DEFAULT_DB)
-    media_dir = Path(args.media_dir or os.environ.get("FOOTBAG_MEDIA_DIR", DEFAULT_MEDIA_DIR))
+    media_dir = Path(args.media_dir or os.environ.get("FOOTBAG_CURATED_MEDIA_DIR", DEFAULT_MEDIA_DIR))
     source_dir = Path(args.source_dir or DEFAULT_SOURCE_DIR)
     ts = now_iso()
 

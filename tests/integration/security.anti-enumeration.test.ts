@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 
@@ -30,7 +30,7 @@ const KNOWN_PASSWORD      = 'KnownPass1!';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const hash = await argon2.hash(KNOWN_PASSWORD);
+  const hash = await hashTestPassword(KNOWN_PASSWORD);
   insertMember(db, {
     id: 'anti-enum-known-001',
     slug: 'known_user',

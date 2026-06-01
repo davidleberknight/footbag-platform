@@ -256,7 +256,8 @@ fi
 # --no-curator-seed is passed. Local dev with the env unset also defaults to
 # yes. The S3 cycle (wipe + rsync) is governed independently by SYNC_MEDIA;
 # URL-reference sidecars (YouTube/Vimeo) need no S3 bytes and reach the live
-# site on every default deploy.
+# site on every DB-bearing deploy (a code-only deploy ships no DB, so no
+# curator rows change).
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "  → Seeding FH (Footbag Hacky) and curator content..."
   "${PYTHON}" scripts/seed_fh_curator.py --db "${DB_FILE}"

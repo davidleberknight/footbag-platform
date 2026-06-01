@@ -998,25 +998,25 @@ Optionally run Docker parity when the change touches runtime shape, static asset
 
 #### Deploy options
 
-**Option A; routine code-only deploy**
+**Option A; routine code-only deploy (the default)**
 
-Use this when the host DB should remain untouched.
+Use this when the host DB should remain untouched. A bare deploy (no flags) is code-only; `-k` is the explicit equivalent.
 
 ```bash
-bash deploy_to_aws.sh -k
+bash deploy_to_aws.sh
 ```
 
-This path preserves `/srv/footbag/env` and the live DB.
+This path preserves `/srv/footbag/env` and the live DB. If `database/schema.sql` differs from the schema of the DB deployed on the host, the deploy detects the drift (read-only over SSH) and prompts to rebuild instead, since a code-only deploy does not reapply schema; on confirmation it re-runs as `--from-csv`.
 
 **Option B; destructive schema/dev deploy**
 
 Use this when the change requires rebuilding and replacing the host DB from scratch and the target's data is disposable (staging only).
 
 ```bash
-bash deploy_to_aws.sh
+bash deploy_to_aws.sh --from-csv
 ```
 
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. The default rebuild loads the committed canonical CSVs (no mirror access). Pass `--from-csv` to make that explicit. Pass `--soup-to-nuts` to instead rebuild from the legacy mirror; that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. `--from-csv` rebuilds from the committed canonical CSVs (no mirror access). Pass `--soup-to-nuts` instead to rebuild from the legacy mirror and turn on the full seed set (curated media, personas, dev-admins; opt out per axis with `--no-media` / `--no-personas` / `--no-dev-admins`); that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §9.3 instead of Option B.
 
@@ -1364,16 +1364,16 @@ A clean rollback requires both an env revert AND a CloudFront TF revert.
 
 #### Curator media seeding
 
-System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_fh_curator.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
+System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_fh_curator.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the processed outputs to a local filesystem directory, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
 
-The curator media cycle has two parts on `bash deploy_to_aws.sh`. The seed step (sidecars in `/curated/` -> `media_items` rows) runs unconditionally on every deploy that ships a DB to staging; the orchestrator invokes `scripts/seed_fh_curator.py` against the local DB before the rsync push. Set `CURATOR_SEED=no` to skip it (rare; used when sidecars are known broken). The S3 media cycle (rsync `data/media/` to the host, optionally wipe the S3 bucket, then rsync to S3) runs on every deploy that touches staging; the additive rsync is non-destructive and runs unconditionally, while the destructive bucket wipe defaults Y when a DB rebuild is happening (avatar S3 keys remap on a fresh DB seed) and N otherwise. Pass `-W` / `--no-s3-wipe` to skip the wipe and answer N to the prompt non-interactively. URL-reference content (YouTube/Vimeo) needs no S3 bytes and is always up to date after a default deploy.
+The curator media cycle has two parts on `bash deploy_to_aws.sh`. The seed step (sidecars in `/curated/` -> `media_items` rows) runs unconditionally on every deploy that ships a DB to staging; the orchestrator invokes `scripts/seed_fh_curator.py` against the local DB before the rsync push. Set `CURATOR_SEED=no` to skip it (rare; used when sidecars are known broken). The S3 media cycle builds the curated media fresh from `curated/` into an ephemeral `.curated-build/` directory (the dev `s3-adapter-local/` store is never shipped) and `aws s3 sync`s it to the bucket. It is opt-in via `-m` / `--sync-media` (default off): curated `media_items` rows ship with `footbag.db` on every deploy regardless, and existing S3 bytes persist across deploys, so `-m` is only needed when the curated binaries in `curated/` actually changed. With `-m`, the sync uses `--delete` (a clean wipe of stale objects) by default when a DB rebuild is happening (avatar S3 keys remap on a fresh DB seed) and is additive (`--size-only`) with `-W` / `--no-s3-wipe`. URL-reference content (YouTube/Vimeo) needs no S3 bytes and is up to date after any DB-bearing deploy (the curator rows ship with footbag.db).
 
 Run order in dev: included automatically in `bash scripts/reset-local-db.sh` (the seed step is gated on `CURATOR_SEED`, which defaults to yes when `reset-local-db.sh` is invoked outside the deploy orchestrator).
 
 Run order in staging:
 
-1. `bash deploy_to_aws.sh` (default: full rebuild + sidecar seed + media rsync; prompts before each destructive step). `bash deploy_to_aws.sh -y` accepts the default-yes answers without prompting (CI).
-2. The remote-half wipes the staging S3 bucket and rsyncs `RELEASE_DIR/data/media/` to it when wipe=Y. Pass `-W` to skip the wipe but still rsync new bytes additively.
+1. `bash deploy_to_aws.sh --from-csv` (rebuild + sidecar seed, no S3 media sync; prompts before each destructive step). A bare `bash deploy_to_aws.sh` is code-only and ships no DB, so it does not re-run the sidecar seed. `bash deploy_to_aws.sh --from-csv -y` accepts the default-yes answers without prompting (CI). Add `-m` / `--sync-media` to also build `.curated-build/` and push it to S3.
+2. When `-m` is set, the remote-half `aws s3 sync`s `RELEASE_DIR/.curated-build/` to the bucket: with `--delete` (removing stale objects) when wipe=Y, or additively (`--size-only`) when `-W`/wipe=N.
 3. CloudFront serves the seeded URLs at `/media-store/{key}` via OAC.
 
 `media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.
@@ -2159,7 +2159,7 @@ Staging admin accounts seed directly into the running database via an opt-in `--
    ./deploy_to_aws.sh --seed-dev-admins
    ```
 
-   Combinable with `-k` for code-only deploy, `-r` for ship-current-DB, or the default full-rebuild mode. The seed always runs at the same phase: after the web service is up and healthy.
+   Combinable with the bare/`-k` code-only deploy, `-r` for ship-current-DB, or a rebuild deploy (`--from-csv` / `--soup-to-nuts`). The seed always runs at the same phase: after the web service is up and healthy.
 
 3. The pre-deploy plan summary shows `seed dev admins: yes`. Confirm before approving the deploy.
 
@@ -2231,7 +2231,7 @@ Weakening any of these invariants requires removing the corresponding regression
 
 ### 17.7 Removal
 
-There is no automated unseed action. Re-rebuild the staging database (`./deploy_to_aws.sh` default mode) to clear all seeded rows. To audit leftover rows on either dev or staging, grep the marker columns:
+There is no automated unseed action. Re-rebuild the staging database (`./deploy_to_aws.sh --from-csv`) to clear all seeded rows. To audit leftover rows on either dev or staging, grep the marker columns:
 
 ```sql
 SELECT COUNT(*) FROM member_tier_grants WHERE created_by LIKE 'dev-shortcuts/%';

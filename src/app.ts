@@ -112,29 +112,47 @@ export function createApp(): express.Application {
   app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
   // ── Media storage (member photos, system-account video bytes and posters) ─
-  // Mounted at `/media-store/*` to mirror the production CloudFront cache
-  // behavior. The prefix is dedicated to binary storage so it does not
-  // collide with the user-facing `/media` app section (routes `/media`,
-  // `/media/:galleryId`, `/media/browse`). The dev local-FS emulation
-  // directory (`config.mediaDir`) stands in for the S3 bucket; the URL
-  // prefix is identical in dev and prod so
+  // Local-adapter mode only: these mounts are the dev stand-in for the S3
+  // bucket. In S3-adapter mode (staging/prod) media is served by CloudFront
+  // from S3, the local dirs do not exist in the container, and registering
+  // these mounts would risk serving filesystem bytes if the host were ever
+  // misconfigured to local — so they are gated on the adapter mode.
+  //
+  // Two lanes mirror the single prod bucket: `config.mediaDir` (runtime
+  // member/curator uploads) and the read-only `config.curatedMediaDir`
+  // (curated media built separately so the two never mix on disk). Keys are
+  // disjoint, so a curated key falls through the uploads mount to the curated
+  // mount. Both mount at `/media-store/*` to mirror the CloudFront cache
+  // behavior; the prefix is dedicated to binary storage so it does not collide
+  // with the user-facing `/media` app section (`/media`, `/media/:galleryId`,
+  // `/media/browse`). The URL prefix is identical in dev and prod so
   // `mediaStorageAdapter.constructURL()` returns one shape.
   // Cache header matches the production S3 PUT contract
-  // (Cache-Control: public, max-age=31536000, immutable). URL-versioning
-  // via `?v={media_id}` makes `immutable` semantically correct: each
-  // emitted URL is unique to its upload, replacement uploads emit a fresh
-  // `?v=` and become a distinct cache entry.
-  // index: false + redirect: false avoid express.static auto-redirects on
-  // the bare `/media-store` path.
-  app.use(
-    '/media-store',
-    express.static(config.mediaDir, {
-      maxAge: '1y',
-      immutable: true,
-      index: false,
-      redirect: false,
-    }),
-  );
+  // (Cache-Control: public, max-age=31536000, immutable). URL-versioning via
+  // `?v={media_id}` makes `immutable` semantically correct: each emitted URL is
+  // unique to its upload; replacement uploads emit a fresh `?v=` and become a
+  // distinct cache entry. index: false + redirect: false avoid express.static
+  // auto-redirects on the bare `/media-store` path.
+  if (config.mediaStorageAdapter === 'local') {
+    app.use(
+      '/media-store',
+      express.static(config.mediaDir, {
+        maxAge: '1y',
+        immutable: true,
+        index: false,
+        redirect: false,
+      }),
+    );
+    app.use(
+      '/media-store',
+      express.static(config.curatedMediaDir, {
+        maxAge: '1y',
+        immutable: true,
+        index: false,
+        redirect: false,
+      }),
+    );
+  }
 
   // ── View engine ──────────────────────────────────────────────────────────
   app.engine(

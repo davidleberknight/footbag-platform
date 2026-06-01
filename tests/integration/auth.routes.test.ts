@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import os from 'os';
@@ -50,8 +50,8 @@ beforeAll(async () => {
 
   // Hash passwords at setup time — no hashes stored in git.
   const [testMemberHash, footbagHash] = await Promise.all([
-    argon2.hash(TEST_PASSWORD),
-    argon2.hash(FOOTBAG_PASSWORD),
+    hashTestPassword(TEST_PASSWORD),
+    hashTestPassword(FOOTBAG_PASSWORD),
   ]);
 
   // Regular verified member with a real email address.

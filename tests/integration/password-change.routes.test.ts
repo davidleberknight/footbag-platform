@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -25,7 +25,7 @@ function ownCookie(passwordVersion = 1): string {
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const hash = await argon2.hash(OLD_PASSWORD);
+  const hash = await hashTestPassword(OLD_PASSWORD);
   insertMember(db, {
     id: OWN_ID,
     slug: OWN_SLUG,
@@ -70,7 +70,7 @@ describe('GET /members/:slug/edit/password', () => {
 
 describe('POST /members/:slug/edit/password', () => {
   it('valid change → 200 with success, reissues session cookie', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -101,7 +101,7 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('wrong old password → 422', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -137,7 +137,7 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('7-char new password → 422 (lower boundary, just below MIN_PASSWORD_LENGTH=8)', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -158,7 +158,7 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('8-char new password → 200 (lower boundary, exactly MIN_PASSWORD_LENGTH=8)', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -178,7 +178,7 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('128-char new password → 200 (upper boundary, exactly MAX_PASSWORD_LENGTH=128)', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -199,7 +199,7 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('129-char new password → 422 (upper boundary, just above MAX_PASSWORD_LENGTH=128)', async () => {
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -222,7 +222,7 @@ describe('POST /members/:slug/edit/password', () => {
 
   it('stale JWT (pre-change passwordVersion) is rejected by middleware → 302', async () => {
     // Restore DB to password_version=1, old password hash so we can change it.
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -274,7 +274,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     expectLoggedError('password change: session reissue failed');
     // Restore a deterministic starting state: prior tests in this file mutate
     // password_hash and password_version, so seed from scratch.
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
@@ -349,7 +349,7 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
   it('enqueueEmailOrFail throws → 503 + actionable error + audit row + DB committed + no Set-Cookie', async () => {
     expectLoggedError('audit: auth.password_change_notification_failed');
     // Restore deterministic starting state.
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);

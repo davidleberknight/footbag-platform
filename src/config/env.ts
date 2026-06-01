@@ -20,6 +20,7 @@ export interface AppConfig {
   publicBaseUrl: string;
   sessionSecret: string;
   mediaDir: string;
+  curatedMediaDir: string;
   jwtSigner: 'kms' | 'local';
   jwtKmsKeyId: string | undefined;
   jwtLocalKeypairPath: string;
@@ -124,6 +125,12 @@ export interface AppConfig {
   // Target: remove once the dev seed flow reliably provisions Tier 2 for
   //   admin accounts.
   devAdminGrantTier2: boolean;
+  // Test-only password-hashing cost switch. When true, hashPassword() uses a
+  // cheap argon2 profile so the suite does not run memory-hard hashing across
+  // ~20 parallel forks (which oversubscribes RAM/threads and times out
+  // unrelated boot hooks). env.ts refuses to enable it outside the Vitest
+  // runner, so it is unreachable in development/staging/production.
+  useCheapPasswordHash: boolean;
   // PaymentAdapter selector. 'live' wraps the Stripe SDK (currently a
   // placeholder; the live factory throws until the Stripe-SDK slice ships);
   // 'stub' is a programmable in-memory simulation that exercises the same
@@ -308,6 +315,32 @@ function loadConfig(): AppConfig {
   if (devAdminGrantTier2 && footbagEnv !== 'development') {
     throw new Error(
       `FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // Test-only password-hashing cost switch. Cheap hashing must be impossible in
+  // any real process, so it is honoured only under the Vitest runner; '1'
+  // anywhere else refuses boot. Keyed on process.env.VITEST, not NODE_ENV,
+  // because tests deliberately set NODE_ENV=production.
+  const rawCheapHash = process.env.FOOTBAG_CHEAP_PASSWORD_HASH;
+  let useCheapPasswordHash: boolean;
+  if (
+    rawCheapHash === undefined ||
+    rawCheapHash === '' ||
+    rawCheapHash === '0' ||
+    rawCheapHash === 'false'
+  ) {
+    useCheapPasswordHash = false;
+  } else if (rawCheapHash === '1' || rawCheapHash === 'true') {
+    if (!process.env.VITEST) {
+      throw new Error(
+        'FOOTBAG_CHEAP_PASSWORD_HASH is a test-only switch that weakens password hashing; it is refused outside the Vitest runner (process.env.VITEST is unset).',
+      );
+    }
+    useCheapPasswordHash = true;
+  } else {
+    throw new Error(
+      `FOOTBAG_CHEAP_PASSWORD_HASH must be '1', '0', 'true', or 'false', got: ${rawCheapHash}`,
     );
   }
 
@@ -591,7 +624,8 @@ function loadConfig(): AppConfig {
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
     publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
     sessionSecret,
-    mediaDir: process.env.FOOTBAG_MEDIA_DIR || './data/media',
+    mediaDir: process.env.FOOTBAG_MEDIA_DIR || './s3-adapter-local',
+    curatedMediaDir: process.env.FOOTBAG_CURATED_MEDIA_DIR || './.curated-build',
     jwtSigner,
     jwtKmsKeyId,
     jwtLocalKeypairPath,
@@ -625,6 +659,7 @@ function loadConfig(): AppConfig {
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
     devAdminGrantTier2,
+    useCheapPasswordHash,
     paymentAdapter,
     stripeWebhookSecret,
     testMemoryPercent,

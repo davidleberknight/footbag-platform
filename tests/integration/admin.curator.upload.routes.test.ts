@@ -25,6 +25,7 @@ const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-curated-
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
+process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.PORT              = '3099';
 process.env.NODE_ENV          = 'test';
 process.env.LOG_LEVEL         = 'error';

@@ -35,6 +35,14 @@ function run(
 
 const HAS_DOCKER = spawnSync('command', ['-v', 'docker'], { shell: true }).status === 0;
 
+// The dev-admin seed reads a gitignored, per-maintainer file. A workstation
+// that happens to carry a populated one would enable the seed under
+// --soup-to-nuts, so guard the best-effort-skip assertion on its absence
+// (CI and clean checkouts never have it).
+const HAS_STAGING_ADMIN_SEED = fs.existsSync(
+  path.join(REPO_ROOT, '.local', 'staging-admin-seed.json'),
+);
+
 // ── deploy_to_aws.sh wrapper ──────────────────────────────────────────────────
 
 describe('deploy_to_aws.sh wrapper', () => {
@@ -79,7 +87,7 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(combined).toMatch(/unknown flag/);
   });
 
-  it('default mode -ny (dry-run + yes) prints the plan and dispatches via deploy-local-data.sh', () => {
+  it('bare default -ny (dry-run + yes) is code-only and routes to deploy-code.sh', () => {
     const r = run('bash', ['scripts/deploy-to-aws.sh', '-ny'], {
       input: 'fake-pw\n',
     });
@@ -87,6 +95,18 @@ describe('deploy_to_aws.sh wrapper', () => {
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
     expect(combined).toMatch(/Deploy plan/);
     expect(combined).toMatch(/mode:\s+default/);
+    expect(combined).toMatch(/rebuild local DB:\s+no/);
+    expect(combined).toMatch(/replace staging:\s+no/);
+    expect(combined).toMatch(/deploy-code\.sh/);
+  });
+
+  it('--from-csv -ny rebuilds + replaces and dispatches via deploy-local-data.sh', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--from-csv', '-ny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/Deploy plan/);
     expect(combined).toMatch(/rebuild local DB:\s+yes/);
     expect(combined).toMatch(/replace staging:\s+yes/);
     expect(combined).toMatch(/deploy-local-data\.sh --from-csv/);
@@ -124,6 +144,23 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(combined).toMatch(/KEEP_MEDIA=yes/);
   });
 
+  it.skipIf(HAS_STAGING_ADMIN_SEED)(
+    '--soup-to-nuts skips the dev-admin seed when .local/staging-admin-seed.json is absent (best-effort); personas stay on',
+    () => {
+      const r = run('bash', ['scripts/deploy-to-aws.sh', '--soup-to-nuts', '-ny'], {
+        input: 'fake-pw\n',
+      });
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      // Persona catalog is code, so it always seeds; the dev-admin seed needs a
+      // populated per-maintainer file and must not abort a soup-to-nuts deploy
+      // when that file has no entries.
+      expect(combined).toMatch(/seed personas:\s+yes/);
+      expect(combined).toMatch(/seed dev admins:\s+no/);
+      expect(combined).toMatch(/skipping dev-admin seed/);
+    },
+  );
+
   it.skipIf(!HAS_DOCKER)(
     '-k with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
     () => {
@@ -145,14 +182,14 @@ describe('deploy_to_aws.sh wrapper', () => {
   it.skipIf(!HAS_DOCKER)(
     'production DB-replace requires the explicit confirmation phrase (no TTY → refuses)',
     () => {
-      // F.1 prod-plumbing: a default-mode (DB-rebuild) deploy against
+      // A DB-rebuild deploy (--from-csv; bare is now code-only) against
       // footbag-production must not proceed without the operator typing the
       // confirmation phrase. Test environment has no TTY, so the gate
       // refuses with a clear "no TTY available" recommendation.
       const tmpFile = path.join(os.tmpdir(), `op-prod-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
-        const r = run('bash', ['deploy_to_aws.sh'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
@@ -180,7 +217,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       const tmpFile = path.join(os.tmpdir(), `op-prod-ack-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
-        const r = run('bash', ['deploy_to_aws.sh'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -229,7 +229,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
 
   beforeAll(async () => {
     const db = new BetterSqlite3(dbPath);
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     insertMember(db, {
       id: NON_ADMIN_ID,
       slug: NON_ADMIN_SLUG,
@@ -277,7 +277,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
   it('admin user with a JWT claiming role=member resolves to role=admin', async () => {
     // Reset the admin's password_hash since the previous test may have
     // bumped password_version for them if ordering drifted.
-    const hash = await argon2.hash(OLD_PASSWORD);
+    const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, ADMIN_ID);

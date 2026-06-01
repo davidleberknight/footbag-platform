@@ -172,22 +172,26 @@ sqlite3 "$LOCAL_DB" \
   exit 1
 }
 
-# Curator seed: refresh media_items from /curated/**/*.meta.json sidecars
-# against the local DB before shipping. Idempotent (DELETE + INSERT OR REPLACE
-# pattern in seed_fh_curator.py). Runs unconditionally so every deploy that
-# ships a DB picks up the latest sidecars — covers the --skip-local-data path
-# where deploy-local-data.sh's seed call did not run, and is a redundant but
-# harmless no-op for paths where it already ran (run_pipeline.sh csv_only or
-# reset-local-db.sh).
+# Curator seed: build the curated media set fresh from /curated/**/*.meta.json
+# sidecars into an ephemeral, curated-only build dir, and refresh media_items
+# rows against the local DB before shipping. The build dir is the ONLY media the
+# deploy ships to S3; the local s3-adapter-local store (dev stand-in for the
+# bucket) is never shipped. Idempotent (DELETE + INSERT OR REPLACE pattern in
+# seed_fh_curator.py). Runs unconditionally so every deploy that ships a DB
+# picks up the latest sidecars.
+CURATED_BUILD_DIR="${REPO_ROOT}/.curated-build"
+trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
-  echo "==> Running curator seed (sidecars → media_items)..."
+  echo "==> Building curator media from /curated → .curated-build (sidecars → media_items)..."
+  rm -rf "${CURATED_BUILD_DIR}"
+  mkdir -p "${CURATED_BUILD_DIR}"
   _venv="${REPO_ROOT}/scripts/.venv"
   if [[ ! -f "${_venv}/bin/python3" ]]; then
     echo "    → Creating Python venv at ${_venv}"
     python3 -m venv "${_venv}"
   fi
   "${_venv}/bin/pip" install --quiet -r "${REPO_ROOT}/scripts/requirements.txt"
-  "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" --db "${LOCAL_DB}"
+  "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" --db "${LOCAL_DB}" --media-dir "${CURATED_BUILD_DIR}"
 else
   echo "==> Skipping curator seed (CURATOR_SEED=no)"
 fi
@@ -196,12 +200,12 @@ echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null
 
 echo "==> Rsyncing source to host..."
-# /data/media/*** is conditional on the --sync-media opt-in (threaded as
-# SYNC_MEDIA env from the orchestrator). Without the opt-in, RELEASE_DIR
-# does not contain /data/media and the remote-half's S3 sync block becomes
-# a no-op, leaving the live S3 bucket fully preserved across this deploy.
-# The curator seed step (sidecar -> media_items rows) is governed separately
-# by CURATOR_SEED and ships with the DB regardless of SYNC_MEDIA.
+# /.curated-build/*** ships only when SYNC_MEDIA=yes, set by the -m/--sync-media
+# opt-in in deploy-to-aws.sh (default off). When off or unset (e.g. this script
+# invoked directly), RELEASE_DIR carries no /.curated-build and the remote-half
+# S3 sync is a no-op, leaving the live bucket untouched. The curator seed step
+# (sidecar -> media_items rows) is governed separately by CURATOR_SEED and ships
+# with the DB regardless.
 RSYNC_INCLUDES=(
   --include='/.dockerignore'
   --include='/docker/***'
@@ -216,8 +220,7 @@ RSYNC_INCLUDES=(
 )
 if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
   RSYNC_INCLUDES+=(
-    --include='/data/'
-    --include='/data/media/***'
+    --include='/.curated-build/***'
   )
 fi
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \

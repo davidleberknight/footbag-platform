@@ -33,23 +33,32 @@ for arg in "$@"; do
   fi
 done
 
-MODE_CODE_ONLY=0   # -k / --keep-staging-db: no DB ops at all.
+MODE_CODE_ONLY=0   # -k / --keep-staging-db (and the bare default): no DB ops at all.
 MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
-DB_REBUILD_INVOLVED=0   # default mode runs the full pipeline → DB rebuild.
+DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts opt into a DB rebuild.
+DATA_REBUILD=0     # --from-csv / --soup-to-nuts: opt-in DB rebuild + staging replace.
 SEED_DEV_ADMINS=0   # --seed-dev-admins: opt-in dev-admin seed after deploy (CUTOVER-REMOVE).
 SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
 
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
-    -k|--keep-staging-db)  MODE_CODE_ONLY=1; HAS_MODE=1 ;;
-    -r|--reuse-local-db)   MODE_REUSE=1;     HAS_MODE=1 ;;
-    --seed-dev-admins)     SEED_DEV_ADMINS=1 ;;
-    --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
+    -k|--keep-staging-db)       MODE_CODE_ONLY=1; HAS_MODE=1 ;;
+    -r|--reuse-local-db)        MODE_REUSE=1;     HAS_MODE=1 ;;
+    --from-csv|--soup-to-nuts)  DATA_REBUILD=1 ;;
+    --seed-dev-admins)          SEED_DEV_ADMINS=1 ;;
+    --seed-test-personas)       SEED_TEST_PERSONAS=1 ;;
   esac
 done
+# Bare deploy (no -k/-r and no --from-csv/--soup-to-nuts) is code-only: no DB
+# ops at all. --from-csv / --soup-to-nuts opt into a DB rebuild + staging
+# replace; only then does the DB-touching preflight + prod-replace gate apply.
 if (( HAS_MODE == 0 )); then
-  DB_REBUILD_INVOLVED=1
+  if (( DATA_REBUILD == 1 )); then
+    DB_REBUILD_INVOLVED=1
+  else
+    MODE_CODE_ONLY=1
+  fi
 fi
 
 # DEPLOY_TARGET allowlist. Only two values are accepted: footbag-staging and
@@ -412,32 +421,93 @@ if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
   exit 1
 fi
 
-# --keep-staging-db (-k): warn when schema.sql has uncommitted changes (or
-# changes since the last deploy commit). Code-only deploys ship the new TS
-# but DO NOT reapply schema.sql on the host, so a code path that depends on
-# a new column or table will crash at runtime. The operator should choose
-# either a full rebuild or accept the risk after reviewing the schema drift.
-# Runs after the AWS_OPERATOR_FILE check so the more fundamental credential
-# error fires first.
-if (( MODE_CODE_ONLY == 1 )) && command -v git >/dev/null 2>&1; then
-  _schema_changes=$(git diff HEAD -- database/schema.sql 2>/dev/null | head -5 || true)
-  if [[ -n "$_schema_changes" ]]; then
-    echo "WARNING: --keep-staging-db (-k) selected, but database/schema.sql has uncommitted changes." >&2
-    echo "         Code-only deploys do not reapply schema.sql on the host. New tables or" >&2
-    echo "         columns added in this batch will not exist on staging, and any code path" >&2
-    echo "         that touches them will crash at runtime." >&2
+# Code-only schema-sync (the bare default, or -k). A code-only deploy ships new
+# TS but does NOT reapply schema.sql on the host, so code that depends on a
+# table or column not yet on the host crashes at runtime. There is no in-place
+# migration by design, so the remedy is a rebuild. Compare database/schema.sql
+# against the schema of the DB the host actually runs on (read-only over SSH;
+# key auth, no operator password, no sudo, </dev/null so the credential pipe is
+# untouched). Git state is irrelevant — we compare against what is DEPLOYED, not
+# what is committed. Best-effort: any failure to read the host schema warns and
+# proceeds. Runs after the AWS_OPERATOR_FILE check so the more fundamental
+# credential error fires first.
+if (( MODE_CODE_ONLY == 1 )) \
+    && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
+    && command -v sqlite3 >/dev/null 2>&1 \
+    && [[ -f database/schema.sql ]]; then
+  # Structural fingerprint: sorted "table|column" rows. Tables only — indexes
+  # and triggers don't cause the missing-column crash we guard against.
+  _schema_fp_query="SELECT m.name || '|' || p.name
+                    FROM sqlite_schema m JOIN pragma_table_info(m.name) p
+                    WHERE m.type='table' AND m.name NOT LIKE 'sqlite_%'
+                    ORDER BY 1;"
+
+  # Expected: build a throwaway DB from schema.sql and fingerprint it.
+  _exp_db=$(mktemp -t schema_expect.XXXXXX.db)
+  _expected_fp=""
+  if sqlite3 "${_exp_db}" < database/schema.sql >/dev/null 2>&1; then
+    _expected_fp=$(sqlite3 "${_exp_db}" "${_schema_fp_query}" 2>/dev/null || true)
+  fi
+  rm -f "${_exp_db}" "${_exp_db}-wal" "${_exp_db}-shm"
+
+  # Actual: the schema of the DB the host runs on. Resolve FOOTBAG_DB_PATH from
+  # the host env file, then fingerprint the live DB with the host's sqlite3. The
+  # query travels on ssh stdin (avoids remote quoting of the SQL string).
+  _host_fp=$(printf '%s\n' "${_schema_fp_query}" | ssh "$DEPLOY_TARGET" '
+    p=$(grep -E "^FOOTBAG_DB_PATH=" /srv/footbag/env 2>/dev/null | tail -1 | cut -d= -f2-)
+    [ -n "$p" ] && [ -f "$p" ] || exit 9
+    command -v sqlite3 >/dev/null 2>&1 || exit 8
+    sqlite3 "$p"
+  ' 2>/dev/null) || _host_fp="__UNREACHABLE__"
+
+  if [[ -z "$_expected_fp" ]]; then
+    echo "WARNING: schema-sync check could not read database/schema.sql; skipping." >&2
+  elif [[ "$_host_fp" == "__UNREACHABLE__" ]]; then
+    echo "WARNING: schema-sync check could not read the deployed DB schema on '$DEPLOY_TARGET'" >&2
+    echo "         (host unreachable, /srv/footbag/env or DB missing, or sqlite3 absent on host)." >&2
+    echo "         Proceeding with the code-only deploy without a schema-drift check." >&2
+  elif [[ "$_host_fp" != "$_expected_fp" ]]; then
     echo "" >&2
-    echo "         Either run a full rebuild deploy (omit -k) to reapply schema, or accept" >&2
-    echo "         the risk after reviewing the schema diff:" >&2
-    echo "           git diff HEAD -- database/schema.sql" >&2
+    echo "WARNING: database/schema.sql differs from the DB schema deployed on '$DEPLOY_TARGET'." >&2
+    echo "         A code-only deploy does NOT reapply schema on the host, so code that depends" >&2
+    echo "         on the changed tables/columns will crash at runtime. There is no in-place" >&2
+    echo "         migration; the fix is a rebuild that ships a fresh schema + DB." >&2
     echo "" >&2
-    if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" != "1" ]] && [[ -r /dev/tty ]]; then
-      printf "  Continue with -k deploy despite schema drift? [y/N] " >&2
+    if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
+      echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 → proceeding code-only despite schema drift." >&2
+    elif (( HAS_MODE == 0 )) && [[ -r /dev/tty ]]; then
+      # Bare default: offer to rebuild now. Re-exec as --from-csv, preserving the
+      # operator's other flags (drop the code-only mode flags that would conflict).
+      printf "  Rebuild + replace the deployed DB now (--from-csv) instead of code-only? [Y/n] " >&2
+      read -r _ans </dev/tty || _ans=""
+      if [[ -z "$_ans" || "$_ans" =~ ^[Yy] ]]; then
+        _rebuild_args=()
+        for _a in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
+          case "$_a" in
+            -k|--keep-staging-db|-r|--reuse-local-db) ;;
+            *) _rebuild_args+=("$_a") ;;
+          esac
+        done
+        echo "  → Re-running as a DB-rebuild deploy (--from-csv)..." >&2
+        exec bash "$0" --from-csv "${_rebuild_args[@]+"${_rebuild_args[@]}"}"
+      fi
+      echo "  → Proceeding with the code-only deploy at operator's risk." >&2
+    elif [[ -r /dev/tty ]]; then
+      # Explicit -k: operator deliberately chose code-only. Confirm, default no.
+      printf "  Proceed with code-only deploy despite schema drift? [y/N] " >&2
       read -r _ans </dev/tty || _ans=""
       if ! [[ "${_ans:-}" =~ ^[Yy]$ ]]; then
-        echo "Aborted. Set FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to bypass this prompt." >&2
+        echo "Aborted. Run a rebuild deploy (bash deploy_to_aws.sh --from-csv), or set" >&2
+        echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only despite drift." >&2
         exit 1
       fi
+    else
+      # Non-interactive and not acked: refuse rather than silently ship a crash.
+      echo "ERROR: schema drift detected and no TTY to confirm." >&2
+      echo "Recommendation: run a rebuild deploy (bash deploy_to_aws.sh --from-csv), or set" >&2
+      echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to ship code-only anyway, or" >&2
+      echo "  FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 to skip this check." >&2
+      exit 1
     fi
   fi
 fi

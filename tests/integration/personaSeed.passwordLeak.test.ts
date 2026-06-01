@@ -47,13 +47,13 @@ beforeAll(async () => {
 });
 
 function grepRepoForLiteral(needle: string): string[] {
+  // Scan only git-tracked (checked-in) files. `git grep` skips every gitignored
+  // artifact (.curated-build media, scripts/.venv, the legacy mirror, any build
+  // dir), which both matches this test's "checked-in file" intent and avoids
+  // crawling large binary trees that timed out the old filesystem `grep -r`.
   const cmd =
-    `grep -r -l --include='*.ts' --include='*.tsx' --include='*.js' ` +
-    `--include='*.sh' --include='*.json' --include='*.hbs' ` +
-    `--include='*.yml' --include='*.yaml' --include='*.html' ` +
-    `--exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git ` +
-    `--exclude-dir=database --exclude-dir=coverage ` +
-    `-F '${needle}' .`;
+    `git grep -I -l -F -e '${needle}' -- ` +
+    `'*.ts' '*.tsx' '*.js' '*.sh' '*.json' '*.hbs' '*.yml' '*.yaml' '*.html'`;
   let raw = '';
   try {
     raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' });
@@ -99,7 +99,7 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
 
   it('seedPersona stores an argon2id hash in members.password_hash; never the plaintext literal', async () => {
     const BetterSqlite3 = (await import('better-sqlite3')).default;
-    const argon2Mod = await import('argon2');
+    const { hashPassword } = await import('../../src/lib/passwordHash');
     const { seedPersona } = await import('../../src/testkit/personaFactory');
     const fs = await import('node:fs');
     const os = await import('node:os');
@@ -113,7 +113,7 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
     db.exec(schema);
 
     try {
-      const passwordHash = await argon2Mod.default.hash(TEST_PERSONA_SEED_PASSWORD_LITERAL);
+      const passwordHash = await hashPassword(TEST_PERSONA_SEED_PASSWORD_LITERAL);
       db.transaction(() =>
         seedPersona(
           db,

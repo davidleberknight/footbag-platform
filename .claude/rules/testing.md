@@ -114,7 +114,7 @@ The `tests/smoke/` suite is run by operators on the staging host (or from a work
 
 ## Fixture-staging scripts: never clobber real data
 
-Test-fixture stagers (`scripts/ci/stage_*.sh` and equivalents) populate paths that, on a developer workstation, may also hold real data: `legacy_data/mirror_footbag_org/` (legacy site mirror crawl, multi-day to regenerate), `legacy_data/event_results/canonical_input/` (canonical CSVs, multi-hour pipeline), `data/media/` (uploaded media). When you write or modify a fixture-staging script:
+Test-fixture stagers (`scripts/ci/stage_*.sh` and equivalents) populate paths that, on a developer workstation, may also hold real data: `legacy_data/mirror_footbag_org/` (legacy site mirror crawl, multi-day to regenerate), `legacy_data/event_results/canonical_input/` (canonical CSVs, multi-hour pipeline). When you write or modify a fixture-staging script:
 
 - **Detect real data first, refuse to overwrite it. No flag, env var, or CI mode bypasses this guard.** A real-data signal might be: a row count well above any fixture (e.g. `events.csv` rows > 50 vs the fixture's 6), a directory population well above any fixture (e.g. `events/show/` > 100 entries vs the fixture's 0), or the presence of a real file the fixture never ships. An operator who genuinely wants to rebuild must move the directory aside manually before re-running; the script must not offer an in-band escape (no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing).
 - **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`** (since CI starts from an empty target). The real-data guard above fires regardless and is not subject to `--force`.
@@ -125,11 +125,11 @@ The same principle applies to any test-setup script that touches paths outside `
 
 ## Tests never write real data (hard invariant, by design)
 
-No test, test fixture, or local test-runner entry point writes into the irreplaceable real-data trees — `legacy_data/`, `data/media/`, `curated/` — nor into the project root. Every test write goes to `os.tmpdir()` / `mktemp` via the shared helpers (`tests/fixtures/testDb.ts` `setTestEnv` / `createTestDb`; `scripts/e2e/start-stack.sh` `mktemp`). Never construct a writable path from `path.join(process.cwd(), ...)`; use `os.tmpdir()` with a `footbag-test-` prefix so `tests/global-setup.ts` sweeps any SIGKILL/OOM leak.
+No test, test fixture, or local test-runner entry point writes into the irreplaceable real-data trees — `legacy_data/` and `curated/` — nor into the project root. Every test write goes to `os.tmpdir()` / `mktemp` via the shared helpers (`tests/fixtures/testDb.ts` `setTestEnv` / `createTestDb`; `scripts/e2e/start-stack.sh` `mktemp`). Never construct a writable path from `path.join(process.cwd(), ...)`; use `os.tmpdir()` with a `footbag-test-` prefix so `tests/global-setup.ts` sweeps any SIGKILL/OOM leak.
 
 The only scripts permitted to write a real-data path are the CI loader-pipeline tools — `scripts/reset-local-db.sh` and `scripts/ci/stage_loader_smoke_fixtures.sh` (the `db-load-smoke` gate). These are **CI-only**: GitHub Actions runs them against a clean, empty checkout where there is nothing to clobber. They are NEVER invoked by the local test runner. Running them on a workstation that holds the real `legacy_data/` dump is forbidden; if a loader failure must be reproduced locally, do it in an isolated `git worktree` with an empty `legacy_data/`, and confirm with the maintainer first. (They also carry the refuse-on-real-data guards from the section above, but the by-design rule is upstream of that: do not point them at a real checkout at all.)
 
-`./run_all_tests.sh` is the canonical local full-suite runner and is safe on a workstation holding real `legacy_data/` by design: it excludes the loader gate, and it fingerprints `legacy_data/`, `data/media/`, and `curated/` before and after the run, aborting non-zero if any tree changed. Any new suite added to `run_all_tests.sh` must preserve this — the new gate writes only to tmp.
+`./run_all_tests.sh` is the canonical local full-suite runner and is safe on a workstation holding real `legacy_data/` by design: it excludes the loader gate, and it fingerprints `legacy_data/` and `curated/` before and after the run, aborting non-zero if any tree changed. Any new suite added to `run_all_tests.sh` must preserve this — the new gate writes only to tmp.
 
 ## Cross-references
 

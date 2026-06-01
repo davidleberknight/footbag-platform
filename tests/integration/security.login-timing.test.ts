@@ -26,6 +26,13 @@ import { insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3094');
 
+// This test asserts a wall-clock floor (>30 ms) and a present/absent ratio, so
+// it must run at production argon2 cost: under the suite's cheap profile the
+// stored-hash verify (strong) and the dummy-hash verify (cheap) would diverge
+// and break both assertions. Force strong for this file only; per-file forked
+// isolation keeps it from leaking to other suites.
+process.env.FOOTBAG_CHEAP_PASSWORD_HASH = '0';
+
 const KNOWN_EMAIL = 'timing-test-known@example.com';
 const ABSENT_EMAIL = 'timing-test-absent@example.com';
 const WRONG_PASSWORD = 'definitely-not-the-real-password';

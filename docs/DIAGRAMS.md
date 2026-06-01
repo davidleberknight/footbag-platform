@@ -167,10 +167,9 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  4. Not found?  → generic 'invalid credentials' error               │
 │     (same message as wrong password — prevents enumeration)         │
 │  5. Compare submitted password against stored passwordHash:         │
-│       argon2id  (primary)  or  bcrypt  (legacy, auto-upgrades)      │
+│       argon2id                                                      │
 │       timing-safe comparison — prevents timing attacks              │
 │  6. Hash mismatch?  → same generic error                            │
-│  7. Legacy bcrypt?  → rehash to argon2id, UPDATE member row         │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐

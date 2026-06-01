@@ -73,6 +73,7 @@
  */
 import { randomUUID } from 'crypto';
 import argon2 from 'argon2';
+import { hashPassword } from '../lib/passwordHash';
 import { auth, registration, legacyClaim, legacyMembers, account, workQueue, pendingAutoLinkCard, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
@@ -393,7 +394,7 @@ export interface RegisterResult {
 let _dummyHashPromise: Promise<string> | null = null;
 function getDummyArgonHash(): Promise<string> {
   if (_dummyHashPromise === null) {
-    _dummyHashPromise = argon2.hash('footbag-dummy-timing-equaliser');
+    _dummyHashPromise = hashPassword('footbag-dummy-timing-equaliser');
   }
   return _dummyHashPromise;
 }
@@ -596,7 +597,7 @@ async function registerMember(
   }
 
   const id = `member_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-  const hash = await argon2.hash(password);
+  const hash = await hashPassword(password);
   const now = new Date().toISOString();
 
   // Insert with race-defensive catch:
@@ -2254,7 +2255,7 @@ async function changePassword(
     throw new ValidationError('Current password is incorrect.');
   }
 
-  const newHash = await argon2.hash(newPassword);
+  const newHash = await hashPassword(newPassword);
   const now = new Date().toISOString();
   auth.updateMemberPassword.run(newHash, now, now, memberId);
 
@@ -2413,7 +2414,7 @@ async function completePasswordReset(
     throw new ValidationError('This reset link is invalid, expired, or already used.');
   }
 
-  const newHash = await argon2.hash(newPassword);
+  const newHash = await hashPassword(newPassword);
   const now = new Date().toISOString();
   auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
 

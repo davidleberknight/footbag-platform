@@ -5,12 +5,13 @@
 # AWS staging deploy orchestrator. Composes:
 #   scripts/deploy-local-data.sh   local DB rebuild (full pipeline)
 #   scripts/deploy-code.sh         code + images only (no DB, no media)
-#   scripts/deploy-rebuild.sh      code + images + DB replacement (+ media)
+#   scripts/deploy-rebuild.sh      code + images + DB replacement (+ media w/ -m)
 #
-# Default with no flags = "ship everything fresh": rebuild local DB from
-# committed CSVs, replace staging DB, sync code + media, run tests, run smoke.
-# Each destructive step prompts before acting (rebuild local DB, replace
-# staging DB, clean S3 sync).
+# Default with no flags = code-only: ship code + docker images, run tests +
+# smoke; the staging DB and S3 media are left untouched. A DB rebuild + staging
+# replace is opt-in via --from-csv (committed CSVs) or --soup-to-nuts
+# (everything on). Media sync to S3 is opt-in via -m / --sync-media (default
+# off). The media clean-sync step still prompts before acting.
 #
 # Mirror is NEVER required at deploy time. Committed seed CSVs carry all
 # mirror-extracted data forward. Mirror extraction is an upstream
@@ -28,27 +29,29 @@ usage() {
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
    or: < <operator credential file> bash scripts/deploy-to-aws.sh [flags]
 
-Default (no flags): ship code, rebuild local DB, replace staging DB, sync
-media, run tests + smoke. Prompts before each destructive step (rebuild,
-replace, clean S3 sync).
+Default (no flags): code-only — ship code + images, run tests + smoke; the
+staging DB and S3 media are left untouched. A DB rebuild + staging replace is
+opt-in via --from-csv or --soup-to-nuts. Media sync is opt-in via -m /
+--sync-media (default off). Prompts before the media clean-sync step.
 
 MODES (mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
-  (none)                       Default.
+  (none)                       Default: code-only. Staging DB + S3 media
+                               untouched (same as -k). Add --from-csv or
+                               --soup-to-nuts to rebuild + replace the DB.
   -r, --reuse-local-db         Don't rebuild local DB; ship current
                                ./database/footbag.db to staging as-is.
   -k, --keep-staging-db        Don't touch staging DB at all. Code + media
-                               still ship.
+                               still ship. (Now equivalent to no flags.)
 
-DATA SOURCE (default rebuild mode only; mutually exclusive)
+DATA SOURCE (opt-in DB rebuild; mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
   --from-csv                   Full clean rebuild of local DB from
                                committed canonical CSVs (drops the DB
                                file, reapplies schema, runs all
-                               enrichment phases). No mirror access. This
-                               is the default when no mode flag is given;
-                               the flag is for explicit symmetry with
-                               --soup-to-nuts.
+                               enrichment phases), then replaces the
+                               staging DB. No mirror access. Opt-in: a
+                               bare deploy is code-only.
   --soup-to-nuts               Full clean rebuild from the legacy mirror
                                (legacy_data/mirror_footbag_org/). Drops
                                the DB file, regenerates canonical_input
@@ -58,12 +61,23 @@ DATA SOURCE (default rebuild mode only; mutually exclusive)
                                audit_entries, ...). Working tree may show
                                diffs after the run. Conflicts with -r
                                and -k.
+                               "Everything on" by default: turns ON media
+                               sync (+ S3 clean wipe), persona seed, and
+                               dev-admin seed (the seeds on staging only).
+                               Opt out per axis with --no-media /
+                               --no-personas / --no-dev-admins (and -W for
+                               additive S3 sync).
 
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
   -y, --yes                    Accept every destructive prompt as its
                                default-yes answer. CI / scripted use.
-  -W, --no-s3-wipe             When media sync runs, skip --delete flag;
+  -m, --sync-media             Opt in to the S3 media cycle: rebuild curated
+                               media from /curated/ and sync it to the bucket.
+                               Default OFF (curated DB rows still ship every
+                               deploy; S3 bytes persist across deploys). Pass
+                               this only when curated binaries changed.
+  -W, --no-s3-wipe             When media sync runs (-m), skip --delete flag;
                                still sync new bytes additively.
   --seed-dev-admins            After the deploy completes, run the
                                dev-admin seed inside the web container.
@@ -81,7 +95,7 @@ MODIFIERS
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
-Combinations work: `-ryW` = reuse local DB, accept defaults, additive sync only.
+Combinations work: `-rmW` = reuse local DB, sync media, additive (no S3 wipe).
 
 ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
@@ -105,19 +119,19 @@ ENV OVERRIDES
 
 EXAMPLES
 ─────────────────────────────────────────────────────────────────────
-  Routine code update (DB + S3 untouched):
-      bash deploy_to_aws.sh -k
-
-  Full deploy (the default):
+  Routine code update (the default; DB + S3 untouched):
       bash deploy_to_aws.sh
+
+  Full deploy from committed CSVs (rebuild + replace staging DB):
+      bash deploy_to_aws.sh --from-csv
 
   Push the current local DB to staging without rebuilding:
       bash deploy_to_aws.sh -r
 
-  Soup-to-nuts deploy (regenerate from the legacy mirror, then ship):
+  Soup-to-nuts deploy (everything on: mirror rebuild + media + seeds):
       bash deploy_to_aws.sh --soup-to-nuts
 
-  Non-interactive default (CI):
+  Non-interactive (CI), accept default-yes prompts:
       bash deploy_to_aws.sh -y
 
   Dry run:
@@ -131,6 +145,10 @@ USAGE
 MODE=""              # "" = default, "reuse" = -r, "keep" = -k
 YES_TO_ALL="no"
 NO_S3_WIPE_FLAG="no"
+SYNC_MEDIA_FLAG="no" # -m / --sync-media: opt in to the S3 media cycle
+NO_MEDIA_FLAG="no"       # --no-media: opt OUT of soup-to-nuts media sync
+NO_PERSONAS_FLAG="no"    # --no-personas: opt OUT of soup-to-nuts persona seed
+NO_DEV_ADMINS_FLAG="no"  # --no-dev-admins: opt OUT of soup-to-nuts dev-admin seed
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
@@ -174,11 +192,15 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -k|--keep-staging-db)  set_mode "$arg" "keep"  ;;
     -y|--yes)              YES_TO_ALL="yes" ;;
     -W|--no-s3-wipe)       NO_S3_WIPE_FLAG="yes" ;;
+    -m|--sync-media)       SYNC_MEDIA_FLAG="yes" ;;
     -n|--dry-run)          DRY_RUN="yes" ;;
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     --seed-dev-admins)     SEED_DEV_ADMINS="yes" ;;
     --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
+    --no-media)            NO_MEDIA_FLAG="yes" ;;
+    --no-personas)         NO_PERSONAS_FLAG="yes" ;;
+    --no-dev-admins)       NO_DEV_ADMINS_FLAG="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -201,6 +223,59 @@ if [[ "$SOUP_TO_NUTS" == "yes" || "$FROM_CSV" == "yes" ]]; then
   if [[ "$MODE" == "keep" ]]; then
     echo "ERROR: --from-csv / --soup-to-nuts conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --soup-to-nuts to rebuild locally without deploying." >&2
     exit 1
+  fi
+fi
+
+# Opt-out / opt-in conflicts.
+if [[ "$SYNC_MEDIA_FLAG" == "yes" && "$NO_MEDIA_FLAG" == "yes" ]]; then
+  echo "ERROR: -m/--sync-media and --no-media are contradictory." >&2
+  exit 1
+fi
+if [[ "$SEED_TEST_PERSONAS" == "yes" && "$NO_PERSONAS_FLAG" == "yes" ]]; then
+  echo "ERROR: --seed-test-personas and --no-personas are contradictory." >&2
+  exit 1
+fi
+if [[ "$SEED_DEV_ADMINS" == "yes" && "$NO_DEV_ADMINS_FLAG" == "yes" ]]; then
+  echo "ERROR: --seed-dev-admins and --no-dev-admins are contradictory." >&2
+  exit 1
+fi
+
+# The --no-* opt-outs only make sense with --soup-to-nuts (the only mode that
+# turns these axes on by default). Anywhere else they are already off, so a
+# stray --no-* is almost certainly an operator mistake — fail loud.
+if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
+  for _f in "--no-media:$NO_MEDIA_FLAG" "--no-personas:$NO_PERSONAS_FLAG" "--no-dev-admins:$NO_DEV_ADMINS_FLAG"; do
+    if [[ "${_f#*:}" == "yes" ]]; then
+      echo "ERROR: ${_f%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
+      exit 1
+    fi
+  done
+fi
+
+# --soup-to-nuts is "everything on": turn on media sync (+ S3 clean wipe via the
+# existing WIPE_DEFAULT path), persona seed, and dev-admin seed, each opt-out via
+# --no-*. The seeds are staging-only (CUTOVER-REMOVE); auto-enable them ONLY on
+# staging, re-enforcing the wrapper's allowlist (which scans literal --seed-*
+# flags and cannot see these implicit enables).
+if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
+  [[ "$NO_MEDIA_FLAG" == "yes" ]] || SYNC_MEDIA_FLAG="yes"
+  if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-staging" ]]; then
+    [[ "$NO_PERSONAS_FLAG"   == "yes" ]] || SEED_TEST_PERSONAS="yes"
+    # Dev-admin seed under --soup-to-nuts is best-effort: auto-enable it only
+    # when .local/staging-admin-seed.json actually has entries. Explicit
+    # --seed-dev-admins (already SEED_DEV_ADMINS=yes here) keeps its strict
+    # refuse-to-no-op behavior, so a deploy never aborts on an empty seed file.
+    if [[ "$NO_DEV_ADMINS_FLAG" != "yes" && "$SEED_DEV_ADMINS" != "yes" ]]; then
+      _n=$(grep -v '^[[:space:]]*//' .local/staging-admin-seed.json 2>/dev/null \
+             | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
+      if [[ "${_n:-0}" -gt 0 ]]; then
+        SEED_DEV_ADMINS="yes"
+      else
+        echo "NOTE: --soup-to-nuts: skipping dev-admin seed (no entries in .local/staging-admin-seed.json; pass --seed-dev-admins to require it)." >&2
+      fi
+    fi
+  else
+    echo "NOTE: --soup-to-nuts against non-staging target; persona + dev-admin seeds skipped (staging-only)." >&2
   fi
 fi
 
@@ -249,37 +324,22 @@ prompt_yn() {
 
 # -----------------------------------------------------------------------------
 # Resolve the three destructive choices: REBUILD_LOCAL, REPLACE_STAGING, WIPE.
-# Mode flags pre-answer; otherwise prompt.
+# Bare deploy (no mode flag and no --from-csv/--soup-to-nuts) is code-only: the
+# DB is left untouched. A DB rebuild + staging replace is opt-in via --from-csv
+# or --soup-to-nuts. -r/-k pre-answer their own way. None of these prompt; the
+# WIPE (media) choice below still prompts when media sync is on.
 # -----------------------------------------------------------------------------
 case "$MODE" in
   reuse)  REBUILD_LOCAL="no";  REPLACE_STAGING="yes"; ;;
   keep)   REBUILD_LOCAL="no";  REPLACE_STAGING="no";  ;;
-  "")     REBUILD_LOCAL="";    REPLACE_STAGING="";    ;;  # to be prompted
+  "")
+    if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" ]]; then
+      REBUILD_LOCAL="yes"; REPLACE_STAGING="yes"
+    else
+      REBUILD_LOCAL="no";  REPLACE_STAGING="no"
+    fi
+    ;;
 esac
-
-if [[ -z "$REBUILD_LOCAL" ]]; then
-  if prompt_yn "Rebuild local DB?" "Y"; then
-    REBUILD_LOCAL="yes"
-  else
-    REBUILD_LOCAL="no"
-  fi
-fi
-
-if [[ -z "$REPLACE_STAGING" ]]; then
-  if [[ "$REBUILD_LOCAL" == "yes" ]]; then
-    if prompt_yn "Replace staging DB with rebuilt local?" "Y"; then
-      REPLACE_STAGING="yes"
-    else
-      REPLACE_STAGING="no"
-    fi
-  else
-    if prompt_yn "Replace staging DB with current local?" "Y"; then
-      REPLACE_STAGING="yes"
-    else
-      REPLACE_STAGING="no"
-    fi
-  fi
-fi
 
 # Clean-sync defaults: Y if a DB rebuild is happening (removes S3 objects that
 # have no local counterpart). N otherwise (additive sync only).
@@ -288,11 +348,11 @@ if [[ "$REBUILD_LOCAL" == "yes" && "$REPLACE_STAGING" == "yes" ]]; then
   WIPE_DEFAULT="Y"
 fi
 
-# -W / --no-s3-wipe pre-answers wipe=N without prompting.
-if [[ "$NO_S3_WIPE_FLAG" == "yes" ]]; then
+# No media sync (-m not passed) → nothing to wipe.
+if [[ "$SYNC_MEDIA_FLAG" != "yes" ]]; then
   WIPE_S3="no"
-elif [[ "$REPLACE_STAGING" == "no" && "$MODE" == "keep" ]]; then
-  # -k mode: media still syncs additively, but no DB context → no delete.
+# -W / --no-s3-wipe pre-answers wipe=N without prompting.
+elif [[ "$NO_S3_WIPE_FLAG" == "yes" ]]; then
   WIPE_S3="no"
 else
   if prompt_yn "Remove stale S3 objects during media sync?" "$WIPE_DEFAULT"; then
@@ -311,7 +371,7 @@ echo "    target:           ${DEPLOY_TARGET:-footbag-staging}"
 echo "    mode:             ${MODE:-default}"
 echo "    rebuild local DB: ${REBUILD_LOCAL}"
 echo "    replace staging:  ${REPLACE_STAGING}"
-echo "    sync media:       yes (incremental)"
+echo "    sync media:       ${SYNC_MEDIA_FLAG}"
 echo "    clean S3 sync:    ${WIPE_S3}"
 echo "    seed dev admins:  ${SEED_DEV_ADMINS}"
 echo "    seed personas:    ${SEED_TEST_PERSONAS}"
@@ -428,8 +488,10 @@ export SEED_DEV_ADMINS
 # is code).
 export SEED_TEST_PERSONAS
 
-# SYNC_MEDIA: always yes when shipping anything (additive rsync).
-export SYNC_MEDIA="yes"
+# SYNC_MEDIA: opt-in via -m / --sync-media (default off). When off, the leaf
+# scripts skip the curated build + rsync + S3 sync entirely; curated DB rows
+# still ship with footbag.db and live S3 bytes are preserved.
+export SYNC_MEDIA="${SYNC_MEDIA_FLAG}"
 
 # KEEP_MEDIA: yes means "additive sync only, no --delete." Maps from WIPE_S3
 # (inverse semantics preserved from legacy code).
@@ -441,13 +503,13 @@ fi
 
 # -----------------------------------------------------------------------------
 # Dispatch. Three execution paths:
-#   1. -k: code + media only (no DB).             → deploy-code.sh
+#   1. -k: code only (no DB, no media).           → deploy-code.sh
 #   2. -r or no rebuild: ship current local DB.   → deploy-rebuild.sh (SKIP_DB_REBUILD=yes)
 #   3. Default rebuild + replace.                 → deploy-local-data.sh + deploy-rebuild.sh
 #   3a. -f fast variant: deploy-rebuild.sh runs reset-local-db.sh internally.
 # -----------------------------------------------------------------------------
 if [[ "$REPLACE_STAGING" == "no" ]]; then
-  echo "==> Step: scripts/deploy-code.sh (code + media; staging DB untouched)"
+  echo "==> Step: scripts/deploy-code.sh (code only; staging DB + media untouched)"
   exec_step bash "${SCRIPT_DIR}/deploy-code.sh"
 fi
 
@@ -457,8 +519,8 @@ if [[ "$REBUILD_LOCAL" == "no" ]]; then
   exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
 fi
 
-# REBUILD_LOCAL == yes. Two paths:
-#   default / --from-csv : no-mirror path. Loads committed
+# REBUILD_LOCAL == yes (opt-in via --from-csv / --soup-to-nuts). Two paths:
+#   --from-csv : no-mirror path. Loads committed
 #       canonical_input/*.csv and runs the enrichment phases.
 #       deploy-local-data.sh:run_from_csv() bootstraps
 #       legacy_data/out/canonical/ from the canonical_input snapshot before

@@ -1,8 +1,21 @@
 import { defineConfig } from 'vitest/config';
+import os from 'node:os';
+
+// Vitest's default forks pool runs ~one worker per CPU. On a box where cores
+// far outnumber RAM (e.g. WSL2 reporting 20 host cores against ~8 GB), each
+// fork boots the full app (~270ms module eval) and the concurrent boots
+// oversubscribe memory, stretching beforeAll hooks past the 10s ceiling. Cap
+// forks to memory ONLY when RAM is the bottleneck; CPU-balanced machines and CI
+// keep vitest's default parallelism. ~0.8 GB/fork covers app boot +
+// better-sqlite3 + node heap with headroom.
+const cpuCount = os.cpus().length;
+const memForkCap = Math.max(1, Math.floor(os.totalmem() / (0.8 * 1024 ** 3)));
+const ramBound = memForkCap < cpuCount;
 
 export default defineConfig({
   test: {
     testTimeout: 15_000,
+    ...(ramBound ? { pool: 'forks' as const, poolOptions: { forks: { maxForks: memForkCap } } } : {}),
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
     // start and end. Per-test afterAll() handles the happy path; this hook

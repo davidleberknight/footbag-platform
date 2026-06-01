@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';
 
@@ -94,7 +94,7 @@ beforeAll(async () => {
   });
 
   // Deceased member with valid credentials
-  const deceasedHash = await argon2.hash(DECEASED_PASSWORD);
+  const deceasedHash = await hashTestPassword(DECEASED_PASSWORD);
   insertMember(db, {
     id: 'deceased-001', slug: DECEASED_SLUG, display_name: 'Deceased Player',
     login_email: DECEASED_EMAIL, password_hash: deceasedHash,

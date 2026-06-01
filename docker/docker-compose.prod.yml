@@ -54,7 +54,7 @@ services:
       # unable to see writes committed by web.
       - ${FOOTBAG_DB_DIR:-/srv/footbag/db}:/app/db:rw
       # Media uploads (avatars, photos). Persisted on host across deploys.
-      - ${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}:/app/data/media:rw
+      - ${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}:/app/s3-adapter-local:rw
       # AWS config/credentials for the source-profile -> assumed-role chain.
       # Root-owned on the host (0600); mounted read-only. Runtime reads
       # AWS_PROFILE from the environment and resolves it via sts:AssumeRole.

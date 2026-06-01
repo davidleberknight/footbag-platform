@@ -385,7 +385,7 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
-> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, bootstraps the DB only when `database/footbag.db` is missing (pass `--reset` for a fast committed-seed reset, `--from-csv` for the deploy-parity rebuild, or `--soup-to-nuts` for the legacy-mirror rebuild), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
+> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, bootstraps the DB only when `database/footbag.db` is missing (pass `--reset` for a fast committed-seed reset, `--from-csv` for the deploy-parity rebuild, or `--soup-to-nuts` for the legacy-mirror rebuild plus the full seed set), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
 
 > **Minimal first-boot check (optional).** To confirm that `npm install` and `.env` are healthy before running the full seed pipeline, apply the schema only:
 >
@@ -543,6 +543,7 @@ The suite is split:
 - `npm run test:unit`; pure-function tests under `tests/unit/`; no DB.
 - `npm run test:integration`; HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
 - `npm run test:smoke`; staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires assumed-role credentials on the workstation.
+- `npm run test:strong-hash`; re-runs the password-hash and anti-enumeration login-timing tests at full production argon2 cost (the default suite uses a cheap test-only hash profile for speed). Run on demand to validate the real hashing path.
 - `npm run test:pre-pr`; pre-PR gate; build + conventions check + unit + integration; sub-2-minute target per `docs/TESTING.md` §11.1. Run before pushing.
 - `npm run test:e2e`; Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
 - `npm run test:watch`; vitest in watch mode for fast iteration.

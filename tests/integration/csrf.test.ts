@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 
@@ -28,7 +28,7 @@ const MEMBER_PASSWORD = 'CsrfTestPass!1';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const hash = await argon2.hash(MEMBER_PASSWORD);
+  const hash = await hashTestPassword(MEMBER_PASSWORD);
   insertMember(db, {
     id: MEMBER_ID,
     slug: MEMBER_SLUG,

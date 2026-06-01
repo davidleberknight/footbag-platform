@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -22,7 +22,7 @@ const NEW_PASSWORD    = 'BrandNew!2';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const hash = await argon2.hash(ORIGINAL_PASSWORD);
+  const hash = await hashTestPassword(ORIGINAL_PASSWORD);
   insertMember(db, {
     id: MEMBER_ID,
     slug: MEMBER_SLUG,
@@ -40,7 +40,7 @@ beforeEach(async () => {
   // Rewind per-test: password restored, password_version=1, outbox empty,
   // account_tokens empty. Keeps each test hermetic.
   const db = new BetterSqlite3(dbPath);
-  const hash = await argon2.hash(ORIGINAL_PASSWORD);
+  const hash = await hashTestPassword(ORIGINAL_PASSWORD);
   db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?').run(hash, MEMBER_ID);
   db.prepare('DELETE FROM outbox_emails').run();
   db.prepare('DELETE FROM account_tokens').run();
@@ -132,7 +132,7 @@ describe('POST /password/forgot', () => {
       const TUNE_ID = 'pwreset-tunable-001';
       const TUNE_SLUG = 'pwreset_tunable';
       const seedDb = new BetterSqlite3(dbPath);
-      const hash = await argon2.hash(ORIGINAL_PASSWORD);
+      const hash = await hashTestPassword(ORIGINAL_PASSWORD);
       insertMember(seedDb, {
         id: TUNE_ID,
         slug: TUNE_SLUG,

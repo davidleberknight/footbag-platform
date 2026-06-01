@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { createHash } from 'crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -60,7 +60,7 @@ function readAudits(filter: { action_type?: string; entity_id?: string } = {}): 
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const hash = await argon2.hash(OLD_PASSWORD);
+  const hash = await hashTestPassword(OLD_PASSWORD);
   insertMember(db, {
     id: OWN_ID,
     slug: OWN_SLUG,
@@ -78,7 +78,7 @@ beforeEach(async () => {
   // audit_entries is immutable (DB triggers); do not clear it. Tests
   // assert by action_type + entity_id or by count-delta instead.
   const db = new BetterSqlite3(dbPath);
-  const hash = await argon2.hash(OLD_PASSWORD);
+  const hash = await hashTestPassword(OLD_PASSWORD);
   db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?').run(hash, OWN_ID);
   db.prepare('DELETE FROM outbox_emails').run();
   db.prepare('DELETE FROM account_tokens').run();

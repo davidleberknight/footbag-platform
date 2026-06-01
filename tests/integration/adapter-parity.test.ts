@@ -684,6 +684,64 @@ describe('adapter-parity: MediaStorageAdapter contract', () => {
   });
 });
 
+// Composite two-lane local adapter: baseDir = runtime upload lane (read+write),
+// fallbackDir = curated lane (read-only). Models dev parity with the single
+// prod S3 bucket while keeping curated and upload bytes in separate dirs.
+describe('local adapter: composite curated fallback lane', () => {
+  let baseDir: string;
+  let curatedDir: string;
+  beforeEach(() => {
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-base-'));
+    curatedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-curated-'));
+  });
+  afterEach(() => {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+    fs.rmSync(curatedDir, { recursive: true, force: true });
+  });
+
+  it('get falls back to the curated lane when the key is absent from baseDir', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir, fallbackDir: curatedDir });
+    const key = 'member_fh/detached/abc-display.jpg';
+    fs.mkdirSync(path.join(curatedDir, path.dirname(key)), { recursive: true });
+    fs.writeFileSync(path.join(curatedDir, key), Buffer.from('curated-bytes'));
+    const fetched = await adapter.get(key);
+    expect(fetched.equals(Buffer.from('curated-bytes'))).toBe(true);
+  });
+
+  it('exists is true for a key in either lane', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir, fallbackDir: curatedDir });
+    await adapter.put('avatars/m1/thumb.jpg', Buffer.from('upload'));
+    fs.mkdirSync(path.join(curatedDir, 'member_fh/detached'), { recursive: true });
+    fs.writeFileSync(path.join(curatedDir, 'member_fh/detached/x.jpg'), Buffer.from('c'));
+    expect(await adapter.exists('avatars/m1/thumb.jpg')).toBe(true);
+    expect(await adapter.exists('member_fh/detached/x.jpg')).toBe(true);
+  });
+
+  it('get of a key in neither lane rejects (parity with S3 NoSuchKey)', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir, fallbackDir: curatedDir });
+    await expect(adapter.get('nope/missing.jpg')).rejects.toThrow();
+  });
+
+  it('put writes only to baseDir, never the curated lane', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir, fallbackDir: curatedDir });
+    const key = 'avatars/m1/display.jpg';
+    await adapter.put(key, Buffer.from('upload'));
+    expect(fs.existsSync(path.join(baseDir, key))).toBe(true);
+    expect(fs.existsSync(path.join(curatedDir, key))).toBe(false);
+  });
+
+  it('delete removes from baseDir only and leaves the curated lane intact', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir, fallbackDir: curatedDir });
+    const key = 'shared/same-name.jpg';
+    await adapter.put(key, Buffer.from('upload'));
+    fs.mkdirSync(path.join(curatedDir, 'shared'), { recursive: true });
+    fs.writeFileSync(path.join(curatedDir, key), Buffer.from('curated'));
+    await adapter.delete(key);
+    expect(fs.existsSync(path.join(baseDir, key))).toBe(false);
+    expect(fs.existsSync(path.join(curatedDir, key))).toBe(true);
+  });
+});
+
 interface FakeS3State {
   client: S3Client;
   puts: PutObjectCommand[];

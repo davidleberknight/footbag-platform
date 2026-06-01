@@ -265,6 +265,10 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // Direct argon2, not the shared hashPassword helper: this CLI seed script
+  // runs without the app's full env, and the helper imports src/config/env
+  // (which requires PORT/SESSION_SECRET) and would crash at load. Seed data is
+  // strong-hashed; the cheap test profile is irrelevant here.
   const passwordHash = await argon2.hash(DEV_ADMIN_SEED_PASSWORD_LITERAL);
   const db = new BetterSqlite3(dbPath);
   db.pragma('journal_mode = WAL');

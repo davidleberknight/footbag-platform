@@ -31,8 +31,8 @@
 #
 # Real-data guard: every target above is workstation-transient by
 # construction. No target overlaps with real-data paths (legacy_data/
-# mirror_footbag_org/, legacy_data/event_results/canonical_input/,
-# data/media/) — those have their own protections in fixture-staging
+# mirror_footbag_org/, legacy_data/event_results/canonical_input/) —
+# those have their own protections in fixture-staging
 # scripts per .claude/rules/testing.md. This script does NOT recurse
 # into legacy_data/, data/, curated/, or any other content-bearing
 # subtree.

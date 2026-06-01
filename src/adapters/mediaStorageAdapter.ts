@@ -73,8 +73,12 @@ export interface MediaStorageAdapter {
 
 export function createLocalMediaStorageAdapter(opts: {
   baseDir: string;
+  // Read-only second lane checked on get/exists (and removed on delete) but
+  // never written by put(). Lets dev serve curated media, which is built into a
+  // separate dir from runtime uploads, without mixing the two lanes on disk.
+  fallbackDir?: string;
 }): MediaStorageAdapter {
-  const { baseDir } = opts;
+  const { baseDir, fallbackDir } = opts;
   return {
     async put(key: string, data: Buffer): Promise<void> {
       const filePath = path.join(baseDir, key);
@@ -82,9 +86,21 @@ export function createLocalMediaStorageAdapter(opts: {
       await writeFile(filePath, data);
     },
     async get(key: string): Promise<Buffer> {
-      return readFile(path.join(baseDir, key));
+      try {
+        return await readFile(path.join(baseDir, key));
+      } catch (err: unknown) {
+        if (fallbackDir && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+          return readFile(path.join(fallbackDir, key));
+        }
+        throw err;
+      }
     },
     async delete(key: string): Promise<void> {
+      // Write lane only. fallbackDir is the read-only curated lane (mirrors the
+      // single S3 bucket on the read path); deleting from it here would let a
+      // runtime delete reach curated bytes, which prod's single-namespace S3
+      // delete never does. Keys are disjoint, so this also can't strand a
+      // shadowed file.
       const filePath = path.join(baseDir, key);
       try {
         await unlink(filePath);
@@ -96,12 +112,15 @@ export function createLocalMediaStorageAdapter(opts: {
       return `/media-store/${key}`;
     },
     async exists(key: string): Promise<boolean> {
-      try {
-        await access(path.join(baseDir, key));
-        return true;
-      } catch {
-        return false;
+      for (const dir of fallbackDir ? [baseDir, fallbackDir] : [baseDir]) {
+        try {
+          await access(path.join(dir, key));
+          return true;
+        } catch {
+          // not in this lane; try the next
+        }
       }
+      return false;
     },
     // The async sign + S3 PUT + finalize curator video flow (DD §6.8) runs
     // only in S3-adapter mode. In local-adapter mode the admin upload form
@@ -243,7 +262,10 @@ export function getMediaStorageAdapter(): MediaStorageAdapter {
       region: config.awsRegion,
     });
   } else {
-    singleton = createLocalMediaStorageAdapter({ baseDir: config.mediaDir });
+    singleton = createLocalMediaStorageAdapter({
+      baseDir: config.mediaDir,
+      fallbackDir: config.curatedMediaDir,
+    });
   }
   return singleton;
 }

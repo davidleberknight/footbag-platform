@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import os from 'os';
@@ -72,7 +72,7 @@ async function buildTestDatabase(): Promise<void> {
   // Footbag Hacky: test member with login_email='footbag' (non-email identifier).
   // Password comes from STUB_PASSWORD env var (local dev's gitignored .env, or
   // the per-run default set in tests/setup-env.ts). Never hardcoded in git.
-  const footbagHash = await argon2.hash(process.env.STUB_PASSWORD!);
+  const footbagHash = await hashTestPassword(process.env.STUB_PASSWORD!);
   insertMember(db, {
     id:                'member-footbag-hacky',
     slug:              'footbag_hacky',

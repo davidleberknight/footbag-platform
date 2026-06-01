@@ -1007,6 +1007,28 @@ describe('env config: MEDIA_STORAGE_*', () => {
     expect(config.mediaStorageS3Bucket).toBeUndefined();
   });
 
+  it('defaults mediaDir and curatedMediaDir to the two separate local lanes', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_MEDIA_DIR;
+    delete process.env.FOOTBAG_CURATED_MEDIA_DIR;
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaDir).toBe('./s3-adapter-local');
+    expect(config.curatedMediaDir).toBe('./.curated-build');
+  });
+
+  it('honors FOOTBAG_MEDIA_DIR and FOOTBAG_CURATED_MEDIA_DIR overrides independently', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_MEDIA_DIR = '/tmp/uploads-lane';
+    process.env.FOOTBAG_CURATED_MEDIA_DIR = '/tmp/curated-lane';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaDir).toBe('/tmp/uploads-lane');
+    expect(config.curatedMediaDir).toBe('/tmp/curated-lane');
+  });
+
   it('throws when MEDIA_STORAGE_ADAPTER is unset in production', async () => {
     baselineRequired();
     clearAwsWiring();
@@ -1624,6 +1646,65 @@ describe('env config: GALLERY_MAX_EXTERNAL_LINKS', () => {
     process.env.GALLERY_MAX_EXTERNAL_LINKS = '999';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /GALLERY_MAX_EXTERNAL_LINKS must be between 0 and 100/,
+    );
+  });
+});
+
+describe('env config: FOOTBAG_CHEAP_PASSWORD_HASH (test-only, VITEST-gated)', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to strong (useCheapPasswordHash false) when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.FOOTBAG_CHEAP_PASSWORD_HASH;
+    const { config } = await import('../../src/config/env');
+    expect(config.useCheapPasswordHash).toBe(false);
+  });
+
+  it("treats '0' as strong", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_CHEAP_PASSWORD_HASH = '0';
+    const { config } = await import('../../src/config/env');
+    expect(config.useCheapPasswordHash).toBe(false);
+  });
+
+  it("honours '1' when running under the Vitest runner (process.env.VITEST set)", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    // VITEST is set by the runner; assert the precondition the guard relies on.
+    expect(process.env.VITEST).toBeTruthy();
+    process.env.FOOTBAG_CHEAP_PASSWORD_HASH = '1';
+    const { config } = await import('../../src/config/env');
+    expect(config.useCheapPasswordHash).toBe(true);
+  });
+
+  it("refuses '1' when process.env.VITEST is unset (cannot weaken hashing in a real process)", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.VITEST;
+    process.env.FOOTBAG_CHEAP_PASSWORD_HASH = '1';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_CHEAP_PASSWORD_HASH is a test-only switch.*refused outside the Vitest runner/,
+    );
+  });
+
+  it('throws on an invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_CHEAP_PASSWORD_HASH = 'maybe';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_CHEAP_PASSWORD_HASH must be '1', '0', 'true', or 'false', got: maybe/,
     );
   });
 });

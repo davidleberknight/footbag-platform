@@ -64,6 +64,10 @@ export async function main(): Promise<number> {
   const specs = [...CANONICAL_PERSONAS, ...loadLocalPersonas(repoRoot)];
   console.log(`[persona-seed] env=${env} specs=${specs.length}`);
 
+  // Direct argon2, not the shared hashPassword helper: this CLI seed script
+  // runs without the app's full env, and the helper imports src/config/env
+  // (which requires PORT/SESSION_SECRET) and would crash at load. Seed data is
+  // strong-hashed; the cheap test profile is irrelevant here.
   const passwordHash = await argon2.hash(TEST_PERSONA_SEED_PASSWORD_LITERAL);
   const db = new BetterSqlite3(dbPath);
   db.pragma('journal_mode = WAL');

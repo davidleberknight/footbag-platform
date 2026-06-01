@@ -451,9 +451,10 @@ systemctl stop footbag || true
 echo "    Ensuring compose stack is fully down..."
 compose_cmd down --remove-orphans || true
 
-# S3 media sync is gated on the --sync-media opt-in threaded as SYNC_MEDIA
-# env from the workstation's orchestrator. Without the opt-in, S3 is fully
-# preserved across this deploy (no wipe, no sync, no aws-s3 calls).
+# S3 media sync is gated on the SYNC_MEDIA env, threaded from the workstation's
+# orchestrator (deploy-to-aws.sh sets it yes only with the -m/--sync-media
+# opt-in; default off). When off, S3 is fully preserved across this deploy
+# (no wipe, no sync, no aws-s3 calls).
 #
 # --keep-media skips deletion of S3-only objects (additive sync).
 # Without --keep-media, sync --delete removes S3 objects that have no local
@@ -462,9 +463,9 @@ compose_cmd down --remove-orphans || true
 # DR bucket auto-receives delete markers via replication.
 : "${SYNC_MEDIA:?must be set by deploy-rebuild.sh via cat-pipe}"
 if [[ "$SYNC_MEDIA" != "yes" ]]; then
-  echo "    --sync-media not set: skipping S3 sync; live media untouched."
+  echo "    SYNC_MEDIA not set: skipping S3 sync; live media untouched."
 else
-  if [[ -d "${RELEASE_DIR}/data/media" ]]; then
+  if [[ -d "${RELEASE_DIR}/.curated-build" ]]; then
     MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
     SYNC_FLAGS="--size-only"
     if [[ "$KEEP_MEDIA" != "yes" ]]; then
@@ -476,16 +477,16 @@ else
     AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 sync \
       --region "$AWS_REGION_VAL" \
       $SYNC_FLAGS \
-      "${RELEASE_DIR}/data/media/" \
+      "${RELEASE_DIR}/.curated-build/" \
       "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
     echo "    Media sync complete."
   else
-    echo "    WARNING: --sync-media set but RELEASE_DIR/data/media does not exist; skipping S3 sync."
+    echo "    WARNING: SYNC_MEDIA=yes but RELEASE_DIR/.curated-build does not exist; skipping S3 sync."
   fi
 fi
 
 echo "    Promoting release into $LIVE_DIR ..."
-rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data "$RELEASE_DIR/" "$LIVE_DIR/"
+rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data --exclude=/.curated-build "$RELEASE_DIR/" "$LIVE_DIR/"
 
 echo "    Replacing live DB..."
 mkdir -p "$(dirname "$DB_PATH")"

@@ -107,8 +107,10 @@ services:
       # are shared between web and worker containers. A file bind mount would
       # create container-local sidecars and split the WAL.
       - ../database:/app/db:rw
-      # Local media uploads (avatars, photos).
-      - ../data/media:/app/data/media:rw
+      # Local storage-adapter backing: the dev stand-in for the S3 bucket
+      # (avatars, member uploads, and curated media seeded for local rendering).
+      # Dev-only; never shipped to S3.
+      - ../s3-adapter-local:/app/s3-adapter-local:rw
     depends_on:
       image:
         condition: service_healthy

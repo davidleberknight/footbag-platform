@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import argon2 from 'argon2';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
@@ -65,7 +65,7 @@ beforeAll(async () => {
     slug: MEMBER_SLUG,
     login_email: MEMBER_EMAIL,
     display_name: 'Sqli Member',
-    password_hash: await argon2.hash(MEMBER_PASSWORD),
+    password_hash: await hashTestPassword(MEMBER_PASSWORD),
   });
   db.close();
   createApp = await importApp();

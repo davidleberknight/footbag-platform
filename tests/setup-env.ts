@@ -49,6 +49,13 @@ process.env.INTERNAL_EVENT_SECRET   ??= 'test-internal-event-secret';
 // this default; CI uses the default below.
 process.env.STUB_PASSWORD           ??= 'test-stub-password-do-not-use-in-prod';
 
+// Cheap argon2 cost for the suite. Memory-hard hashing at the production
+// default across ~20 parallel forks oversubscribes RAM/threads and times out
+// unrelated boot hooks. env.ts only honours this under the Vitest runner, so it
+// cannot weaken hashing in a real process. A file that needs production cost
+// (security.login-timing) overrides this to '0' before importing the app.
+process.env.FOOTBAG_CHEAP_PASSWORD_HASH ??= '1';
+
 // Rate-limit state is in-process; tests accumulating within a worker would
 // otherwise trip the login/password-change limits. Clear buckets before each
 // test so isolation matches per-test expectations.

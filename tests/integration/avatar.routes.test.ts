@@ -18,6 +18,7 @@ const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-'));
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
 process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR        = TEST_MEDIA_DIR;
+process.env.FOOTBAG_CURATED_MEDIA_DIR = TEST_MEDIA_DIR;
 process.env.PORT                     = '3098';
 process.env.NODE_ENV                 = 'test';
 process.env.LOG_LEVEL                = 'error';

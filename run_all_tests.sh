@@ -11,9 +11,9 @@
 #     scripts/ci/stage_*.sh) that write into legacy_data/. Those are a CI-only
 #     gate (db-load-smoke), run by GitHub Actions against a clean, empty
 #     checkout. See .claude/rules/testing.md.
-#   - As defense-in-depth it fingerprints legacy_data/, data/media/, and
-#     curated/ before and after the run and ABORTS non-zero if any changed, so a
-#     future gate that writes real data fails the run instead of clobbering.
+#   - As defense-in-depth it fingerprints legacy_data/ and curated/ before and
+#     after the run and ABORTS non-zero if any changed, so a future gate that
+#     writes real data fails the run instead of clobbering.
 #   The test suites themselves write only to os.tmpdir() / mktemp.
 #
 # The live-AWS adapter smoke suite (test:smoke) and the db-load-smoke loader
@@ -59,10 +59,10 @@ Options:
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
-SAFE BY DESIGN: this runner never writes to legacy_data/, data/media/, or
-curated/. It excludes the db-load-smoke loader gate (CI-only; that gate writes
-legacy_data fixtures and is safe only on an empty checkout) and fingerprints the
-real-data trees before/after to prove nothing changed.
+SAFE BY DESIGN: this runner never writes to legacy_data/ or curated/. It
+excludes the db-load-smoke loader gate (CI-only; that gate writes legacy_data
+fixtures and is safe only on an empty checkout) and fingerprints the real-data
+trees before/after to prove nothing changed.
 
 Not run here:
   - db-load-smoke (loader pipeline): runs in CI on every push (clean checkout).
@@ -97,7 +97,7 @@ fi
 # The find segment tolerates its own non-zero exit (broken symlinks etc.) so a
 # fingerprint is always produced under 'set -o pipefail'.
 # -----------------------------------------------------------------------------
-REAL_DATA_DIRS=(legacy_data data/media curated)
+REAL_DATA_DIRS=(legacy_data curated)
 fingerprint() {
   local dir="$1"
   if [[ -e "$dir" ]]; then
@@ -184,6 +184,31 @@ gate_terraform() {
   done
 }
 
+# Reclaim a TCP port from any leaked holder before the e2e gate. Playwright's
+# webServer runs with reuseExistingServer:false, so a stray dev server on 3000
+# (or image worker on 4001) makes the gate fail with "port already used". Mirror
+# run_dev.sh's kill_port: TERM, brief wait, then KILL.
+reclaim_port() {
+  local port="$1" pids=""
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti:"${port}" 2>/dev/null || true)
+  elif command -v fuser >/dev/null 2>&1; then
+    pids=$(fuser "${port}/tcp" 2>/dev/null | tr -d ' ' || true)
+  fi
+  if [[ -n "$pids" ]]; then
+    echo "  → reclaiming port ${port} from PIDs: ${pids}"
+    kill -TERM ${pids} 2>/dev/null || true
+    sleep 1
+    kill -KILL ${pids} 2>/dev/null || true
+  fi
+}
+
+gate_e2e() {
+  reclaim_port 3000
+  reclaim_port 4001
+  npm run test:e2e
+}
+
 gate_smoke() {
   if [[ "${RUN_STAGING_SMOKE:-}" != "1" ]]; then
     echo "ERROR: --with-smoke requires RUN_STAGING_SMOKE=1 and a configured staging AWS profile." >&2
@@ -198,7 +223,7 @@ gate_smoke() {
 # Each line is one gate: `run_gate <label> <command...>`. To extend coverage as
 # new test suites land, add a run_gate line (or a gate_* function above for
 # compound gates) in the right place. Keep every gate SAFE: it must write only
-# to os.tmpdir()/mktemp, never to legacy_data/, data/media/, or curated/.
+# to os.tmpdir()/mktemp, never to legacy_data/ or curated/.
 # =============================================================================
 echo "→ run_all_tests.sh starting (mode: $( (( QUICK )) && echo quick || echo full )$( (( WITH_SMOKE )) && echo +smoke || true ))"
 
@@ -208,7 +233,7 @@ run_gate unit        npm run test:unit
 run_gate integration npm run test:integration
 
 if (( QUICK == 0 )); then
-  run_gate e2e        npm run test:e2e
+  run_gate e2e        gate_e2e
   run_gate terraform  gate_terraform
 fi
 
