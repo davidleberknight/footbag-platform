@@ -166,15 +166,39 @@ questions* but never published as settled.
 | Phase | Scope | Gate |
 |---|---|---|
 | **1 — Audit + outline** | This plan + a section-by-section outline mapping the 6 layers onto current headings | none (done here) |
-| **2 — Small wording fixes** | Tighten overstated-certainty phrasing; add "documented ≠ canonical" microcopy where decompositions render; adopt terminal-identity language in the family intro | safe now (no doctrine) |
-| **3 — Structural + equivalence (L2/L3)** | Extend compositional + vocabulary-relationships into folk-vs-structural-as-projections + equivalence-mechanism + canonical-surface-choice; add the two-band family / minor-derived-neighborhood framing | safe now (uses verified examples only) |
+| **2 — Small wording fixes** | Tighten overstated-certainty phrasing; add "documented ≠ canonical" microcopy where decompositions render; adopt terminal-identity language in the family intro | **SHIPPED 2026-06-01.** safe now (no doctrine) |
+| **3 — Structural + equivalence (L2/L3)** | Extend compositional + vocabulary-relationships into folk-vs-structural-as-projections + equivalence-mechanism + canonical-surface-choice; add the two-band family / minor-derived-neighborhood framing | **SHIPPED 2026-06-01 (L3; L2 deferred).** safe now (uses verified examples only) |
 | **4 — Frontier-governance arc (L5)** | Grow "tracking is not canonization" into observational-vs-canonical, corroboration, frequency ≠ authority, lineage; mark doctrine-sensitive regions as *open* | safe now for principles; the *resolutions* wait for Wave 2 |
 | **5 — High-ADD / exotic-name section (L4 + Part C)** | The interpretive section; SAFE case studies live, HOLD cases as open questions | partial — publish SAFE cases; HOLD cases stay open until Red Wave 2 |
-| **6 — Media claim-scope + bridge (L6)** | tutorial/demo/record claim-scope; link glossary ↔ media; seed the future teaches/components-covered edge | safe now (media = teaching, not ontology) |
+| **6 — Media claim-scope + bridge (L6)** | tutorial/demo/record claim-scope; link glossary ↔ media; seed the future teaches/components-covered edge | **SHIPPED 2026-06-01.** safe now (media = teaching, not ontology) |
 
 **Sequencing note:** Phases 2–4 and 6 are doctrine-free and can proceed before Red Wave 2. Phase 5's
 HOLD case studies (and the *resolved* forms of blurry/DOD/atomic-Q3 in Phase 4) wait for the rulings —
 the glossary should teach settled doctrine and *mark* the open regions, never pre-settle them.
+
+**Shipped status (2026-06-01).** Phases 2, 6, 3 shipped on `glossary.hbs` (committed separately, in
+that order). Implementation deltas worth recording:
+
+- **Phase 2** was ~90% already present in the live template (terminal-identity family intro,
+  documented-≠-canonical microcopy, the ≡-readings hedge, ADD-discrepancy open-question framing). The
+  one real gap closed: the ADD-discrepancy block now marks the double-over-down and atomic-rotational
+  ADD clusters as open (it had named only mobius/sumo).
+- **Phase 6** added the L6 section "What a video can and can't tell you" (media-as-teaching-not-ontology
+  firewall + the three claim scopes tutorial/demonstration/record + teach-without-resolving + a
+  `/media` link + an inbound link from the §1 media badge). `VIEW_CATALOG` was doc-synced 17→18 sections.
+- **Phase 3** shipped the **L3** capstone ("Two projections of one move" in vocabulary-relationships:
+  folk/structural projection + equivalence-by-decomposed-structure-not-strings + canonical-surface-choice).
+  Live-data correction to Part C/D: the `rev-up ↔ reverse-whirl` example was **dropped** — the resolver
+  maps "reverse whirl" to `rev-whirl`, a different trick. Kept the two verified-against-the-resolver
+  examples, which form an ideal pair (canonical surface goes both ways): `gauntlet ← stepping-ducking-paradox-torque`
+  (folk canonical) and `gyro-ducking-symposium-torque ← alpine-big-apple` (structural canonical).
+- **Phase 3 — L2 two-band families deferred** (not shipped). The live family doctrine already carries
+  the spirit (three-tier model + transitional-labels + edges-blur), and the frontier "minor & derived
+  **neighborhoods**" wording would collide with the template's existing "movement **neighborhood**"
+  topology lens. Revisit only with collision-safe wording (e.g. "demoted / derived family labels").
+
+Remaining doctrine-free work: **Phase 4** (frontier-governance *principles* arc). Phase 5's HOLD case
+studies stay parked behind Red Wave 2.
 
 ---
 
