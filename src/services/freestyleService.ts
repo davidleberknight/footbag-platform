@@ -633,6 +633,7 @@ const SOURCE_LABELS: Record<string, string> = {
   flipsider_footbag:    'Flipsider',
   footbagspot_passback: 'FootbagSpot',
   footbagspot_tutorials:'FootbagSpot Tutorials',
+  passback_demos:       'PassBack',
 };
 
 // Single source-of-truth tier registry for the badge logic and the
@@ -673,6 +674,7 @@ export const SOURCE_TIER: Record<string, MediaTier> = {
   shred_global:          'DEMONSTRATION',
   footbag_finland:       'DEMONSTRATION',
   flipsider_footbag:     'DEMONSTRATION',
+  passback_demos:        'DEMONSTRATION',
 
   // Record-tier: never bucketed as Tutorial/Demo on trick-detail.
   passback_records:      'RECORD',

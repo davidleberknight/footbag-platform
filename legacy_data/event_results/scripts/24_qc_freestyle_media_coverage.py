@@ -78,7 +78,7 @@ STRONG_TUTORIAL_SOURCES = {
     "footbagspot_tutorials", "footbag_foundations", "polini_pointers",
     "everything_footbag",
 }
-DEMO_SOURCES = {"shred_global", "footbag_finland", "flipsider_footbag"}
+DEMO_SOURCES = {"shred_global", "footbag_finland", "flipsider_footbag", "passback_demos"}
 RECORD_SOURCES = {"passback_records"}
 KNOWN_SOURCES = STRONG_TUTORIAL_SOURCES | DEMO_SOURCES | RECORD_SOURCES
 # Strength labels that count as strong primary coverage.

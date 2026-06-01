@@ -39,13 +39,14 @@ describe('SOURCE_TIER taxonomy', () => {
   it('classifies the demonstration-only sources', () => {
     expect(SOURCE_TIER.footbag_finland).toBe('DEMONSTRATION');
     expect(SOURCE_TIER.flipsider_footbag).toBe('DEMONSTRATION');
+    expect(SOURCE_TIER.passback_demos).toBe('DEMONSTRATION');
   });
 
   it('classifies passback_records as RECORD (excluded from Tutorial/Demo split)', () => {
     expect(SOURCE_TIER.passback_records).toBe('RECORD');
   });
 
-  it('exposes exactly the 11 known sources', () => {
+  it('exposes exactly the 12 known sources', () => {
     // Guard against silent additions/removals. Adding a new source MUST
     // come with an explicit tier assignment and an updated count here.
     expect(Object.keys(SOURCE_TIER).sort()).toEqual([
@@ -56,6 +57,7 @@ describe('SOURCE_TIER taxonomy', () => {
       'footbag_foundations',
       'footbagspot_passback',
       'footbagspot_tutorials',
+      'passback_demos',
       'passback_records',
       'polini_pointers',
       'shred_global',
