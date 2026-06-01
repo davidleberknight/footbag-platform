@@ -21,6 +21,7 @@ describe('SOURCE_TIER taxonomy', () => {
     expect(SOURCE_TIER.polini_pointers).toBe('TUTORIAL');
     expect(SOURCE_TIER.footbag_foundations).toBe('TUTORIAL');
     expect(SOURCE_TIER.everything_footbag).toBe('TUTORIAL');
+    expect(SOURCE_TIER.passback_basics).toBe('TUTORIAL');
   });
 
   it('holds anz_trikz and footbagspot_passback at TUTORIAL pending Phase 2d per-clip review', () => {
@@ -46,7 +47,7 @@ describe('SOURCE_TIER taxonomy', () => {
     expect(SOURCE_TIER.passback_records).toBe('RECORD');
   });
 
-  it('exposes exactly the 12 known sources', () => {
+  it('exposes exactly the 13 known sources', () => {
     // Guard against silent additions/removals. Adding a new source MUST
     // come with an explicit tier assignment and an updated count here.
     expect(Object.keys(SOURCE_TIER).sort()).toEqual([
@@ -57,6 +58,7 @@ describe('SOURCE_TIER taxonomy', () => {
       'footbag_foundations',
       'footbagspot_passback',
       'footbagspot_tutorials',
+      'passback_basics',
       'passback_demos',
       'passback_records',
       'polini_pointers',

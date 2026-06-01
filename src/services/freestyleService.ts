@@ -634,6 +634,7 @@ const SOURCE_LABELS: Record<string, string> = {
   footbagspot_passback: 'FootbagSpot',
   footbagspot_tutorials:'FootbagSpot Tutorials',
   passback_demos:       'PassBack',
+  passback_basics:      'PassBack Basics',
 };
 
 // Single source-of-truth tier registry for the badge logic and the
@@ -661,6 +662,7 @@ export const SOURCE_TIER: Record<string, MediaTier> = {
   polini_pointers:       'TUTORIAL',
   footbag_foundations:   'TUTORIAL',
   everything_footbag:    'TUTORIAL',
+  passback_basics:       'TUTORIAL',
 
   // Mixed-character sources held at TUTORIAL until the per-clip override
   // path lands. Blanket reclassification would drop real instructional

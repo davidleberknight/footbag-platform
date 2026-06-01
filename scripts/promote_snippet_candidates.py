@@ -85,6 +85,7 @@ TIER_BY_SOURCE = {
     "footbag_finland":      "STRONG_TUTORIAL",
     "flipsider_footbag":    "STRONG_TUTORIAL",
     "passback_demos":       "HIGH_QUALITY_DEMO",
+    "passback_basics":      "STRONG_TUTORIAL",
 }
 
 CREATOR_BY_SOURCE = {
@@ -203,6 +204,10 @@ def make_title(row: dict) -> str:
         # No individual names on freestyle public surfaces, so the contributor
         # is not surfaced in the title (unlike passback_records).
         return f"{trick} — PassBack demo" if trick else "PassBack demo"
+    if source_id == "passback_basics":
+        slug = (row.get("trick_slug") or "").strip()
+        trick = slug.replace("-", " ").title() if slug else ""
+        return f"{trick} — PassBack basics" if trick else "PassBack basics"
     if notes:
         return notes
     slug = (row.get("trick_slug") or "").strip()

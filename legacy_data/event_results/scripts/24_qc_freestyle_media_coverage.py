@@ -83,7 +83,7 @@ REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
 STRONG_TUTORIAL_SOURCES = {
     "tt_youtube", "anz_trikz", "footbagspot_passback", "passback_tutorials",
     "footbagspot_tutorials", "footbag_foundations", "polini_pointers",
-    "everything_footbag",
+    "everything_footbag", "passback_basics",
 }
 DEMO_SOURCES = {"shred_global", "footbag_finland", "flipsider_footbag", "passback_demos"}
 RECORD_SOURCES = {"passback_records"}
