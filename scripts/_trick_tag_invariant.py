@@ -37,6 +37,9 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     "passback_records", "footbag_org",
     "shred_global", "anz_trikz", "footbag_finland",
     "passback_tutorials", "chinlone",
+    # Curator-applied status marker, NOT a source: db.ts filters items tagged
+    # #unavailable_embed out of all media surfaces (always-on exclusion).
+    "unavailable_embed",
 })
 
 SEMANTIC_PREFIXES: tuple[str, ...] = (

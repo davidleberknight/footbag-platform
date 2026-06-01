@@ -1,5 +1,8 @@
 {
   "caption": "Demonstration of freestyle footbag",
-  "tags": ["#demo", "#freestyle"],
+  "tags": [
+    "#demo_freestyle",
+    "#freestyle"
+  ],
   "poster": "demo-freestyle.poster.jpg"
 }

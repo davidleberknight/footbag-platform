@@ -1,5 +1,7 @@
 {
   "caption": "Demonstration of footbag net",
-  "tags": ["#demo", "#net"],
+  "tags": [
+    "#demo_net"
+  ],
   "poster": "demo-net.poster.jpg"
 }
