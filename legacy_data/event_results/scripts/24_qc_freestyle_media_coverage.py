@@ -58,6 +58,13 @@ SCRIPT_DIR = Path(__file__).parent
 LEGACY_DATA_DIR = SCRIPT_DIR.parents[1]
 REPO_ROOT = SCRIPT_DIR.parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
+
+# Single source of truth for the media-tag vocabulary: import the live invariant's
+# sets rather than maintaining a drifting local copy (they had drifted — missing
+# the newer source tags + the concept_/discipline_ prefixes).
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _trick_tag_invariant import UTILITY_EXACT, SEMANTIC_PREFIXES  # noqa: E402
+
 # Curator-authored manifest of indirect (embedded) instructional coverage: a
 # trick taught INSIDE another trick's tutorial, with no dedicated clip of its
 # own (e.g. orbit inside the Around The World lesson). Manual source, not
@@ -84,11 +91,11 @@ KNOWN_SOURCES = STRONG_TUTORIAL_SOURCES | DEMO_SOURCES | RECORD_SOURCES
 # Strength labels that count as strong primary coverage.
 STRONG_STRENGTHS = {"STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
-# Tag-shape vocabulary mirrored from the live media-tag invariant: exact utility
-# words and snake_case domain prefixes are NOT trick references; a bare
-# kebab-case tag is a trick slug.
-UTILITY_EXACT_TAGS = {"freestyle", "trick", "curated", "tricks_of_the_trade", "passback_records"}
-DOMAIN_PREFIXES = ("event_", "demo_", "fh_", "player_", "club_", "set_", "by_")
+# Tag-shape vocabulary IS the live media-tag invariant (imported above), not a
+# local copy — exact utility words + snake_case domain prefixes are NOT trick
+# references; a bare kebab-case tag is a trick slug.
+UTILITY_EXACT_TAGS = UTILITY_EXACT
+DOMAIN_PREFIXES = SEMANTIC_PREFIXES
 
 
 def trick_tag_body(tag_display: str) -> str | None:
