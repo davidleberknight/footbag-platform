@@ -45,6 +45,9 @@ UTILITY_EXACT: frozenset[str] = frozenset({
 SEMANTIC_PREFIXES: tuple[str, ...] = (
     "event_", "demo_", "fh_",
     "player_", "club_", "set_", "by_",
+    # concept_ = educational/meta media not about a single trick;
+    # discipline_ = non-freestyle discipline media (chinlone, net, sideline).
+    "concept_", "discipline_",
 )
 
 
