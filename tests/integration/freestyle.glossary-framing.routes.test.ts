@@ -319,3 +319,25 @@ describe('Glossary Phase 6 — media claim-scope (L6)', () => {
     expect(html).toContain('href="#section-media-claim-scope"');
   });
 });
+
+describe('Glossary Phase 3 — L3 folk/structural projections + equivalence mechanism', () => {
+  it('renders the two-projections subsection', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="two-projections"');
+    expect(html).toMatch(/two projections of the same move/);
+  });
+
+  it('states the structure-not-strings equivalence mechanism', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/decomposed structure/);
+    expect(html).toMatch(/on <em>structure<\/em>, never on <em>strings<\/em>/);
+  });
+
+  it('uses the live-verified canonical-surface examples (both directions)', async () => {
+    const html = await glossary();
+    expect(html).toContain('href="/freestyle/tricks/gauntlet"');
+    expect(html).toContain('href="/freestyle/tricks/gyro-ducking-symposium-torque"');
+    expect(html).toMatch(/stepping-ducking-paradox-torque/);
+    expect(html).toMatch(/alpine-big-apple/);
+  });
+});
