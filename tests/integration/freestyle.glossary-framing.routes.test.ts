@@ -287,3 +287,35 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/movement-neighborhood/);
   });
 });
+
+describe('Glossary Phase 6 — media claim-scope (L6)', () => {
+  it('renders the media claim-scope section', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="section-media-claim-scope"');
+    expect(html).toMatch(/What a video can and can/);
+  });
+
+  it('states the media-is-not-ontology firewall', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/teaching layer/);
+    expect(html).toMatch(/never overrides the dictionary/);
+  });
+
+  it('defines the three claim scopes (tutorial / demonstration / record)', async () => {
+    const html = await glossary();
+    for (const term of ['Tutorial', 'Demonstration', 'Record']) {
+      expect(html, `claim scope ${term}`).toContain(`<dt>${term}</dt>`);
+    }
+  });
+
+  it('frames media as teaching-without-resolving and links out to the galleries', async () => {
+    const html = await glossary();
+    expect(html).toMatch(/teaches without resolving/);
+    expect(html).toContain('href="/media"');
+  });
+
+  it('is reachable from the line-1 media badge mention', async () => {
+    const html = await glossary();
+    expect(html).toContain('href="#section-media-claim-scope"');
+  });
+});

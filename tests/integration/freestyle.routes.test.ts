@@ -2386,10 +2386,16 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                all 8 parents. Net add is 4 cards minus the 4 atoms the
     //                service removes from "Other foundational atoms". Sourced
     //                from the curator-locked atom registry + DB, not drift.
+    //   245K → 250K  2026-06-01 Phase 6 (L6) media claim-scope section
+    //                ("What a video can and can't tell you"): media-is-
+    //                teaching-not-ontology firewall + the three claim
+    //                scopes (tutorial / demonstration / record) + teach-
+    //                without-resolving framing + galleries link. Glossary
+    //                evolution plan, doctrine-free; not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(245_000);
+    expect(res.text.length).toBeLessThan(250_000);
   });
 });
 
