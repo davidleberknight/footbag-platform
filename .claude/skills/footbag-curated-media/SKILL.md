@@ -277,6 +277,19 @@ The media linkage integrity audit (2026-05-07) found 14 sidecars whose tier didn
 
 A "wrong" tier is a curator-judgment finding, not a data-integrity violation. Tier does not gate validation or media seeding; it only influences primary-clip selection and visual hierarchy. The MLI audit's tier mismatches were classified as `inconsistent` (curator review needed), never `broken`.
 
+## 12. Registering a new source — six coordinated points
+
+A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinated edits. Doing only the obvious tier maps causes failures partway through promote → seed → QC (the 2026-05-31 `passback_demos` promotion hit #4, #5, and #6 as separate mid-run failures):
+
+1. `scripts/promote_snippet_candidates.py` `TIER_BY_SOURCE` — sidecar `tier` (e.g. `HIGH_QUALITY_DEMO`).
+2. `src/services/freestyleService.ts` `SOURCE_TIER` — render bucket (`TUTORIAL`/`DEMONSTRATION`/`RECORD`).
+3. `src/services/freestyleService.ts` `SOURCE_LABELS` — public source label (else the raw id renders).
+4. `legacy_data/inputs/curated/media/media_sources.csv` — a row for the source. **FK target:** `media_items.source_id REFERENCES media_sources(source_id)`; missing it makes `seed_fh_curator.py` fail mid-seed with `FOREIGN KEY constraint failed` (the txn rolls back).
+5. `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` — `DEMO_SOURCES` / `STRONG_TUTORIAL_SOURCES` / `RECORD_SOURCES`. An unregistered source is an "unrecognized source_id" **hard-fail (exit 2)** AND mis-classifies clips as `WEAK_RECORD`.
+6. `tests/unit/freestyleSourceTier.test.ts` — the "exactly N known sources" guard count + a per-tier shape assertion (the guard intentionally fails until updated).
+
+Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` (NOT needed if promote emits no source tag — `passback_demos` emits only `#<slug> #freestyle #trick`). See memory `[[feedback_curated_media_source_registration]]`.
+
 ## Cross-references
 
 - `footbag-freestyle-dictionary` skill: trick / alias / glossary layer separation rules; the canonical source for what counts as a trick.

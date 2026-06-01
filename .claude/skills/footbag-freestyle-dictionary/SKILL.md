@@ -279,6 +279,20 @@ When auditing the both-empty bucket, **read the `description` column carefully**
 
 **When to apply this methodology:** any future stabilization slice on the `freestyle_tricks` dictionary — backfilling notation, normalizing format, migrating fields. The 4 rules + 5-class taxonomy give a repeatable framework. The handoff report at `exploration/trick-stabilization-handoff/REPORT.md` is the single load-bearing reference for the next-session queue.
 
+### B.4 Compact-layer audit + notation conventions (2026-06-01)
+
+Auditing the compact / notation / ADD-line layer (cards, browse rows, `op_notation`, `derivation`): **verify before normalizing.** Most apparent inconsistency is intentional notation layering (atom `component(1)+…` vs compound `modifier(+N) + base(N)` — different by trick *type*), curator-locked doctrine, unresolved ontology, or a historically meaningful distinction — not drift. **Forever-rule: normalize formatting drift aggressively; never normalize unresolved ontology.** Before any normalization check (a) the tokenizer/renderer (`src/services/operationalNotationRendering.ts`) for an existing label/role, (b) the row's provenance / `source_note` for a lock, (c) whether the variation is type-based or ontology-gated. See memory `[[feedback_dictionary_compact_layer_audit]]`.
+
+Ratified `op_notation` / ADD-line / copy conventions (do NOT re-litigate):
+- Side compression = **`SAME/OP`** (single slash form); `IN/OUT` is the separate direction axis.
+- Scored body verbs are **bare CAPS** (`JUMP`, `DUCK`, `SPIN`); parenthetical annotations are **lowercase** (`(back)`, `(front)`, `(no plant while)`, `(land)`).
+- `>>` is a **documented** token — "Major sequence boundary (often a no-plant break)" (tooltip + CSS `sequence-op-major` in `operationalNotationRendering.ts`); `>` is "Sub-step (continuous flow)". Never collapse `>>` → `>`. Distinct from the within-step `(no plant while)` annotation.
+- **Kicks self-family** (`trick_family = slug`), not the stall family they resemble (butterfly-kick / around-the-world-kick reclassified to match cloud / dragonfly / sole-kick); `base_trick` retained for derivation provenance; kick grouping via kind-overrides.
+- Pending public copy: JOB placeholder **"canonical decomposition pending"**; pill / badge **"decomposition under review"**.
+- Descriptions: strip phase / promotion provenance (Wave Alpha / Tier-2-promotion / curator-paced); **keep** genuine source attribution (FB.org-confirmed). Template `{Modifier}-modified {base}.`; folk → "Folk name; decomposes to X."
+
+**Open — pending curator ruling (do NOT mechanically normalize):** `BOD(1)` (locked body-modifier bucket) vs `bod(1)` (additive component); atomic rotational notation (`atomic(+2 rotational)` vs the split x-dex form — Q3-gated); `surging(+2 = spinning + stepping per Red pt2)` provenance-in-ADD-line. Packet: `exploration/freestyle-p2c-add-line-packet/CURATOR_PACKET.md`.
+
 ### C. Family / topology caution
 
 The Red side-question consultation surfaced that movement relationships involve multiple overlapping axes: symbolic structure, modifier lineage, dex archetypes, embodied feel, timing/body-path topology, catch/surface relationships. These do not collapse cleanly into one classification.
