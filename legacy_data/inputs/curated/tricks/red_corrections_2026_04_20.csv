@@ -1242,3 +1242,7 @@ wrap,operational_notation,,SET > SAME INSIDE [DEL] > OP OUT [DEX] > (into clippe
 walk-over,operational_notation,,SET > SAME INSIDE [DEL] > (plant foot) > OP OUT [DEX] > (into clipper),"Curator ruling 2026-05-29: walk-over == wrap; differs only by the stalling foot placed on the ground = unbracketed (plant foot) annotation (0 ADD, topology identical). Class B; curator spot-check qualifiers."
 hop-over-swirl,notation,,HOP OVER SWIRL,footbag.org Video Moves: mechanical JOB (uppercase canonical)
 hop-over-swirl,operational_notation,,INSIDE > (JUMP) [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL],footbag.org Video Moves: op_notation copied from source
+orbit,notation,,ORBIT,core-atom JOB (mechanical rule); fills pre-existing blank notation gap
+orbit,operational_notation,,TOE > SAME OUT [DEX] > SAME TOE [DEL],reverse-direction ATW; transcribed from shipped landing-content op (freestyleLandingContent.ts 'toe > ss(midtime) out dex > ss toe') to canonical brackets; ADD-math 1 DEX + 1 DEL = 2
+double-orbit,notation,,DOUBLE ORBIT,double-* core-atom JOB (mechanical rule)
+double-orbit,operational_notation,,TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],orbit op + one extra dex (double-* = +1); parity with double-around-the-world; ADD-math 2 DEX + 1 DEL = 3
