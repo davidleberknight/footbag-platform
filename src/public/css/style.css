@@ -1579,6 +1579,9 @@ section.home-media { padding-top: 0; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
 .club-member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
 .club-member-entry { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.95rem; color: var(--text); }
+.club-members-unconfirmed .club-member-entry { color: var(--text-muted); }
+.club-members-unconfirmed-note { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+.club-members-unconfirmed-cta { font-size: 0.85rem; margin-top: 12px; }
 .club-members-gate {
   margin-top: 32px;
   padding: 14px 18px;

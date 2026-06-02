@@ -7,6 +7,8 @@
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping
  *   - Admin club cleanup resolution (demote, archive, dismiss, defer)
+ *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
+ *     also cascaded when a club is demoted or archived
  *   - Club detail page signal submission
  *
  * Does not own:
@@ -17,6 +19,7 @@
  *   club_viability_signals (read + write for detail page signals),
  *   club_cleanup_resolutions (read + write),
  *   clubs (status write on resolution),
+ *   legacy_person_club_affiliations (residue read + de-list write),
  *   club_leaders (read), member_club_affiliations (read),
  *   club_bootstrap_leaders (read), legacy_club_candidates (read),
  *   audit_entries (append).
@@ -30,6 +33,7 @@ import {
   clubLeaders,
   memberClubAffiliations,
   legacyClubCandidates,
+  legacyPersonClubAffiliations,
   clubs as clubsDb,
   transaction,
 } from '../db/db';
@@ -183,9 +187,44 @@ export interface CleanupQueueItem {
   recommendedAction: string;
 }
 
+// Unconfirmed legacy residue: live clubs that still carry 'pending'
+// affiliations. Listed separately from the predicate queue (which never flags
+// healthy active clubs) so an admin can de-list residue regardless of club
+// status. The age label exposes how long the oldest row has sat so the admin
+// applies a long, advisory grace period; nothing here transitions on a timer.
+export interface ResidueItem {
+  clubId: string;
+  clubName: string;
+  clubCity: string | null;
+  clubCountry: string | null;
+  clubStatus: string;
+  pendingCount: number;
+  oldestPendingAgeLabel: string;
+}
+
+interface ResidueRow {
+  club_id: string;
+  club_name: string;
+  club_city: string | null;
+  club_country: string | null;
+  club_status: string;
+  pending_count: number;
+  oldest_pending_at: string;
+}
+
 interface CleanupQueueContent {
   items: CleanupQueueItem[];
   totalItems: number;
+  residue: ResidueItem[];
+}
+
+function residueAgeLabel(oldestPendingAt: string): string {
+  const months = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(oldestPendingAt).getTime()) / (1000 * 60 * 60 * 24 * 30)),
+  );
+  if (months < 1) return 'under 1 month';
+  return `${months} month${months === 1 ? '' : 's'}`;
 }
 
 interface SignalListRow {
@@ -270,12 +309,24 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
     });
   }
 
+  const residueRows = legacyPersonClubAffiliations.listUnconfirmedResidueByClub.all() as ResidueRow[];
+  const residue: ResidueItem[] = residueRows.map((r) => ({
+    clubId: r.club_id,
+    clubName: r.club_name,
+    clubCity: r.club_city,
+    clubCountry: r.club_country,
+    clubStatus: r.club_status,
+    pendingCount: r.pending_count,
+    oldestPendingAgeLabel: residueAgeLabel(r.oldest_pending_at),
+  }));
+
   return {
     seo: { title: 'Club Cleanup Queue' },
     page: { sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue' },
     content: {
       items,
       totalItems: items.length,
+      residue,
     },
   };
 }
@@ -309,10 +360,16 @@ function resolveClub(
   transaction(() => {
     const now = new Date().toISOString();
 
+    let residueDelisted = 0;
     if (action === 'demote_inactive') {
       clubsDb.updateStatus.run('inactive', now, adminMemberId, clubId);
     } else if (action === 'archive') {
       clubsDb.updateStatus.run('archived', now, adminMemberId, clubId);
+    }
+    // Scrubbing a defunct club also retires its unconfirmed legacy residue so a
+    // demoted/archived club's roster does not linger as "possible members".
+    if (action === 'demote_inactive' || action === 'archive') {
+      residueDelisted = legacyPersonClubAffiliations.delistResidueByClub.run(adminMemberId, clubId).changes;
     }
 
     let resolution: string;
@@ -350,9 +407,44 @@ function resolveClub(
         action,
         predicate,
         deferred_until: deferredUntil,
+        residue_delisted: residueDelisted,
       },
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// De-list unconfirmed legacy residue (per-club, admin one-click)
+// ---------------------------------------------------------------------------
+
+// Retire a single club's unconfirmed legacy residue: flip its 'pending'
+// affiliations to 'former_only'. Safe to re-run (touches only 'pending').
+// The per-row updated_by/updated_at/version stamp plus one summary audit
+// entry record the action; delistedCount reports how many rows were retired.
+function delistUnconfirmedResidue(
+  adminMemberId: string,
+  clubId: string,
+  reasonText: string | null,
+): { delistedCount: number } {
+  let delistedCount = 0;
+  transaction(() => {
+    delistedCount = legacyPersonClubAffiliations.delistResidueByClub.run(adminMemberId, clubId).changes;
+    appendAuditEntry({
+      actionType: 'admin.club_cleanup.delist_residue',
+      category: 'admin',
+      actorType: 'admin',
+      actorMemberId: adminMemberId,
+      entityType: 'club',
+      entityId: clubId,
+      reasonText,
+      metadata: {
+        action: 'delist_residue',
+        predicate: 'unconfirmed_residue',
+        delisted_count: delistedCount,
+      },
+    });
+  });
+  return { delistedCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -384,5 +476,6 @@ export const clubCleanupService = {
   evaluateClubViability,
   getCleanupQueuePage,
   resolveClub,
+  delistUnconfirmedResidue,
   submitClubDetailSignal,
 };

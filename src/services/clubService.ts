@@ -215,7 +215,8 @@ export interface ClubLeader {
 export interface PublicClubDetail extends PublicClubSummary {
   description: string;
   countrySlug: string;
-  members: ClubMemberSummary[];
+  members: ClubMemberSummary[];           // confirmed current members
+  unconfirmedMembers: ClubMemberSummary[]; // 'pending' legacy affiliations, shown labeled as unconfirmed
   leaders: ClubLeader[];
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
@@ -460,6 +461,7 @@ function toPublicClubDetail(
   row: PublicClubRow,
   vitality: ClubVitalitySignals,
   members: ClubMemberSummary[],
+  unconfirmedMembers: ClubMemberSummary[],
   leaders: ClubLeader[],
   qcPanel?: ClubClassificationEvidence,
 ): PublicClubDetail {
@@ -470,6 +472,7 @@ function toPublicClubDetail(
     description: row.description,
     countrySlug: slugifyCountry(row.country),
     members,
+    unconfirmedMembers,
     viewerIsMember: false,
     viewerCanJoin: false,
     joinHref: null,
@@ -490,6 +493,7 @@ interface AffiliationRow {
   person_id: string | null;
   person_name: string;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
+  resolution_status: 'confirmed_current' | 'promoted' | 'pending';
 }
 
 // TEMP-DEVIATION: affiliationRowToClubLeader fallback for clubs outside the
@@ -896,14 +900,10 @@ export class ClubService {
         });
       }
 
-      // TEMP-DEVIATION: listMembersByClubId includes resolution_status='pending'.
-      // Current: confirmAffiliation transitions rows for onboarding members,
-      //   but non-onboarding members' rows stay 'pending' indefinitely;
-      //   including 'pending' is the only way to surface those legacy
-      //   affiliations on the club detail page.
-      // Target: drop 'pending' from the filter once an admin bulk-promote
-      //   tool transitions the remaining 'pending' rows to a terminal
-      //   resolution.
+      // The roster carries both confirmed members and 'pending' legacy
+      // affiliations. Pending rows are surfaced honestly under a separate
+      // "possible members from legacy records" label (see member split below),
+      // not folded into the current-member list.
       const affiliationRows = clubs.listMembersByClubId.all(row.club_id) as AffiliationRow[];
 
       // Leaders are public per V_Browse_Clubs / M_View_Club: provisional
@@ -925,9 +925,19 @@ export class ClubService {
         .map(affiliationRowToClubLeader);
       const leaders: ClubLeader[] = [...bootstrapLeaders, ...affiliationLeaders];
 
+      // Members-only roster (DATA_GOVERNANCE §8): the lists render only for
+      // authenticated viewers. Confirmed members ('confirmed_current' /
+      // 'promoted') are current members; 'pending' rows are shown separately,
+      // labeled as unconfirmed-but-possible.
+      const memberRows = affiliationRows.filter((r) => r.inferred_role === 'member');
       const members: ClubMemberSummary[] = isAuthenticated
-        ? affiliationRows
-            .filter((r) => r.inferred_role === 'member')
+        ? memberRows
+            .filter((r) => r.resolution_status !== 'pending')
+            .map((m) => ({ personId: m.person_id, name: m.person_name }))
+        : [];
+      const unconfirmedMembers: ClubMemberSummary[] = isAuthenticated
+        ? memberRows
+            .filter((r) => r.resolution_status === 'pending')
             .map((m) => ({ personId: m.person_id, name: m.person_name }))
         : [];
 
@@ -969,7 +979,7 @@ export class ClubService {
         // sections when the fields are undefined.
         qcPanel.pipelineContext = {
           affiliationsTotal:        affiliationRows.length,
-          affiliationsPendingCount: 0, // resolution_status not yet surfaced from db.ts
+          affiliationsPendingCount: affiliationRows.filter((r) => r.resolution_status === 'pending').length,
           liveClubRowSource:        'unknown',
           mappedClubIdStamped:      evidenceRowPresent,
           mappedClubIdStampRule:    'unknown',
@@ -977,7 +987,7 @@ export class ClubService {
         };
       }
 
-      const club = toPublicClubDetail(row, vitality, members, leaders, qcPanel);
+      const club = toPublicClubDetail(row, vitality, members, unconfirmedMembers, leaders, qcPanel);
 
       const tagRow = mediaTags.findTagByNormalized.get(row.tag_normalized) as { id: string } | undefined;
       if (tagRow) {

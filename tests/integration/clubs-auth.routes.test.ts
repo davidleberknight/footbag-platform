@@ -184,19 +184,32 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Update hashtag');
   });
 
-  // TEMP-DEVIATION: 'pending' affiliations surface on club detail to
-  // authenticated users.
-  // Current: loaders write only 'pending' status until the admin QC queue
-  //   lands; without this loosened filter the historical mirror cohort is
-  //   invisible. Other excluded statuses (former_only, not_mine,
-  //   needs_review, rejected, superseded) remain hidden.
-  // Target: restrict to fully-approved affiliations only once the admin
-  //   queue ships.
-  it('surfaces pending affiliations to authenticated members (TEMP-DEVIATION)', async () => {
+  // Pending legacy affiliations are surfaced honestly: shown to authenticated
+  // members, but under a separate "possible members from legacy records" label,
+  // never folded into the confirmed Members list. Other excluded statuses
+  // (former_only, not_mine, needs_review, rejected, superseded) stay hidden.
+  it('renders pending legacy affiliations under a labeled unconfirmed section', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
     expect(res.text).toContain('Phantom Unresolved');
+    expect(res.text).toContain('Possible members from legacy records');
+    expect(res.text).toContain('have not yet confirmed their membership in onboarding');
+  });
+
+  it('places the unconfirmed name after the unconfirmed-section heading, not in the Members list', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    const confirmedIdx   = res.text.indexOf('Zephyr Kickflip');
+    const unconfHeading  = res.text.indexOf('Possible members from legacy records');
+    const unconfNameIdx  = res.text.indexOf('Phantom Unresolved');
+    // Confirmed member appears before the unconfirmed section; the pending
+    // name appears only after it.
+    expect(confirmedIdx).toBeGreaterThan(-1);
+    expect(unconfHeading).toBeGreaterThan(confirmedIdx);
+    expect(unconfNameIdx).toBeGreaterThan(unconfHeading);
   });
 });

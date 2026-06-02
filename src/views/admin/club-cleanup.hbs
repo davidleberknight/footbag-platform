@@ -51,7 +51,45 @@
     {{else}}
       <p>No clubs require attention. Signals are collected during member onboarding and from club detail pages.</p>
     {{/if}}
+  </section>
 
+  {{#if content.residue.length}}
+  <section class="mt-8">
+    <h2>Unconfirmed legacy residue</h2>
+    <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
+    <table class="cleanup-queue-table mt-2">
+      <thead>
+        <tr>
+          <th>Club</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Unconfirmed</th>
+          <th>Oldest</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.residue}}
+          <tr>
+            <td class="fw-600">{{this.clubName}}</td>
+            <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
+            <td><span class="badge">{{this.clubStatus}}</span></td>
+            <td>{{this.pendingCount}}</td>
+            <td class="text-muted fs-sm">{{this.oldestPendingAgeLabel}}</td>
+            <td>
+              <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/delist-residue" class="cleanup-action-form">
+                <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                <button type="submit" class="btn btn-secondary btn-sm">De-list unconfirmed</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+  {{/if}}
+
+  <section>
     <p class="mt-6"><a href="/admin">&larr; Admin Dashboard</a></p>
   </section>
 </div>

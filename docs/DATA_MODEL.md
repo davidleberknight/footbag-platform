@@ -1168,8 +1168,8 @@ Mirror-derived normalized club identities. Populated by the mirror-analysis pipe
 
 Columns of design interest:
 
-- `legacy_club_key`: the canonical mirror key for this candidate. Auto-merged duplicate clusters keep the canonical key; the merged-from legacy keys are recorded in `source_legacy_keys` for audit.
-- `source_legacy_keys`: structured list of all source `legacy_club_key` values that resolved to this row through auto-merge (per §9.1 duplicate handling). Empty for un-merged candidates.
+- `legacy_club_key`: the canonical mirror key for this candidate. When the curator confirms a duplicate pair (per MIGRATION_PLAN §9.1), the merge keeps this canonical key and records the merged-from legacy keys in `source_legacy_keys` for audit.
+- `source_legacy_keys`: structured list of all source `legacy_club_key` values that resolved to this row through a curator-confirmed merge (per MIGRATION_PLAN §9.1 duplicate handling). Empty for un-merged candidates.
 - `display_name`, `city`, `region`, `country`: best-of fields from the (possibly merged) candidate per the §9.1 field-merge rules.
 - `classification`: enum (`pre_populate`, `onboarding_visible`, `dormant`, `junk`) assigned by the classifier per §9.1 rules.
 - `rules_fired`: structured list of named rules that contributed to the classification (for example `PP-hosting`, `PP-contact-corroborated`, `junk-pattern-blacklist`). Persisted so admin can audit the classification rationale without re-running the classifier.

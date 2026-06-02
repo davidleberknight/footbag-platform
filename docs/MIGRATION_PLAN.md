@@ -534,26 +534,20 @@ All parameters are tunable; defaults are documented here.
 | `new_club_grace_years` | 4 | New-club onboarding-visible carve-out |
 | `edited_after_creation_min_year` | 5 | Page-maintenance recency window at onboarding-visible |
 | `edit_recency_tolerance_hours` | 24 | Junk signal-absence clause: "never edited after creation" tolerance |
-| `duplicate_similarity_threshold` | preview-tuned | Cluster detection for hard exclusions |
 
-#### Hard exclusions: duplicates
+#### Duplicate clubs
 
-Two candidates form a duplicate cluster when they share the same country and their normalized names are similar above `duplicate_similarity_threshold`. Normalization strips accents, lowercases, collapses whitespace, removes leading numeric prefixes, and strips trailing punctuation.
+The mirror lists some real clubs under more than one legacy key (for example a club re-created in a later year, or a near-empty re-listing). A curator records confirmed duplicate pairs in `legacy_data/overrides/club_duplicates.csv` (`keep_legacy_key`, `drop_legacy_key`, reason). The pipeline merges each confirmed pair deterministically into the `keep` candidate:
 
-When a cluster is detected and source entries agree on substantive identity (city, region, name beyond trivial differences), the classifier auto-merges using these field rules:
+- `name`, `city`, `region`, `country`, `contact_member_id`, `external_url`: from the candidate with the strongest signal evidence (most hosting, largest roster, most recent edit); ties broken by latest update.
+- `description`: longest non-empty across the pair.
+- `created`: earliest. `last_updated`: latest.
+- Roster, affiliations, and hosted-event credits: union across the pair, deduplicated by resolved person.
+- Source identities: the merged candidate records every source `legacy_club_key` in `source_legacy_keys` for audit and reversibility.
 
-- `name`, `city`, `region`, `country`, `contact_member_id`, `external_url`: from the cluster member with the strongest signal evidence (most hosting, largest roster, most recent edit); ties broken by latest update.
-- `description`: longest non-empty across cluster.
-- `created`: earliest across cluster.
-- `last_updated`: latest across cluster.
-- Roster and hosted-event credits: union across cluster.
-- Source identities: the merged row carries the full list of source `legacy_club_key` values for audit.
+Merging unions rosters rather than discarding a duplicate, so no affiliation is lost. The merge is curator-confirmed and deterministic at pipeline time; there is no automatic similarity clustering and no platform-side merge process. A curator who needs to undo a merge edits the override and re-runs the pipeline.
 
-When source entries disagree on city, region, or substantive name, the cluster does not auto-merge. The entire cluster routes to admin review for manual resolution. Admin can confirm-merge-anyway, pick a canonical entry, mark one as junk, split into separate clubs, or defer.
-
-Auto-merge is reversible: admin can split a merged row using admin tools, restoring source entries as separate candidates. Both merge and split events are audit-logged.
-
-Wizard resolution treats all source identities as resolving to the merged row: when a registrant cites a source legacy name in Stage 1B, the affiliation maps to the merged row.
+Wizard resolution treats all source identities as resolving to the merged candidate: when a registrant cites a source legacy name in Stage 1B, the affiliation maps to the merged row.
 
 #### Hard exclusions: junk
 
@@ -822,28 +816,22 @@ Members can flag any club at any time through three surfaces:
 
 Every flag is recorded as a structured audit-log row carrying: the candidate or club id, the flagging member id, the flag category (junk, inactive, content-inaccurate, duplicate-of-X, never-heard-of-it, other), an optional note, the location predicates between the flagging member and the club (same-city, same-region, same-country per §10.3 Location matching helper), and a timestamp.
 
-#### Automated cleanup layer
+#### On-demand cleanup evaluation
 
-A daily system process resolves unambiguous cleanup cases without admin involvement. The six automated predicates and their transitions are specified in USER_STORIES `A_Periodic_Club_Cleanup`:
+There is no unattended background process. When an admin opens the `A_Periodic_Club_Cleanup` queue, the platform evaluates the viability and leadership-staleness predicates fresh (`crowdsource_club_viability` G1-G4, `leaderless_active_club`, `stale_provisional_leader`) and surfaces the clubs that need a human decision, each with a recommended one-click action (demote, archive, dismiss, defer). No transition fires automatically; demote and archive are admin actions, each writing one `audit_entries` row with `actor_type='admin'`.
 
-- `orphan_legacy_id` and `purged_member` and `inactive_onboarding` → `legacy_person_club_affiliations.resolution_status='former_only'`.
-- `stale_provisional_leader` → `club_bootstrap_leaders.status='superseded'`.
-- `leaderless_active_club` → live `clubs.status='inactive'` (reversible), with throttled outbox notifications to historically-affiliated members.
-- `convergent_auto_merge` → execute the auto-merge per §10.1.
-
-Each automated transition writes an audit row with `actor_type='system'`. The set of automatic predicates is fixed by the story; adding a predicate or loosening a threshold requires an explicit story extension.
+Unconfirmed `legacy_person_club_affiliations` residue (`'pending'` rows) is retired by an explicit per-club admin de-list to `'former_only'`, also cascaded when a club is demoted or archived. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (per §10.1), not by a platform-side process.
 
 #### Admin residue queue
 
-After the automated layer runs, admin reads from a residue queue view that aggregates the items requiring human judgment:
+When an admin opens the queue, it aggregates the items requiring human judgment:
 
 - Wizard-generated flags grouped by candidate or live club.
 - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
 - Suggested content edits awaiting approval (per §10.3 content validation loop).
-- Auto-merge holds (per §10.1 duplicate handling) where source entries disagreed on substantive identity (the residue after `convergent_auto_merge` runs).
 - Junk-flagged candidates (per §10.1 junk rules) and any admin force-keep or force-junk requests.
 - Non-junk candidates not yet promoted to live `clubs` rows.
-- `legacy_person_club_affiliations` rows in `resolution_status='pending'` that the automated predicates could not resolve (the unclassified residue).
+- `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club with each club's pending count and oldest-row age.
 
 The admin-home backlog badge surfaces the count of open queue items and the age of the oldest open item. Admin sorts and filters this queue at their own cadence. There is no automated demotion or time-based escalation. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity.
 
@@ -853,12 +841,11 @@ Admin's available actions per item:
 - Demote a candidate to dormant.
 - Mark a live `clubs` row `status='inactive'`.
 - Archive a `clubs` row (`status='archived'`).
-- Merge two `clubs` rows or two candidates.
-- Split a previously auto-merged candidate.
+- Merge two live `clubs` rows that turn out to be the same club.
 - Approve or reject a suggested content edit.
 - Add a candidate to force-keep or force-junk.
 - Dismiss a flag with an optional reason, or defer with a bounded duration (30 / 90 / 180 days) after which the item re-surfaces.
-- Sweep residual `legacy_person_club_affiliations` rows: per-row or bulk-by-admin-filter transition to `'former_only'`, `'not_mine'`, or `'rejected'`. Bulk transitions render a preview screen (affected row count + sample rows) before commit, then run in a single transaction with one audit row per affected row.
+- De-list a club's unconfirmed `legacy_person_club_affiliations` residue: one click transitions that club's `'pending'` rows to `'former_only'` in a single transaction (each row carries the actor and timestamp; one summary audit row records the action and count), guided by the oldest-row age shown in the queue. Safe to re-run; also cascaded by demote and archive.
 
 Every admin action is recorded in the audit log. Concurrent admin coordination uses a lightweight claim marker per item (auto-releases on resolve or after a 30-minute stale-claim timeout).
 
@@ -869,13 +856,13 @@ Every admin action is recorded in the audit log. Concurrent admin coordination u
 - **Dormant**: revived through Stage 3A name search (per §10.3) or via admin promotion. Admin may archive a dormant candidate at any time.
 - **Junk**: invisible to non-admin surfaces; admin force-keep returns it to the classifier's normal evaluation.
 
-#### Read-filter convergence at cutover
+#### Labeled legacy affiliations on rosters
 
 The platform's club-roster reads include `resolution_status='pending'` alongside `'confirmed_current'` and `'promoted'`, so loader-imported affiliations render on `/clubs/:key` from launch. Without this, every imported affiliation would be invisible until its member walked the onboarding wizard, and rosters would launch empty.
 
-The `'pending'` set drains through two paths: members close their own rows during the onboarding wizard, and the automated predicate job described above in "Automated cleanup layer" resolves the unambiguous unattended cases. Residual unclassified rows accumulate in the admin queue under `A_Periodic_Club_Cleanup`.
+On the club detail page these are shown honestly: confirmed members appear under "Members", and `'pending'` rows appear under a separate, labeled "possible members from legacy records" section that states they have not yet confirmed in onboarding. A `'pending'` row is never presented as a current member. There is no read-filter revert; labeling, not hiding, is the long-term design.
 
-When the admin judges the residue acceptable, the platform-side filter reverts to `resolution_status IN ('confirmed_current', 'promoted')` and the paired temporary-deviation comments in the club service and its db statements come out. The revert is a single small commit executed at the admin's discretion within the cutover window; there is no fixed deadline. Once reverted, any subsequent `'pending'` row is invisible to public roster reads until it transitions to a terminal state, matching the long-term design.
+The `'pending'` set drains through two paths: members confirm or decline their own rows during the onboarding wizard, and an admin retires a club's unconfirmed residue with a one-click de-list in the `A_Periodic_Club_Cleanup` queue (`'pending'` to `'former_only'`), also cascaded when a club is demoted or archived. The de-list is taken at the admin's discretion, guided by an advisory age signal, with no fixed deadline and no timed transition.
 
 #### Closure
 
@@ -978,7 +965,7 @@ The stories below specify the user-facing behavior referenced throughout this do
 | `M_Delete_Account` | Member | Delete account; person links revert from `/members/` to `/history/`; declared anchors cleared on PII purge |
 | `A_Review_Member_Link_Help_Requests` | Admin | Read member-initiated help requests with evidence; approve or reject the link with a reason |
 | `A_View_Honors_Oversight_Feed` | Admin | Read-only feed of honors-bearing direct claims that confirmed in the prior window; no gating action |
-| `A_Periodic_Club_Cleanup` | Admin | Ongoing queue: resolve wizard signals, member-flagged inaccuracies, suggested content edits, auto-merge holds, junk overrides, unpromoted candidates, and stale legacy-affiliation rows |
+| `A_Periodic_Club_Cleanup` | Admin | Ongoing queue: resolve wizard signals, member-flagged inaccuracies, suggested content edits, junk overrides, unpromoted candidates, and de-list unconfirmed legacy residue |
 
 ---
 

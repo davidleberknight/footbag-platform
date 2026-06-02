@@ -788,7 +788,7 @@ Club-affiliation task acceptance criteria:
 - The dashboard task widget reflects the `club_affiliations` task state across the lifecycle: `in_progress` (one or more cards remain unsignaled) shows "Continue onboarding"; `in_progress_paused` (member detoured) shows "Resume onboarding" and returns to the same card on click; `skipped` shows "Continue onboarding" until explicit dismissal or completion; `completed` follows the existing completed-task pattern.
 - Promotion of onboarding-visible or dormant candidates to live `clubs` rows happens on member confirmation in the wizard.
 - All outcomes (current, former, rejected, historical, reported-inactive, suggested-metadata) are persisted so the member is not repeatedly prompted.
-- Wizard signals (confirmations, rejections, activity signals) and club detail page signals ("never heard of it" reports from authenticated members browsing `/clubs/:key`) are recorded as structured rows in `club_viability_signals`. Activity signals feed the `crowdsource_club_viability` predicate in `A_Periodic_Club_Cleanup`, which combines crowdsource, legacy classification, and operational state into automated transitions or, for the sole ambiguous case (single negative signal contradicting strong legacy with no operational life), a one-click admin queue item. "Never heard of it" signals are stored but do not feed the automated predicate gates; they surface as a separate count in the admin residue queue for human judgment.
+- Wizard signals (confirmations, rejections, activity signals) and club detail page signals ("never heard of it" reports from authenticated members browsing `/clubs/:key`) are recorded as structured rows in `club_viability_signals`. Activity signals feed the `crowdsource_club_viability` predicate in `A_Periodic_Club_Cleanup`, which combines crowdsource, legacy classification, and operational state and, when an admin opens the cleanup queue, surfaces a one-click recommendation (demote for concordant inactivity, or review for the sole ambiguous case of a single negative signal contradicting strong legacy with no operational life). "Never heard of it" signals are stored but do not feed the predicate gates; they surface as a separate count in the admin queue for human judgment.
 - Junk candidates are never shown in any stage.
 
 Optional metadata task acceptance criteria:
@@ -2163,60 +2163,50 @@ Success Criteria:
 
 ### A_Periodic_Club_Cleanup
 
-Access: Admins only (admin residue queue). The automated cleanup layer runs as a system process with no admin interaction.
+Access: Admins only (admin cleanup queue). There is no unattended background process; the queue evaluates its predicates on demand when an admin opens it.
 
-Story: As an admin, I see only the cleanup items that require human judgment, because a daily automated process resolves unambiguous cases (orphan legacy ids, purged members, inactive onboarding, stale provisional leaders, leaderless live clubs, convergent auto-merge holds) without my involvement. I work through the residual judgment queue at my own cadence; a backlog badge on the admin home page surfaces the count and age of the oldest open item.
+Story: As an admin, I work a single on-demand cleanup queue. When I open it, the platform evaluates club-viability and leadership-staleness signals and surfaces only the clubs that need a human decision, each resolved in one click. Unconfirmed legacy affiliations that no member ever confirms are retired by an explicit per-club de-list, on my judgment rather than on a timer. I work the queue at my own cadence; a backlog badge on the admin home page surfaces the count and age of the oldest open item.
 
-Success Criteria; Automated cleanup layer:
+Success Criteria; On-demand evaluation:
 
-- A daily background process applies the following transitions without admin involvement. Each transition writes one `audit_entries` row with `actor_type='system'`, `actor_member_id=NULL`, `action_type='auto_cleanup.<predicate>'`, and metadata recording the predicate, the pre-transition state, and the linked entity ids.
-  - `orphan_legacy_id`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose `legacy_member_id` does not resolve to any `members` row, and the row has been loader-imported for at least 30 days. Transition: `resolution_status='former_only'` (preserves historical fact; no `resolved_club_id` stamp required).
-  - `purged_member`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose `legacy_member_id` resolves to a `members` row with `personal_data_purged_at IS NOT NULL`. Transition: `resolution_status='former_only'`.
-  - `inactive_onboarding`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose linked member has a `member_onboarding_tasks` row for `club_affiliations` in state `'completed'` or `'skipped'` for at least 30 days, and the wizard never confirmed this specific candidate. Transition: `resolution_status='former_only'`.
-  - `stale_provisional_leader`: `club_bootstrap_leaders` row with `status='provisional'` whose `legacy_member_id` matches any of the three predicates above, and the row has been provisional for at least 180 days. Transition: `status='superseded'`.
-  - `leaderless_active_club`: live `clubs` row with `status='active'` that has zero `club_leaders` rows AND zero `member_club_affiliations` rows with `is_current=1` for at least 180 days. Grace period extension: if the `crowdsource_club_viability` predicate classified the club as `confirmed_active` (gate G1) within the 180-day window, extend grace to 270 days (one extension only). Transition: `status='inactive'`. The transition is reversible: any future leader claim or current-affiliation insert flips status back to `'active'`. The system enqueues one outbox email per historically-affiliated member (rows with `is_current=0`) notifying them that the club was auto-inactivated; outbox dispatch respects per-recipient daily rate limits. Bulk inactivations are throttled to avoid notification floods.
-  - `convergent_auto_merge`: `legacy_club_candidates` auto-merge hold where every source row points to the same canonical entry per §9.1 duplicate handling. Transition: execute the merge per §9.1.
-  - `crowdsource_club_viability`: evaluates accumulated activity signals from the onboarding wizard against legacy classification and operational state for each live club with recorded signals. Boolean inputs: S1 (`any_active`: 1+ respondents said "active"), S2 (`any_inactive`: 1+ said "not active"), S3 (`concordant_inactive`: 2+ said "not active"), L1 (`strong_legacy`: legacy classification = 'pre_populate', R1-R4 fired), O1 (`has_operational_life`: current leaders > 0 OR current members > 0). "Not sure" responses contribute to no signal. Gates evaluated in order, first match wins:
-    - G1: S1 -> `confirmed_active`. Any positive signal wins unconditionally, even if negative signals also exist. Resets staleness timers on `leaderless_active_club`.
-    - G2: S3 AND NOT S1 AND NOT O1 -> `inactive`. Concordant negative (2+), no positive, no operational life. Transition: `status='inactive'` (reversible).
-    - G3: S2 AND NOT S3 AND NOT S1 AND NOT O1 AND NOT L1 -> `inactive`. Single negative corroborated by weak legacy classification and no operational life. Three signal sources agree. Transition: `status='inactive'` (reversible).
-    - G4: S2 AND NOT S3 AND NOT S1 AND NOT O1 AND L1 -> `needs_review`. Single negative contradicts strong legacy (pre_populate). No operational life. Routes to admin residue queue as a one-click "demote" item with recommended action and pre-scored evidence.
-    - Fall-through: negative signals with operational life (operations authoritative, no action); no signals (existing predicates apply).
-- The background process runs at most once per 24 hours per environment. Each predicate evaluation is idempotent; re-running the process produces no additional state changes for rows already resolved.
-- The set of automatic predicates is fixed by this story (seven predicates: orphan_legacy_id, purged_member, inactive_onboarding, stale_provisional_leader, leaderless_active_club, convergent_auto_merge, crowdsource_club_viability); adding a new predicate or loosening a threshold requires an explicit story extension. Admins do not configure predicates from the queue surface.
+- The queue runs no unattended background process. When an admin opens it, the platform evaluates the following predicates fresh against current data and surfaces only the clubs that need a human decision; each item carries a recommended one-click action and resolves without any automatic state change. Each admin action writes one `audit_entries` row with `actor_type='admin'`.
+  - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no `club_leaders` rows surfaces as a queue item recommending demote-to-inactive or finding a leader. Demote is reversible: any future leader claim or current-affiliation insert returns the club to `'active'`.
+  - `stale_provisional_leader`: `club_bootstrap_leaders` rows still `status='provisional'`, grouped by club, surface as a review-or-dismiss item.
+  - `crowdsource_club_viability`: weighs the activity signals members left in the onboarding wizard ("active" / "not active" / "not sure", where "not sure" counts for nothing) against the club's legacy classification and whether it still has any current leaders or members. The first matching case wins:
+    - G1 (confirmed active): at least one member said the club is active. A positive signal wins outright, even if others said it was inactive. No queue item, and the club's leaderless-club staleness resets.
+    - G2 (concordant inactive): two or more members said inactive, none said active, and the club has no current leaders or members. The queue recommends demoting it to inactive.
+    - G3 (weak inactive): exactly one member said inactive, none said active, the club has no current leaders or members, and its legacy classification is weak (not `pre_populate`). The queue recommends demoting it to inactive.
+    - G4 (needs review): exactly one member said inactive, none said active, the club has no current leaders or members, but its legacy classification is strong (`pre_populate`). Because that lone negative contradicts strong legacy evidence, the queue routes it for human review rather than recommending a demote.
+    - Otherwise: if there are negative signals but the club still has current leaders or members, operations are authoritative and nothing surfaces; if there are no signals at all, nothing surfaces.
+- Unconfirmed `legacy_person_club_affiliations` residue (`'pending'` rows) is retired by an explicit per-club admin de-list, never on a timer; see the residue de-list under the admin residue queue below.
+- Each predicate evaluation is idempotent and read-only until the admin acts; re-opening the queue produces no state change. Adding a new predicate or loosening a threshold requires an explicit story extension; admins do not configure predicates from the queue surface.
 
 Success Criteria; Admin residue queue:
 
-- The admin residue queue surfaces the items the automated layer cannot resolve: items requiring human judgment.
+- The admin cleanup queue surfaces the items that need human judgment.
 - An admin-home backlog badge shows the count of open queue items and the age of the oldest open item, so the admin sees backlog without opening the queue. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity (post-migration cutover, after major data imports). There is no automated escalation, deadline, or service-level target.
 - Admin views a single residue queue aggregating:
   - Wizard-generated flags grouped by candidate or live club.
   - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
   - Suggested content edits (description, external URL) awaiting approval, per the §9.3 content validation loop.
-  - Auto-merge holds where source entries disagreed on substantive identity (the residue after the automated `convergent_auto_merge` predicate runs).
   - Junk-flagged candidates and admin force-keep or force-junk requests, per §9.1.
   - Non-junk `legacy_club_candidates` not yet promoted to live `clubs` rows.
-  - `legacy_person_club_affiliations` rows in `resolution_status='pending'` that the automated predicates could not resolve (the unclassified residue), available for per-row review or bulk action by admin-defined predicate.
+  - `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club, each with the club's pending count and the age of its oldest row.
 - Each queue item shows: the candidate or club or affiliation id, the source surface, the flagging or proposing member id (when applicable), the flag category or proposed edit content, location predicates where relevant, an optional note, and the timestamp.
 - Items render collapsed by source / category by default; admin expands a group to per-row view. Each group exposes a group-level bulk action where applicable.
 - Resolution actions available per item type:
   - **Flag (any source)**: dismiss with optional reason (terminal), or defer for 30, 90, or 180 days. Deferred items re-surface after the duration with a "previously deferred by Admin X, reason ..." annotation. There is no unbounded defer.
   - **Suggested content edit**: approve (the edit replaces the live row's content; the URL passes verification before publication), reject with reason, or defer.
-  - **Auto-merge hold (post-automation residue)**: confirm-merge-anyway (apply the proposed merge), pick a canonical entry, mark one source as junk, split into separate clubs, or defer.
   - **Junk-flagged candidate**: confirm junk, add to force-keep (return to classifier normal evaluation), or promote to dormant for further evaluation.
   - **Force-keep or force-junk request**: apply, modify, or reject.
   - **Unpromoted candidate (onboarding-visible or dormant)**: promote to a live `clubs` row, demote (onboarding-visible to dormant), archive, or defer.
-  - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, merge with another club, split a previously auto-merged row, or dismiss the flags.
-  - **Residual `legacy_person_club_affiliations` row**: mark as `'former_only'` (preserves historical fact, drops from current-roster filter), `'not_mine'` (linkage rejected), or `'rejected'` (junk). Available per-row or as a bulk action by admin-supplied filter; bulk actions render a preview screen showing affected row count and a sample of 5-10 rows before commit, then run in a single transaction with one audit row per affected row.
+  - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, merge with another live club, or dismiss the flags.
+  - **Unconfirmed legacy residue (per live club)**: one click de-lists a club's `'pending'` rows, transitioning them to `'former_only'` (preserves historical fact, drops from the current-roster filter) in a single transaction. Each affected row carries the actor and timestamp; one summary audit row records the action and the de-listed count. The same de-list runs automatically when a club is demoted or archived. The oldest-row age shown on the item is an advisory grace signal; nothing transitions on a timer. Safe to re-run.
 - All resolutions are audit-logged with actor identity, item type, club or candidate or affiliation id, decision, optional note, and timestamp.
 - Concurrent admin coordination: when an admin opens an item for review, a lightweight "claimed by Admin X at time T" marker becomes visible to other admins. The marker auto-releases on resolve, dismiss, defer, or after a 30-minute stale-claim timeout. The marker does not block other admins; it is a coordination signal.
 - The queue is sortable and filterable by category, age, region, flag count, and source surface.
 - The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.
 - The `legacy_club_candidates` table may be dropped only after every non-junk candidate has reached a terminal state.
-
-Success Criteria; Predicate refinement loop:
-
-- When the residue queue accumulates more than 50 `legacy_person_club_affiliations` rows that the automated predicates could not classify, the queue surfaces a "predicate refinement needed" indicator. Implementation owners revise the automatic predicate set per the story-extension rule above; previously-unclassified rows re-classify on the next automated run.
 
 ## 7.3 Content Moderation
 

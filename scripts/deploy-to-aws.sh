@@ -327,7 +327,7 @@ prompt_yn() {
 # Bare deploy (no mode flag and no --from-csv/--soup-to-nuts) is code-only: the
 # DB is left untouched. A DB rebuild + staging replace is opt-in via --from-csv
 # or --soup-to-nuts. -r/-k pre-answer their own way. None of these prompt; the
-# WIPE (media) choice below still prompts when media sync is on.
+# WIPE (media) choice below is non-interactive too, using its clean-sync default.
 # -----------------------------------------------------------------------------
 case "$MODE" in
   reuse)  REBUILD_LOCAL="no";  REPLACE_STAGING="yes"; ;;
@@ -355,11 +355,9 @@ if [[ "$SYNC_MEDIA_FLAG" != "yes" ]]; then
 elif [[ "$NO_S3_WIPE_FLAG" == "yes" ]]; then
   WIPE_S3="no"
 else
-  if prompt_yn "Remove stale S3 objects during media sync?" "$WIPE_DEFAULT"; then
-    WIPE_S3="yes"
-  else
-    WIPE_S3="no"
-  fi
+  # Non-interactive: use the clean-sync default (Y when a DB rebuild replaces
+  # staging, N otherwise). No prompt; -W / --no-s3-wipe above opts out.
+  [[ "$WIPE_DEFAULT" == "Y" ]] && WIPE_S3="yes" || WIPE_S3="no"
 fi
 
 # -----------------------------------------------------------------------------

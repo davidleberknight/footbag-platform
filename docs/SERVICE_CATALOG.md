@@ -234,13 +234,13 @@ Required patterns: SA only (no `deleted_at` on `clubs`; use `clubs_all` for arch
 
 **`ClubCleanupService`** (`src/services/clubCleanupService.ts`)
 
-Owns club viability evaluation (`crowdsource_club_viability` predicate with G1-G4 gates per `A_Periodic_Club_Cleanup`), the `leaderless_active_club` and `stale_provisional_leader` predicates, admin club cleanup queue page shaping, cleanup resolution tracking (defer/dismiss/demote/archive), and club detail page signal submission. Does not own club lifecycle (ClubService), signal collection during onboarding (MemberOnboardingService writes signals), or the daily background process (deferred).
+Owns club viability evaluation (`crowdsource_club_viability` predicate with G1-G4 gates per `A_Periodic_Club_Cleanup`), the `leaderless_active_club` and `stale_provisional_leader` predicates, admin club cleanup queue page shaping, cleanup resolution tracking (defer/dismiss/demote/archive), de-listing of unconfirmed legacy residue (`legacy_person_club_affiliations` 'pending' rows to 'former_only', per club and cascaded on demote/archive), and club detail page signal submission. Predicates are evaluated on demand when an admin opens the queue; there is no unattended background process. Does not own club lifecycle (ClubService) or signal collection during onboarding (MemberOnboardingService writes signals).
 
 Required patterns: signal aggregation queries derive S1/S2/S3/L1/O1 from `club_viability_signals`, `legacy_club_candidates`, `club_leaders`, and `member_club_affiliations` at evaluation time. Resolutions tracked per club-plus-predicate in `club_cleanup_resolutions` (UNIQUE constraint); deferred items reappear after expiry. Admin queue never exposes which member submitted which signal (signal counts only). All resolutions audit-logged.
 
-Persistence: `club_viability_signals` (read + write for detail page signals), `club_cleanup_resolutions` (owned), `clubs` (status write on resolution), `club_leaders` (read), `member_club_affiliations` (read), `club_bootstrap_leaders` (read), `legacy_club_candidates` (read), `audit_entries` (append).
+Persistence: `club_viability_signals` (read + write for detail page signals), `club_cleanup_resolutions` (owned), `clubs` (status write on resolution), `legacy_person_club_affiliations` (residue read + de-list write), `club_leaders` (read), `member_club_affiliations` (read), `club_bootstrap_leaders` (read), `legacy_club_candidates` (read), `audit_entries` (append).
 
-Side effects: audit append per resolution.
+Side effects: audit append per resolution and per residue de-list.
 
 **`EventService`** (`src/services/eventService.ts`)
 

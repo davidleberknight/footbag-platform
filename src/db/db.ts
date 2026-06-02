@@ -745,17 +745,20 @@ export const clubs = {
       AND t.standard_type = 'club'
   `); },
 
-  // TEMP-DEVIATION: club-classification QC panel surfaces historical
-  // affiliations on the dev+staging club detail page. Status filter includes
-  // 'pending' so loader-imported affiliations (per 4ca0909 the only state
-  // until the onboarding wizard ships) render to authenticated members.
-  // inferred_role is returned so the service can split rows into leaders /
-  // contacts / members buckets.
+  // Historical affiliations for a club's roster. Returns resolution_status so
+  // the service can split the roster into a confirmed members list and a
+  // separate, labeled "possible members from legacy records" list: 'pending'
+  // rows render as unconfirmed-but-possible, never laundered into current
+  // membership. A 'pending' row leaves the roster when its member confirms or
+  // declines it in onboarding, or when an admin de-lists club residue (which
+  // transitions it to 'former_only'). inferred_role lets the service also
+  // split out leaders and contacts.
   get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
       COALESCE(hp.person_name, lpca.display_name) AS person_name,
-      lpca.inferred_role AS inferred_role
+      lpca.inferred_role AS inferred_role,
+      lpca.resolution_status AS resolution_status
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
@@ -1041,6 +1044,50 @@ export const legacyPersonClubAffiliations = {
            version           = version + 1
      WHERE id                = ?
        AND resolution_status = 'pending'
+  `); },
+
+  // Per-club summary of unconfirmed legacy residue: live clubs that still have
+  // 'pending' affiliations. Returns the pending count and the oldest import
+  // timestamp (MIN created_at) so the admin can see how long residue has sat
+  // before de-listing it. Includes active clubs (the viability queue
+  // deliberately never flags those); clubs with zero pending rows are absent.
+  get listUnconfirmedResidueByClub() { return db.prepare(`
+    SELECT
+      lcc.mapped_club_id   AS club_id,
+      c.name               AS club_name,
+      c.city               AS club_city,
+      c.country            AS club_country,
+      c.status             AS club_status,
+      COUNT(*)             AS pending_count,
+      MIN(lpca.created_at) AS oldest_pending_at
+    FROM legacy_person_club_affiliations AS lpca
+    INNER JOIN legacy_club_candidates AS lcc
+      ON lcc.id = lpca.legacy_club_candidate_id
+    INNER JOIN clubs AS c
+      ON c.id = lcc.mapped_club_id
+    WHERE lpca.resolution_status = 'pending'
+      AND lcc.mapped_club_id IS NOT NULL
+    GROUP BY lcc.mapped_club_id, c.name, c.city, c.country, c.status
+    ORDER BY oldest_pending_at ASC
+  `); },
+
+  // Admin de-list: terminalize a live club's unconfirmed residue. Flips every
+  // 'pending' affiliation mapped to the club to 'former_only' (preserves the
+  // historical fact while dropping the row from the current-roster filter).
+  // Guarded by resolution_status='pending' so confirmed/declined rows are
+  // never touched and the action is safe to re-run. Stamps updated_by /
+  // updated_at / version per affected row for the audit trail; .run().changes
+  // gives the number of rows de-listed.
+  get delistResidueByClub() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'former_only',
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE resolution_status = 'pending'
+       AND legacy_club_candidate_id IN (
+         SELECT id FROM legacy_club_candidates WHERE mapped_club_id = ?
+       )
   `); },
 };
 

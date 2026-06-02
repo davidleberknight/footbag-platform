@@ -15,6 +15,7 @@ adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
+adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupController.delistResidue);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

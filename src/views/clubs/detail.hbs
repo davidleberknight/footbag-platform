@@ -118,6 +118,24 @@
       </ul>
     </div>
     {{/if}}
+    {{#if content.club.unconfirmedMembers.length}}
+    <div class="club-members club-members-unconfirmed">
+      <h2 class="club-members-heading">Possible members from legacy records</h2>
+      <p class="club-members-unconfirmed-note">Unconfirmed: these people have not yet confirmed their membership in onboarding.</p>
+      <ul class="club-member-list">
+        {{#each content.club.unconfirmedMembers}}
+        <li class="club-member-entry">
+          {{#if personId}}
+            <a class="club-member-name" href="/history/{{personId}}">{{name}}</a>
+          {{else}}
+            <span class="club-member-name">{{name}}</span>
+          {{/if}}
+        </li>
+        {{/each}}
+      </ul>
+      <p class="club-members-unconfirmed-cta"><a href="/register/wizard/club_affiliations">Is this you? Confirm your membership in onboarding</a></p>
+    </div>
+    {{/if}}
     {{else}}
     <div class="club-members-gate">
       <a href="/login?returnTo={{content.club.clubHref}}">Log in</a> to see club members.
