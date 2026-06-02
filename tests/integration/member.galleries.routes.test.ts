@@ -333,6 +333,23 @@ describe('POST /members/:memberKey/galleries', () => {
     expect(id).toBe('gallery_mg_owner_fresh_gallery');
   });
 
+  it('writes a create_member_gallery audit row scoped to the owner', async () => {
+    const res = await createGalleryViaApi('Audit Create Target', '#auditcreate');
+    expect(res.status).toBe(303);
+    const id = findGalleryIdByName('Audit Create Target')!;
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const audit = db.prepare(
+        `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'create_member_gallery'`,
+      ).get(id) as Record<string, unknown> | undefined;
+      expect(audit).toBeDefined();
+      expect(audit!.actor_type).toBe('member');
+      expect(audit!.actor_member_id).toBe(OWNER_ID);
+      expect(audit!.entity_type).toBe('gallery');
+    } finally { db.close(); }
+  });
+
   it('auto-applies #by_<slug> when criteriaTags is empty (My Photos default)', async () => {
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
@@ -349,6 +366,37 @@ describe('POST /members/:memberKey/galleries', () => {
       ).all(id) as { tag_display: string }[];
       expect(tags.map((t) => t.tag_display)).toEqual([`#by_${OWNER_SLUG}`]);
     } finally { db.close(); }
+  });
+
+  it('rejects a photoFiles part with bytes but no filename (422, not a silent drop)', async () => {
+    const boundary = '----b35nameless';
+    const body = Buffer.from(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="name"\r\n\r\n` +
+      `Nameless Upload\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="description"\r\n\r\n` +
+      `desc\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="sortOrder"\r\n\r\n` +
+      `upload_desc\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="criteriaTags"\r\n\r\n` +
+      `#tag1\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="photoFiles"; filename=""\r\n` +
+      `Content-Type: image/jpeg\r\n\r\n` +
+      `\xff\xd8\xff\x00bytes-without-a-name\r\n` +
+      `--${boundary}--\r\n`,
+      'binary',
+    );
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .set('Content-Type', `multipart/form-data; boundary=${boundary}`)
+      .send(body);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('missing a filename');
   });
 
   it('rejects oversize name with 422', async () => {
@@ -474,6 +522,28 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       expect(row.name).toBe('After');
       expect(row.description).toBe('updated');
       expect(row.sort_order).toBe('caption_asc');
+    } finally { db.close(); }
+  });
+
+  it('writes an update_member_gallery audit row scoped to the owner', async () => {
+    await createGalleryViaApi('Audit Update Source', '#auditupdsrc');
+    const id = findGalleryIdByName('Audit Update Source')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Audit Update Source', description: 'changed', sortOrder: 'caption_asc', criteriaTags: '#auditupd', excludeTags: '' });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const audit = db.prepare(
+        `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'update_member_gallery'`,
+      ).get(id) as Record<string, unknown> | undefined;
+      expect(audit).toBeDefined();
+      expect(audit!.actor_type).toBe('member');
+      expect(audit!.actor_member_id).toBe(OWNER_ID);
+      expect(audit!.entity_type).toBe('gallery');
     } finally { db.close(); }
   });
 

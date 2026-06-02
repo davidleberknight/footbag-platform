@@ -905,6 +905,10 @@ If a console change happens:
 - do not edit prod and promise to “clean it up later”
 - do not store secret values in Terraform state intentionally
 
+### 6.7 Pre-deploy drift check
+
+Before a deploy that depends on infrastructure state, run `terraform -chdir=terraform/<env> plan -refresh-only` and inspect for "Objects have changed outside of Terraform". Reconcile any drift via `terraform import` before any apply that would otherwise recreate an existing resource. CI runs only `fmt -check` and `validate`, not `plan` against backend state, so drift detection is operator-side.
+
 ---
 
 ## 7. CI/CD, Release Promotion, and Deployment Workflow
@@ -1657,6 +1661,7 @@ Required verification: the alarm test fires on a known-bad value and clears on r
 - secret and key rotation review
 - alert-threshold tuning review
 - production access, SSH authorized-key inventory, and offboarding review
+- GitHub repository security posture: branch protection rules, required-checks list, open code-scanning alerts, and Dependabot alerts (via `gh api repos/<owner>/footbag-platform/...`)
 
 ### 13.3 Patch management
 
@@ -2001,11 +2006,13 @@ Storage: a `docs/postmortems/` subdirectory committed to the repository, one Mar
 - migration reviewed if applicable
 - backup current
 - secret changes verified
+- no CloudFront invalidation already in flight (relevant when the deploy changes a cached public template)
 - deploy completed
 - `/health/live` passes
 - `/health/ready` passes
 - smoke tests pass
 - alarms quiet
+- working tree committed and pushed (the deploy ships the local working tree via Dockerfile COPY, not git HEAD; CI validates the change only once it is pushed)
 
 ### 16.2 Secret rotation checklist
 

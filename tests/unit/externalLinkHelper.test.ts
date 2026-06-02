@@ -102,4 +102,30 @@ describe('externalLinkHelper', () => {
     const result = externalLinkHelper('https://example.com/', { hash: {} } as any);
     expect(result).toBeInstanceOf(Handlebars.SafeString);
   });
+
+  // Scheme allowlist: the helper is the last line of defense for stored
+  // external_url values (e.g. seeded club/event rows) that never pass the
+  // service-layer validator. A non-http(s) scheme must render nothing rather
+  // than a clickable javascript:/data: link.
+  it('returns empty string for a javascript: scheme URL', () => {
+    expect(render('javascript:alert(document.cookie)')).toBe('');
+    expect(render('  JavaScript:alert(1)  ')).toBe('');
+  });
+
+  it('returns empty string for a data: scheme URL', () => {
+    expect(render('data:text/html,<script>alert(1)</script>')).toBe('');
+  });
+
+  it('returns empty string for other non-http(s) schemes and protocol-relative URLs', () => {
+    expect(render('file:///etc/passwd')).toBe('');
+    expect(render('ftp://example.com/x')).toBe('');
+    expect(render('mailto:a@b.com')).toBe('');
+    expect(render('//evil.com')).toBe('');
+    expect(render('vbscript:msgbox(1)')).toBe('');
+  });
+
+  it('still renders http and https (case-insensitive scheme)', () => {
+    expect(render('http://example.com/')).toContain('href="http://example.com/"');
+    expect(render('HTTPS://example.com/')).toContain('href="HTTPS://example.com/"');
+  });
 });

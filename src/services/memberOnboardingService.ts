@@ -188,6 +188,25 @@ function getTaskWidget(memberId: string): OnboardingTaskView[] {
     .sort((a, b) => TASK_TYPE_INDEX[a.taskType] - TASK_TYPE_INDEX[b.taskType]);
 }
 
+// The next task to send a still-onboarding member to. Prefers the
+// lowest-index pending task (the active wizard sequence); falls back to the
+// lowest-index `in_progress_paused` task so a member whose tasks are all
+// detour-paused is not redirected to a task that is not actually pending.
+// Returns null only when nothing is outstanding.
+function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
+  const rows = (memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[])
+    .filter((r) => (r.task_type as OnboardingTaskType) in TASK_TYPE_INDEX);
+  const byIndex = (state: OnboardingTaskState): OnboardingTaskType[] =>
+    rows
+      .filter((r) => r.state === state)
+      .map((r) => r.task_type as OnboardingTaskType)
+      .sort((a, b) => TASK_TYPE_INDEX[a] - TASK_TYPE_INDEX[b]);
+  const pending = byIndex('pending');
+  if (pending.length > 0) return pending[0];
+  const paused = byIndex('in_progress_paused');
+  return paused[0] ?? null;
+}
+
 function getTaskState(memberId: string, taskType: OnboardingTaskType): OnboardingTaskState | null {
   const row = memberOnboarding.findByMemberAndType.get(memberId, taskType) as
     | MemberOnboardingTaskRow
@@ -1410,6 +1429,7 @@ export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 export const memberOnboardingService = {
   getTaskWidget,
   getDashboardTaskWidget,
+  nextOutstandingTaskType,
   startTaskList,
   startTask,
   skipTask,

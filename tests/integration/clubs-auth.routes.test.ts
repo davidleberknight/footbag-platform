@@ -174,6 +174,16 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Log in to see club members');
   });
 
+  it('does not expose a hashtag-edit form on the public club hero', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).not.toContain('name="newSlug"');
+    expect(res.text).not.toContain('/clubs/club_evergreen/hashtag');
+    expect(res.text).not.toContain('Update hashtag');
+  });
+
   // TEMP-DEVIATION: 'pending' affiliations surface on club detail to
   // authenticated users.
   // Current: loaders write only 'pending' status until the admin QC queue

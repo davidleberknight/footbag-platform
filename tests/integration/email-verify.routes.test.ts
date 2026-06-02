@@ -412,10 +412,12 @@ describe('POST /verify/resend', () => {
 });
 
 describe('POST /verify/resend — verify-email enqueue failure', () => {
-  // Regression for B21: ServiceUnavailableError previously fell through to the
-  // 500 handler because postVerifyResend only called next(err). The 503 page
-  // is the truthful surface — outbox/SES degradation is a dependency outage,
-  // not an unexpected exception.
+  // Anti-enumeration: a registered-but-unverified email and an unknown email
+  // must return identical UX. On outbox/SES degradation resendVerifyEmail
+  // swallows the enqueue failure (recording auth.register_notification_failed
+  // for operator triage) and returns void, so the route renders 200 in both
+  // branches, matching requestPasswordReset. A status that differed by account
+  // existence would leak which emails are pending verification.
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let commsMod: typeof import('../../src/services/communicationService');
 
@@ -427,7 +429,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     commsMod.resetCommunicationServiceForTests();
   });
 
-  it('enqueueEmailOrFail throws → 503 + audit row (recovers via /verify/resend after outbox heals)', async () => {
+  it('enqueueEmailOrFail throws → 200 + audit row (anti-enumeration; recovers after outbox heals)', async () => {
     expectLoggedError('audit: auth.register_notification_failed');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
 
@@ -460,9 +462,56 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     });
 
     const res = await request(app).post('/verify/resend').type('form').send({ email: targetEmail });
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
 
     // Audit row records the failure for operator triage.
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const member = db.prepare(
+      `SELECT id FROM members WHERE login_email_normalized = ?`,
+    ).get(targetEmail) as { id: string } | undefined;
+    const auditRow = member ? db.prepare(
+      `SELECT action_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'auth.register_notification_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(member.id) as { action_type: string } | undefined : undefined;
+    db.close();
+    expect(auditRow).toBeDefined();
+  });
+
+  it('issueToken throws (token-store failure) → 200 + audit row (token-issue path is audited, not silently swallowed)', async () => {
+    expectLoggedError('audit: auth.register_notification_failed');
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    const tokenSvc = await import('../../src/services/accountTokenService');
+
+    // Seed a fresh unverified member while comms + token store are healthy
+    // (registration itself would 503 otherwise).
+    const app = createApp();
+    const targetEmail = 'resend-token-fail@example.com';
+    const registerRes = await request(app).post('/register').type('form').send({
+      realName: 'Resend Token Fail',
+      email: targetEmail,
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    expect(registerRes.status).toBe(303);
+
+    // Break token issuance — the DB write that runs *before* the enqueue. A regression
+    // here would swallow it silently (200, no audit) because resendVerifyEmail catches
+    // for anti-enumeration; the fix moved issuance inside the audited try.
+    const spy = vi
+      .spyOn(tokenSvc.accountTokenService, 'issueToken')
+      .mockImplementation(() => {
+        throw new ServiceUnavailableError('synthetic token-store failure for verify-resend');
+      });
+    try {
+      const res = await request(app).post('/verify/resend').type('form').send({ email: targetEmail });
+      // Anti-enumeration: swallowed → 200, identical to the unknown-email branch.
+      expect(res.status).toBe(200);
+    } finally {
+      spy.mockRestore();
+    }
+
+    // ...but the failure is recorded for operator triage, not silently dropped.
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const member = db.prepare(
       `SELECT id FROM members WHERE login_email_normalized = ?`,

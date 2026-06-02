@@ -59,7 +59,7 @@ export interface StripeWebhookEvent {
 export interface PaymentAdapter {
   createCheckoutSession(opts: OneTimeCheckoutOpts): Promise<CheckoutSessionResult>;
   createSubscriptionCheckoutSession(opts: SubscriptionCheckoutOpts): Promise<CheckoutSessionResult>;
-  constructWebhookEvent(rawBody: string, signature: string): StripeWebhookEvent;
+  constructWebhookEvent(rawBody: string | Buffer, signature: string): StripeWebhookEvent;
   cancelSubscriptionAtPeriodEnd(stripeSubscriptionId: string): Promise<void>;
 }
 

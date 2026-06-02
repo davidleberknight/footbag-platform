@@ -349,6 +349,8 @@ The three-test contract from `.claude/rules/testing.md` applies to every adapter
 
 These tests describe permanent contracts. They are not sprint-scoped.
 
+The staging-smoke leg applies to adapters that reach an external service over the network: `JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, and `SecretsAdapter` (real AWS via the assumed-role chain) and `SafeBrowsingAdapter` (the real Google Safe Browsing API). The three internal docker-network adapters (`HttpReachabilityAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`) carry boot-config and interface-parity tests but no workstation staging-smoke: their dependency is the internal `image` worker rather than an external surface the dev-against-staging (no-ssh) model can reach, and their failure mode is a noisy first-request error rather than silent IAM or network drift. Their wiring is covered by the interface-parity tests, the compose `image:4000/health` healthcheck that gates stack startup, and the e2e upload path.
+
 ### 7.3 Staging smoke entry point
 
 `scripts/test-smoke.sh` is the canonical entry. It reads terraform output for environment-specific values (KMS key ARN, SES sender identity, S3 bucket name), exports the staging AWS profile and region, fetches operator-supplied SSM secrets via the assumed-role chain, and execs `vitest run tests/smoke/`. The operator runs it locally or from the staging host after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on.

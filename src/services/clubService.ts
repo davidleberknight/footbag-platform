@@ -71,6 +71,7 @@ import {
 } from '../db/db';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry } from './auditService';
+import { recordOperationalError } from './operationalErrors';
 import { applyClubJoin as applyActivePlayerClubJoin } from './activePlayerService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
@@ -1492,8 +1493,19 @@ export class ClubService {
 
     try {
       applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
-    } catch {
-      // AP grant is best-effort; creation succeeds regardless.
+    } catch (err) {
+      // AP grant is best-effort; creation succeeds regardless. Record the
+      // failure so a systematic AP-grant break raises an operator alarm.
+      recordOperationalError({
+        actionType: 'club.active_player_grant_failed',
+        category: 'club_membership',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'member_club_affiliation',
+        entityId: affiliationId,
+        reasonText: 'Active Player grant on club create failed; club created regardless.',
+        cause: err,
+      });
     }
 
     const clubKey = `club_${slug}`;
@@ -1561,8 +1573,19 @@ export class ClubService {
     if (affiliationId) {
       try {
         applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
-      } catch {
-        // AP grant is best-effort; join succeeds regardless.
+      } catch (err) {
+        // AP grant is best-effort; join succeeds regardless. Record the
+        // failure so a systematic AP-grant break raises an operator alarm.
+        recordOperationalError({
+          actionType: 'club.active_player_grant_failed',
+          category: 'club_membership',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'member_club_affiliation',
+          entityId: affiliationId,
+          reasonText: 'Active Player grant on club join failed; join committed regardless.',
+          cause: err,
+        });
       }
     }
 

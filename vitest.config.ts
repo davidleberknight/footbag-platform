@@ -15,7 +15,8 @@ const ramBound = memForkCap < cpuCount;
 export default defineConfig({
   test: {
     testTimeout: 15_000,
-    ...(ramBound ? { pool: 'forks' as const, poolOptions: { forks: { maxForks: memForkCap } } } : {}),
+    hookTimeout: 15_000,
+    ...(ramBound ? { pool: 'forks' as const, maxWorkers: memForkCap } : {}),
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
     // start and end. Per-test afterAll() handles the happy path; this hook

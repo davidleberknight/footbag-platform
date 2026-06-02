@@ -6,30 +6,36 @@
         Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}}{{#if content.byMember}} by {{#if content.byMember.href}}<a href="{{content.byMember.href}}" class="tag-chip-link">{{content.byMember.display}}</a>{{else}}{{content.byMember.display}}{{/if}}{{#if content.criteriaTags.length}},{{/if}}{{/if}}{{#if content.criteriaTags.length}} tagged: {{#each content.criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if content.excludeTags.length}} - Excluding {{#if (eq content.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
       </p>
     {{else}}
-      <p class="hero-subtitle">Browse all photos and videos by tag. Pick one or more tags to include and (optionally) tags to exclude.</p>
+      <p class="hero-subtitle">Browse all photos and videos by hashtag.</p>
     {{/if}}
   </div>
 </div>
 
 <div class="wrapper">
 
+  {{#if (eq content.mode "results")}}
+  <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse all media</a></p>
+  {{/if}}
+
+  {{#unless (eq content.mode "results")}}
   <form method="GET" action="/media/browse" class="curator-edit-form">
     <label class="form-row">
       <span class="form-label">Include tags</span>
-      <input type="text" name="tag" value="{{content.formIncludeText}}" placeholder="butterfly spike" data-tag-chips>
-      <small class="form-help">Whitespace-separated. An item must carry every one of these tags to appear. The leading <code>#</code> is optional.</small>
+      <input type="text" name="tag" value="{{content.formIncludeText}}" data-tag-chips>
+      <small class="form-help">Show only media tagged with all of these. Separate tags with spaces; the leading <code>#</code> is optional.</small>
     </label>
 
     <label class="form-row">
       <span class="form-label">Exclude tags</span>
-      <input type="text" name="exclude" value="{{content.formExcludeText}}" placeholder="tutorial" data-tag-chips>
-      <small class="form-help">Whitespace-separated. An item carrying any of these tags is filtered out. Optional.</small>
+      <input type="text" name="exclude" value="{{content.formExcludeText}}" data-tag-chips>
+      <small class="form-help">Hide media tagged with any of these. Optional.</small>
     </label>
 
     <div class="form-actions">
-      <button type="submit">Browse</button>
+      <button type="submit" class="btn btn-primary">Browse</button>
     </div>
   </form>
+  {{/unless}}
 
   {{#if content.unresolvedTokens.length}}
     <p class="empty-state">
@@ -77,6 +83,7 @@
       <p>Hashtags label every photo and video. They group content into discoverable feeds without a centralized taxonomy.</p>
       <ul class="browse-tags-help-list">
         <li><strong><a href="/media/browse?tag=curated" class="tag-chip-link">#curated</a></strong> marks content vetted by IFPA: tutorials, records, and showcase galleries.</li>
+        <li><strong>Event and club tags</strong> follow fixed canonical patterns so each event or club has one hashtag. Events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <a href="/media/browse?tag=event_2026_worlds_japan" class="tag-chip-link">#event_2026_worlds_japan</a>. Clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</li>
         <li><strong>Community tags</strong> are used by two or more members; they surface in the public hashtag directory.</li>
         <li><strong>Popular tags</strong> are the most-used community tags across the site.</li>
         <li><strong>Personal tags</strong> are used by a single member; they stay private to that member's gallery.</li>
@@ -84,12 +91,10 @@
       {{#unless content.popularTags.length}}
       <p class="browse-tags-help-try">Try one:</p>
       <ul class="tag-chip-row">
+        <li><a href="/media/browse?tag=curated" class="tag-chip">#curated</a></li>
         <li><a href="/media/browse?tag=freestyle" class="tag-chip">#freestyle</a></li>
-        <li><a href="/media/browse?tag=net" class="tag-chip">#net</a></li>
         <li><a href="/media/browse?tag=trick" class="tag-chip">#trick</a></li>
-        <li><a href="/media/browse?tag=tutorial" class="tag-chip">#tutorial</a></li>
-        <li><a href="/media/browse?tag=demo" class="tag-chip">#demo</a></li>
-        <li><a href="/media/browse?tag=tricks_of_the_trade" class="tag-chip">#tricks_of_the_trade</a></li>
+        <li><a href="/media/browse?tag=demo_net" class="tag-chip">#demo_net</a></li>
       </ul>
       {{/unless}}
     </section>

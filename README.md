@@ -23,11 +23,13 @@ A lot of functionality is done and deployed on AWS. This is the baseline for ong
 Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
 - The legacy-data pipeline (from a mirror of live site) is done, including major clean up of historical event results data.
-- We are ready to receive the initial data dump from the live footbag.org webmaster (will happen soon).
+- We just received the initial data dump from the live footbag.org webmaster, processing in progress...
 - Technical and Functional requirements specs are complete, refer to User Stories and Design Decisions.
 - The Freestyle Dictionary is done, and that's a big deal. Check it out.
 - The Media sharing system works.
 - The Onboarding Wizard works, used to clean up dirty club data, and link up legacy member data to new logins.
+- We have Stripe payment adapters invoking Stripe directly (but no real-money tests yet).
+- We can seed personas and access them on staging for robust testing.
 
 ## Contributing
 

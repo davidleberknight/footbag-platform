@@ -23,6 +23,12 @@ interface MemberPasswordEditContent {
 type MemberStubContent = Record<string, never>;
 import { logger } from '../config/logger';
 
+// Local safe-path guard for redirect targets derived from request input,
+// mirroring the copies in authController / paymentController (no shared lib).
+function isSafePath(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
+}
+
 // Avatar-upload flash: filename display is capped so a maliciously long
 // filename cannot blow out the banner. Cookie semantics live in lib/flashCookie.
 const FLASH_NAME_MAX_LEN = 120;
@@ -426,10 +432,11 @@ export const memberController = {
   async postPurchaseTier(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnProfile(req)) { renderNotFound(res); return; }
     const tier = String(req.body.tier ?? req.query.tier ?? '');
-    const returnTo =
+    const rawReturnTo =
       typeof req.body.returnTo === 'string' ? req.body.returnTo
       : typeof req.query.returnTo === 'string' ? req.query.returnTo
-      : `/members/${req.params.memberKey}`;
+      : '';
+    const returnTo = isSafePath(rawReturnTo) ? rawReturnTo : `/members/${req.params.memberKey}`;
     try {
       const result = await paymentService.startMembershipPurchase(
         req.user!.userId,

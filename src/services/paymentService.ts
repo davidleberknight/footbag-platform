@@ -411,7 +411,7 @@ async function startMembershipPurchase(
   return { redirectUrl: result.redirectUrl, paymentId, sessionId: result.sessionId };
 }
 
-function handleWebhook(rawBody: string, signature: string): WebhookOutcome {
+function handleWebhook(rawBody: string | Buffer, signature: string): WebhookOutcome {
   const adapter = getPaymentAdapter();
   // Signature verification first: a bad, expired, or missing signature throws
   // WebhookSignatureError before any row is read or written (controller -> 400).

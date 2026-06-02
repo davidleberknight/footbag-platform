@@ -547,8 +547,9 @@ async function executeMultipartCreate(args: {
   fields: Record<string, string>;
   photoFiles: Array<{ buffer: Buffer; filename: string }>;
   limitExceeded: boolean;
+  droppedNamelessFile: boolean;
 }): Promise<void> {
-  const { req, res, memberKey, fields, photoFiles, limitExceeded } = args;
+  const { req, res, memberKey, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
   const actorMemberId = req.user!.userId;
   const actorIsAdmin = req.user!.role === 'admin';
   const slug = req.user!.slug;
@@ -595,6 +596,10 @@ async function executeMultipartCreate(args: {
 
   if (limitExceeded) {
     rerenderError(422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`);
+    return;
+  }
+  if (droppedNamelessFile) {
+    rerenderError(422, 'One of the uploaded files was missing a filename.');
     return;
   }
 
@@ -669,8 +674,9 @@ async function executeMultipartUpdate(args: {
   fields: Record<string, string>;
   photoFiles: Array<{ buffer: Buffer; filename: string }>;
   limitExceeded: boolean;
+  droppedNamelessFile: boolean;
 }): Promise<void> {
-  const { req, res, memberKey, galleryId, fields, photoFiles, limitExceeded } = args;
+  const { req, res, memberKey, galleryId, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
   const actorMemberId = req.user!.userId;
   const actorIsAdmin = req.user!.role === 'admin';
   const slug = req.user!.slug;
@@ -725,6 +731,10 @@ async function executeMultipartUpdate(args: {
 
   if (limitExceeded) {
     rerenderError(422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`);
+    return;
+  }
+  if (droppedNamelessFile) {
+    rerenderError(422, 'One of the uploaded files was missing a filename.');
     return;
   }
 

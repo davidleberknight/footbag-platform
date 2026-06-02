@@ -712,6 +712,7 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries — create FH-owned gallery. */
   async postGalleryCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const actorMemberId = req.user!.userId;
       const slug = String(req.body?.idSlug ?? '').trim();
@@ -808,6 +809,7 @@ export const adminCuratorController = {
    * along; uploaded files are routed through `uploadPhoto` (FH-owned) and
    * receive `#curated` automatically plus user-supplied `uploadTags`. */
   async postGalleryEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     if (req.is('multipart/form-data')) {
       handleCuratorGalleryEditMultipart(req, res, next);
       return;
@@ -865,6 +867,7 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries/:id/delete — hard-delete FH gallery + sidecar. */
   async postGalleryDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     if (req.body?.confirmed !== '1') {
       res.redirect(303, `/admin/curator/galleries?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
@@ -943,6 +946,7 @@ export const adminCuratorController = {
    * object size at HEAD time before transcoding.
    */
   async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const adminMemberId = req.user!.userId;
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -1026,6 +1030,9 @@ export const adminCuratorController = {
    * success rather than 409, so a transient browser retry doesn't error.
    */
   async postFinalizeUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
+    // No curator-write limit here: the abusable op (presigned PUT) is already gated at
+    // postSignUpload, and finalize is idempotent/retry-safe — throttling it would 429 a
+    // benign browser retry of an already-authorized, already-rate-limited upload.
     try {
       const adminMemberId = req.user!.userId;
       const jobId = String((req.body as Record<string, unknown> | undefined)?.jobId ?? '').trim();
@@ -1296,8 +1303,9 @@ async function executeCuratorGalleryEditMultipart(args: {
   fields: Record<string, string>;
   photoFiles: Array<{ buffer: Buffer; filename: string }>;
   limitExceeded: boolean;
+  droppedNamelessFile: boolean;
 }): Promise<void> {
-  const { req, res, galleryId, fields, photoFiles, limitExceeded } = args;
+  const { req, res, galleryId, fields, photoFiles, limitExceeded, droppedNamelessFile } = args;
   const actorMemberId = req.user!.userId;
 
   const name = String(fields.name ?? '');
@@ -1323,6 +1331,10 @@ async function executeCuratorGalleryEditMultipart(args: {
 
   if (limitExceeded) {
     renderCuratorGalleryEditError(res, 422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`, errCtx);
+    return;
+  }
+  if (droppedNamelessFile) {
+    renderCuratorGalleryEditError(res, 422, 'One of the uploaded files was missing a filename.', errCtx);
     return;
   }
   for (const f of photoFiles) {

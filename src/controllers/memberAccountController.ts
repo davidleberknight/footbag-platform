@@ -45,6 +45,11 @@ function postAutoLinkReportIncorrect(req: Request, res: Response, next: NextFunc
         actorType:     'member',
         actorMemberId: req.user!.userId,
       });
+    } else {
+      // No pending card (already dismissed, or never present). The link
+      // correctly persists; the tokened email link remains the canonical
+      // revert path. Log for operator visibility rather than no-op silently.
+      logger.info('auto-link report incorrect: no pending card', { memberId: req.user!.userId });
     }
     res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
   } catch (err) {

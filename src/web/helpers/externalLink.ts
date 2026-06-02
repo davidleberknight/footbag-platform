@@ -38,6 +38,15 @@ export function externalLinkHelper(
   const trimmed = url.trim();
   if (trimmed.length === 0) return '';
 
+  // Defense in depth: only http(s) may reach the rendered href. The
+  // service-layer validator is the primary scheme gate, but some stored
+  // external_url values (seeded club/event rows) never pass through it, so a
+  // javascript:/data: scheme could otherwise render as a clickable link.
+  // escapeExpression below neutralizes attribute breakout but not the scheme
+  // itself; an unrecognized scheme renders nothing, matching the empty-URL
+  // contract so callers need no extra guard.
+  if (!/^https?:\/\//i.test(trimmed)) return '';
+
   const hash = options?.hash ?? {};
   const labelInput =
     typeof hash.label === 'string' && hash.label.trim().length > 0

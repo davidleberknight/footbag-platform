@@ -36,7 +36,7 @@ export class WebhookSignatureError extends Error {
  * Rethrows any signature failure as WebhookSignatureError.
  */
 export function verifyStripeWebhook(
-  rawBody: string,
+  rawBody: string | Buffer,
   signature: string,
   secret: string,
 ) {

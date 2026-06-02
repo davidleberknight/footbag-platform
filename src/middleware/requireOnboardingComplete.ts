@@ -38,9 +38,8 @@ function isUngated(path: string): boolean {
 }
 
 function nextPendingWizardHref(memberId: string): string {
-  const tasks = memberOnboardingService.getTaskWidget(memberId);
-  if (tasks.length > 0) return `/register/wizard/${tasks[0].taskType}`;
-  return '/register/wizard/personal_details';
+  const next = memberOnboardingService.nextOutstandingTaskType(memberId);
+  return next ? `/register/wizard/${next}` : '/register/wizard/personal_details';
 }
 
 export function requireOnboardingComplete(req: Request, res: Response, next: NextFunction): void {

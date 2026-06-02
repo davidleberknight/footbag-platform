@@ -244,7 +244,7 @@ export const paymentController = {
       return;
     }
     try {
-      paymentService.handleWebhook(buf.toString('utf8'), signature);
+      paymentService.handleWebhook(buf, signature);
       res.status(200).type('text/plain').send('ok');
     } catch (err) {
       if (err instanceof WebhookSignatureError) {

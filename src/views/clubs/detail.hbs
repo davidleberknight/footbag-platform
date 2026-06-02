@@ -9,14 +9,6 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     <p class="club-hashtag hero-hashtag">{{content.club.standardTagDisplay}}</p>
-    {{#if isAuthenticated}}
-    <form method="POST" action="/clubs/{{content.club.clubKey}}/hashtag" class="mt-2">
-      <div class="form-field inline-flex-row">
-        <input type="text" name="newSlug" placeholder="New hashtag slug" class="fs-sm" />
-        <button type="submit" class="btn btn-outline fs-sm">Update hashtag</button>
-      </div>
-    </form>
-    {{/if}}
   </div>
 </div>
 

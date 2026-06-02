@@ -15,6 +15,8 @@ export interface ParsedGalleryMultipart {
   fields: Record<string, string>;
   photoFiles: Array<{ buffer: Buffer; filename: string }>;
   limitExceeded: boolean;
+  // A part that carried bytes but no filename header (malformed upload).
+  droppedNamelessFile: boolean;
 }
 
 // Generic multipart parser for the gallery create + update flow. Both
@@ -28,6 +30,7 @@ export function parseGalleryMultipart(
   const fields: Record<string, string> = {};
   const photoFiles: Array<{ buffer: Buffer; filename: string }> = [];
   let limitExceeded = false;
+  let droppedNamelessFile = false;
 
   const busboy = Busboy({
     headers: req.headers,
@@ -35,6 +38,15 @@ export function parseGalleryMultipart(
   });
 
   busboy.on('field', (name, val) => {
+    if (name === 'photoFiles' && val.length > 0) {
+      // A photoFiles part carrying bytes but no filename header is parsed by
+      // busboy as a form field (not a file event), which would otherwise drop
+      // the upload silently. Flag it so the controller surfaces an explicit
+      // error. The normal "no file chosen" submit sends an empty value here
+      // and is ignored.
+      droppedNamelessFile = true;
+      return;
+    }
     fields[name] = val;
   });
 
@@ -61,7 +73,7 @@ export function parseGalleryMultipart(
     });
   });
 
-  busboy.on('finish', () => onDone({ fields, photoFiles, limitExceeded }));
+  busboy.on('finish', () => onDone({ fields, photoFiles, limitExceeded, droppedNamelessFile }));
   busboy.on('error', onError);
 
   req.pipe(busboy);

@@ -194,6 +194,16 @@ describe('GET /media/browse — results mode', () => {
     expect(res.text).not.toContain('photo-removed-marker');
   });
 
+  it('hides the filter form and shows a back-to-browse link in results mode', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/browse?tag=butterfly');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="curator-edit-form"');
+    expect(res.text).not.toContain('name="exclude"');
+    expect(res.text).toContain('href="/media/browse"');
+    expect(res.text).toContain('Browse all media');
+  });
+
   it('AND-matches multiple ?tag= criteria (repeated arg form)', async () => {
     const app = createApp();
     const res = await request(app).get('/media/browse?tag=butterfly&tag=spike');

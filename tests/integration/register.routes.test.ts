@@ -648,6 +648,11 @@ describe('POST /register — verify-email enqueue failure', () => {
     ).get(member?.id ?? '') as
       | { action_type: string; category: string; actor_type: string; entity_id: string }
       | undefined;
+    const registerAudit = db.prepare(
+      `SELECT action_type FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'auth.register'
+         ORDER BY created_at DESC LIMIT 1`,
+    ).get(member?.id ?? '') as { action_type: string } | undefined;
     const outboxRows = db.prepare(
       `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
     ).all(targetEmail) as Array<{ id: string }>;
@@ -665,6 +670,10 @@ describe('POST /register — verify-email enqueue failure', () => {
     expect(auditRow!.category).toBe('auth');
     expect(auditRow!.actor_type).toBe('system');
     expect(auditRow!.entity_id).toBe(member!.id);
+
+    // The canonical auth.register row is written before the verify-email enqueue,
+    // so the registration stays auditable even when the notification path fails.
+    expect(registerAudit).toBeDefined();
 
     // The strict helper threw before any outbox row was committed.
     expect(outboxRows).toHaveLength(0);

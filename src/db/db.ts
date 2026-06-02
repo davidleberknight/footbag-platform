@@ -4716,7 +4716,7 @@ export const media = {
   get updateMemberMediaCaption() { return db.prepare(`
     UPDATE media_items
     SET caption = ?, updated_at = ?, updated_by = 'member-self', version = version + 1
-    WHERE id = ?
+    WHERE id = ? AND uploader_member_id = ?
   `); },
 
   // Tag-filtered curator media list. Joins through media_tags + tags to
@@ -4799,7 +4799,7 @@ export const media = {
   get setMediaItemExternalUrl() { return db.prepare(`
     UPDATE media_items
        SET external_url = ?, external_url_validated_at = ?
-     WHERE id = ?
+     WHERE id = ? AND uploader_member_id = ?
   `); },
 
   get countCuratorMediaByTag() { return db.prepare(`

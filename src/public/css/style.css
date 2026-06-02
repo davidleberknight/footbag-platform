@@ -1054,6 +1054,7 @@ section.home-media { padding-top: 0; }
 .gallery-tile > .video-facade-iframe,
 .gallery-tile > .video-facade-video {
   aspect-ratio: 1 / 1;
+  height: auto;
   border-radius: 0;
   box-shadow: none;
   object-fit: contain;
@@ -1954,6 +1955,51 @@ section.home-media { padding-top: 0; }
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+/* Stacked-label form primitives: media browse, curator + member gallery
+   forms, and profile edit all share this label/help/field structure. */
+.curator-edit-form { max-width: 640px; }
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 18px;
+}
+.form-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.form-help {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.form-row > input[type="text"],
+.form-row > input[type="url"],
+.form-row > input[type="file"],
+.form-row > textarea,
+.form-row > select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+}
+.form-row > textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+.form-row > input:focus,
+.form-row > textarea:focus,
+.form-row > select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(27,179,107,0.12);
 }
 
 .form-error-banner {

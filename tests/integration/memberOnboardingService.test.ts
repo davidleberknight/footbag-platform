@@ -31,6 +31,9 @@ const MEMBER_LAZY        = 'member-onb-lazy';
 const MEMBER_COMPLETE    = 'member-onb-complete';
 const MEMBER_CYCLE       = 'member-onb-cycle';
 const MEMBER_BAD_TYPE    = 'member-onb-bad-type';
+const MEMBER_NEXT_PENDING = 'member-onb-next-pending';
+const MEMBER_NEXT_PAUSED  = 'member-onb-next-paused';
+const MEMBER_NEXT_NONE    = 'member-onb-next-none';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -38,6 +41,7 @@ beforeAll(async () => {
     MEMBER_NO_TASKS, MEMBER_LIST, MEMBER_NO_AUDIT, MEMBER_SKIP,
     MEMBER_SKIP_AUDIT, MEMBER_LAZY, MEMBER_COMPLETE, MEMBER_CYCLE,
     MEMBER_BAD_TYPE,
+    MEMBER_NEXT_PENDING, MEMBER_NEXT_PAUSED, MEMBER_NEXT_NONE,
   ]) {
     insertMember(db, { id, slug: id.replace(/-/g, '_'), login_email: `${id}@example.com` });
   }
@@ -252,5 +256,26 @@ describe('memberOnboardingService transition validation', () => {
   it('completeTask throws ValidationError for an unknown task type', () => {
     expect(() => svc.completeTask(MEMBER_BAD_TYPE, 'bogus' as never))
       .toThrow(ValidationError);
+  });
+});
+
+describe('memberOnboardingService.nextOutstandingTaskType', () => {
+  it('returns the lowest-index pending task for a fresh task list', () => {
+    svc.startTaskList(MEMBER_NEXT_PENDING);
+    expect(svc.nextOutstandingTaskType(MEMBER_NEXT_PENDING)).toBe(TASK_CATALOG[0]);
+  });
+
+  it('falls back to the lowest-index paused task when none are pending', () => {
+    svc.startTaskList(MEMBER_NEXT_PAUSED);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(
+      `UPDATE member_onboarding_tasks SET state = 'in_progress_paused' WHERE member_id = ?`,
+    ).run(MEMBER_NEXT_PAUSED);
+    db.close();
+    expect(svc.nextOutstandingTaskType(MEMBER_NEXT_PAUSED)).toBe(TASK_CATALOG[0]);
+  });
+
+  it('returns null when the member has no outstanding tasks', () => {
+    expect(svc.nextOutstandingTaskType(MEMBER_NEXT_NONE)).toBeNull();
   });
 });

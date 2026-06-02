@@ -657,8 +657,10 @@ async function registerMember(
 
   applyDevStagingBootstrapAdmin({ memberId: id, normalizedEmail, now }); // CUTOVER-REMOVE
 
-  await issueAndEnqueueVerifyEmail(id, trimmedEmail);
-
+  // Record the canonical registration audit before the verify-email enqueue.
+  // The member row is already committed; enqueue failure re-throws (recording
+  // auth.register_notification_failed), so writing auth.register first keeps the
+  // registration itself auditable even when the notification path degrades.
   appendAuditEntry({
     actionType: 'auth.register',
     category: 'auth',
@@ -667,6 +669,8 @@ async function registerMember(
     entityType: 'member',
     entityId: id,
   });
+
+  await issueAndEnqueueVerifyEmail(id, trimmedEmail);
 
   return { status: 'registered' };
 }
@@ -713,19 +717,25 @@ export interface VerifyEmailResult {
 }
 
 async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: string): Promise<void> {
-  const { rawToken, tokenRowId } = accountTokenService.issueToken({
-    memberId,
-    tokenType: 'email_verify',
-    ttlHours: 24,
-  });
-  const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-  const verifyUrl = `${baseUrl}/verify/${rawToken}`;
+  // Token issuance is inside the try so a token-store failure (e.g. SQLITE_BUSY)
+  // is audited and re-thrown on the same path as an enqueue failure. resendVerifyEmail
+  // swallows the re-throw for anti-enumeration, so an un-audited token-store error here
+  // would otherwise vanish silently.
+  let tokenRowId: string | undefined;
   try {
+    const issued = accountTokenService.issueToken({
+      memberId,
+      tokenType: 'email_verify',
+      ttlHours: 24,
+    });
+    tokenRowId = issued.tokenRowId;
+    const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+    const verifyUrl = `${baseUrl}/verify/${issued.rawToken}`;
     getCommunicationService().enqueueEmailOrFail({
       // tokenRowId is the natural single-use key: re-issuing on a worker
       // restart between SES-send and outbox-mark-sent collapses to the same
       // outbox row instead of double-delivering.
-      idempotencyKey: `verify:${tokenRowId}`,
+      idempotencyKey: `verify:${issued.tokenRowId}`,
       recipientEmail,
       recipientMemberId: memberId,
       subject: 'Verify your IFPA Footbag account',
@@ -745,9 +755,9 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
       category: 'auth',
       entityType: 'member',
       entityId: memberId,
-      reasonText: 'Member row committed but verify-email enqueue failed.',
+      reasonText: 'Member row committed but verify-email token issuance or enqueue failed.',
       cause: err,
-      metadata: { tokenRowId },
+      metadata: { tokenRowId: tokenRowId ?? null },
     });
     throw err;
   }
@@ -1211,7 +1221,14 @@ async function resendVerifyEmail(email: string): Promise<void> {
     | { id: string }
     | undefined;
   if (!row) return;
-  await issueAndEnqueueVerifyEmail(row.id, email.trim());
+  try {
+    await issueAndEnqueueVerifyEmail(row.id, email.trim());
+  } catch {
+    // Anti-enumeration: registered-but-unverified and unknown emails must return
+    // identical UX. issueAndEnqueueVerifyEmail already recorded
+    // auth.register_notification_failed (operator alarm preserved); swallow here
+    // so the route returns 200 in both branches, matching requestPasswordReset.
+  }
 }
 
 // ── Legacy account claim flow (three-table design) ──────────────────────────
@@ -2402,40 +2419,51 @@ async function completePasswordReset(
     throw new ValidationError('Passwords do not match.');
   }
 
-  const consumed = accountTokenService.consumeToken(rawToken, 'password_reset');
-  if (!consumed) {
-    throw new ValidationError('This reset link is invalid, expired, or already used.');
-  }
-
-  const member = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
-    | { id: string; slug: string | null; login_email: string | null; password_version: number; is_admin: number }
-    | undefined;
-  if (!member) {
-    throw new ValidationError('This reset link is invalid, expired, or already used.');
-  }
-
+  // Hash before consuming the token: argon2 (~200ms) is async and must run
+  // outside the transaction (no await inside a better-sqlite3 transaction), and
+  // hashing first means an interrupted hash never burns the single-use token.
   const newHash = await hashPassword(newPassword);
   const now = new Date().toISOString();
-  auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
 
-  // Re-read password_version post-UPDATE rather than computing
-  // `member.password_version + 1` from the pre-UPDATE snapshot. The
-  // computed value happens to be correct under the current sync UPDATE
-  // (the only writer of password_version, atomic +1), but the pattern
-  // is fragile to any future refactor that interleaves writes; reading
-  // the live value removes the trap.
-  const after = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
-    | { password_version: number }
-    | undefined;
-  const newPasswordVersion = after?.password_version ?? member.password_version + 1;
+  // Consume the token and write the new password in one transaction. A crash
+  // between consume and update would otherwise burn the single-use token
+  // without changing the password, locking the member out of the reset.
+  const { consumed, member, newPasswordVersion } = transaction(() => {
+    const consumed = accountTokenService.consumeToken(rawToken, 'password_reset');
+    if (!consumed) {
+      throw new ValidationError('This reset link is invalid, expired, or already used.');
+    }
 
-  appendAuditEntry({
-    actionType: 'auth.password_reset',
-    category: 'auth',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'member',
-    entityId: consumed.memberId,
+    const member = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
+      | { id: string; slug: string | null; login_email: string | null; password_version: number; is_admin: number }
+      | undefined;
+    if (!member) {
+      throw new ValidationError('This reset link is invalid, expired, or already used.');
+    }
+
+    auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
+
+    // Re-read password_version post-UPDATE rather than computing
+    // `member.password_version + 1` from the pre-UPDATE snapshot. The
+    // computed value happens to be correct under the current sync UPDATE
+    // (the only writer of password_version, atomic +1), but the pattern
+    // is fragile to any future refactor that interleaves writes; reading
+    // the live value removes the trap.
+    const after = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
+      | { password_version: number }
+      | undefined;
+    const newPasswordVersion = after?.password_version ?? member.password_version + 1;
+
+    appendAuditEntry({
+      actionType: 'auth.password_reset',
+      category: 'auth',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: consumed.memberId,
+    });
+
+    return { consumed, member, newPasswordVersion };
   });
 
   // Confirmation email. Use the strict enqueue + operational-error pattern

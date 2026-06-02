@@ -266,6 +266,45 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
     expect(first.status).toBe(303);
     expect(second.status).toBe(303);
   });
+
+  it('writes an update_curated_gallery audit row scoped to the admin actor', async () => {
+    const app = createApp();
+    const create = await request(app)
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'audit_update_target',
+        name: 'Audit Update Target',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(create.status).toBe(303);
+    const edit = await request(app)
+      .post('/admin/curator/galleries/gallery_audit_update_target/edit')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Audit Update Target',
+        description: 'changed',
+        sortOrder: 'caption_asc',
+        criteriaTags: '#freestyle #curated',
+        excludeTags: '',
+      });
+    expect(edit.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const audit = db.prepare(
+      `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
+       WHERE entity_id = ? AND action_type = 'update_curated_gallery'`,
+    ).get('gallery_audit_update_target') as Record<string, unknown> | undefined;
+    db.close();
+    expect(audit).toBeDefined();
+    expect(audit!.actor_type).toBe('admin');
+    expect(audit!.actor_member_id).toBe(ADMIN_ID);
+    expect(audit!.entity_type).toBe('gallery');
+  });
 });
 
 describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
@@ -577,6 +616,32 @@ describe('POST /admin/curator/galleries (create)', () => {
       .send({ idSlug: 'member_attempt', name: 'X', sortOrder: 'upload_desc', criteriaTags: '#x' });
     expect(res.status).toBe(403);
   });
+
+  it('writes a create_curated_gallery audit row scoped to the admin actor', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'audit_create_target',
+        name: 'Audit Create Target',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const audit = db.prepare(
+      `SELECT actor_type, actor_member_id, entity_type FROM audit_entries
+       WHERE entity_id = ? AND action_type = 'create_curated_gallery'`,
+    ).get('gallery_audit_create_target') as Record<string, unknown> | undefined;
+    db.close();
+    expect(audit).toBeDefined();
+    expect(audit!.actor_type).toBe('admin');
+    expect(audit!.actor_member_id).toBe(ADMIN_ID);
+    expect(audit!.entity_type).toBe('gallery');
+  });
 });
 
 describe('POST /admin/curator/galleries/:id/delete', () => {
@@ -638,5 +703,56 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
       .post(`/admin/curator/galleries/${GALLERY_A}/delete`)
       .set('Cookie', memberCookie());
     expect(res.status).toBe(403);
+  });
+});
+
+// Kept last: this block tunes curator_write_rate_limit_per_hour via system_config,
+// a latest-effective value that would otherwise throttle gallery POSTs in any
+// subsequent describe.
+describe('POST /admin/curator/galleries — curator write rate limit', () => {
+  it('admin exceeding the curator-write limit -> 429 with Retry-After', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'curator_write_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-gallery-write-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    tuneDb.close();
+    try {
+      const app = createApp();
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post('/admin/curator/galleries')
+          .set('Cookie', adminCookie())
+          .type('form')
+          .send({
+            idSlug: `rate_limit_pass_${i}`,
+            name: `Rate Limit Pass ${i}`,
+            description: '',
+            sortOrder: 'upload_desc',
+            criteriaTags: '#freestyle',
+            excludeTags: '',
+          });
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post('/admin/curator/galleries')
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({
+          idSlug: 'rate_limit_blocked',
+          name: 'Rate Limit Blocked',
+          description: '',
+          sortOrder: 'upload_desc',
+          criteriaTags: '#freestyle',
+          excludeTags: '',
+        });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
   });
 });

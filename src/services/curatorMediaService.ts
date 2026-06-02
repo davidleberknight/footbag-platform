@@ -1097,7 +1097,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             recordedSourceFilename,
           );
           if (normalizedExternalUrl !== null) {
-            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
           }
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
@@ -1214,7 +1214,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             recordedSourceFilename,
           );
           if (normalizedExternalUrl !== null) {
-            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
           }
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
@@ -1434,6 +1434,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // Audit-only side effect (no DB row written here). The seeder is
       // the only path that writes media_items; running the seeder after
       // a sidecar write surfaces the new entry in the platform DB.
+      // The sidecar file write above and this audit append are intentionally
+      // not atomic: the sidecar is the source of truth and the seeder
+      // reconstitutes the DB row, so a failed audit append after the sidecar
+      // is written is tolerated (a transaction could not span the file write
+      // anyway, and a lone insert needs none).
       appendAuditEntry({
         actionType: 'upload_curated_url_reference',
         category: 'media',
@@ -1566,7 +1571,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           newTagIds = applyTagsForCurator(input.mediaId, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
+          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, row.uploader_member_id);
         }
         appendAuditEntry({
           actionType: auditActionType,
@@ -1906,7 +1911,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // next save, while a rollback after a successful DB write would
     // corrupt the user's apparent edit. Throws ValidationError on
     // bad input or unauthorized actor; NotFoundError on unknown
-    // gallery.
+    // gallery. Writes an `update_curated_gallery` / `update_member_gallery`
+    // audit row inside the same transaction as the write.
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
       assertTier1Benefits(actorMemberId);
@@ -1960,6 +1966,21 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
         rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
         rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
+        appendAuditEntry({
+          actionType: existing.is_system === 1
+            ? 'update_curated_gallery'
+            : 'update_member_gallery',
+          category: 'media',
+          actorType: actorIsAdmin ? 'admin' : 'member',
+          actorMemberId,
+          entityType: 'gallery',
+          entityId: galleryId,
+          metadata: {
+            galleryId,
+            ownerMemberId: existing.owner_member_id,
+            isSystem: existing.is_system === 1,
+          },
+        });
       });
 
       if (existing.is_system === 1) {
@@ -1984,7 +2005,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // suggestedId required) or member-owned (owner === actor, id auto-
     // generated). For FH-owned, writes the JSON sidecar after commit.
     // Throws ValidationError on bad input or unauthorized actor;
-    // ConflictError when UNIQUE(owner, name) is already taken.
+    // ConflictError when UNIQUE(owner, name) is already taken. Writes a
+    // `create_curated_gallery` / `create_member_gallery` audit row inside
+    // the same transaction as the insert.
     async createGallery(
       input: CuratorGalleryCreateInput,
     ): Promise<CuratorGalleryCreateResult> {
@@ -2066,6 +2089,21 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             );
             rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
             rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
+            appendAuditEntry({
+              actionType: isFhOwned
+                ? 'create_curated_gallery'
+                : 'create_member_gallery',
+              category: 'media',
+              actorType: actorIsAdmin ? 'admin' : 'member',
+              actorMemberId,
+              entityType: 'gallery',
+              entityId: galleryId,
+              metadata: {
+                galleryId,
+                ownerMemberId,
+                isSystem: isFhOwned,
+              },
+            });
           });
           break;
         } catch (err) {
@@ -2245,7 +2283,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             input.sourceFilename,
           );
           if (normalizedExternalUrl !== null) {
-            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, input.memberId);
           }
           appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
           ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
@@ -2333,14 +2371,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       transaction(() => {
         if (input.caption !== undefined) {
-          media.updateMemberMediaCaption.run(input.caption, now, input.mediaId);
+          media.updateMemberMediaCaption.run(input.caption, now, input.mediaId, input.memberId);
         }
         if (dedupedTags !== undefined) {
           mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
           newTagIds = applyTagsForMember(input.mediaId, input.slug, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
+          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, input.memberId);
         }
         appendAuditEntry({
           actionType: 'edit_member_media',
@@ -2431,7 +2469,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           input.videoPlatform, videoId, input.videoUrl, thumbnailUrl,
         );
         if (normalizedExternalUrl !== null) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, input.memberId);
         }
         appliedTagIds = applyTagsForMember(mediaId, input.slug, input.tags, now);
         ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
