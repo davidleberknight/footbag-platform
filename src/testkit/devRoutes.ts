@@ -14,8 +14,10 @@
 import { Router } from 'express';
 import { getDevSwitch } from './personaSwitchRoute';
 import { getDevPersonas } from './personaListingRoute';
+import { postDevPersonasRefresh } from './personaRefreshRoute';
 
 export const devRouter = Router();
 
 devRouter.get('/switch', getDevSwitch);
 devRouter.get('/personas', getDevPersonas);
+devRouter.post('/personas/refresh', postDevPersonasRefresh);

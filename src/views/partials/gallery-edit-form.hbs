@@ -27,56 +27,56 @@
   CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
   session cookies + POST-only state changes; no synchronizer tokens.
 --}}
-<form method="POST" action="{{formAction}}" class="curator-edit-form"
+<form method="POST" action="{{formAction}}" class="form-block"
       enctype="multipart/form-data">
   {{#if errorMessage}}
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
-  <label class="form-row">
-    <span class="form-label">Name</span>
-    <input type="text" name="name" value="{{gallery.name}}" maxlength="150" required>
+  <div class="form-field">
+    <label for="gallery-name">Name</label>
+    <input type="text" id="gallery-name" name="name" value="{{gallery.name}}" maxlength="150" required>
     {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
-  </label>
+  </div>
 
-  <label class="form-row">
-    <span class="form-label">Description</span>
-    <textarea name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+  <div class="form-field">
+    <label for="gallery-description">Description</label>
+    <textarea id="gallery-description" name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
     {{#if fieldErrors.description}}<small class="form-field-error" role="alert">{{fieldErrors.description}}</small>{{/if}}
-  </label>
+  </div>
 
-  <label class="form-row">
-    <span class="form-label">Sort order</span>
-    <select name="sortOrder">
+  <div class="form-field">
+    <label for="gallery-sort-order">Sort order</label>
+    <select id="gallery-sort-order" name="sortOrder">
       <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
       <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
       <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
     </select>
     {{#if fieldErrors.sortOrder}}<small class="form-field-error" role="alert">{{fieldErrors.sortOrder}}</small>{{/if}}
-  </label>
+  </div>
 
-  <label class="form-row">
-    <span class="form-label">Criteria tags</span>
-    <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
+  <div class="form-field">
+    <label for="gallery-criteria-tags">Criteria tags</label>
+    <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
     {{#if isCreate}}
-      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
+      <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
     {{else}}
-      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Tags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
+      <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Tags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
     {{/if}}
     {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
-  </label>
+  </div>
 
-  <label class="form-row">
-    <span class="form-label">Exclude tags</span>
-    <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
-    <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
+  <div class="form-field">
+    <label for="gallery-exclude-tags">Exclude tags</label>
+    <textarea id="gallery-exclude-tags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
+    <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
     {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
-  </label>
+  </div>
 
   {{#if externalLinkSlots.length}}
-    <fieldset class="form-row gallery-external-links">
-      <legend class="form-label">External links (optional)</legend>
-      <small class="form-help">
+    <fieldset class="form-fieldset gallery-external-links">
+      <legend>External links (optional)</legend>
+      <small class="form-hint">
         Per-gallery off-platform links (e.g. an external album, sponsor page,
         or event website). URLs are validated for scheme, SSRF safety, Safe
         Browsing reputation, and reachability. Leave blank to omit.
@@ -115,16 +115,16 @@
     {{/if}}
   {{/unless}}
 
-  <fieldset class="form-row">
-    <legend class="form-label">Upload files now (optional)</legend>
+  <fieldset class="form-fieldset">
+    <legend>Upload files now (optional)</legend>
     <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple>
-    <small class="form-help">
+    <small class="form-hint">
       JPEG or PNG, up to 25 MB each, max 3 files.
     </small>
-    <label class="form-sublabel">
-      <span class="form-label">Extra tags for these uploads (optional)</span>
-      <textarea name="uploadTags" rows="2" placeholder="#extra #optional">{{uploadTags}}</textarea>
-      <small class="form-help">
+    <div class="form-field">
+      <label for="gallery-upload-tags">Extra tags for these uploads (optional)</label>
+      <textarea id="gallery-upload-tags" name="uploadTags" rows="2" placeholder="#extra #optional">{{uploadTags}}</textarea>
+      <small class="form-hint">
         Files uploaded here are automatically tagged with this gallery's
         criteria tags{{#unless isFhOwned}} plus your <code>#by_</code> uploader
         marker{{/unless}}, so they appear in this gallery. Use this box only
@@ -133,7 +133,7 @@
           Curated uploads also receive <code>#curated</code> automatically.
         {{/if}}
       </small>
-    </label>
+    </div>
   </fieldset>
 
   <div class="form-actions">

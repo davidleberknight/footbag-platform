@@ -6,38 +6,19 @@ Use this file for quick orientation and document routing.
 
 ## Current-state rule
 
-For non-trivial work, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`. The plan is active during normal repo work and governs the current slice.
-
-See `IMPLEMENTATION_PLAN.md` active-slice block for the current implementation focus.
-
-`docs/USER_STORIES.md` is the functional source of truth.
-
 Current code is the source of truth for implemented behavior.
-Auto memory is not authoritative for current slice status; use the plan for that.
 
 ## Fast routing
 - Use this file for contextual refresh and document routing only.
-- **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first, then targeted sections of `docs/DESIGN_DECISIONS.md`.
+- **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
 - For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
 - For required service-layer ownership and patterns, load `docs/SERVICE_CATALOG.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
-- For rationale, trade-offs, and long-term design commitments, load `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
+- For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
-
-## Current implemented baseline
-
-For current routes and implementation state, see `IMPLEMENTATION_PLAN.md`.
-
-Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE.md` for ops details.
-
-## Current operating model
-
-- Home (`/`) is the landing-page composition exception in the public architecture.
-- Public event identity is exact and underscore-based: `event_{year}_{event_slug}` / `#event_{year}_{event_slug}`.
-- Historical persons in imported results are public Sensitivity 1 record identities, not current member accounts, not searchable profiles. See `docs/DATA_GOVERNANCE.md §4`.
-
+- Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE.md` for ops details.
 
 ## Project identity
 

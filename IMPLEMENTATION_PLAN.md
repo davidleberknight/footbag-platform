@@ -10,10 +10,6 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-### Form vocabulary: media forms on `.form-row`, not canonical `.form-field` (fix asap)
-
-VC §4.3 names `.form-field` / `.form-hint` / `.form-fieldset` as the one canonical form vocabulary. Four media/gallery forms still use the transitional `.form-row` / `.form-label` / `.form-help` / `.curator-edit-form` set: `src/views/media/browse.hbs`, `src/views/members/media/upload.hbs`, `src/views/partials/gallery-edit-form.hbs`, `src/views/admin/curator/galleries/new.hbs`. Remediate asap: migrate the four onto `.form-field`, then delete the `.form-row` / `.form-label` / `.form-help` / `.curator-edit-form` rules from `src/public/css/style.css`. Follow-up: add a class-existence check to `scripts/ci/assert_conventions.sh` (validate only fully-static class tokens; skip Handlebars-interpolated / BEM-modifier tokens) so undefined-class drift is caught mechanically.
-
 ### DOB as auto-link matching signal (F12)
 
 The `classifyAutoLink` function now uses DOB as a disambiguation signal when multiple name candidates match, but the feature is inert until legacy DOB data populates `legacy_members.birth_date` via the legacy data dump.

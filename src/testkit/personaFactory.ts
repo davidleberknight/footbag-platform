@@ -62,6 +62,7 @@ export const PERSONA_SEED_REASON_TEXT =
   'TEST PERSONA HARNESS. Not a real tier purchase. Remove before any production deploy.';
 export const PERSONA_SEED_AUDIT_ACTION_TYPE = 'dev_persona_seed';
 export const PERSONA_SWITCH_AUDIT_ACTION_TYPE = 'dev_switch_persona';
+export const PERSONA_REFRESH_AUDIT_ACTION_TYPE = 'dev_persona_refresh';
 export const PERSONA_SEED_CREATED_BY = 'dev-shortcuts/personas';
 
 export type PersonaTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
@@ -76,7 +77,7 @@ export type PersonaAutoLinkConfidence = 'high' | 'medium' | 'low';
  * classification is asserted against the real classifier in the coverage test,
  * which fails the build if this drifts from the service normalizer.
  */
-function normalizeNameForVariant(s: string): string {
+export function normalizeNameForVariant(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')

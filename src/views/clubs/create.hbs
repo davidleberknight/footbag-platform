@@ -32,7 +32,7 @@
           required
         />
         {{#if fieldErrors.name}}
-          <p class="form-error" role="alert">{{fieldErrors.name}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.name}}</p>
         {{/if}}
       </div>
 
@@ -45,7 +45,7 @@
           rows="3"
         >{{club.description}}</textarea>
         {{#if fieldErrors.description}}
-          <p class="form-error" role="alert">{{fieldErrors.description}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.description}}</p>
         {{/if}}
       </div>
 
@@ -59,7 +59,7 @@
           required
         />
         {{#if fieldErrors.city}}
-          <p class="form-error" role="alert">{{fieldErrors.city}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.city}}</p>
         {{/if}}
       </div>
 
@@ -72,7 +72,7 @@
           value="{{club.region}}"
         />
         {{#if fieldErrors.region}}
-          <p class="form-error" role="alert">{{fieldErrors.region}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.region}}</p>
         {{/if}}
       </div>
 
@@ -86,7 +86,7 @@
           required
         />
         {{#if fieldErrors.country}}
-          <p class="form-error" role="alert">{{fieldErrors.country}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.country}}</p>
         {{/if}}
       </div>
 
@@ -99,7 +99,7 @@
           value="{{club.contactEmail}}"
         />
         {{#if fieldErrors.contactEmail}}
-          <p class="form-error" role="alert">{{fieldErrors.contactEmail}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.contactEmail}}</p>
         {{/if}}
       </div>
 
@@ -114,7 +114,7 @@
         />
         <small class="form-hint">At least one contact method (email or WhatsApp) is recommended. Clubs without any contact method will be flagged for admin review.</small>
         {{#if fieldErrors.whatsapp}}
-          <p class="form-error" role="alert">{{fieldErrors.whatsapp}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.whatsapp}}</p>
         {{/if}}
       </div>
 
@@ -132,7 +132,7 @@
         </div>
         <small class="form-hint">Your club's permanent hashtag. Leave blank to default from city name.</small>
         {{#if fieldErrors.slug}}
-          <p class="form-error" role="alert">{{fieldErrors.slug}}</p>
+          <p class="form-field-error" role="alert">{{fieldErrors.slug}}</p>
         {{/if}}
       </div>
 

@@ -162,6 +162,42 @@ if [ -n "$missing" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: every static form-* class token in a template has a defining rule in
+# src/public/css/style.css.
+# Reason: VC §4.3 mandates one canonical form vocabulary and §4.4 makes it a
+# hard rule that no template uses an undefined CSS class. An undefined form-*
+# class renders unstyled in production while route tests still pass. This gate
+# scans class="..." attributes for tokens beginning with `form-`, skipping
+# Handlebars-interpolated tokens (containing `{` or `}`) and BEM modifier
+# tokens (containing `--`), and fails on any token style.css does not define.
+echo "[conventions] check: undefined form-* classes in src/views/**"
+form_defined_file="$(mktemp)"
+grep -oE '\.form-[a-zA-Z0-9_-]+' src/public/css/style.css | sed 's/^\.//' | sort -u > "$form_defined_file"
+form_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
+  | awk -v deffile="$form_defined_file" '
+      BEGIN { while ((getline c < deffile) > 0) defined[c] = 1 }
+      {
+        p = index($0, "class=\"")
+        if (p == 0) next
+        loc = substr($0, 1, p - 1)
+        rest = substr($0, p + 7)
+        q = index(rest, "\"")
+        attr = substr(rest, 1, q - 1)
+        n = split(attr, toks, /[ \t]+/)
+        for (i = 1; i <= n; i++) {
+          t = toks[i]
+          if (t ~ /^form-/ && t !~ /[{}]/ && t !~ /--/ && !(t in defined))
+            print loc t
+        }
+      }
+  ' || true)
+rm -f "$form_defined_file"
+if [ -n "$form_class_hits" ]; then
+  echo "$form_class_hits" >&2
+  echo "  FAIL: template uses a form-* class with no rule in src/public/css/style.css; define it and document in VC §4.3" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

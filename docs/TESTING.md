@@ -797,6 +797,7 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, se
 - A curated persona catalog (`src/testkit/canonicalPersonas.ts`) plus an optional per-developer extension (`.local/test-personas.json`), seeded into the dev or staging database.
 - `GET /dev/personas`, a table of every loadable persona (slug, tier, role, coverage notes, source) with a Switch control.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
+- A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
 - The simulated-email card, captured outbound email rendered inline on email-gated pages when `SES_ADAPTER=stub`.
 - The stub payment adapter, a checkout pass-through (Confirm, Cancel, Decline) that drives the full purchase flow through the real webhook verifier with no Stripe dependency.
 
@@ -845,7 +846,7 @@ The per-developer extension is a gitignored JSON array of `PersonaSpec` objects 
 ]
 ```
 
-`src/testkit/personaSchemaValidator.ts` validates every entry before any DB write; a malformed entry fails loudly, naming the slug and the offending field, so a typo never surfaces as an opaque constraint error. Re-run the seed to pick up edits; `/dev/personas` then shows exactly what was loaded. The full `PersonaSpec` surface is documented in `src/testkit/personaFactory.ts`; live examples are in `canonicalPersonas.ts`.
+`src/testkit/personaSchemaValidator.ts` validates every entry before any DB write; a malformed entry fails loudly, naming the slug and the offending field, so a typo never surfaces as an opaque constraint error. To pick up edits, use the **Refresh all personas** control on `/dev/personas` (re-running the seed alone skips any slug that already exists); `/dev/personas` then shows exactly what was loaded. The full `PersonaSpec` surface is documented in `src/testkit/personaFactory.ts`; live examples are in `canonicalPersonas.ts`.
 
 ### 16.7 Staging loop
 

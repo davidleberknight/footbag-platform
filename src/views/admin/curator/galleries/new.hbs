@@ -10,54 +10,54 @@
     <code>/curated/galleries/&lt;slug&gt;.json</code>.
   </p>
 
-  <form method="POST" action="{{formAction}}" class="curator-edit-form">
+  <form method="POST" action="{{formAction}}" class="form-block">
     {{#if errorMessage}}
       <div class="form-error-banner" role="alert">{{errorMessage}}</div>
     {{/if}}
 
-    <label class="form-row">
-      <span class="form-label">Gallery ID</span>
+    <div class="form-field">
+      <label for="idSlug">Gallery ID</label>
       <span class="form-input-with-prefix">
         <span class="form-input-prefix"><code>gallery_</code></span>
-        <input type="text" name="idSlug" value="{{gallery.idSlug}}" pattern="[a-z0-9_]+" required>
+        <input type="text" id="idSlug" name="idSlug" value="{{gallery.idSlug}}" pattern="[a-z0-9_]+" required>
       </span>
-      <small class="form-help">
+      <small class="form-hint">
         Lowercase letters, digits, and underscores. The <code>gallery_</code> prefix is added
         automatically. Example slug: <code>curated_freestyle_tricks</code> &rarr; final id
         <code>gallery_curated_freestyle_tricks</code>.
       </small>
-    </label>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Name</span>
-      <input type="text" name="name" value="{{gallery.name}}" maxlength="150" required>
-    </label>
+    <div class="form-field">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" value="{{gallery.name}}" maxlength="150" required>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Description</span>
-      <textarea name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
-    </label>
+    <div class="form-field">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Sort order</span>
-      <select name="sortOrder">
+    <div class="form-field">
+      <label for="sortOrder">Sort order</label>
+      <select id="sortOrder" name="sortOrder">
         <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
         <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
         <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
       </select>
-    </label>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Criteria tags</span>
-      <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
-      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
-    </label>
+    <div class="form-field">
+      <label for="criteriaTags">Criteria tags</label>
+      <textarea id="criteriaTags" name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
+      <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Exclude tags</span>
-      <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
-      <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
-    </label>
+    <div class="form-field">
+      <label for="excludeTags">Exclude tags</label>
+      <textarea id="excludeTags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
+      <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
+    </div>
 
     <div class="form-actions">
       <button type="submit">Create gallery</button>

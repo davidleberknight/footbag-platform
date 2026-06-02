@@ -198,7 +198,7 @@ describe('GET /media/browse — results mode', () => {
     const app = createApp();
     const res = await request(app).get('/media/browse?tag=butterfly');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="curator-edit-form"');
+    expect(res.text).not.toContain('class="form-block"');
     expect(res.text).not.toContain('name="exclude"');
     expect(res.text).toContain('href="/media/browse"');
     expect(res.text).toContain('Browse all media');

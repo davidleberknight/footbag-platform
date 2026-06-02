@@ -18,18 +18,18 @@
   {{/if}}
 
   {{#unless (eq content.mode "results")}}
-  <form method="GET" action="/media/browse" class="curator-edit-form">
-    <label class="form-row">
-      <span class="form-label">Include tags</span>
-      <input type="text" name="tag" value="{{content.formIncludeText}}" data-tag-chips>
-      <small class="form-help">Show only media tagged with all of these. Separate tags with spaces; the leading <code>#</code> is optional.</small>
-    </label>
+  <form method="GET" action="/media/browse" class="form-block">
+    <div class="form-field">
+      <label for="browse-include-tags">Include tags</label>
+      <input type="text" id="browse-include-tags" name="tag" value="{{content.formIncludeText}}" data-tag-chips>
+      <small class="form-hint">Show only media tagged with all of these. Separate tags with spaces; the leading <code>#</code> is optional.</small>
+    </div>
 
-    <label class="form-row">
-      <span class="form-label">Exclude tags</span>
-      <input type="text" name="exclude" value="{{content.formExcludeText}}" data-tag-chips>
-      <small class="form-help">Hide media tagged with any of these. Optional.</small>
-    </label>
+    <div class="form-field">
+      <label for="browse-exclude-tags">Exclude tags</label>
+      <input type="text" id="browse-exclude-tags" name="exclude" value="{{content.formExcludeText}}" data-tag-chips>
+      <small class="form-hint">Hide media tagged with any of these. Optional.</small>
+    </div>
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Browse</button>

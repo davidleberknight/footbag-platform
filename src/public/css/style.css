@@ -1921,6 +1921,8 @@ section.home-media { padding-top: 0; }
 .form-field input[type="email"],
 .form-field input[type="password"],
 .form-field input[type="tel"],
+.form-field input[type="number"],
+.form-field input[type="url"],
 .form-field textarea,
 .form-field select {
   width: 100%;
@@ -1947,6 +1949,22 @@ section.home-media { padding-top: 0; }
 .form-field select {
   appearance: auto;
 }
+.form-sublabel {
+  display: block;
+  font-weight: 500;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+.form-field-warning {
+  color: #92400e;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
 
 .form-actions {
   display: flex;
@@ -1955,51 +1973,6 @@ section.home-media { padding-top: 0; }
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
-}
-
-/* Stacked-label form primitives: media browse, curator + member gallery
-   forms, and profile edit all share this label/help/field structure. */
-.curator-edit-form { max-width: 640px; }
-.form-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 0 18px;
-}
-.form-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text);
-}
-.form-help {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-.form-row > input[type="text"],
-.form-row > input[type="url"],
-.form-row > input[type="file"],
-.form-row > textarea,
-.form-row > select {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 0.95rem;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--bg);
-}
-.form-row > textarea {
-  resize: vertical;
-  min-height: 64px;
-}
-.form-row > input:focus,
-.form-row > textarea:focus,
-.form-row > select:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(27,179,107,0.12);
 }
 
 .form-error-banner {
@@ -2327,7 +2300,7 @@ section.home-media { padding-top: 0; }
 .avatar-edit-form {
   flex: 1;
 }
-.form-error {
+.form-field-error {
   color: #c0392b;
   font-size: 0.9rem;
   margin-bottom: 12px;

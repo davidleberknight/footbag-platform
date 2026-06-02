@@ -19,7 +19,7 @@
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
-  <form action="{{formAction}}" method="POST" enctype="multipart/form-data" class="upload-form curator-edit-form">
+  <form action="{{formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block">
 
     <div class="upload-tabs">
       {{!-- Hidden radios act as the tab control. --}}
@@ -39,29 +39,29 @@
         <div class="upload-tab-panel upload-tab-panel-photo">
           <fieldset>
             <legend>Photo file</legend>
-            <label class="form-row">
-              <span class="form-label">File (JPEG or PNG, up to 25&nbsp;MB):</span>
-              <input type="file" name="photoFile" accept="image/jpeg,image/png">
-            </label>
+            <div class="form-field">
+              <label for="photoFile">File (JPEG or PNG, up to 25&nbsp;MB):</label>
+              <input type="file" id="photoFile" name="photoFile" accept="image/jpeg,image/png">
+            </div>
           </fieldset>
         </div>
 
         <div class="upload-tab-panel upload-tab-panel-video">
           <fieldset>
             <legend>YouTube / Vimeo link</legend>
-            <label class="form-row">
-              <span class="form-label">Platform:</span>
-              <select name="videoPlatform">
+            <div class="form-field">
+              <label for="videoPlatform">Platform:</label>
+              <select id="videoPlatform" name="videoPlatform">
                 <option value="">--</option>
                 <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
                 <option value="vimeo"   {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
               </select>
-            </label>
-            <label class="form-row">
-              <span class="form-label">URL:</span>
-              <input type="url" name="videoUrl" value="{{formValues.videoUrl}}"
+            </div>
+            <div class="form-field">
+              <label for="videoUrl">URL:</label>
+              <input type="url" id="videoUrl" name="videoUrl" value="{{formValues.videoUrl}}"
                      placeholder="https://www.youtube.com/watch?v=...">
-            </label>
+            </div>
           </fieldset>
         </div>
       </div>
@@ -69,16 +69,16 @@
 
     <fieldset>
       <legend>Details</legend>
-      <label class="form-row">
-        <span class="form-label">Caption (optional, up to 500 characters):</span>
+      <div class="form-field">
+        <label for="member-upload-caption">Caption (optional, up to 500 characters):</label>
         <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3">{{formValues.caption}}</textarea>
-      </label>
-      <label class="form-row">
-        <span class="form-label">Tags (optional, space-separated <code>#hashtags</code>):</span>
+      </div>
+      <div class="form-field">
+        <label for="member-upload-tags">Tags (optional, space-separated <code>#hashtags</code>):</label>
         <input id="member-upload-tags" type="text" name="tags" value="{{formValues.tags}}"
                placeholder="#freestyle #trick" data-tag-chips>
-        <small class="form-help">The leading <code>#</code> is optional. Event and club tags follow canonical patterns: events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</small>
-      </label>
+        <small class="form-hint">The leading <code>#</code> is optional. Event and club tags follow canonical patterns: events use <code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, for example <code>#event_2026_worlds_japan</code>; clubs use <code>#club_&lt;location-slug&gt;</code>, for example <code>#club_tokyo</code>.</small>
+      </div>
       {{#if tagSuggestions}}
       <div class="tag-suggestions" aria-label="Suggested tags">
         {{#if tagSuggestions.clubTags.length}}
@@ -108,22 +108,22 @@
       </div>
       {{/if}}
       {{#if galleries.length}}
-      <label class="form-row">
-        <span class="form-label">Add to gallery (optional):</span>
+      <div class="form-field">
+        <label for="member-upload-gallery">Add to gallery (optional):</label>
         <select id="member-upload-gallery" name="galleryId">
           <option value="">(none)</option>
           {{#each galleries}}
           <option value="{{id}}" {{#if (eq id ../formValues.galleryId)}}selected{{/if}}>{{name}}</option>
           {{/each}}
         </select>
-        <small class="form-help">Gallery criteria tags will be added automatically.</small>
-      </label>
+        <small class="form-hint">Gallery criteria tags will be added automatically.</small>
+      </div>
       {{/if}}
-      <label class="form-row">
-        <span class="form-label">External URL (optional, link to source page or creator):</span>
+      <div class="form-field">
+        <label for="member-upload-external-url">External URL (optional, link to source page or creator):</label>
         <input id="member-upload-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}"
                placeholder="https://example.com/article">
-      </label>
+      </div>
     </fieldset>
 
     <div class="form-actions">
