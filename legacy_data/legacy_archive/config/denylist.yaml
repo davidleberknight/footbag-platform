@@ -1,0 +1,26 @@
+# denylist.yaml — columns destroyed BEFORE any read during extraction.
+#
+# Defense in depth: these entries are PRE-ARMED even though members / ifpa are not
+# in any Phase-1 allowlist. The guard exists before those tables ever appear, so a
+# future mistake cannot extract them.
+#
+# "*" means the entire table is forbidden and must never be allowlisted.
+#
+# news / rules / clubs have no denylisted columns in Phase-1.
+# Note: clubcontacts.ClubContactID (= MemberID) is an integer foreign key, not
+# PII, and is intentionally NOT denylisted — it anchors club<->member links.
+
+members:
+  - MemberPassword
+  - MemberEmail
+  - MemberPhone
+  - MemberAddress
+
+ifpa_issue_votes:
+  - "*"
+
+ifpa_memberpayments:
+  - "*"
+
+ifpa_membership_transactions:
+  - "*"

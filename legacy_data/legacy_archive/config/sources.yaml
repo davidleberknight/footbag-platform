@@ -1,0 +1,19 @@
+# sources.yaml — where each app's dump comes from, and the dump date we expect.
+#
+# STUB: dump_path values are placeholders. Point them at the private footbag.org
+# mirror checkout before running seal.py. Nothing reads these until then.
+#
+# expected_dump_date is recorded into the audit report for provenance; confirm it
+# against the actual dump before sealing.
+
+news:
+  dump_path: "TODO/footbag.org/news/backups/latest.sql"
+  expected_dump_date: "TODO"          # e.g. 2026-05-31
+
+rules:
+  dump_path: "TODO/footbag.org/rules/backups/latest.sql"
+  expected_dump_date: "TODO"
+
+clubs:
+  dump_path: "TODO/footbag.org/clubs/backups/latest.sql"
+  expected_dump_date: "TODO"

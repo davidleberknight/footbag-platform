@@ -1,0 +1,17 @@
+# allowlist.yaml — the ONLY tables that may be loaded/extracted per app.
+#
+# Hard safety rail: a table absent from this list is never loaded, even if it is
+# present in the dump file. This is what prevents an appended sensitive table
+# (e.g. ifpa_issue_votes, ifpa_group_messages) from leaking out of a multi-table
+# dump. No wildcards are permitted here.
+
+news:
+  - news
+
+rules:
+  - rules            # TODO: confirm exact table name(s) from rules/create.sql
+                     #       AND the Makefile `backup` rule before running.
+
+clubs:
+  - clubs
+  - clubcontacts

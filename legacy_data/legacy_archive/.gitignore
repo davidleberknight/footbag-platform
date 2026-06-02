@@ -1,0 +1,14 @@
+# Legacy archive — DATA is NEVER tracked. Only code, config, and audit reports.
+#
+# raw/    = immutable verbatim mysqldumps (may contain PII / cleartext passwords)
+# parsed/ = extracted NDJSON (rebuildable from raw)
+#
+# Both are excluded from git by construction. reports/ IS committed, but it
+# contains only counts + checksums + transform tallies — no row payloads.
+
+raw/
+parsed/
+
+# Allow the empty committed reports directory to exist.
+!reports/
+!reports/.gitkeep
