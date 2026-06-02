@@ -65,7 +65,7 @@ ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
 # that's in the DB but not classified here surfaces as a warning rather
 # than a silent skip.
 SET_TOKENS = {
-    "atomic", "pixie", "fairy", "pogo", "rooted", "furious",
+    "atomic", "pixie", "fairy", "pogo", "rooted", "furious", "barraging",
     # Phase 2: policy-bearing tokens still classify by primary role.
     "quantum", "nuclear", "shooting",
 }
@@ -74,7 +74,7 @@ ROTATION_TOKENS = {
 }
 MODIFIER_TOKENS = {
     "ducking", "stepping", "symposium", "paradox", "tapping",
-    "blazing", "weaving", "barraging", "miraging", "diving",
+    "blazing", "weaving", "miraging", "diving",
     "blurry", "terraging", "xdex", "backside",
 }
 # D2: direction-structural shorthand. Distinct from rotation (which

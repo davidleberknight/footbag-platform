@@ -961,8 +961,8 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
-    // atomic, furious, whirling, double, high — 5 pending entries
-    expect(pendingFlags.length).toBe(5);
+    // whirling, double, high — 3 pending entries (atomic + furious now confirmed)
+    expect(pendingFlags.length).toBe(3);
   });
 
   it('surfaces a curator-adjudicated lineage line on the nuclear entry', async () => {
@@ -974,14 +974,16 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(res.text).toContain('Curator-adjudicated decomposition.');
   });
 
-  it('documents the two-reading Fury ambiguity on the furious entry', async () => {
-    // V5 editorial sweep: sprint-numbered adjudication framing removed; the
-    // structural-ambiguity content (two readings of Fury) is preserved.
+  it('documents furious and barraging as the same operator on the furious entry', async () => {
+    // Furious and barraging are the same two-dex uptime set (+2 ADD); this
+    // resolves the earlier two-reading Fury ambiguity into one decomposition.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/two structural readings/);
-    expect(res.text).toMatch(/barraging paradox mirage/);
-    expect(res.text).toMatch(/furious paradox mirage/);
+    const furiousIdx = res.text.indexOf('id="term-furious"');
+    expect(furiousIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(furiousIdx, furiousIdx + 2000);
+    expect(slice).toMatch(/same operator as barraging/i);
+    expect(slice).toMatch(/two-dex uptime set/i);
   });
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifiers last', async () => {
@@ -1019,16 +1021,16 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(entrySlice).not.toContain('glossary-operator-pending-flag');
   });
 
-  it('surfaces +0 directional status on inspinning', async () => {
-    // V5 editorial sweep: pt## lineage strings removed. The mechanical
-    // facts (directional variant, +0 ADD) are preserved.
+  it('surfaces +1 spin status on inspinning', async () => {
+    // Any spin contributes +1 ADD, so inspinning (a forward-rotation spin)
+    // renders as +1 — superseding the earlier +0 directional-only reading.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
-    expect(slice).toMatch(/\+0/);
-    expect(slice).toMatch(/directional/i);
+    expect(slice).toMatch(/\+1/);
+    expect(slice).toMatch(/spin/i);
   });
 
   it('orders inspinning before whirling within the body-tier subsequence', async () => {

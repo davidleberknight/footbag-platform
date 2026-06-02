@@ -1,6 +1,7 @@
 modifier,add_bonus,add_bonus_rotational,modifier_type,notes
 paradox,1,1,body,"+1 universally. Confirmed: paradox mirage=3 (mirage 2+1), paradox whirl=4 (whirl 3+1), paradox torque=5 (torque 4+1)."
 spinning,1,1,body,"Spinning contributes +1 ADD as a body-spin modifier. The bonus is the same on rotational and non-rotational bases. On rotational bases (whirl, mirage, torque, blender) the base trick's stall component is already counted in the base ADD value, so the spinning bonus does not stack further. Worked examples: spinning clipper = 3, spinning butterfly = 4, spinning whirl = 4, spinning torque = 5."
+inspinning,1,1,body,"Inspinning contributes +1 ADD: any spin is +1 (per Red pt14). Forward-rotation spin, distinct in direction from spinning's default back-rotation; same ADD weight as spinning."
 ducking,1,1,body,"+1 universally. Confirmed: ducking clipper=3, ducking butterfly=4, ducking whirl=4, ducking osis=4."
 symposium,1,1,body,"+1 universally. Confirmed: symposium whirl=4, symposium dlo=4, symposium torque=5 (torque 4+1)."
 gyro,1,1,body,"+1 universally. Confirmed: gyro torque=mobius=5 (torque 4+1), gyro whirl=4 (whirl 3+1), gyro butterfly=4 (butterfly 3+1)."
@@ -21,7 +22,7 @@ fairy,1,1,set,"+1 universally. Confirmed: fairy mirage=3 (mirage 2+1), fairy but
 quantum,1,1,set,"Quantum contributes +1 ADD universally as a set modifier. Worked examples: quantum mirage = 3 (mirage 2 + 1), quantum butterfly = 4 (butterfly 3 + 1). The named set Sailing decomposes as Pixie + Quantum (1 + 1 = 2 ADD)."
 nuclear,2,2,set,Nuclear contributes +2 ADDs as a paradox-atomic set modifier. Structurally nuclear = paradox (+1) + atomic (+1) = +2. The bonus is the same on rotational and non-rotational bases. Named exception: Sumo (Nuclear Mirage = 5 ADD) carries an additional X-Dex bonus from a construction-specific mechanism overlaid on the base +2 rule.
 xdex,1,1,body,"X-Dex contributes +1 ADD per instance. Worked example: Atom Smasher = 2 dex + 1 del + 1 X-Dex = 4 ADD. The Freestyle Concepts terminology describes X-Dex as representing the added difficulty of dexterities involving complete circling of the footbag, similar to symposium and paradox. Whether X-Dex acts as a universal prefix modifier or only fires in specific constructions is an open ontology question; current usage is construction-specific."
-furious,1,2,set,Furious is a set primitive parallel to atomic. It contributes +1 ADD on non-rotational bases and +2 ADD on rotational bases. Worked example: the named compound fury = furious + paradox + mirage = 2 + 1 + 2 = 5 ADD.
+furious,2,2,set,"Furious is the same operator as barraging: a two-dex uptime set contributing +2 ADD (per Red pt14: 'Barraging and Furious are the same thing; Barraging is more explanative'). Worked example: fury = furious + paradox + mirage = 2 + 1 + 2 = 5 ADD."
 pogo,0,0,set,Pogo is a set primitive that does not contribute ADD when modifying a base. Unique 0-ADD modifier.
 shooting,3,3,set,Shooting is a set primitive that doubles as a modifier. It contributes +3 ADD universally on both rotational and non-rotational bases. Outlier magnitude — most modifiers are +1 or +2. Worked example: Shooting Butterfly = 3 + 3 = 6 ADD.
 rooted,0,0,set,"Rooted is a unique set primitive with one initial dexterity attached. It contributes no ADD value, similar to pogo. Non-scoring 0-ADD modifier."
