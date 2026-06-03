@@ -37,6 +37,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -121,19 +122,36 @@ def parse_create_tables(text):
         body_start = text.find("(", name_end)
         body_end = _matching_paren(text, body_start)
         body = text[body_start + 1:body_end]
-        columns, pk = [], None
+        columns, pk, unique_single = [], None, []
         for line in body.splitlines():
             line = line.strip()
+            up = line.upper()
             if line.startswith("`"):
-                col = line[1:line.find("`", 1)]
-                columns.append(col)
-            elif line.upper().startswith("PRIMARY KEY"):
-                p = line.find("`")
-                if p != -1:
-                    pk = line[p + 1:line.find("`", p + 1)]
+                columns.append(line[1:line.find("`", 1)])
+            elif up.startswith("PRIMARY KEY"):
+                cols = _key_columns(line)
+                if cols:
+                    pk = cols[0]
+            elif up.startswith("UNIQUE KEY"):
+                cols = _key_columns(line)
+                if len(cols) == 1:
+                    unique_single.append(cols[0])
+        # Narrow fallback: a table with no PRIMARY KEY (e.g. legacy `news`, which
+        # declares UNIQUE KEY `idx_news` (`NewsID`)) uses its single-column UNIQUE
+        # KEY as the row identifier, so _legacy_pk is still stamped.
+        if pk is None and unique_single:
+            pk = unique_single[0]
         tables[table] = {"columns": columns, "pk": pk}
         i = body_end
     return tables
+
+
+def _key_columns(line):
+    """Backtick-quoted column names inside a KEY definition's (...) clause."""
+    lp, rp = line.find("("), line.rfind(")")
+    if lp == -1 or rp == -1:
+        return []
+    return re.findall(r"`([^`]+)`", line[lp + 1:rp])
 
 
 def _matching_paren(text, open_idx):
