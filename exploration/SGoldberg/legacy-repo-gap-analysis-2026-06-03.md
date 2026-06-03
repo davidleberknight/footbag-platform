@@ -35,7 +35,7 @@ Counts are **[H]** unless marked. Table existence and table names are **[E]**.
 | **news** | `news` | yes, 4.6 MB | **17,682 [E]** *(exact, extracted)* | `news_items` (workflow-only) | NEW historical — extracted |
 | **clubs** | `clubs`, `clubcontacts` | yes, 447 KB | ~2,002 (602 + 1,400) | club bootstrap pipeline (`clubs`) | OVERLAP / better source? **[A]** |
 | **moves2** | `moves`, `movehints`, `moves_journal`, `move_tip_votes` | yes, 329 KB | ~832 | `freestyle_tricks` (authoritative) | OVERLAP + some NEW **[A]** |
-| **gallery** | `sets`, `images`, `alt_images` | yes, 4.5 MB | ~18,791 | `media_items` + S3 | NEW archive / OVERLAP **[A]** |
+| **gallery** | `sets`, `images`, `alt_images` | yes, 4.5 MB | ~18,791 | archive-only (NOT imported; MP / DD §6.4) | NEW archive (forensic metadata) **[E]** |
 | **rules** | *(empty create.sql)* **[E]** | yes, 2.0 MB | ~1,619 (`rulebook3`) | `rulesService` (stub) | NEW / candidate source |
 | **faq** | `faq`, `faqsections` | yes, 2.2 MB | **0 rows (schema-only) [E]** | none | EMPTY — nothing to import |
 | **members** | `members` | yes, 13.9 MB | ~33,665 (raw, pre-filter) | `members` / `legacy_members` | HIGH-RISK / DEFER |
@@ -75,7 +75,7 @@ Counts are **[H]** unless marked. Table existence and table names are **[E]**.
 
 - **clubs** — legacy DB `clubs` / `clubcontacts` (with `Approved` soft-delete + `ClubContactID = MemberID`) vs the mirror-HTML-derived bootstrap pipeline. The DB may be a better source-of-truth (structured, includes unapproved). Reconcile, do not double-load. *(See the dedicated clubs reconciliation memo.)*
 - **members** — raw clone dump (33,665 rows, passwords present) vs Migration Plan §18, which wants a sanitized CSV (passwords EXCLUDED, `legacy_member_id` matching the mirror ID range, 10% spot-check). The clone is NOT the §18 artifact.
-- **gallery** — legacy `images` vs `media_items` vs the deprecating `freestyle_media_*`; the file-path -> `video./photo.footbag.org` mapping must be preserved.
+- **gallery** — *resolved by the Migration Plan:* legacy media is **archive-only** (re-encoded to mp4/jpg/gif, hosted at `archive.footbag.org`), **never imported into the platform media system** (DD §6.4). Not a `media_items` reconciliation. A future gallery extract is forensic/archival metadata only; the file-path mapping stays in the archive, not threaded into the platform.
 - **news** — historical archive vs the live `news_items` feed (different purposes; integration vs reference-only is undecided).
 - **rules** — `rulebook3` vs the modern stub vs `ifpa/` official rules (authority unclear).
 - **ranking (~12,687)** — relationship to freestyle records / placements is unknown; investigate before assuming overlap.
@@ -95,7 +95,7 @@ All in-scope, non-sensitive, single/small, high reconciliation value:
 
 1. **clubs** (`clubs` + `clubcontacts`, ~2,002 rows, 447 KB) — small, clean, directly reconcilable with the bootstrap pipeline; likely a better club source-of-truth. **[A]**
 2. **rules** (`rulebook3`, ~1,619 rows) — single table, non-sensitive; the modern rules surface is a stub, so this is a candidate content source.
-3. **gallery** (`sets` / `images` / `alt_images`, ~18,791 rows, 4.5 MB) — high archival value; reconciles with `media_items` + the home-server media-path mapping.
+3. **gallery** (`sets` / `images` / `alt_images`, ~18,791 rows, 4.5 MB) — high archival value as **forensic metadata** (the media itself is archive-only per the MP, not imported into `media_items`).
 
 Runners-up: `moves2.movehints` (tips, exclude `moves_journal`), and `events.calendar` (newly found). Members stays deferred behind the sanitized-CSV decision.
 
@@ -116,7 +116,7 @@ Runners-up: `moves2.movehints` (tips, exclude `moves_journal`), and `events.cale
 3. **club-member linking (§9.2 / G12):** does legacy `clubcontacts.MemberID` help populate the ~1,600 club-only `historical_persons`, or is the mirror extraction the canonical path?
 4. **news integration:** is there appetite for a historical "news archive" surface, or is legacy news reference/forensic only (not in the live `news_items` feed)?
 5. **rules authority:** is legacy `rulebook3` the intended content source for `rulesService`, or is the IFPA rulebook maintained in `ifpa/`?
-6. **gallery reconciliation:** should the legacy gallery become an archival media source (reconciled into `media_items` with provenance), or stay a separate archive layer?
+6. **gallery reconciliation — RESOLVED by the Migration Plan:** legacy media is archive-only (re-encoded, hosted at `archive.footbag.org`), never imported into `media_items` (DD §6.4). No `media_items` reconciliation needed.
 7. **ID-namespace confirmation:** validate that `legacy_member_id` in the members dump matches the mirror-derived IDs (the §18 10% spot-check) before any claim-linking.
 
 ---
@@ -131,7 +131,7 @@ These are **[A]**-level strategic judgments drawn from the evidence above.
 
 3. **Member migration is the critical-path governance problem.** The `members` dump (passwords + PII) collides with §18 (which wants a sanitized CSV), with gates G1/G2/G6/G12/G20, with the `legacy_member_id` namespace, and with the claim/merge flow. It is the single hardest, highest-risk, most cross-cutting item, and it blocks club-member linking and persons expansion downstream. It should be sequenced last and decided explicitly (Steve's curated CSV vs in-pipeline sanitization), not drifted into.
 
-4. **clubs / gallery / rules are now clearly the best low-risk extraction frontier.** Each is non-sensitive, structurally clean, small-to-moderate, and reconciles against a known modern surface (bootstrap / `media_items` / the rules stub). They let the archival pipeline mature on real reconciliation problems without touching the PII or governance critical path.
+4. **clubs / gallery / rules are now clearly the best low-risk extraction frontier.** Each is non-sensitive, structurally clean, small-to-moderate, and reconciles against a known modern surface or archive role (bootstrap / archive-only media / the rules stub). They let the archival pipeline mature on real reconciliation problems without touching the PII or governance critical path.
 
 5. **Steve's operational concerns and Dave's consolidation goals are both valid and must be reconciled explicitly.** Steve's priorities (privacy, no password leakage, keeping legacy systems running, preserving history) and Dave's (a consolidated modern platform, the Migration Plan gates, single source-of-truth) are not in conflict, but they require explicit coordination at each step, especially on members (sanitization), clubs (source-of-truth authority), and gallery (media hosting and bandwidth). These decisions should be jointly owned, not made unilaterally by the pipeline.
 
