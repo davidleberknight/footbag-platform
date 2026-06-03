@@ -21,6 +21,10 @@ export const FLASH_KIND = {
   WORK_QUEUE_RESOLVED: 'work_queue_resolved',
   CLUB_ACTION: 'club_action',
   PROFILE_UPDATED: 'profile_updated',
+  // Stub-only: carries the just-registered recipient email across the
+  // register/resend POST->303->GET so the simulated-email dev card can scope
+  // to that recipient and never show another pending user's verify token.
+  VERIFY_EMAIL_PENDING: 'verify_email_pending',
 } as const;
 export type FlashKind = (typeof FLASH_KIND)[keyof typeof FLASH_KIND];
 

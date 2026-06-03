@@ -332,7 +332,7 @@ describe('GET /health/ready', () => {
     }
 
     // Threshold-logic tests assert the gate fires via status + ok. Per-check
-    // detail is intentionally absent from the anonymous response (B19).
+    // detail is intentionally absent from the anonymous response.
 
     it('returns 200 + ok=true when usage is under 90 percent', async () => {
       await setMem(50);
@@ -1259,7 +1259,7 @@ describe('GET /nonexistent-route', () => {
   });
 });
 
-// Regression for B20: /csp-report previously logged the wholesale request
+// /csp-report previously logged the wholesale request
 // body, so an attacker could inflate CloudWatch log volume by POSTing
 // arbitrarily-structured JSON up to the body-parser cap. Fix narrows the
 // logged payload to the standard `csp-report` key only.

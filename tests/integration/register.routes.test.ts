@@ -458,7 +458,7 @@ describe('POST /register', () => {
   });
 });
 
-// ── Initial-admin bootstrap (DD §2.9) ────────────────────────────────────────
+// ── Initial-admin bootstrap ───────────────────────────────────────────────────
 //
 // When the operator places `.local/initial-admins.txt` (path injectable via
 // FOOTBAG_INITIAL_ADMIN_FILE) listing one email per line, registering with a
@@ -582,7 +582,7 @@ describe('POST /register — initial-admin bootstrap', () => {
   });
 });
 
-// ── Verify-email enqueue failure (B3 regression) ────────────────────────────
+// ── Verify-email enqueue failure ──────────────────────────────────────────────
 //
 // When `enqueueEmailOrFail` throws after the member row commits, the member
 // row stays committed, an `auth.register_notification_failed` audit row is

@@ -20,6 +20,7 @@
 import { createHash } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { config } from '../config/env';
+import { logger } from '../config/logger';
 import {
   isLiteralIp,
   isBlockedIp,
@@ -157,10 +158,13 @@ export function createLiveHttpReachabilityAdapter(opts: {
           }
 
           if (res.status >= 400) {
-            // 4xx/5xx warn-but-allow per DD §3.17.
-            console.warn(
-              `[reachability] ${currentUrl} returned HTTP ${res.status}; allowing per warn-but-allow policy`,
-            );
+            // 4xx/5xx are warn-but-allow: an error response still proves the
+            // host is reachable, so we log through the structured logger (not
+            // console) and treat the URL as reachable.
+            logger.warn('reachability: warn-but-allow', {
+              url: currentUrl,
+              status: res.status,
+            });
           }
           result = {
             reachable: true,

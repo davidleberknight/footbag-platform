@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createLiveHttpReachabilityAdapter,
   createStubHttpReachabilityAdapter,
   createDisabledHttpReachabilityAdapter,
 } from '../../src/adapters/httpReachabilityAdapter';
+import { logger } from '../../src/config/logger';
 
 function makeFakeFetch(
   responses: Map<string, { status: number; headers?: Record<string, string> }>,
@@ -107,17 +108,29 @@ describe('LiveHttpReachabilityAdapter', () => {
     expect(result.error).toMatch(/too many redirects/);
   });
 
-  it('warns but allows on 4xx', async () => {
+  it('warns but allows on 4xx via the structured logger, not console (B49)', async () => {
     const fetchClient = makeFakeFetch(
       new Map([['https://example.com/', { status: 404 }]]),
     );
-    const adapter = createLiveHttpReachabilityAdapter({
-      fetchClient,
-      lookup: lookupPublic,
-    });
-    const result = await adapter.check('https://example.com/');
-    expect(result.reachable).toBe(true);
-    expect(result.status).toBe(404);
+    const loggerWarn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const adapter = createLiveHttpReachabilityAdapter({
+        fetchClient,
+        lookup: lookupPublic,
+      });
+      const result = await adapter.check('https://example.com/');
+      expect(result.reachable).toBe(true);
+      expect(result.status).toBe(404);
+      expect(consoleWarn).not.toHaveBeenCalled();
+      expect(loggerWarn).toHaveBeenCalledWith('reachability: warn-but-allow', {
+        url: 'https://example.com/',
+        status: 404,
+      });
+    } finally {
+      loggerWarn.mockRestore();
+      consoleWarn.mockRestore();
+    }
   });
 
   it('warns but allows on 5xx', async () => {

@@ -53,6 +53,12 @@ function buildCache(): Map<string, ParsedIfpaDoc> {
     const filePath = path.join(IFPA_DIR, entry.file);
     if (!fs.existsSync(filePath)) continue;
     const raw = fs.readFileSync(filePath, 'utf8');
+    // Trust boundary: source is repo-only operator-authored .md files.
+    // marked has no built-in sanitizer; raw HTML in source passes through unchanged.
+    // Current: safe because the CSP (scriptSrc 'self', scriptSrcAttr 'none') blocks
+    //          inline execution and the source is never DB-backed or admin-editable.
+    // Target: run output through a sanitizer (e.g. isomorphic-dompurify) before this
+    //         path accepts any DB-backed or admin-editable markdown content.
     const rawHtml = marked.parse(raw, { async: false }) as string;
     const html = addAnchorIds(rawHtml);
     map.set(entry.slug, {

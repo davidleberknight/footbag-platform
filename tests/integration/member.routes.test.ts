@@ -378,7 +378,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
   });
 
-  // Regression for B6: profile edit was unlimited per session, allowing DB
+  // Profile edit was unlimited per session, allowing DB
   // write amplification + audit-table inflation. Limit gates the controller
   // entry before any service work; tunable via system_config_current.
   it('member exceeding profile-edit rate-limit → 429 with Retry-After', async () => {

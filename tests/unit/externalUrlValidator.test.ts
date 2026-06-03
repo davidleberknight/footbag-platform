@@ -1,4 +1,4 @@
-// Unit tests for externalUrlValidator (DD §3.17). No DB, no network.
+// Unit tests for externalUrlValidator. No DB, no network.
 // Every test injects a stub DNS lookup and a stub SafeBrowsingAdapter so
 // the validator's pipeline runs deterministically. Coverage spans the
 // scheme allowlist, length cap, URL.parse, SSRF block (literal-IP +

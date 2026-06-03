@@ -91,8 +91,8 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Galleries Member', login_email: 'member-galleries@example.com' });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky_galleries', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
 
-  // Admin must hold Tier 2+ per USER_STORIES §3.6 to pass the
-  // assertTier1Benefits defense-in-depth check in curatorMediaService.
+  // Admin must hold Tier 2+ to pass the assertTier1Benefits
+  // defense-in-depth check in curatorMediaService.
   insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
 
   // Two FH-owned galleries to exercise list and edit operations.

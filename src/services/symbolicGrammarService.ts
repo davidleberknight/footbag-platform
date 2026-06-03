@@ -16,7 +16,8 @@
  * null. This ensures the public surface degrades gracefully rather than
  * throwing in the request path.
  *
- * Per UX-SHIP-1; observational layer per SYMBOLIC-GRAMMAR-2 design.
+ * Observational layer: outputs are descriptive symbolic-grammar shape, never
+ * canonical doctrine.
  */
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';

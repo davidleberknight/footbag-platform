@@ -3,8 +3,8 @@
  *
  * /freestyle/learn — symbolic-subsystem index page content.
  *
- * Per DISCOVERABILITY phase. Hand-authored entries for the four symbolic
- * surfaces shipped in UX-SHIP-1 (Phases 4-7), grouped into three categories:
+ * Hand-authored entries for the four symbolic surfaces, grouped into three
+ * categories:
  *   - Progressions (curated chains)
  *   - Modifier pedagogy (per-modifier teaching pages)
  *   - Reference (glossary connective panels)

@@ -28,24 +28,24 @@ function seed(db: BetterSqlite3.Database): void {
   db.prepare(`INSERT INTO historical_persons
     (person_id, person_name, source, source_scope, event_count, placement_count)
     VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-exact', 'Kenny Shults', 'test');
+    .run('hp-exact', 'Alex Tester', 'test');
   db.prepare(`INSERT INTO legacy_members
     (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
     VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-exact', 'Kenny Shults', 'kenny shults', TS);
+    .run('LM-exact', 'Alex Tester', 'alex tester', TS);
 
   // HIGH / variant_normalized_unique.
   db.prepare(`INSERT INTO historical_persons
     (person_id, person_name, source, source_scope, event_count, placement_count)
     VALUES (?, ?, ?, 'CANONICAL', 0, 0)`)
-    .run('hp-variant', 'Alex Martínez', 'test');
+    .run('hp-variant', 'René Dupont', 'test');
   db.prepare(`INSERT INTO legacy_members
     (legacy_member_id, display_name, display_name_normalized, import_source, imported_at, version)
     VALUES (?, ?, ?, 'mirror', ?, 1)`)
-    .run('LM-variant', 'Alex Martinez', 'alex martinez', TS);
+    .run('LM-variant', 'Rene Dupont', 'rene dupont', TS);
   db.prepare(`INSERT INTO name_variants (canonical_normalized, variant_normalized, source, created_at)
     VALUES (?, ?, 'mirror_mined', ?)`)
-    .run('alex martínez', 'alex martinez', TS);
+    .run('rené dupont', 'rene dupont', TS);
 
   // MEDIUM / ambiguous_multiple_legacy_matches: one HP, two legacies with same name.
   db.prepare(`INSERT INTO historical_persons

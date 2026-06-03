@@ -187,7 +187,7 @@ const STAGING_FIXTURE: Record<string, string> = {
   AWS_REGION: 'us-east-1',
   JWT_SIGNER: 'kms',
   JWT_KMS_KEY_ID: 'arn:aws:kms:us-east-1:000000000000:key/stub-key',
-  // Staging uses the SES stub (DD §5.6: live SES is production-only); a staging
+  // Staging uses the SES stub (live SES is production-only); a staging
   // env that set SES_ADAPTER=live would fail boot.
   SES_ADAPTER: 'stub',
   SES_FROM_IDENTITY: 'noreply@example.com',
@@ -450,7 +450,7 @@ describe('docker-compose.prod.yml structural invariants', () => {
     // Defaults must match the nano_3_0 sizing so staging keeps working
     // without env overrides. Production sets WEB_MEMORY_LIMIT=512M /
     // WORKER_MEMORY_LIMIT=384M / IMAGE_MEMORY_LIMIT=896M in /srv/footbag/env.
-    // If defaults change, update docs/DEVOPS_GUIDE.md memory table alongside.
+    // If defaults change, keep the operator deployment docs in sync.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
     expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('64M');
     expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('${WEB_MEMORY_LIMIT:-192M}');

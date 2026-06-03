@@ -348,8 +348,8 @@ describe('completePasswordReset — atomicity', () => {
 
 // ── InTx contract: claim+task atomic across outer transaction ────────────────
 //
-// SC §LegacyClaim requires the underlying claim merge AND the wizard task
-// transition to land in the SAME transaction so a partial-failure window
+// The underlying claim merge AND the wizard task transition must land in
+// the SAME transaction so a partial-failure window
 // cannot leave the member claimed but the task still pending. Verifies the
 // new `*InTx` variants: a throw from the outer transaction (e.g. simulating
 // a completeTask failure) rolls back the merge writes too.
@@ -461,7 +461,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
   });
 });
 
-// ── Wrong-account token consumption (DD §3.3 / SC §LegacyClaim) ─────────────
+// ── Wrong-account token consumption ──────────────────────────────────────────
 //
 // A claim token issued for member A must not be consumable by member B even
 // if B intercepts the email link. The service guard checks

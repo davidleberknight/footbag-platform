@@ -97,8 +97,8 @@ beforeAll(async () => {
   // owner-check branch they exist to verify.
   insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
   insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });
-  // Admin must hold Tier 2+ per USER_STORIES §3.6 to pass the
-  // assertTier1Benefits defense-in-depth check in curatorMediaService
+  // Admin must hold Tier 2+ to pass the assertTier1Benefits
+  // defense-in-depth check in curatorMediaService
   // (admin moderation test exercises updateGallery via the admin curator
   // route, which routes through the same service method).
   insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
@@ -973,7 +973,7 @@ describe('gallery edit current-items display + uploadTags', () => {
   });
 });
 
-// Regression for B8: gallery create / edit / delete state-changing endpoints
+// Gallery create / edit / delete state-changing endpoints
 // were unlimited per member, allowing image-worker resource exhaustion and
 // DB contention on gallery-tag junction tables. The bucket is shared across
 // the three write operations (`gallery-write:${memberId}`), so a member can

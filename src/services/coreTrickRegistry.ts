@@ -13,8 +13,8 @@
  *     `glossaryAnchors.ts` — that constant scopes glossary anchor de-duping
  *     and includes terms (clipper, pixie, fairy) that are NOT atoms here.
  *     The two registries have legitimately different scopes and may diverge.
- *   - Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15): orbit is a canonical
- *     dictionary slug; reverse-around-the-world and reverse-atw are aliases.
+ *   - orbit is a canonical dictionary slug; reverse-around-the-world and
+ *     reverse-atw are aliases.
  *     The `clipper-stall` slug carries the foundational atom (community
  *     shorthand `#clipper`); the `clipper` slug is the ADD-1 Clipper Kick,
  *     NOT a core atom.

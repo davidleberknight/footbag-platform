@@ -1,5 +1,5 @@
 /**
- * Regression: POST /register must be rate-limited by caller IP (BUG_HUNT B7).
+ * Regression: POST /register must be rate-limited by caller IP.
  * Every other sensitive account endpoint (login, password-forgot, verify-resend,
  * claim) is throttled; register was not, leaving outbox-flood / argon2-CPU
  * exhaustion / unbounded spam-account creation open.

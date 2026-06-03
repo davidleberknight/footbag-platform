@@ -4,21 +4,21 @@
  * Representative fixture matrix exercising every branch of
  * `classifyAutoLink` + `getAutoLinkClassificationForMember` and every
  * downstream verify redirect. The matrix consolidates the branches scattered
- * across the per-case tests in one table-driven suite. Names are chosen to
- * resemble real competitor patterns (BAP honorees, diacritic-bearing
- * European names, display-name shortenings, compound surnames).
+ * across the per-case tests in one table-driven suite. Names are synthetic but
+ * chosen to exercise real competitor-name patterns (diacritic-bearing names,
+ * display-name shortenings, compound surnames).
  *
  * | # | Scenario id              | Member real_name            | HP person_name                | Variant row                                | Expected confidence                | Expected verify redirect             | Driver     |
  * |---|--------------------------|-----------------------------|-------------------------------|--------------------------------------------|------------------------------------|--------------------------------------|------------|
- * | 1 | `none`                   | Matti Lehto                 | Matti Lehto                   | —                                          | `none`                             | `/members/sc_none`                   | verify     |
- * | 2 | `high`                   | Kenny Shults                | Kenny Shults                  | —                                          | `high`                             | `/register/wizard/legacy_claim`      | verify     |
- * | 3 | `medium_diacritic`       | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
- * | 4 | `medium_display_name`    | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
- * | 5 | `low_no_hp`              | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account`   | `/register/wizard/legacy_claim`      | verify     |
+ * | 1 | `none`                   | Sam Fixture                 | Sam Fixture                   | —                                          | `none`                             | `/members/sc_none`                   | verify     |
+ * | 2 | `high`                   | Alex Tester                 | Alex Tester                   | —                                          | `high`                             | `/register/wizard/legacy_claim`      | verify     |
+ * | 3 | `medium_diacritic`       | Rene Dupont                | René Dupont                  | `rene dupont ↔ rené dupont`              | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
+ * | 4 | `medium_display_name`    | Jonathan Hargreaves         | Jonathan William Hargreaves   | `jonathan hargreaves ↔ jonathan william …` | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
+ * | 5 | `low_no_hp`              | Robin Nilsson               | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account`   | `/register/wizard/legacy_claim`      | verify     |
  * | 6 | `low_no_name`            | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`          | `/register/wizard/legacy_claim`      | verify     |
  * | 7 | `low_multi`              | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates`   | `/register/wizard/legacy_claim`      | verify     |
  * | 8 | `low_hp_mismatch_decoy`  | Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
- * | 9 | `low_surname_split`      | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
+ * | 9 | `low_surname_split`      | Pierre Fontaine Leclerc     | Pierre Fontaine               | `pierre fontaine ↔ pierre fontaine leclerc`| `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
  * |10 | `medium_nickname`        | David Testplayer            | Dave Testplayer               | `dave testplayer ↔ david testplayer`       | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
  * |11 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
  * |12 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
@@ -80,12 +80,12 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     driver: 'verify',
     seed: (db) => {
       // An unrelated HP exists — proves name similarity alone is not an anchor.
-      insertHistoricalPerson(db, { person_id: 'hp-sc-none-decoy', person_name: 'Matti Lehto' });
+      insertHistoricalPerson(db, { person_id: 'hp-sc-none-decoy', person_name: 'Sam Fixture' });
       insertMember(db, {
         id: 'sc-none',
         slug: 'sc_none',
         login_email: 'sc-none@example.com',
-        real_name: 'Matti Lehto',
+        real_name: 'Sam Fixture',
         email_verified_at: null,
       });
       return 'sc-none';
@@ -96,7 +96,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
   {
     id: 'sc-high',
     slug: 'sc_high',
-    description: 'Email anchor + HP provenance + exact name match (BAP honoree).',
+    description: 'Email anchor + HP provenance + exact name match.',
     expected: 'high',
     expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
@@ -104,14 +104,14 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-high', legacy_email: 'sc-high@example.com' });
       insertHistoricalPerson(db, {
         person_id: 'hp-sc-high',
-        person_name: 'Kenny Shults',
+        person_name: 'Alex Tester',
         legacy_member_id: 'lm-sc-high',
       });
       insertMember(db, {
         id: 'sc-high',
         slug: 'sc_high',
         login_email: 'sc-high@example.com',
-        real_name: 'Kenny Shults',
+        real_name: 'Alex Tester',
         email_verified_at: null,
       });
       return 'sc-high';
@@ -130,18 +130,18 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-dia', legacy_email: 'sc-medium-dia@example.com' });
       insertHistoricalPerson(db, {
         person_id: 'hp-sc-medium-dia',
-        person_name: 'Alex Martínez',
+        person_name: 'René Dupont',
         legacy_member_id: 'lm-sc-medium-dia',
       });
       insertNameVariant(db, {
-        canonical_normalized: 'alex martínez',
-        variant_normalized:   'alex martinez',
+        canonical_normalized: 'rené dupont',
+        variant_normalized:   'rene dupont',
       });
       insertMember(db, {
         id: 'sc-medium-diacritic',
         slug: 'sc_medium_diacritic',
         login_email: 'sc-medium-dia@example.com',
-        real_name: 'Alex Martinez',
+        real_name: 'Rene Dupont',
         email_verified_at: null,
       });
       return 'sc-medium-diacritic';
@@ -160,18 +160,18 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-disp', legacy_email: 'sc-medium-disp@example.com' });
       insertHistoricalPerson(db, {
         person_id: 'hp-sc-medium-disp',
-        person_name: 'Christopher Michael Siebert',
+        person_name: 'Jonathan William Hargreaves',
         legacy_member_id: 'lm-sc-medium-disp',
       });
       insertNameVariant(db, {
-        canonical_normalized: 'christopher michael siebert',
-        variant_normalized:   'christopher siebert',
+        canonical_normalized: 'jonathan william hargreaves',
+        variant_normalized:   'jonathan hargreaves',
       });
       insertMember(db, {
         id: 'sc-medium-display',
         slug: 'sc_medium_display',
         login_email: 'sc-medium-disp@example.com',
-        real_name: 'Christopher Siebert',
+        real_name: 'Jonathan Hargreaves',
         email_verified_at: null,
       });
       return 'sc-medium-display';
@@ -192,7 +192,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
         id: 'sc-low-no-hp',
         slug: 'sc_low_no_hp',
         login_email: 'sc-nohp@example.com',
-        real_name: 'Jesper Karlsson',
+        real_name: 'Robin Nilsson',
         email_verified_at: null,
       });
       return 'sc-low-no-hp';
@@ -297,18 +297,18 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-split', legacy_email: 'sc-split@example.com' });
       insertHistoricalPerson(db, {
         person_id: 'hp-sc-split',
-        person_name: 'Boris Belouin',
+        person_name: 'Pierre Fontaine',
         legacy_member_id: 'lm-sc-split',
       });
       insertNameVariant(db, {
-        canonical_normalized: 'boris belouin',
-        variant_normalized:   'boris belouin ollivier',
+        canonical_normalized: 'pierre fontaine',
+        variant_normalized:   'pierre fontaine leclerc',
       });
       insertMember(db, {
         id: 'sc-low-surname-split',
         slug: 'sc_low_surname_split',
         login_email: 'sc-split@example.com',
-        real_name: 'Boris Belouin Ollivier',
+        real_name: 'Pierre Fontaine Leclerc',
         email_verified_at: null,
       });
       return 'sc-low-surname-split';

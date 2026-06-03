@@ -241,7 +241,7 @@ function labelForType(recordType: string): string {
 // freestyle-only surfaces; `#unavailable_embed` is implementation state)
 // and sorts the remainder by pedagogical priority so trick-slug tags lead.
 //
-// Restraint-first: maintainer-named hard requirement 2026-05-14. Hashtag
+// Restraint-first: maintainer-named hard requirement. Hashtag
 // layer is part of the visible symbolic/navigation language, not hidden
 // metadata. Goal: pedagogical readability via repeated exposure.
 const MEDIA_TAG_SUPPRESS = new Set(['#trick', '#unavailable_embed']);
@@ -377,7 +377,7 @@ export interface FreestyleCoreTrickCard {
 }
 
 // Featured-strip item — a single compact card on the merged landing
-// "Featured" strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C). The
+// "Featured" strip. The
 // strip merges what were two separate sections (Competition Formats +
 // Demonstrations) into one curated grid. Both kinds use the same shape;
 // competition-format identity comes from the title (Routine / Circle /
@@ -450,8 +450,7 @@ export interface OperatorBoardData {
 // site (FreestyleService.getLandingPage) unchanged.
 export type OperatorBoardSurface = 'landing' | 'glossary' | 'learn';
 const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
-  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: ledes compressed from
-  // ~25–30 words to one short sentence each; the tier eyebrow + card grid
+  // Ledes are one short sentence each; the tier eyebrow + card grid
   // do the structural teaching.
   landing: {
     heading: 'The operators of freestyle',
@@ -510,7 +509,7 @@ export interface SemanticNotation {
   sourceLabel:           'editorial';
 }
 
-// Phase 1 cross-link surface for /freestyle/sets. Each row carries the
+// Cross-link surface for /freestyle/sets. Each row carries the
 // display label, its set/operational notation (or null for variant-tag list
 // items that have no notation column), a stable anchor id, and an optional
 // `trickHref` resolved against the active trick dictionary. The match rule
@@ -705,7 +704,7 @@ function shapeReferenceMedia(
   };
 }
 
-// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G: shared core-tricks shaper.
+// Shared core-tricks shaper.
 // Both getLandingPage and getGlossaryPage (§10) build the same compact
 // symbolic-object grid; the helper centralizes the join between the
 // curator-authoritative CORE_TRICK_SPEC and the freestyle_tricks DB rows
@@ -715,14 +714,14 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
     const row = trickRows.find(t => t.slug === spec.slug);
     const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
     const hasAdd = Number.isFinite(parsedAdd);
-    // NCR-1 / NCR-2 (Notation Normalization Wave 2026-05-18):
-    //   - symbolicNotation now sources from CoreTrickSpec.operationalNotation
+    // Notation normalization:
+    //   - symbolicNotation sources from CoreTrickSpec.operationalNotation
     //     (curator-authored TS content module), not the DB operational_notation
-    //     column. Decision #4: TS is source-of-truth for atom op-notation.
+    //     column. TS is source-of-truth for atom op-notation.
     //   - semanticEquivalences takes only the first reading (descriptive
     //     prose). The accounting formula equivalences[1] is preserved in the
-    //     content module but no longer rendered on the public landing grid.
-    //     Decision #3 / Path B: prune in the shaping helper, not the template.
+    //     content module but no longer rendered on the public landing grid;
+    //     prune in the shaping helper, not the template.
     //     Accounting derivations remain accessible at /freestyle/add-analysis.
     return {
       slug:                 spec.slug,
@@ -735,7 +734,7 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
   });
 }
 
-// Phase 2 / H: set-modifier registry shaper. Projects (a) the Tier-1 set
+// Set-modifier registry shaper. Projects (a) the Tier-1 set
 // operators from the operator board + (b) intermediate set/compound-set
 // entries from OPERATOR_REFERENCE_ENTRIES onto one flat
 // FreestyleSetModifierEntry[] for the glossary §10 grid. De-dup: when a
@@ -828,7 +827,7 @@ function shapeTrickPathways(args: {
           familySlug, familyName, familyMemberCount } = args;
 
   // Learn pathway. Tutorial- and demo-tier counts surface separately so the
-  // wording cannot conflate them (Phase 3). When only demos exist the user
+  // wording cannot conflate them. When only demos exist the user
   // can still learn-by-watching, so the link to Reference Media still renders.
   const learnTotal = tutorialCount + demoCount;
   const tutorialFragment = `${tutorialCount} tutorial${tutorialCount === 1 ? '' : 's'}`;
@@ -959,7 +958,7 @@ export interface FreestyleTrickContent {
   // a route-out (foundational surface / ecosystem / alt-surface / multi-bag).
   // The template builds the href from `slug` so the `?family=` stays literal.
   familyChip: { label: string; slug: string } | null;
-  // UX3c-b (2026-05-11): same family-member set as `familyMembers`, regrouped
+  // Same family-member set as `familyMembers`, regrouped
   // by ADD value for tier-grouped rendering. Numeric tiers sort ascending;
   // non-numeric/null tier renders last as "Modifiers".
   familyTiers: FreestyleFamilyTier[];
@@ -968,12 +967,12 @@ export interface FreestyleTrickContent {
   // This is the CANONICAL (Layer 1) IFPA-family-based relating.
   relatedTricks: FreestyleRelatedTrick[];
   // Observational symbolic-grammar topology panel (Layer 3). Null when:
-  //   - slug is not in the UX-SHIP-1 Phase 1 allow-list (8 flagship slugs)
+  //   - slug is not in the flagship allow-list (8 flagship slugs)
   //   - slug has no topology-axis group membership in the staging CSVs
   //   - the resolved topology group has no other active members after self-exclude
   // Distinct from `relatedTricks`: this surfaces SYMBOLIC topology (cross-cuts
   // IFPA family) rather than canonical family-based relating.
-  // Per UX-SHIP-1 Phase 4 (Task B); observational layer per SYMBOLIC-GRAMMAR-2.
+  // Observational layer.
   symbolicRelatedTopology: SymbolicRelatedTopologyPanel | null;
   // Observational educational CTAs (DISCOVERABILITY phase). Trick-membership-
   // driven; empty array when no symbolic surface is relevant for this slug.
@@ -981,7 +980,7 @@ export interface FreestyleTrickContent {
   // panels. Currently triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
-  // UX-SHIP-1 Phase 5: reverse semantic linkage. Topology + component
+  // Reverse semantic linkage. Topology + component
   // groups this trick belongs to. Each renders as a small inline link to
   // its browse-view anchor. Empty arrays mean no memberships; the panel hides.
   symbolicMemberships: TrickSemanticMemberships;
@@ -1011,10 +1010,10 @@ export interface FreestyleTrickContent {
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
   pathways: TrickPathways;
-  // Notation grammar diagnostic panel (Phase 3 read-only surface). Null when
+  // Notation grammar diagnostic panel (read-only surface). Null when
   // the row has no structural_parse_json — page renders identically to before.
   notationGrammar: NotationGrammarPanel | null;
-  // Phase 6 role-aware notation rendering. Pre-shaped tokens with role
+  // Role-aware notation rendering. Pre-shaped tokens with role
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
@@ -1022,57 +1021,57 @@ export interface FreestyleTrickContent {
   // (Layer 1); the ladder picks layer='equivalence' / 'base-lineage' /
   // 'curation-gap' or returns null (Layer 4 silence). See shapeSemanticNotation.
   semanticNotation: SemanticNotation | null;
-  // O1a/O1b (2026-05-10) operational notation block. Renders in the
+  // Operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
   // editorial decomposition. Null when the row has no operational_notation
-  // populated; section omits entirely when null. O1b adds role-classified
+  // populated; section omits entirely when null. Adds role-classified
   // token highlighting (warm palette, distinct from semantic's cool palette);
   // see exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md
   // and src/services/operationalNotationRendering.ts.
   operationalNotation: OperationalNotation | null;
-  // UX2 single-page pilot (2026-05-11). Populated only for the flagship
+  // Single-page pilot. Populated only for the flagship
   // pilot trick (montage). Null for every other trick so the legacy template
   // continues to render unchanged. When populated, the universal shell
-  // renders the UX2 section sequence instead of the legacy ordering.
+  // renders the single-page section sequence instead of the legacy ordering.
   ux2Pilot: Ux2PilotData | null;
-  // UX3b0 density classification (2026-05-11). Derived from existing data only
+  // Density classification. Derived from existing data only
   // (modifier count, notation presence, operational notation presence, records,
-  // media, ux2Pilot data presence). Read-only signal at UX3b0; future phases
-  // use this to gate flagship-only visual surfaces (token-coloured h1,
+  // media, ux2Pilot data presence). Read-only signal used
+  // to gate flagship-only visual surfaces (token-coloured h1,
   // modifier-layering visualisation, modifier-ecosystem panel) without per-slug
-  // allowlists. Does not change rendering in UX3b0.
+  // allowlists.
   densityTier: 'sparse' | 'standard' | 'flagship';
-  // UX3c-a (2026-05-11): pre-shaped gate signal for the unified Media block.
+  // Pre-shaped gate signal for the unified Media block.
   // True when either curated reference media exists (tutorial/demo grids
   // populated) OR editorial prose is authored (ux2Pilot non-null, signalling
   // the row deserves a flagship Media section with empty-state body).
   hasMediaBlock: boolean;
-  // UX3c-c (2026-05-11) hero quick-stat ADD-derivation strip tokens; null when
+  // Hero quick-stat ADD-derivation strip tokens; null when
   // the trick is a modifier-only row or has no numeric adds. Built from
   // freestyle_trick_modifier_links + base_trick adds + this row's adds.
   // Renders in the hero immediately below the hero-stats chips.
   heroFormula: HeroFormulaToken[] | null;
-  // UX3d-a (2026-05-11) hero decomposition strip tokens; null when
+  // Hero decomposition strip tokens; null when
   // modifier_links.length < 2. Renders between h1 and family-badge as a
   // prominent coloured-token row mirroring the original prototype's title
   // decomposition. Pure presentation; augments the title, does not replace.
   heroDecomposition: HeroDecompositionToken[] | null;
-  // UX3d-b (2026-05-11) nested modifier-layering visualisation; null when
+  // Nested modifier-layering visualisation; null when
   // modifier_links.length < 3. The single panel renders below the operational
   // notation block; only Montage clears the threshold in the current
   // dictionary. Pure presentation.
   modifierLayering: ModifierLayering | null;
-  // UX3d-c (2026-05-11) pre-shaped flag: true when the trick has at least one
+  // Pre-shaped flag: true when the trick has at least one
   // modifier_links row. Used by trick-about.hbs to suppress the redundant
   // "ADD value" dl row on compound rows where the hero formula + modifier
   // layering already surface the total.
   hasModifierLinks: boolean;
-  // UX3e-b (2026-05-11) parallel tricks panel data; empty array when no
+  // Parallel tricks panel data; empty array when no
   // parallels exist (atoms; tricks at unique adds within their family).
   // Cap 4 rows. Rendered between Related Tricks and the Media block as a
   // navigation surface, not a recommendation surface.
   parallelTricks: ParallelTrick[];
-  // UX3e-b (2026-05-11) modifier substitutions panel data; empty array when
+  // Modifier substitutions panel data; empty array when
   // no substitution candidates exist. Cap 4 rows. Rendered immediately after
   // parallelTricks. The swap visualisation is the load-bearing signal:
   // "replace ducking with spinning and you get Spender."
@@ -1105,7 +1104,7 @@ export interface FreestyleTrickContent {
   // disclosure on trick-detail. Additive observational layer; never
   // overrides the canonical published reading.
   equivalenceTopology: EquivalenceTopologyEntry | null;
-  // Family-anchor context (Dictionary Pedagogy Phase 3). Populated
+  // Family-anchor context. Populated
   // only when the current trick IS the family-anchor (slug ===
   // trick_family) AND the family carries a curator-authored invariant
   // (DP-1's six: whirl, rev-whirl, butterfly, mirage, osis, swirl).
@@ -1119,7 +1118,7 @@ export interface FreestyleTrickContent {
     familyName:        string;       // e.g. "Whirl"
     familyBrowseHref:  string;       // /freestyle/tricks?view=family#family-{slug}
   } | null;
-  // Doctrine-divergence scoring note (Wave 7). Populated from
+  // Doctrine-divergence scoring note. Populated from
   // DOCTRINE_DIVERGENCE_REGISTRY when the slug carries documented
   // divergence between IFPA-grammar derivation and a community/
   // external source. Per the doctrine-divergence framework
@@ -1135,7 +1134,7 @@ export interface FreestyleTrickContent {
     provenanceNote:  string;
     visibility:      'public' | 'advanced';
   } | null;
-  // Primitive-note callout (post-Wave-7 editorial pass, 2026-05-23).
+  // Primitive-note callout.
   // Populated only when the slug is one of the 12 core atoms (per
   // isCoreAtom). Surfaces a lightweight "Core movement atom" callout
   // on atom trick-detail pages so readers understand the ontological
@@ -1150,7 +1149,7 @@ export interface FreestyleTrickContent {
     label:     string;
     explainer: string;
   } | null;
-  // Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
+  // Reverse-pair transform overlay.
   // Populated only for the five curator-locked reverse-direction
   // pairs (illusion, pickup, rev-whirl, rev-swirl, orbit). Surfaces
   // a small "Transform" line below the canonical JOB notation so
@@ -1170,7 +1169,7 @@ export interface FreestyleTrickContent {
     totalAdd:      number;  // rev(0) is +0, so totalAdd == baseAdd
     rev0Explainer: string;  // shared rev(0) operator explainer
   } | null;
-  // Movement-intuition prose (trick-detail enrichment slice, 2026-05-23).
+  // Movement-intuition prose.
   // Populated only for curator-locked flagship pages. Renders as a
   // "Movement intuition" section between trick-about and trick-notation
   // so the page reads movement-first → structure-second.
@@ -1181,8 +1180,8 @@ export interface FreestyleTrickContent {
     prose:       string;
     attribution: string;
   } | null;
-  // "Compressed from" / "Compressed reading" pedagogy line (2026-05-25
-  // glossary follow-on). Strict allowlist of famous structural
+  // "Compressed from" / "Compressed reading" pedagogy line.
+  // Strict allowlist of famous structural
   // compressions only: smear, ripwalk, atom-smasher, eggbeater, mobius.
   // Reinforces the glossary §composition "Structural compression"
   // concept directly on the flagship detail pages. Reads from existing
@@ -1206,7 +1205,7 @@ export interface FreestyleTrickContent {
     historicalReadings: string[];
     structuralNotes:    string[];
   } | null;
-  // Trick tier (Phase A of trick-detail ontology doctrine, 2026-05-25).
+  // Trick tier (trick-detail ontology doctrine).
   // 'A' = flagship ontology exemplar (renders L1-L6 layers when authored).
   // 'B' = secondary, renders L1 + L5 only when authored.
   // 'C' = default — renders the universal shell exactly as today.
@@ -1250,7 +1249,7 @@ export interface FreestyleTrickContent {
   progressiveReadings: {
     stages: { stage: string; reading: string; citation?: string }[];
   } | null;
-  // Placeholder-description suppression (Phase A, 2026-05-25). True
+  // Placeholder-description suppression. True
   // when the DB `description` matches a known placeholder pattern
   // (X-modified Y / X-and-Y modified Z / "Popular freestyle trick.").
   // Template suppresses the literal description and renders the
@@ -1390,12 +1389,12 @@ export interface AppliedModifier {
   addBonusRotational: number;
   isRotationalBase: boolean;
   effectiveBonus: number;       // the actual bonus applied given whether base is rotational
-  // UX3c-c (2026-05-11) display-only fields for hero quick-stat formula.
+  // Display-only fields for hero quick-stat formula.
   modifierType: string;         // 'body' | 'set' | other; sourced from freestyle_trick_modifiers.modifier_type
   cssRole: string;              // semantic-notation cssRole for token coloration: 'set' | 'rotation' | 'modifier'
 }
 
-// UX3c-c (2026-05-11): hero quick-stat ADD-derivation strip.
+// Hero quick-stat ADD-derivation strip.
 // One token sequence rendered in the hero, immediately below the hero-stats
 // chips, summarising "modifier(+w) + ... + base(N) = TOTAL ADD" with each
 // operand role-coloured (cool palette). Atom rows (no modifiers) render the
@@ -1409,7 +1408,7 @@ export interface HeroFormulaToken {
   cssRole: string | null;// 'set' | 'rotation' | 'modifier' | 'core-family'; null for operators/result
 }
 
-// UX3d-a (2026-05-11) hero decomposition strip. Prominent role-coloured token
+// Hero decomposition strip. Prominent role-coloured token
 // row rendered between the h1 and the family badge for compound tricks where
 // modifier_links.length >= 2. Augments the existing plain h1 (preserves
 // readability and accessibility); does not replace the title text. Atom rows
@@ -1420,7 +1419,7 @@ export interface HeroDecompositionToken {
   kind: 'modifier' | 'base';
 }
 
-// UX3e-b (2026-05-11) relationship surfaces.
+// Relationship surfaces.
 // Parallel tricks: same family + same ADD value + different slug. Up to 4
 // rows. Pedagogical lens: "alternative structural solutions at the same
 // difficulty tier." Each row carries the canonical name, ADD value, and a
@@ -1449,10 +1448,10 @@ export interface ModifierSubstitution {
   swapToCssRole: string;
 }
 
-// UX3d-b (2026-05-11) modifier layering. Prototype-inspired nested-box
+// Modifier layering. Prototype-inspired nested-box
 // visualisation surfacing how modifiers stack onto the base trick. Activates
-// only when modifier_links.length >= 3 (flagship-density threshold from the
-// UX3 north-star §9.4). Each ModifierLayer wraps the next deeper layer; the
+// only when modifier_links.length >= 3 (flagship-density threshold).
+// Each ModifierLayer wraps the next deeper layer; the
 // innermost layer is the base trick (kind='base'). Rendered by the recursive
 // partial src/views/partials/trick-modifier-layer.hbs. Pure presentation.
 export interface ModifierLayer {
@@ -1468,8 +1467,8 @@ export interface ModifierLayering {
   totalLabel: string;       // 'N ADD' summary line under the nested boxes
 }
 
-// ── Notation grammar (Phase 3, read-only display) ────────────────────────────
-// Diagnostic surface for the structured-parse columns (Phase 0 schema, Phase 1/2/2.5
+// ── Notation grammar (read-only display) ────────────────────────────
+// Diagnostic surface for the structured-parse columns (schema +
 // parser fills). Read-only: asserted `adds` remains authoritative; computed values
 // here are diagnostic only and never override editorial truth.
 //
@@ -1489,8 +1488,8 @@ export interface NotationGrammarRoleBucket {
 
 // Editorial decomposition — surfaces curator-asserted structural lineage
 // (base_trick + freestyle_trick_modifier_links) as a SECOND, parallel
-// decomposition view alongside the parser-derived one. Phase 5a (Architecture
-// B1 strict): consults ONLY the explicit join table + base column. Does NOT
+// decomposition view alongside the parser-derived one. Strict editorial
+// decomposition: consults ONLY the explicit join table + base column. Does NOT
 // re-tokenize canonical_name and does NOT parse description text. Always
 // labeled `sourceLabel='editorial'` so the template can never present this
 // claim as parser output.
@@ -1551,8 +1550,8 @@ export interface NotationGrammarPanel {
   jobsNotationRaw:        string | null;
   jobsNotationNormalized: string | null;
 
-  // Two role layers per Phase 2.5: descriptive (what each token classified as
-  // pre-D1) and add-contributing (post-D1, used for ADD math). Empty buckets
+  // Two role layers: descriptive (what each token is classified as) and
+  // add-contributing (used for ADD math). Empty buckets
   // are omitted so the template can render only present roles.
   descriptiveRoles:     NotationGrammarRoleBucket[];
   addContributingRoles: NotationGrammarRoleBucket[];
@@ -1640,7 +1639,7 @@ function shapeRoleBuckets(
   return buckets;
 }
 
-// Editorial-decomposition shaping. Phase 5a (Architecture B1 strict):
+// Editorial-decomposition shaping (strict):
 //
 // Inputs:
 //   row             — the active trick row (carries base_trick, adds, slug)
@@ -1762,8 +1761,8 @@ const RECOGNIZED_LINK_SLUGS: ReadonlySet<string> = (() => {
 })();
 
 /**
- * Render-time abbreviation expansion for S5 chain readings (2026-05-26
- * pre-Adrian polish #1). Eliminates the visible inconsistency where
+ * Render-time abbreviation expansion for S5 chain readings.
+ * Eliminates the visible inconsistency where
  * S5 readings use lowercase abbreviations (`ss`, `op`) while JOB
  * tokens on the same page use uppercase spelled-out forms (`SAME`,
  * `OP`). Expanding to lowercase prose (`same-side`, `opposite`) keeps
@@ -1896,7 +1895,7 @@ function shapeNotationGrammar(
   const additiveFlags = Array.isArray(additiveFlagsRaw)
     ? additiveFlagsRaw.filter((x): x is string => typeof x === 'string') : [];
 
-  // Unresolved tokens live inside descriptive_roles (Phase 2.5); flatten the
+  // Unresolved tokens live inside descriptive_roles; flatten the
   // string list for the template's convenience.
   const unresolvedRaw = descriptive ? descriptive['unresolved_tokens'] : undefined;
   const unresolvedTokens: string[] = Array.isArray(unresolvedRaw)
@@ -1945,7 +1944,7 @@ export interface FreestyleFamilyMember {
   hasRecords: boolean;       // true when passback records exist for this trick
 }
 
-// UX3c-b (2026-05-11): family lineage grouped by ADD value. Numeric tiers sort
+// Family lineage grouped by ADD value. Numeric tiers sort
 // ascending; rows with non-numeric or null ADD ("modifier", unrated) collapse
 // into a single "Modifiers" tier rendered after the numeric tiers.
 export interface FreestyleFamilyTier {
@@ -2044,7 +2043,7 @@ export interface DictionaryTrickCard {
   // Empty array when neither source has an entry; the template suppresses
   // the row in that case.
   symbolicEquivalences:       string[];
-  // BROWSE-REFACTOR-1 Slice 1 (2026-05-15): tokenized form of each ≡ reading,
+  // Tokenized form of each ≡ reading,
   // parallel to `symbolicEquivalences`. Each inner array is one reading's
   // tokens; the template renders role-classified spans. `isFamilyAnchor` is
   // true on tokens that match the active view's anchor (family / component /
@@ -2063,11 +2062,11 @@ export interface DictionaryTrickCard {
   mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
   mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo available' / '' (none)
   trickFamily:                string | null;                 // reserved for future family-axis affordance
-  // Slice M (2026-05-16): curator-authored flag for folk-derived /
+  // Curator-authored flag for folk-derived /
   // mechanically-ambiguous rows. Drives a small italic pill on the
   // card. Read from freestyleUnresolvedCompounds.ts; never auto-derived.
   pendingDecomposition:       boolean;
-  // Formula Accountability Slice (2026-05-17): editorial atom reading
+  // Editorial atom reading
   // populated from CORE_TRICK_SPEC.equivalences[0] when the slug is in
   // the curator-authoritative core-atom set AND no chain reading or
   // op-notation exists. Provides a neutral "core atom — <description>"
@@ -2084,7 +2083,7 @@ export interface DictionaryTrickCard {
   firstClassChainLabel:        'JOB' | 'OPERATIONAL' | null;  // null suppresses the chain row
   firstClassChainValue:        string | null;
   firstClassAddBreakdown:      string | null;
-  // ADD-view two-line row contract (2026-05-27). The line-2 "ADD:"
+  // ADD-view two-line row contract. The line-2 "ADD:"
   // formula string, derived in priority order: curator RESOLVED_FORMULAS
   // → atomic decomposition → mechanical modifier-link derivation
   // (sum-verified against canonical adds) → null. When null the ADD-view
@@ -2102,8 +2101,7 @@ export interface DictionaryTrickCard {
 
 export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system' | 'dex-count';
 
-// Sets-view browse model — Phase A of the set-system refactor
-// (2026-05-25). Canonical sets are first-class ontology objects, not
+// Sets-view browse model. Canonical sets are first-class ontology objects, not
 // trick-grouped browse filters. Six subtypes; each set carries a
 // hashtag, formula, movement explanation, equivalence notes, derived /
 // related system slugs, source provenance, and (optionally) audit
@@ -2171,7 +2169,7 @@ export interface AltSurfacesCrossLink {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Set Encyclopedia (standalone /freestyle/sets page, 2026-05-25).
+// Set Encyclopedia (standalone /freestyle/sets page).
 //
 // Distinct from /freestyle/tricks?view=sets (which embeds set content in
 // the dictionary URL) and from /freestyle/compositional-sets (which is
@@ -2179,7 +2177,7 @@ export interface AltSurfacesCrossLink {
 // entry point for "what is this set system?" — minimalist cards, scan-
 // friendly, links to /freestyle/sets/<slug> for deep ontology.
 //
-// Per the curator UX directive (2026-05-25): cards carry ONLY name +
+// Per the curator UX directive: cards carry ONLY name +
 // hashtag + compact formula + one-sentence movement + one provenance
 // line + quick-relation tags + "View details →". Deep prose lives on
 // the detail pages.
@@ -2270,7 +2268,7 @@ export interface EncyclopediaCrossLinks {
   flatReferenceHref:       string;
 }
 
-// Set detail page content (Phase B of the set-system refactor, 2026-05-25).
+// Set detail page content.
 // One page per canonical set at /freestyle/sets/<slug>. Mirrors the
 // trick-detail structure: hashtag · formula · movement explanation ·
 // equivalence readings · derived/related systems · example tricks ·
@@ -2327,8 +2325,7 @@ export interface SetDetailCrossLinks {
   flatReferenceHref:         string;
 }
 
-// Dex-count grouped browse view (2026-05-24 notation-display audit Phase 4.1
-// prototype). Buckets active dictionary tricks by the number of [DEX] tokens
+// Dex-count grouped browse view. Buckets active dictionary tricks by the number of [DEX] tokens
 // in their operational_notation field. Pedagogical axis: "How many dex
 // moves does this trick involve?". Tricks without op_notation fall into an
 // "Unknown" bucket. Uses the shared dictionary-trick-card partial; card
@@ -2350,7 +2347,7 @@ export interface FreestyleTrickDexCountGroup {
 // displayName, href, addsLabel, operationalNotation.tokens,
 // tokenizedEquivalences, mediaCoverage, etc. — so the trick titles render
 // as linked anchors and the standardized JOB block fires consistently
-// across every browse view. Earlier sketch (pre-2026-05-27) used
+// across every browse view. An earlier approach used
 // FreestyleTrickIndexRow here, which left most card fields blank and
 // reduced the rendered output to bare hashtags. The DictionaryTrickCard
 // shape closes that gap.
@@ -2377,9 +2374,9 @@ export interface FreestyleRelatedSetLink {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// ComponentBrowseView (DSC-2 slice 3A).
+// ComponentBrowseView.
 //
-// Browses tricks grouped by the structural component they share. Slice 3A
+// Browses tricks grouped by the structural component they share. Current
 // scope: body modifiers + set modifiers only. Topology groups and movement
 // archetypes are deferred to a future slice.
 //
@@ -2459,7 +2456,7 @@ export interface MovementSystemGroup {
   modifierSlug:   string;
   modifierName:   string;
   bodyDefinition: string | null;   // reused from COMPONENT_DEFINITIONS; null when curator hasn't authored one
-  // Slice M (2026-05-16): per-modifier educational composition gloss
+  // Per-modifier educational composition gloss
   // (e.g., paradox: "PDX + base — entry topology..."). Single italic
   // line rendered above the card stack. null when no curator entry.
   compositionGloss: string | null;
@@ -2479,8 +2476,7 @@ export interface MovementSystemAxisView {
 export interface MovementSystemBrowseView {
   observationalNote: string;
   axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
-  // Alternative-surfaces subsection (2026-05-24 follow-on after the
-  // nonstandard-topology audit). Compact educational subsection rendered
+  // Alternative-surfaces subsection. Compact educational subsection rendered
   // AFTER the 4 movement-system axes. Always shaped; renders only when
   // activeView === 'movement-system'.
   alternativeSurfaces: AlternativeSurfacesView;
@@ -2510,10 +2506,10 @@ export interface AlternativeSurfaceTrickView {
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
-  // ?view=dex-count grouped view (2026-05-24 notation-display audit Phase 4.1).
+  // ?view=dex-count grouped view.
   // Always shaped; UI branch renders only when activeView === 'dex-count'.
   dexCountGroups: FreestyleTrickDexCountGroup[];
-  // ?view=sets grouped view (2026-05-24 governance/polish slice). Always shaped;
+  // ?view=sets grouped view. Always shaped;
   // UI branch renders only when activeView === 'sets'. Replaces the previous
   // sets→component alias (component view is soft-retired).
   setsBrowseView: FreestyleSetsBrowseView;
@@ -2559,11 +2555,11 @@ export interface FreestyleTricksIndexContent {
   movementSystemScale: string | null;
   setsScale: string | null;
   topologyScale: string | null;
-  /** DL-1+2+5 landing-surface refresh (2026-05-26): 3-band conceptual grid
+  /** Landing-surface 3-band conceptual grid
    *  rendered above the inline view-toggle when on the default landing view.
    *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
    *  a lens question + count + full-enumeration chip preview + optional
-   *  cross-link. Chips densified 2026-05-26 (Slice B): each card surfaces
+   *  cross-link. Each card surfaces
    *  ALL labels in its enumeration (wrapped-chip form) so the landing feels
    *  encyclopedic and navigable rather than truncated. */
   landingGrid: DictionaryLandingGrid;
@@ -2709,7 +2705,7 @@ export interface FreestylePartnershipsContent {
 // History content types (editorial service-layer constants)
 // ---------------------------------------------------------------------------
 
-// ── Phase 2 / H: set-modifier registry entry ───────────────────────────
+// ── Set-modifier registry entry ───────────────────────────
 // One row in the glossary §10 "Set modifiers" grid. Renders as a compact
 // registry tile: name + one-line meaning + optional decomposition + a
 // deeplink anchor for cross-reference. Source-agnostic at the view-model
@@ -2958,7 +2954,7 @@ export interface FreestyleGlossaryContent {
   // subsection. Authoritative source for what each intermediate operator
   // means and how it decomposes; equivalence-chain tokens deep-link here.
   intermediateOperators: readonly OperatorReferenceEntry[];
-  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G + H: foundational tricks
+  // Foundational tricks
   // and set-modifier grids rendered as compact symbolic objects inside §10.
   // Same view-model shape as the landing's coreTricks for partial reuse.
   coreTricks:       FreestyleCoreTrickCard[];
@@ -2972,7 +2968,7 @@ export interface FreestyleGlossaryContent {
   // 6 high-value terms: paradox / symposium / ducking / spinning / whirl /
   // pixie. Each panel surfaces related tricks + related symbolic groups +
   // a notation hint + optional deep-link to a modifier-family page.
-  // Per UX-SHIP-1 Phase 7 (Task E). Always populated (length=6); panels
+  // Always populated (length=6); panels
   // may have empty relatedTricks arrays when staging CSVs are missing.
   connectivePanels: GlossaryConnectivePanel[];
   // §7 abbreviation tables — split into trick-name shorthand and
@@ -3018,7 +3014,7 @@ export interface FreestyleGlossaryContent {
   // reference content begins.
   derivationAtlas:      readonly DerivationPanelEntry[];
   // §1 Core trick atoms — twelve curator-authoritative atoms with
-  // movement-physical educational prose (curator 2026-05-22). Surfaces
+  // movement-physical educational prose (curator-authored). Surfaces
   // a beginner-facing pedagogical layer ABOVE the existing symbolic /
   // structural reference content. Authoring principle: movement
   // intuition + foundational/cultural significance lead; compositional
@@ -3088,7 +3084,7 @@ export interface ObservedTrickCardDetail {
   formula:            string | null;
   /** Free-form curator note, when present. */
   curatorNote:        string | null;
-  /** Wave 2 / curator blockers preventing canonicalization. */
+  /** Curator blockers preventing canonicalization. */
   blockers:           readonly string[];
   /** Full free-form source citation (e.g. "PassBack dictionary
    *  (passback-dictionary.txt)"). The card's sourceBadge + tooltip
@@ -3327,8 +3323,8 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
     folkSlug:         t.folkSlug,
     displayName:      t.displayName,
     // Default lane to 'source-only' when the curator hasn't explicitly
-    // promoted the entry (per the 2026-05-24 governance/polish slice
-    // contract: explicit manual field, NOT keyword heuristic).
+    // promoted the entry (governance contract: explicit manual field,
+    // NOT keyword heuristic).
     governanceLane:   t.governanceLane ?? 'source-only',
     sourceBadge,
     sourceTooltip:    t.sourceCitation,
@@ -3406,11 +3402,11 @@ export interface FreestyleHistoryContent {
   addSystem: string[];
   regionalShift: string;
   modernEra: string;
-  // Phase: history-page editorial refinement (2026-05-10).
+  // History-page editorial refinement.
   // "Evolution of difficulty" framing — not a new ontology layer; an editorial
   // pass through the same eras with a difficulty-arc lens.
   evolution: FreestyleHistoryEvolutionEntry[];
-  // Combo-evolution narrative (2026-05-10 second pass): how multi-trick
+  // Combo-evolution narrative: how multi-trick
   // sequences grew from isolated kicks into linked dexterity combinations
   // through to modern density-driven runs. Editorial paragraphs.
   comboEvolution: string[];
@@ -3549,7 +3545,7 @@ function resolveOperationalNotationRaw(
  *  trick-detail then silently omits the disclosure section. Provenance
  *  is intentionally NOT included in the disclosure (curator-internal
  *  language; see [[feedback_public_facing_prose]]). */
-/** Slice D 2026-05-26: strip the trailing `= N ADD` from a curator-published
+/** Strip the trailing `= N ADD` from a curator-published
  *  derivation string. The hero ADD chip (`{adds} ADD`) is the authoritative
  *  ADD display on trick-detail + first-class browse cards; the breakdown row
  *  carries the operator-by-operator math without restating the total. The
@@ -3583,8 +3579,8 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
 // foundational 1-ADD surface vocabulary (anatomical surface stalls,
 // unusual-surface kicks, folk-name surfaces), the operator-first
 // 1-ADD primitives (flying-family), and curator-handpicked compound
-// showcases. The semantic widened 2026-05-22 from an implicit
-// "elite-only" reading to this explicit foundational-band reading.
+// showcases. The semantic is the explicit foundational-band reading
+// (widened from an implicit "elite-only" reading).
 //
 // Promotion criteria (apply to BOTH tiers):
 //   - passes assertFirstClassConvergence (derivation == computed ==
@@ -3635,7 +3631,7 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   // Compound with full curator data (op-notation + resolved formula).
   'pendulum',            // swing-class compound; only first-class compound at full parity
   // ── Foundational 1-ADD surface vocabulary (atomic; passes convergence;
-  //    promoted 2026-05-22 to widen "first-class" from "elite" →
+  //    widens "first-class" from "elite" →
   //    "foundational + publication-quality"). Each entry introduces a
   //    distinct learning dimension. JOB sourced from curator DB
   //    op-notation; ADD from ATOMIC_FLAG_DECOMPOSITIONS below.
@@ -3657,20 +3653,20 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   'flying-inside',       // flying-operator primitive; chain 'flying > inside'
   'flying-outside',      // flying-operator primitive; chain 'flying > outside'
   'double-knee',         // sui-generis self-token JOB ('double knee'); flying-derived ADD
-  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
-  //    ADD-bucket normalization slice). Extend the foundational band
+  // ── Foundational 2-ADD primitives (pedagogical ADD-bucket
+  //    normalization). Extend the foundational band
   //    upward; each exposes a core ADD bucket explicitly.
   'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
   'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches bod + dex buckets
   'flying-clipper',      // 2-ADD flying primitive with xbody; teaches bod + xbody buckets
   // ── knee-clipper: folk name, not a literal clipper-surface stall;
-  //    curator clarified 2026-05-22 it reads as a flying dex knee kick
+  //    curator clarified it reads as a flying dex knee kick
   //    (bod + xbody = 2 ADD). Added to the foundational band so the
   //    audit/parser classification no longer trips on KNEE-CLIPPER STALL.
   'knee-clipper',        // 2-ADD flying dex knee kick (folk-name resolution)
   // ── guay: 2-ADD pickup-pattern dex primitive ending in inside-stall
   //    (sibling structure to pickup / legover / illusion / mirage).
-  //    Released from DOCTRINE_BLOCKED_SLUGS curator_hold 2026-05-22.
+  //    Released from DOCTRINE_BLOCKED_SLUGS curator_hold.
   'guay',                // 2-ADD dex + stall primitive; inside-stall terminus variant of pickup
 ]);
 
@@ -3688,7 +3684,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
   'paradox-symposium-whirl', // multi-operator chain showcase
-  // ── Wave 1 audit-derived promotions (2026-05-22). Each fully
+  // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
   'atomic-torque',           // atomic(+2 rot) + torque(4) = 6 ADD
@@ -3696,11 +3692,10 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'paradox-drifter',         // paradox(+1) + drifter(3) = 4 ADD
   'spinning-pickup',         // spinning(+1) + pickup(2) = 3 ADD
   'tapping-whirl',           // tapping(+1) + whirl(3) = 4 ADD
-  // ── Wave 2 promotions (2026-05-22): 19 slugs already carrying
+  // ── Promotions: 19 slugs already carrying
   //    curator-published derivations in RESOLVED_FORMULAS_SPRINT_1
   //    but never explicitly added to a tier set. Each row's derivation
   //    is settled; promotion is mechanical (set membership only).
-  //    Audit converges for every row before this batch.
   'atom-smasher',            // atomic(+1) + mirage(2) + symposium(+1) = 4 ADD (composite via base-mirage)
   'dimwalk',                 // stepping(+1) + butterfly(3) = 4 ADD
   'ducking-clipper',         // ducking(+1) + clipper-stall(2) = 3 ADD
@@ -3711,7 +3706,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'paradox-blender',         // paradox(+1) + blender(4) = 5 ADD
   'paradox-torque',          // paradox(+1) + torque(4) = 5 ADD
   'rake',                    // 2-ADD primitive
-  // 'rev-up' removed from FIRST_CLASS_TIER_2 2026-05-24: structurally
+  // 'rev-up' excluded from FIRST_CLASS_TIER_2: structurally
   // distinct from rev-whirl (per curator clarification) but no
   // structural decomposition authored; demoted via is_active=0 in
   // red_corrections.
@@ -3723,11 +3718,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-whirl',          // stepping(+1) + whirl(3) = 4 ADD
   'symposium-whirl',         // symposium(+1) + whirl(3) = 4 ADD
   'whirling-swirl',          // whirling(+1) + swirl(3) = 4 ADD
-  // ── Wave 3 promotions (2026-05-22): 28 slugs covering the remaining
+  // ── Promotions: 28 slugs covering the remaining
   //    audit-validated promotion candidates. 6 via ATAM bracket-flag
   //    decomposition (squeeze through barraging-osis); 22 via parser-
-  //    derived modifier × base (or composite for witchdoctor). After
-  //    this batch the audit's promotion-candidate pool is closed for
+  //    derived modifier × base (or composite for witchdoctor). The
+  //    promotion-candidate pool is closed for
   //    all rows except composite-modifier compounds (blurry-* / haze /
   //    food-processor / mantis / nova) and the missing-notation /
   //    doctrine-blocked / folk-name primitive backlog.
@@ -3761,11 +3756,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spender',                 // spinning(+1) + paradox(+1) + blender(4) = 6 ADD
   'gauntlet',                // stepping(+1) + ducking(+1) + paradox(+1) + torque(4) = 7 ADD
   'montage',                 // spinning(+1) + ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 7 ADD
-  // ── Wave 4-B mechanical notation back-fill promotions (2026-05-22):
+  // ── Mechanical notation back-fill promotions:
   //    18 ordinary modifier+base compounds + 1 foundational primitive
   //    (sole-stall via ATOMIC). All derive cleanly via standard
   //    modifier × base ADD math; no composite-modifier expansion.
-  //    Notation back-filled into the DB notation column in the same slice.
+  //    Notation is back-filled into the DB notation column.
   'flail',                   // symposium(+1) + illusion(2) = 3 ADD
   'magellan',                // pixie(+1) + legover(2) = 3 ADD
   'merkon',                  // spinning(+1) + legover(2) = 3 ADD
@@ -3786,7 +3781,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'big-apple',               // gyro(+1) + symposium(+1) + torque(4) = 6 ADD
   // Foundational 2-ADD primitive parallel to cloud-stall:
   'sole-stall',              // UNS(1) + stall(1) = 2 ADD via ATOMIC
-  // ── 2026-05-24: DATW + DLO promoted from the productive-multiplicity
+  // ── DATW + DLO promoted from the productive-multiplicity
   //    exception list to FIRST_CLASS_TIER_2. Both have notation +
   //    operational_notation backfilled via red_corrections; base_trick
   //    set to self via correction so isAtomic gate fires; ATOMIC_FLAG_
@@ -3812,7 +3807,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning-paradox-blender', // spinning(+1) + paradox(+1) + blender(4) = 6 ADD (FB.org)
   'stepping-ducking-paradox-blender', // stepping(+1) + ducking(+1) + paradox(+1) + blender(4) = 7 ADD (FB.org)
   'paradox-blizzard',        // paradox(+1) + blizzard(3) = 4 ADD (FB.org; stepwise via blizzard)
-  // ── Wave 7 doctrine-divergence pilot batch (2026-05-23). First
+  // ── Doctrine-divergence pilot batch. First
   //    registered rows of DOCTRINE_DIVERGENCE_REGISTRY. Each carries a
   //    +1 gap between IFPA-grammar derivation (canonical) and PassBack
   //    source claim; documented as historical-divergence with public
@@ -3820,7 +3815,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'blurrage',                // stepping(+1) + barrage(3) = 4 ADD (PB-source: 3)
   'predator',                // atomic(+1) + dlo(3) = 4 ADD (PB-source: 3)
   'schmoe',                  // stepping(+1) + legover(2) = 3 ADD (PB-source: 2)
-  // ── Pre-Adrian polish slice (2026-05-25): three ATW-family promoted
+  // ── Polish promotions: three ATW-family promoted
   //    rows + three held-delay leg-over family rows + butterfly-kick
   //    correction. Each has operationalNotation populated via the
   //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
@@ -3832,46 +3827,46 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'hop-over',                    // inside-delay(1) + bod(1) = 2 ADD
   'walk-over',                   // inside-delay(1) + dex(1) = 2 ADD
   'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
-  'butterfly-kick',              // bod(1) + dex(1) = 2 ADD (corrected 2026-05-25; was 3 ADD with extra [XBD])
-  'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB 2026-05-25)
-  // ── Deferred-candidate promotions 2026-05-25 (pixie family + toe-blizzard alias):
+  'butterfly-kick',              // bod(1) + dex(1) = 2 ADD (corrected; was 3 ADD with extra [XBD])
+  'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB)
+  // ── Deferred-candidate promotions (pixie family + toe-blizzard alias):
   //    pixie-opposite-clipper / pixie-same-clipper = pixie(+1) + clipper-stall(2) = 3 ADD;
   //    toe-blizzard is an alias of quantum-illusion (not a new canonical row).
   'pixie-opposite-clipper',      // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
   'pixie-same-clipper',          // [DEX] + [XBD] + [DEL] = 3 ADD (sibling JOB from drifter / fairy-clipper)
-  // ── Inspinning family promotions 2026-05-25 (Red pt7 settled: inspinning = +1 modifier):
+  // ── Inspinning family promotions (settled: inspinning = +1 modifier):
   'inspinning-butterfly',        // (front) SPIN [BOD] + butterfly base = 4 ADD (sibling JOB from spinning-butterfly)
   'inspinning-paradox-illusion', // (front) SPIN [BOD] + paradox-illusion base = 4 ADD (sibling JOB from spinning-paradox-illusion)
   'inspinning-paradox-mirage',   // (front) SPIN [BOD] + paradox-mirage base = 4 ADD (sibling JOB from spinning-paradox-mirage)
-  // ── Down-family promotions 2026-05-25 (Red pt7 settled: down-pattern tricks are distinct):
+  // ── Down-family promotions (settled: down-pattern tricks are distinct):
   'double-over-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (TOE-set chassis; FB.org-confirmed JOB)
   'down-double-down',            // [DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (CLIP-set chassis; FB.org-confirmed JOB)
   'down-diver',                  // diving(+1) + double-over-down(4) = 5 ADD ([BOD] + 4 base tokens; FB.org-confirmed JOB)
-  // ── Paradox-family promotions 2026-05-25 (settled +1 PDX modifier; FB.org-confirmed JOBs):
+  // ── Paradox-family promotions (settled +1 PDX modifier; FB.org-confirmed JOBs):
   'paradox-da-da-curve',         // paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + 4 base tokens)
   'paradox-whirling-swirl',      // paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + 4 base tokens)
-  // ── Symposium-pixie promotion 2026-05-25 (symposium = +1 no-plant body modifier; sibling-derived JOB):
+  // ── Symposium-pixie promotion (symposium = +1 no-plant body modifier; sibling-derived JOB):
   'symposium-pixie',             // symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])
-  // ── Ricochet promotion 2026-05-25 (cross-body sole/flapper terminator; FB.org-confirmed JOB):
+  // ── Ricochet promotion (cross-body sole/flapper terminator; FB.org-confirmed JOB):
   'ricochet',                    // [DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (flapper-stall base)
-  // ── Flurricane promotion 2026-05-25 (gyro(+1) + flurry(4); FB.org-confirmed JOB):
+  // ── Flurricane promotion (gyro(+1) + flurry(4); FB.org-confirmed JOB):
   'flurricane',                  // gyro(+1) + flurry(4) = 5 ADD ([BOD] + 3*[DEX] + [DEL])
-  // ── Pixie-swirl promotion 2026-05-25 (pixie(+1) + swirl(3); FB.org-confirmed JOB):
+  // ── Pixie-swirl promotion (pixie(+1) + swirl(3); FB.org-confirmed JOB):
   'pixie-swirl',                 // pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])
-  // ── Down-family follow-ons + flux 2026-05-25 (FB.org-confirmed JOBs):
+  // ── Down-family follow-ons + flux (FB.org-confirmed JOBs):
   'pixie-double-over-down',      // pixie(+1) + double-over-down(4) = 5 ADD
   'scorpions-tail',              // spinning(+1) + down-double-down(4) = 5 ADD (alias: Spinning Down Double-Down)
   'flux',                        // atomic(+1) + osis(3) = 4 ADD (alias: Atomic Osis)
-  // ── Avalanche + spike-hammer 2026-05-25 (structural twins; 3-operator-stack compressions):
+  // ── Avalanche + spike-hammer (structural twins; 3-operator-stack compressions):
   'avalanche',                   // stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD (alias: Stepping Ducking Paradox Illusion)
   'spike-hammer',                // stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD (alias: Stepping Ducking Paradox Mirage)
-  // ── Double-over-down-swirl 2026-05-26 (extends double-over-down chassis; FB.org-confirmed JOB):
+  // ── Double-over-down-swirl (extends double-over-down chassis; FB.org-confirmed JOB):
   'double-over-down-swirl',      // [DEX] + [DEX] + [DEX] + [XBD] + [DEL] = 5 ADD (double-over-down + OP BACK SWIRL third dex)
-  // ── Quantum-symposium-mirage 2026-05-26 (Red pt2 'toe X → quantum X' retirement; FB.org-confirmed JOB):
+  // ── Quantum-symposium-mirage ('toe X → quantum X' retirement; FB.org-confirmed JOB):
   'quantum-symposium-mirage',    // quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL]); folk-name alias "Backside Symposium Toe Blur"
 ]);
 
-// "Compressed from" detail-page surface (2026-05-25 glossary follow-on).
+// "Compressed from" detail-page surface.
 // Strict allowlist of famous/foundational structural compressions that
 // reinforce the glossary §composition "Structural compression" concept
 // directly on the flagship detail pages.
@@ -3919,7 +3914,7 @@ function shapeCompressedFrom(slug: string): { label: 'Compressed from' | 'Compre
 
 // Sui-generis primitives whose curator-locked JOB notation IS the
 // canonical name itself (no decomposable set + terminator chain).
-// double-knee is the founding member (2026-05-22); pendulum mirrors the
+// double-knee is the founding member; pendulum mirrors the
 // pattern conceptually but carries '[DEL] [DEX]' in DB op-notation so
 // doesn't trigger the tautology guard. Slugs in this set are exempt
 // from the shapeDictionaryTrickCard tautological-JOB filter so the
@@ -3949,9 +3944,9 @@ export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
 // gate. Update when workbook status changes for any of these slugs.
 const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // derived_add_mismatch
-  // barraging-osis removed 2026-05-20 (Slice R1): Red ruled barraging
-  // is a two-dex set (modifier weight 1 → 2); 3+2=5 now converges.
-  // witchdoctor removed 2026-05-20 (Slice R1b): Red 2026-05-20 ruling
+  // barraging-osis excluded: ruled a two-dex set
+  // (modifier weight 1 → 2); 3+2=5 now converges.
+  // witchdoctor excluded: ruling
   // (atomic-mirage(4) + symposium(+1) = 5) now mechanically supported
   // via COMPOSITE_DERIVATIONS map + deriveComputedAddFromComposite.
   'nemesis', 'sumo',
@@ -3960,7 +3955,7 @@ const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // add_disagreement (open; not doctrine-locked)
   'omelette', 'fury', 'surging', 'sailing', 'shooting',
   // curator_hold
-  // guay released 2026-05-22: curator resolved as pickup-pattern dex
+  // guay released: curator resolved as pickup-pattern dex
   // primitive with inside-stall terminus; promoted to first-class.
   'jani-walker', 'reaper', 'refraction', 'blistering', 'nuclear',
 ]);
@@ -4049,7 +4044,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > (downtime) spin > ss clipper',
   }],
   ['around-the-world', {
-    // Pedagogical normalization 2026-05-22: foundational tricks teach the
+    // Pedagogical normalization: foundational tricks teach the
     // core ADD buckets directly. Prior 'full-orbit dex(1)' was
     // unnecessarily specialized for a foundational entry; ATW is now read
     // as plain dex + stall, matching the bucket vocabulary used by other
@@ -4058,7 +4053,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         2,
     operationalChain: 'toe > ss(midtime) in dex > ss toe',
   }],
-  // ── Foundational 1-ADD surface vocabulary (added 2026-05-22 with the
+  // ── Foundational 1-ADD surface vocabulary (added with the
   //    foundational-band first-class widening). Anatomical surface stalls
   //    + unusual-surface kicks + folk-name surfaces. ADD via the universal
   //    stall=1 rule for stalls; via the unusual-surface bucket for the two
@@ -4121,7 +4116,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   }],
   // ── Foundational 1-ADD flying-operator primitives. Operator-first
   //    chain form; flying owns the JOB operator slot. ADD bucket is BOD
-  //    (curator 2026-05-22: in ADD accounting, flying-operator primitives
+  //    (curator: in ADD accounting, flying-operator primitives
   //    count under the body/BOD bucket; the movement-language operator
   //    "flying" still names the JOB chain). double-knee is sui-generis
   //    self-token (no [set] > prefix; exempt from the tautological-JOB
@@ -4141,8 +4136,8 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         1,
     operationalChain: 'double knee',
   }],
-  // ── Foundational 2-ADD primitives (added 2026-05-22 — pedagogical
-  //    ADD-bucket normalization slice). Each exposes a core ADD bucket
+  // ── Foundational 2-ADD primitives (pedagogical ADD-bucket
+  //    normalization). Each exposes a core ADD bucket
   //    in a foundational, publication-quality entry. cloud-stall teaches
   //    the unusual-surface bucket pedagogically (parallel to sole-kick /
   //    cloud-kick); dragonfly-kick + flying-clipper extend the flying-
@@ -4165,7 +4160,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         2,
     operationalChain: 'flying > clipper',
   }],
-  // ── knee-clipper: curator clarification 2026-05-22 — folk name, not a
+  // ── knee-clipper: curator clarification — folk name, not a
   //    literal clipper-surface stall. Reads as a flying dexterity knee
   //    kick: BOD(1) + xbody(1) = 2 ADD. JOB chain kept as the DB
   //    op_notation '[set] > knee-clipper' for now; the flying-family
@@ -4177,14 +4172,13 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > knee-clipper',
   }],
   // ── guay: pickup-pattern dex primitive ending in inside-stall.
-  //    Curator resolution 2026-05-22 (released from DOCTRINE_BLOCKED
-  //    curator_hold in the same slice).
+  //    Curator resolution (released from DOCTRINE_BLOCKED curator_hold).
   ['guay', {
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > leggy in dex > ss inside',
   }],
-  // ── Wave 3 ATAM bracket-flag derivations (2026-05-22). Each
+  // ── ATAM bracket-flag derivations. Each
   //    decomposition translates the operational_notation's ATAM
   //    bracket flags ([BOD] [DEX] [XBD] [DEL] [UNS] [PDX]) into the
   //    foundational bucket vocabulary. operationalChain mirrors the
@@ -4221,7 +4215,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         5,
     operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
   }],
-  // ── Wave 4-B: sole-stall foundational primitive (2026-05-22).
+  // ── Sole-stall foundational primitive.
   //    Parallel to cloud-stall (which was promoted with curator-locked
   //    decomposition in the foundational-band slice). sole-stall is the
   //    sole-of-foot stall — counts under the unusual-surface bucket.
@@ -4231,7 +4225,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     operationalChain: '[set] > sole',
   }],
 
-  // ── 2026-05-24: DATW + DLO + rev-whirl first-class promotion via the
+  // ── DATW + DLO + rev-whirl first-class promotion via the
   //    ATOMIC_FLAG path. Each row sets base_trick = self (via
   //    red_corrections) so the convergence-rule isAtomic gate fires;
   //    decomposition is the bracket-counted structural form;
@@ -4257,7 +4251,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
 // honestly as a curator-canonical composite-trick PLUS additional
 // modifiers, rather than as a flat base + N modifiers. Example:
 // witchdoctor (5 ADD) reads as atom-smasher(4) + symposium(+1) per the
-// Red 2026-05-20 ruling ("Atomic Mirage already 4; witchdoctor = atomic
+// Per ruling ("Atomic Mirage already 4; witchdoctor = atomic
 // mirage + symposium = 5"), NOT as flat atomic(+1) + symposium(+1) +
 // mirage(2) which would arithmetically reach only 4.
 //
@@ -4608,7 +4602,7 @@ interface TrickIndexShapingContext {
   // Per-row status overrides for the listAllWithPending path; absent when
   // shaping a plain active row (defaults: isActive=1, reviewStatus='curated').
   statusBySlug?: Map<string, { isActive: number; reviewStatus: string }>;
-  // ADD-view two-line row contract (2026-05-27): per-trick modifier links
+  // ADD-view two-line row contract: per-trick modifier links
   // (ordered) + a slug→numeric-adds lookup, so shapeDictionaryTrickCard
   // can derive the line-2 "ADD: mod(+b) + base(N)" formula mechanically
   // from validated structured data (not inference). Absent maps degrade
@@ -4698,10 +4692,10 @@ function shapeDictionaryTrickCard(
   groupAnchor: string | null = null,
   ctx?: TrickIndexShapingContext,
 ): DictionaryTrickCard {
-  // Emergency public-readiness slice 2026-05-19: when the row is one of
+  // When the row is one of
   // the 12 curator-authoritative core atoms, source operational notation
   // from CoreTrickSpec.operationalNotation (TS content module, the same
-  // single source the landing Core Tricks grid reads from per NCR-1).
+  // single source the landing Core Tricks grid reads from).
   // This propagates the curator-authored atom notation to dictionary
   // browse cards (ADD / family / movement-system / topology / category
   // views), so atoms like mirage / whirl / butterfly / ATW no longer
@@ -4715,7 +4709,7 @@ function shapeDictionaryTrickCard(
   const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
     ? row.operational_notation_source.trim()
     : null;
-  // 2026-05-24 rendered-output audit: suppress the op-notation chip on
+  // Suppress the op-notation chip on
   // browse cards for first-class tricks. Those rows already render a
   // labeled "JOB" line in the first-class secondary row; the duplicate
   // chip between hashtag and ADD chip was reading as a
@@ -4735,8 +4729,7 @@ function shapeDictionaryTrickCard(
   // and the alias-governance allow-list (atoms). Order: compound chains
   // first (when present), then atom-level allow-listed aliases.
   //
-  // Tautological-reading filter (universal, expanded 2026-05-24 per
-  // rendered-output audit): drop any reading whose case-insensitive
+  // Tautological-reading filter (universal): drop any reading whose case-insensitive
   // trimmed form equals the canonical name, regardless of first-class
   // status. Examples that previously leaked through: "double around the
   // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
@@ -4753,7 +4746,7 @@ function shapeDictionaryTrickCard(
   const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
   const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
 
-  // BROWSE-REFACTOR-1 Slice 1: tokenize each ≡ reading. `groupAnchor` is the
+  // Tokenize each ≡ reading. `groupAnchor` is the
   // active view's anchor slug (family / component / topology); tokens matching
   // it carry isFamilyAnchor=true for underline emphasis at render time.
   // By ADD + By Category pass null (no anchor; registry density).
@@ -4763,7 +4756,7 @@ function shapeDictionaryTrickCard(
   // visible slot. Aliases like 'ATW' remain accessible on the trick-detail
   // page + glossary; they no longer compete with op-notation on browse.
   //
-  // 2026-05-24 rendered-output audit: the universal tautological filter
+  // The universal tautological filter
   // above (chainReadings) already drops readings that just echo the
   // canonical name (e.g. "reverse whirl" on rev-whirl, "double around
   // the world" on DATW). Genuine folk-name compound readings (DLO ≡
@@ -4775,10 +4768,10 @@ function shapeDictionaryTrickCard(
     ? []
     : shapeSemanticNotations(symbolicEquivalences, groupAnchor);
 
-  // Formula Accountability Slice (2026-05-17): atom reading fallback. When a
+  // Atom reading fallback. When a
   // row's slug matches a curator-authoritative core atom AND no chain or
   // op-notation surfaces, fall back to the CORE_TRICK_SPEC editorial reading.
-  // Post emergency-slice 2026-05-19: with operationalNotation now sourced
+  // With operationalNotation sourced
   // from the curator content module for atoms, this fallback rarely fires
   // (only when an atom has no curator op-notation, which the 12-atom set
   // shouldn't). Preserved for safety + non-public utility per CR-5.
@@ -4921,7 +4914,7 @@ function shapeTrickIndexRow(
     recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
     mediaCoverage,
-    // Slice C 2026-05-26: vocabulary normalized to `Tutorial available` /
+    // Vocabulary normalized to `Tutorial available` /
     // `Demo available`. The 'none' branch returns '' because the card
     // partial gates the chip block on `hasReferenceMedia` — the prior
     // 'No video yet' string was unreachable noise.
@@ -4997,7 +4990,7 @@ function shapeDictEntry(
 
   const addsNumeric = row.adds ? parseInt(row.adds, 10) : null;
 
-  // Part 1 — description refinement (semantic-notation slice, 2026-05-23).
+  // Part 1 — description refinement.
   // Three branches, in priority order:
   //   1. Curator-authored compound semantic description (override) —
   //      replaces a literal-notation echo with a compositional reading.
@@ -5044,9 +5037,9 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 }
 
 // ---------------------------------------------------------------------------
-// UX3b1 editorial prose surface (2026-05-11)
+// Editorial prose surface
 // ---------------------------------------------------------------------------
-// Curator-authored prose backing the universal-shell template's UX2 ordering.
+// Curator-authored prose backing the universal-shell template's single-page ordering.
 // Prose lives in freestyle_tricks columns (short_description / execution_summary
 // / learning_notes / prerequisite_notes / featured_media_id). Service shapes
 // the row into Ux2PilotData when ANY of the prose columns is populated. A row
@@ -5085,7 +5078,7 @@ function shapeUx2PilotFromRow(
   };
 }
 
-// UX3c-c (2026-05-11) cssRole lookup for the hero quick-stat formula.
+// cssRole lookup for the hero quick-stat formula.
 // Maps a modifier's slug + type to one of three semantic-notation cssRole
 // classes: 'set', 'rotation', 'modifier'. Rotation cssRole reserved for the
 // three rotational-flavour body modifiers (spinning/whirling/swirling); other
@@ -5098,11 +5091,11 @@ function modifierCssRole(slug: string, modifierType: string): string {
   return 'modifier';
 }
 
-// UX3c-c (2026-05-11) hero quick-stat formula builder. Atom rows render the
+// Hero quick-stat formula builder. Atom rows render the
 // short form "trick-name = N ADD". Compound rows render the additive form
 // "modifier(+w) + ... + base(N) = TOTAL ADD" with role-coloured operands.
 // Source of modifier data is freestyle_trick_modifier_links (authoritative for
-// Wave-1/Wave-2 single-token canonical names like "matador" / "phoenix").
+// single-token canonical names like "matador" / "phoenix").
 // Returns null when the trick is a modifier-only row or has no numeric adds.
 function buildHeroFormula(
   canonicalName: string,
@@ -5116,7 +5109,7 @@ function buildHeroFormula(
   if (isModifier) return null;
   const numericAdds = tricksAdds && /^\d+$/.test(tricksAdds) ? tricksAdds : null;
   if (numericAdds === null) return null;
-  // 2026-05-23 curator-rendered-output audit: suppress the tautological
+  // Suppress the tautological
   // `<canonical_name> = N ADD` hero-formula for atomic and folk-name
   // rows where no modifier links exist. The hero ADD chip already
   // carries the numeric value; restating `cloud kick = 1 ADD` next to
@@ -5153,13 +5146,13 @@ function buildHeroFormula(
     weight:  baseAdds ? `(${baseAdds})` : null,
     cssRole: 'core-family',
   });
-  // Slice D 2026-05-26: drop the `=` operator + `result` (`N ADD`) tokens.
+  // Drop the `=` operator + `result` (`N ADD`) tokens.
   // The hero ADD chip (`{adds} ADD`) already carries the total; the formula
   // row shows the operator-by-operator math without restating the result.
   return tokens;
 }
 
-// UX3d-b (2026-05-11) modifier-layering builder. Activates only when
+// Modifier-layering builder. Activates only when
 // modifier_links.length >= 3 (flagship-density threshold). Builds an
 // innermost-out nested structure: the base trick is the innermost layer; each
 // modifier wraps the next one outward; modifier_links[0] becomes the outermost
@@ -5212,7 +5205,7 @@ function buildModifierLayering(
   };
 }
 
-// UX3e-b (2026-05-11) per-trick modifier-link map. Built once per request from
+// Per-trick modifier-link map. Built once per request from
 // the existing listTricksByModifier query (which returns one row per
 // (modifier, trick) pair joined to modifier metadata). Used by buildParallel
 // Tricks + buildSubstitutions to look up any trick's modifier set without
@@ -5293,8 +5286,7 @@ const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
 
 // ─────────────────────────────────────────────────────────────────────────
 // Per-trick reverse semantic-membership lookup. Used by the trick-detail
-// page to close the discovery loop between browse views and trick pages
-// (UX-SHIP-1 Phase 5).
+// page to close the discovery loop between browse views and trick pages.
 //
 // Reuses the same TOPOLOGY_GROUPS predicates the dictionary index uses;
 // component memberships read off the trick's existing modifier links.
@@ -5372,7 +5364,7 @@ function buildModifierLinkMap(
   return map;
 }
 
-// UX3e-b (2026-05-11) parallel tricks builder. Definition: same trick_family
+// Parallel tricks builder. Definition: same trick_family
 // + same adds value + different slug. Restricted to numeric adds (parallels
 // only make sense at a defined difficulty tier). Cap at 4 results. Returns
 // rows sorted by canonical_name for stable rendering.
@@ -5406,7 +5398,7 @@ function buildParallelTricks(
     });
 }
 
-// UX3e-b (2026-05-11) modifier substitutions builder. Definition: same
+// Modifier substitutions builder. Definition: same
 // base_trick + same modifier_count + share N-1 modifiers + different slug.
 // The "share N-1" rule isolates exactly one modifier swap; substitutes with
 // 2+ different modifiers fall outside the substitution lens. Cap at 4 results;
@@ -5448,7 +5440,7 @@ function buildSubstitutions(
   return out.slice(0, 4);
 }
 
-// UX3d-a (2026-05-11) hero decomposition builder. Returns a role-coloured
+// Hero decomposition builder. Returns a role-coloured
 // token sequence (modifier(s) + base) for any compound trick with at least
 // one modifier link. Returns null for atoms (zero modifier links) and
 // modifier-only rows. Tokens render in lowercase to match the canonical_name
@@ -5475,7 +5467,7 @@ function buildHeroDecomposition(
   return tokens;
 }
 
-// UX3c-b family-tier grouping (2026-05-11). Reorganises the flat family-member
+// Family-tier grouping. Reorganises the flat family-member
 // list into ADD-tier groups; preserves source order within each tier. Numeric
 // tiers ascending; the non-numeric tier (rows with `adds` null or "modifier")
 // renders last under a "Modifiers" label. Returns an empty array when the
@@ -5510,11 +5502,11 @@ function buildFamilyTiers(members: FreestyleFamilyMember[]): FreestyleFamilyTier
   return numericTiers;
 }
 
-// UX3b0 density classification (2026-05-11). Derived from existing data only;
+// Density classification. Derived from existing data only;
 // no schema dependency. Inputs: modifier-link count, semantic notation presence,
 // operational notation presence, record count, media availability, ux2Pilot
-// presence. Stays read-only at UX3b0; future UX3 phases consume this signal
-// to gate flagship-only surfaces (token-coloured h1, modifier-layering panel,
+// presence. Read-only signal that gates
+// flagship-only surfaces (token-coloured h1, modifier-layering panel,
 // modifier-ecosystem block) without per-slug allowlists.
 function classifyDensityTier(args: {
   modifierLinkCount: number;
@@ -5735,14 +5727,14 @@ export const freestyleService = {
       },
       content: (() => {
         // Load modifier_links once; consumed by both notationGrammar (editorial
-        // decomposition table) and the UX3c-c hero quick-stat formula.
+        // decomposition table) and the hero quick-stat formula.
         const modifierLinks: FreestyleTrickModifierLinkDetailRow[] = dictRow
           ? runSqliteRead('freestyleTrickModifiers.listLinksByTrickSlug', () =>
               freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as FreestyleTrickModifierLinkDetailRow[],
             )
           : [];
 
-        // UX3e-b: load all (modifier, trick) pairs once and build a Map for
+        // Load all (modifier, trick) pairs once and build a Map for
         // parallel + substitution shaping. Reuses an existing prepared
         // statement (listTricksByModifier); no new query needed.
         const allLinkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
@@ -5803,7 +5795,7 @@ export const freestyleService = {
              ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')))
           : null;
         // Pathway "Learn this trick" surfaces tutorial- and demo-tier counts
-        // separately — wording must not conflate them (Phase 3 fix).
+        // separately — wording must not conflate them.
         const pathways = shapeTrickPathways({
           tutorialCount: tutorialMedia.length,
           demoCount:     demoMedia.length,
@@ -5952,7 +5944,7 @@ export const freestyleService = {
             // tricks so the comparativeNotation row doesn't double-render
             // the ADD breakdown.
             //
-            // Core-atom suppression rule (post-Wave-7 editorial pass):
+            // Core-atom suppression rule:
             // addAnalysis is also suppressed for any slug in
             // CORE_ATOM_SLUGS. Atoms are the floor of decomposition;
             // rendering a compositional ADD analysis on them implies
@@ -5997,7 +5989,7 @@ export const freestyleService = {
             return { isFirstClass: firstClassPasses, comparativeNotation, addAnalysis };
           })(),
           equivalenceTopology: (() => {
-            // Phase 2 of equivalence-topology rollout. Surfaces an
+            // Surfaces an
             // alternate-derivation entry inside an [advanced] expandable
             // when authored AND ratified. curatorConfirmPending entries
             // are filtered here so pending entries never reach the
@@ -6005,7 +5997,7 @@ export const freestyleService = {
             // exploration/equivalence-topology-phase-1-2026-05-21/
             // DESIGN.md §6 lives at this seam.
             //
-            // Core-atom suppression rule (post-Wave-7 editorial pass):
+            // Core-atom suppression rule:
             // atoms cannot carry an alternate-derivation entry; the
             // "alternate" frame presupposes a primary decomposition,
             // which atoms (by definition) lack.
@@ -6014,8 +6006,7 @@ export const freestyleService = {
             return entry && !entry.curatorConfirmPending ? entry : null;
           })(),
           primitiveNote: (() => {
-            // Primitive-note callout (post-Wave-7 ontology-clarification
-            // slice, 2026-05-23). The companion to the core-atom
+            // Primitive-note callout. The companion to the core-atom
             // suppression rule above: where atoms suppress compound-
             // shaped partials, this surfaces a small pedagogical note
             // explaining the ontological role.
@@ -6037,8 +6028,8 @@ export const freestyleService = {
             };
           })(),
           transform: (() => {
-            // Reverse-pair transform overlay (semantic-notation slice,
-            // 2026-05-23). Populated only for the five curator-locked
+            // Reverse-pair transform overlay. Populated only for the
+            // five curator-locked
             // entries in REVERSE_PAIR_TRANSFORMS (illusion, pickup,
             // rev-whirl, rev-swirl, orbit). See the content module
             // for the forever-rule about scope.
@@ -6055,8 +6046,7 @@ export const freestyleService = {
             };
           })(),
           intuition: (() => {
-            // Movement-intuition prose (trick-detail enrichment slice,
-            // 2026-05-23). Curator-locked flagship enrichments only;
+            // Movement-intuition prose. Curator-locked flagship enrichments only;
             // see freestyleTrickIntuition.ts for the authorship
             // discipline locked in the JSDoc there. Initial set: the
             // five core-atom flagships (mirage, whirl, butterfly, osis,
@@ -6068,8 +6058,8 @@ export const freestyleService = {
               attribution: entry.attribution,
             };
           })(),
-          // "Compressed from" / "Compressed reading" pedagogy line
-          // (2026-05-25 glossary follow-on). Strict allowlist of famous
+          // "Compressed from" / "Compressed reading" pedagogy line.
+          // Strict allowlist of famous
           // structural compressions (smear, ripwalk, atom-smasher,
           // eggbeater, mobius). See FAMOUS_COMPRESSION_SLUGS doctrine.
           compressedFrom: shapeCompressedFrom(slug),

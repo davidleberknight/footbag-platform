@@ -229,7 +229,7 @@ describe('phone whitespace trimming', () => {
   });
 });
 
-// ── Audit trail (BUG_HUNT B8) ─────────────────────────────────────────────────
+// ── Audit trail ───────────────────────────────────────────────────────────────
 
 describe('profile update writes an audit row', () => {
   it('POST /members/:slug/edit appends member.profile_updated with field names (no PII values)', async () => {

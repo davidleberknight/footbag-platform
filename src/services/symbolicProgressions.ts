@@ -5,8 +5,8 @@
  * layer. Each progression is a fixed chain of trick slugs + per-step prose
  * rationale + symbolic-topology attribution.
  *
- * Phase 1 (UX-SHIP-1) ships only the Walking Family progression. No general
- * progression engine is built yet — the chain is hardcoded.
+ * Only the Walking Family progression exists. No general progression engine is
+ * built yet — the chain is hardcoded.
  *
  * Service-layer integration:
  *   - This module owns the hardcoded chain definitions + per-step rationale.
@@ -61,9 +61,9 @@ export interface WalkingFamilyProgressionContent {
 // ─────────────────────────────────────────────────────────────────────────
 // Hand-authored chain — Walking Family progression
 //
-// Per UX-SHIP-1 Phase 5 task brief. Steps in fixed order; each transition
-// teaches one mechanical/modifier concept. Rationale prose is curator-style
-// educational language, not pt##/Red/internal-process leakage.
+// Steps in fixed order; each transition teaches one mechanical/modifier
+// concept. Rationale prose is curator-style educational language, not
+// pt##/Red/internal-process leakage.
 // ─────────────────────────────────────────────────────────────────────────
 
 const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [

@@ -2,9 +2,9 @@
  * symbolicModifierEducation.ts
  *
  * Hand-authored educational pages for modifier-family teaching surfaces.
- * Per UX-SHIP-1 Phase 6 (Task D), pilot scope: spinning only.
+ * Pilot scope: spinning only.
  *
- * Design philosophy (carried forward from the Phase 6 design conversation):
+ * Design philosophy:
  *   - These are TEACHING SURFACES, not symbolic report generators.
  *   - Lead with the body and the mechanics; the cohort of tricks is evidence,
  *     not the primary content.
@@ -16,7 +16,7 @@
  *     diving/weaving/zulu for ducking).
  *
  * Adding new modifiers: register an object in MODIFIER_PAGE_CONTENT.
- * Phase 6 ships ONLY spinning so the pedagogy framework can be validated
+ * Only spinning exists so far, so the pedagogy framework can be validated
  * before extension to paradox + ducking.
  */
 import type { FreestyleTrickRow } from '../db/db';
@@ -121,7 +121,7 @@ export interface ModifierFamilyPageContent {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Authored content — SPINNING (the only modifier shipped in Phase 6)
+// Authored content — SPINNING (the only modifier authored so far)
 // ─────────────────────────────────────────────────────────────────────────
 
 const SPINNING_CONTENT: ModifierEducationInput = {
@@ -513,7 +513,7 @@ const MODIFIER_PAGE_CONTENT: Record<string, ModifierEducationInput> = {
 
 /**
  * Returns true when a modifier-family page exists for the given slug.
- * Phase 6 ships only "spinning".
+ * Only "spinning" exists so far.
  */
 export function hasModifierFamilyPage(slug: string): boolean {
   return Object.prototype.hasOwnProperty.call(MODIFIER_PAGE_CONTENT, slug);

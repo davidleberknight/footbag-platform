@@ -723,10 +723,11 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
   // would otherwise vanish silently.
   let tokenRowId: string | undefined;
   try {
+    const ttlHours = readIntConfig('email_verify_expiry_hours', 24);
     const issued = accountTokenService.issueToken({
       memberId,
       tokenType: 'email_verify',
-      ttlHours: 24,
+      ttlHours,
     });
     tokenRowId = issued.tokenRowId;
     const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
@@ -741,7 +742,7 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
       subject: 'Verify your IFPA Footbag account',
       bodyText:
         'Welcome to IFPA Footbag.\n\n' +
-        'Please confirm your email address by opening the link below. The link expires in 24 hours.\n\n' +
+        `Please confirm your email address by opening the link below. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
         `${verifyUrl}\n\n` +
         'If you did not request this account, you can ignore this message.',
     });
@@ -1360,7 +1361,7 @@ function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId
     );
   }
 
-  // Single tier grant per DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3.
+  // Single tier grant per legacy claim; grants never stack.
   // Honors-only fallback: HoF or BAP (from either the legacy row or the
   // transitive HP) → tier2; otherwise tier0. Same transaction as the merge.
   const hasHof = Boolean(row.is_hof) || Boolean(hp?.hof_member);
@@ -1696,8 +1697,8 @@ function dismissAutoLinkCard(memberId: string): { status: 'dismissed' | 'no_card
 
 // ── Two-step emailed-token legacy claim flow ─────────────────────────────────
 //
-// Per docs/MIGRATION_PLAN.md §7, the production claim flow is mailbox-verified
-// rather than direct-lookup: the member submits an identifier, the server
+// The production claim flow is mailbox-verified rather than direct-lookup:
+// the member submits an identifier, the server
 // issues a single-use token and emails it to the legacy account's
 // `legacy_email`, and a follow-on confirm step consumes the token and runs
 // the merge. The two-step flow is non-revealing: the POST response is
@@ -2186,7 +2187,7 @@ function claimHistoricalPersonInTx(
     requestingMemberId,
   );
 
-  // Single tier grant per DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3.
+  // Single tier grant per legacy claim; grants never stack.
   // Direct HP claim takes the same `legacy.claim_tier_grant` reason: honors
   // (HoF or BAP, from the HP) → tier2; otherwise tier0. Same transaction
   // as the merge writes above.
@@ -2274,15 +2275,20 @@ async function changePassword(
 
   const newHash = await hashPassword(newPassword);
   const now = new Date().toISOString();
-  auth.updateMemberPassword.run(newHash, now, now, memberId);
-
-  appendAuditEntry({
-    actionType: 'auth.password_change',
-    category: 'auth',
-    actorType: 'member',
-    actorMemberId: memberId,
-    entityType: 'member',
-    entityId: memberId,
+  // Password bump (invalidates all other sessions) and its audit row commit
+  // together, so a failed audit insert cannot leave the version bumped with no
+  // audit trail. The confirmation email below is external I/O and stays
+  // post-commit by design.
+  transaction(() => {
+    auth.updateMemberPassword.run(newHash, now, now, memberId);
+    appendAuditEntry({
+      actionType: 'auth.password_change',
+      category: 'auth',
+      actorType: 'member',
+      actorMemberId: memberId,
+      entityType: 'member',
+      entityId: memberId,
+    });
   });
 
   // Confirmation email. Uses the strict enqueueEmailOrFail helper because a
@@ -2714,12 +2720,14 @@ export type RevertAutoLinkResult =
   | { status: 'already_reverted' }
   | { status: 'not_found' };
 
-function revertAutoLink(
+// Inner body: the CALLER owns the transaction. Composes plain statements only
+// (no nested transaction()), so it can run inside revertAutoLink's wrapper or
+// inside the combined consume+revert transaction of revertAutoLinkByToken.
+function revertAutoLinkInTx(
   memberId: string,
   originalClaimAuditId: string,
   actor: RevertAutoLinkActor,
 ): RevertAutoLinkResult {
-  return transaction(() => {
     const member = legacyClaim.findClaimingMember.get(memberId) as
       | {
           id: string;
@@ -2790,7 +2798,14 @@ function revertAutoLink(
     });
 
     return { status: 'reverted' as const };
-  });
+}
+
+function revertAutoLink(
+  memberId: string,
+  originalClaimAuditId: string,
+  actor: RevertAutoLinkActor,
+): RevertAutoLinkResult {
+  return transaction(() => revertAutoLinkInTx(memberId, originalClaimAuditId, actor));
 }
 
 // Tokened revert path consumed by the report-incorrect link in the silent-
@@ -2798,14 +2813,24 @@ function revertAutoLink(
 // return the same `already_reverted` status as a real already-reverted
 // claim so an attacker cannot use the endpoint to probe which audit ids
 // exist (anti-enumeration).
+// Current: consume + revert run inside ONE transaction so a throw in the revert
+//   writes rolls back the token consume too; the one-shot token is preserved for
+//   a retry instead of being burned without reverting the link.
+// (consumeIfUnusedInTx and revertAutoLinkInTx are both plain-statement bodies, so
+//  they compose under a single outer transaction without violating no-nesting.)
 function revertAutoLinkByToken(rawToken: string): RevertAutoLinkResult {
-  const consumed = accountTokenService.consumeToken(rawToken, 'auto_link_report_incorrect');
-  if (!consumed || !consumed.targetAuditEntryId) {
-    return { status: 'already_reverted' };
-  }
-  return revertAutoLink(consumed.memberId, consumed.targetAuditEntryId, {
-    actorType: 'member',
-    actorMemberId: consumed.memberId,
+  return transaction(() => {
+    const consumed = accountTokenService.consumeIfUnusedInTx(
+      rawToken,
+      'auto_link_report_incorrect',
+    );
+    if (!consumed || !consumed.targetAuditEntryId) {
+      return { status: 'already_reverted' as const };
+    }
+    return revertAutoLinkInTx(consumed.memberId, consumed.targetAuditEntryId, {
+      actorType: 'member',
+      actorMemberId: consumed.memberId,
+    });
   });
 }
 

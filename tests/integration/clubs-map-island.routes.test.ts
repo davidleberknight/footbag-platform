@@ -1,7 +1,7 @@
 /**
  * Regression: the clubs map JSON island must HTML-escape DB-sourced strings so a
  * club country containing "</script>" cannot break out of the
- * <script type="application/json"> island and inject markup (BUG_HUNT B1).
+ * <script type="application/json"> island and inject markup.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

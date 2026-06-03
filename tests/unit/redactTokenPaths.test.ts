@@ -80,9 +80,9 @@ describe('redactTokenPaths', () => {
       .toBe('/register/wizard/legacy_claim/claim/confirm/[redacted]');
   });
 
-  // Regression for B16: member-search query strings were logged verbatim, so a
-  // reader of debug-level CloudWatch logs could observe who searched for whom.
-  // DATA_GOVERNANCE §9 requires anonymization before persistence.
+  // Member-search query strings were logged verbatim, so a reader of
+  // debug-level CloudWatch logs could observe who searched for whom; query
+  // strings must be anonymized before persistence.
   describe('PII query-string redaction', () => {
     it('redacts q= as the first query parameter', () => {
       expect(redactTokenPaths('/members/alice?q=Jane'))

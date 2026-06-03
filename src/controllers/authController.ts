@@ -14,10 +14,11 @@ import {
 } from '../services/identityAccessService';
 import { RateLimitedError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
-import { simulatedEmailService } from '../services/simulatedEmailService';
+import { simulatedEmailService, type SimulatedEmailPreview } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
-import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { logger } from '../config/logger';
+import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 
 function isSafePath(value: unknown): value is string {
@@ -118,6 +119,11 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       slug ?? '',
     );
     // No session cookie is set; the member must verify via email first.
+    // Stub-only: carry the recipient across the redirect so the dev card on
+    // /register/check-email scopes to this user's verify token, not everyone's.
+    if (config.sesAdapter === 'stub') {
+      writeFlash(res, req, FLASH_KIND.VERIFY_EMAIL_PENDING, (email ?? '').toLowerCase().trim());
+    }
     res.redirect(303, '/register/check-email');
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -142,12 +148,28 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
   }
 }
 
-async function getCheckEmail(_req: Request, res: Response, next: NextFunction): Promise<void> {
+async function getCheckEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    // Scope the dev card to the just-registered recipient, carried in a signed
+    // flash across the 303. A visitor WITHOUT the flash (direct navigation, or
+    // another user's browser) gets an empty card so the dev card can never
+    // surface another pending user's verify token. In live mode the service
+    // returns null and no card renders at all.
+    const flash = readFlash(req);
+    let recipientEmail: string | undefined;
+    if (flash?.kind === FLASH_KIND.VERIFY_EMAIL_PENDING) {
+      recipientEmail = flash.payload ?? undefined;
+      clearFlash(res, req);
+    }
     // Filter to verify-email URLs only so a stale verify card from a prior
     // session doesn't bleed into a fresh registration's check-email page.
-    const emailPreview =
-      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/verify/' })) ?? undefined;
+    let emailPreview: SimulatedEmailPreview | undefined;
+    if (recipientEmail) {
+      emailPreview =
+        (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/verify/', recipientEmail })) ?? undefined;
+    } else if (config.sesAdapter === 'stub') {
+      emailPreview = { mode: 'dev', messages: [] };
+    }
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email' },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
@@ -207,6 +229,19 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   // anti-enumeration.
   try {
     await identityAccessService.resendVerifyEmail(email ?? '');
+    // The resend dev card is always empty in stub mode. Reflecting whether mail
+    // was actually sent would leak account existence (the response must be
+    // byte-identical for unverified/verified/unknown — anti-enumeration), and
+    // showing the captured buffer would leak other pending users' verify tokens
+    // (B43). The just-registered user retrieves their own link from the
+    // flash-scoped /register/check-email page. Live mode renders no card.
+    const emailPreview: SimulatedEmailPreview | undefined =
+      config.sesAdapter === 'stub' ? { mode: 'dev', messages: [] } : undefined;
+    res.render('auth/check-email', {
+      seo: { title: 'Check Your Email' },
+      page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
+      content: { resent: true, emailPreview },
+    } satisfies PageViewModel<CheckEmailContent>);
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {
       // Defense-in-depth for any ServiceUnavailableError surfacing from
@@ -219,13 +254,6 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     next(err);
     return;
   }
-  const emailPreview =
-    (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/verify/' })) ?? undefined;
-  res.render('auth/check-email', {
-    seo: { title: 'Check Your Email' },
-    page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
-    content: { resent: true, emailPreview },
-  } satisfies PageViewModel<CheckEmailContent>);
 }
 
 // GET /logout: render a tiny page that immediately POSTs the logout, so that

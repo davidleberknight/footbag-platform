@@ -30,9 +30,9 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'curator_admin', is_admin: 1 });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
-  // Admin Tier 2 per USER_STORIES §3.6 — required so the
-  // assertTier1Benefits defense-in-depth check in curatorMediaService
-  // does not block admin-actor service calls in this suite.
+  // Admin Tier 2 required so the assertTier1Benefits defense-in-depth
+  // check in curatorMediaService does not block admin-actor service
+  // calls in this suite.
   insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
   db.close();
   svcModule = await import('../../src/services/curatorMediaService');
@@ -890,8 +890,8 @@ describe('curatorMediaService.getMediaItem', () => {
 
   // YouTube URL-ref rows are written by the seeder, not by any service
   // method. Insert one directly via SQL to exercise the thumbnail
-  // derivation in deriveListThumbnail (DD §6.8: render-time derivation
-  // when thumbnail_url IS NULL).
+  // derivation in deriveListThumbnail (render-time derivation when
+  // thumbnail_url IS NULL).
   it('youtube row with NULL thumbnail_url: thumbnailUrl is derived as i.ytimg.com/vi/{video_id}/hqdefault.jpg', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), curatedRootDir: curatedRoot });
     const db = openDb();

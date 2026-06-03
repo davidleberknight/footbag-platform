@@ -33,10 +33,12 @@
  *   - Monotonic state transitions: enforced both by service code and by
  *     trg_payments_status_monotonicity. Every status change writes a
  *     payment_status_transitions row in the same transaction.
- *   - Payment row written as 'pending' BEFORE adapter.createCheckoutSession,
- *     so the row exists for the webhook callback to find by payment_intent_id.
- *     A partial unique index allows only one pending membership payment per
- *     member; a concurrent double-submit fails with ConflictError.
+ *   - Payment row written as 'pending' AFTER adapter.createCheckoutSession, in
+ *     one INSERT already carrying stripe_checkout_session_id and
+ *     stripe_payment_intent_id, so a pending row can never exist without the keys
+ *     every webhook lookup needs. A partial unique index allows only one pending
+ *     membership payment per member; a concurrent double-submit fails with
+ *     ConflictError.
  *   - Tier grant applied ONLY in the webhook success branch. Membership tier
  *     never changes from controller code; the tier change is keyed to the
  *     Stripe-confirmed event id.
@@ -341,32 +343,14 @@ async function startMembershipPurchase(
   const paymentId = newPaymentId();
   const now = new Date().toISOString();
 
-  // Insert the payment row as 'pending' so the webhook callback can find it
-  // by stripe_payment_intent_id once we have one. The adapter call happens
-  // OUTSIDE the transaction because in live mode it is a network call.
+  // Create the Stripe checkout session FIRST (external I/O before any DB write),
+  // then insert the 'pending' row already populated with the session and
+  // payment-intent ids. This guarantees no pending row can exist without the
+  // stripe keys every webhook lookup needs (findBySessionId / findByPaymentIntentId);
+  // if the insert fails, the abandoned Stripe session is acked as ignored on its
+  // checkout.session.expired and the member can retry immediately, with no orphan.
   // A partial unique index (one pending membership payment per member) makes a
-  // concurrent double-submit fail here rather than risk a double tier grant.
-  try {
-    paymentsDb.insertPayment.run(
-      paymentId,
-      now, memberId, now, memberId,
-      memberId,
-      'membership',
-      amountCents, CURRENCY,
-      'pending',
-      descriptor,
-      tier,
-      '{}',
-    );
-  } catch (err) {
-    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      throw new ConflictError(
-        'A membership purchase is already in progress. Complete or cancel it before starting another.',
-      );
-    }
-    throw err;
-  }
-
+  // concurrent double-submit fail at the insert rather than risk a double tier grant.
   const adapter = getPaymentAdapter();
   const result = await adapter.createCheckoutSession({
     memberId,
@@ -381,14 +365,28 @@ async function startMembershipPurchase(
     metadata: { paymentId, memberId, tier },
   });
 
-  paymentsDb.updateStripeIdentifiers.run(
-    result.sessionId,
-    result.paymentIntentId,
-    null,
-    new Date().toISOString(),
-    memberId,
-    paymentId,
-  );
+  try {
+    paymentsDb.insertPayment.run(
+      paymentId,
+      now, memberId, now, memberId,
+      memberId,
+      'membership',
+      amountCents, CURRENCY,
+      'pending',
+      descriptor,
+      tier,
+      '{}',
+      result.sessionId,
+      result.paymentIntentId,
+    );
+  } catch (err) {
+    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      throw new ConflictError(
+        'A membership purchase is already in progress. Complete or cancel it before starting another.',
+      );
+    }
+    throw err;
+  }
 
   appendAuditEntry({
     actionType: 'payment.checkout_started',

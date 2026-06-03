@@ -810,8 +810,10 @@ export const clubs = {
   // affiliation. Counted scope mirrors listMembersByClubId so the count and
   // the auth-gated list agree. Clubs with zero matching affiliations are
   // simply absent from the result; service treats absence as count = 0.
-  // TEMP-DEVIATION: matches listMembersByClubId status filter so the
-  // snapshot count agrees with the auth-gated list scope.
+  // Current: filters legacy affiliation status to mirror listMembersByClubId so the
+  //          snapshot count and the auth-gated list agree during legacy coexistence.
+  // Target: once legacy affiliation data is retired, count directly from members by
+  //         mapped_club_id with no status filter.
   get listMemberCountsForAllClubs() { return db.prepare(`
     SELECT
       lcc.mapped_club_id AS club_id,
@@ -849,10 +851,10 @@ export const clubs = {
       COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
   `); },
 
-  // TEMP-DEVIATION: club-classification QC panel. Fetches the candidate's
-  // classification + R1-R10 rule firings + rule inputs for the dev+staging
-  // QC panel on /clubs/:key. Remove when A_Periodic_Club_Cleanup admin
-  // queue ships.
+  // Current: exposes raw classification evidence (score, R1-R10 firings, rule inputs)
+  //          for the dev+staging QC panel on /clubs/:key.
+  // Target: remove when the admin club-cleanup queue ships and the QC panel is no
+  //         longer needed on the public clubs route.
   get getClassificationEvidenceByClubId() { return db.prepare(`
     SELECT
       classification,
@@ -6823,22 +6825,14 @@ export const payments = {
     INSERT INTO payments (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, payment_type, amount_cents, currency,
-      status, descriptor, purchased_tier_status, metadata_json
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+      status, descriptor, purchased_tier_status, metadata_json,
+      stripe_checkout_session_id, stripe_payment_intent_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
   get updateStatus() { return db.prepare(`
     UPDATE payments
     SET status = ?, updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ?
-  `); },
-
-  get updateStripeIdentifiers() { return db.prepare(`
-    UPDATE payments
-    SET stripe_checkout_session_id = ?,
-        stripe_payment_intent_id   = ?,
-        last_stripe_event_created  = ?,
-        updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
 

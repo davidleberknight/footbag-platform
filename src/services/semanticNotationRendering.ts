@@ -11,9 +11,9 @@
  *   - The registry is curator-locked; only operators with established structural
  *     readings get a role classification.
  *
- * Slice 1 scope: classify the tokens; emit isFamilyAnchor flag based on caller-
- * provided active anchor slug. Future slices add count-bearing / hidden-X-dex /
- * Fairy chip differentiation when Wave-2 Red answers land.
+ * Current scope: classify the tokens and emit the isFamilyAnchor flag from the
+ * caller-provided active anchor slug. Count-bearing / hidden-X-dex / Fairy chip
+ * differentiation is not yet implemented.
  */
 
 export type SemanticRole =
@@ -112,8 +112,8 @@ const MODIFIERS: ReadonlySet<string> = new Set([
   'miraging',
   'whirling',
   'illusioning',
-  // Count-bearing / quantifier operators (per pt8 / 2026-05-15; rendering
-  // refinement deferred to Slice 2 once Wave-2 Q2 settles).
+  // Count-bearing / quantifier operators. Distinct rendering for these is not
+  // yet implemented; they classify as operators for now.
   'double',
   'triple',
   'surging',

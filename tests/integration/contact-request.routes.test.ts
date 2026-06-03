@@ -286,8 +286,8 @@ describe('POST /members/:slug/contact-admin', () => {
   });
 
   it('enqueues admin-alerts fan-out: one outbox row per subscribed admin, body carries task type + entity id only', async () => {
-    // M2: per US §198 Global Behaviors, every work_queue_items insert fires
-    // an admin-alerts notification containing only task_type + entity_id.
+    // Every work_queue_items insert fires an admin-alerts notification
+    // containing only task_type + entity_id.
     const app = createApp();
     await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
@@ -315,7 +315,7 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(row.subject).toBe('New admin queue item: member_contact_request');
     expect(row.body_text).toBe(`Task type: member_contact_request\nEntity ID: ${queueItemId}`);
     expect(row.idempotency_key).toBe(`admin-alerts:member_contact_request:${queueItemId}:${ADMIN_SUBSCRIBER_ID}`);
-    // Body must not contain sensitive member data per US §198.
+    // Body must not contain sensitive member data.
     expect(row.body_text).not.toContain('owner@example.com');
     expect(row.body_text).not.toContain('Contact Owner');
     expect(row.body_text).not.toContain('route the fan-out');

@@ -414,7 +414,7 @@ describe('POST /password/reset/:token — session reissue failure', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Confirmation-email enqueue failure on reset completion (BUG_HUNT B6).
+// Confirmation-email enqueue failure on reset completion.
 // The reset itself committed; a degraded outbox must leave an operator signal
 // (operational-error audit row) rather than a silent swallow. Unlike the
 // in-profile password change, the failure is NOT surfaced as a 503: the reset

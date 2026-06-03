@@ -5,6 +5,7 @@ import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaSt
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
+import { appendAuditEntry } from './auditService';
 
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -94,6 +95,19 @@ export function createAvatarService(deps: AvatarServiceDeps) {
         mediaTagsDb.insertMediaTag.run(mediaTagId, now, now, mediaId, tagId, uploaderTag);
 
         media.setMemberAvatar.run(mediaId, now, memberId);
+
+        // Audit the state change inside the same transaction so a failed append
+        // rolls back the whole avatar swap. Matches the member-photo path's
+        // 'upload_member_media' taxonomy (mediaType distinguishes avatar/photo).
+        appendAuditEntry({
+          actionType: 'upload_member_media',
+          category: 'media',
+          actorType: 'member',
+          actorMemberId: memberId,
+          entityType: 'media_item',
+          entityId: mediaId,
+          metadata: { mediaType: 'avatar', uploaderTag },
+        });
       });
 
       return { thumbUrl: storage.constructURL(thumbKey) };

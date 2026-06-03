@@ -583,7 +583,7 @@ describe('post-verify redirect lands on the wizard', () => {
   });
 });
 
-// ── wizard.start audit entry (SC §MemberOnboardingService invariant) ─────────
+// ── wizard.start audit entry ─────────────────────────────────────────────────
 //
 // Every wizard transition emits an audit_entries row. The `start` event
 // fires once per member, the first time the task list materializes; later
@@ -607,7 +607,7 @@ describe('GET /register/wizard/:taskType — wizard.start audit invariant', () =
   });
 });
 
-// ── Per-IP rate limit on legacy-claim initiate (DD §3.8) ─────────────────────
+// ── Per-IP rate limit on legacy-claim initiate ───────────────────────────────
 //
 // Caps a single source IP across all members it has authenticated as. Silent
 // outcome so an attacker rotating sock-puppet accounts cannot enumerate the

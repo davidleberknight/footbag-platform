@@ -67,18 +67,18 @@ beforeAll(async () => {
   insertLegacyMember(db, { legacy_member_id: LEGACY_ID_VARIANT, legacy_email: 'variant@example.com' });
   insertHistoricalPerson(db, {
     person_id: HP_VARIANT,
-    person_name: 'Alex Martínez',
+    person_name: 'René Dupont',
     legacy_member_id: LEGACY_ID_VARIANT,
   });
   insertNameVariant(db, {
-    canonical_normalized: 'alex martínez',
-    variant_normalized:   'alex martinez',
+    canonical_normalized: 'rené dupont',
+    variant_normalized:   'rene dupont',
   });
   insertMember(db, {
     id: 'mem-tier2',
     slug: 'tier2_mem',
     login_email: 'variant@example.com',
-    real_name: 'Alex Martinez',    // ASCII-folded — must resolve via variant
+    real_name: 'Rene Dupont',    // ASCII-folded — must resolve via variant
     email_verified_at: null,
   });
 
@@ -148,7 +148,7 @@ beforeAll(async () => {
   });
 
   // ── Scenario 6b: variant match but surname mismatch ─────────────────────
-  // Curated display-name pair links "Boris Belouin Ollivier" → "Boris Belouin"
+  // Curated display-name pair links "Pierre Fontaine Leclerc" → "Pierre Fontaine"
   // via name_variants, but the two names have different surnameKeys. The
   // downstream claim policy would refuse, so the classifier must downgrade to
   // tier3/hp_mismatch rather than sending the user to a page that will
@@ -159,18 +159,18 @@ beforeAll(async () => {
   });
   insertHistoricalPerson(db, {
     person_id:        HP_SURNAME_SPLIT,
-    person_name:      'Boris Belouin',
+    person_name:      'Pierre Fontaine',
     legacy_member_id: LEGACY_ID_SURNAME_SPLIT,
   });
   insertNameVariant(db, {
-    canonical_normalized: 'boris belouin',
-    variant_normalized:   'boris belouin ollivier',
+    canonical_normalized: 'pierre fontaine',
+    variant_normalized:   'pierre fontaine leclerc',
   });
   insertMember(db, {
     id: 'mem-surname-split',
     slug: 'surname_split',
     login_email: 'split@example.com',
-    real_name: 'Boris Belouin Ollivier',
+    real_name: 'Pierre Fontaine Leclerc',
     email_verified_at: null,
   });
 
@@ -219,8 +219,8 @@ describe('verifyEmailByToken auto-link classification', () => {
     expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'medium',
       personId: HP_VARIANT,
-      personName: 'Alex Martínez',
-      matchedVariantNormalized: 'alex martinez',
+      personName: 'René Dupont',
+      matchedVariantNormalized: 'rene dupont',
     });
   });
 

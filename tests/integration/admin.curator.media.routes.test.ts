@@ -586,7 +586,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
   });
 });
 
-// Regression for B17: state-changing curator endpoints (upload / edit /
+// State-changing curator endpoints (upload / edit /
 // delete) were unlimited per admin session, so a compromised admin credential
 // could saturate S3 / delete rows in rapid succession before detection. The
 // limit applies even to admins (compromised-admin is the threat model). The

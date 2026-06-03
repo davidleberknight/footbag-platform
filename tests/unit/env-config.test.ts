@@ -713,7 +713,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.stripeWebhookSecret).toBe('whsec_live_realvalue');
   });
 
-  // Regression for B9: FOOTBAG_TEST_MEMORY_PERCENT was read via process.env
+  // FOOTBAG_TEST_MEMORY_PERCENT was read via process.env
   // inside operationsPlatformService, ungated. An env injection in production
   // could forge anonymous /health/ready readings. The new boot-time guard
   // refuses production start when this var is set; tests and staging

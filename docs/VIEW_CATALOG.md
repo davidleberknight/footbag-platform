@@ -445,9 +445,9 @@ Anti-enumeration applies across all account-existence-sensitive surfaces. Same c
 
 - `GET /register` renders `PageViewModel<RegisterContent>` with inline validation errors. Successful registration redirects into the member account flow. Validation feedback must not leak whether the supplied email is already in use; the registration response is identical for "new account created" and "duplicate email; check your inbox".
 
-- `GET /register/check-email` renders the generic post-registration and post-resend landing. The page never reveals whether an account exists for a given address. In dev and staging (`SES_ADAPTER=stub`) the `simulated-email-card` partial renders with captured stub messages; in production (`SES_ADAPTER=live`) the partial renders nothing.
+- `GET /register/check-email` renders the generic post-registration and post-resend landing. The page never reveals whether an account exists for a given address. In dev and staging (`SES_ADAPTER=stub`) the `simulated-email-card` partial renders the just-registered recipient's captured stub messages, scoped via a signed flash (a visitor without the flash sees an empty card); in production (`SES_ADAPTER=live`) the partial renders nothing.
 
-- `POST /verify/resend` is the form-action handler for the resend form on `/register/check-email`. The response is identical regardless of membership state or rate-limit state.
+- `POST /verify/resend` is the form-action handler for the resend form on `/register/check-email`. The response is identical regardless of membership state or rate-limit state; the dev simulated-email card on the resend response is always empty (a per-recipient card would leak account existence).
 
 - `GET /verify/:token` consumes the email-verification token. Success issues a session cookie and redirects: to the legacy-link check when the member's email matches a legacy row; otherwise to `/members`. Invalid, expired, used, or wrong-type tokens render an identical generic error page; the page must not distinguish among the failure modes.
 

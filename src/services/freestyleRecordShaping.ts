@@ -40,6 +40,20 @@ function dateIsPlaceholder(iso: string | null): boolean {
   return Number.isFinite(year) && year < 1970;
 }
 
+/**
+ * Drop any video URL that is not an http(s) absolute URL before it reaches an
+ * href. The source is migrated CSV / curator-writable, so a `javascript:` (or
+ * other scheme) value would otherwise survive HTML-escaping inside the
+ * attribute. Mirrors the allowlist in src/web/helpers/externalLink.ts. Returns
+ * null on rejection so the templates' existing `{{#if videoUrl}}` guard hides
+ * the link.
+ */
+function safeVideoUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+}
+
 export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordViewModel {
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
   return {
@@ -53,7 +67,7 @@ export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordVi
     valueNumeric:    row.value_numeric,
     achievedDate:    placeholderDate ? null : row.achieved_date,
     dateApproximate: !placeholderDate && row.date_precision !== 'day',
-    videoUrl:        row.video_url,
+    videoUrl:        safeVideoUrl(row.video_url),
     videoTimecode:   row.video_timecode,
   };
 }

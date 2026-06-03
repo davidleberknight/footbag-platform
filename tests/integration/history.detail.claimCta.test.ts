@@ -90,8 +90,8 @@ function cookieFor(memberId: string): string {
 
 // ── GET /history (bare) — must NOT redirect ─────────────────────────────────
 //
-// DD §5.2 categorically bans redirects that are not auth gates, PRG, or
-// canonical-identity transitions. The bare `/history` path is none of those:
+// Redirects that are not auth gates, PRG, or canonical-identity transitions
+// are banned. The bare `/history` path is none of those:
 // it has no concrete identity to redirect to. The route is intentionally
 // unwired; Express's default 404 is the correct response.
 

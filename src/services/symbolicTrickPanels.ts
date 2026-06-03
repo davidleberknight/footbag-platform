@@ -16,8 +16,8 @@
  * service caller already has these in scope). Output carries explicit
  * layerSource='observational' marker on every shape.
  *
- * Per UX-SHIP-1 Phase 4 (Task B). Allow-listed to 8 named flagship slugs
- * for controlled rollout; expansion is a one-line constant change.
+ * Allow-listed to 8 named flagship slugs for controlled rollout; expansion is
+ * a one-line constant change.
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
@@ -25,7 +25,7 @@ import { symbolicGrammarService } from './symbolicGrammarService';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Allow-list: trick slugs that render the symbolic Related Topology panel.
-// Phase 1 ship: 8 flagship slugs per UX-SHIP-1 task brief.
+// 8 flagship slugs.
 // ─────────────────────────────────────────────────────────────────────────
 
 const SYMBOLIC_TOPOLOGY_PANEL_SLUGS: ReadonlySet<string> = new Set([
@@ -126,7 +126,7 @@ function compareAddsThenSlug(a: SymbolicTopologyPanelMember, b: SymbolicTopology
 
 /**
  * Returns true when the trick-page should render the symbolic Related Topology
- * panel (Phase 1 allow-list).
+ * panel (the allow-list).
  */
 export function shouldRenderSymbolicTopologyPanel(slug: string): boolean {
   return SYMBOLIC_TOPOLOGY_PANEL_SLUGS.has(slug);
@@ -196,7 +196,7 @@ export function buildSymbolicEducationCtas(slug: string): SymbolicEducationCta[]
  * Build the symbolic Related Topology panel view-model for a trick page.
  *
  * Returns null when:
- *   - slug is not in the Phase 1 allow-list
+ *   - slug is not in the allow-list
  *   - slug has no topology-axis group membership
  *   - the resolved topology group has zero members (degenerate; would render empty)
  *

@@ -3,10 +3,11 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3972');
 process.env.PAYMENT_ADAPTER = 'stub';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { insertMember, createTestSessionJwt, completeOnboarding } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const MEMBER_ID = 'purchase-route-001';
 const MEMBER_SLUG = 'purchaser';
@@ -83,6 +84,70 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
       .set('Cookie', memberCookie())
       .send({ tier: 'bogus' });
     expect(res.status).toBe(422);
+  });
+
+  it('persists the stripe ids on the pending row with no NULL window (B41)', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1' });
+    expect(res.status).toBe(303);
+    const sessionId = res.headers.location.split('/').pop()!;
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const row = db.prepare(
+        `SELECT status, stripe_checkout_session_id, stripe_payment_intent_id
+           FROM payments WHERE stripe_checkout_session_id = ?`,
+      ).get(sessionId) as Record<string, unknown> | undefined;
+      expect(row).toBeTruthy();
+      expect(row!.status).toBe('pending');
+      expect(row!.stripe_checkout_session_id).toBe(sessionId);
+      expect(row!.stripe_payment_intent_id).not.toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('does not orphan a NULL-stripe-id pending row when checkout creation fails (B41)', async () => {
+    const app = createApp();
+    // Force the external checkout-session call to fail once. Pre-fix the pending
+    // row was inserted BEFORE this call, so it persists with NULL stripe ids and
+    // the partial unique index then blocks any retry. Post-fix the call runs
+    // first, so a failure writes no row at all.
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    const adapter = getPaymentAdapter();
+    const spy = vi
+      .spyOn(adapter, 'createCheckoutSession')
+      .mockRejectedValueOnce(new Error('stripe network failure'));
+
+    const first = await request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1' });
+    expect(first.status).toBe(500);
+    expectLoggedError('unhandled error');
+    spy.mockRestore();
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    let orphanCount: number;
+    try {
+      orphanCount = (db.prepare(
+        `SELECT COUNT(*) AS c FROM payments
+          WHERE member_id = ? AND status = 'pending' AND stripe_checkout_session_id IS NULL`,
+      ).get(MEMBER_ID) as { c: number }).c;
+    } finally {
+      db.close();
+    }
+    expect(orphanCount).toBe(0);
+
+    // The member can retry immediately (no leftover pending row blocking the index).
+    const second = await request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1' });
+    expect(second.status).toBe(303);
   });
 });
 

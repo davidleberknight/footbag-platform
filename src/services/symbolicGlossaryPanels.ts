@@ -1,15 +1,15 @@
 /**
  * symbolicGlossaryPanels.ts
  *
- * Connective-tissue panels for the freestyle glossary page. Per UX-SHIP-1
- * Phase 7 (Task E). Each panel surfaces:
+ * Connective-tissue panels for the freestyle glossary page. Each panel
+ * surfaces:
  *   - a short coach-tone definition
  *   - 4-6 related pilot-tier tricks (from symbolic_group_membership)
  *   - 1-2 related symbolic groups
  *   - a brief notation/operator hint
- *   - an optional deep-link to a modifier-family page (Phase 6: only spinning)
+ *   - an optional deep-link to a modifier-family page (only spinning exists)
  *
- * Phase 7 panels (6): paradox / symposium / ducking / spinning / whirl / pixie.
+ * Panels (6): paradox / symposium / ducking / spinning / whirl / pixie.
  *
  * Design philosophy: this is a SUPPORTING SURFACE inside the glossary — not
  * a query-result list. Definitions are coach-tone; panel size is small;
@@ -51,7 +51,7 @@ export interface GlossaryConnectivePanel {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Authored content — 6 terms (Phase 7 pilot scope)
+// Authored content — 6 terms (pilot scope)
 // ─────────────────────────────────────────────────────────────────────────
 
 interface PanelInput {

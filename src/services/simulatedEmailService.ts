@@ -54,6 +54,14 @@ export interface GetEmailPreviewOpts {
    * does not bleed alongside a current turn's silent no-op.
    */
   sinceIndex?: number;
+  /**
+   * Only include messages addressed to this recipient (case-insensitive). The
+   * POST->303->GET redirect on register/resend loses all per-request buffer
+   * state, so the receiving GET cannot scope by sinceIndex; it scopes by the
+   * just-registered recipient (carried across the redirect in a signed flash)
+   * so the dev card never renders another pending user's verify token.
+   */
+  recipientEmail?: string;
 }
 
 export const simulatedEmailService = {
@@ -99,9 +107,14 @@ export const simulatedEmailService = {
           };
         });
 
-      const messages = opts.urlPathPrefix
+      const prefixed = opts.urlPathPrefix
         ? all.filter((m) => urlPathStartsWith(m.firstUrl, opts.urlPathPrefix!))
         : all;
+
+      const recipient = opts.recipientEmail?.toLowerCase().trim();
+      const messages = recipient
+        ? prefixed.filter((m) => m.to.toLowerCase().trim() === recipient)
+        : prefixed;
 
       return { mode: 'dev', messages };
     }

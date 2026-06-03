@@ -2,11 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { clubCleanupService } from '../services/clubCleanupService';
 import { ValidationError } from '../services/serviceErrors';
 
-const VALID_ACTIONS = new Set([
-  'demote_inactive', 'archive', 'dismiss',
-  'defer_30', 'defer_90', 'defer_180',
-]);
-
 export const adminClubCleanupController = {
   index(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -25,14 +20,9 @@ export const adminClubCleanupController = {
       ? req.body.reasonText.trim()
       : null;
 
-    if (!VALID_ACTIONS.has(action)) {
-      res.status(422).render('errors/not-found', {
-        seo:  { title: 'Invalid Request' },
-        page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-      });
-      return;
-    }
-
+    // The service owns the valid-action set and throws ValidationError for an
+    // unknown action; the catch below maps that to the same 422 render, so the
+    // controller does not duplicate the action list.
     try {
       clubCleanupService.resolveClub(
         req.user!.userId, clubId, predicate,

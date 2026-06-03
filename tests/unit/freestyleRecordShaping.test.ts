@@ -58,6 +58,25 @@ describe('shapeFreestyleRecord', () => {
     expect(vm.achievedDate).toBeNull();
     expect(vm.dateApproximate).toBe(false);
   });
+
+  // B44: video_url is curator/CSV-writable and lands in an href. Only http(s)
+  // absolute URLs survive; everything else maps to null so the template hides it.
+  it('preserves http and https video URLs', () => {
+    expect(shapeFreestyleRecord(makeRow({ video_url: 'https://youtu.be/abc' })).videoUrl)
+      .toBe('https://youtu.be/abc');
+    expect(shapeFreestyleRecord(makeRow({ video_url: 'http://example.com/v' })).videoUrl)
+      .toBe('http://example.com/v');
+  });
+
+  it('rejects javascript:, data:, vbscript:, and protocol-relative video URLs', () => {
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'vbscript:msgbox', '//evil.example/v']) {
+      expect(shapeFreestyleRecord(makeRow({ video_url: bad })).videoUrl).toBeNull();
+    }
+  });
+
+  it('preserves a null video URL', () => {
+    expect(shapeFreestyleRecord(makeRow({ video_url: null })).videoUrl).toBeNull();
+  });
 });
 
 describe('slugToHashtag', () => {

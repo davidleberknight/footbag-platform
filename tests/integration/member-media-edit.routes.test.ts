@@ -261,7 +261,7 @@ describe('member per-item media edit routes', () => {
     expect(tags).toEqual([`#by_${OWNER_SLUG}`]);
   });
 
-  // Regression for B13: per-item media edit was unlimited per session,
+  // Per-item media edit was unlimited per session,
   // allowing Safe Browsing / DNS / HTTP reachability quota exhaustion via
   // repeated externalUrl validation.
   it('POST exceeding media-edit rate-limit → 429 with Retry-After', async () => {

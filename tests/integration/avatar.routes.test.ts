@@ -148,6 +148,36 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
   });
 
+  it('B45: valid upload writes an upload_member_media audit row with mediaType avatar', async () => {
+    const app = createApp();
+    const validJpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    }).jpeg().toBuffer();
+
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', validJpeg, 'audited.jpg');
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    let rows: Array<{ metadata_json: string }>;
+    try {
+      rows = db.prepare(
+        `SELECT metadata_json FROM audit_entries
+          WHERE action_type = 'upload_member_media'
+            AND actor_member_id = ?
+            AND entity_type = 'media_item'`,
+      ).all(OWN_ID) as Array<{ metadata_json: string }>;
+    } finally {
+      db.close();
+    }
+    const avatarAudits = rows.filter(
+      r => (JSON.parse(r.metadata_json) as { mediaType?: string }).mediaType === 'avatar',
+    );
+    expect(avatarAudits.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('non-image file -> 422 with error', async () => {
     const app = createApp();
     const notAnImage = Buffer.from('not an image');
@@ -547,7 +577,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
   });
 });
 
-// Regression for B7: avatar upload was unlimited per session, allowing
+// Avatar upload was unlimited per session, allowing
 // image-worker resource exhaustion + unbounded S3 write cost. Limit gates
 // the controller before busboy parses the multipart body.
 describe('POST /members/:memberKey/avatar -- rate limit', () => {

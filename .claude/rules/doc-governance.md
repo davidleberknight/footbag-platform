@@ -48,7 +48,7 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 
 - **No hard-coded credentials or passwords** in docs, plan files, or any checked-in text. When referencing a stub auth mechanism with hard-coded values, say "hard-coded credentials" without spelling them out. The literals live only in code or local config.
 - **No preview / demo / special login identifiers** (usernames, emails, literal login_email values) in checked-in docs, plans, or comments. Refer by role only ("the preview-user account"). Literals live in local operator notes or env vars.
-- **No doc references inside code files** (`.ts`, `.sh`, scripts). Doc and code evolve independently; hard-coded `// see docs/FOO.md §X.Y` comments rot. Write self-contained code comments that explain the requirement without pointing at a doc path.
+- **Code comment / in-code text rules** (no doc references inside code, no sprint/slice/phase labels or dates, deviations as `Current:`/`Target:`, test comments never reference any doc) live in `.claude/rules/comments.md`, scoped to `src/` / `tests/` / scripts.
 
 ## Style
 
@@ -98,9 +98,8 @@ When replacing, preserve role/context: "James's sprint" means "the historical-pi
 
 ## Tests describe long-term contracts
 
-Test filenames, describe blocks, test names, and file header comments must describe the **long-term contract** being verified, not the sprint that prompted the test's creation. "Staging AWS wiring: assumed-role chain + KMS signing + SES send" beats "Phase H readiness probe." A test failing today because staging KMS/SES is not yet wired is a long-term parity test with a currently-failing precondition, not a Phase H test.
-
-Sprint-scoped content belongs in IP or the runbook (`docs/DEV_ONBOARDING.md`). Do not embed sprint section numbers inside test code or comments that will outlive the sprint.
+Test filenames, describe blocks, test names, and comments describe the long-term contract, never
+the sprint that prompted them, and never reference any doc. Full rules in `.claude/rules/comments.md`.
 
 ## IP is AI-facing
 

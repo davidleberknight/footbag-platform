@@ -201,7 +201,7 @@ export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
 // rendering only consumes pre-shaped fields.
 export interface ClubLeader {
   personId?: string;            // historical_persons.person_id; enables /history/<id> link
-  claimedMemberId?: string;     // members.id once claim flow lands; absent in Phase 1
+  claimedMemberId?: string;     // members.id once the claim flow links a member; absent until then
   displayName: string;          // canonical person_name from historical_persons
   role: 'leader' | 'co-leader';
   roleLabel: string;            // pre-shaped display text for the role enum
@@ -676,9 +676,9 @@ export interface CountrySummary {
 }
 
 // Bin boundaries for the /clubs world-map choropleth. Driven by the
-// per-country distribution of legacy_person_club_affiliations rows
-// (see exploration query 2026-05-18). Six lit bins + bin 0 (clubs row
-// exists but no affiliations) give a smooth 6-step sequential green
+// per-country distribution of legacy_person_club_affiliations rows.
+// Six lit bins + bin 0 (clubs row exists but no affiliations) give a
+// smooth 6-step sequential green
 // ramp; USA's 1153 sits alone in bin 6, Canada plus the three
 // 100-200 cohorts populate bin 5, and the long tail spreads evenly
 // across bins 1-4.

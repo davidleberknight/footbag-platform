@@ -116,7 +116,7 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.text).toContain('member-search-card');
   });
 
-  // USER_STORIES line 723: member search is authenticated members only.
+  // Member search is authenticated members only.
   // Search affordance moved from /members to /members/:slug?q=. The route is
   // protected by controller-internal logic (own-profile check), not by
   // route-level middleware; this regression test pins the auth gate so a

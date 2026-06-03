@@ -542,3 +542,58 @@ describe('Authenticated member search excludes unverified rows', () => {
     expect(res.text).not.toContain('Shadow Figure');
   });
 });
+
+describe('B51: email_verify token TTL honors system_config', () => {
+  it('uses email_verify_expiry_hours override for both the token expiry and the email copy', async () => {
+    const app = createApp();
+    // Override the seeded 24h with 48h. effective_start_at is "now" so
+    // system_config_current selects it over the schema seed.
+    const wdb = new BetterSqlite3(dbPath);
+    wdb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES ('b51-ttl-override', '2026-06-03T00:00:00.000Z', 'email_verify_expiry_hours', '48',
+              '2026-06-03T00:00:00.000Z', 'B51 test', NULL)
+    `).run();
+    wdb.close();
+    try {
+      const email = 'ttl-config@example.com';
+      const res = await request(app).post('/register').type('form').send({
+        realName: 'Ttl Configtester',
+        email,
+        password: 'verifypass!1',
+        confirmPassword: 'verifypass!1',
+      });
+      expect(res.status).toBe(303);
+
+      const rdb = new BetterSqlite3(dbPath, { readonly: true });
+      const tok = rdb.prepare(`
+        SELECT t.issued_at, t.expires_at
+          FROM account_tokens t
+          JOIN members m ON m.id = t.member_id
+         WHERE m.login_email_normalized = ? AND t.token_type = 'email_verify'
+         ORDER BY t.issued_at DESC LIMIT 1
+      `).get(email) as { issued_at: string; expires_at: string };
+      const body = rdb.prepare(
+        `SELECT body_text FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at DESC LIMIT 1`,
+      ).get(email) as { body_text: string };
+      rdb.close();
+
+      const diffHours =
+        (new Date(tok.expires_at).getTime() - new Date(tok.issued_at).getTime()) / 3_600_000;
+      expect(Math.round(diffHours)).toBe(48);
+      expect(body.body_text).toContain('expires in 48 hours');
+    } finally {
+      // system_config is append-only (DELETE is trigger-blocked), so restore the
+      // 24h default by appending a later-effective override.
+      const cdb = new BetterSqlite3(dbPath);
+      cdb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES ('b51-ttl-restore', '2026-06-03T00:00:01.000Z', 'email_verify_expiry_hours', '24',
+                '2026-06-03T00:00:01.000Z', 'B51 test restore', NULL)
+      `).run();
+      cdb.close();
+    }
+  });
+});

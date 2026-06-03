@@ -106,6 +106,12 @@ function buildCache(): Map<string, ParsedRulePage> {
 
     for (const { headingText, segment } of splitByH1(body)) {
       const slug = slugifyHeading(headingText);
+      // Trust boundary: source is repo-only operator-authored .md files.
+      // marked has no built-in sanitizer; raw HTML in source passes through unchanged.
+      // Current: safe because the CSP (scriptSrc 'self', scriptSrcAttr 'none') blocks
+      //          inline execution and the source is never DB-backed or admin-editable.
+      // Target: run output through a sanitizer (e.g. isomorphic-dompurify) before this
+      //         path accepts any DB-backed or admin-editable markdown content.
       const rawHtml = marked.parse(segment, { async: false }) as string;
       const html = addAnchorIds(rawHtml);
       map.set(`${discipline}/${slug}`, {

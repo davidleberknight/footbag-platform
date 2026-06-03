@@ -49,7 +49,7 @@
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
-import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -572,24 +572,26 @@ export const memberService = {
     }
 
     const now = new Date().toISOString();
-    account.updateMemberProfile.run(
-      bio,
-      city,
-      region,
-      country,
-      phone,
-      emailVis,
-      validYear,
-      showResults,
-      showYear,
-      now,
-      row.id,
-    );
-    memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
-    auditProfileUpdate(row.id, [
-      'bio', 'city', 'region', 'country', 'phone', 'emailVisibility',
-      'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
-    ]);
+    transaction(() => {
+      account.updateMemberProfile.run(
+        bio,
+        city,
+        region,
+        country,
+        phone,
+        emailVis,
+        validYear,
+        showResults,
+        showYear,
+        now,
+        row.id,
+      );
+      memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
+      auditProfileUpdate(row.id, [
+        'bio', 'city', 'region', 'country', 'phone', 'emailVisibility',
+        'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
+      ]);
+    });
   },
 
   getCompetitionPrefill(memberId: string): {
@@ -697,23 +699,27 @@ export const memberService = {
            : 0);
 
     const now = new Date().toISOString();
-    account.updateMemberPersonalDetails.run(
-      city, region, country, birthDate,
-      firstCompetitionYear, showFirstCompetitionYear,
-      now, memberId,
-    );
-    auditProfileUpdate(memberId, [
-      'city', 'region', 'country', 'birthDate',
-      'firstCompetitionYear', 'showFirstCompetitionYear',
-    ]);
+    transaction(() => {
+      account.updateMemberPersonalDetails.run(
+        city, region, country, birthDate,
+        firstCompetitionYear, showFirstCompetitionYear,
+        now, memberId,
+      );
+      auditProfileUpdate(memberId, [
+        'city', 'region', 'country', 'birthDate',
+        'firstCompetitionYear', 'showFirstCompetitionYear',
+      ]);
+    });
   },
 
   setFirstCompetitionYear(memberId: string, rawYear: unknown): void {
     const raw = normalizeText(rawYear);
     const now = new Date().toISOString();
     if (raw === '') {
-      account.updateMemberFirstCompetitionYear.run(null, now, memberId);
-      auditProfileUpdate(memberId, ['firstCompetitionYear']);
+      transaction(() => {
+        account.updateMemberFirstCompetitionYear.run(null, now, memberId);
+        auditProfileUpdate(memberId, ['firstCompetitionYear']);
+      });
       return;
     }
     const parsed = parseInt(raw, 10);
@@ -721,8 +727,10 @@ export const memberService = {
     if (!Number.isFinite(parsed) || String(parsed) !== raw || parsed < 1972 || parsed > thisYear) {
       throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
     }
-    account.updateMemberFirstCompetitionYear.run(parsed, now, memberId);
-    auditProfileUpdate(memberId, ['firstCompetitionYear']);
+    transaction(() => {
+      account.updateMemberFirstCompetitionYear.run(parsed, now, memberId);
+      auditProfileUpdate(memberId, ['firstCompetitionYear']);
+    });
   },
 
   setShowCompetitiveResults(memberId: string, rawEnabled: unknown): void {
@@ -733,8 +741,11 @@ export const memberService = {
       rawEnabled === 'true'
         ? 1
         : 0;
-    account.updateMemberShowCompetitiveResults.run(value, new Date().toISOString(), memberId);
-    auditProfileUpdate(memberId, ['showCompetitiveResults']);
+    const now = new Date().toISOString();
+    transaction(() => {
+      account.updateMemberShowCompetitiveResults.run(value, now, memberId);
+      auditProfileUpdate(memberId, ['showCompetitiveResults']);
+    });
   },
 
   searchMembers(query: string): MemberSearchResult {

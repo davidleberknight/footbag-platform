@@ -52,7 +52,7 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 3. When asking the human a question, always provide full context so the human can understand clearly. Always ask exactly one excellent question at a time with one recommended answer based on deep analysis (not a guess). 
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.
-6. Code comments are welcome where they add non-obvious WHY, and must be self-contained. Forbidden: sprint/slice/phase labels, caller references, historical change notes, external doc anchors. Deviation comments (code that does X today but will do Y) require "Current:" and "Target:" lines.
+6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded in `IMPLEMENTATION_PLAN.md`).
 7. Do not change public UI wording unless instructed explicitely (no silent editing).
 
 ## Workflow rules

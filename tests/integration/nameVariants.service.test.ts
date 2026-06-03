@@ -8,6 +8,12 @@
  * Normalization: NFKC + lowercase + trim + collapse internal whitespace.
  * Rows stored in `name_variants` are pre-normalized by the loader.
  *
+ * All person names below are synthetic test fixtures — no real PII. The
+ * variant relationships (diacritic-only, long/short same-surname, nickname
+ * Dave↔David) are what the matcher exercises, not the specific names. The
+ * diacritic case keeps the accent on a lowercase letter with ASCII capitals
+ * because the HP lookup uses SQLite's ASCII-only lower().
+ *
  * Cases covered:
  *   - diacritic variant hit
  *   - display-name variant hit
@@ -28,38 +34,38 @@ const { dbPath } = setTestEnv('3099');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let svc: typeof import('../../src/services/nameVariantsService');
 
-// Canonical HP names and their IDs. Chosen to exercise diacritic / display-
-// name / plain paths without depending on any pre-existing row.
-const HP_ALEX_MARTINEZ         = 'person-hp-alex-martinez';
-const HP_CHRIS_SIEBERT         = 'person-hp-chris-siebert';
+// Synthetic canonical HP names and their IDs. Chosen to exercise diacritic /
+// display-name / plain paths without depending on any pre-existing row.
+const HP_RENE_DUPONT           = 'person-hp-rene-dupont';
+const HP_JON_HARGREAVES        = 'person-hp-jon-hargreaves';
 const HP_SAM_Q_TESTER          = 'person-hp-sam-tester';
 const HP_DUPLICATE_JANE_A      = 'person-hp-jane-doe-a';
 const HP_DUPLICATE_JANE_B      = 'person-hp-jane-doe-b';
-const HP_ALSO_CHRIS_SIEBERT    = 'person-hp-chris-siebert-literal';
-const HP_DAVE_LEBERKNIGHT      = 'person-hp-dave-leberknight';
+const HP_ALSO_JON_HARGREAVES   = 'person-hp-jon-hargreaves-literal';
+const HP_DAVE_QUICKTEST        = 'person-hp-dave-quicktest';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Diacritic case: canonical HP has diacritic; variant is ASCII-folded.
   insertHistoricalPerson(db, {
-    person_id: HP_ALEX_MARTINEZ,
-    person_name: 'Alex Martínez',
+    person_id: HP_RENE_DUPONT,
+    person_name: 'René Dupont',
   });
   insertNameVariant(db, {
-    canonical_normalized: 'alex martínez',
-    variant_normalized:   'alex martinez',
+    canonical_normalized: 'rené dupont',
+    variant_normalized:   'rene dupont',
   });
 
   // Display-name case: canonical is a longer legal name; variant is a
   // shorter informal name.
   insertHistoricalPerson(db, {
-    person_id: HP_CHRIS_SIEBERT,
-    person_name: 'Christopher Michael Siebert',
+    person_id: HP_JON_HARGREAVES,
+    person_name: 'Jonathan William Hargreaves',
   });
   insertNameVariant(db, {
-    canonical_normalized: 'christopher michael siebert',
-    variant_normalized:   'chris siebert',
+    canonical_normalized: 'jonathan william hargreaves',
+    variant_normalized:   'jon hargreaves',
   });
 
   // Plain canonical case: no variant row at all; an exact input should hit
@@ -83,8 +89,8 @@ beforeAll(async () => {
   // Same HP reachable both directly and through a variant: expect a single
   // record with matchKind='exact'.
   insertHistoricalPerson(db, {
-    person_id: HP_ALSO_CHRIS_SIEBERT,
-    person_name: 'Chris Siebert',
+    person_id: HP_ALSO_JON_HARGREAVES,
+    person_name: 'Jon Hargreaves',
   });
 
   // Nickname variant case: HP uses a common shortening (Dave); registrant
@@ -92,8 +98,8 @@ beforeAll(async () => {
   // generic Dave/David mapping; the service expands first-name tokens at
   // query time.
   insertHistoricalPerson(db, {
-    person_id: HP_DAVE_LEBERKNIGHT,
-    person_name: 'Dave Leberknight',
+    person_id: HP_DAVE_QUICKTEST,
+    person_name: 'Dave Quicktest',
   });
   insertGivenNameVariant(db, {
     short_form_normalized: 'dave',
@@ -108,7 +114,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('normalizeForMatch', () => {
   it('applies NFKC, lowercase, trim, and whitespace collapse', () => {
-    expect(svc.normalizeForMatch('  Alex   Martínez  ')).toBe('alex martínez');
+    expect(svc.normalizeForMatch('  René   Dupont  ')).toBe('rené dupont');
   });
 
   it('returns empty string for empty input', () => {
@@ -120,55 +126,55 @@ describe('normalizeForMatch', () => {
   });
 
   it('folds NFKC-compatibility characters (fullwidth → ASCII)', () => {
-    // U+FF21 ... FULLWIDTH LATIN CAPITAL LETTER A
-    expect(svc.normalizeForMatch('Ａlex Martinez')).toBe('alex martinez');
+    // U+FF32 ... FULLWIDTH LATIN CAPITAL LETTER R
+    expect(svc.normalizeForMatch('Ｒené Dupont')).toBe('rené dupont');
   });
 });
 
 describe('findAutoLinkCandidates', () => {
   it('returns a diacritic-variant hit', () => {
-    const candidates = svc.findAutoLinkCandidates('Alex Martinez');
+    const candidates = svc.findAutoLinkCandidates('Rene Dupont');
     expect(candidates).toHaveLength(1);
     expect(candidates[0]).toMatchObject({
-      personId: HP_ALEX_MARTINEZ,
-      personName: 'Alex Martínez',
+      personId: HP_RENE_DUPONT,
+      personName: 'René Dupont',
       matchKind: 'variant',
-      matchedCanonicalNormalized: 'alex martínez',
-      matchedVariantNormalized:   'alex martinez',
+      matchedCanonicalNormalized: 'rené dupont',
+      matchedVariantNormalized:   'rene dupont',
     });
   });
 
   it('returns a display-name variant hit and the exact-match HP on the same canonical', () => {
-    // "Chris Siebert" is both: (a) a variant → Christopher Michael Siebert,
+    // "Jon Hargreaves" is both: (a) a variant → Jonathan William Hargreaves,
     // and (b) itself a canonical HP name. Both HPs must appear: one via
     // 'variant', one via 'exact'.
-    const candidates = svc.findAutoLinkCandidates('Chris Siebert');
+    const candidates = svc.findAutoLinkCandidates('Jon Hargreaves');
     expect(candidates).toHaveLength(2);
 
     const byId = Object.fromEntries(candidates.map((c) => [c.personId, c]));
-    expect(byId[HP_CHRIS_SIEBERT]).toMatchObject({
-      personName: 'Christopher Michael Siebert',
+    expect(byId[HP_JON_HARGREAVES]).toMatchObject({
+      personName: 'Jonathan William Hargreaves',
       matchKind: 'variant',
-      matchedCanonicalNormalized: 'christopher michael siebert',
-      matchedVariantNormalized:   'chris siebert',
+      matchedCanonicalNormalized: 'jonathan william hargreaves',
+      matchedVariantNormalized:   'jon hargreaves',
     });
-    expect(byId[HP_ALSO_CHRIS_SIEBERT]).toMatchObject({
-      personName: 'Chris Siebert',
+    expect(byId[HP_ALSO_JON_HARGREAVES]).toMatchObject({
+      personName: 'Jon Hargreaves',
       matchKind: 'exact',
-      matchedCanonicalNormalized: 'chris siebert',
+      matchedCanonicalNormalized: 'jon hargreaves',
     });
-    expect(byId[HP_ALSO_CHRIS_SIEBERT].matchedVariantNormalized).toBeUndefined();
+    expect(byId[HP_ALSO_JON_HARGREAVES].matchedVariantNormalized).toBeUndefined();
   });
 
   it('returns a nickname-variant hit (Dave ↔ David)', () => {
-    const candidates = svc.findAutoLinkCandidates('David Leberknight');
+    const candidates = svc.findAutoLinkCandidates('David Quicktest');
     expect(candidates).toHaveLength(1);
     expect(candidates[0]).toMatchObject({
-      personId: HP_DAVE_LEBERKNIGHT,
-      personName: 'Dave Leberknight',
+      personId: HP_DAVE_QUICKTEST,
+      personName: 'Dave Quicktest',
       matchKind: 'variant',
-      matchedCanonicalNormalized: 'dave leberknight',
-      matchedVariantNormalized:   'david leberknight',
+      matchedCanonicalNormalized: 'dave quicktest',
+      matchedVariantNormalized:   'david quicktest',
     });
   });
 
@@ -204,9 +210,9 @@ describe('findAutoLinkCandidates', () => {
   });
 
   it('normalizes extra whitespace in the input before lookup', () => {
-    const candidates = svc.findAutoLinkCandidates('  Alex    Martinez  ');
+    const candidates = svc.findAutoLinkCandidates('  Rene    Dupont  ');
     expect(candidates).toHaveLength(1);
-    expect(candidates[0].personId).toBe(HP_ALEX_MARTINEZ);
+    expect(candidates[0].personId).toBe(HP_RENE_DUPONT);
   });
 
   it('returns results in stable personId order', () => {
@@ -226,8 +232,8 @@ describe('findAutoLinkCandidates', () => {
     };
     before.close();
 
-    svc.findAutoLinkCandidates('Alex Martinez');
-    svc.findAutoLinkCandidates('Chris Siebert');
+    svc.findAutoLinkCandidates('Rene Dupont');
+    svc.findAutoLinkCandidates('Jon Hargreaves');
     svc.findAutoLinkCandidates('Unknown Stranger');
 
     const after = new BetterSqlite3(dbPath, { readonly: true });

@@ -224,7 +224,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(res.status).toBe(403);
   });
 
-  // Regression for B15: resolve-notification email was sent via the plain
+  // Resolve-notification email was sent via the plain
   // enqueueEmail helper which silently swallows outbox write failures. After
   // R4-pattern migration to enqueueEmailOrFail, an outbox failure surfaces
   // as a truthful 503. The queue row stays resolved + the audit row stays
@@ -348,7 +348,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     });
   });
 
-  // Regression for B18: work-queue resolve was unlimited per admin session.
+  // Work-queue resolve was unlimited per admin session.
   // A compromised admin could resolve many items rapidly before detection.
   // The limit applies to admins (compromised-admin is the threat model).
   it('admin exceeding work-queue-resolve rate-limit → 429 with Retry-After', async () => {
