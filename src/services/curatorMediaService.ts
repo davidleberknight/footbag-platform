@@ -82,6 +82,7 @@ import { randomUUID } from 'crypto';
 import path from 'path';
 import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
+import { logger } from '../config/logger';
 import { detectImageType } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
@@ -404,12 +405,10 @@ async function compensatingStorageDelete(
     try {
       await storage.delete(key);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[curatorMediaService] compensating storage.delete failed; orphaned object at ${key}: ${
-          (err as Error).message ?? String(err)
-        }`,
-      );
+      logger.warn('curatorMediaService: compensating storage.delete failed; object orphaned', {
+        key,
+        error: (err as Error).message ?? String(err),
+      });
     }
   }
 }
@@ -1659,8 +1658,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         try {
           await deleteUrlSidecarFile(sidecarFilePath);
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(`curatorMediaService.deleteMedia: sidecar unlink(${sidecarFilePath}) failed: ${(err as Error).message}`);
+          logger.warn('curatorMediaService.deleteMedia: sidecar unlink failed', {
+            sidecarFilePath,
+            error: (err as Error).message,
+          });
         }
       }
 
@@ -1671,8 +1672,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         try {
           await storage.delete(key);
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(`curatorMediaService.deleteMedia: storage.delete(${key}) failed: ${(err as Error).message}`);
+          logger.warn('curatorMediaService.deleteMedia: storage.delete failed', {
+            key,
+            error: (err as Error).message,
+          });
         }
       }
 
@@ -2198,9 +2201,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           // Sidecar I/O failures are logged but do not roll back the
           // DB delete: the next seeder run will reconcile, and the
           // gallery is already gone from the live read paths.
-          console.warn(
-            `[curatorMediaService] sidecar unlink failed for ${galleryId}: ${(err as Error).message}`,
-          );
+          logger.warn('curatorMediaService: gallery sidecar unlink failed', {
+            galleryId,
+            error: (err as Error).message,
+          });
         }
       }
     },
@@ -2724,9 +2728,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       validateGallerySidecarData(data);
       await writeGallerySidecarFile(getCuratedRootDir(), data);
     } catch (err) {
-      console.warn(
-        `[curatorMediaService] sidecar write failed for ${data.id}: ${(err as Error).message}`,
-      );
+      logger.warn('curatorMediaService: gallery sidecar write failed', {
+        galleryId: data.id,
+        error: (err as Error).message,
+      });
     }
   }
 }

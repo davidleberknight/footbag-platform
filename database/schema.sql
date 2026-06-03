@@ -581,9 +581,9 @@ CREATE INDEX idx_news_published_at ON news_items(published_at);
 -- Named mailing lists used for broadcasts, newsletters, and system alerts.
 -- slug is the natural primary key and the stable reference used by outbox_emails,
 -- email_archives, and mailing_list_subscriptions. is_member_manageable controls
--- whether members can self-subscribe/unsubscribe. Six core lists are seeded
+-- whether members can self-subscribe/unsubscribe. Seven core lists are seeded
 -- at initialization (admin-alerts, all-members, newsletter, board-announcements,
--- event-notifications, technical-updates); see Section 23.
+-- event-notifications, technical-updates, active-player-reminders); see Section 23.
 CREATE TABLE mailing_lists (
   slug       TEXT PRIMARY KEY,
   updated_at TEXT NOT NULL,
@@ -2640,13 +2640,14 @@ CREATE TABLE tag_stats (
 
 -- ---------------------------------------------------------------------------
 -- MAILING LISTS
--- Six core lists required for platform operation:
---   admin-alerts          : system notifications to admins; is_member_manageable=0
---   all-members           : opt-outable broadcast list; is_member_manageable=1
---   newsletter            : editorial newsletter; is_member_manageable=1
---   board-announcements   : board communications; is_member_manageable=1
---   event-notifications   : event updates; is_member_manageable=1
---   technical-updates     : platform/technical notices; is_member_manageable=1
+-- Seven core lists required for platform operation:
+--   admin-alerts            : system notifications to admins; is_member_manageable=0
+--   all-members             : opt-outable broadcast list; is_member_manageable=1
+--   newsletter              : editorial newsletter; is_member_manageable=1
+--   board-announcements     : board communications; is_member_manageable=1
+--   event-notifications     : event updates; is_member_manageable=1
+--   technical-updates       : platform/technical notices; is_member_manageable=1
+--   active-player-reminders : Active Player expiry reminders; is_member_manageable=1
 -- ---------------------------------------------------------------------------
 INSERT OR IGNORE INTO mailing_lists
   (updated_at, slug, name, description, status, is_member_manageable)

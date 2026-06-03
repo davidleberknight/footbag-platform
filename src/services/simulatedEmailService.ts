@@ -13,6 +13,7 @@
 // original message content.
 
 import { config } from '../config/env';
+import { logger } from '../config/logger';
 import { getSesAdapter, getStubSesAdapterForTests } from '../adapters/sesAdapter';
 import { operationsPlatformService } from './operationsPlatformService';
 
@@ -82,11 +83,9 @@ export const simulatedEmailService = {
       try {
         await operationsPlatformService.runEmailWorker();
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[simulatedEmailService] runEmailWorker failed during getEmailPreview; surfacing whatever the stub already captured: ${
-            (err as Error).message ?? String(err)
-          }`,
+        logger.warn(
+          'simulatedEmailService.getEmailPreview: runEmailWorker drain failed; returning the stub-captured messages',
+          { error: (err as Error).message ?? String(err) },
         );
       }
 

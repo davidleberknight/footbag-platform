@@ -26,6 +26,7 @@
  * different validator via `deps.validate`.
  */
 import { media } from '../db/db';
+import { logger } from '../config/logger';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 
 const BOOT_SCAN_ACTOR = 'boot-scan';
@@ -49,11 +50,7 @@ export async function runExternalUrlBootScan(
   const now = deps.now ?? (() => new Date().toISOString());
   const log =
     deps.log ?? ((message: string, fields?: Record<string, unknown>) => {
-      if (fields) {
-        console.warn(`[boot-scan] ${message}`, fields);
-      } else {
-        console.warn(`[boot-scan] ${message}`);
-      }
+      logger.warn(`boot-scan: ${message}`, fields ?? {});
     });
 
   const rows = media.listGalleryExternalLinksForBootScan.all() as Array<{

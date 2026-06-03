@@ -539,6 +539,7 @@ export const publicPlayers = {
       ON erp_co.result_entry_id = ere.id
     LEFT JOIN members AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
+      AND m_co_linked.deleted_at IS NULL
     LEFT JOIN members AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
@@ -4088,6 +4089,7 @@ export const account = {
       ON erp_co.result_entry_id = ere.id
     LEFT JOIN members AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
+      AND m_co_linked.deleted_at IS NULL
     LEFT JOIN members AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
@@ -4133,6 +4135,7 @@ export const account = {
       ON erp_co.result_entry_id = ere.id
     LEFT JOIN members AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
+      AND m_co_linked.deleted_at IS NULL
     LEFT JOIN members AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL

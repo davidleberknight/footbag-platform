@@ -47,9 +47,12 @@
   - [4.22 Tag Stats Cache](#422-tag-stats-cache)
   - [4.23 Seed Data](#423-seed-data)
   - [4.24 Member Club Affiliations](#424-member-club-affiliations)
-  - [4.25 Migration Staging and Bootstrap Tables](#425-migration-staging-and-bootstrap-tables)
-  - [4.26 Name-matching utilities](#426-name-matching-utilities)
-  - [4.27 Member Onboarding Tasks](#427-member-onboarding-tasks)
+  - [4.25 Club Viability Signals](#425-club-viability-signals)
+  - [4.26 Club Cleanup Resolutions](#426-club-cleanup-resolutions)
+  - [4.27 Migration Staging and Bootstrap Tables](#427-migration-staging-and-bootstrap-tables)
+  - [4.28 Name-matching utilities](#428-name-matching-utilities)
+  - [4.29 Member Onboarding Tasks](#429-member-onboarding-tasks)
+  - [4.30 Member Declared Anchors](#430-member-declared-anchors)
 - [5. View Reference](#5-view-reference)
   - [Computed views](#computed-views)
   - [Semantic filter views](#semantic-filter-views)
@@ -81,7 +84,7 @@
   - [APP-023 — Tally authorization (can-tally-votes equivalent)](#app-023--tally-authorization-can-tally-votes-equivalent)
   - [APP-024 — Standard tags must not be hard-deleted](#app-024--standard-tags-must-not-be-hard-deleted)
 - [7. Retained DB Triggers](#7-retained-db-triggers)
-  - [Append-only / immutability triggers (14)](#append-only--immutability-triggers-14)
+  - [Append-only / immutability triggers (20)](#append-only--immutability-triggers-20)
   - [Vote options lock triggers (3)](#vote-options-lock-triggers-3)
   - [State machine trigger (1)](#state-machine-trigger-1)
 - [8. SQLite Runtime Requirements](#8-sqlite-runtime-requirements)
@@ -986,7 +989,7 @@ The application must prevent an organizer/leader from removing themselves if the
 
 #### Bootstrap leadership
 
-`club_bootstrap_leaders` rows are real leaders who have not yet registered. When the leader registers and confirms (or the first affiliated member accepts leadership during onboarding), the bootstrap row is promoted to a `club_leaders` row. See §4.25 Migration Staging and Bootstrap Tables.
+`club_bootstrap_leaders` rows are real leaders who have not yet registered. When the leader registers and confirms (or the first affiliated member accepts leadership during onboarding), the bootstrap row is promoted to a `club_leaders` row. See §4.27 Migration Staging and Bootstrap Tables.
 
 ### 4.19 Account Tokens
 
@@ -1077,6 +1080,10 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `password_reset_expiry_hours` | `1` | Password reset token TTL (hours) |
 | `email_verify_expiry_hours` | `24` | Email verification token TTL (hours) |
 | `account_claim_expiry_hours` | `24` | Legacy account claim token TTL (hours); per `M_Claim_Legacy_Account` |
+| `legacy_claim_init_rate_limit_max_per_member` | `5` | Max legacy-claim initiate attempts per requesting member per window |
+| `legacy_claim_init_rate_limit_max_per_target` | `3` | Max legacy-claim emails per target legacy member per window (silent) |
+| `legacy_claim_init_rate_limit_max_per_ip` | `10` | Max legacy-claim initiate attempts per source IP per window (silent) |
+| `legacy_claim_init_rate_limit_window_minutes` | `60` | Sliding window (minutes) for legacy-claim initiate rate limiting |
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |
@@ -1134,7 +1141,7 @@ Permanent operational table recording live club membership for members. Written 
 
 Append-only table recording crowdsourced activity signals for clubs. Written during the onboarding wizard (stages 1A, 1B, 2A, 2B) and from the club detail page by authenticated members. One row per member per club per submission.
 
-- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `club_detail`, `dashboard`. Tracks which surface produced the signal.
+- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `stage3a`, `club_detail`, `dashboard`. Tracks which surface produced the signal.
 - `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and surfaces `never_heard_of_it` as a separate admin-queue count.
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card (`legacy_person_club_affiliation`, `club_bootstrap_leader`, or `legacy_club_candidate`).
 - No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate aggregates all rows.
@@ -1214,7 +1221,7 @@ UNIQUE on (`bootstrap_leader_id`, `signal_type`) prevents duplicate evidence for
 
 May be dropped together with `club_bootstrap_leaders` once all bootstrap rows reach a terminal state.
 
-### 4.26 Name-matching utilities
+### 4.28 Name-matching utilities
 
 #### `name_variants` — permanent, not migration-only
 
@@ -1229,13 +1236,13 @@ Name-equivalence pairs that support auto-link matching across `legacy_members`, 
 
 This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is reserved for migration-scope staging (`legacy_club_candidates`, `legacy_person_club_affiliations`) or archival data of legacy origin (`legacy_members`). Name-variant pairs are a permanent platform utility that grows over the life of the platform and has no "resolution" step, so the pairs themselves are the permanent artifact and the table is unprefixed. See §2 Schema Conventions for the general rule.
 
-### 4.27 Member Onboarding Tasks
+### 4.29 Member Onboarding Tasks
 
 **Table:** `member_onboarding_tasks`
 
 Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow and the dashboard task widget read and write through the service.
 
-- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. The schema CHECK retains `first_competition_year` for backward compatibility with orphan rows; the application task catalog no longer creates rows of that type (year input is bundled into `personal_details`).
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
 - **`in_progress_paused`**: the task is mid-flow and the member detoured to another story (for example, `M_Join_Club` or `M_Create_Club` from the `club_affiliations` step). The dashboard task widget surfaces "Resume onboarding" while the row is in this state, and the wizard re-renders the same card on return.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
@@ -1245,7 +1252,7 @@ Permanent operational state for the per-member onboarding wizard (`MemberOnboard
 
 ---
 
-### 4.28 Member Declared Anchors
+### 4.30 Member Declared Anchors
 
 **Table:** `member_declared_anchors`
 
@@ -1436,7 +1443,7 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 ### APP-018 — Reconciliation issue expiry
 
-**Set `reconciliation_issues.expires_at` at insert using `strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+90 days')`.** The cleanup job deletes rows WHERE `expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now') AND status = 'resolved'`.
+**Set `reconciliation_issues.expires_at` at insert using the `reconciliation_expiry_days` config key: `strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+' || reconciliation_expiry_days || ' days')`.** The cleanup job deletes rows WHERE `expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now') AND status = 'resolved'`.
 
 ---
 
@@ -1456,13 +1463,13 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
-- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates` (verify by `slug`); admin notification and member subscription workflows depend on these slugs.
+- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs.
 - `system_config`: all keys in §4.23 (verify by `config_key`); application reads these at startup and during operations; missing keys will cause runtime errors.
 
 **To verify seed data is present after initialization:**
 ```sql
-SELECT count(*) FROM mailing_lists;     -- expect 6
-SELECT count(*) FROM system_config;     -- expect 34
+SELECT count(*) FROM mailing_lists;     -- expect 7
+SELECT count(*) FROM system_config;     -- expect 44
 ```
 
 **Prefer semantic-key verification for publishable checks/examples:**
@@ -1507,9 +1514,9 @@ The application must reject any delete request targeting a `tags` row where `is_
 
 ## 7. Retained DB Triggers
 
-The following 18 triggers are intentionally kept in the database. All enforce integrity invariants that would be materially weakened by application-only enforcement (due to multiple write paths, tamper-resistance requirements, or financial-record immutability).
+The following 24 triggers are intentionally kept in the database. All enforce integrity invariants that would be materially weakened by application-only enforcement (due to multiple write paths, tamper-resistance requirements, or financial-record immutability).
 
-### Append-only / immutability triggers (14)
+### Append-only / immutability triggers (20)
 
 These prevent UPDATE and DELETE on tables that must be permanent historical records:
 
@@ -1522,6 +1529,9 @@ These prevent UPDATE and DELETE on tables that must be permanent historical reco
 | `trg_payment_transitions_no_update` / `_no_delete` | `payment_status_transitions` | Payment history integrity |
 | `trg_tier_grants_no_update` / `_no_delete` | `member_tier_grants` | Membership tier ledger integrity |
 | `trg_system_config_no_update` / `_no_delete` | `system_config` | Config history integrity; enables effective-dated audit trail |
+| `trg_active_player_vouches_no_update` / `_no_delete` | `active_player_vouches` | Vouch ledger integrity |
+| `trg_active_player_grants_no_update` / `_no_delete` | `active_player_grants` | Active Player grant ledger integrity |
+| `trg_active_player_reminder_sent_no_update` / `_no_delete` | `active_player_reminder_sent` | Reminder-sent ledger integrity |
 
 ### Vote options lock triggers (3)
 
