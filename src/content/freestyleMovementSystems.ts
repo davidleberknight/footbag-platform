@@ -51,7 +51,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisDefinition:
       'Set primitives that initiate a trick: what the foot does before the base trick ' +
       'begins. Pre-base uptime treatments, compressed-set families, and Red-settled ' +
-      'compound set modifiers (per pt10: nuclear = paradox + atomic, quantum = ' +
+      'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors) — atomic / quantum / nuclear
     // (atomic family, pt10 relationships) — stepping / surging (set-foot relocations).

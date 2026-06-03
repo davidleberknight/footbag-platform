@@ -953,7 +953,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toContain('stepping paradox');
     expect(res.text).toContain('compressed atomic');
-    expect(res.text).toContain('paradox + atomic');
+    expect(res.text).toContain('paradox + illusion');
     expect(res.text).toContain('high stepping');
   });
 

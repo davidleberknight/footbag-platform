@@ -455,9 +455,9 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   {
     holdenName:      'Nuclear',
     holdenReading:   'CLIP > SAME OUT >; Holden lists as a basic single-dex set.',
-    platformReading: 'Operator reference frames nuclear as a +2 set modifier combining paradox\'s hip pivot with atomic\'s cross-body character.',
+    platformReading: 'Operator reference frames nuclear as a +2 set modifier combining paradox\'s hip pivot with a downtime illusioning dex.',
     status:          'partial',
-    note:            'Notation matches. Holden treats nuclear as a basic; the platform treats it as a compound paradox + atomic stack.',
+    note:            'Notation matches. Holden treats nuclear as a basic; the platform treats it as a compound paradox + illusion stack.',
   },
 
   // ── Conflict (substantive decomposition disagreement) ────────────────

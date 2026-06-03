@@ -11,7 +11,7 @@
  *     Authority: legacy notation reference encoded as the moves page.
  *
  *   - Semantic-operator layer: compositional vocabulary
- *     (nuclear = paradox + atomic). Authority: community review + curator
+ *     (nuclear = paradox + illusion). Authority: community review + curator
  *     adjudication.
  *
  * The two layers are independent. An entry can be authoritative at one
@@ -99,10 +99,10 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     slug:           'nuclear',
     name:           'Nuclear',
     category:       'compound-set',
-    oneLineMeaning: "A +2 set modifier combining paradox's hip pivot with atomic's cross-body character. Operational form: CLIP > SAME OUT >.",
-    decomposition:  'paradox + atomic',
+    oneLineMeaning: "A +2 set modifier combining paradox's hip pivot with a downtime illusioning dex. Operational form: CLIP > SAME OUT >.",
+    decomposition:  'paradox + illusion',
     pendingNote:    null,
-    workedExamples: ['Matador = Nuclear Butterfly'],
+    workedExamples: ['Sumo = Nuclear Mirage', 'Matador = Nuclear Butterfly'],
     lineageNote:    'Curator-adjudicated decomposition.',
     curatorConfirmPending: false,
   },

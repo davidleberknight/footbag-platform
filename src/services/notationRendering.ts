@@ -147,7 +147,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   // ── Set modifiers (set) ───────────────────────────────────────────────
   BLURRY:   'Blurry, set modifier (+1 ADD)',
   ATOMIC:   'Atomic, set modifier (+1 / +2 on rotational base)',
-  NUCLEAR:  'Nuclear, set modifier (+2 ADD; Paradox + Atomic)',
+  NUCLEAR:  'Nuclear, set modifier (+2 ADD; Paradox + Illusion)',
   QUANTUM:  'Quantum, set modifier (+1 ADD)',
   PIXIE:    'Pixie, set modifier (+1 ADD)',
   FAIRY:    'Fairy, set modifier (+1 ADD)',

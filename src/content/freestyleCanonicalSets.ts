@@ -270,7 +270,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     relatedSystems: [
       { slug: 'quantum', label: 'Quantum (same dex direction, op-side terminal)' },
-      { slug: 'nuclear', label: 'Nuclear (platform reading: paradox + atomic)' },
+      { slug: 'nuclear', label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); platform tracks atomic as a +1 set primitive (audit row records partial — platform does not formalize Holden\'s Toe-set Illusion decomposition).',
@@ -518,18 +518,18 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'nuclear', hashtag: '#nuclear-set', displayName: 'Nuclear', subtype: 'composite-derived',
     formula: 'CLIP > SAME OUT [DEX] >',
     movementExplanation:
-      'Platform reading: paradox + atomic compounded — paradox\'s hip pivot combined with ' +
-      'atomic\'s cross-body character. Holden treats it as a basic single-dex set; the ' +
+      'Platform reading: paradox + illusion compounded — paradox\'s hip pivot combined with ' +
+      'a downtime illusioning dex. Holden treats it as a basic single-dex set; the ' +
       'platform tracks it as a +2 compound.',
     equivalenceNotes: [
-      { reading: 'paradox + atomic compound', citation: 'Platform reading (pt10)' },
-      { reading: 'basic single-dex set',      citation: 'Holden reading' },
+      { reading: 'paradox + illusion compound', citation: 'Platform reading (pt14)' },
+      { reading: 'basic single-dex set',        citation: 'Holden reading' },
     ],
     derivedSystems: [
       { slug: 'twinspinning', label: 'Twinspinning (nuclear inspinning)' },
     ],
     relatedSystems: [
-      { slug: 'atomic', label: 'Atomic (one of nuclear\'s components per platform reading)' },
+      { slug: 'atomic', label: 'Atomic (related uptime set; not a nuclear component under the paradox + illusion reading)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); audit row partial — Holden\'s "basic" reading vs platform\'s compound reading.',

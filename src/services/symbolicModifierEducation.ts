@@ -287,7 +287,7 @@ const PARADOX_CONTENT: ModifierEducationInput = {
     {
       heading: 'Paradox as a hidden modifier',
       prose:
-        'Several folk-named tricks have paradox embedded in their canonical reading without "paradox" in the name. Blur is stepping + paradox + mirage (4 ADD). Fury is furious + paradox + mirage (5 ADD). Nuclear (matador, sumo, hurl, barfry) is paradox + atomic. When a trick name does not carry the modifier word but contains the motion, the symbolic-grammar layer makes that explicit.',
+        'Several folk-named tricks have paradox embedded in their canonical reading without "paradox" in the name. Blur is stepping + paradox + mirage (4 ADD). Fury is furious + paradox + mirage (5 ADD). Nuclear (matador, sumo, hurl, barfry) is paradox + illusion. When a trick name does not carry the modifier word but contains the motion, the symbolic-grammar layer makes that explicit.',
     },
   ],
   progression: {

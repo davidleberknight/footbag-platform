@@ -183,7 +183,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // single-valued taxonomy. Wave-2-gated weightings are marked TBD.
   {
     componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
-    contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + atomic per pt10); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + illusion; Red 2026-06-02: prior paradox-atomic reading retired); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {

@@ -67,11 +67,11 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
   {
     slug:              'nuclear',
     displayName:       'Nuclear (modifier)',
-    compactNotation:   'paradox + atomic',
+    compactNotation:   'paradox + illusion',
     officialAdd:       0,
-    derivation:        'curator-pending — nuclear modifier composition awaiting Red ruling',
-    status:            'pending-doctrine',
-    observationalNote: 'Nuclear behaves as an effective +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). The exact paradox+atomic decomposition is curator-pending and tracked in the Wave 3 supplement queue.',
+    derivation:        'paradox dex + downtime illusioning dex (= 2 ADD)',
+    status:            'doctrine-locked',
+    observationalNote: 'Nuclear behaves as a +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). It decomposes as paradox + downtime illusion; the illusioning dex is downtime (uptime would make it atomic), and nuclear itself carries no X-Dex.',
   },
   {
     slug:              'quantum',
