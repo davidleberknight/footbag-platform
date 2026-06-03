@@ -1,0 +1,49 @@
+{
+  "run_id": "20260603T054346Z",
+  "app": "news",
+  "engine": "python-mysqldump-parser",
+  "source": {
+    "raw_path": "/home/james/projects/footbag-platform/legacy_data/legacy_archive/raw/news/latest.sql",
+    "dump_sha256": "faa5e1776f326dbee22e7a5edfad0f4212b941dcc363d8a5065031030db8f51b",
+    "byte_size": 4875444,
+    "dump_date": "2026-05-29"
+  },
+  "allowlist_applied": [
+    "news"
+  ],
+  "tables_in_dump": [
+    "news"
+  ],
+  "tables": [
+    {
+      "table": "news",
+      "columns_extracted": [
+        "NewsID",
+        "Day",
+        "Month",
+        "Year",
+        "NewsPriority",
+        "NewsHeadline",
+        "NewsDetails",
+        "NewsDetailsWrapperPre",
+        "NewsDetailsWrapperPost",
+        "NewsURL",
+        "NewsCreated",
+        "NewsModified",
+        "ExpirationDay",
+        "ExpirationMonth",
+        "ExpirationYear",
+        "NewsType",
+        "NewsDateStamp",
+        "NewsPublishDateStart",
+        "NewsPublishDateEnd"
+      ],
+      "denylist_columns_dropped": [],
+      "rows_in_dump": 17682,
+      "rows_emitted": 17682
+    }
+  ],
+  "row_count_parity": true,
+  "warnings": [],
+  "dry_run": false
+}
