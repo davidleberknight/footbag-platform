@@ -103,12 +103,12 @@ describe('Glossary framing — Reading the dictionary section', () => {
   });
 });
 
-describe('Glossary framing — family-hierarchy direction note (additive, no rewrite)', () => {
-  it('renders the transitional-labels note inside the families section', async () => {
+describe('Glossary framing — settled family-root test note', () => {
+  it('renders the settled family-root rule inside the families section', async () => {
     const html = await glossary();
-    expect(html).toMatch(/Family labels are transitional/);
-    expect(html).toMatch(/<em>parent<\/em> families with child sub-families/);
-    expect(html).toMatch(/family count will shrink/);
+    expect(html).toMatch(/family-root test is settled/);
+    expect(html).toMatch(/more\s+than two active members/);
+    expect(html).toMatch(/derivative\s+micro-clusters \(minor &amp; derived\)/);
     expect(html).toContain('id="section-families"');
     expect(html).toContain('Parent families');
   });
