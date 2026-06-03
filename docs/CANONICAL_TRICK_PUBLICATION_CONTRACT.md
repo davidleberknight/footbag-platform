@@ -69,6 +69,14 @@ Do not:
 
 Curator authority remains primary.
 
+## Arithmetic validity is not structural certainty
+
+A trick's ADD arithmetic and its structural decomposition are independent gates. The math closing (the ADD value derives cleanly, and any source divergence on the number resolves under the outlier rules) does not by itself make a trick publishable.
+
+Structural certainty is a separate requirement. A trick can carry a correct, agreed ADD and still fail publication because its structure is unreconciled: which operators compose it, which base it lands on, or which of several competing readings is canonical. When the number is settled but the structure is contested, the trick is held, not published. Holding such a trick is the contract operating as designed, not a coverage gap.
+
+This distinction governs requirements 4 (alias and equivalence governance), 5 (honest incompleteness), and 6 (no fabricated structure): a clean ADD never licenses asserting a structure the sources do not agree on.
+
 ## Core principle
 
 A canonical trick is a structurally legible symbolic object, not merely a database row.
