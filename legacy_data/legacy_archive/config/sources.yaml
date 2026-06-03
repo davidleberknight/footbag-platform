@@ -7,8 +7,10 @@
 # against the actual dump before sealing.
 
 news:
-  dump_path: "TODO/footbag.org/news/backups/latest.sql"
-  expected_dump_date: "TODO"          # e.g. 2026-05-31
+  # Local-machine config: a private footbag.org clone kept OUTSIDE this repo (a
+  # sibling directory). Path is relative to the repo root, where seal.py is run.
+  dump_path: "../legacy_SG_clone/news/backups/latest.sql"
+  expected_dump_date: "2026-05-29"
 
 rules:
   dump_path: "TODO/footbag.org/rules/backups/latest.sql"
