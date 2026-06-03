@@ -17,5 +17,6 @@ rules:
   expected_dump_date: "TODO"
 
 clubs:
-  dump_path: "TODO/footbag.org/clubs/backups/latest.sql"
-  expected_dump_date: "TODO"
+  # Local-machine config: private footbag.org clone, sibling dir, repo-root-relative.
+  dump_path: "../legacy_SG_clone/clubs/backups/latest.sql"
+  expected_dump_date: "2026-05-28"

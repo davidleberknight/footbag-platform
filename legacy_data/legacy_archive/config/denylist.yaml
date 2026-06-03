@@ -24,3 +24,8 @@ ifpa_memberpayments:
 
 ifpa_membership_transactions:
   - "*"
+
+# clubs.Password is a club-level credential (not member PII, but a secret).
+# Dropped before extraction; never enters parsed NDJSON.
+clubs:
+  - Password
