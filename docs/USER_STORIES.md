@@ -405,6 +405,7 @@ Success Criteria:
 
 - Initial educational pages (trick tutorials, rules, equipment guides, etc.) are static content.
 - Developers provide initial content as static files for the website.
+- Rules pages are served from the IFPA-governed `ifpa/rules/` content. Their currency is verified in cooperation with IFPA; until IFPA ratifies a page as current, it carries a visible reference notice that it may not reflect the most recent IFPA rule changes and that IFPA maintains the authoritative current rules. No rule page is presented as current official rules without IFPA-cooperative source verification.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
 
 ### V_View_Gallery
@@ -2641,6 +2642,7 @@ Success Criteria:
 
 - Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); alias_keyword (required and unique if `email_enabled=true`, max 32 chars, lowercase alphanumeric and hyphen; resulting email address is `<alias_keyword>@groups.footbag.org`); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
 - If `email_enabled=true`, the system creates an associated `MailingList` in `auto_sync_by_group=<group_id>` mode with the configured `alias_keyword` resolved to `<alias_keyword>@groups.footbag.org`, applies admin-set defaults for `subject_prefix`, `moderated`, and `restricted_sending`, and seeds the subscription with the initial owner.
+- Platform-native group aliases (`<alias_keyword>@groups.footbag.org`) are distinct from legacy IFPA `@ifpa.footbag.org` aliases. This story provisions new platform groups only; it does not migrate, reproduce, or accept inbound posting to legacy `@ifpa.footbag.org` list aliases, which are dispositioned separately (MIGRATION_PLAN §29.12a, IFPA list mail). The platform does not receive inbound email; group mail is composed via the web form and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
 - Validation errors (e.g., alias keyword collision, invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.

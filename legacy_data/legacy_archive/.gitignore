@@ -1,6 +1,6 @@
 # Legacy archive — DATA is NEVER tracked. Only code, config, and audit reports.
 #
-# raw/    = immutable verbatim mysqldumps (may contain PII / cleartext passwords)
+# raw/    = immutable verbatim mysqldumps (private; PII and other sensitive material)
 # parsed/ = extracted NDJSON (rebuildable from raw)
 #
 # Both are excluded from git by construction. reports/ IS committed, but it

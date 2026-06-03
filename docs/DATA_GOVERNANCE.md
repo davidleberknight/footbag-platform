@@ -174,6 +174,14 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Data subject erasure:** member account erasure is supported. HoF, BAP, and other public-record honors survive erasure because honors recognize a competitive record on a public historical surface, not the current member account. Erasure clears the account's identifying personal data and severs the link between the account and the underlying public historical record; the historical record itself remains as a public surface, displaying the public attribution name and any honors earned. Audit-log retention is governed by §9; erasure does not delete audit history. Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
 
+**Raw legacy dumps.** The legacy database dumps held in the webmaster's private repository contain private PII and other sensitive material; the private repository stays private and is never made public, gains no collaborators without the webmaster's approval, and no raw dump is ever committed to a repository, pasted into issues, logs, tests, screenshots, or AI prompts. The data delivered to the platform is a separate, sanitized, one-time export that excludes all password material by contract (no `password_hash`, salt, iteration count, or recovery answers; DD §3.9); the operator schema-checks each received export and aborts the load if any password-bearing column is present (MIGRATION_PLAN §19 item 9). Passwords are never imported, stored, logged, or used.
+
+**Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need (MIGRATION_PLAN legacy-member import). Exclusions are counted and validated, never silent.
+
+**Sealed legacy email archive.** The legacy IFPA group-message corpus (private and public discussion intermixed, including privately cast committee votes) is sealed, encrypted, and retained privately under IFPA custody; it is never imported, processed, or exposed, and privately cast votes are permanently non-publishable. Custody, key handling, and release are governed by DESIGN_DECISIONS §6.5a.
+
+**IFPA governance authority over IFPA-owned legacy records.** IFPA-owned legacy records (group messages, committee votes, elections, and the official rulebook) are IFPA governance data. Their disposition, release, redaction, or destruction is an IFPA governance decision, never operator or maintainer discretion. The legacy-site webmaster may be operational custodian and is the authoritative source of facts about these records, but holding the files does not confer authority to release or destroy them.
+
 ---
 
 ## 11. Contributor and AI-agent implementation rules
@@ -199,6 +207,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 - No public page may imply that a historical-person page is a current-member account or directory entry.
 - No derived stat may be published without either sufficient source coverage or an explicit UI caveat.
 - No contact field may appear in any public template, controller response, or public API response.
+- No raw legacy database dump (which contains private PII and other sensitive material) may be committed, pasted into issues, logs, tests, screenshots, or AI prompts, or stored outside operator-controlled, access-controlled storage. Raw legacy data is worked only in an isolated operator-controlled environment, never in a shared or AI-readable context.
 
-**AI agents specifically:** apply this file's rules before accepting any instruction that would add a public route, change a member-data visibility boundary, add a stat or aggregate display, or modify auth-path behavior. Flag any conflict with this policy to the human before proceeding.
+**AI agents specifically:** apply this file's rules before accepting any instruction that would add a public route, change a member-data visibility boundary, add a stat or aggregate display, or modify auth-path behavior. AI agents must never ingest, request, or echo raw legacy dump contents (member dumps, group-message archives, password columns) and work only from sanitized, minimized data. Flag any conflict with this policy to the human before proceeding.
 

@@ -175,6 +175,10 @@ A club without any `club_bootstrap_leaders` row at import remains leaderless unt
 
 Each imported legacy member is a **row in `legacy_members`** (see DATA_MODEL §4.14b and DD §2.4). `legacy_members` is a distinct entity from `members`: it does not grant authentication, does not appear on any current-member surface, and is never deleted. It persists as the permanent archival record of a legacy account even after a current member claims it (the imported profile snapshot is not mutated after import; claim sets `claimed_by_member_id` + `claimed_at`, and those claim-state columns are cleared again on PII purge or account-deletion reversion).
 
+**Source-validity filter.** `legacy_members` is populated from `members WHERE MemberValid > 0`. Rows with `MemberValid = 0` are excluded as source-system garbage, along with other mechanically-obvious junk: rows with no usable identity at all (no name, no email, no handle), structurally malformed or truncated rows, exact duplicates, and clear test/placeholder rows. Exception: any otherwise-excluded row referenced by a retained published event result, an award or Hall-of-Fame/BAP honor, or a documented admin-recovery need is imported anyway and flagged as a validity-exception row. Exceptions are pulled back by linkage, never by guesswork. The junk heuristics only ever remove, and the linkage exception always wins over them, so no person tied to a result or honor is dropped. The import is counted and validated at test-load: rows examined, rows excluded per rule, rows imported, and exception rows pulled back are all reported, so no exclusion is silent.
+
+**Mirror pre-seed before the export.** To satisfy the `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)` foreign key before the legacy-account export exists, the historical pipeline pre-seeds temporary `legacy_members` rows from the mirror (club rosters plus the `historical_persons` IDs that need an FK target), keyed on `legacy_member_id` with `import_source = 'mirror'` and other columns left NULL; the seed is insert-if-absent, so re-runs add no duplicates. The legacy-account export then supersedes these rows with its full profile fields and flips `import_source` from `'mirror'` to `'legacy_site_data'`. Both key on the same `legacy_member_id` namespace (§19 item 10), so the export updates the matching pre-seeded row in place rather than inserting a duplicate. "Not mutated after import" refers to this post-export state: the mirror pre-seed is temporary scaffolding the export replaces, not a snapshot mutated after the import completes; only the claim-state columns change later.
+
 Fields present on imported rows:
 
 | Field | Notes |
@@ -194,7 +198,7 @@ Fields present on imported rows:
 | `is_hof` | From export; carries to the claiming member at claim time per §9 OR-merge |
 | `is_bap` | From export; carries to the claiming member at claim time per §9 OR-merge |
 | `legacy_is_admin` | Old-site admin flag; retained for audit only, never grants live admin |
-| `import_source` | `'mirror'` or `'legacy_site_data'` -- indicates origin batch |
+| `import_source` | `'mirror'` (temporary pre-seeded row) or `'legacy_site_data'` (export-loaded); flipped from `'mirror'` to `'legacy_site_data'` when the export supersedes the row, per "Mirror pre-seed before the export" above |
 | `imported_at` | Timestamp of import |
 | `legacy_banned` | Optional column; added only when the legacy-account export contains a trustworthy banned/inactive field. When present, populated from the export and used to gate self-serve claim; when absent, banned cases route through admin review. |
 
@@ -216,23 +220,24 @@ The three-table design (DD §2.4) means imported rows never occupy the `members`
 
 Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id`; so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
 
-The mapping is a single blanket policy approved by IFPA: any legacy state that was active or paid at cutover maps to its lifetime equivalent under the 2026 rules (annual to lifetime); honors override paid history; default is `tier0`.
+The mapping is a single blanket policy approved by IFPA: any legacy state that was active or paid at cutover maps to its lifetime equivalent under the 2026 rules (annual to lifetime); Tier 3 (Director / board governance status) takes precedence over honors and paid history and folds them into the underlying tier it reverts to; honors override paid history; default is `tier0`.
 
 Tier mapping rules (apply in precedence order; first match wins):
 
 | Precedence | Legacy state at cutover | New `tier_status` | `underlying_tier_status` |
 |---:|---|---|---|
-| 1 | HoF or BAP (regardless of paid history) | `tier2` | n/a |
-| 2 | Was Tier 3 / board at cutover | `tier3` | derived (see below) |
+| 1 | Was Tier 3 / board at cutover | `tier3` | derived (see below) |
+| 2 | HoF or BAP (regardless of paid history) | `tier2` | n/a |
 | 3 | Ever paid Tier 2 (annual or lifetime, any state) | `tier2` | n/a |
 | 4 | Paid Tier 1 Lifetime (no Tier 2 history) | `tier1` | n/a |
 | 5 | Tier 1 Annual currently active at cutover (last attendance or vouch ≤ 365 days before cutover) | `tier1` | n/a |
 | 6 | All other legacy states (including expired Tier 1 Annual and members with no IFPA history) | `tier0` | n/a |
 
-Tier 3 underlying derivation (precedence 2 only): reads `legacy_board_underlying_paid_tier` (the member's paid-tier state before the board promotion that elevated them to Tier 3 at cutover).
+Tier 3 underlying derivation (precedence 1 only): reads `legacy_board_underlying_paid_tier` (the member's paid-tier state before the board promotion that elevated them to Tier 3 at cutover) together with the honors flags `is_hof` / `is_bap`, because `legacy_board_underlying_paid_tier` carries only `'none'` / `'tier1'` / `'tier2'` and cannot itself express honors. Evaluate in order; first match wins:
 
+- `is_hof` or `is_bap` set → `underlying_tier_status = 'tier2'` (a HoF/BAP Director reverts to Tier 2 per the IFPA rules in `ifpa/`), regardless of `legacy_board_underlying_paid_tier`.
+- Pre-board paid tier was Tier 2 (any kind) → `underlying_tier_status = 'tier2'`.
 - Pre-board paid tier was Tier 1 (any kind), undefined, or Tier 0 → `underlying_tier_status = 'tier1'`. (A Tier 0 to Tier 3 upgrade earns `tier1` underlying per the IFPA rules in `ifpa/`.)
-- Pre-board paid tier was Tier 2 (any kind), HoF, or BAP → `underlying_tier_status = 'tier2'`.
 
 Required inputs on `legacy_members` (or a migration-only staging table joined to it):
 
@@ -241,7 +246,7 @@ Required inputs on `legacy_members` (or a migration-only staging table joined to
 | `legacy_ever_paid_tier2` | INTEGER 0/1 | True if member ever paid any Tier 2 dues. Drives precedence 3. |
 | `legacy_ever_paid_tier1_lifetime` | INTEGER 0/1 | True if member explicitly bought Tier 1 Lifetime. Drives precedence 4. |
 | `legacy_tier1_annual_active_at_cutover` | INTEGER 0/1 | True if free-earned Tier 1 Annual was active at cutover. Drives precedence 5. |
-| `legacy_was_board_at_cutover` | INTEGER 0/1 | True if Tier 3 / board at cutover. Drives precedence 2. |
+| `legacy_was_board_at_cutover` | INTEGER 0/1 | True if Tier 3 / board at cutover. Drives precedence 1. |
 | `legacy_board_underlying_paid_tier` | TEXT NULL | For board members only: `'none'`, `'tier1'`, or `'tier2'`. Drives underlying derivation. |
 
 These fields are a deferred schema extension on `legacy_members` (or staging), gated on test-load validation of the legacy export per §15.16 and §25 gate G6. If the extension does not land, the mapping falls back to the **honors-only path** using `legacy_members.is_hof` and `legacy_members.is_bap` (which already exist): HoF/BAP grants `tier2`; everything else grants `tier0`. The honors-only fallback degrades gracefully and remains correct under the 2026 rules; the fallback decision, when chosen, is recorded in §28.
@@ -1066,7 +1071,7 @@ Five fields capture legacy tier state for the §3 precedence rules:
 - `legacy_ever_paid_tier2` INTEGER 0/1 — ever paid any Tier 2 dues; drives precedence 3.
 - `legacy_ever_paid_tier1_lifetime` INTEGER 0/1 — explicitly bought Tier 1 Lifetime; drives precedence 4.
 - `legacy_tier1_annual_active_at_cutover` INTEGER 0/1 — free-earned Tier 1 Annual active at cutover; drives precedence 5.
-- `legacy_was_board_at_cutover` INTEGER 0/1 — Tier 3 / board at cutover; drives precedence 2.
+- `legacy_was_board_at_cutover` INTEGER 0/1 — Tier 3 / board at cutover; drives precedence 1.
 - `legacy_board_underlying_paid_tier` TEXT NULL — board members only: `'none'`, `'tier1'`, `'tier2'`; drives underlying derivation.
 
 Schema authority: `database/schema.sql`. The columns land on `legacy_members` before §25 gate G6 PASSes for State 2 → State 3.
@@ -1259,6 +1264,8 @@ Required metadata per event where applicable:
 
 The legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5) is the current operator of the live legacy site. This section is organized around the webmaster's concerns: architecture, data export, DNS and infrastructure, email, feature continuity, and community knowledge. It covers both deliverables the maintainer needs and open questions only the webmaster can answer.
 
+MVP scoping and the open questions in this section require two partners: the legacy-site webmaster, who holds the legacy-system facts (DNS, mail, server config, data), and the IFPA secretary, who holds IFPA governance answers (membership policy, committees, records, rules currency). The written design in these canonical docs is the baseline for going forward; feedback, constructive criticism, and suggestions from the webmaster or IFPA are welcome at any time, but proposed changes are made as specific, concrete doc-revision requests, and the maintainer keeps the canonical docs.
+
 The webmaster is not asked to produce club data; that comes from the mirror pipeline (§20). The long-term operator pattern for coordinating with any external DNS/mail upstream is documented in `docs/DEVOPS_GUIDE.md` §16.8; this section applies that pattern to the webmaster's specific contract.
 
 ### 19.1 Architecture decision
@@ -1288,13 +1295,13 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
    - Tier / membership fields (current tier, expiry dates, tier history if available)
    - Account-status flags of any kind: `banned`, `inactive`, `is_admin`, `suspended`, `locked`, `deleted`, `expired`, `lapsed`, `no_contact`, privacy/visibility flags (e.g. `hidden`, `private_profile`), opt-out flags, and any other column on the legacy `members` table whose value gates eligibility for self-serve claim, opens admin-recovery paths, or affects what the member sees on the legacy site. Confirm presence, reliability, and semantics for each. If unsure whether a column counts, include it.
 
-9. **Password-column exclusion**: confirm explicitly that the export contains no password columns (no `password_hash`, no salt, no iteration count, no recovery-question answers). Password material is never imported (DD §3.9). The exclusion is a hard contract, not an implicit assumption.
+9. **Password-column exclusion**: confirm explicitly that the export contains no password columns (no `password_hash`, no salt, no iteration count, no recovery-question answers). Password material is never imported (DD §3.9). The exclusion is a hard contract, not an implicit assumption. In addition to the webmaster's confirmation, the operator independently schema-checks the received export before loading and aborts the load if any password-bearing column is present; attestation alone is insufficient, so the schema-check is mandatory.
 
 10. **Namespace agreement for `legacy_member_id`**: confirm that the integer IDs in the export are the same integers used in the legacy site's `members/profile/{id}` URLs (the mirror-derived namespace). If they diverge, resolve before any test import; otherwise every `historical_persons.legacy_member_id` → `legacy_members.legacy_member_id` back-link in the pipeline is invalidated.
 
 11. **Namespace verification protocol**: a 10% spot-check sample of `legacy_member_id` values from the test export is cross-referenced against the mirror-derived baseline ID range. The webmaster's export ID range and the mirror's must overlap; new IDs that exist only in the export are expected (post-mirror accounts) but the overlap region must agree row-for-row.
 
-12. **Banned-member product semantics**: confirm whether the `banned` flag is reliable and document the operational handling. Default product behavior (DD §3.9; admin recovery policy per §13 "Manual claim recovery"): a banned member may submit the claim form, but the service layer blocks completion when `legacy_banned=1` and routes to admin recovery. The `legacy_banned` flag is not directly UI-visible to the claiming member; the admin queue carries the reason and outcome.
+12. **Banned-member product semantics**: confirm whether the `banned` flag is reliable and document the operational handling. Default product behavior (§8 claim ineligibility, §13, §28 item 5): the legacy banned flag is recorded as audit metadata only and does not gate the self-serve claim card; disciplinary state is handled by the new platform's own discipline mechanisms, not by legacy ban state. The one admin-routed case is the Gate G3 FAIL path (§15.5): when the export carries no trustworthy banned field, rows with an untrusted banned/inactive indicator are routed to admin review because the platform cannot auto-apply a flag it cannot trust. The `legacy_banned` flag is not directly UI-visible to the claiming member. Whether to introduce gating for trustworthy bans is an open policy item pending webmaster and IFPA board input (§28 item 5); the audit-only default stands until then.
 
 13. **Data-quality metric requests**: an estimate of the percentage of `legacy_email` addresses that are plausibly still deliverable (informs auto-link coverage projections), and the last-activity timestamp per row (informs admin-recovery capacity planning).
 
@@ -1304,9 +1311,9 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 15. **Zone authority and apex capability**: identify the registrar and the authoritative-DNS provider for `footbag.org`. Confirm the provider supports ALIAS or ANAME at apex (Route 53, Cloudflare DNS, NS1, and a few others qualify); a plain CNAME at apex is illegal per RFC 1034. If the current provider does not support apex ALIAS and Option B is chosen, the zone migrates to a capable provider before T-0. **STATUS: OPEN. This is the most likely technical showstopper for CloudFront integration under Option B. The answer is knowable now (`dig footbag.org NS` + provider feature check). If the zone must migrate, the migration is a multi-day operation that changes who controls DNS for all of `*.footbag.org` and must be planned well ahead of cutover, not discovered at T-7d.**
 
-16. **Legacy subdomain inventory**: enumerate every `*.footbag.org` subdomain that must continue resolving at the legacy host through cutover and beyond the §27 rollback window, distinct from `footbag.org` and `www.footbag.org` (which move to CloudFront at T-0 under Option B). `archive.footbag.org` is reserved for the new platform per §29.15. Full inventory needed, not just the subdomains the webmaster thinks of first.
+16. **Legacy subdomain inventory**: enumerate every `*.footbag.org` subdomain that must continue resolving at the legacy host through cutover and beyond the §27 rollback window, distinct from `footbag.org` and `www.footbag.org` (which move to CloudFront at T-0 under Option B). `archive.footbag.org` is reserved for the new platform per §29.15. Full inventory needed, not just the subdomains the webmaster thinks of first. The inventory comes from the webmaster, not the repo: the GitHub mirror is incomplete and does not represent DNS or server config, so it cannot pre-populate this list. A known candidate to confirm and disposition is `lists.footbag.org` (frozen read-only listserv archive). Any private operator-only subdomain (for example a private proxy host) must be flagged private and not-for-publication: it must not appear in public docs or be exposed via zone transfer. Media reachable only by direct `video.`/`photo.` file paths is handled under §29.15 (archive completeness), not retained as a subdomain.
 
-17. **Records-actor for cutover changes**: identify who applies the maintainer-supplied records to the zone at cutover. Three answers are acceptable: (a) the webmaster himself, (b) a named delegate, or (c) the registrar/DNS provider's self-serve portal with named credential owner. The maintainer supplies the values; the identified actor applies them. The records are: the apex and `www` swap to the production CloudFront distribution, the ACM validation CNAMEs (temporary, during issuance), the SES DKIM CNAMEs (permanent), and the `archive.footbag.org` ALIAS pointing at the archive distribution. MX disposition is settled under the "MX disposition" subsection of §29.12a (MX records remain at the legacy mail server through and beyond the parallel-role window; SES verification is at the DKIM-CNAME level).
+17. **Records-actor for cutover changes**: identify who applies the maintainer-supplied records to the zone at cutover. Three answers are acceptable: (a) the webmaster himself, (b) a named delegate, or (c) the registrar/DNS provider's self-serve portal with named credential owner. The maintainer supplies the values; the identified actor applies them. The records are: the apex and `www` swap to the production CloudFront distribution, the ACM validation CNAMEs (temporary, during issuance), the SES DKIM CNAMEs (permanent), the `archive.footbag.org` ALIAS pointing at the archive distribution, and the `footbag.org` MX repoint to Google Managed Services (applied in the discrete pre-T-0 mail-cutover step). MX disposition is settled under the "MX disposition" subsection of §29.12a (the `footbag.org` MX moves to Google Managed Services in a discrete pre-T-0 step; SES verification is at the DKIM-CNAME level and is independent of MX).
 
 18. **DNS cutover coordination**: confirm the cutover sequence per §29.12, T-7d minimum lead time to the webmaster; TTL lowered to 300s at T-48h; TTL stays at 300s through the §27 48h rollback window (T-48h to T+48h).
 
@@ -1320,7 +1327,7 @@ See §28 "Email transition" for the full consolidation of email open items, the 
 
 21. **Email inventory**: what `@footbag.org` mailboxes and aliases exist today? Which are actively used vs. dead or spam-only?
 
-22. **Mailing list inventory**: what mailing lists exist, who manages them, and what software runs them? (announce@, board@, committee lists, regional lists, others.) Are there complex features (moderation, archives, digests) or are they simple distribution lists?
+22. **Mailing list inventory**: what mailing lists exist, who manages them, and what software runs them? (announce@, board@, committee lists, regional lists, others.) Are there complex features (moderation, archives, digests) or are they simple distribution lists? IFPA `@ifpa.footbag.org` list mail is dispositioned separately under §29.12a (IFPA list mail), not as part of the ordinary `@footbag.org` inventory.
 
 23. **Mail server platform**: what is the current mail server platform (Postfix, Exchange, hosted provider, etc.)? Needed for migration planning.
 
@@ -1330,7 +1337,7 @@ See §28 "Email transition" for the full consolidation of email open items, the 
 
 ### 19.5 Feature continuity
 
-26. **Group, committee, and mailing-list continuity**: inventory every group, committee, and mailing list active on the legacy site. For each, propose the cutover allocation: (a) stays on legacy parallel-role server (continues to receive mail through the legacy mail server, continues to be addressable through the webmaster's retained subdomains); (b) migrates to the new platform pre-cutover (requires a new-platform feature build, scoped separately from this MP); (c) is retired with consent. Default per item: stays on legacy parallel-role server unless the webmaster and maintainer agree the function must migrate or retire. No item goes dark at T-0 (per §29.12a constraint 5).
+26. **Group, committee, and mailing-list continuity**: inventory every group, committee, and mailing list active on the legacy site. For each, propose the cutover allocation: (a) stays on legacy parallel-role server (continues to receive mail through the legacy mail server, continues to be addressable through the webmaster's retained subdomains); (b) migrates to the new platform pre-cutover (requires a new-platform feature build, scoped separately from this MP); (c) is retired with consent. Default per item: stays on legacy parallel-role server unless the webmaster and maintainer agree the function must migrate or retire. No item goes dark at T-0 (per §29.12a constraint 5). IFPA `@ifpa.footbag.org` list functions and the legacy group-message archive are excluded from this generic allocation and are dispositioned under §29.12a (IFPA list mail / sealed legacy email archive); their disposition authority rests with IFPA governance.
 
 27. **Tournament in a box**: see §28 "Tournament in a box" for the full set of open questions. The webmaster must define what the legacy tournament management feature does today before it can be placed in the phased feature scope.
 
@@ -1441,6 +1448,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | EX4 | ACM certificate for `footbag.org` issued in `us-east-1` and attached to CloudFront | §29.9 | State 3 → State 4 |
 | EX5 | Stripe production live API keys + webhook secret in Parameter Store; webhook endpoint configured; one end-to-end webhook delivery confirmed | §29.9 | State 3 → State 4 |
 | EX6 | SES bounce/complaint SNS subscription tested with synthetic bounce; hard-bounce suppression confirmed in app | §29.5 | State 3 → State 4 |
+| EX7 | `footbag.org` MX repointed to Google Managed Services in the discrete pre-T-0 mail-cutover step; all active `@footbag.org` aliases provisioned on Google from the confirmed inventory; inbound delivery verified end-to-end before the web cutover | §28, §29.12a | State 3 → State 4 |
 
 ### Legacy-site webmaster coordination
 
@@ -1459,7 +1467,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | WM11 | Legacy subdomain inventory enumerated and recorded; allocation between legacy host and new platform agreed (dependent on §28 phased feature scope) | §19 item 16 | State 3 → State 4 |
 | WM12 | Hard end-date for the legacy host's parallel role agreed and recorded; default policy: not later than 12 months post-cutover; longer durations require IFPA board sign-off | §19 item 31 | State 3 → State 4 |
 | WM13 | `footbag.org` zone registrar and authoritative-DNS provider identified; provider confirmed to support ALIAS or ANAME at apex, OR zone migration to a capable provider planned and started | §19 item 15 | State 2 → State 3 |
-| WM14 | Records-actor confirmed for the maintainer-supplied records at cutover (apex/`www` swap, ACM validation CNAMEs, SES DKIM CNAMEs, `archive.footbag.org` ALIAS); registrar-portal credential owner identified if no named human actor exists | §19 item 17 | State 3 → State 4 |
+| WM14 | Records-actor confirmed for the maintainer-supplied records at cutover (apex/`www` swap, ACM validation CNAMEs, SES DKIM CNAMEs, `archive.footbag.org` ALIAS, and the `footbag.org` MX repoint to Google Managed Services applied in the discrete pre-T-0 mail-cutover step); registrar-portal credential owner identified if no named human actor exists | §19 item 17 | State 3 → State 4 |
 | WM15 | Secondary webmaster contact (phone, alternate email, or named delegate) documented and tested-reachable; unavailability protocol agreed for the §27 48h rollback window | §19 item 19 | State 3 → State 4 |
 | WM16 | Group, committee, and mailing-list continuity inventory complete with per-item allocation (legacy parallel role / migrate to new platform / retire); no item goes dark at T-0 (dependent on §28 phased feature scope) | §19 item 26 | State 3 → State 4 |
 | WM17 | Webmaster commits to monitoring TLS expiry on every retained `*.footbag.org` subdomain across the parallel-role window; renewal before lapse (Option B only) | §19 item 20 | State 3 → State 4 |
@@ -1808,35 +1816,31 @@ Default allocation: stays on legacy server through the parallel window (v3) unle
 
 ### Email transition
 
-**STATUS: OPEN. Email is the most operationally complex aspect of the transition. The open items were previously scattered across §29.5, §29.8, and §29.12a; this subsection consolidates them for the webmaster's read.**
+Email architecture is decided. This subsection consolidates it for the webmaster's read. The remaining open items are inventory and mailing-list mapping, not the architecture.
 
-**Maintainer's preference:** resolve all email at v1, eliminating the dependency on the legacy mail server entirely at cutover. Feasibility depends on the webmaster's answers to the open questions below.
+**Decided architecture:**
+- **Outbound:** AWS SES sends all transactional and mailing-list email (built and working). SES deliverability rides on the DKIM/SPF/DMARC CNAMEs (per EX3), independent of inbound MX.
+- **Inbound:** Google Managed Services handles all ordinary `@footbag.org` inbound. The `footbag.org` MX points to Google, not the legacy mail server. Mailboxes, aliases, and forwarding are configured on Google. No custom code; the platform receives no inbound mail.
+- **Legacy `@footbag.org` mail server:** retired. Once Google inbound is live it serves no `@footbag.org` mail role.
+- **`@ifpa.footbag.org`:** out of scope here. It is a distinct mail domain on llic.net, dispositioned separately under §29.12a (IFPA list mail). Moving `footbag.org` MX does not touch it.
+
+**Mail cutover is decoupled from the web cutover.** The `@footbag.org` MX moves to Google as its own step, sequenced after DNS zone authority is in place (§19 item 15) and before the apex/`www` web cutover (T-0). Because MX is already on Google by T-0, the apex swap stays MX-neutral (§29.12, §29.12a). Outbound SES is unaffected. This retires the single largest standing risk in the parallel-window design: the legacy mail server as a single point of failure for all `@footbag.org` inbound.
 
 **What the new platform already has (built and working):**
 - Outbound transactional email via Amazon SES (verification, password reset, claim links, receipts, reminders).
 - Mailing list infrastructure (DB tables, subscription management, bulk sends). Six lists seeded: newsletter, board-announcements, event-notifications, technical-updates, admin-alerts, announce.
 - Terraform for SES domain identity, DKIM, SPF, DMARC. Production-ready.
-- Bounce/complaint tracking schema (ready; webhook code not yet written, go-live gate EX6).
+- Bounce/complaint tracking schema (ready; webhook code go-live gate EX6).
 
 **What the new platform does NOT have:**
 - Inbound email handling. The platform does not receive email. No SES receiving rules, no inbound processing code.
 
-**Proposed v1 email architecture (pending webmaster's answers):**
-- **Outbound:** SES sends all transactional and mailing list email (already built).
-- **Inbound:** a managed email provider (Google Workspace, Fastmail, Zoho, or similar) handles all `@footbag.org` inbound. MX records point to the managed provider, not the legacy server. Aliases, forwarding, and mailboxes configured on the provider. No custom code needed.
-- **Mailing lists:** the platform's existing mailing list infrastructure handles announce@, newsletters, event notifications. Legacy mailing list subscribers migrated before cutover.
-- **Legacy mail server:** drops out entirely at v1.
+**Remaining discovery (the legacy-site webmaster and the IFPA secretary supply the facts; this informs provisioning, not the architecture):**
 
-If the webmaster prefers to keep running the mail server during the parallel window, the fallback is: MX stays at the legacy server, inbound stays on legacy, and email migration defers to v2. The maintainer prefers v1 but feasibility is gated on the webmaster's answers.
-
-Open questions for the webmaster:
-
-1. What `@footbag.org` mailboxes and aliases exist today? (Full inventory needed.)
-2. Which of those are actively used vs. dead or spam-only?
-3. What mailing lists exist, who manages them, and what software runs them? Are there complex features (moderation, archives, digests) or are they simple distribution lists?
-4. Is the webmaster OK with handing off all email at cutover (v1), or does he want to keep running the mail server during the parallel window?
-5. What is the current mail server platform (Postfix, Exchange, hosted provider, etc.)?
-6. Are any `@footbag.org` addresses real mailboxes that people log into (IMAP/POP), or are they all forwarding aliases?
+1. Full inventory of `@footbag.org` mailboxes and aliases in use today, so every active address is provisioned on Google before legacy delivery is withdrawn.
+2. Which are actively used vs. dead or spam-only.
+3. Mailing lists, their owners, and software; whether they carry moderation, archives, or digests, or are simple distribution lists; and the mapping between legacy lists and the platform-managed lists.
+4. Whether any `@footbag.org` addresses are real login mailboxes (IMAP/POP) vs. forwarding aliases, so Google is configured with mailboxes vs. forwards accordingly.
 
 ### Standing consistency notes
 
@@ -1930,7 +1934,7 @@ Cutover-specific preconditions (beyond the generic procedure):
 
 - **Authoritative nameserver verification**: `dig footbag.org NS` confirms the legacy DNS host matches the registrar-delegated NS records. If the registrar delegates to a different DNS provider, ACM CNAME validation must be placed at the actual authoritative host, not the registrar's nameservers.
 - **ACM colocation**: certificate must be issued in `us-east-1` regardless of where the rest of the platform runs (CloudFront-attached certs are us-east-1-only).
-- **MX records unchanged at T-0**: per §29.12a MX disposition, MX records for `footbag.org` remain pointed at the legacy mail server through and beyond cutover. No MX changes occur at T-0; only A/AAAA/ALIAS records for the apex and `www` change. SES outbound deliverability depends on the DKIM CNAMEs (per EX3), not on inbound MX.
+- **MX neutral at T-0**: per §29.12a MX disposition, the `footbag.org` MX moves to Google Managed Services in a discrete step before T-0. By T-0 the MX already points at Google and is not touched during the apex swap; only A/AAAA/ALIAS records for the apex and `www` change. SES outbound deliverability depends on the DKIM CNAMEs (per EX3), not on inbound MX.
 - **Write-freeze**: legacy site is in read-only mode and the final export has been imported into production before the record swap (per §23 Phase 4 cutover gates).
 
 Cutover-specific timing (overrides the generic procedure's defaults):
@@ -1942,7 +1946,7 @@ Cutover-specific timing (overrides the generic procedure's defaults):
 Coordination contract (per §19):
 
 - ACM validation CNAMEs are added by the webmaster (the records live at the legacy DNS host) but issued by the maintainer's AWS account.
-- MX record updates are the webmaster's action; verification of inbound delivery end-to-end before declaring T0 complete is joint.
+- The `@footbag.org` MX move to Google is applied by the records-actor in the pre-T-0 mail-cutover step (§29.12a MX disposition), not at T-0; end-to-end verification of Google inbound delivery before the web cutover is joint.
 
 Rollback (T+0 to T+48h, see §27): webmaster reverts the apex and `www` records to the legacy site's IP; propagation completes within 5 minutes given the lowered TTL. Beyond T+48h, fix-forward only; reversal requires joint sign-off (per §27).
 
@@ -1962,13 +1966,13 @@ The legacy host persists in a parallel role beyond the §27 rollback window, und
 - Legacy retained content is served under separate hostnames (subdomain coexistence), **over HTTPS exclusively**. CloudFront is not configured to proxy paths to a legacy origin: that arrangement would conflict with the §29.3 origin-verification gate and would couple the legacy content inventory to the CloudFront configuration surface. Subdomains the webmaster retains keep their existing DNS records pointing at the legacy host's IP. HTTPS is non-negotiable: the new-platform session cookie (`footbag_session`) is widened to `Domain=.footbag.org` per §29.15 and is therefore sent to every retained `*.footbag.org` hostname. A subdomain served over plain HTTP would leak the session token in cleartext on every request. Each retained subdomain must present a valid TLS certificate for its hostname before cutover.
 - The parallel window is bounded by a hard end-date agreed in §19 item 31. Indefinite persistence converts the migration into long-term federation and is out of scope.
 - The legacy host is operated by the legacy-site webmaster through the parallel window: patches, uptime, server-side configuration, and TLS on the retained subdomains remain his responsibility. This operational responsibility is server-side; DNS authority for `footbag.org` is settled separately under §19 item 15. If the zone migrates to a maintainer-controlled provider (Route 53 or equivalent) to satisfy apex-ALIAS capability, subdomain records under that zone are still applied at the webmaster's instruction (the maintainer holds zone-write access; the webmaster sources the record values for his subdomains); alternatively, the webmaster's subdomain names may be delegated back to a webmaster-controlled DNS zone via NS records, restoring full DNS authority for those names to him. The delegation-vs-managed choice is documented as part of §19 item 15.
-- Every existing group, committee, and mailing-list function on the legacy site continues to operate at and after cutover. Allocation is per-function and negotiated with the webmaster per §19 item 26: each function either stays on the legacy parallel-role server (default), migrates to the new platform pre-cutover (requires a new-platform feature build, scoped as a separate effort outside this MP unless the negotiation surfaces a function that can't stay on the legacy server), or is retired with consent. No function goes dark at T-0.
+- Every existing group, committee, and mailing-list function on the legacy site continues to operate at and after cutover. Allocation is per-function and negotiated with the webmaster per §19 item 26: each function either stays on the legacy parallel-role server (default), migrates to the new platform pre-cutover (requires a new-platform feature build, scoped as a separate effort outside this MP unless the negotiation surfaces a function that can't stay on the legacy server), or is retired with consent. No function goes dark at T-0. IFPA `@ifpa.footbag.org` list functions are excluded from this generic allocation and are dispositioned under §29.12a (IFPA list mail), with disposition authority resting with IFPA governance.
 
 **Legacy host failure during the parallel window.** The webmaster's operational responsibility (constraint 4) does not include an uptime SLA. If the legacy host becomes unreachable and cannot be restored within a pre-agreed window, the following escalation path applies (to be confirmed with the webmaster before cutover as part of §19 item 31):
 
 - **0-4 hours:** webmaster attempts restore from backup; maintainer notified; retained subdomains and legacy-hosted mailing lists are unavailable.
 - **4-24 hours:** if restore is not feasible, the webmaster and maintainer jointly decide: (a) accelerate the parallel-window end-date and retire retained subdomains, removing their DNS records; (b) emergency-migrate the highest-priority retained functions to the new platform (scoped as an incident sprint, not a planned feature build).
-- **Inbound email impact:** if the legacy host also serves as the MX target (which it does per the MX disposition below), a legacy host outage silently drops all inbound `@footbag.org` mail. There is no automatic failover for inbound email. The maintainer should consider whether a backup MX record pointing to a mailbox-parking service is warranted during the parallel window.
+- **Inbound email impact:** `@footbag.org` inbound is handled by Google Managed Services, not the legacy host (per the MX disposition below), so a legacy host outage during the parallel window does not affect `@footbag.org` mail. During the discrete mail-cutover step itself, a transient lower-priority backup MX may be kept as a safety net until Google delivery is confirmed. `@ifpa.footbag.org` mail on llic.net (§29.12a IFPA list mail) is independent of this host.
 
 **Variables settled with the legacy-site webmaster (§19 items 15-18):**
 
@@ -1977,13 +1981,45 @@ The legacy host persists in a parallel role beyond the §27 rollback window, und
 - Zone authority and apex capability (item 15): registrar and authoritative-DNS provider identity; confirmation of ALIAS / ANAME support at apex, or commitment to migrate the zone before T-0.
 - Records-actor (item 16): who applies the maintainer-supplied records at cutover.
 
-**MX disposition for `@footbag.org`:** SES sender identity is verified at the `footbag.org` domain level using the DKIM CNAMEs added under the records-actor item (§19 item 17). No inbound mailbox on the apex is required for SES verification. MX records for `footbag.org` remain at the legacy mail server through and beyond the parallel window; `brat@footbag.org`, `directors@`, and other apex role addresses continue to be delivered to the legacy mail server, which the webmaster operates. Cloudflare Email Routing is not used.
+**MX disposition for `@footbag.org`:** outbound SES sender identity is verified at the `footbag.org` domain level using the DKIM CNAMEs added under the records-actor item (§19 item 17); no inbound mailbox is required for SES verification. Inbound `@footbag.org` mail moves to Google Managed Services: the `footbag.org` MX is repointed to Google in a discrete step before the web cutover, decoupled from the apex/`www` swap (see §28 Email transition and §29.12). Once Google inbound is live, the legacy mail server retains no `@footbag.org` mail role; `brat@footbag.org`, `directors@`, `sanctioning@`, and other apex role addresses are provisioned on Google before legacy delivery is withdrawn so no mail is lost. `@ifpa.footbag.org` is a separate mail domain on llic.net and is unaffected (§29.12a IFPA list mail). Cloudflare Email Routing is not used.
+
+**Mail-cutover step (discrete, pre-T-0).** The `@footbag.org` MX move to Google runs as its own step ahead of the web cutover, on its own timeline, gated by zone authority (§19 item 15) and the confirmed alias inventory (§19 item 21). Skeleton (detailed operator click-paths live in `docs/DEVOPS_GUIDE.md` once the step is executed):
+
+1. Provision every active `@footbag.org` mailbox or alias on Google from the confirmed inventory; verify each receives test mail.
+2. Pre-shrink the `footbag.org` MX TTL.
+3. Repoint the `footbag.org` MX to Google (records-actor, §19 item 17); optionally keep the legacy mail server as a transient lower-priority backup MX until Google delivery is confirmed.
+4. Verify inbound end-to-end to every provisioned address; confirm SPF lists both SES (outbound) and Google.
+5. Once confirmed, withdraw legacy `@footbag.org` delivery and remove the backup MX. `@ifpa.footbag.org` on llic.net is untouched throughout.
+
+Rollback: if Google inbound fails verification, revert the MX to the legacy mail server (authoritative until step 5); the web cutover is independent and unaffected. Gate: EX7.
 
 **STATUS: OPEN. Three email concerns require resolution before cutover:**
 
-1. **Inbound mailbox inventory.** No enumeration exists of which `@footbag.org` addresses the legacy mail server handles, what role each serves, or which are actively used. An inventory is a prerequisite for §19 item 26 allocation decisions and for verifying inbound continuity post-cutover.
+1. **Inbound mailbox inventory.** No enumeration exists of which `@footbag.org` addresses are in use, what role each serves, or which are active. The inventory is a prerequisite for provisioning every active address on Google Managed Services before legacy delivery is withdrawn, for §19 item 26 allocation decisions, and for verifying inbound continuity across the mail cutover.
 2. **Mailing-list transition ambiguity.** USER_STORIES defines platform-managed mailing lists (newsletter, board-announcements, event-notifications, announce@footbag.org, group auto-sync lists) sent via SES. §19 item 26 allocates each legacy list to stay/migrate/retire. But no mapping exists between the US-defined lists and the lists the legacy server currently operates. At T-0, which lists does the platform manage vs. which stay on the legacy server? The `announce@footbag.org` list appears in both contexts.
-3. **Legacy mail server health during parallel window.** The webmaster operates the mail server through the parallel window (up to 12 months). No monitoring, uptime expectation, or escalation path exists if inbound MX delivery fails. A server outage silently drops all inbound `@footbag.org` mail, including replies to platform-sent transactional email and traffic to `admin@footbag.org` (the public contact address surfaced on `/legal`).
+3. **Legacy mail server health.** Eliminated as a standing risk for `@footbag.org` once inbound moves to Google (§28): Google, not the legacy host, then handles all `@footbag.org` inbound, including replies to platform-sent transactional email and traffic to `admin@footbag.org` (the public contact surfaced on `/legal`). Residual mail-host health concern applies only to `@ifpa.footbag.org` on llic.net, dispositioned below.
+
+**IFPA list mail (`@ifpa.footbag.org`) disposition.** `@ifpa.footbag.org` is a distinct mail domain from `@footbag.org`. It has its own MX, hosted at llic.net, which runs the IFPA groups and committees mailing-list server: a sendmail-tied posting and moderation service (the legacy `wrapper` component) that accepts inbound mail to IFPA group and committee aliases, parses MIME, enforces moderation, and retains message history. This service runs outside the new platform and is unaffected by the `@footbag.org` move to Google Managed Services; repointing `footbag.org` MX does not touch `ifpa.footbag.org` MX.
+
+**STATUS: OPEN. Disposition is an MVP scoping and requirements-gathering item, not a v1 build.** The new platform does not receive inbound email (no SES receiving rules, no inbound processing code; see §28). The platform's native groups and committees are a forward-looking system (web-form composition plus SES distribution, addressed under `groups.footbag.org`) and are not a migration target for the legacy IFPA list server. Whether any legacy IFPA list function should migrate depends first on evidence that the lists are actively used, which does not currently exist.
+
+Default until that evidence is gathered: `@ifpa.footbag.org` and its llic.net list host are retained untouched. No v1 work, no MX change, no platform feature, no data import. It is a separately-scoped retained mail service through the parallel window and beyond, on the same "no function goes dark at T-0" basis as other retained legacy services (constraint 5 above).
+
+Usage discovery (the legacy-site webmaster supplies the facts; disposition of any IFPA-owned list function or data is an IFPA governance decision, not a webmaster or maintainer one):
+
+1. Which `@ifpa.footbag.org` aliases received any non-spam mail in the last 12 months?
+2. Who reads each such alias today, and does any committee still conduct business over it rather than over ordinary email or board tools?
+3. For any alias still in real use, is running it on llic.net acceptable indefinitely, or is there a date by which the list host must retire?
+
+The roughly 1.2GB `ifpa_group_messages` archive is dispositioned under the sealed legacy email archive below.
+
+**Sealed legacy email archive disposition.** The legacy `ifpa_group_messages` archive (roughly 1.2GB uncompressed; private and public discussions intermixed; dirty with spam and moderation residue; includes privately cast committee votes) is sealed and retained privately. Under every v1 branch it is not imported into the platform, not processed, not spam-cleaned, and not exposed publicly. Privately cast votes within it are permanently non-publishable.
+
+The seal is enforced technically. The archive is held as an encrypted container; its decryption key is held in an IFPA-governed, access-controlled secret store. The encrypted container and the key vault are kept in an IFPA-governed cloud store restricted to the IFPA board and platform admins. The credential that opens the key vault is held separately from that store, under IFPA governance, with an IFPA-named backup holder, so access to the store alone cannot unseal the archive and loss of a single credential does not destroy it. The legacy-site webmaster is operational custodian of the encrypted container and the authoritative source for facts about its contents; he is not its decision authority.
+
+Any future disposition (preserve a subset as historical record, redact, publish any portion, or destroy it) is an IFPA governance decision under IFPA's records-retention policy, never operator or webmaster discretion. The migration's only standing commitment is the seal: keep it private, keep it intact, expose nothing, until IFPA governance directs otherwise. Neither the encrypted container nor the key is ever committed to the repository, placed in issues, logs, tests, or AI prompts. Concrete custody details (store, folder, vault entry, access list) live only in operator notes, never in a tracked doc.
+
+This disposition is deferred and is not on the cutover critical path; it does not gate v1.
 
 ### 29.12b Legacy URL forwarding for in-flight emails
 
@@ -2015,6 +2051,8 @@ Required: design and implement a post-launch admin-curated content authoring sch
 ### 29.15 Legacy archive subdomain readiness
 
 Per DD §6.4, archive.footbag.org serves the static legacy HTML mirror under member-only access enforced by CloudFront signed cookies. The archive launches at cutover.
+
+**Archive completeness and legacy media.** The archive mirror holds the legacy content the crawl could reach: media linked under `www.footbag.org` (the `gallery`, `video`, `photos`, and `qt-video` paths) is captured and re-encoded to mp4/jpg/gif. Legacy media lives only in this archive; it is never imported into the new platform's media system (DD §6.4). Media reachable on the legacy server only by a direct `video.`/`photo.` file path that was never linked under `www` was not crawled and is therefore not in the mirror; those direct-path links are already dead today, so no subdomain is retained for them. Recovering that un-crawled media would require the webmaster to supply the files plus a path mapping from the legacy server; that is an optional, non-blocking, post-v1 archive-enrichment handled through the §19 feedback workflow, not a cutover dependency.
 
 Gate, all of the following are provisioned and verified end-to-end:
 

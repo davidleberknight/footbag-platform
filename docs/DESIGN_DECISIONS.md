@@ -73,6 +73,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [6.3 CloudFront Error Pages](#63-cloudfront-error-pages)
   - [6.4 Legacy Archive (old footbag.org)](#64-legacy-archive-old-footbagorg)
   - [6.5 Legacy Data Migration](#65-legacy-data-migration)
+  - [6.5a Sealed Legacy Email Archive](#65a-sealed-legacy-email-archive)
   - [6.6 AWS Service Integration](#66-aws-service-integration)
   - [6.7 Static Assets and CDN Strategy](#67-static-assets-and-cdn-strategy)
   - [6.8 Image Processing](#68-image-processing)
@@ -1626,7 +1627,7 @@ No auth-bypass toggles: environment variables must not gate route-level authoriz
 
 Legacy migration security rules:
 
-- Legacy passwords are never imported, stored, or used regardless of how they were stored on the legacy system.
+- Legacy passwords are never imported, stored, or used.
 - `legacy_email` is migration metadata only, not a login credential. It can be the target of the optional mailbox-control round-trip the member elects to upgrade their claim's audit evidence tier; it is never the gate for a claim to take effect.
 - Auto-link sends no notification emails. The wizard's confirmation card (post-stage, at first sign-in) is the only post-link member-facing surface. Effects (tier upgrade, attribution, badges) apply only after the member explicitly confirms.
 - Member-confirmation of a wizard card is sufficient proof for a claim to take effect. The audit row carries an evidence-strength tag (`declared_anchor_only`, `currently_controls_modern_email_matching_legacy`, `mailbox_control_via_link_click`, `admin_vetted_evidence`); the tag drives the admin oversight feed (for honors-bearing direct claims) and any dispute-resolution path.
@@ -2431,12 +2432,12 @@ Decision:
 
 The platform uses a small, enumerated set of `@footbag.org` addresses with distinct, non-overlapping purposes. All platform code, documentation, and terraform configuration references these canonical addresses. New email addresses are added to this list before they are introduced into the codebase.
 
-Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role addresses is handled by Cloudflare Email Routing, which forwards each address to an operator-designated personal or ops inbox. SES is not used for inbound ingestion.
+Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role addresses is handled by Google Managed Services, which delivers or forwards each address per its configured mailbox or alias. SES is not used for inbound ingestion.
 
 | Address | Purpose | Direction | Used by |
 |---|---|---|---|
 | `admin@footbag.org` | Legal, administrative, privacy, copyright, and trademark contact for members and the public | Receives | `/legal` page (Privacy, Terms, Copyright sections); operator of record contact |
-| `announce@footbag.org` | IFPA community announce list; a Tier 2+ member may send here; used as both sender and recipient for archived community announcements | Sends + Receives | `CommunicationService.sendAnnounceEmail` (`M_Send_Announce_Email`) |
+| `announce@footbag.org` | IFPA community announce list. A Tier 2+ member composes via the web form (not by emailing the address) and the platform distributes via SES; replies and direct mail to the address are received on Google and monitored or forwarded to IFPA admins. The platform never ingests inbound mail for this address | Sends (platform) + Receives (Google) | `CommunicationService.sendAnnounceEmail` (`M_Send_Announce_Email`) |
 | `brat@footbag.org` | Legacy footbag.org webmaster (operator of record for the pre-migration site); must remain deliverable through and after cutover for migration coordination and any ongoing legacy-recovery correspondence | Receives | Carried over from the legacy site; in-use contact for the current webmaster |
 | `directors@footbag.org` | IFPA Board of Directors contact for governance, board inquiries, and director correspondence | Receives | Carried over from the legacy site; in-use public contact for the Board |
 | `noreply@footbag.org` | Transactional sender (account verification, password reset, receipts, system notifications); never monitored, never a reply target | Sends | `CommunicationService.processSendQueue` via SES |
@@ -2457,14 +2458,14 @@ Requirements:
 
 Trade-offs:
 
-- Additional alias configuration at Cloudflare Email Routing (one forwarding rule per receive address rather than one catch-all). Cloudflare Email Routing provides forwarding only, with no hosted mailboxes or shared web UI; if a role address later needs collaborative shared-inbox workflows, a hosted provider (for example Google Workspace, Fastmail, Zoho Mail) may replace Cloudflare for that specific address without changing the canonical list.
+- Alias and mailbox configuration is managed in Google Managed Services (one rule per receive address rather than one catch-all). Where a role address needs collaborative shared-inbox workflows, Google Managed Services provides a hosted mailbox without changing the canonical list.
 - Requires discipline in code review to avoid introducing new addresses without updating this list.
 
 Impact:
 
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
 - `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits) and `docs/SERVICE_CATALOG.md` (`CommunicationService.sendAnnounceEmail`).
-- Cloudflare Email Routing is configured with one forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`) pointing to an operator-designated destination inbox. `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be routed at cutover so no mail is lost.
+- Google Managed Services is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
 
@@ -2867,6 +2868,30 @@ Trade-offs:
 - No automated rollback after DNS switch; rollback requires manual DNS reversion and coordination.
 - Stage-and-confirm with no notification emails means a member who never signs in to the new platform never has effects applied. Pre-existing identity stays unclaimed for never-signed-in members; passive members get nothing automatically. The trade-off favors correctness (no silent grants) over coverage (some legitimate members go unconfirmed). The honors-bearing direct-claim no-gate stance carries a residual impersonation risk pending the legacy-site webmaster's assessment of community dynamics.
 - Adjusting bootstrap gate rules requires a code revision rather than a data update.
+
+## 6.5a Sealed Legacy Email Archive
+
+Decision:
+
+The legacy IFPA group-message archive (the `ifpa_group_messages` corpus and any equivalent legacy private mail or list data) is sealed and retained privately. It is never imported into the platform, never processed, and never exposed publicly. Privately cast committee votes within it are permanently non-publishable. It is IFPA governance data: any future disposition (preserve a subset as historical record, redact, publish any portion, or destroy it) is an IFPA governance decision under IFPA's records-retention policy, not an operator or maintainer decision.
+
+The seal is enforced technically, not by policy alone. The archive is held as an encrypted container; its decryption key is held in an IFPA-governed, access-controlled secret store. The encrypted container and the key vault are kept in an IFPA-governed cloud store restricted to the IFPA board and platform admins. The credential that opens the key vault is held separately from that store, under IFPA governance, with an IFPA-named backup holder, so access to the store alone cannot unseal the archive and loss of a single credential does not destroy it. The legacy-site webmaster is operational custodian of the encrypted container and the authoritative source for facts about its contents; he is not its decision authority.
+
+Rationale:
+
+- The corpus intermixes private and public discussion and privately cast votes, and is heavy with spam and moderation residue. Importing or exposing it carries irreversible privacy risk with no v1 product need.
+- IFPA owns these records, so the authority to release, redact, or destroy them belongs to IFPA governance, not to whoever operationally holds the files.
+- A technical seal (encryption plus separated key custody) makes private-by-default enforceable rather than aspirational; separating the key from the store prevents single-boundary exposure, and a backup key-holder prevents accidental permanent destruction.
+
+Requirements:
+
+- The encrypted container, the key vault, and the opening credential are never committed to the repository, placed in issues, logs, tests, or AI prompts. Concrete custody details (store, folder, vault entry, access list) live only in operator notes, not in any tracked doc.
+- Unsealing requires explicit IFPA governance authorization; the access list and key-holder list are maintained under IFPA governance and revised on board or admin turnover.
+
+Trade-offs:
+
+- The dataset persists in private storage and must be kept access-controlled for as long as IFPA retains it; the cost of preserving optionality is ongoing custody, not a one-time action.
+- Nothing from the corpus is available to the platform or to members unless and until IFPA governance decides to release a classified subset.
 
 ## 6.6 AWS Service Integration
 

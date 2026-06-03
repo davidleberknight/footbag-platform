@@ -766,6 +766,8 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 
 Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK); the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
 
+**Import population (source-validity filter).** Rows are loaded only for source-valid legacy accounts (`MemberValid > 0` in the source) plus exceptions pulled back by linkage (an otherwise-excluded row referenced by a published result, an honor, or a documented admin-recovery need); mechanically-obvious garbage and invalid rows, together with their PII, never enter this table. Pulled-back exceptions are recorded in import audit metadata. The filter and its counted/validated gate live in the MIGRATION_PLAN legacy-member import section.
+
 #### Immutability and claim semantics
 
 - Rows are **never deleted**. A `legacy_members` row is the permanent archival record of a legacy account's fields at import time.

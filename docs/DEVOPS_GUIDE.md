@@ -396,7 +396,7 @@ Important limitation: browsing traffic gets the maintenance page during origin f
 
 #### 4.2.1 ACM certificate for footbag.org runbook
 
-CloudFront-attached certificates must live in the `us-east-1` region regardless of where the rest of the platform runs. The cert covers both the apex (`footbag.org`) and `www.footbag.org` so a single distribution handles both names. Issuance is operator-initiated; DNS validation takes 5-30 minutes on average and can take several hours, so request well ahead of any cutover.
+CloudFront-attached certificates must live in the `us-east-1` region regardless of where the rest of the platform runs. The cert covers both the apex (`footbag.org`) and `www.footbag.org` so a single distribution handles both names. Retained `*.footbag.org` subdomains (for example `lists.` and the legacy `ifpa.` mail host) are not covered by this cert and keep their own DNS and TLS on the legacy host; do not add them to the SAN list. Issuance is operator-initiated; DNS validation takes 5-30 minutes on average and can take several hours, so request well ahead of any cutover.
 
 Preconditions:
 
@@ -407,7 +407,7 @@ Operator steps:
 
 1. Request the certificate via Terraform in `terraform/production/`, not the console. The resource declares `provider = aws.us_east_1` and both `domain_name = "footbag.org"` + `subject_alternative_names = ["www.footbag.org"]`. `validation_method = "DNS"`.
 2. `terraform apply`. ACM emits two `DomainValidationOption` records (apex + www); capture them from the plan output.
-3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is upstream-owned, hand the records to the webmaster (see §16.7 webmaster coordination) and wait for confirmation that they are live.
+3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is upstream-owned, hand the records to the webmaster (see §16.8, external DNS/mail upstream coordination) and wait for confirmation that they are live.
 4. Poll cert status: `aws acm describe-certificate --region us-east-1 --certificate-arn <arn> --query 'Certificate.Status'`. Expected progression: `PENDING_VALIDATION` → `ISSUED`. If status sticks at `PENDING_VALIDATION` past one hour, re-verify the DNS validation records resolve (`dig _<token>.footbag.org CNAME`).
 5. Attach to the production CloudFront distribution. Update the `viewer_certificate` block on the distribution resource to reference the issued cert arn and set `ssl_support_method = "sni-only"`, `minimum_protocol_version = "TLSv1.2_2021"`. `terraform apply`.
 6. Post-attachment verification:
@@ -461,6 +461,8 @@ System Administrators own SES account-level and DNS-level setup:
 - configure bounce and complaint notifications into the application webhook path
 - monitor sender reputation and bounce/complaint rates
 - coordinate DNS, SES, and app configuration changes together
+
+Inbound `@footbag.org` mail is handled by Google Managed Services, not SES or any AWS resource; SES is outbound-only and the platform configures no SES receiving rules. The `footbag.org` SPF record must authorize both AWS SES (the outbound sender) and Google (the inbound provider), and the DMARC policy must align across both; the SES DKIM CNAMEs and Google's required records coexist in the zone. `@ifpa.footbag.org` is a separate mail domain on llic.net (MIGRATION_PLAN §29.12a) and is not touched by SES or by the `footbag.org` MX move.
 
 #### SES sandbox behavior
 
@@ -2067,7 +2069,8 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 
 - ACM certificate for footbag.org issued in us-east-1 and attached to the production CloudFront distribution. Issuance is operator-initiated through AWS Support and allows several days of lead time; the cert is requested with both `footbag.org` and `www.footbag.org` covered.
 - SES sending domain verified end-to-end on the production account, SPF/DKIM/DMARC records published, sandbox exit complete, bounce and complaint SNS topics subscribed. See §4.5 and §13.5. A test send from the production account to the operator mailbox confirms the path.
-- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §18 item 12; capture the lowered-TTL timestamp in the cutover log.
+- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §19 item 18; capture the lowered-TTL timestamp in the cutover log.
+- `footbag.org` MX already repointed to Google Managed Services in the discrete pre-T-0 mail-cutover step, all active `@footbag.org` aliases provisioned on Google, and inbound delivery verified end-to-end (MIGRATION_PLAN gate EX7 / §29.12a; runbook §16.8 MX-to-Google mail cutover). The web cutover does not change MX.
 - Pre-cutover database snapshot taken and integrity verified per §10.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`).
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
@@ -2076,9 +2079,9 @@ Each precondition halts the cutover if it fails. The orchestrator's pass means a
 
 ### 16.7 DNS cutover sequence runbook
 
-The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken.
+The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken. This sequence swaps only the apex and `www` A/AAAA records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§16.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
 
-The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any future cutover that does not have its own cutover-specific overrides. For the production footbag.org cutover, MIGRATION_PLAN §28.12 overrides these defaults: TTL pre-shrink to 300s (legacy DNS host needs more margin), TTL restore at T+48h (extended for the §26 48h rollback window), and a 48h rollback window per §26 (rather than the §7.6 T+4h operator-call boundary). Where MP §28.12 and §16.7 disagree, MP §28.12 wins for the footbag.org cutover.
+The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any future cutover that does not have its own cutover-specific overrides. For the production footbag.org cutover, MIGRATION_PLAN §29.12 overrides these defaults: TTL pre-shrink to 300s (legacy DNS host needs more margin), TTL restore at T+48h (extended for the §27 48h rollback window), and a 48h rollback window per §27 (rather than the §7.6 T+4h operator-call boundary). Where MP §29.12 and §16.7 disagree, MP §29.12 wins for the footbag.org cutover.
 
 Sequence:
 
@@ -2100,6 +2103,8 @@ All three should return CloudFront edge IPs (the `aws-cloudfront-net` block) and
 
 **T+1 hour -- end-to-end verification.** `curl -sf https://footbag.org/health/live` and `curl -sf https://www.footbag.org/health/live` from at least one network outside the operator's primary ISP. Both must return HTTP 200 with the production cert presented. A 4xx/5xx from the new origin is a rollback trigger.
 
+**T+1 hour -- retained-subdomain check.** Confirm every retained `*.footbag.org` subdomain (per `MIGRATION_PLAN.md` §19 item 16) still resolves to the legacy host and was not altered by the apply. Do not print any private operator-only subdomain into shared logs or output.
+
 **T+24 hours -- TTL restore.** With the cutover stable, raise the TTL on the (now Route 53-managed) apex + `www` records to the long-term default (3600s). Re-apply Terraform; record the timestamp.
 
 Rollback (anywhere from T-0 to T+1 hour): apply the prior Terraform state pinning the legacy-origin A/AAAA records. With TTLs at 60s, world resolves to the legacy origin inside two minutes. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult §7.6 (Cutover rollback decision rule) before triggering.
@@ -2108,7 +2113,7 @@ Dry-run note: dry-run the full sequence against the staging zone before producti
 
 ### 16.8 External DNS/mail upstream coordination runbook
 
-Whenever the platform's DNS zone or MX records are owned by an external operator (the legacy-site webmaster today; potentially other upstreams in future), changes that touch the records below cannot be applied without coordinated action. This runbook covers the long-term coordination pattern; cutover-specific applications layer their own gates on top (e.g. `MIGRATION_PLAN.md` §18 for the legacy-webmaster contract, §28.12 for the DNS cutover).
+Whenever the platform's DNS zone or MX records are owned by an external operator (the legacy-site webmaster today; potentially other upstreams in future), changes that touch the records below cannot be applied without coordinated action. This runbook covers the long-term coordination pattern; cutover-specific applications layer their own gates on top (e.g. `MIGRATION_PLAN.md` §19 for the legacy-webmaster contract, §29.12 for the DNS cutover).
 
 When this runbook applies:
 
@@ -2143,6 +2148,21 @@ Emergency rollback:
 - TTL implications: if the cutover lowered TTLs to a propagation-friendly value (60-300s), rollback propagates within that TTL. If TTLs were not lowered (a change made under time pressure without the §16.7 pre-shrink), rollback propagation is bounded by the original record TTL.
 
 Audit trail: every coordinated change produces (a) the maintainer's handoff message, (b) the upstream operator's confirmation that the change is live, and (c) the maintainer's post-change verification log (`dig` output from three resolvers per §16.7). Retain these in the operations log alongside the change itself; they are the evidence trail for the cutover sign-off and for any future rollback decision.
+
+#### MX-to-Google mail cutover (footbag.org)
+
+The ordinary `@footbag.org` inbound move to Google Managed Services is a discrete step run before the apex/`www` web cutover (decoupled; `MIGRATION_PLAN.md` §28 Email transition and §29.12a). It is gated by zone authority and a confirmed alias inventory, and tracked by MIGRATION_PLAN gate EX7. Outbound SES is unaffected (DKIM-based, MX-independent). `@ifpa.footbag.org` on llic.net is untouched.
+
+Skeleton (detailed provider click-paths are filled in when the step is first executed and validated):
+
+1. Provision every active `@footbag.org` mailbox or alias on Google from the confirmed inventory; send a test message to each and confirm receipt.
+2. Update the `footbag.org` SPF record to authorize both AWS SES (outbound) and Google (inbound); publish Google's required DNS records alongside the SES DKIM CNAMEs.
+3. Pre-shrink the `footbag.org` MX TTL (coordinate via the §16.8 upstream handoff if the zone is upstream-owned).
+4. Repoint the `footbag.org` MX to Google. Optionally keep the legacy mail server as a transient lower-priority backup MX until Google delivery is confirmed.
+5. Verify inbound end-to-end to every provisioned address from an external account; confirm DMARC alignment holds.
+6. Once confirmed, withdraw legacy `@footbag.org` delivery and remove the backup MX.
+
+Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (authoritative until step 6). The web cutover (§16.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
 
 ## 17. Test-data Operations
 
