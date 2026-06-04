@@ -23,6 +23,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // Quarantined tests never run by default; select explicitly with --grep @quarantined.
+  grepInvert: /@quarantined/,
   timeout: 30_000,
   expect: { timeout: 3_000 },
   outputDir: path.resolve(__dirname, 'test-results'),

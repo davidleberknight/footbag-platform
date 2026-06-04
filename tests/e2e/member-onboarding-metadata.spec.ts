@@ -79,7 +79,7 @@ test('GET wizard task after all completed -> auto-transitions away', async ({ br
   await ctx.close();
 });
 
-test('keyboard: Tab reaches identifier input, Find button, Skip button', async ({ browser, baseURL }) => {
+test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_kbd_${Date.now()}` });
   db.close();
@@ -102,7 +102,7 @@ test('keyboard: Tab reaches identifier input, Find button, Skip button', async (
   await ctx.close();
 });
 
-test('accessibility: form labels programmatically associated on legacy_claim', async ({ browser, baseURL }) => {
+test('accessibility: form labels programmatically associated on legacy_claim', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_a11y_${Date.now()}` });
   db.close();

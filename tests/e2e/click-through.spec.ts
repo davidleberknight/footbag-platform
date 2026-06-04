@@ -44,7 +44,7 @@ function openLiveDb(): BetterSqlite3.Database {
   return db;
 }
 
-test('Tier-1 member uploads avatar end-to-end against real image worker', async ({ browser, baseURL }) => {
+test('Tier-1 member uploads avatar end-to-end against real image worker', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier1Member(db, { slug: `e2e_avatar_${Date.now()}` });
   db.close();
@@ -99,7 +99,7 @@ const PUBLIC_NAV_PATHS = [
   '/media',
 ];
 
-test('Public nav surfaces all render without Service Unavailable', async ({ page }) => {
+test('Public nav surfaces all render without Service Unavailable', { tag: ['@smoke'] }, async ({ page }) => {
   for (const navPath of PUBLIC_NAV_PATHS) {
     const res = await page.goto(navPath);
     expect(res?.status() ?? 500, `${navPath} status`).toBeLessThan(500);
@@ -107,7 +107,7 @@ test('Public nav surfaces all render without Service Unavailable', async ({ page
   }
 });
 
-test('Authenticated owner can render their own edit page', async ({ browser, baseURL }) => {
+test('Authenticated owner can render their own edit page', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier1Member(db, { slug: `e2e_edit_${Date.now()}` });
   db.close();

@@ -15,7 +15,7 @@ test.beforeAll(() => {
 });
 import { WizardPage } from './pages/wizard.page';
 
-test('auto-link candidate card visible for high-confidence member', async ({ browser, baseURL }) => {
+test('auto-link candidate card visible for high-confidence member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_al_${Date.now()}`, personName: 'Autolink Person' });
   db.close();
@@ -34,7 +34,7 @@ test('auto-link candidate card visible for high-confidence member', async ({ bro
   await ctx.close();
 });
 
-test('auto-link confirm advances to next task', async ({ browser, baseURL }) => {
+test('auto-link confirm advances to next task', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithAutoLinkCandidate(db, { slug: `lc_ac_${Date.now()}` });
   db.close();
@@ -58,7 +58,7 @@ test('auto-link confirm advances to next task', async ({ browser, baseURL }) => 
   await ctx.close();
 });
 
-test('manual search: enqueued path shows banner and simulated email card', async ({ browser, baseURL }) => {
+test('manual search: enqueued path shows banner and simulated email card', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_enq_${Date.now()}` });
   db.close();
@@ -83,7 +83,7 @@ test('manual search: enqueued path shows banner and simulated email card', async
   await ctx.close();
 });
 
-test('token confirm page shows record details and confirm button', async ({ browser, baseURL }) => {
+test('token confirm page shows record details and confirm button', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_tok_${Date.now()}` });
   db.close();
@@ -109,7 +109,7 @@ test('token confirm page shows record details and confirm button', async ({ brow
   await ctx.close();
 });
 
-test('token consume advances wizard and links member', async ({ browser, baseURL }) => {
+test('token consume advances wizard and links member', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithLegacyDiffEmail(db, { slug: `lc_con_${Date.now()}` });
   db.close();
@@ -138,7 +138,7 @@ test('token consume advances wizard and links member', async ({ browser, baseURL
   await ctx.close();
 });
 
-test('direct HP claim: surname match shows confirm page with name', async ({ browser, baseURL }) => {
+test('direct HP claim: surname match shows confirm page with name', { tag: ['@migration'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedMemberWithHpMatch(db, { slug: `lc_hp_${Date.now()}` });
   db.close();
@@ -156,7 +156,7 @@ test('direct HP claim: surname match shows confirm page with name', async ({ bro
   await ctx.close();
 });
 
-test('HP claim surname mismatch: claim-unavailable page (anti-enum safe)', async ({ browser, baseURL }) => {
+test('HP claim surname mismatch: claim-unavailable page (anti-enum safe)', { tag: ['@migration', '@security'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const personId = insertHistoricalPerson(db, { person_name: 'Totally Different' });
   const persona = seedBrandNewPlayer(db, { slug: `lc_mm_${Date.now()}` });
@@ -175,7 +175,7 @@ test('HP claim surname mismatch: claim-unavailable page (anti-enum safe)', async
   await ctx.close();
 });
 
-test('anti-enum: no-match and match searches show identical banner text', async ({ browser, baseURL }) => {
+test('anti-enum: no-match and match searches show identical banner text', { tag: ['@migration', '@security'] }, async ({ browser, baseURL }) => {
   const stamp = Date.now();
 
   const db = openLiveDb();

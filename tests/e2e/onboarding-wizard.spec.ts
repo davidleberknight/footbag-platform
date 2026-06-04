@@ -22,7 +22,7 @@ import { RegisterPage } from './pages/register.page';
 
 // ── Registration -> verification -> wizard entry ─────────────────────────────
 
-test('post-verify: register -> check-email -> click verify link -> lands on wizard', async ({ page }) => {
+test('post-verify: register -> check-email -> click verify link -> lands on wizard', { tag: ['@smoke'] }, async ({ page }) => {
   const stamp = Date.now();
   const email = `e2e-reg-${stamp}@example.com`;
   const registerPage = new RegisterPage(page);
@@ -181,7 +181,7 @@ test('unknown taskType renders 404 page', async ({ browser, baseURL }) => {
 
 // ── Accessibility: wizard pages pass basic checks ────────────────────────────
 
-test('wizard pages have accessible form labels and heading', async ({ browser, baseURL }) => {
+test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_a11y_${Date.now()}` });
   db.close();
@@ -213,7 +213,7 @@ test('wizard pages have accessible form labels and heading', async ({ browser, b
 
 // ── Keyboard navigation ──────────────────────────────────────────────────────
 
-test('wizard skip button is keyboard-reachable and activatable', async ({ browser, baseURL }) => {
+test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_kbd_${Date.now()}` });
   db.close();
