@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
-import { STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
+import { SES_FEEDBACK_WEBHOOK_PATH, STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
 
 export const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -12,7 +12,7 @@ const EXEMPT_PREFIXES = ['/ipc/'];
 // webhook receiver is server-to-server (no Origin) and authenticates via the
 // Stripe-Signature HMAC, verified before any state write. Exact-match so sibling
 // browser routes (e.g. /payments/checkout/:id/confirm) stay origin-pinned.
-const EXEMPT_EXACT = new Set<string>([STRIPE_WEBHOOK_PATH]);
+const EXEMPT_EXACT = new Set<string>([STRIPE_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH]);
 
 let cachedExpectedOrigin: string | null = null;
 function expectedOrigin(): string {

@@ -3,16 +3,31 @@ import { adminController } from '../controllers/adminController';
 import { adminCuratorController } from '../controllers/adminCuratorController';
 import { adminWorkQueueController } from '../controllers/adminWorkQueueController';
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
+import { adminBootstrapController } from '../controllers/adminBootstrapController';
+import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
 import { requireAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
 export const adminRouter = Router();
+
+// The single-shot first-admin bootstrap claim sits ABOVE the admin gate:
+// the claimant is by definition not yet an admin, only signed in.
+adminRouter.get('/bootstrap-claim',  requireAuth, adminBootstrapController.getClaim);
+adminRouter.post('/bootstrap-claim', requireAuth, adminBootstrapController.postClaim);
 
 adminRouter.use(requireAuth, requireAdmin);
 
 adminRouter.get('/', adminController.index);
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
+adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
+adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
+adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
+adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
+adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
+adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);
+adminRouter.post('/clubs/:clubId/leadership/demote',  adminClubLeadershipController.demote);
+adminRouter.post('/clubs/:clubId/leadership/contact', adminClubLeadershipController.contact);
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
 adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupController.delistResidue);

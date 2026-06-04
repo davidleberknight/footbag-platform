@@ -35,6 +35,10 @@ import {
   createLiveSafeBrowsingAdapter,
 } from '../../src/adapters/safeBrowsingAdapter';
 import {
+  createStubPaymentAdapter,
+  createLivePaymentAdapter,
+} from '../../src/adapters/paymentAdapter';
+import {
   createStubSecretsAdapter,
   createLiveSecretsAdapter,
   SecretNotConfiguredError,
@@ -1375,5 +1379,196 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
       timeoutMs: 50,
     });
     await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toThrow(/timed out/);
+  });
+});
+
+describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
+  // Fake Stripe client driven by captured params. Stands in for the Stripe
+  // SDK call path without mocking the stripe package itself.
+  function makeFakeStripe(sessionOverrides: Partial<{
+    id: string;
+    url: string | null;
+    payment_intent: string | { id: string } | null;
+  }> = {}) {
+    const captured: {
+      sessions: import('../../src/adapters/paymentAdapter').StripeCheckoutSessionCreateParams[];
+      subscriptionUpdates: { id: string; params: { cancel_at_period_end: boolean } }[];
+    } = { sessions: [], subscriptionUpdates: [] };
+    const client: import('../../src/adapters/paymentAdapter').StripeClientLike = {
+      checkout: {
+        sessions: {
+          async create(params) {
+            captured.sessions.push(params);
+            return {
+              id: sessionOverrides.id ?? 'cs_fake_123',
+              url: sessionOverrides.url === undefined ? 'https://checkout.stripe.example/cs_fake_123' : sessionOverrides.url,
+              payment_intent: sessionOverrides.payment_intent === undefined ? 'pi_fake_123' : sessionOverrides.payment_intent,
+            };
+          },
+        },
+      },
+      subscriptions: {
+        async update(id, params) {
+          captured.subscriptionUpdates.push({ id, params });
+          return {};
+        },
+      },
+    };
+    return { client, captured };
+  }
+
+  function makeLive(sessionOverrides: Parameters<typeof makeFakeStripe>[0] = {}) {
+    const { client, captured } = makeFakeStripe(sessionOverrides);
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+    let factoryCalls = 0;
+    const adapter = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: (apiKey) => {
+        factoryCalls += 1;
+        expect(apiKey).toBe('sk_test_parity_fake');
+        return client;
+      },
+    });
+    return { adapter, captured, secrets, factoryCalls: () => factoryCalls };
+  }
+
+  const ONE_TIME_OPTS = {
+    memberId: 'm-parity-1',
+    paymentId: 'pay-parity-1',
+    amountCents: 2500,
+    currency: 'USD',
+    descriptor: 'IFPA Membership (Tier 1)',
+    paymentType: 'membership' as const,
+    purchasedTierStatus: 'tier1' as const,
+    successUrl: 'https://footbag.org/payments/success?session_id={CHECKOUT_SESSION_ID}',
+    cancelUrl: 'https://footbag.org/payments/cancel?session_id={CHECKOUT_SESSION_ID}',
+    metadata: { tier: 'tier1' },
+  };
+
+  it('both return { sessionId, paymentIntentId, redirectUrl } from createCheckoutSession', async () => {
+    const stub = createStubPaymentAdapter();
+    const { adapter: live } = makeLive();
+    for (const result of [
+      await stub.createCheckoutSession(ONE_TIME_OPTS),
+      await live.createCheckoutSession(ONE_TIME_OPTS),
+    ]) {
+      expect(typeof result.sessionId).toBe('string');
+      expect(result.sessionId.length).toBeGreaterThan(0);
+      expect(typeof result.redirectUrl).toBe('string');
+      expect(result.paymentIntentId === null || typeof result.paymentIntentId === 'string').toBe(true);
+    }
+  });
+
+  it('live createCheckoutSession sends payment mode, amount, lowercased currency, and the absolute URLs', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    const params = captured.sessions[0];
+    expect(params.mode).toBe('payment');
+    expect(params.client_reference_id).toBe('pay-parity-1');
+    expect(params.line_items).toHaveLength(1);
+    expect(params.line_items[0].quantity).toBe(1);
+    expect(params.line_items[0].price_data.unit_amount).toBe(2500);
+    expect(params.line_items[0].price_data.currency).toBe('usd');
+    expect(params.line_items[0].price_data.product_data.name).toBe('IFPA Membership (Tier 1)');
+    expect(params.success_url).toBe(ONE_TIME_OPTS.successUrl);
+    expect(params.cancel_url).toBe(ONE_TIME_OPTS.cancelUrl);
+  });
+
+  it('live createCheckoutSession stamps paymentId/memberId into session AND payment_intent metadata', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.createCheckoutSession(ONE_TIME_OPTS);
+    const params = captured.sessions[0];
+    expect(params.metadata.paymentId).toBe('pay-parity-1');
+    expect(params.metadata.memberId).toBe('m-parity-1');
+    expect(params.metadata.tier).toBe('tier1');
+    expect(params.payment_intent_data?.metadata.paymentId).toBe('pay-parity-1');
+    expect(params.payment_intent_data?.metadata.memberId).toBe('m-parity-1');
+  });
+
+  it('live createCheckoutSession tolerates a deferred PaymentIntent (null) and unwraps object form', async () => {
+    const { adapter: nullIntent } = makeLive({ payment_intent: null });
+    expect((await nullIntent.createCheckoutSession(ONE_TIME_OPTS)).paymentIntentId).toBeNull();
+
+    const { adapter: objIntent } = makeLive({ payment_intent: { id: 'pi_obj_9' } });
+    expect((await objIntent.createCheckoutSession(ONE_TIME_OPTS)).paymentIntentId).toBe('pi_obj_9');
+  });
+
+  it('live createCheckoutSession rejects a session without a redirect URL', async () => {
+    const { adapter } = makeLive({ url: null });
+    await expect(adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(/no redirect URL/);
+  });
+
+  it('live subscription checkout sends subscription mode with yearly recurring price and metadata mirror', async () => {
+    const { adapter, captured } = makeLive();
+    const result = await adapter.createSubscriptionCheckoutSession({
+      memberId: 'm-parity-2',
+      paymentId: 'pay-parity-2',
+      amountCents: 5000,
+      currency: 'USD',
+      comment: 'HoF Fund',
+      successUrl: 'https://footbag.org/payments/success?session_id={CHECKOUT_SESSION_ID}',
+      cancelUrl: 'https://footbag.org/payments/cancel?session_id={CHECKOUT_SESSION_ID}',
+    });
+    const params = captured.sessions[0];
+    expect(params.mode).toBe('subscription');
+    expect(params.line_items[0].price_data.recurring).toEqual({ interval: 'year' });
+    expect(params.subscription_data?.metadata.paymentId).toBe('pay-parity-2');
+    expect(params.metadata.comment).toBe('HoF Fund');
+    expect(result.paymentIntentId).toBeNull();
+  });
+
+  it('live cancelSubscriptionAtPeriodEnd updates the subscription with cancel_at_period_end=true', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.cancelSubscriptionAtPeriodEnd('sub_live_42');
+    expect(captured.subscriptionUpdates).toEqual([
+      { id: 'sub_live_42', params: { cancel_at_period_end: true } },
+    ]);
+  });
+
+  it('live adapter resolves the API key once and reuses the client', async () => {
+    const live = makeLive();
+    await live.adapter.createCheckoutSession(ONE_TIME_OPTS);
+    await live.adapter.createCheckoutSession(ONE_TIME_OPTS);
+    expect(live.factoryCalls()).toBe(1);
+  });
+
+  it('live adapter refuses a missing API key with the operator put-parameter hint', async () => {
+    const secrets = createStubSecretsAdapter();
+    const adapter = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => {
+        throw new Error('factory must not be reached without a key');
+      },
+    });
+    await expect(adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
+      /Stripe API key not configured.*put-parameter/s,
+    );
+  });
+
+  it('live adapter refuses the TODO bootstrap placeholder key', async () => {
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('stripe_secret_key', 'TODO-set-via-cli-after-apply');
+    const adapter = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => {
+        throw new Error('factory must not be reached with the placeholder');
+      },
+    });
+    await expect(adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
+      /bootstrap placeholder/,
+    );
+  });
+
+  it('live constructWebhookEvent refuses to run without STRIPE_WEBHOOK_SECRET configured', () => {
+    // This test file boots without STRIPE_WEBHOOK_SECRET, so the config
+    // value is deterministically unset here; the live adapter must treat
+    // that as a configuration invariant violation, never verify against an
+    // empty secret. (The signature verify/map path itself is shared with
+    // the stub adapter and covered by the webhook signature tests.)
+    const { adapter } = makeLive();
+    expect(() => adapter.constructWebhookEvent('{}', 't=1,v1=deadbeef')).toThrow(
+      /STRIPE_WEBHOOK_SECRET is not configured/,
+    );
   });
 });

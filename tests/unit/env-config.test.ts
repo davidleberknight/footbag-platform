@@ -281,6 +281,58 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
+  function validProdWiring(): void {
+    // Full valid prod wiring so the earlier fail-fasts (JWT, SES, adapters)
+    // pass and the import reaches the trust-proxy parsing.
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'live';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.SES_FROM_IDENTITY = 'noreply@footbag.org';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+  }
+
+  it('prod-mode boot parses an integer TRUST_PROXY hop count', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    validProdWiring();
+    process.env.TRUST_PROXY = '3';
+    const { config } = await import('../../src/config/env');
+    expect(config.trustProxy).toBe(3);
+  });
+
+  it('prod-mode unset TRUST_PROXY falls back to the fail-closed named ranges', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    validProdWiring();
+    delete process.env.TRUST_PROXY;
+    const { config } = await import('../../src/config/env');
+    expect(config.trustProxy).toBe('loopback, linklocal, uniquelocal');
+  });
+
+  it('non-prod TRUST_PROXY defaults to 0 when unset and passes named values through', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    delete process.env.TRUST_PROXY;
+    process.env.NODE_ENV = 'development';
+    const first = await import('../../src/config/env');
+    expect(first.config.trustProxy).toBe(0);
+
+    vi.resetModules();
+    baselineRequired();
+    clearAwsWiring();
+    process.env.TRUST_PROXY = 'loopback';
+    process.env.NODE_ENV = 'development';
+    const second = await import('../../src/config/env');
+    expect(second.config.trustProxy).toBe('loopback');
+  });
+
   it('loads successfully with a complete staging-style configuration', async () => {
     baselineRequired();
     clearAwsWiring();

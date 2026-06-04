@@ -45,7 +45,8 @@ const CLEAN_STAGING_ENV = [
   'FOOTBAG_DB_PATH=/srv/footbag/data/footbag.db',
   'PORT=3000',
   'IMAGE_PROCESSOR_URL=http://image-worker:4000',
-  'TRUST_PROXY=loopback, linklocal, uniquelocal',
+  'TRUST_PROXY=2',
+  'BACKUP_S3_BUCKET=footbag-staging-db-snapshots',
   'PAYMENT_ADAPTER=stub',
 ].join('\n');
 
@@ -252,11 +253,37 @@ describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
 });
 
 describe('verify-staging-env.sh — advisory checks', () => {
-  it('TRUST_PROXY unset → WARN advisory, still exit 0', () => {
+  it('TRUST_PROXY unset → WARN advisory (rate limiting degrades to coarse buckets), still exit 0', () => {
     const env = mutate(/^TRUST_PROXY=.*\n?/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY unset/);
+    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY is not an integer XFF hop count/);
+  });
+
+  it('TRUST_PROXY set to a named range → WARN advisory, still exit 0', () => {
+    const env = mutate(/^TRUST_PROXY=.*$/m, 'TRUST_PROXY=loopback, linklocal, uniquelocal');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY is not an integer XFF hop count/);
+  });
+
+  it('TRUST_PROXY=2 → PASS', () => {
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/PASS +trust proxy: TRUST_PROXY=2/);
+  });
+
+  it('BACKUP_S3_BUCKET unset → WARN advisory (backup timer cannot upload), still exit 0', () => {
+    const env = mutate(/^BACKUP_S3_BUCKET=.*\n?/m, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/WARN +backup bucket: BACKUP_S3_BUCKET unset/);
+  });
+
+  it('BACKUP_S3_BUCKET set → PASS', () => {
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/PASS +backup bucket: BACKUP_S3_BUCKET=footbag-staging-db-snapshots/);
   });
 
   it('SES_ADAPTER=stub on staging → PASS (staging runs the stub adapter)', () => {

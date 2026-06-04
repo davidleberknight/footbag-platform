@@ -6,7 +6,7 @@ Verifies that mirror-seeded and inferred `legacy_person_club_affiliations`
 rows arrive with `resolution_status = 'pending'`, matching the schema
 default and the contract documented in:
 
-  - MIGRATION_PLAN.md §9.3 (club onboarding flow stages 1-3)
+  - MIGRATION_PLAN.md §10.3 (club onboarding flow)
   - DATA_MODEL.md      §4.25 (inferred mirror rows transition only
                               when the member confirms current affiliation
                               via the onboarding wizard)
@@ -125,7 +125,7 @@ def test_name_matched_loader_arrives_pending(db: sqlite3.Connection) -> None:
     assert row is not None, "row was not inserted"
     assert row[0] == 'pending', (
         f"Expected schema default 'pending', got {row[0]!r}. "
-        "MIGRATION_PLAN §9.3 + DATA_MODEL §4.25 require inferred mirror "
+        "MIGRATION_PLAN §10.3 + DATA_MODEL §4.25 require inferred mirror "
         "rows to arrive as 'pending' until the wizard confirms current "
         "affiliation. Loader override of resolution_status reintroduced?"
     )

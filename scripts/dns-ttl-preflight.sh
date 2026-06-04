@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for the legacy zone.
+# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for a coordinated record
+# swap. Two phases exist; the front-door cutover itself changes NO DNS
+# records (the webmaster flips a reverse proxy), so this script is NOT part
+# of the flip checklist:
 #
-# Lowers the TTL on the legacy zone's apex A/AAAA + www records to 60 seconds
-# so the cutover record swap propagates inside the cutover window. Issued
-# 48 hours before the planned cutover so the previously-cached TTL has
-# expired by the swap moment.
+#   --phase mx-day    Email transition day: drops TTL on the MX (and related
+#                     mail TXT) records ahead of the Google inbound swap.
+#                     Default records: "footbag.org." (MX/TXT live at apex).
+#   --phase handover  DNS handover milestone: drops TTL on the apex A/AAAA +
+#                     www records ahead of the zone move to Route 53.
+#                     Default records: "footbag.org.,www.footbag.org.".
+#
+# Lowers the TTL on the selected records to 60 seconds, issued 48 hours
+# before the swap so the previously-cached TTL has expired by the moment.
 #
 # Required env vars:
-#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Route 53 hosted-zone id for footbag.org
-#   FOOTBAG_LEGACY_RECORDS           Comma-separated list of record names
-#                                    (default: "footbag.org.,www.footbag.org.")
+#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Hosted-zone id for footbag.org
+#   FOOTBAG_LEGACY_RECORDS           Comma-separated record names (overrides
+#                                    the per-phase default)
 # Optional:
 #   FOOTBAG_DNS_TTL_SECONDS          New TTL value (default: 60)
 #   --dry-run                        Print the change-batch JSON; do not call AWS
@@ -22,13 +30,21 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 MOCK=0
-for arg in "$@"; do
-  case "${arg}" in
-    --dry-run) DRY_RUN=1 ;;
-    --mock)    MOCK=1 ;;
-    *) echo "unknown arg: ${arg}" >&2; exit 2 ;;
+PHASE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --mock)    MOCK=1; shift ;;
+    --phase)   PHASE="$2"; shift 2 ;;
+    *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+case "${PHASE}" in
+  mx-day)   DEFAULT_RECORDS="footbag.org." ;;
+  handover) DEFAULT_RECORDS="footbag.org.,www.footbag.org." ;;
+  *) echo "--phase mx-day|handover is required (the front-door flip changes no DNS records)" >&2; exit 2 ;;
+esac
 
 if [[ "${MOCK}" -eq 1 ]]; then
   printf 'GATE: DNS-TTL PASS: mock mode (no AWS call)\n'
@@ -41,7 +57,7 @@ if [[ -z "${ZONE_ID}" ]]; then
   exit 1
 fi
 
-RECORDS="${FOOTBAG_LEGACY_RECORDS:-footbag.org.,www.footbag.org.}"
+RECORDS="${FOOTBAG_LEGACY_RECORDS:-${DEFAULT_RECORDS}}"
 TTL="${FOOTBAG_DNS_TTL_SECONDS:-60}"
 
 if ! command -v aws >/dev/null 2>&1; then

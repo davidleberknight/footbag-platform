@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import os
 import shutil
 try:
     import pysqlite3 as sqlite3
@@ -428,121 +429,123 @@ def main() -> None:
             )
 
         # ------------------------------------------------------------------
-        # Synthetic test fixtures
-        # TEMPORARY: must not reach production.
-        # These are not historical records. They exist to preserve canonical
-        # URLs that are bookmarked on the deployed staging site and to
-        # provide a known-good event for local verification.
-        # Current state: fixture block runs unconditionally on every invocation.
-        # Target state: gate on an env flag (e.g. FOOTBAG_SEED_PREVIEW_FIXTURE=1)
-        # or delete this block for the production-cutover data pass.
-        # Tracked as a pre-cutover gate item in the migration plan.
+        # Synthetic preview fixtures: not historical records. They preserve
+        # canonical URLs bookmarked on the deployed staging site and provide
+        # a known-good event for local verification. Injected only when
+        # FOOTBAG_SEED_PREVIEW_FIXTURE=1 (set by scripts/reset-local-db.sh
+        # for dev/CI/staging); a production load leaves the flag unset and
+        # the cutover checklist asserts the fixture is absent.
         # ------------------------------------------------------------------
-        print("Injecting synthetic test fixtures...")
+        if os.environ.get("FOOTBAG_SEED_PREVIEW_FIXTURE") == "1":
+            print("Injecting synthetic test fixtures...")
 
-        fx_event_key   = "event_2025_beaver_open"
-        fx_tag_id      = stable_id("tag", fx_event_key)
-        fx_tag         = "#event_2025_beaver_open"
-        fx_disc_key    = "bring_back_the_hack"
-        fx_disc_id     = f"disc_{fx_event_key}_{fx_disc_key}"
-        fx_result_id   = f"result_{fx_event_key}_{fx_disc_key}_1"
-        fx_part_id     = f"participant_{fx_event_key}_{fx_disc_key}_1_1"
+            fx_event_key   = "event_2025_beaver_open"
+            fx_tag_id      = stable_id("tag", fx_event_key)
+            fx_tag         = "#event_2025_beaver_open"
+            fx_disc_key    = "bring_back_the_hack"
+            fx_disc_id     = f"disc_{fx_event_key}_{fx_disc_key}"
+            fx_result_id   = f"result_{fx_event_key}_{fx_disc_key}_1"
+            fx_part_id     = f"participant_{fx_event_key}_{fx_disc_key}_1_1"
 
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO tags (
-              id, created_at, created_by, updated_at, updated_by, version,
-              tag_normalized, tag_display, is_standard, standard_type
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, 'event')
-            """,
-            (fx_tag_id, ts, system_user, ts, system_user, fx_tag, fx_tag),
-        )
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO events (
-              id, created_at, created_by, updated_at, updated_by, version,
-              title, description, start_date, end_date, city, region, country,
-              external_url, external_url_validated_at,
-              registration_deadline, capacity_limit,
-              is_attendee_registration_open, is_tshirt_size_collected,
-              status, registration_status, published_at,
-              sanction_status, sanction_requested_at, sanction_requested_by_member_id,
-              sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
-              sanction_decision_reason,
-              payment_enabled, payment_enabled_at, payment_enabled_by_member_id,
-              currency, competitor_fee_cents, attendee_fee_cents,
-              hashtag_tag_id
-            ) VALUES (
-              ?, ?, ?, ?, ?, 1,
-              ?, '', ?, ?, ?, ?, ?,
-              NULL, NULL, NULL, NULL, 0, 0,
-              ?, ?, NULL,
-              'none', NULL, NULL, NULL, NULL, NULL, NULL,
-              0, NULL, NULL, 'USD', NULL, NULL,
-              ?
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO tags (
+                  id, created_at, created_by, updated_at, updated_by, version,
+                  tag_normalized, tag_display, is_standard, standard_type
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, 'event')
+                """,
+                (fx_tag_id, ts, system_user, ts, system_user, fx_tag, fx_tag),
             )
-            """,
-            (
-                fx_event_key, ts, system_user, ts, system_user,
-                "45th Annual Moonin' and Noonin' Beaver Open", "2025-08-30", "2025-09-01",
-                "Eugene", "Oregon", "United States",
-                "completed", "closed",
-                fx_tag_id,
-            ),
-        )
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO event_disciplines (
-              id, created_at, created_by, updated_at, updated_by, version,
-              event_id, name, discipline_category, team_type, sort_order
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-            """,
-            (
-                fx_disc_id, ts, system_user, ts, system_user,
-                fx_event_key, "Most Fun", "freestyle", "singles", 1,
-            ),
-        )
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO event_result_entries (
-              id, created_at, created_by, updated_at, updated_by, version,
-              event_id, discipline_id, results_upload_id, placement, score_text
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NULL, ?, ?)
-            """,
-            (
-                fx_result_id, ts, system_user, ts, system_user,
-                fx_event_key, fx_disc_id, 1, "#BringBackTheHack",
-            ),
-        )
-        fx_member_id  = stable_id("member", "footbag-hacky")
-        fx_person_id  = stable_id("person", "footbag-hacky")
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO events (
+                  id, created_at, created_by, updated_at, updated_by, version,
+                  title, description, start_date, end_date, city, region, country,
+                  external_url, external_url_validated_at,
+                  registration_deadline, capacity_limit,
+                  is_attendee_registration_open, is_tshirt_size_collected,
+                  status, registration_status, published_at,
+                  sanction_status, sanction_requested_at, sanction_requested_by_member_id,
+                  sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
+                  sanction_decision_reason,
+                  payment_enabled, payment_enabled_at, payment_enabled_by_member_id,
+                  currency, competitor_fee_cents, attendee_fee_cents,
+                  hashtag_tag_id
+                ) VALUES (
+                  ?, ?, ?, ?, ?, 1,
+                  ?, '', ?, ?, ?, ?, ?,
+                  NULL, NULL, NULL, NULL, 0, 0,
+                  ?, ?, NULL,
+                  'none', NULL, NULL, NULL, NULL, NULL, NULL,
+                  0, NULL, NULL, 'USD', NULL, NULL,
+                  ?
+                )
+                """,
+                (
+                    fx_event_key, ts, system_user, ts, system_user,
+                    "45th Annual Moonin' and Noonin' Beaver Open", "2025-08-30", "2025-09-01",
+                    "Eugene", "Oregon", "United States",
+                    "completed", "closed",
+                    fx_tag_id,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO event_disciplines (
+                  id, created_at, created_by, updated_at, updated_by, version,
+                  event_id, name, discipline_category, team_type, sort_order
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fx_disc_id, ts, system_user, ts, system_user,
+                    fx_event_key, "Most Fun", "freestyle", "singles", 1,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO event_result_entries (
+                  id, created_at, created_by, updated_at, updated_by, version,
+                  event_id, discipline_id, results_upload_id, placement, score_text
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    fx_result_id, ts, system_user, ts, system_user,
+                    fx_event_key, fx_disc_id, 1, "#BringBackTheHack",
+                ),
+            )
+            fx_member_id  = stable_id("member", "footbag-hacky")
+            fx_person_id  = stable_id("person", "footbag-hacky")
 
-        # Historical person record for Footbag Hacky (HoF member).
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO historical_persons (
-              person_id, person_name, country,
-              event_count, placement_count,
-              bap_member, hof_member, hof_induction_year
-            ) VALUES (?, ?, ?, 1, 1, 0, 1, 2025)
-            """,
-            (fx_person_id, "Footbag Hacky", "New Zealand"),
-        )
+            # Historical person record for Footbag Hacky (HoF member).
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO historical_persons (
+                  person_id, person_name, country,
+                  event_count, placement_count,
+                  bap_member, hof_member, hof_induction_year
+                ) VALUES (?, ?, ?, 1, 1, 0, 1, 2025)
+                """,
+                (fx_person_id, "Footbag Hacky", "New Zealand"),
+            )
 
-        # Link the result participant to both the member and the historical person.
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO event_result_entry_participants (
-              id, created_at, created_by, updated_at, updated_by, version,
-              result_entry_id, participant_order, member_id, display_name,
-              historical_person_id
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-            """,
-            (
-                fx_part_id, ts, system_user, ts, system_user,
-                fx_result_id, 1, fx_member_id, "Footbag Hacky", fx_person_id,
-            ),
-        )
+            # Link the result participant to both the member and the historical person.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO event_result_entry_participants (
+                  id, created_at, created_by, updated_at, updated_by, version,
+                  result_entry_id, participant_order, member_id, display_name,
+                  historical_person_id
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fx_part_id, ts, system_user, ts, system_user,
+                    fx_result_id, 1, fx_member_id, "Footbag Hacky", fx_person_id,
+                ),
+            )
+        else:
+            print("Skipping synthetic preview fixtures "
+                  "(set FOOTBAG_SEED_PREVIEW_FIXTURE=1 to inject them).")
+
 
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.commit()

@@ -91,12 +91,13 @@
       </div>
 
       <div class="form-field">
-        <label for="contactEmail">Contact email <span class="text-muted">(optional)</span></label>
+        <label for="contactEmail">Contact email</label>
         <input
           type="email"
           id="contactEmail"
           name="contactEmail"
           value="{{club.contactEmail}}"
+          required
         />
         {{#if fieldErrors.contactEmail}}
           <p class="form-field-error" role="alert">{{fieldErrors.contactEmail}}</p>
@@ -112,7 +113,6 @@
           value="{{club.whatsapp}}"
           placeholder="+1 555 123 4567"
         />
-        <small class="form-hint">At least one contact method (email or WhatsApp) is recommended. Clubs without any contact method will be flagged for admin review.</small>
         {{#if fieldErrors.whatsapp}}
           <p class="form-field-error" role="alert">{{fieldErrors.whatsapp}}</p>
         {{/if}}

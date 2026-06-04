@@ -413,13 +413,13 @@ def score_club(row: pd.Series) -> float:
 
 def classify_row(row: pd.Series) -> dict:
     """
-    Evaluate §9.1 rules R1–R10 for a single club row and assign a
+    Evaluate §10.1 rules R1–R10 for a single club row and assign a
     category. Rules are evaluated independently; the category is chosen
     by first-match over the grouped pre_populate / onboarding_visible
     predicates.
 
     Contact-signal resolution:
-      §9.1 R3/R4/R5 ask "did the CLUB CONTACT compete in 2020 or later".
+      §10.1 R3/R4/R5 ask "did the CLUB CONTACT compete in 2020 or later".
       Two paths:
         - **Real signal** — clubs with a non-empty `contact_member_id`
           (captured by extract_clubs.py from members/profile/{ID}) use
@@ -504,7 +504,7 @@ def classify_row(row: pd.Series) -> dict:
     elif R5 or R6 or R7 or R8 or R9 or R10:
         category = "onboarding_visible"
     elif has_description:
-        # §9.1: "Has a description (so not junk)".
+        # §10.1: "Has a description (so not junk)".
         category = "dormant"
     else:
         # Clubs with no description that fail every other rule.
@@ -575,7 +575,7 @@ def main() -> None:
     df = df.merge(aff_last_year, on="_club_key", how="left")
     df["max_affiliated_member_last_year"] = df["max_affiliated_member_last_year"].astype("Int64")
 
-    # Contact-member activity signal (real §9.1 R3/R4/R5 input where
+    # Contact-member activity signal (real §10.1 R3/R4/R5 input where
     # contact_member_id was captured upstream).
     contact_ly = compute_contact_member_last_year(df, affiliations, person_universe)
     df = df.merge(contact_ly, on="_club_key", how="left")

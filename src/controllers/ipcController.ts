@@ -15,6 +15,7 @@ import * as crypto from 'crypto';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { publishJobEvent, type JobEventState } from '../services/jobEventBus';
+import { sesFeedbackService } from '../services/sesFeedbackService';
 
 const SECRET_HEADER = 'x-internal-secret';
 
@@ -23,6 +24,35 @@ function isJobEventState(value: unknown): value is JobEventState {
 }
 
 export const ipcController = {
+  /**
+   * SES feedback webhook (mounted on the PUBLIC router: SNS posts from the
+   * internet, and nginx drops /ipc/* from public traffic). Auth is the
+   * shared secret embedded as a query key in the subscription endpoint URL,
+   * compared timing-safe; the URL is known only to the AWS-side
+   * subscription configuration.
+   */
+  receiveSesFeedback(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const secret = config.internalEventSecret;
+      if (!secret) {
+        res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });
+        return;
+      }
+      const provided = Buffer.from(typeof req.query.key === 'string' ? req.query.key : '');
+      const expected = Buffer.from(secret);
+      if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+      const rawBody = typeof req.body === 'string' ? req.body : (Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '');
+      const result = sesFeedbackService.processSnsMessage(rawBody);
+      logger.info('ses_feedback.received', { result: result.status });
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   receiveJobEvent(req: Request, res: Response, next: NextFunction): void {
     try {
       const secret = config.internalEventSecret;

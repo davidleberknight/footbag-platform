@@ -98,12 +98,38 @@ fi
 # 8. Dev-admin-shortcut audit (must be clean before production)
 run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
 
-# 9. DNS TTL drop (mockable)
+# 8a. Synthetic preview fixture must be absent from a production database
+run_step "FIXTURE-ABSENCE" bash scripts/validate-fixture-absence.sh
+
+# 9. G20 data-review sign-off: the historical-pipeline maintainer's audit
+#    row confirming legacy data is complete and member-list presentation is
+#    reviewed. Legacy-data surfaces must not ship without it.
+run_step "G20-SIGNOFF" bash -c '
+  count=$(sqlite3 "${FOOTBAG_DB_PATH:-./database/footbag.db}" \
+    "SELECT COUNT(*) FROM audit_entries WHERE action_type = '"'"'legacy_pipeline.data_review_signoff'"'"';")
+  if [ "${count}" -ge 1 ]; then
+    echo "GATE: G20-SIGNOFF PASS: data-review sign-off audit row present"
+  else
+    echo "GATE: G20-SIGNOFF FAIL: no legacy_pipeline.data_review_signoff audit row; withhold legacy-data surfaces until the maintainer signs off" >&2
+    exit 1
+  fi
+'
+
+# 10. Live-payments boot readiness (env file names the live adapter and the
+#    webhook secret; the Stripe key itself lives in SSM)
+run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
+
+# 11. Internal QC subsystem must be absent from the production image
 if [[ "${MOCK_AWS}" -eq 1 ]]; then
-  run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --mock
+  run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh --mock
 else
-  run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --dry-run
+  run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh
 fi
+
+# NOTE: no DNS step here. The front-door flip changes no DNS records (the
+# webmaster flips the reverse proxy); TTL choreography belongs to the email
+# transition day and the DNS handover milestone via
+# scripts/dns-ttl-preflight.sh --phase mx-day|handover.
 
 echo
 echo "=== pre-cutover summary ==="

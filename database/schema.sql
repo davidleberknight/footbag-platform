@@ -1836,14 +1836,6 @@ CREATE TABLE members (
   -- Partial UNIQUE index below enforces at most one member per HP.
   historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
 
-  -- Persisted first-login dashboard card for a silent medium-confidence batch
-  -- auto-link. Written at silent-claim time by runBatchAutoLink. The card
-  -- surfaces on first login after the claim with Confirm / Dismiss / Report-
-  -- incorrect actions. NULL = no pending card. dismissed_at records dismissal
-  -- without confirm/report; once set, the card does not re-surface.
-  pending_auto_link_card_json         TEXT,
-  pending_auto_link_card_dismissed_at TEXT,
-
   -- Three-branch credential-state invariant:
   -- (1) live non-system account: is_system=0, all credentials present, not purged
   -- (2) purged non-system row: is_system=0, all credentials NULL, personal_data_purged_at set
@@ -2394,6 +2386,34 @@ CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
 --   ux_club_leaders               → a member appears at most once per club
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
 -- club_id reassignments that would exceed 5 total rows per club.
+-- Club content-validation loop: a non-leader member proposes replacement
+-- description or external-URL text; the listed contact, a club leader, or
+-- admin approves or rejects. Approved values replace live content (external
+-- URLs only after URL verification); rejections record the reason.
+CREATE TABLE club_content_suggestions (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  club_id             TEXT NOT NULL REFERENCES clubs(id),
+  suggester_member_id TEXT NOT NULL REFERENCES members(id),
+  field          TEXT NOT NULL CHECK (field IN ('description','external_url')),
+  proposed_value TEXT NOT NULL,
+  note           TEXT,
+
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved','rejected')),
+  resolved_at           TEXT,
+  resolved_by_member_id TEXT REFERENCES members(id),
+  resolution_reason     TEXT,
+  CHECK ((status = 'open') = (resolved_at IS NULL))
+);
+
+CREATE INDEX idx_club_content_suggestions_club_open
+  ON club_content_suggestions(club_id) WHERE status = 'open';
+
 CREATE TABLE club_leaders (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2497,13 +2517,16 @@ CREATE TABLE account_tokens (
   -- claim targets are legacy_members rows, not members. legacy_members rows
   -- are never deleted in normal flow, so ON DELETE NO ACTION.
   target_legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
-  -- target_audit_entry_id: for auto_link_report_incorrect tokens; the
-  -- audit_entries row identifying the original silent claim that the
-  -- recipient may revert. NULL for other token types.
+  -- target_audit_entry_id: binds a token to the audit_entries row of the
+  -- action the token authorizes acting upon (for example a claim a dispute
+  -- token may revert). NULL for token types with no audit binding.
   target_audit_entry_id TEXT REFERENCES audit_entries(id) ON DELETE NO ACTION,
+  -- target_anchor_id: for mailbox_link tokens; the declared old-email
+  -- anchor whose mailbox control the click proves.
+  target_anchor_id TEXT REFERENCES member_declared_anchors(id) ON DELETE NO ACTION,
   -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
-    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim','auto_link_report_incorrect')),
+    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim','mailbox_link')),
   token_hash         TEXT NOT NULL,
   token_hash_version INTEGER NOT NULL DEFAULT 1,
   issued_at  TEXT NOT NULL,
@@ -3309,6 +3332,11 @@ CREATE TABLE member_declared_anchors (
   member_id    TEXT NOT NULL REFERENCES members(id),
   anchor_type  TEXT NOT NULL CHECK (anchor_type IN ('former_surname','old_email')),
   anchor_value TEXT NOT NULL,
+  -- Mailbox-control round-trip: set when the member clicked a confirmation
+  -- link delivered to this declared old email while signed in, upgrading
+  -- claims matched through this anchor to the hard-evidence tier.
+  verified_via_link_click_at TEXT,
+  verification_token_id      TEXT,
   UNIQUE(member_id, anchor_type, anchor_value)
 );
 CREATE INDEX idx_member_declared_anchors_member ON member_declared_anchors(member_id);
@@ -3383,6 +3411,67 @@ CREATE UNIQUE INDEX ux_legacy_members_legacy_user_id
   ON legacy_members(legacy_user_id)
   WHERE legacy_user_id IS NOT NULL;
 
+-- Migration-only staging table: batch auto-link candidate matches. The batch
+-- pass (and future registration-time passes) stage candidates here without
+-- mutating live tables or sending mail; the onboarding wizard reads open rows
+-- and the member confirms or declines. Confirmation runs the ordinary claim
+-- transaction; nothing applies without member action. May be dropped after
+-- every staged row reaches a terminal state (confirmed, declined, expired).
+CREATE TABLE auto_link_staged_candidates (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  member_id            TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  legacy_member_id     TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
+  historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
+  confidence           TEXT NOT NULL CHECK (confidence IN ('high','medium')),
+  -- Anchors that produced the match (modern email, name variant, etc.),
+  -- as a JSON array of strings; feeds the wizard card's provenance label
+  -- and the staged/confirmed audit metadata.
+  matched_anchors_json TEXT NOT NULL DEFAULT '[]',
+  -- Evidence-strength tag a confirmation of this candidate will carry on
+  -- its claim audit row.
+  proposed_evidence_strength TEXT NOT NULL
+    CHECK (proposed_evidence_strength IN
+      ('declared_anchor_only','currently_controls_modern_email_matching_legacy',
+       'mailbox_control_via_link_click','admin_vetted_evidence')),
+  -- 'cross_source' rows are post-confirm offers for the member's OTHER
+  -- identity source (§7 cross-source candidate detection); they share the
+  -- stage/confirm/decline/expire lifecycle but emit the cross-source audit
+  -- event family.
+  source_pass TEXT NOT NULL CHECK (source_pass IN ('batch','sign_in','registration','cross_source')),
+  status      TEXT NOT NULL DEFAULT 'staged'
+    CHECK (status IN ('staged','confirmed','declined','expired')),
+  resolved_at TEXT,
+  expires_at  TEXT,
+
+  -- A candidate names at least one target source.
+  CHECK (legacy_member_id IS NOT NULL OR historical_person_id IS NOT NULL),
+  -- Open rows are exactly the unresolved ones.
+  CHECK ((status = 'staged') = (resolved_at IS NULL))
+);
+
+-- Re-running the staging pass must not duplicate an open candidate for the
+-- same member/target pair. COALESCE folds the nullable target columns so
+-- SQLite's NULLs-are-distinct UNIQUE semantics cannot admit duplicates.
+CREATE UNIQUE INDEX ux_auto_link_staged_open
+  ON auto_link_staged_candidates(
+    member_id,
+    COALESCE(legacy_member_id, ''),
+    COALESCE(historical_person_id, '')
+  )
+  WHERE status = 'staged';
+CREATE INDEX idx_auto_link_staged_member_open
+  ON auto_link_staged_candidates(member_id)
+  WHERE status = 'staged';
+CREATE INDEX idx_auto_link_staged_expiry
+  ON auto_link_staged_candidates(expires_at)
+  WHERE status = 'staged' AND expires_at IS NOT NULL;
+
 -- Migration-only staging table: normalized mirror-derived club identities.
 -- May be dropped once all bootstrap decisions are finalized and no staging
 -- review is pending.
@@ -3404,11 +3493,10 @@ CREATE TABLE legacy_club_candidates (
   bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1)),
   classification     TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk')),
 
-  -- TEMP-DEVIATION: club-classification QC columns.
-  -- Current: r1-r10 rule firings, substitute flag, and rule inputs are
-  --   kept on this table to power the dev+staging QC panel on /clubs/:key.
-  -- Target: remove these columns once the A_Periodic_Club_Cleanup
-  --   admin queue absorbs classifier-evidence audit.
+  -- Classification evidence: one 0/1 flag per named classifier rule
+  -- (r1-r10), the substitute-contact marker, and the raw rule inputs
+  -- below. Persisted so an admin can audit a candidate's classification
+  -- rationale without re-running the classifier.
   r1  INTEGER NOT NULL DEFAULT 0 CHECK (r1  IN (0,1)),
   r2  INTEGER NOT NULL DEFAULT 0 CHECK (r2  IN (0,1)),
   r3  INTEGER NOT NULL DEFAULT 0 CHECK (r3  IN (0,1)),

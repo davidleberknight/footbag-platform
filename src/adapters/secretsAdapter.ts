@@ -26,6 +26,7 @@ import * as path from 'node:path';
 import {
   SSMClient,
   GetParameterCommand,
+  DeleteParameterCommand,
   ParameterNotFound,
 } from '@aws-sdk/client-ssm';
 import { config } from '../config/env';
@@ -35,6 +36,12 @@ export interface SecretsAdapter {
   get(key: string): Promise<string | undefined>;
   /** Returns the secret value; throws if the parameter does not exist. */
   getRequired(key: string): Promise<string>;
+  /** Reads an ABSOLUTE parameter name (no prefix/secrets/ derivation),
+   * UNCACHED. Single-shot flows (the production admin-bootstrap token) need
+   * the live value every call so a deleted parameter closes immediately. */
+  getAbsolute(name: string): Promise<string | undefined>;
+  /** Deletes an ABSOLUTE parameter. Single-shot token consumption. */
+  deleteAbsolute(name: string): Promise<void>;
 }
 
 export interface StubSecretsAdapter extends SecretsAdapter {
@@ -55,7 +62,7 @@ export class SecretNotConfiguredError extends Error {
 }
 
 interface SsmClientLike {
-  send(cmd: GetParameterCommand): Promise<{ Parameter?: { Value?: string } }>;
+  send(cmd: GetParameterCommand | DeleteParameterCommand): Promise<{ Parameter?: { Value?: string } }>;
 }
 
 export function createLiveSecretsAdapter(opts: {
@@ -92,6 +99,25 @@ export function createLiveSecretsAdapter(opts: {
       if (value === undefined) throw new SecretNotConfiguredError(key);
       return value;
     },
+    async getAbsolute(name) {
+      try {
+        const out = await client.send(
+          new GetParameterCommand({ Name: name, WithDecryption: true }),
+        );
+        return out.Parameter?.Value;
+      } catch (err) {
+        if (err instanceof ParameterNotFound) return undefined;
+        throw err;
+      }
+    },
+    async deleteAbsolute(name) {
+      try {
+        await client.send(new DeleteParameterCommand({ Name: name }));
+      } catch (err) {
+        if (err instanceof ParameterNotFound) return;
+        throw err;
+      }
+    },
   };
 }
 
@@ -125,6 +151,14 @@ export function createStubSecretsAdapter(): StubSecretsAdapter {
       const value = map.get(key);
       if (value === undefined) throw new SecretNotConfiguredError(key);
       return value;
+    },
+    async getAbsolute(name) {
+      consumeError();
+      return map.get(name);
+    },
+    async deleteAbsolute(name) {
+      consumeError();
+      map.delete(name);
     },
   };
 }
@@ -162,6 +196,15 @@ export function createLocalSecretsAdapter(opts: {
       const value = data[key];
       if (typeof value !== 'string') throw new SecretNotConfiguredError(key);
       return value;
+    },
+    async getAbsolute(name) {
+      const data = load();
+      const value = data[name];
+      return typeof value === 'string' ? value : undefined;
+    },
+    async deleteAbsolute(name) {
+      const data = load();
+      delete data[name];
     },
   };
 }

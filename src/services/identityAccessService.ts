@@ -7,15 +7,35 @@
  *   - Legacy-account claim flow (two-step token + email-equality fast path)
  *   - Direct historical-person claim (surname-match precondition; first-name-variant warning)
  *   - Auto-link classification
- *   - Silent auto-link claim transaction (high / medium confidence): atomic
- *     member↔legacy↔HP merge + single legacy.claim_tier_grant + audit row +
- *     notification email enqueue with tokened report-incorrect link
- *   - First-login confirmation card lifecycle (medium-confidence only):
- *     persist on silent claim, surface to dashboard, confirm / dismiss /
- *     report-incorrect transitions
- *   - Tokened revert of a silent claim (anti-enumerating: unrecognized,
- *     expired, and already-used tokens return the same status as a real
- *     already-reverted claim)
+ *   - Auto-link candidate staging (stage-and-confirm): high / medium
+ *     classifier outcomes become auto_link_staged_candidates rows plus a
+ *     staged audit event; nothing applies and no email is sent until the
+ *     member confirms a wizard card. Decline is terminal and never
+ *     re-staged; open candidates expire after a configurable window.
+ *   - Staged-candidate resolution inside every claim transaction: any claim
+ *     path that satisfies an open staged candidate marks it confirmed and
+ *     emits the confirmed audit event.
+ *   - Declared identity anchors (former surnames / old emails): rate-limited
+ *     declare/remove, multi-anchor classifier matching, surname gates that
+ *     honor former surnames, and the mailbox-control round-trip (single-use
+ *     link to the declared address; a same-account click upgrades matches
+ *     through that anchor to the hard-evidence tier)
+ *   - Cross-source offers: after a one-source claim, the other source is
+ *     searched via real anchors and a cross_source staged candidate is
+ *     offered (same stage / confirm / decline / expire lifecycle, distinct
+ *     audit event family)
+ *   - Registration-time conflict detection: a registrant whose surname
+ *     matches an already-claimed record gets the prompted event and the
+ *     wizard's "is one of these you?" card; the dispute affordance files a
+ *     help request
+ *   - Member link help requests: structured intake into the admin work
+ *     queue (one open item per member); admin approve applies the link with
+ *     admin-vetted evidence and resolves the item atomically; reject
+ *     records the reason
+ *   - Revert of a confirmed claim by its claim-audit id (idempotent), and
+ *     the admin dispute revert that pairs claim.dispute_opened with
+ *     claim.revert_applied in one transaction; covers legacy-linked and
+ *     HP-only claims alike
  *
  * Does not own:
  *   - Member profile CRUD (MemberService)
@@ -34,19 +54,15 @@
  *   - JWT payload embeds password_version; bumping it invalidates all outstanding JWTs.
  *   - Deceased members cannot log in regardless of credentials.
  *   - Soft-deleted members within member_cleanup_grace_days get the restoration screen.
- *   - Silent auto-link claim, tier grant, audit row, pending-card write, and
- *     report-incorrect token issuance commit in one transaction; the
- *     notification email is enqueued AFTER the transaction commits via
- *     enqueueEmailOrFail. An outbox failure leaves the claim committed and
- *     records a legacy.auto_link_notification_failed audit row via
- *     recordOperationalError; the caller (runBatchAutoLink) treats the
- *     re-thrown error as skipped_error. The notification email's
- *     idempotency key is bound to the claim audit row id so reruns of
- *     runBatchAutoLink collapse onto the existing outbox row.
- *   - Auto-link revert (member-initiated, from card or tokened email link) is
- *     idempotent: a second revert returns `already_reverted` without state
- *     change. Pending card rows are cleared as part of every revert so the
- *     dashboard does not keep asking about a link that no longer exists.
+ *   - Candidate staging never mutates live tables and never sends mail: a
+ *     staged row plus its staged audit event commit in one transaction and
+ *     nothing else happens until the member acts. Re-staging an open
+ *     member/target pair is a unique-constraint no-op (batch reruns are
+ *     idempotent); a declined pair is never re-staged.
+ *   - Every confirmed-claim audit row carries an evidence_strength tag;
+ *     name-only evidence tags the declared_anchor_only floor tier.
+ *   - Auto-link revert is idempotent: a second revert returns
+ *     `already_reverted` without state change.
  *
  * Transaction discipline:
  *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
@@ -59,14 +75,22 @@
  * Persistence:
  *   members, members_active, legacy_members, historical_persons (read-only for HP-match),
  *   account_tokens, member_club_affiliations, club_bootstrap_leaders, club_leaders,
- *   audit_entries, outbox_emails, members.pending_auto_link_card_json (silent
- *   claim card lifecycle). Tier-grant writes delegated to MembershipTieringService.
+ *   audit_entries, outbox_emails, auto_link_staged_candidates (stage /
+ *   confirm / decline / expire lifecycle), member_declared_anchors (declare /
+ *   remove / verify-by-link-click; deleted wholesale on PII purge by
+ *   MemberService), work_queue_items (link help requests: insert + resolve).
+ *   Tier-grant writes delegated to MembershipTieringService.
  *
  * Side effects:
- *   - audit_entries append (auth, claim, bootstrap, silent-claim, confirm, revert)
- *   - outbox_emails enqueue (verification, reset, claim email, resend, silent
- *     auto-link notification)
- *   - work_queue_items insert (auto_link_revert_review on every revert)
+ *   - audit_entries append (auth, claim, bootstrap, candidate staged /
+ *     confirmed / declined / expired, claim blocked, revert, dispute opened /
+ *     revert applied, help request submitted / approved / rejected,
+ *     registration conflict prompted / disputed, mailbox link issued /
+ *     consumed / expired, cross-source offered / confirmed / declined)
+ *   - outbox_emails enqueue (verification, reset, claim email, resend,
+ *     mailbox-control link to a declared old email)
+ *   - work_queue_items insert (auto_link_revert_review on every revert;
+ *     member_link_help_request intake with admin-alerts fan-out)
  *
  * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
  * JwtSigningAdapter resolved via getJwtSigningAdapter()).
@@ -74,7 +98,7 @@
 import { randomUUID } from 'crypto';
 import argon2 from 'argon2';
 import { hashPassword } from '../lib/passwordHash';
-import { auth, registration, legacyClaim, legacyMembers, account, workQueue, pendingAutoLinkCard, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, workQueue, autoLinkStagedCandidates, declaredAnchors, accountTokens, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow, AutoLinkStagedCandidateRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { getCommunicationService } from './communicationService';
@@ -88,7 +112,7 @@ import { config } from '../config/env';
 // Target: remove this import and the bootstrap call in registerMember at
 //   production go-live, when the SSM-token first-admin claim is the only path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
-import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
@@ -260,7 +284,7 @@ export interface ClaimHpConfirmContent {
  */
 export interface LinkHistoryCandidate {
   /** Discriminator. */
-  claimMode: 'auto_link_confirm' | 'legacy_claim' | 'hp_review_page' | 'already_linked';
+  claimMode: 'auto_link_confirm' | 'cross_source_legacy' | 'legacy_claim' | 'hp_review_page' | 'already_linked';
   /** Display copy: full name as it appears on the matched record. */
   displayName: string;
   /** Provenance phrase for the card subtitle. */
@@ -269,6 +293,8 @@ export interface LinkHistoryCandidate {
   legacyMemberId: string | null;
   /** Identifier for `auto_link_confirm` (POST body) and `hp_review_page` (URL). */
   personId: string | null;
+  /** Open staged-candidate id; non-null renders the decline affordance. */
+  stagedCandidateId?: string | null;
   country: string | null;
   isHof: boolean;
   isBap: boolean;
@@ -346,6 +372,13 @@ export interface LinkHistoryContent {
    */
   validationMessage?: string;
   declaredAnchors?: DeclaredAnchorView[];
+  /** Banner gate after a help-request submit redirected back to the task. */
+  helpRequestNotice?: boolean;
+  /** Mailbox-verification round-trip notice ('sent' | 'verified' | 'invalid'). */
+  anchorVerificationNotice?: 'sent' | 'verified' | 'invalid' | null;
+  /** Same-name collision against already-claimed records; renders the
+   * "is one of these you?" prompt with the dispute affordance. */
+  conflictPrompt: { records: RegistrationConflictRecord[] } | null;
   /**
    * Static "Your clubs (coming soon)" placeholder per
    * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
@@ -670,6 +703,26 @@ async function registerMember(
     entityId: id,
   });
 
+  // Same-name collision against already-claimed records, detected at the
+  // earliest point. The wizard re-derives the prompt at render time; this
+  // event records that the collision existed at signup.
+  const conflicts = detectRegistrationConflicts(id, trimmedRealName);
+  if (conflicts.length > 0) {
+    appendAuditEntry({
+      actionType: 'legacy.registration_conflict_prompted',
+      category: 'identity',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: id,
+      reasonText: null,
+      metadata: {
+        conflict_count: conflicts.length,
+        conflicts: conflicts.map((c) => ({ display_name: c.displayName, source: c.sourceLabel })),
+      },
+    });
+  }
+
   await issueAndEnqueueVerifyEmail(id, trimmedEmail);
 
   return { status: 'registered' };
@@ -693,10 +746,18 @@ async function registerMember(
  * tier-grant level. The two are distinct concepts that share unrelated
  * label sets (`high`/`medium`/`low`/`none` vs `tier0`/`tier1`/`tier2`/`tier3`).
  */
+export type AutoLinkAnchorSource = 'login_email' | 'declared_old_email' | 'declared_old_email_verified';
+
 export type AutoLinkClassification =
   | { confidence: 'none' }
-  | { confidence: 'high'; personId: string; personName: string }
-  | { confidence: 'medium'; personId: string; personName: string; matchedVariantNormalized: string }
+  | { confidence: 'high'; personId: string; personName: string; anchorSource: AutoLinkAnchorSource }
+  | {
+      confidence: 'medium';
+      personId: string;
+      personName: string;
+      matchedVariantNormalized: string;
+      anchorSource: AutoLinkAnchorSource;
+    }
   | {
       confidence: 'low';
       reason:
@@ -777,6 +838,18 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
   const update = auth.markEmailVerified.run(now, now, consumed.memberId);
   // update.changes may be 0 if the member was already verified; that's fine
   // since the token itself is single-use, we proceed with login in any case.
+  if (update.changes > 0) {
+    // Account-lifecycle trail: verification is the transition that activates
+    // the account, so it gets an audit row like register and password events.
+    appendAuditEntry({
+      actionType: 'auth.email_verified',
+      category: 'auth',
+      actorType: 'member',
+      actorMemberId: consumed.memberId,
+      entityType: 'member',
+      entityId: consumed.memberId,
+    });
+  }
 
   const row = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
     | { id: string; slug: string | null; login_email: string | null; real_name: string | null; password_version: number; is_admin: number; birth_date: string | null }
@@ -831,6 +904,80 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
  * `/register/wizard/legacy_claim/auto-link/confirm`. Returns
  * `{ confidence: 'none' }` if the member is not found.
  */
+function getDeclaredAnchorValues(memberId: string): {
+  oldEmails: string[];
+  oldEmailsDetailed: Array<{ value: string; verified: boolean }>;
+  formerSurnames: string[];
+} {
+  const rows = declaredAnchors.listByMember.all(memberId) as Array<{
+    anchor_type: string;
+    anchor_value: string;
+    verified_via_link_click_at?: string | null;
+  }>;
+  const oldEmailRows = rows.filter((r) => r.anchor_type === 'old_email');
+  return {
+    oldEmails:         oldEmailRows.map((r) => r.anchor_value),
+    oldEmailsDetailed: oldEmailRows.map((r) => ({
+      value:    r.anchor_value,
+      verified: r.verified_via_link_click_at != null,
+    })),
+    formerSurnames: rows.filter((r) => r.anchor_type === 'former_surname').map((r) => r.anchor_value),
+  };
+}
+
+/**
+ * Surname gate that honors declared former surnames alongside the current
+ * real-name surname, so a member who changed names can still pass the
+ * direct-claim surname rule and the conflict checks.
+ */
+function surnameMatchesWithAnchors(
+  memberId: string,
+  realName: string | null,
+  targetName: string | null,
+): boolean {
+  if (normalizedSurnamesMatch(realName, targetName)) return true;
+  const { formerSurnames } = getDeclaredAnchorValues(memberId);
+  return formerSurnames.some((s) => normalizedSurnamesMatch(s, targetName));
+}
+
+
+export interface RegistrationConflictRecord {
+  displayName: string;
+  sourceLabel: string;
+}
+
+/**
+ * Same-name collision check against ALREADY-CLAIMED records: a registrant
+ * whose surname (current or declared former) matches a claimed legacy
+ * account or a claimed historical person gets the inline "is one of these
+ * you?" prompt, catching collisions and impersonation at the earliest
+ * point. Capped so a common surname cannot flood the card.
+ */
+function detectRegistrationConflicts(memberId: string, realName: string): RegistrationConflictRecord[] {
+  const out: RegistrationConflictRecord[] = [];
+  const claimedLegacy = declaredAnchors.listClaimedLegacyForConflictScan.all() as Array<{
+    legacy_member_id: string; real_name: string | null; display_name: string | null;
+  }>;
+  for (const row of claimedLegacy) {
+    const name = row.real_name ?? row.display_name;
+    if (!name) continue;
+    if (surnameMatchesWithAnchors(memberId, realName, name)) {
+      out.push({ displayName: name, sourceLabel: 'Claimed legacy footbag.org account' });
+      if (out.length >= 5) return out;
+    }
+  }
+  const claimedHp = declaredAnchors.listClaimedHpForConflictScan.all() as Array<{
+    person_id: string; person_name: string;
+  }>;
+  for (const row of claimedHp) {
+    if (surnameMatchesWithAnchors(memberId, realName, row.person_name)) {
+      out.push({ displayName: row.person_name, sourceLabel: 'Claimed competition record' });
+      if (out.length >= 5) return out;
+    }
+  }
+  return out;
+}
+
 function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassification {
   const member = legacyClaim.findClaimingMember.get(memberId) as
     | { id: string; real_name: string; legacy_member_id: string | null; historical_person_id: string | null; birth_date: string | null }
@@ -844,21 +991,39 @@ function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassific
   const loginEmail = (auth.findMemberForSessionAfterVerify.get(memberId) as
     | { login_email: string | null }
     | undefined)?.login_email;
-  if (!loginEmail) return { confidence: 'none' };
+
+  // Email anchors in priority order: the verified login email first, then
+  // each declared old email. The first single match wins; an ambiguous
+  // anchor anywhere collapses to low so an attacker-shaped anchor set can
+  // never silently pick among multiple accounts.
+  const anchors: Array<{ value: string; source: AutoLinkAnchorSource }> = [];
+  if (loginEmail) anchors.push({ value: loginEmail, source: 'login_email' });
+  for (const declared of getDeclaredAnchorValues(memberId).oldEmailsDetailed) {
+    anchors.push({
+      value:  declared.value,
+      source: declared.verified ? 'declared_old_email_verified' : 'declared_old_email',
+    });
+  }
+  if (anchors.length === 0) return { confidence: 'none' };
 
   let legacyMatch: LegacyAccountLookupResult | null = null;
-  let emailAmbiguous = false;
-  try {
-    const lookup = lookupLegacyAccount(memberId, loginEmail);
-    if (lookup.kind === 'single') legacyMatch = lookup.result;
-    else if (lookup.kind === 'ambiguous_email') emailAmbiguous = true;
-  } catch {
-    legacyMatch = null;
+  let anchorSource: AutoLinkAnchorSource = 'login_email';
+  for (const anchor of anchors) {
+    try {
+      const lookup = lookupLegacyAccount(memberId, anchor.value);
+      if (lookup.kind === 'ambiguous_email') {
+        return { confidence: 'low', reason: 'ambiguous_email_anchor' };
+      }
+      if (lookup.kind === 'single') {
+        legacyMatch = lookup.result;
+        anchorSource = anchor.source;
+        break;
+      }
+    } catch {
+      // Non-revealing on lookup errors; try the next anchor.
+    }
   }
-  if (emailAmbiguous) {
-    return { confidence: 'low', reason: 'ambiguous_email_anchor' };
-  }
-  return classifyAutoLink(member.real_name, legacyMatch, member.birth_date);
+  return classifyAutoLink(member.real_name, legacyMatch, member.birth_date, anchorSource);
 }
 
 interface IdentityLinksRow {
@@ -936,13 +1101,92 @@ function getLinkHistoryView(
 
   const candidates: LinkHistoryCandidate[] = [];
 
-  // 1. Verify-time classifier output. Only when neither linkage is present
-  // (the classifier returns 'none' when either is set).
+  // 1a. Open staged candidates (batch or registration-time pass). These are
+  // the persisted stage-and-confirm cards: confirm runs the ordinary claim,
+  // decline resolves the row terminally.
+  // Open staged rows render until BOTH sources are linked: pre-claim batch
+  // candidates target an unlinked member; cross-source offers target a
+  // member with exactly one side linked. A row renders only when it offers
+  // a side the member still lacks.
+  const stagedRows = legacyLinked && hpLinked
+    ? ([] as AutoLinkStagedCandidateRow[])
+    : (autoLinkStagedCandidates.listOpenByMember.all(memberId) as AutoLinkStagedCandidateRow[]).filter(
+        (r) =>
+          (!hpLinked && r.historical_person_id != null) ||
+          (!legacyLinked && r.legacy_member_id != null && r.historical_person_id == null),
+      );
+  const stagedPersonIds = new Set<string>();
+  for (const staged of stagedRows) {
+    if (!staged.historical_person_id) {
+      // Cross-source offer for a legacy account (the member's HP side is
+      // already linked): confirm applies the legacy claim directly.
+      if (!staged.legacy_member_id) continue;
+      const stagedLm = legacyMembers.findByLegacyMemberId.get(staged.legacy_member_id) as LegacyMemberRow | undefined;
+      if (!stagedLm) continue;
+      candidates.push({
+        claimMode: 'cross_source_legacy',
+        displayName: stagedLm.display_name ?? stagedLm.real_name ?? 'Unknown',
+        provenanceLabel: 'Old footbag.org user account that appears to match your history.',
+        legacyMemberId: staged.legacy_member_id,
+        personId: null,
+        stagedCandidateId: staged.id,
+        country: stagedLm.country ?? null,
+        isHof: Boolean(stagedLm.is_hof),
+        isBap: Boolean(stagedLm.is_bap),
+        firstYear: null,
+        aliasesLabel: null,
+        alreadyLinkedSinceDisplay: null,
+        bioExcerpt: bioExcerptFor(staged.legacy_member_id),
+        clubAffiliations: [],
+        eventsAttended: [],
+      });
+      continue;
+    }
+    stagedPersonIds.add(staged.historical_person_id);
+    const stagedHp = legacyClaim.findHistoricalPersonById.get(staged.historical_person_id) as HistoricalPersonClaimRow | undefined;
+    if (!stagedHp) continue;
+    candidates.push({
+      claimMode: 'auto_link_confirm',
+      displayName: stagedHp.person_name,
+      provenanceLabel: staged.confidence === 'high'
+        ? 'Likely your record (matched by name and email).'
+        : 'Possible match (matched by a name variant and email).',
+      legacyMemberId: staged.legacy_member_id,
+      personId: staged.historical_person_id,
+      stagedCandidateId: staged.id,
+      country: stagedHp.country ?? null,
+      isHof: stagedHp.hof_member !== 0 && stagedHp.hof_member != null,
+      isBap: stagedHp.bap_member !== 0 && stagedHp.bap_member != null,
+      firstYear: stagedHp.first_year ?? null,
+      aliasesLabel: shapeAliasesLabel(stagedHp.aliases ?? null),
+      alreadyLinkedSinceDisplay: null,
+      bioExcerpt: bioExcerptFor(stagedHp.legacy_member_id ?? null),
+      ...candidateClubsAndEvents(staged.historical_person_id),
+    });
+  }
+
+  // Targets the member already declined stay declined: never re-surface them
+  // as classifier cards.
+  const declinedTargets = legacyLinked || hpLinked
+    ? new Set<string>()
+    : new Set(
+        (autoLinkStagedCandidates.listResolvedByMember.all(memberId) as AutoLinkStagedCandidateRow[])
+          .filter((r) => r.status === 'declined')
+          .flatMap((r) => [r.historical_person_id, r.legacy_member_id].filter((v): v is string => v != null)),
+      );
+
+  // 1b. Verify-time classifier output: newly-found candidates not already
+  // covered by a staged card and not previously declined. Only when neither
+  // linkage is present (the classifier returns 'none' when either is set).
   const classification = legacyLinked || hpLinked
     ? ({ confidence: 'none' } as AutoLinkClassification)
     : getAutoLinkClassificationForMember(memberId);
   let classifierPersonId: string | null = null;
-  if (classification.confidence === 'high' || classification.confidence === 'medium') {
+  if (
+    (classification.confidence === 'high' || classification.confidence === 'medium') &&
+    !stagedPersonIds.has(classification.personId) &&
+    !declinedTargets.has(classification.personId)
+  ) {
     classifierPersonId = classification.personId;
     const classifierHp = legacyClaim.findHistoricalPersonById.get(classification.personId) as HistoricalPersonClaimRow | undefined;
     candidates.push({
@@ -965,21 +1209,30 @@ function getLinkHistoryView(
   }
 
   // 2. Email-anchored legacy match. Skipped when legacy is already linked.
-  // Also skipped when the classifier card above already represents this
-  // person (transitive: classifier walked email → legacy → HP back-link).
+  // Also skipped when a staged or classifier card above already represents
+  // this person (transitive: email → legacy → HP back-link). Declared
+  // old-email cards are appended by the wizard wrapper with their own
+  // provenance labels.
   let emailLegacyMemberId: string | null = null;
+  const seenLegacyIds = new Set<string>(
+    stagedRows.map((r) => r.legacy_member_id).filter((v): v is string => v != null),
+  );
   if (!legacyLinked && member.login_email_normalized) {
     try {
       const lookup = lookupLegacyAccount(memberId, member.login_email_normalized);
       if (lookup.kind === 'single') {
         const row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
-        if (row) {
+        if (row && !seenLegacyIds.has(row.legacy_member_id)) {
+          seenLegacyIds.add(row.legacy_member_id);
           emailLegacyMemberId = row.legacy_member_id;
           // Detect "both" via HP back-link to avoid duplicate cards.
           const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
           const isBoth = backHp != null;
-          // Skip if the classifier card above already covers this HP.
-          const alreadyShownAsClassifier = isBoth && classifierPersonId === backHp!.person_id;
+          // Skip if a staged card or the classifier card above already
+          // covers this HP.
+          const alreadyShownAsClassifier =
+            isBoth &&
+            (classifierPersonId === backHp!.person_id || stagedPersonIds.has(backHp!.person_id));
           if (!alreadyShownAsClassifier) {
             candidates.push({
               claimMode: 'legacy_claim',
@@ -1105,6 +1358,11 @@ function getLinkHistoryView(
     // candidate to offer. Once a candidate appears (manual-id search hit, an
     // auto-link suggestion, a name-variant HP review) the banner contradicts
     // the card the user can act on, so suppress it.
+    conflictPrompt: (() => {
+      if (legacyLinked || hpLinked) return null;
+      const records = detectRegistrationConflicts(memberId, member.real_name);
+      return records.length > 0 ? { records } : null;
+    })(),
     lowConfidenceBanner:
       !legacyLinked
       && (opts.fromRegister || opts.reasonIsLowConfidence)
@@ -1141,6 +1399,7 @@ function classifyAutoLink(
   realName: string | null,
   legacyMatch: LegacyAccountLookupResult | null,
   memberBirthDate: string | null = null,
+  anchorSource: AutoLinkAnchorSource = 'login_email',
 ): AutoLinkClassification {
   if (!legacyMatch) return { confidence: 'none' };
 
@@ -1164,13 +1423,14 @@ function classifyAutoLink(
           return { confidence: 'low', reason: 'hp_mismatch' };
         }
         if (narrowed.matchKind === 'exact') {
-          return { confidence: 'high', personId: narrowed.personId, personName: narrowed.personName };
+          return { confidence: 'high', personId: narrowed.personId, personName: narrowed.personName, anchorSource };
         }
         return {
           confidence: 'medium',
           personId: narrowed.personId,
           personName: narrowed.personName,
           matchedVariantNormalized: narrowed.matchedVariantNormalized ?? '',
+          anchorSource,
         };
       }
     }
@@ -1197,6 +1457,7 @@ function classifyAutoLink(
       confidence: 'high',
       personId: candidate.personId,
       personName: candidate.personName,
+      anchorSource,
     };
   }
   return {
@@ -1204,6 +1465,7 @@ function classifyAutoLink(
     personId: candidate.personId,
     personName: candidate.personName,
     matchedVariantNormalized: candidate.matchedVariantNormalized ?? '',
+    anchorSource,
   };
 }
 
@@ -1296,11 +1558,89 @@ function lookupLegacyAccount(
 }
 
 /**
+ * Surname-rule rejection of a direct historical-person claim. A subclass of
+ * ValidationError so existing error handling renders the same user-facing
+ * message; the typed form lets callers record the blocked-claim audit event
+ * after their transaction rolls back.
+ */
+export class SurnameMismatchError extends ValidationError {
+  constructor(
+    message: string,
+    public readonly personId: string,
+    public readonly personName: string,
+  ) {
+    super(message);
+    this.name = 'SurnameMismatchError';
+  }
+}
+
+/**
+ * Records the server-side surname rejection of a direct historical-person
+ * claim. Called by claim entry points after their transaction rolled back,
+ * so the forensic record survives the failed claim.
+ */
+function recordHistoricalPersonClaimBlocked(memberId: string, err: SurnameMismatchError): void {
+  appendAuditEntry({
+    actionType:    'claim.historical_person_blocked',
+    category:      'identity',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'member',
+    entityId:      memberId,
+    reasonText:    null,
+    metadata: {
+      person_id:   err.personId,
+      person_name: err.personName,
+      reason:      'surname_mismatch',
+    },
+  });
+}
+
+/**
+ * Evidence-strength tag carried on every confirmed-claim audit row. Name-only
+ * evidence (surname rule, name-variant match) tags the declared_anchor_only
+ * floor tier; the admin oversight feed filters by tier, weakest first.
+ */
+export type EvidenceStrength =
+  | 'declared_anchor_only'
+  | 'currently_controls_modern_email_matching_legacy'
+  | 'mailbox_control_via_link_click'
+  | 'admin_vetted_evidence';
+
+/**
  * Execute the three-table claim merge inside the caller's transaction.
  * Throws ValidationError on every gate failure; the caller's transaction
  * rolls back any preceding writes (e.g. a token consume) when this throws.
+ *
+ * Race posture: the pre-checks are synchronous reads, but a concurrent
+ * claimant (another process sharing the database) can win between the read
+ * and the writes. The partial UNIQUE indexes on members.legacy_member_id,
+ * members.historical_person_id, and legacy_members.claimed_by_member_id are
+ * the load-bearing defense; a loser's SQLITE_CONSTRAINT_UNIQUE maps to
+ * ConflictError so the controller renders the same user-readable response
+ * as the synchronous already-claimed check, and the transaction (including
+ * the tier grant) rolls back whole.
  */
-function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId: string): void {
+function claimLegacyAccountInTx(
+  requestingMemberId: string,
+  targetLegacyMemberId: string,
+  evidenceStrength: EvidenceStrength,
+): void {
+  try {
+    claimLegacyAccountInTxInner(requestingMemberId, targetLegacyMemberId, evidenceStrength);
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      throw new ConflictError('This legacy record has already been claimed by another account.');
+    }
+    throw err;
+  }
+}
+
+function claimLegacyAccountInTxInner(
+  requestingMemberId: string,
+  targetLegacyMemberId: string,
+  evidenceStrength: EvidenceStrength,
+): void {
   const already = legacyClaim.checkAlreadyClaimed.get(requestingMemberId) as AlreadyClaimedRow | undefined;
   if (already) {
     throw new ValidationError('Your account is already linked to a legacy record.');
@@ -1389,7 +1729,15 @@ function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId
       legacy_member_id:   row.legacy_member_id,
       legacy_user_id:     row.legacy_user_id,
       transitive_hp_id:   hp?.person_id ?? null,
+      evidence_strength:  evidenceStrength,
     },
+  });
+
+  // A claim through any path counts as confirmation of a matching staged
+  // candidate; resolve it in the same transaction.
+  resolveStagedCandidatesOnClaimInTx(requestingMemberId, {
+    legacyMemberId: row.legacy_member_id,
+    personId:       hp?.person_id ?? null,
   });
 }
 
@@ -1401,60 +1749,65 @@ function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId
  * has a matching historical_persons row (shared legacy_member_id), also sets
  * members.historical_person_id so the member↔HP FK link is established.
  */
-function claimLegacyAccount(requestingMemberId: string, targetLegacyMemberId: string): void {
+function claimLegacyAccount(
+  requestingMemberId: string,
+  targetLegacyMemberId: string,
+  evidenceStrength: EvidenceStrength = 'declared_anchor_only',
+): void {
   transaction(() => {
-    claimLegacyAccountInTx(requestingMemberId, targetLegacyMemberId);
+    claimLegacyAccountInTx(requestingMemberId, targetLegacyMemberId, evidenceStrength);
   });
 }
 
-// ── Auto-link silent claim ──────────────────────────────────────────────────
+// ── Auto-link candidate staging (stage-and-confirm) ─────────────────────────
 //
-// One-shot batch cutover claim. Given a high- or medium-confidence classifier
-// outcome for a Tier-0 unlinked member, perform the merge silently in a single
-// transaction:
-//   1. Mark the legacy_members row claimed (race-closed via WHERE IS NULL).
-//   2. Transfer the legacy account's merge-eligible fields onto the member.
-//   3. Set the member's historical_person_id back-link via the legacy
-//      account's HP provenance row, and merge HP attribution fields.
-//   4. Apply the single legacy.claim_tier_grant member_tier_grants row.
-//   5. For medium confidence only, persist a pending_auto_link_card payload
-//      so the dashboard surfaces a first-login confirm/dismiss/report card.
-//   6. Append a legacy.auto_link_silent_claim audit_entries row; capture its
-//      id so the notification email's report-incorrect link can carry it.
-//   7. Issue a long-TTL auto_link_report_incorrect token bound to that audit
-//      id, render the notification body, and enqueue the email with an
-//      idempotency key derived from the audit id so reruns coalesce.
+// The batch cutover pass (and future registration-time passes) never mutates
+// live tables: a high- or medium-confidence classifier outcome for an
+// unlinked member becomes a row in auto_link_staged_candidates plus a
+// legacy.auto_link_candidate_staged audit entry, and nothing else. No email
+// is sent. The member sees the staged candidate as a wizard card at next
+// sign-in and confirms (ordinary claim transaction) or declines; staged rows
+// that age past their expiry window are swept to 'expired'.
 //
-// Non-throwing discriminated return: low-confidence and "no HP back-link" and
-// "already claimed by other" cases skip silently so the caller (runBatchAutoLink)
-// can tally them without try/catch.
-export type AutoLinkSilentClaimResult =
-  | { status: 'claimed'; confidence: 'high' | 'medium'; claimAuditId: string }
+// Non-throwing discriminated return so the caller (runBatchAutoLink) can
+// tally outcomes without try/catch.
+export type StageAutoLinkCandidateResult =
+  | { status: 'staged'; candidateId: string; confidence: 'high' | 'medium' }
+  | { status: 'already_staged' }
+  | { status: 'skipped_previously_declined' }
   | { status: 'skipped_already_linked' }
   | { status: 'skipped_no_legacy_for_hp' }
-  | { status: 'skipped_legacy_claimed_by_other' }
-  | { status: 'skipped_no_email' };
+  | { status: 'skipped_legacy_claimed_by_other' };
 
-export interface AutoLinkSilentClaimInput {
+export interface StageAutoLinkCandidateInput {
   confidence: 'high' | 'medium';
   personId: string;
   personName: string;
   matchedVariantNormalized?: string;
+  anchorSource?: AutoLinkAnchorSource;
 }
 
-function applyAutoLinkSilentClaim(
+export type AutoLinkSourcePass = 'batch' | 'sign_in' | 'registration' | 'cross_source';
+
+function stagedCandidateExpiryDays(): number {
+  return readIntConfig('auto_link_staged_expiry_days', 365);
+}
+
+function newStagedCandidateId(): string {
+  return `alsc_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
+function stageAutoLinkCandidate(
   memberId: string,
-  classification: AutoLinkSilentClaimInput,
-): AutoLinkSilentClaimResult {
+  classification: StageAutoLinkCandidateInput,
+  sourcePass: AutoLinkSourcePass,
+): StageAutoLinkCandidateResult {
   const member = legacyClaim.findClaimingMember.get(memberId) as
     | {
         id: string;
-        slug: string | null;
         real_name: string;
         legacy_member_id: string | null;
         historical_person_id: string | null;
-        login_email_normalized: string | null;
-        email_verified_at: string | null;
       }
     | undefined;
   if (!member) return { status: 'skipped_already_linked' };
@@ -1468,7 +1821,6 @@ function applyAutoLinkSilentClaim(
   if (!hp || !hp.legacy_member_id) {
     return { status: 'skipped_no_legacy_for_hp' };
   }
-
   const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
   if (!lm) {
     return { status: 'skipped_no_legacy_for_hp' };
@@ -1477,202 +1829,111 @@ function applyAutoLinkSilentClaim(
     return { status: 'skipped_legacy_claimed_by_other' };
   }
 
-  const recipientEmail = member.login_email_normalized;
-  if (!recipientEmail) {
-    return { status: 'skipped_no_email' };
-  }
+  // A member's decline is a standing decision: never re-stage a pair the
+  // member already declined. (Expired rows do re-stage; expiry records
+  // inaction, not refusal.)
+  const resolved = autoLinkStagedCandidates.listResolvedByMember.all(memberId) as AutoLinkStagedCandidateRow[];
+  const previouslyDeclined = resolved.some(
+    (r) =>
+      r.status === 'declined' &&
+      (r.legacy_member_id === lm.legacy_member_id || r.historical_person_id === hp.person_id),
+  );
+  if (previouslyDeclined) return { status: 'skipped_previously_declined' };
 
-  // Claim, tier grant, audit row, pending-card write, and report-incorrect
-  // token commit atomically. The notification email is enqueued AFTER the
-  // transaction commits so an outbox failure does not lose the claim;
-  // recordOperationalError persists a legacy.auto_link_notification_failed
-  // row and the re-thrown error becomes skipped_error in runBatchAutoLink.
-  const txnResult = transaction(() => {
-    const now = new Date().toISOString();
+  const anchorSource: AutoLinkAnchorSource = classification.anchorSource ?? 'login_email';
+  const emailAnchor =
+    anchorSource === 'login_email' ? 'modern_email' : anchorSource;
+  const matchedAnchors =
+    classification.confidence === 'high'
+      ? [emailAnchor, 'real_name_surname']
+      : [emailAnchor, 'name_variant'];
+  // A declared old email is asserted, not proven: it proposes only the
+  // floor tier no matter how confident the match is. Mailbox proof of the
+  // declared address (the link-click round-trip) upgrades the tier.
+  const proposedEvidence: EvidenceStrength =
+    classification.confidence !== 'high'
+      ? 'declared_anchor_only'
+      : anchorSource === 'login_email'
+        ? 'currently_controls_modern_email_matching_legacy'
+        : anchorSource === 'declared_old_email_verified'
+          ? 'mailbox_control_via_link_click'
+          : 'declared_anchor_only';
 
-    const marked = legacyMembers.markClaimed.run(memberId, now, lm.legacy_member_id);
-    if (marked.changes === 0) {
-      return {
-        kind:   'skipped' as const,
-        result: { status: 'skipped_legacy_claimed_by_other' as const },
-      };
-    }
-
-    legacyClaim.transferLegacyFields.run(
-      lm.legacy_member_id,
-      lm.legacy_user_id,
-      lm.legacy_email,
-      lm.bio ?? '',
-      lm.birth_date,
-      lm.street_address,
-      lm.postal_code,
-      lm.city,
-      lm.region,
-      lm.country,
-      lm.ifpa_join_date,
-      lm.is_hof,
-      lm.is_bap,
-      lm.first_competition_year,
-      now,
-      memberId,
-    );
-
-    legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, memberId);
-    legacyClaim.mergeHistoricalPersonFields.run(
-      hp.country,
-      hp.hof_member,
-      hp.bap_member,
-      hp.hof_induction_year,
-      hp.first_year,
-      now,
-      memberId,
-    );
-
-    const hasHof = Boolean(lm.is_hof) || Boolean(hp.hof_member);
-    const hasBap = Boolean(lm.is_bap) || Boolean(hp.bap_member);
-    applyLegacyClaimGrantInTx(memberId, memberId, hasHof, hasBap, {
-      source:           'auto_link_silent_claim',
-      confidence:       classification.confidence,
-      legacy_member_id: lm.legacy_member_id,
-      legacy_user_id:   lm.legacy_user_id,
-      transitive_hp_id: hp.person_id,
-      ...(classification.confidence === 'medium' && classification.matchedVariantNormalized
-        ? { matched_variant_normalized: classification.matchedVariantNormalized }
-        : {}),
-    });
-
-    const claimAuditId = appendAuditEntry({
-      actionType:    'legacy.auto_link_silent_claim',
-      category:      'identity',
-      actorType:     'system',
-      actorMemberId: null,
-      entityType:    'member',
-      entityId:      memberId,
-      reasonText:    null,
-      metadata: {
-        confidence:               classification.confidence,
-        legacy_member_id:         lm.legacy_member_id,
-        legacy_user_id:           lm.legacy_user_id,
-        transitive_hp_id:         hp.person_id,
-        set_historical_person_id: true,
-        has_hof:                  hasHof,
-        has_bap:                  hasBap,
-        ...(classification.confidence === 'medium' && classification.matchedVariantNormalized
-          ? { matched_variant_normalized: classification.matchedVariantNormalized }
-          : {}),
-      },
-    });
-
-    const legacyDisplayName = lm.display_name ?? lm.real_name ?? classification.personName;
-    if (classification.confidence === 'medium') {
-      const cardPayload = JSON.stringify({
-        personId:               classification.personId,
-        personName:             classification.personName,
-        confidence:             'medium' as const,
-        matchedVariantNormalized: classification.matchedVariantNormalized ?? null,
-        legacyMemberId:         lm.legacy_member_id,
-        legacyDisplayName,
-        claimAuditId,
-        country:                hp.country ?? null,
-        isHof:                  hp.hof_member !== 0,
-        isBap:                  hp.bap_member !== 0,
-        firstYear:              hp.first_year ?? null,
-      });
-      pendingAutoLinkCard.setForMember.run(cardPayload, now, 'auto_link_silent_claim', memberId);
-    }
-
-    const ttlHours = readIntConfig('auto_link_report_incorrect_expiry_hours', 90 * 24);
-    const { rawToken } = accountTokenService.issueToken({
-      memberId,
-      tokenType: 'auto_link_report_incorrect',
-      ttlHours,
-      targetAuditEntryId: claimAuditId,
-    });
-    const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-    const reportIncorrectUrl = `${baseUrl}/auto-link/report-incorrect/${rawToken}`;
-
-    const tierGrantSummary = hasHof || hasBap
-      ? ' and grants you the IFPA membership tier associated with that record'
-      : '';
-    const hofFlagText = hasHof ? '\n\nThis record is recognized as a Hall of Fame member.' : '';
-    const bapFlagText = hasBap ? '\n\nThis record is recognized as a Big Add Posse member.' : '';
-
-    const emailPayload = {
-      idempotencyKey:    `auto_link_notification:${claimAuditId}`,
-      recipientEmail,
-      recipientMemberId: memberId,
-      subject:           'IFPA: We have linked your account to your competition history',
-      bodyText:
-        `Hello ${member.real_name},\n\n` +
-        `We have linked your IFPA account to the legacy footbag.org record for ${legacyDisplayName}. ` +
-        `This grants you attribution for the competition history attached to that record${tierGrantSummary}.${hofFlagText}${bapFlagText}\n\n` +
-        `If this link is not correct, please tell us:\n${reportIncorrectUrl}\n\n` +
-        `You can also review and manage linked legacy accounts from your profile settings.\n\n` +
-        `-- IFPA`,
-    };
-
-    return {
-      kind:   'claimed' as const,
-      result: { status: 'claimed' as const, confidence: classification.confidence, claimAuditId },
-      emailPayload,
-    };
-  });
-
-  if (txnResult.kind === 'skipped') return txnResult.result;
+  const now = new Date().toISOString();
+  const expiresAt = new Date(
+    Date.now() + stagedCandidateExpiryDays() * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const candidateId = newStagedCandidateId();
 
   try {
-    getCommunicationService().enqueueEmailOrFail(txnResult.emailPayload);
-  } catch (err) {
-    recordOperationalError({
-      actionType: 'legacy.auto_link_notification_failed',
-      category:   'identity',
-      entityType: 'member',
-      entityId:   memberId,
-      reasonText: 'Auto-link silent claim committed but notification-email enqueue failed.',
-      cause:      err,
-      metadata: {
-        claimAuditId:   txnResult.result.claimAuditId,
-        legacyMemberId: lm.legacy_member_id,
-      },
+    transaction(() => {
+      autoLinkStagedCandidates.insertCandidate.run(
+        candidateId,
+        now, 'system', now, 'system',
+        memberId,
+        lm.legacy_member_id,
+        hp.person_id,
+        classification.confidence,
+        JSON.stringify(matchedAnchors),
+        proposedEvidence,
+        sourcePass,
+        expiresAt,
+      );
+      appendAuditEntry({
+        actionType:    'legacy.auto_link_candidate_staged',
+        category:      'identity',
+        actorType:     'system',
+        actorMemberId: null,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    null,
+        metadata: {
+          candidate_id:               candidateId,
+          legacy_member_id:           lm.legacy_member_id,
+          person_id:                  hp.person_id,
+          confidence:                 classification.confidence,
+          matched_anchors:            matchedAnchors,
+          proposed_evidence_strength: proposedEvidence,
+          source_pass:                sourcePass,
+          ...(classification.confidence === 'medium' && classification.matchedVariantNormalized
+            ? { matched_variant_normalized: classification.matchedVariantNormalized }
+            : {}),
+        },
+      });
     });
+  } catch (err) {
+    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return { status: 'already_staged' };
+    }
     throw err;
   }
 
-  return txnResult.result;
+  return { status: 'staged', candidateId, confidence: classification.confidence };
 }
 
-export interface PendingAutoLinkCardView {
-  personId:       string;
-  personName:     string;
-  confidence:     'medium';
-  matchedVariantNormalized: string | null;
-  legacyMemberId: string;
-  legacyDisplayName: string;
-  claimAuditId:   string;
+function listOpenStagedCandidates(memberId: string): AutoLinkStagedCandidateRow[] {
+  return autoLinkStagedCandidates.listOpenByMember.all(memberId) as AutoLinkStagedCandidateRow[];
 }
 
-function getPendingAutoLinkCard(memberId: string): PendingAutoLinkCardView | null {
-  const row = pendingAutoLinkCard.readForMember.get(memberId) as
-    | { pending_auto_link_card_json: string | null; pending_auto_link_card_dismissed_at: string | null }
+function declineStagedCandidate(
+  memberId: string,
+  candidateId: string,
+): { status: 'declined' | 'not_found' } {
+  const row = autoLinkStagedCandidates.findOpenById.get(candidateId) as
+    | AutoLinkStagedCandidateRow
     | undefined;
-  if (!row || !row.pending_auto_link_card_json || row.pending_auto_link_card_dismissed_at !== null) {
-    return null;
-  }
-  try {
-    return JSON.parse(row.pending_auto_link_card_json) as PendingAutoLinkCardView;
-  } catch {
-    return null;
-  }
-}
+  // Anti-enumeration: a foreign or unknown candidate id is indistinguishable
+  // from an already-resolved one.
+  if (!row || row.member_id !== memberId) return { status: 'not_found' };
 
-function confirmAutoLinkCard(memberId: string): { status: 'confirmed' | 'no_card' } {
-  const card = getPendingAutoLinkCard(memberId);
-  if (!card) return { status: 'no_card' };
-  transaction(() => {
-    const now = new Date().toISOString();
-    pendingAutoLinkCard.clearForMember.run(now, 'auto_link_confirmed', memberId);
+  const now = new Date().toISOString();
+  const outcome = transaction(() => {
+    const res = autoLinkStagedCandidates.resolveById.run('declined', now, now, memberId, candidateId);
+    if (res.changes === 0) return 'not_found' as const;
     appendAuditEntry({
-      actionType:    'legacy.auto_link_confirmed',
+      actionType:    row.source_pass === 'cross_source'
+        ? 'legacy.cross_source_candidate_declined'
+        : 'legacy.auto_link_candidate_declined',
       category:      'identity',
       actorType:     'member',
       actorMemberId: memberId,
@@ -1680,19 +1941,87 @@ function confirmAutoLinkCard(memberId: string): { status: 'confirmed' | 'no_card
       entityId:      memberId,
       reasonText:    null,
       metadata: {
-        legacy_member_id:        card.legacyMemberId,
-        original_claim_audit_id: card.claimAuditId,
+        candidate_id:         candidateId,
+        legacy_member_id:     row.legacy_member_id,
+        historical_person_id: row.historical_person_id,
+        confidence:           row.confidence,
       },
     });
+    return 'declined' as const;
   });
-  return { status: 'confirmed' };
+  return { status: outcome };
 }
 
-function dismissAutoLinkCard(memberId: string): { status: 'dismissed' | 'no_card' } {
+/**
+ * Resolves any open staged candidates that a just-completed claim satisfies,
+ * inside the caller's claim transaction. Any claim path counts as the
+ * member's confirmation of the matching staged candidate: the wizard's
+ * candidate card, the manual-identifier token round-trip, and the direct
+ * historical-record claim all close the staged row the same way.
+ */
+function resolveStagedCandidatesOnClaimInTx(
+  memberId: string,
+  targets: { legacyMemberId?: string | null; personId?: string | null },
+): void {
+  const open = autoLinkStagedCandidates.listOpenByMember.all(memberId) as AutoLinkStagedCandidateRow[];
   const now = new Date().toISOString();
-  const result = pendingAutoLinkCard.markDismissed.run(now, now, 'auto_link_dismissed', memberId);
-  if (result.changes === 0) return { status: 'no_card' };
-  return { status: 'dismissed' };
+  for (const row of open) {
+    const matches =
+      (targets.legacyMemberId != null && row.legacy_member_id === targets.legacyMemberId) ||
+      (targets.personId != null && row.historical_person_id === targets.personId);
+    if (!matches) continue;
+    const res = autoLinkStagedCandidates.resolveById.run('confirmed', now, now, memberId, row.id);
+    if (res.changes === 0) continue;
+    appendAuditEntry({
+      actionType:    row.source_pass === 'cross_source'
+        ? 'legacy.cross_source_candidate_confirmed'
+        : 'legacy.auto_link_candidate_confirmed',
+      category:      'identity',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    null,
+      metadata: {
+        candidate_id:         row.id,
+        legacy_member_id:     row.legacy_member_id,
+        historical_person_id: row.historical_person_id,
+        confidence:           row.confidence,
+        proposed_evidence_strength: row.proposed_evidence_strength,
+      },
+    });
+  }
+}
+
+/** Sweeps open staged candidates past their expiry window to 'expired'. */
+function expireStagedCandidates(nowIso?: string): { expired: number } {
+  const now = nowIso ?? new Date().toISOString();
+  const rows = autoLinkStagedCandidates.listExpiredOpen.all(now) as AutoLinkStagedCandidateRow[];
+  let expired = 0;
+  for (const row of rows) {
+    transaction(() => {
+      const res = autoLinkStagedCandidates.resolveById.run('expired', now, now, 'system', row.id);
+      if (res.changes === 0) return;
+      expired += 1;
+      appendAuditEntry({
+        actionType:    'legacy.auto_link_candidate_expired',
+        category:      'identity',
+        actorType:     'system',
+        actorMemberId: null,
+        entityType:    'member',
+        entityId:      row.member_id,
+        reasonText:    null,
+        metadata: {
+          candidate_id:         row.id,
+          legacy_member_id:     row.legacy_member_id,
+          historical_person_id: row.historical_person_id,
+          confidence:           row.confidence,
+          expires_at:           row.expires_at,
+        },
+      });
+    });
+  }
+  return { expired };
 }
 
 // ── Two-step emailed-token legacy claim flow ─────────────────────────────────
@@ -1823,7 +2152,13 @@ function initiateLegacyClaim(
     member.login_email_normalized === normalizeEmail(row.legacy_email)
   ) {
     transaction(() => {
-      claimLegacyAccountInTx(requestingMemberId, row!.legacy_member_id);
+      // Email-equality fast path: mailbox control of the modern address is
+      // proven by registration verification and it matches the legacy email.
+      claimLegacyAccountInTx(
+        requestingMemberId,
+        row!.legacy_member_id,
+        'currently_controls_modern_email_matching_legacy',
+      );
     });
     return { kind: 'auto_linked' };
   }
@@ -1969,7 +2304,13 @@ function consumeAndClaimLegacyInTx(requestingMemberId: string, rawToken: string)
   if (!consumed.targetLegacyMemberId) {
     throw new ValidationError('This claim link is missing a target record.');
   }
-  claimLegacyAccountInTx(requestingMemberId, consumed.targetLegacyMemberId);
+  // The claim link was delivered to and clicked from the legacy account's
+  // mailbox: hard evidence of mailbox control.
+  claimLegacyAccountInTx(
+    requestingMemberId,
+    consumed.targetLegacyMemberId,
+    'mailbox_control_via_link_click',
+  );
 }
 
 function consumeAndClaimLegacy(requestingMemberId: string, rawToken: string): void {
@@ -2051,9 +2392,10 @@ function lookupHistoricalPersonForClaim(
     return { status: 'conflict' };
   }
 
-  // Surname reconciliation is required to proceed. Mismatch blocks the claim
-  // entirely; callers should not render the confirm page.
-  if (!normalizedSurnamesMatch(member.real_name, hp.person_name)) {
+  // Surname reconciliation is required to proceed: the current real-name
+  // surname or any declared former surname must match. Mismatch blocks the
+  // claim entirely; callers should not render the confirm page.
+  if (!surnameMatchesWithAnchors(requestingMemberId, member.real_name, hp.person_name)) {
     throw new ValidationError(
       'Your name does not match this historical record. If you believe this is your identity, contact an administrator.',
     );
@@ -2100,10 +2442,31 @@ function lookupHistoricalPersonForClaim(
  * Direct-HP claim merge. Caller owns the transaction. Used by the wizard
  * so the merge AND the wizard task transition are atomic with each other.
  * For non-wizard callers, use the `claimHistoricalPerson` wrapper.
+ *
+ * Race posture: same as the legacy claim. The partial UNIQUE index on
+ * members.historical_person_id is the load-bearing defense against two
+ * members claiming the same historical person; the loser's
+ * SQLITE_CONSTRAINT_UNIQUE maps to ConflictError.
  */
 function claimHistoricalPersonInTx(
   requestingMemberId: string,
   personId: string,
+  evidenceStrength: EvidenceStrength = 'declared_anchor_only',
+): void {
+  try {
+    claimHistoricalPersonInTxInner(requestingMemberId, personId, evidenceStrength);
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      throw new ConflictError('This historical record has already been claimed by another member.');
+    }
+    throw err;
+  }
+}
+
+function claimHistoricalPersonInTxInner(
+  requestingMemberId: string,
+  personId: string,
+  evidenceStrength: EvidenceStrength,
 ): void {
   const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
   if (!member) {
@@ -2123,9 +2486,16 @@ function claimHistoricalPersonInTx(
     throw new ValidationError('This historical record has already been claimed by another member.');
   }
 
-  if (!normalizedSurnamesMatch(member.real_name, hp.person_name)) {
-    throw new ValidationError(
+  if (!surnameMatchesWithAnchors(requestingMemberId, member.real_name, hp.person_name)) {
+    // Typed throw: this fn runs inside the caller's transaction, so an audit
+    // row written here would roll back with the claim. Callers record the
+    // claim.historical_person_blocked event AFTER the rollback via
+    // recordHistoricalPersonClaimBlocked (impersonation forensics rely on
+    // blocked attempts surviving).
+    throw new SurnameMismatchError(
       'Your name does not match this historical record. If you believe this is your identity, contact an administrator.',
+      hp.person_id,
+      hp.person_name,
     );
   }
 
@@ -2216,15 +2586,31 @@ function claimHistoricalPersonInTx(
       person_name:            hp.person_name,
       first_name_variant:     !firstNamesMatch(member.real_name, hp.person_name),
       transitive_legacy_id:   hp.legacy_member_id ?? null,
+      evidence_strength:      evidenceStrength,
     },
+  });
+
+  // A claim through any path counts as confirmation of a matching staged
+  // candidate; resolve it in the same transaction.
+  resolveStagedCandidatesOnClaimInTx(requestingMemberId, {
+    legacyMemberId: hp.legacy_member_id ?? null,
+    personId:       hp.person_id,
   });
 }
 
 function claimHistoricalPerson(
   requestingMemberId: string,
   personId: string,
+  evidenceStrength: EvidenceStrength = 'declared_anchor_only',
 ): void {
-  transaction(() => claimHistoricalPersonInTx(requestingMemberId, personId));
+  try {
+    transaction(() => claimHistoricalPersonInTx(requestingMemberId, personId, evidenceStrength));
+  } catch (err) {
+    if (err instanceof SurnameMismatchError) {
+      recordHistoricalPersonClaimBlocked(requestingMemberId, err);
+    }
+    throw err;
+  }
 }
 
 export interface PasswordChangeResult {
@@ -2722,7 +3108,7 @@ export type RevertAutoLinkResult =
 
 // Inner body: the CALLER owns the transaction. Composes plain statements only
 // (no nested transaction()), so it can run inside revertAutoLink's wrapper or
-// inside the combined consume+revert transaction of revertAutoLinkByToken.
+// a future combined transaction (e.g. an admin dispute-revert flow).
 function revertAutoLinkInTx(
   memberId: string,
   originalClaimAuditId: string,
@@ -2740,31 +3126,37 @@ function revertAutoLinkInTx(
         }
       | undefined;
     if (!member) return { status: 'not_found' as const };
-    if (member.legacy_member_id === null) {
+    if (member.legacy_member_id === null && member.historical_person_id === null) {
       return { status: 'already_reverted' as const };
     }
 
     const legacyMemberId = member.legacy_member_id;
+    // The HP back-link clears when it came from the same claim being
+    // reverted: transitively via the legacy account's provenance, or as the
+    // claim itself for a direct historical-record claim with no legacy link.
     let clearedHp = false;
     if (member.historical_person_id !== null) {
-      const hp = legacyClaim.findHistoricalPersonById.get(member.historical_person_id) as
-        | { person_id: string; legacy_member_id: string | null }
-        | undefined;
-      if (hp && hp.legacy_member_id === legacyMemberId) {
+      if (legacyMemberId === null) {
         clearedHp = true;
+      } else {
+        const hp = legacyClaim.findHistoricalPersonById.get(member.historical_person_id) as
+          | { person_id: string; legacy_member_id: string | null }
+          | undefined;
+        if (hp && hp.legacy_member_id === legacyMemberId) {
+          clearedHp = true;
+        }
       }
     }
 
     const now = new Date().toISOString();
 
-    legacyMembers.clearMemberLegacyLink.run(now, actor.actorMemberId, memberId);
-    legacyMembers.clearClaim.run(legacyMemberId);
+    if (legacyMemberId !== null) {
+      legacyMembers.clearMemberLegacyLink.run(now, actor.actorMemberId, memberId);
+      legacyMembers.clearClaim.run(legacyMemberId);
+    }
     if (clearedHp) {
       legacyMembers.clearMemberHistoricalPersonId.run(now, actor.actorMemberId, memberId);
     }
-    // Drop any pending first-login card so the dashboard does not keep
-    // asking the member to confirm a link they just reverted.
-    pendingAutoLinkCard.clearForMember.run(now, actor.actorMemberId, memberId);
 
     applyAutoLinkRevertGrantInTx(actor.actorMemberId, memberId, {
       legacy_member_id:        legacyMemberId,
@@ -2808,29 +3200,60 @@ function revertAutoLink(
   return transaction(() => revertAutoLinkInTx(memberId, originalClaimAuditId, actor));
 }
 
-// Tokened revert path consumed by the report-incorrect link in the silent-
-// claim notification email. Unrecognized, expired, or already-used tokens
-// return the same `already_reverted` status as a real already-reverted
-// claim so an attacker cannot use the endpoint to probe which audit ids
-// exist (anti-enumeration).
-// Current: consume + revert run inside ONE transaction so a throw in the revert
-//   writes rolls back the token consume too; the one-shot token is preserved for
-//   a retry instead of being burned without reverting the link.
-// (consumeIfUnusedInTx and revertAutoLinkInTx are both plain-statement bodies, so
-//  they compose under a single outer transaction without violating no-nesting.)
-function revertAutoLinkByToken(rawToken: string): RevertAutoLinkResult {
+export type DisputeRevertResult =
+  | { status: 'reverted'; originalClaimAuditId: string | null }
+  | { status: 'nothing_to_revert' }
+  | { status: 'not_found' };
+
+/**
+ * Admin dispute resolution: reverts a previously-confirmed claim (wizard
+ * candidate confirm, token round-trip, or direct historical-record claim).
+ * Opens the dispute and applies the revert in one transaction so the
+ * forensic pair (claim.dispute_opened + claim.revert_applied) always lands
+ * together with the state change.
+ */
+function revertClaimForDispute(
+  adminMemberId: string,
+  targetMemberId: string,
+  reason: string,
+): DisputeRevertResult {
+  const trimmed = reason.trim();
+  if (!trimmed) {
+    throw new ValidationError('A dispute reason is required.');
+  }
+  const originalClaim = legacyClaim.findLatestClaimAuditForMember.get(targetMemberId) as
+    | { id: string }
+    | undefined;
   return transaction(() => {
-    const consumed = accountTokenService.consumeIfUnusedInTx(
-      rawToken,
-      'auto_link_report_incorrect',
-    );
-    if (!consumed || !consumed.targetAuditEntryId) {
-      return { status: 'already_reverted' as const };
-    }
-    return revertAutoLinkInTx(consumed.memberId, consumed.targetAuditEntryId, {
-      actorType: 'member',
-      actorMemberId: consumed.memberId,
+    const actor = { actorType: 'admin' as const, actorMemberId: adminMemberId };
+    appendAuditEntry({
+      actionType:    'claim.dispute_opened',
+      category:      'identity',
+      actorType:     'admin',
+      actorMemberId: adminMemberId,
+      entityType:    'member',
+      entityId:      targetMemberId,
+      reasonText:    trimmed,
+      metadata: { original_claim_audit_id: originalClaim?.id ?? null },
     });
+    const reverted = revertAutoLinkInTx(targetMemberId, originalClaim?.id ?? 'unknown', actor);
+    if (reverted.status === 'not_found') {
+      throw new NotFoundError('Member not found.');
+    }
+    if (reverted.status === 'already_reverted') {
+      return { status: 'nothing_to_revert' as const };
+    }
+    appendAuditEntry({
+      actionType:    'claim.revert_applied',
+      category:      'identity',
+      actorType:     'admin',
+      actorMemberId: adminMemberId,
+      entityType:    'member',
+      entityId:      targetMemberId,
+      reasonText:    trimmed,
+      metadata: { original_claim_audit_id: originalClaim?.id ?? null },
+    });
+    return { status: 'reverted' as const, originalClaimAuditId: originalClaim?.id ?? null };
   });
 }
 
@@ -2867,27 +3290,34 @@ export interface CrossSourceCandidate {
 
 function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string): CrossSourceCandidate | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
-    | { legacy_member_id: string | null; real_name: string }
+    | { legacy_member_id: string | null; real_name: string; login_email_normalized: string | null }
     | undefined;
   if (!member || member.legacy_member_id) return null;
 
   const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
   if (!hp) return null;
 
-  const searchNames = [hp.person_name];
-  for (const name of searchNames) {
+  // Real anchors only: the member's verified login email and declared old
+  // emails. A hit must also agree on surname (current or declared former)
+  // and be unclaimed; anything ambiguous offers nothing.
+  const emails: string[] = [];
+  if (member.login_email_normalized) emails.push(member.login_email_normalized);
+  emails.push(...getDeclaredAnchorValues(memberId).oldEmails);
+  for (const email of emails) {
     try {
-      const lookup = lookupLegacyAccount(memberId, name);
-      if (lookup.kind === 'single') {
-        return {
-          kind: 'legacy',
-          displayName: lookup.result.displayName ?? name,
-          personId: null,
-          legacyMemberId: lookup.result.legacyMemberId,
-        };
-      }
+      const lookup = lookupLegacyAccount(memberId, email);
+      if (lookup.kind !== 'single') continue;
+      const row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
+      if (!row || row.claimed_by_member_id) continue;
+      if (!surnameMatchesWithAnchors(memberId, member.real_name, row.real_name ?? row.display_name)) continue;
+      return {
+        kind: 'legacy',
+        displayName: lookup.result.displayName ?? row.display_name ?? row.real_name ?? 'Unknown',
+        personId: null,
+        legacyMemberId: row.legacy_member_id,
+      };
     } catch {
-      // Swallow: the member might already have the legacy account claimed
+      // Non-revealing on lookup errors; try the next anchor.
     }
   }
   return null;
@@ -2895,26 +3325,132 @@ function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string
 
 function findCrossSourceCandidateAfterLegacyClaim(memberId: string, legacyMemberId: string): CrossSourceCandidate | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
-    | { historical_person_id: string | null }
+    | { historical_person_id: string | null; real_name: string }
     | undefined;
   if (!member || member.historical_person_id) return null;
 
-  const lm = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
-  if (!lm) return null;
-
-  const realName = lm.real_name ?? lm.display_name;
-  if (!realName) return null;
-
-  const candidates = findAutoLinkCandidates(realName);
-  if (candidates.length === 1) {
-    return {
-      kind: 'hp',
-      displayName: candidates[0].personName,
-      personId: candidates[0].personId,
-      legacyMemberId: null,
-    };
+  // Name candidates from the member's own name plus declared former
+  // surnames (the variant machinery covers spelling differences). The
+  // candidate must be unclaimed and agree on surname via the same gate the
+  // direct claim enforces; multiple survivors offer nothing.
+  const firstName = member.real_name.trim().split(/\s+/)[0] ?? '';
+  const queries = [member.real_name];
+  if (firstName) {
+    for (const formerSurname of getDeclaredAnchorValues(memberId).formerSurnames) {
+      queries.push(`${firstName} ${formerSurname}`);
+    }
   }
-  return null;
+  const seen = new Set<string>();
+  const survivors: Array<{ personId: string; personName: string }> = [];
+  for (const c of queries.flatMap((q) => findAutoLinkCandidates(q))) {
+    if (seen.has(c.personId)) continue;
+    seen.add(c.personId);
+    const taken = legacyClaim.findMemberClaimingHp.get(c.personId) as { id: string } | undefined;
+    if (taken) continue;
+    if (!surnameMatchesWithAnchors(memberId, member.real_name, c.personName)) continue;
+    survivors.push({ personId: c.personId, personName: c.personName });
+  }
+  if (survivors.length !== 1) return null;
+  return {
+    kind: 'hp',
+    displayName: survivors[0].personName,
+    personId: survivors[0].personId,
+    legacyMemberId: null,
+  };
+}
+
+/**
+ * Post-confirm hook: after a claim completes on one source, look for the
+ * other source via real anchors and stage a cross-source offer. Idempotent
+ * (the open-pair unique index) and decline-respecting (a declined pair is
+ * never re-offered); failures are swallowed because the offer is a bonus,
+ * never a claim-path dependency.
+ */
+function offerCrossSourceCandidate(memberId: string): { offered: boolean; candidateId?: string } {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null }
+    | undefined;
+  if (!member) return { offered: false };
+
+  let candidate: CrossSourceCandidate | null = null;
+  if (member.historical_person_id && !member.legacy_member_id) {
+    candidate = findCrossSourceCandidateAfterHpClaim(memberId, member.historical_person_id);
+  } else if (member.legacy_member_id && !member.historical_person_id) {
+    candidate = findCrossSourceCandidateAfterLegacyClaim(memberId, member.legacy_member_id);
+  }
+  if (!candidate) return { offered: false };
+
+  // A previously-declined pair stays declined.
+  const resolved = autoLinkStagedCandidates.listResolvedByMember.all(memberId) as AutoLinkStagedCandidateRow[];
+  const previouslyDeclined = resolved.some(
+    (r) =>
+      r.status === 'declined' &&
+      ((candidate!.legacyMemberId != null && r.legacy_member_id === candidate!.legacyMemberId) ||
+        (candidate!.personId != null && r.historical_person_id === candidate!.personId)),
+  );
+  if (previouslyDeclined) return { offered: false };
+
+  const now = new Date().toISOString();
+  const expiresAt = new Date(
+    Date.now() + stagedCandidateExpiryDays() * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const candidateId = newStagedCandidateId();
+  try {
+    transaction(() => {
+      autoLinkStagedCandidates.insertCandidate.run(
+        candidateId,
+        now, 'system', now, 'system',
+        memberId,
+        candidate!.legacyMemberId,
+        candidate!.personId,
+        'medium',
+        JSON.stringify(['cross_source_anchor_agreement']),
+        'declared_anchor_only',
+        'cross_source',
+        expiresAt,
+      );
+      appendAuditEntry({
+        actionType:    'legacy.cross_source_candidate_offered',
+        category:      'identity',
+        actorType:     'system',
+        actorMemberId: null,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    null,
+        metadata: {
+          candidate_id:         candidateId,
+          legacy_member_id:     candidate!.legacyMemberId,
+          historical_person_id: candidate!.personId,
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return { offered: false };
+    }
+    throw err;
+  }
+  return { offered: true, candidateId };
+}
+
+/**
+ * Member confirms a cross-source LEGACY offer card: validates the open
+ * staged row, applies the legacy claim with the offer's proposed evidence
+ * tier, and lets the in-transaction resolution mark the row confirmed with
+ * the cross-source event.
+ */
+function confirmCrossSourceLegacyCandidate(
+  memberId: string,
+  candidateId: string,
+): { status: 'confirmed' } | { status: 'not_found' } {
+  const row = autoLinkStagedCandidates.findOpenById.get(candidateId) as
+    | AutoLinkStagedCandidateRow
+    | undefined;
+  if (!row || row.member_id !== memberId || row.source_pass !== 'cross_source' || !row.legacy_member_id) {
+    return { status: 'not_found' };
+  }
+  claimLegacyAccount(memberId, row.legacy_member_id, 'declared_anchor_only');
+  return { status: 'confirmed' };
 }
 
 // ---------------------------------------------------------------------------
@@ -2927,6 +3463,24 @@ export interface DeclaredAnchorView {
   anchorType: 'former_surname' | 'old_email';
   anchorTypeLabel: string;
   anchorValue: string;
+  /** Mailbox control proven by the link-click round-trip. */
+  verified: boolean;
+  /** Old emails offer the verification round-trip until verified. */
+  canRequestVerification: boolean;
+}
+
+// Declared-anchor changes are enumeration-adjacent (each declared old email
+// re-runs candidate matching), so writes are rate-limited per member.
+function anchorChangeRateLimit(memberId: string): void {
+  const max = readIntConfig('declared_anchor_rate_limit_max_per_member', 10);
+  const windowMinutes = readIntConfig('declared_anchor_rate_limit_window_minutes', 60);
+  const rl = rateLimitHit(`anchor-change:${memberId}`, max, windowMinutes);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many identity-anchor changes. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
 }
 
 function declareAnchor(
@@ -2934,6 +3488,7 @@ function declareAnchor(
   anchorType: string,
   anchorValue: string,
 ): void {
+  anchorChangeRateLimit(memberId);
   if (anchorType !== 'former_surname' && anchorType !== 'old_email') {
     throw new ValidationError('Anchor type must be former_surname or old_email.');
   }
@@ -2957,17 +3512,382 @@ function declareAnchor(
 function listDeclaredAnchors(memberId: string): DeclaredAnchorView[] {
   const rows = declaredAnchors.listByMember.all(memberId) as {
     id: string; anchor_type: string; anchor_value: string;
+    verified_via_link_click_at?: string | null;
   }[];
   return rows.map((r) => ({
     id: r.id,
     anchorType: r.anchor_type as 'former_surname' | 'old_email',
     anchorTypeLabel: r.anchor_type === 'old_email' ? 'Old email' : 'Former name',
     anchorValue: r.anchor_value,
+    verified: r.verified_via_link_click_at != null,
+    canRequestVerification: r.anchor_type === 'old_email' && r.verified_via_link_click_at == null,
   }));
 }
 
 function removeAnchor(memberId: string, anchorId: string): void {
+  anchorChangeRateLimit(memberId);
   declaredAnchors.deleteById.run(anchorId, memberId);
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertAutoLinkByToken, applyAutoLinkSilentClaim, getPendingAutoLinkCard, confirmAutoLinkCard, dismissAutoLinkCard, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim };
+// ---------------------------------------------------------------------------
+// Mailbox-control round-trip for declared old emails: a single-use link is
+// delivered to the DECLARED address; clicking it while signed in to the same
+// account proves current mailbox control and upgrades claims matched through
+// this anchor to the hard-evidence tier.
+// ---------------------------------------------------------------------------
+
+export type RequestAnchorVerificationResult =
+  | { status: 'enqueued' }
+  | { status: 'already_verified' }
+  | { status: 'not_found' };
+
+function requestAnchorMailboxVerification(
+  memberId: string,
+  anchorId: string,
+  ip: string,
+): RequestAnchorVerificationResult {
+  // Per-IP, per-member, and per-target caps mirror the claim-init knobs:
+  // every leg of the round-trip is mail-sending and enumeration-adjacent.
+  const windowMinutes = readIntConfig('mailbox_link_rate_limit_window_minutes', 60);
+  const ipRl = rateLimitHit(`mailbox-link-ip:${ip}`, readIntConfig('mailbox_link_rate_limit_max_per_ip', 10), windowMinutes);
+  if (!ipRl.allowed) return { status: 'not_found' };
+  const memberRl = rateLimitHit(`mailbox-link:${memberId}`, readIntConfig('mailbox_link_rate_limit_max_per_member', 5), windowMinutes);
+  if (!memberRl.allowed) {
+    throw new RateLimitedError('Too many verification requests. Please try again later.', memberRl.retryAfterSeconds);
+  }
+  const targetRl = rateLimitHit(`mailbox-link-target:${anchorId}`, readIntConfig('mailbox_link_rate_limit_max_per_target', 3), windowMinutes);
+  if (!targetRl.allowed) return { status: 'not_found' };
+
+  const anchor = declaredAnchors.findByIdForMember.get(anchorId, memberId) as
+    | { id: string; anchor_type: string; anchor_value: string; verified_via_link_click_at: string | null }
+    | undefined;
+  if (!anchor || anchor.anchor_type !== 'old_email') return { status: 'not_found' };
+  if (anchor.verified_via_link_click_at !== null) return { status: 'already_verified' };
+
+  const ttlHours = readIntConfig('account_claim_expiry_hours', 24);
+  const { rawToken, tokenRowId } = accountTokenService.issueToken({
+    memberId,
+    tokenType: 'mailbox_link',
+    ttlHours,
+    targetAnchorId: anchorId,
+  });
+  const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+  getCommunicationService().enqueueEmailOrFail({
+    idempotencyKey:    `mailbox_link:${tokenRowId}`,
+    recipientEmail:    anchor.anchor_value,
+    recipientMemberId: memberId,
+    subject:           'IFPA: confirm this was your footbag.org email address',
+    bodyText:
+      'You (or someone signed in to an IFPA Footbag account) told us this email ' +
+      'address was used on the old footbag.org site.\n\n' +
+      'If that was you, open the link below WHILE SIGNED IN to your IFPA account ' +
+      `to confirm you still control this mailbox. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
+      `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}\n\n` +
+      'If this was not you, you can ignore this message.',
+  });
+  appendAuditEntry({
+    actionType:    'legacy.mailbox_link_token_issued',
+    category:      'identity',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'member',
+    entityId:      memberId,
+    reasonText:    null,
+    metadata: {
+      anchor_id:     anchorId,
+      token_row_id:  tokenRowId,
+      // Masked address: enough to recognize, not enough to harvest.
+      masked_email:  anchor.anchor_value.replace(/^(.).*(@.*)$/, '$1***$2'),
+    },
+  });
+  return { status: 'enqueued' };
+}
+
+export type ConsumeAnchorVerificationResult =
+  | { status: 'verified'; anchorValueMasked: string }
+  | { status: 'invalid' };
+
+function consumeAnchorMailboxVerification(
+  memberId: string,
+  rawToken: string,
+): ConsumeAnchorVerificationResult {
+  // Expired-but-present tokens get the expiry event before the generic
+  // invalid response, so the trail records the aged-out round-trip.
+  const peeked = accountTokenService.peekToken(rawToken, 'mailbox_link');
+  if (!peeked) {
+    const hashRow = rawToken ? accountTokens.findByHash.get(
+      createHash('sha256').update(rawToken).digest('hex'), 'mailbox_link',
+    ) as { id: string; member_id: string; expires_at: string; used_at: string | null } | undefined : undefined;
+    if (hashRow && hashRow.used_at === null && new Date(hashRow.expires_at).getTime() <= Date.now()) {
+      appendAuditEntry({
+        actionType:    'legacy.mailbox_link_token_expired',
+        category:      'identity',
+        actorType:     'system',
+        actorMemberId: null,
+        entityType:    'member',
+        entityId:      hashRow.member_id,
+        reasonText:    null,
+        metadata: { token_row_id: hashRow.id },
+      });
+    }
+    return { status: 'invalid' };
+  }
+  // The click must come from the SAME signed-in account the anchor belongs
+  // to; a token opened from another session proves nothing about the
+  // claiming account's mailbox control.
+  if (peeked.memberId !== memberId || !peeked.targetAnchorId) return { status: 'invalid' };
+
+  const consumed = accountTokenService.consumeToken(rawToken, 'mailbox_link');
+  if (!consumed || !consumed.targetAnchorId) return { status: 'invalid' };
+
+  const anchor = declaredAnchors.findByIdForMember.get(consumed.targetAnchorId, memberId) as
+    | { id: string; anchor_value: string; verified_via_link_click_at: string | null }
+    | undefined;
+  if (!anchor) return { status: 'invalid' };
+
+  const now = new Date().toISOString();
+  transaction(() => {
+    declaredAnchors.markVerifiedByLinkClick.run(
+      now, consumed.tokenRowId, now, memberId, anchor.id, memberId,
+    );
+    appendAuditEntry({
+      actionType:    'legacy.mailbox_link_token_consumed',
+      category:      'identity',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    null,
+      metadata: {
+        anchor_id:         anchor.id,
+        token_row_id:      consumed.tokenRowId,
+        evidence_strength: 'mailbox_control_via_link_click',
+      },
+    });
+  });
+  return {
+    status: 'verified',
+    anchorValueMasked: anchor.anchor_value.replace(/^(.).*(@.*)$/, '$1***$2'),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Member-initiated admin link help request — the recovery path for a member
+// whose records never surface as candidates. Structured evidence lands in
+// the admin work queue; approval applies the link with admin-vetted
+// evidence; rejection records the reason. The payload contract for
+// task_type 'member_link_help_request' is owned here.
+// ---------------------------------------------------------------------------
+
+export interface LinkHelpRequestInput {
+  statement: string;
+  claimedLegacyUsername?: string;
+  claimedLegacyEmail?: string;
+  vouchers?: string;
+  /** Set when the request originates from the registration-time conflict prompt. */
+  isDispute?: boolean;
+}
+
+export interface LinkHelpRequestPayload {
+  statement: string;
+  claimed_legacy_username: string | null;
+  claimed_legacy_email: string | null;
+  vouchers: string | null;
+  is_dispute: boolean;
+}
+
+export type SubmitLinkHelpRequestResult =
+  | { status: 'submitted'; workQueueItemId: string }
+  | { status: 'already_open'; workQueueItemId: string };
+
+function submitLinkHelpRequest(
+  memberId: string,
+  input: LinkHelpRequestInput,
+): SubmitLinkHelpRequestResult {
+  const max = readIntConfig('link_help_request_rate_limit_max_per_member', 3);
+  const windowMinutes = readIntConfig('link_help_request_rate_limit_window_minutes', 1440);
+  const rl = rateLimitHit(`link-help:${memberId}`, max, windowMinutes);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many help requests. Please wait before submitting another.',
+      rl.retryAfterSeconds,
+    );
+  }
+
+  const statement = input.statement?.trim() ?? '';
+  if (!statement) {
+    throw new ValidationError('Please describe the records you believe are yours.');
+  }
+  if (statement.length > 2000) {
+    throw new ValidationError('Please keep the description under 2000 characters.');
+  }
+  const clip = (v?: string) => {
+    const t = v?.trim() ?? '';
+    if (t.length > 200) throw new ValidationError('Identifier fields must be under 200 characters.');
+    return t || null;
+  };
+  const payload: LinkHelpRequestPayload = {
+    statement,
+    claimed_legacy_username: clip(input.claimedLegacyUsername),
+    claimed_legacy_email:    clip(input.claimedLegacyEmail),
+    vouchers:                clip(input.vouchers),
+    is_dispute:              Boolean(input.isDispute),
+  };
+
+  // One open request per member: a re-submit collapses onto the open item
+  // rather than stacking queue rows.
+  const existing = workQueue.findOpenByEntity.get('member_link_help_request', 'member', memberId) as
+    | { id: string }
+    | undefined;
+  if (existing) {
+    return { status: 'already_open', workQueueItemId: existing.id };
+  }
+
+  const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+  const now = new Date().toISOString();
+  transaction(() => {
+    workQueue.insertItem.run(
+      id,
+      now, memberId,
+      now, memberId,
+      'membership',
+      'member_link_help_request',
+      'member',
+      memberId,
+      5,
+      now,
+      JSON.stringify(payload),
+    );
+    appendAuditEntry({
+      actionType:    'support.help_request_submitted',
+      category:      'identity',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    null,
+      metadata: {
+        work_queue_item_id:      id,
+        claimed_legacy_username: payload.claimed_legacy_username,
+        claimed_legacy_email:    payload.claimed_legacy_email,
+        is_dispute:              payload.is_dispute,
+      },
+    });
+    if (payload.is_dispute) {
+      appendAuditEntry({
+        actionType:    'claim.dispute_opened',
+        category:      'identity',
+        actorType:     'member',
+        actorMemberId: memberId,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    null,
+        metadata: { work_queue_item_id: id, source: 'registration_conflict_prompt' },
+      });
+      appendAuditEntry({
+        actionType:    'legacy.registration_conflict_disputed',
+        category:      'identity',
+        actorType:     'member',
+        actorMemberId: memberId,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    null,
+        metadata: { work_queue_item_id: id },
+      });
+    }
+    getCommunicationService().enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'New admin queue item: member_link_help_request',
+      bodyText:             `Task type: member_link_help_request\nEntity ID: ${memberId}`,
+      idempotencyKeyPrefix: `admin-alerts:member_link_help_request:${id}`,
+    });
+  });
+  return { status: 'submitted', workQueueItemId: id };
+}
+
+function loadOpenLinkHelpItem(workQueueItemId: string): { id: string; entity_id: string; reason_text: string | null } {
+  const row = workQueue.findById.get(workQueueItemId) as
+    | { id: string; task_type: string; entity_type: string; entity_id: string; status: string; reason_text: string | null }
+    | undefined;
+  if (!row || row.task_type !== 'member_link_help_request' || row.status !== 'open') {
+    throw new NotFoundError('Help request not found or already resolved.');
+  }
+  return row;
+}
+
+/**
+ * Admin approval: applies the legacy link with admin-vetted evidence and
+ * resolves the queue item, atomically. The claim gates (already linked,
+ * target claimed by another) throw the same errors as the member path; the
+ * queue row stays open on failure so the admin can correct the target.
+ */
+function approveLinkHelpRequest(
+  adminMemberId: string,
+  workQueueItemId: string,
+  targetLegacyMemberId: string,
+): void {
+  const target = targetLegacyMemberId.trim();
+  if (!target) {
+    throw new ValidationError('A target legacy account id is required to approve.');
+  }
+  const item = loadOpenLinkHelpItem(workQueueItemId);
+  const now = new Date().toISOString();
+  transaction(() => {
+    claimLegacyAccountInTx(item.entity_id, target, 'admin_vetted_evidence');
+    workQueue.resolve.run(
+      now, adminMemberId, 'approved',
+      `Approved: linked to legacy account ${target}.`,
+      now, adminMemberId, workQueueItemId,
+    );
+    appendAuditEntry({
+      actionType:    'support.help_request_approved',
+      category:      'identity',
+      actorType:     'admin',
+      actorMemberId: adminMemberId,
+      entityType:    'member',
+      entityId:      item.entity_id,
+      reasonText:    null,
+      metadata: {
+        work_queue_item_id: workQueueItemId,
+        legacy_member_id:   target,
+        evidence_strength:  'admin_vetted_evidence',
+        original_payload:   item.reason_text,
+      },
+    });
+  });
+}
+
+function rejectLinkHelpRequest(
+  adminMemberId: string,
+  workQueueItemId: string,
+  reason: string,
+): void {
+  const trimmed = reason.trim();
+  if (!trimmed) {
+    throw new ValidationError('A rejection reason is required.');
+  }
+  const item = loadOpenLinkHelpItem(workQueueItemId);
+  const now = new Date().toISOString();
+  transaction(() => {
+    workQueue.resolve.run(
+      now, adminMemberId, 'rejected',
+      `Rejected: ${trimmed}`,
+      now, adminMemberId, workQueueItemId,
+    );
+    appendAuditEntry({
+      actionType:    'support.help_request_rejected',
+      category:      'identity',
+      actorType:     'admin',
+      actorMemberId: adminMemberId,
+      entityType:    'member',
+      entityId:      item.entity_id,
+      reasonText:    trimmed,
+      metadata: {
+        work_queue_item_id: workQueueItemId,
+        original_payload:   item.reason_text,
+      },
+    });
+  });
+}
+
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate };

@@ -1,0 +1,26 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if (eq content.branch 'claimable')}}
+      <p>This link points to a legacy footbag.org account.</p>
+      {{#if content.displayName}}
+        <p>The account belongs to <strong>{{content.displayName}}</strong> and has not yet been claimed on the new platform.</p>
+      {{/if}}
+      {{#if content.claimHref}}
+        <p><a href="{{content.claimHref}}" class="btn btn-primary">Claim your footbag.org history</a></p>
+      {{/if}}
+      {{#if content.registerHref}}
+        <p>If this was your account, create an account first and we'll help you link your history.</p>
+        <p><a href="{{content.registerHref}}" class="btn btn-primary">Create an account</a></p>
+      {{/if}}
+    {{else}}
+      <p>This legacy footbag.org link is no longer routable.</p>
+      <p>The page it pointed to has no equivalent on the new platform. Start from the <a href="/">footbag.org home page</a>, or browse the <a href="/members">member directory</a>.</p>
+    {{/if}}
+  </section>
+</div>

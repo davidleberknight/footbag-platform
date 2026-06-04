@@ -1,0 +1,22 @@
+# =============================================================================
+# /etc/systemd/system/footbag-backup.timer
+#
+# Drives footbag-backup.service every 5 minutes, matching the 5-10 minute
+# recovery-point objective. The db-backup-stale CloudWatch alarm breaches
+# when BackupAgeMinutes exceeds 15 or stops arriving, so a dead timer is
+# operator-visible within one alarm period.
+# Install: see footbag-backup.service header.
+# =============================================================================
+
+[Unit]
+Description=Footbag SQLite backup every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=20s
+Persistent=true
+Unit=footbag-backup.service
+
+[Install]
+WantedBy=timers.target

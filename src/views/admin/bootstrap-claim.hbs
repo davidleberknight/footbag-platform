@@ -1,0 +1,26 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if (eq content.result 'granted')}}
+      <p class="form-success-banner" role="status">Administrator access granted. The bootstrap token has been consumed.</p>
+      <p><a href="/admin" class="btn btn-primary">Go to the admin dashboard</a></p>
+    {{else}}
+      {{#if (eq content.result 'invalid')}}
+        <p class="form-notice" role="alert">That token was not accepted.</p>
+      {{/if}}
+      <p>If a System Administrator provisioned a bootstrap token for you, enter it below. The token works exactly once.</p>
+      <form method="POST" action="/admin/bootstrap-claim" class="login-form">
+        <div class="form-field">
+          <label for="token">Bootstrap token</label>
+          <input type="password" id="token" name="token" required autocomplete="off" />
+        </div>
+        <button type="submit" class="btn btn-primary">Claim administrator access</button>
+      </form>
+    {{/if}}
+  </section>
+</div>

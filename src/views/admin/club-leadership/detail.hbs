@@ -1,0 +1,98 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.club.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.club.errorMessage}}</div>
+  {{/if}}
+  {{#if content.club.notice}}
+    <p class="form-success-banner" role="status">{{content.club.notice}}</p>
+  {{/if}}
+
+  <section>
+    {{#if content.club.needsLeader}}<p class="badge">Needs Leader</p>{{/if}}
+    {{#if content.club.needsContact}}<p class="badge">Needs Contact</p>{{/if}}
+
+    <div class="section-heading">
+      <h2>Current leadership ({{content.club.leadershipCount}}/5)</h2>
+    </div>
+    {{#unless content.club.leaders.length}}
+      <p class="text-muted">No leadership rows.</p>
+    {{/unless}}
+    {{#each content.club.leaders}}
+      <div class="card">
+        <div class="card-title">{{displayName}} <span class="badge">{{roleLabel}}</span></div>
+        <form method="POST" action="/admin/clubs/{{../content.club.clubId}}/leadership/demote" class="form-block">
+          <input type="hidden" name="member_id" value="{{memberId}}" />
+          <div class="form-field">
+            <label for="demote_reason_{{memberId}}">Reason (required)</label>
+            <input id="demote_reason_{{memberId}}" name="reason" required maxlength="500" />
+          </div>
+          <div class="form-field">
+            <label for="demote_mode_{{memberId}}">Action</label>
+            <select id="demote_mode_{{memberId}}" name="mode">
+              <option value="to_member">Demote to ordinary member</option>
+              <option value="remove_affiliation">Remove affiliation entirely</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+        </form>
+      </div>
+    {{/each}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Assign a leader</h2></div>
+    <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/assign" class="form-block">
+      <div class="form-field">
+        <label for="assign_member">Member id or slug</label>
+        <input id="assign_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="assign_role">Role</label>
+        <select id="assign_role" name="role">
+          <option value="co-leader">Co-leader</option>
+          <option value="leader">Leader (demotes any current leader to co-leader)</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="assign_reason">Reason (required)</label>
+        <input id="assign_reason" name="reason" required maxlength="500" />
+      </div>
+      {{#if content.club.capReached}}
+        <div class="form-field">
+          <label for="cap_override">Cap-override reason (club already at 5 leadership rows)</label>
+          <input id="cap_override" name="cap_override_reason" maxlength="500" />
+        </div>
+      {{/if}}
+      <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+    </form>
+
+    {{#if content.club.affiliatedMembers.length}}
+      <p class="mt-4 text-muted fs-sm">Affiliated members available for promotion:
+        {{#each content.club.affiliatedMembers}}{{displayName}} ({{slug}}){{#unless @last}}, {{/unless}}{{/each}}
+      </p>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Contact email</h2></div>
+    <p class="card-meta">Current: {{#if content.club.contactEmail}}{{content.club.contactEmail}}{{else}}none{{/if}}</p>
+    <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/contact" class="form-block">
+      <div class="form-field">
+        <label for="contact_email">New contact email</label>
+        <input id="contact_email" name="contact_email" type="email" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="contact_reason">Reason (required)</label>
+        <input id="contact_reason" name="reason" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Update contact</button>
+    </form>
+  </section>
+
+  <p class="mt-4"><a href="/admin/clubs/leadership">Back to the remediation queue</a></p>
+</div>

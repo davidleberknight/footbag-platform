@@ -6,7 +6,7 @@ Verifies that Phase H's `06_cutover_pre_populated_clubs.py` is the SOLE
 creator of live `clubs` rows in production, and that it only promotes
 the `pre_populate`-class candidates (i.e. those with bootstrap_eligible=1).
 
-This pins the contract MIGRATION_PLAN §9.1 prescribes:
+This pins the contract MIGRATION_PLAN §10.1 prescribes:
 
   • pre_populate candidates → live `clubs` at cutover
   • onboarding_visible / dormant / junk candidates → remain in
@@ -316,7 +316,7 @@ def test_cutover_exits_nonzero_when_zero_eligible_candidates(
     fresh_db: Path,
 ) -> None:
     """`legacy_club_candidates` populated but with zero bootstrap_eligible=1
-    rows means the §9.1 classifier silently emitted no pre_populate
+    rows means the §10.1 classifier silently emitted no pre_populate
     candidates (or Phase G ran against the wrong input). Phase H must
     fail-fast so the regression surfaces before 07_load_bootstrap_leaders.py
     finds zero FK targets and downstream wiring lands in a degenerate

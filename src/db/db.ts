@@ -212,6 +212,10 @@ export interface PublicClubRow {
   region: string | null;
   country: string;
   external_url: string | null;
+  // Contact columns are selected only by the detail query
+  // (getByTagNormalized); list queries omit them.
+  contact_email?: string | null;
+  whatsapp?: string | null;
   status: 'active' | 'inactive';   // 'archived' is filtered out of clubs_open
   tag_normalized: string;
   tag_display: string;
@@ -734,6 +738,8 @@ export const clubs = {
       c.region,
       c.country,
       c.external_url,
+      c.contact_email,
+      c.whatsapp,
       c.status,
       t.tag_normalized,
       t.tag_display
@@ -1209,6 +1215,56 @@ export const clubBootstrapLeaderSignals = {
 // SqliteError SQLITE_CONSTRAINT_UNIQUE on either is the conflict signal.
 // ---------------------------------------------------------------------------
 
+// Club content-validation loop rows: member-proposed description and
+// external-URL replacements awaiting leader/contact/admin review.
+export const clubContentSuggestions = {
+  get insert() { return db.prepare(`
+    INSERT INTO club_content_suggestions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      club_id, suggester_member_id, field, proposed_value, note
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `); },
+
+  get listOpenByClub() { return db.prepare(`
+    SELECT s.id, s.club_id, s.suggester_member_id, s.field, s.proposed_value,
+           s.note, s.created_at, m.display_name AS suggester_display_name
+    FROM club_content_suggestions s
+    JOIN members m ON m.id = s.suggester_member_id
+    WHERE s.club_id = ? AND s.status = 'open'
+    ORDER BY s.created_at
+  `); },
+
+  get findOpenById() { return db.prepare(`
+    SELECT id, club_id, suggester_member_id, field, proposed_value, note
+    FROM club_content_suggestions
+    WHERE id = ? AND club_id = ? AND status = 'open'
+  `); },
+
+  get resolve() { return db.prepare(`
+    UPDATE club_content_suggestions
+    SET status = ?, resolved_at = ?, resolved_by_member_id = ?, resolution_reason = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'open'
+  `); },
+
+  get findClubContentForEdit() { return db.prepare(`
+    SELECT id, description, external_url FROM clubs WHERE id = ?
+  `); },
+
+  get updateClubDescription() { return db.prepare(`
+    UPDATE clubs SET description = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // URL must already be validated + normalized by externalUrlValidator at
+  // the service boundary; this statement does no validation of its own.
+  get updateClubExternalUrl() { return db.prepare(`
+    UPDATE clubs SET external_url = ?, external_url_validated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+};
+
 export const clubLeaders = {
   get insertClubLeader() { return db.prepare(`
     INSERT INTO club_leaders (
@@ -1232,6 +1288,132 @@ export const clubLeaders = {
   // Is this member already role='leader' of any club?
   get memberIsLeaderSomewhere() { return db.prepare(`
     SELECT 1 AS x FROM club_leaders WHERE member_id = ? AND role = 'leader' LIMIT 1
+  `); },
+
+  // Path-2 leadership offers: the member's current clubs that have NO
+  // leadership rows at all (bootstrap candidates may exist provisional, but
+  // no one has registered and claimed).
+  get listLeaderlessCurrentClubsForMember() { return db.prepare(`
+    SELECT c.id, c.name
+    FROM member_club_affiliations a
+    JOIN clubs c ON c.id = a.club_id
+    WHERE a.member_id = ? AND a.is_current = 1
+      AND c.status IN ('active','inactive')
+      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
+    ORDER BY a.is_primary DESC, c.name
+  `); },
+
+  // A declined path-2 offer is terminal for that member/club pair; the
+  // decline audit row is the suppression source.
+  get hasPathTwoDecline() { return db.prepare(`
+    SELECT 1 AS x FROM audit_entries
+    WHERE action_type = 'club.leadership_path2_declined'
+      AND actor_member_id = ? AND entity_type = 'club' AND entity_id = ?
+    LIMIT 1
+  `); },
+
+  // Admin leadership remediation lookups.
+  get findClubForAdminLeadership() { return db.prepare(`
+    SELECT id, name, contact_email, status FROM clubs WHERE id = ?
+  `); },
+
+  get listClubsNeedingLeader() { return db.prepare(`
+    SELECT c.id, c.name, c.city, c.country, c.contact_email
+    FROM clubs c
+    WHERE c.status = 'active'
+      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
+    ORDER BY c.name
+  `); },
+
+  // A led club is always reachable (leader contact is member-visible by
+  // role), so only leaderless clubs without a club contact email count as
+  // needing contact remediation.
+  get listClubsNeedingContact() { return db.prepare(`
+    SELECT c.id, c.name, c.city, c.country
+    FROM clubs c
+    WHERE c.status = 'active'
+      AND (c.contact_email IS NULL OR c.contact_email = '')
+      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
+    ORDER BY c.name
+  `); },
+
+  get listLeadersWithNames() { return db.prepare(`
+    SELECT l.member_id, l.role, l.added_at, m.display_name, m.slug
+    FROM club_leaders l
+    JOIN members m ON m.id = l.member_id
+    WHERE l.club_id = ?
+    ORDER BY l.role, m.display_name
+  `); },
+
+  // Current (claimed/assigned) leadership for the public club page. Carries
+  // login_email because leader contact is member-visible by role: the page
+  // shows it to authenticated viewers only.
+  get listCurrentLeadersForClubPage() { return db.prepare(`
+    SELECT l.member_id, l.role, m.display_name, m.login_email
+    FROM club_leaders l
+    JOIN members_active m ON m.id = l.member_id
+    WHERE l.club_id = ?
+    ORDER BY CASE l.role WHEN 'leader' THEN 0 ELSE 1 END,
+             m.display_name COLLATE NOCASE
+  `); },
+
+  get listAffiliatedMembersForAdmin() { return db.prepare(`
+    SELECT a.member_id, m.display_name, m.slug,
+           EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = a.club_id AND l.member_id = a.member_id) AS is_leader
+    FROM member_club_affiliations a
+    JOIN members_active m ON m.id = a.member_id
+    WHERE a.club_id = ? AND a.is_current = 1
+    ORDER BY m.display_name
+  `); },
+
+  get findLeaderRow() { return db.prepare(`
+    SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
+  `); },
+
+  get updateLeaderRole() { return db.prepare(`
+    UPDATE club_leaders SET role = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE club_id = ? AND member_id = ?
+  `); },
+
+  get deleteLeaderRow() { return db.prepare(`
+    DELETE FROM club_leaders WHERE club_id = ? AND member_id = ?
+  `); },
+
+  // Resolving leadership for a bootstrapped club supersedes its remaining
+  // provisional candidates.
+  get supersedeProvisionalForClub() { return db.prepare(`
+    UPDATE club_bootstrap_leaders
+    SET status = 'superseded', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE club_id = ? AND status = 'provisional'
+  `); },
+
+  get findMemberByKeyForAdmin() { return db.prepare(`
+    SELECT id, display_name, slug FROM members_active WHERE slug = ? OR id = ?
+  `); },
+
+  get findCurrentAffiliation() { return db.prepare(`
+    SELECT id, is_current FROM member_club_affiliations WHERE member_id = ? AND club_id = ?
+  `); },
+
+  get insertAdminAffiliation() { return db.prepare(`
+    INSERT INTO member_club_affiliations
+      (id, created_at, created_by, updated_at, updated_by, member_id, club_id, is_current, is_primary, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 'admin')
+  `); },
+
+  get reactivateAffiliation() { return db.prepare(`
+    UPDATE member_club_affiliations SET is_current = 1, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  get endAffiliation() { return db.prepare(`
+    UPDATE member_club_affiliations SET is_current = 0, is_primary = 0, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE member_id = ? AND club_id = ? AND is_current = 1
+  `); },
+
+  get updateClubContactEmail() { return db.prepare(`
+    UPDATE clubs SET contact_email = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
   `); },
 
   get leaderClubNameForMember() { return db.prepare(`
@@ -4387,6 +4569,7 @@ export interface AccountTokenRow {
   member_id: string;
   target_legacy_member_id: string | null;
   target_audit_entry_id: string | null;
+  target_anchor_id: string | null;
   token_type: string;
   expires_at: string;
   used_at: string | null;
@@ -4396,17 +4579,17 @@ export const accountTokens = {
   get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, target_legacy_member_id, target_audit_entry_id, token_type,
+      member_id, target_legacy_member_id, target_audit_entry_id, target_anchor_id, token_type,
       token_hash, token_hash_version,
       issued_at, expires_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
-      ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
       ?, 1,
       ?, ?)
   `); },
 
   get findByHash() { return db.prepare(`
-    SELECT id, member_id, target_legacy_member_id, target_audit_entry_id,
+    SELECT id, member_id, target_legacy_member_id, target_audit_entry_id, target_anchor_id,
            token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
@@ -4446,6 +4629,12 @@ export const auditEntries = {
 };
 
 export const outbox = {
+  // Operational depth probe: pending + sending rows are the deliverable
+  // backlog; a growing count means the worker is down or SES is failing.
+  get countBacklog() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM outbox_emails WHERE status IN ('pending','sending')
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -5860,6 +6049,16 @@ export const legacyClaim = {
   // live member already owns this HP. The partial UNIQUE index on
   // members.historical_person_id ultimately enforces this at write time; this
   // read is for a friendly error rather than a raw constraint failure.
+  // Latest completed-claim audit row for a member; the dispute revert binds
+  // its forensic events to this id.
+  get findLatestClaimAuditForMember() { return db.prepare(`
+    SELECT id FROM audit_entries
+    WHERE entity_type = 'member' AND entity_id = ?
+      AND action_type IN ('claim.legacy_account', 'claim.historical_person')
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
   get findMemberClaimingHp() { return db.prepare(`
     SELECT id, slug
     FROM members
@@ -6078,56 +6277,69 @@ export const legacyMembers = {
   `); },
 };
 
-// ── pendingAutoLinkCard ─────────────────────────────────────────────────────
+// ── autoLinkStagedCandidates ────────────────────────────────────────────────
 //
-// Persisted first-login dashboard card for a silent medium-confidence
-// auto-link claim. Written at silent-claim time in the same transaction
-// as the claim merge; cleared on Confirm or Report-incorrect; marked
-// dismissed (without clearing card_json) on Dismiss so the dashboard does
-// not re-surface it.
+// Migration-only staging surface for batch auto-link candidate matches.
+// The staging pass inserts open rows without touching live tables; the
+// onboarding wizard reads open rows for the signed-in member; resolution
+// (confirmed / declined / expired) is terminal and recorded with a
+// timestamp. The partial unique index makes re-staging the same open
+// member/target pair a constraint hit, which the service treats as
+// already-staged.
 // ---------------------------------------------------------------------------
-export const pendingAutoLinkCard = {
-  get readForMember() { return db.prepare(`
-    SELECT pending_auto_link_card_json, pending_auto_link_card_dismissed_at
-    FROM members
-    WHERE id = ?
+export interface AutoLinkStagedCandidateRow {
+  id: string;
+  member_id: string;
+  legacy_member_id: string | null;
+  historical_person_id: string | null;
+  confidence: 'high' | 'medium';
+  matched_anchors_json: string;
+  proposed_evidence_strength: string;
+  source_pass: 'batch' | 'sign_in' | 'registration' | 'cross_source';
+  status: 'staged' | 'confirmed' | 'declined' | 'expired';
+  resolved_at: string | null;
+  expires_at: string | null;
+}
+
+export const autoLinkStagedCandidates = {
+  get insertCandidate() { return db.prepare(`
+    INSERT INTO auto_link_staged_candidates (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, legacy_member_id, historical_person_id,
+      confidence, matched_anchors_json, proposed_evidence_strength,
+      source_pass, status, resolved_at, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 'staged', NULL, ?)
   `); },
 
-  // Written as part of the silent-claim transaction. Always clears any
-  // prior dismissed_at so a fresh card is surfaced on the next dashboard
-  // load.
-  get setForMember() { return db.prepare(`
-    UPDATE members
-    SET
-      pending_auto_link_card_json         = ?,
-      pending_auto_link_card_dismissed_at = NULL,
-      updated_at                          = ?,
-      updated_by                          = ?,
-      version                             = version + 1
-    WHERE id = ?
+  get listOpenByMember() { return db.prepare(`
+    SELECT * FROM auto_link_staged_candidates
+    WHERE member_id = ? AND status = 'staged'
+    ORDER BY created_at ASC, id ASC
   `); },
 
-  get clearForMember() { return db.prepare(`
-    UPDATE members
-    SET
-      pending_auto_link_card_json         = NULL,
-      pending_auto_link_card_dismissed_at = NULL,
-      updated_at                          = ?,
-      updated_by                          = ?,
-      version                             = version + 1
-    WHERE id = ?
+  get listResolvedByMember() { return db.prepare(`
+    SELECT * FROM auto_link_staged_candidates
+    WHERE member_id = ? AND status != 'staged'
+    ORDER BY created_at ASC, id ASC
   `); },
 
-  get markDismissed() { return db.prepare(`
-    UPDATE members
-    SET
-      pending_auto_link_card_dismissed_at = ?,
-      updated_at                          = ?,
-      updated_by                          = ?,
-      version                             = version + 1
-    WHERE id = ?
-      AND pending_auto_link_card_json IS NOT NULL
-      AND pending_auto_link_card_dismissed_at IS NULL
+  get findOpenById() { return db.prepare(`
+    SELECT * FROM auto_link_staged_candidates
+    WHERE id = ? AND status = 'staged'
+  `); },
+
+  // Terminal transition; the status guard makes resolution race-safe
+  // (changes=0 when another path already resolved the row).
+  get resolveById() { return db.prepare(`
+    UPDATE auto_link_staged_candidates
+    SET status = ?, resolved_at = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'staged'
+  `); },
+
+  get listExpiredOpen() { return db.prepare(`
+    SELECT * FROM auto_link_staged_candidates
+    WHERE status = 'staged' AND expires_at IS NOT NULL AND expires_at <= ?
+    ORDER BY expires_at ASC, id ASC
   `); },
 };
 
@@ -6215,7 +6427,7 @@ export const declaredAnchors = {
   `); },
 
   get listByMember() { return db.prepare(`
-    SELECT id, anchor_type, anchor_value, created_at
+    SELECT id, anchor_type, anchor_value, created_at, verified_via_link_click_at
       FROM member_declared_anchors
      WHERE member_id = ?
      ORDER BY anchor_type, anchor_value
@@ -6223,6 +6435,110 @@ export const declaredAnchors = {
 
   get deleteById() { return db.prepare(`
     DELETE FROM member_declared_anchors WHERE id = ? AND member_id = ?
+  `); },
+
+  // Legacy-URL forwarding lookups: in-flight emails reference
+  // /members/profile/<legacy id> and /clubs/<slug> for years after cutover.
+  get findLiveMemberSlugByLegacyId() { return db.prepare(`
+    SELECT slug FROM members
+    WHERE legacy_member_id = ? AND deleted_at IS NULL
+  `); },
+
+  get findLegacyClubCandidateByKey() { return db.prepare(`
+    SELECT legacy_club_key, mapped_club_id FROM legacy_club_candidates
+    WHERE legacy_club_key = ?
+  `); },
+
+  // Conflict-prompt scan inputs: every claimed identity's display name, so
+  // a new registrant's surname can be checked against records that are
+  // already taken (same-name collision and impersonation detection).
+  get listClaimedLegacyForConflictScan() { return db.prepare(`
+    SELECT legacy_member_id, real_name, display_name
+    FROM legacy_members
+    WHERE claimed_by_member_id IS NOT NULL
+  `); },
+
+  get listClaimedHpForConflictScan() { return db.prepare(`
+    SELECT hp.person_id, hp.person_name
+    FROM members m
+    JOIN historical_persons hp ON hp.person_id = m.historical_person_id
+    WHERE m.deleted_at IS NULL
+  `); },
+
+  get findByIdForMember() { return db.prepare(`
+    SELECT id, member_id, anchor_type, anchor_value,
+           verified_via_link_click_at, verification_token_id
+    FROM member_declared_anchors
+    WHERE id = ? AND member_id = ?
+  `); },
+
+  // Mailbox-control upgrade: stamps the click and the consumed token id.
+  // The IS NULL guard makes re-consume attempts no-ops.
+  get markVerifiedByLinkClick() { return db.prepare(`
+    UPDATE member_declared_anchors
+    SET verified_via_link_click_at = ?, verification_token_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND member_id = ? AND verified_via_link_click_at IS NULL
+  `); },
+
+  // PII purge clears every anchor the member declared; anchors are
+  // member-asserted identity data with no archival value once the account's
+  // personal data is erased.
+  get deleteAllForMember() { return db.prepare(`
+    DELETE FROM member_declared_anchors WHERE member_id = ?
+  `); },
+};
+
+// ── memberPurge ─────────────────────────────────────────────────────────────
+//
+// Row-level PII erasure for a soft-deleted or deceased member whose grace
+// period elapsed. Clears credentials and contact fields to NULL (satisfying
+// the purged branch of the members credential CHECK), severs the legacy and
+// historical-person links, anonymizes the identity placeholders, and stamps
+// personal_data_purged_at. HoF/BAP rows keep display_name and bio (the honor
+// record outlives the personal data); every other identity field clears the
+// same way. The IS NULL guard makes a re-run a no-op.
+export const memberPurge = {
+  get readForPurge() { return db.prepare(`
+    SELECT id, slug, is_hof, is_bap, legacy_member_id, historical_person_id,
+           personal_data_purged_at
+    FROM members
+    WHERE id = ?
+  `); },
+
+  get purgeRow() { return db.prepare(`
+    UPDATE members
+    SET
+      login_email             = NULL,
+      login_email_normalized  = NULL,
+      email_verified_at       = NULL,
+      password_hash           = NULL,
+      password_changed_at     = NULL,
+      phone                   = NULL,
+      whatsapp                = NULL,
+      sex                     = NULL,
+      birth_date              = NULL,
+      street_address          = NULL,
+      postal_code             = NULL,
+      city                    = NULL,
+      region                  = NULL,
+      country                 = NULL,
+      legacy_user_id          = NULL,
+      legacy_email            = NULL,
+      ifpa_join_date          = NULL,
+      legacy_member_id        = NULL,
+      historical_person_id    = NULL,
+      stripe_customer_id      = NULL,
+      bio                     = CASE WHEN ? = 1 THEN bio ELSE '' END,
+      real_name               = ?,
+      display_name            = CASE WHEN ? = 1 THEN display_name ELSE ? END,
+      display_name_normalized = CASE WHEN ? = 1 THEN display_name_normalized ELSE ? END,
+      slug                    = ?,
+      personal_data_purged_at = ?,
+      updated_at              = ?,
+      updated_by              = ?,
+      version                 = version + 1
+    WHERE id = ? AND personal_data_purged_at IS NULL
   `); },
 };
 
@@ -6353,11 +6669,13 @@ export const memberTier = {
 
 // ── HoF/BAP admin digest support ──
 // Read-side query for the SYS_HoF_BAP_Admin_Digest job. Returns one row per
-// `member_tier_grants` entry written for a silent legacy auto-link claim in
-// the lookback window where the underlying member carries an HoF or BAP
-// honor flag. Joins members for the display name and honor flags so the
-// digest payload can render without a second per-row fetch. Row ordering
-// is stable by created_at ASC so digest bodies are deterministic.
+// `member_tier_grants` entry written for ANY claim path (wizard candidate
+// confirm, token round-trip, direct historical-record claim; all share the
+// single legacy.claim_tier_grant reason code) in the lookback window where
+// the underlying member carries an HoF or BAP honor flag. Joins members for
+// the display name and honor flags so the digest payload can render without
+// a second per-row fetch. Row ordering is stable by created_at ASC so
+// digest bodies are deterministic.
 export const hofBapDigest = {
   get listRecentHonorsClaims() { return db.prepare(`
     SELECT g.id AS tier_grant_id,
@@ -6491,6 +6809,24 @@ export interface ActivePlayerExpiryCandidateRow {
   login_email:  string | null;
   email_status: string;
 }
+
+// SES feedback loop: bounce and complaint notifications mark the member's
+// email_status so transactional sends skip dead or complaining addresses.
+export const sesFeedback = {
+  // Escalation-only: 'bounced' applies to ok rows; 'complained' applies to
+  // ok or bounced rows; 'suppressed' (admin-set) is never overwritten.
+  get markBounced() { return db.prepare(`
+    UPDATE members
+    SET email_status = 'bounced', updated_at = ?, updated_by = 'ses_feedback', version = version + 1
+    WHERE login_email_normalized = ? AND deleted_at IS NULL AND email_status = 'ok'
+  `); },
+
+  get markComplained() { return db.prepare(`
+    UPDATE members
+    SET email_status = 'complained', updated_at = ?, updated_by = 'ses_feedback', version = version + 1
+    WHERE login_email_normalized = ? AND deleted_at IS NULL AND email_status IN ('ok','bounced')
+  `); },
+};
 
 export const activePlayerExpiry = {
   // Candidate set for SYS_Check_Active_Player_Expiry: Tier 0 members whose
@@ -6790,12 +7126,14 @@ export const clubCleanupResolutions = {
     WHERE club_id = ? AND predicate_name = ?
   `); },
 
-  get listActive() { return db.prepare(`
+  // All resolution rows, including still-deferred ones: the service's
+  // isResolved() owns the deferral-window check, so a future deferred_until
+  // suppresses the queue item and an expired one lets it re-surface.
+  // Filtering future deferrals out here would make deferral a no-op (the
+  // service would see no row and treat the item as unresolved).
+  get listAll() { return db.prepare(`
     SELECT club_id, predicate_name, resolution, deferred_until
     FROM club_cleanup_resolutions
-    WHERE resolution != 'deferred'
-       OR deferred_until IS NULL
-       OR deferred_until <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
   `); },
 };
 
@@ -6847,6 +7185,15 @@ export const payments = {
 
   get findByPaymentIntentId() { return db.prepare(`
     SELECT * FROM payments WHERE stripe_payment_intent_id = ?
+  `); },
+
+  // Backfills the intent id on a row inserted before Stripe created the
+  // PaymentIntent (Stripe may defer intent creation until the buyer pays).
+  // Guarded on IS NULL so a bound row is never re-pointed at another intent.
+  get setPaymentIntentIdIfNull() { return db.prepare(`
+    UPDATE payments
+    SET stripe_payment_intent_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND stripe_payment_intent_id IS NULL
   `); },
 
   get listByMember() { return db.prepare(`

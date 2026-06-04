@@ -36,7 +36,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Download_Data](#m_download_data)
     - [M_Browse_Legacy_Archive](#m_browse_legacy_archive)
     - [M_Claim_Legacy_Account](#m_claim_legacy_account)
-    - [M_Confirm_Auto_Linked_Identity](#m_confirm_auto_linked_identity)
     - [M_Complete_Onboarding_Wizard](#m_complete_onboarding_wizard)
   - [3.2 Profile Management](#32-profile-management)
     - [M_Edit_Profile](#m_edit_profile)
@@ -135,7 +134,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Fix_Event_Results](#a_fix_event_results)
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
     - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
-    - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
@@ -557,6 +555,7 @@ Success Criteria:
 - On successful registration the system enqueues a verification email containing a unique single-use link with an Administrator-configurable TTL (default: 24 hours). The registration response does not include a session cookie; the visitor lands on a generic "check your email" page.
 - The verify link is a single-use, unguessable token stored hashed at rest (SHA-256); the raw token is never persisted.
 - Opening the verify link marks the member's email as verified, issues the authenticated session (HttpOnly, Secure, SameSite=Lax cookie), and redirects to the member dashboard, or to the legacy-link check when the member's email matches a `legacy_members` row or historical-person record.
+- Successful verification appends an `audit_entries` row (the account-lifecycle transition that activates the account is auditable, like registration and password events).
 - Consuming the link a second time is rejected with a generic "invalid, expired, or already used" response. Unknown or expired tokens render the same response (enumeration-safe).
 - Unverified members cannot log in. The login failure response is identical to the wrong-password response (enumeration-safe).
 - Unverified members do not appear in the authenticated member search.
@@ -777,11 +776,11 @@ Club-affiliation task acceptance criteria:
 
 - When mirror-derived club affiliation, leadership, or candidate suggestions exist for the member, the `club_affiliations` task presents them.
 - Each suggestion shows the club name, city, country, and the member's inferred role (contact, member, leader, co-leader).
-- Stage 1A (listed contact) and Stage 1B (affiliated but not listed contact) present two orthogonal questions per card, each in its own clearly-labeled fieldset: (1) membership confirmation, asked as "Were you a member of {clubName}?" with Yes / No options, and (2) activity signal, asked as "Is {clubName} still active?" with Still active / Not active anymore / Not sure options. Both answers are required; either may be answered first. The card submits via a dedicated "Save answers" button at the end of the form. The card also surfaces a "Not the right club? Browse all clubs" link that lets the member leave the wizard, search the clubs browse or map for the correct club, and return; the dashboard widget's "Continue onboarding" entry returns the member to the same un-signaled card per §788. The membership question determines affiliation; the activity question feeds the `crowdsource_club_viability` predicate (see `A_Periodic_Club_Cleanup`). "Not sure" on the activity question is a safe escape that records no activity evidence. Content-editing gates key off membership confirmation and contact status, not the activity signal: Stage 1A confirmed members (listed contacts) edit club metadata directly; Stage 1B confirmed members surface the candidate's description and external URL for flagging via the section 9.3 content validation loop.
-- Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) match at the registrant's region level (state or province) rather than country. Within the region, same-city candidates render first. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow. Stage 2A path 1 (member affirms) and Stage 2B paths 1 and 2 (member confirms existence) surface the club's or candidate's description and external URL; the member can flag inaccuracies and suggest replacement text via the §9.3 content validation loop.
+- Stage 1A (listed contact) and Stage 1B (affiliated but not listed contact) present two orthogonal questions per card, each in its own clearly-labeled fieldset: (1) membership confirmation, asked as "Were you a member of {clubName}?" with Yes / No options, and (2) activity signal, asked as "Is {clubName} still active?" with Still active / Not active anymore / Not sure options. Both answers are required; either may be answered first. The card submits via a dedicated "Save answers" button at the end of the form. The card also surfaces a "Not the right club? Browse all clubs" link that lets the member leave the wizard, search the clubs browse or map for the correct club, and return; the dashboard widget's "Continue onboarding" entry returns the member to the same un-signaled card per §788. The membership question determines affiliation; the activity question feeds the `crowdsource_club_viability` predicate (see `A_Periodic_Club_Cleanup`). "Not sure" on the activity question is a safe escape that records no activity evidence. Content-editing gates key off membership confirmation and contact status, not the activity signal: Stage 1A confirmed members (listed contacts) edit club metadata directly; Stage 1B confirmed members surface the candidate's description and external URL for flagging via the content validation loop (see `M_Join_Club`).
+- Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) match at the registrant's region level (state or province) rather than country. Within the region, same-city candidates render first. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow. Stage 2A path 1 (member affirms) and Stage 2B paths 1 and 2 (member confirms existence) surface the club's or candidate's description and external URL; the member can flag inaccuracies and suggest replacement text via the content validation loop (see `M_Join_Club`).
 - The wizard does not offer in-wizard club search. After Stage 2 cards are exhausted, the `club_affiliations` task advances to the wrap-up landing. The wrap-up links to the clubs browse page filtered to the registrant's country (`/clubs/{countrySlug}`) where the member can browse clubs and submit viability signals from individual club detail pages. The wizard itself never creates a new `clubs` row.
 - The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to the wrap-up. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
-- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of classification strength and regardless of registrant tier. Schema invariants enforce one `role='leader'` per club (`ux_one_leader_per_club`) and one `role='leader'` per member across all clubs (`ux_one_club_leader_per_member`); when either invariant would be violated the wizard transparently downgrades the new row to `role='co-leader'`. The application-level five-leader-per-club cap is enforced; cap-hit claims still affiliate the member but do not insert a `club_leaders` row, and an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants. Clubs may have multiple leaders.
+- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of classification strength and regardless of registrant tier. Schema invariants enforce one `role='leader'` per club (`ux_one_leader_per_club`) and one `role='leader'` per member across all clubs (`ux_one_club_leader_per_member`); when either invariant would be violated the wizard transparently downgrades the new row to `role='co-leader'`. The application-level five-leader-per-club cap is enforced; cap-hit claims still affiliate the member but do not insert a `club_leaders` row, and an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants. Clubs may have multiple leaders. A leadership claim is never blocked by club status: a successful claim of an inactive or archived club returns the club to `'active'` in the same transaction, audit-logged as a revival.
 - Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the registrant already has two `is_current=1` affiliations, the new insert is skipped; the legacy affiliation row still transitions to `'confirmed_current'`, but the registrant's current-affiliation set is unchanged. Transferring current-affiliation status requires the explicit `M_Join_Club` / `M_Leave_Club` surface or admin remediation via `A_Reassign_Club_Leader`.
 - Members can detour out of any Stage 1/2 club card to `M_Join_Club` or `M_Create_Club` without resolving the current card. Unsignaled cards remain unsignaled and signaled cards retain their signals. On detour, the `club_affiliations` task transitions to `in_progress_paused` in `MemberOnboardingService`; the dashboard task widget surfaces "Resume onboarding" which returns the member to the same card. Detour decisions are audit-logged with member ID, target story, source wizard card, and timestamp.
 - Selecting "Add a club not shown" by a Tier 0 member surfaces a tier-gate advisory before routing: "Creating a club requires IFPA Member (Tier 1) or above, because you'll be the club leader." The advisory offers two paths: "Upgrade to Tier 1 first" routes to `M_Purchase_Tier_1_IFPA_Member`, returning to the advisory on successful upgrade with a "Continue to Create Club" option; "Continue with wizard" returns to the prior card with no state change. The advisory does not block. Tier 1, Tier 2, and Tier 3 members skip the advisory and route directly to `M_Create_Club`.
@@ -1762,7 +1761,7 @@ Story: As an eligible member, I can create a club so that I can become a Club Le
 
 Success Criteria:
 
-- Club creation form includes: club name, description, city, country, contact email (required for all new clubs). A club with no contact email is treated as non-operable and flagged for admin remediation.
+- Club creation form includes: club name, description, city, country, contact email (required for all new clubs), WhatsApp (optional; format-validated only, rendered as a chat link). A club with no contact email is treated as non-operable and flagged for admin remediation.
 - Before creating a club, the form runs a duplicate-prevention check against live clubs, onboarding-visible candidates, and dormant candidates. Exact name plus same country blocks creation and surfaces the existing entry instead, with options to confirm affiliation (routing to the relevant club's join page) or report the match as a different club with the same name (which logs a flag and allows creation to proceed).
 - Near-match candidates (high name similarity in the same country, below the exact-match threshold) trigger a warning that lists the candidates with their location; the creator may proceed if confident the new club is distinct or pick an existing entry. Junk-flagged candidates are not surfaced as potential duplicates.
 
@@ -1784,7 +1783,7 @@ Success Criteria:
 
 - Co-leaders can edit all club information.
 - All edits audit-logged with leader ID, fields changed, old values, new values, timestamp.
-- Leaders see a clear success message when club is updated. If a club edit results in a blank contact email, the system warns the leader that the club will be flagged for admin follow-up, and if approved anyway, creates or updates a “Club Needs Contact” admin work queue item.
+- Leaders see a clear success message when club is updated. If a club edit results in a blank contact email, the system reminds the leader that members will reach the club through the leaders' member-visible contact emails; the club surfaces for admin follow-up only if it later loses all leaders.
 
 ### CL_Mark_Club_Inactive
 
@@ -1835,9 +1834,9 @@ Success Criteria:
 - Co-leader can opt out of leadership role via the member dashboard.
 - All leader actions are audit-logged.
 - Leader sees a clear success message when co-leader is added or removed.
-- Leaders array displayed on club detail page showing all current leaders (names only on public page); contact info visible to authenticated members only.
+- Leaders array displayed on club detail page showing all current leaders (names only on public page). Each current leader's contact email, and the club's contact email and WhatsApp when present, are visible to authenticated members; accepting a leadership or club-contact role constitutes consent to this member-visible exposure, withdrawn by stepping down. Provisional (unclaimed) bootstrap entries never show contact information.
 - The user interface hides remove-self functionality (button or link) when the current authenticated user is the sole leader of the club.
-- After any leadership change, the system re-evaluates club operability. If the club has zero leaders, the system creates or updates a “Club Needs Leader” admin work queue item. If the club has no contact email, the system creates or updates a “Club Needs Contact” admin work queue item.
+- After any leadership change, the system re-evaluates club operability: a club with at least one current leader is operable (leader contact is member-visible). A club with zero leaders surfaces in the admin Needs Leader queue; when it also has no club contact email it surfaces in the Needs Contact queue as well.
 
 # 6. Group Owner Stories
 
@@ -2074,7 +2073,7 @@ Success Criteria:
 - Admin can override the application-level 5-leader cap when adding a new leader, with an explicit "cap-override" reason recorded in the audit row.
 - Admin can promote an affiliated-only member (one whose wizard claim was capped out) to leader or co-leader at any time.
 - Clubs with zero leaders are flagged "Needs Leader" and appear in an admin work queue.
-- Clubs with no contact email are flagged "Needs Contact" and appear in an admin work queue.  
+- Clubs with no contact email and no current leaders are flagged "Needs Contact" and appear in an admin work queue.  
 - Admin can resolve a "Needs Leader" item by assigning/reassigning a leader, or by archiving the club if defunct.  
 - Admin can resolve a "Needs Contact" item by updating the club contact email, or by archiving the club if defunct.  
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
@@ -2189,7 +2188,7 @@ Success Criteria; Admin residue queue:
 - Admin views a single residue queue aggregating:
   - Wizard-generated flags grouped by candidate or live club.
   - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
-  - Suggested content edits (description, external URL) awaiting approval, per the §9.3 content validation loop.
+  - Suggested content edits (description, external URL) awaiting approval, per the content validation loop (see `M_Join_Club`).
   - Junk-flagged candidates and admin force-keep or force-junk requests, per §9.1.
   - Non-junk `legacy_club_candidates` not yet promoted to live `clubs` rows.
   - `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club, each with the club's pending count and the age of its oldest row.
@@ -2642,7 +2641,7 @@ Success Criteria:
 
 - Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); alias_keyword (required and unique if `email_enabled=true`, max 32 chars, lowercase alphanumeric and hyphen; resulting email address is `<alias_keyword>@groups.footbag.org`); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
 - If `email_enabled=true`, the system creates an associated `MailingList` in `auto_sync_by_group=<group_id>` mode with the configured `alias_keyword` resolved to `<alias_keyword>@groups.footbag.org`, applies admin-set defaults for `subject_prefix`, `moderated`, and `restricted_sending`, and seeds the subscription with the initial owner.
-- Platform-native group aliases (`<alias_keyword>@groups.footbag.org`) are distinct from legacy IFPA `@ifpa.footbag.org` aliases. This story provisions new platform groups only; it does not migrate, reproduce, or accept inbound posting to legacy `@ifpa.footbag.org` list aliases, which are dispositioned separately (MIGRATION_PLAN §29.12a, IFPA list mail). The platform does not receive inbound email; group mail is composed via the web form and distributed via SES.
+- Platform-native group aliases (`<alias_keyword>@groups.footbag.org`) are distinct from legacy IFPA `@ifpa.footbag.org` aliases. This story provisions new platform groups only; it does not migrate, reproduce, or accept inbound posting to legacy `@ifpa.footbag.org` list aliases, which are dispositioned separately as part of the legacy email transition. The platform does not receive inbound email; group mail is composed via the web form and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
 - Validation errors (e.g., alias keyword collision, invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.

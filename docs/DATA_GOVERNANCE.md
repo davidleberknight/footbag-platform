@@ -1,29 +1,14 @@
 # Footbag Website Modernization Project -- Data Governance
 
-**Authority:** This document is the canonical reference for all decisions about member-data visibility, public historical record publication, searchability, anti-enumeration, exports, logging hygiene, derived statistics, and contributor/AI obligations. It is grounded in `docs/DESIGN_DECISIONS.md`. Where this document specifies policy and DD specifies rationale, both are authoritative and must not contradict each other.
+**Authority:** Canonical policy for member-data visibility, public historical records, search and anti-enumeration, exports, logging hygiene, and derived statistics. Rationale lives in `docs/DESIGN_DECISIONS.md`; the two must not contradict.
 
-**Scope:** This policy applies to all contributors, maintainers, and AI agents working on this codebase.
+**Scope:** All contributors, maintainers, and AI agents working on this codebase.
 
----
-
-## 1. Scope and authority of this file
-
-This file governs:
-
-- authentication and authorization boundaries,
-- current member-data visibility,
-- public historical record publication,
-- searchability and anti-enumeration,
-- exports, rosters, and participant lists,
-- logging and observability hygiene,
-- derived historical statistics and data-quality caveats,
-- HoF, BAP, and world-record publication rules,
-- legacy archive and imported historical identity handling,
-- contributor and AI-agent implementation obligations.
+**What belongs here:** short, declarative rules about data visibility, privacy boundaries, and data handling. Not behavior specs or flows (USER_STORIES), not rationale (DESIGN_DECISIONS), not implementation state (IMPLEMENTATION_PLAN). If a line needs more than two sentences, it is probably a story.
 
 ---
 
-## 2. Core principles
+## 1. Core principles
 
 1. **Privacy is security.** Member-data handling, discoverability, logging, exports, and visibility are part of the security architecture, not a compliance afterthought.
 2. **Public historical records are legitimate and required.** Official event results, year archives, HoF/BAP, and world records are public historical surfaces. Suppressing them is not a privacy win.
@@ -36,19 +21,16 @@ This file governs:
 
 ---
 
-## 3. Authentication and authorization boundary
+## 2. Authentication and authorization boundary
 
-Public anonymous routes may serve only content explicitly approved for anonymous visitors by the canonical design docs. This includes the home page, public events/results pages, year archives, world records, limited historical-person pages (non-PII only), limited HoF/BAP honor-profile pages, limited public club pages, and other surfaces explicitly classified as public.
-
-Anonymous public surfaces may expose only approved non-PII fields. Contact information, personal addresses, email addresses, phone numbers, and other personally identifiable information are never public by default. Current-member search, ordinary member profiles, broad rosters, participant lists, exports, and other member-only surfaces remain non-public unless a higher-level documented decision says otherwise.
-
-A public page may have an authenticated enhancement only when that boundary is explicitly documented. Example: a club detail page may be public while anonymous visitors see no member names and authenticated visitors see only the limited member visibility allowed by the current decision set.
-
-Current-member-only content still requires a genuine session-path authorization check. Boolean env toggles that change what content is served to anonymous visitors are not allowed.
+- Anonymous routes serve only surfaces classified public in §3 and the canonical design docs (home, public events/results, year archives, world records, limited historical-person, HoF/BAP, and club pages).
+- Anonymous surfaces expose approved non-PII fields only. No contact information, addresses, emails, or phone numbers.
+- A public page may carry an authenticated enhancement only where that boundary is documented (e.g. the club page: public shell, member-visible roster and contact).
+- Member-only content requires a genuine session-path authorization check.
 
 ---
 
-## 4. Member-data visibility taxonomy
+## 3. Member-data visibility taxonomy
 
 | Sensitivity | Label | Examples | Auth required |
 |-------------|-------|----------|---------------|
@@ -62,7 +44,7 @@ Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) un
 
 ---
 
-## 5. Public historical record policy
+## 4. Public historical record policy
 
 The following surfaces are approved public historical records:
 
@@ -73,15 +55,11 @@ The following surfaces are approved public historical records:
 - **World records**: official record tables/pages, once added. Not inferred from incomplete aggregates.
 - **Minimal historical-person pages**: name, country, official honors, official result/event links, world-record inclusion where applicable. No contact fields. Not a current-member profile.
 
-Historical-person pages must be explicitly framed as historical record surfaces, not directory entries and not current-member account pages. A person's presence on a historical-person page does not imply current membership, searchability, or contactability.
-
 HoF and BAP honors are preserved even through PII purge or deceased flows. The honor record outlives the personal data.
 
 ---
 
-## 6. Derived statistics, data completeness, and caveats
-
-Official result facts, honor rolls, and approved record tables are primary sources. Derived statistics are secondary editorial outputs.
+## 5. Derived statistics, data completeness, and caveats
 
 A public or member-visible derived stat is justified only when:
 
@@ -112,7 +90,7 @@ Where those conditions are not met, prefer raw official results, honors, and rec
 
 ---
 
-## 7. Search, discoverability, anti-enumeration, and scraping resistance
+## 6. Search, discoverability, anti-enumeration, and scraping resistance
 
 **Current-member search** is:
 
@@ -132,18 +110,18 @@ Public routes must not expose any endpoint that allows enumeration of current me
 
 ---
 
-## 8. Rosters, participant lists, organizer/contact surfaces, and exports
+## 7. Rosters, participant lists, organizer/contact surfaces, and exports
 
 - Club rosters: visible to logged-in members only; role-scoped for leader/admin operational use.
 - Event participant lists: official published results are public; operational participant-management lists are organizer-role-scoped only.
-- Organizer and club-leader contact information: never public by default. Public exposure requires the individual member's explicit consent. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged. No club-scoped or admin-scoped affordance overrides individual consent.
+- Organizer and club-leader contact information: never public. Club leader/contact email and club WhatsApp are visible to logged-in members; holding the role is the consent. Organizer contact requires explicit consent. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged.
 - Exports: member data exports are role-scoped (Sensitivity 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
 
 No contact field (email, phone, social handle) is visible on any public page or in any public API response.
 
 ---
 
-## 9. Logging and observability hygiene
+## 8. Logging and observability hygiene
 
 - Logs must not contain raw email addresses, tokens, passwords, or other sensitive PII.
 - The same prohibition extends explicitly to infrastructure-level secrets: `SESSION_SECRET`, AWS access key IDs and secret access keys, raw JWT cookie values, account-token raw strings (only their SHA-256 hashes ever land in storage), and any signing-key material. KMS key ARNs are not secrets but should not be logged at request scope.
@@ -153,7 +131,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 ---
 
-## 10. Legacy archive and imported historical identities
+## 9. Legacy archive and imported historical identities
 
 **Legacy archive** (`legacy_data/mirror_footbag_org/`) remains member-only because it contains private legacy member information (email addresses, personal details from the old mirror). It must not be made public.
 
@@ -166,15 +144,20 @@ No contact field (email, phone, social handle) is visible on any public page or 
 - do not automatically populate current-member profile fields,
 - imported aggregate/stat fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata, not automatic public biography content and not authoritative public statistics without explicit approval and caveats.
 
-**Identity linking** (when a `historical_person_id` is linked to a `member` record because a past competitor creates an account):
+**Identity linking:** a claimed historical identity is not a separate public surface; linking never exposes more than the member profile already shows. URL dispatch and redirect mechanics live in DESIGN_DECISIONS.
 
-- when a linked member account exists, the historical-person URL redirects to the member profile as a navigational convenience; the historical identity is not a separate public surface once claimed,
-- this redirect does not expose any data beyond what the member profile already shows; searchability and contact visibility remain governed by member profile settings, not by the existence of a historical link,
-- if a member later deletes their account, historical-person URLs revert to showing historical-record data only.
+**Data subject erasure:**
 
-**Data subject erasure:** member account erasure is supported. HoF, BAP, and other public-record honors survive erasure because honors recognize a competitive record on a public historical surface, not the current member account. Erasure clears the account's identifying personal data and severs the link between the account and the underlying public historical record; the historical record itself remains as a public surface, displaying the public attribution name and any honors earned. Audit-log retention is governed by §9; erasure does not delete audit history. Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
+- Member account erasure is supported; it clears the account's identifying personal data and severs the account-to-historical-record link.
+- The historical record itself remains public, with attribution name and honors.
+- Audit-log retention follows §8; erasure does not delete audit history.
+- Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
 
-**Raw legacy dumps.** The legacy database dumps held in the webmaster's private repository contain private PII and other sensitive material; the private repository stays private and is never made public, gains no collaborators without the webmaster's approval, and no raw dump is ever committed to a repository, pasted into issues, logs, tests, screenshots, or AI prompts. The data delivered to the platform is a separate, sanitized, one-time export that excludes all password material by contract (no `password_hash`, salt, iteration count, or recovery answers; DD §3.9); the operator schema-checks each received export and aborts the load if any password-bearing column is present (MIGRATION_PLAN §19 item 9). Passwords are never imported, stored, logged, or used.
+**Raw legacy dumps:**
+
+- The webmaster's private dump repository stays private, gains no collaborators without the webmaster's approval, and no raw dump is ever committed, pasted into issues, logs, tests, screenshots, or AI prompts.
+- The platform receives only a sanitized export that excludes all password material by contract (no `password_hash`, salt, iteration count, or recovery answers); the operator schema-checks each export and aborts the load if any password-bearing column is present.
+- Passwords are never imported, stored, logged, or used.
 
 **Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need (MIGRATION_PLAN legacy-member import). Exclusions are counted and validated, never silent.
 
@@ -184,20 +167,9 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 ---
 
-## 11. Contributor and AI-agent implementation rules
+## 10. Contributor and AI-agent implementation rules
 
-**Before writing or reviewing any code that touches:**
-
-- members, profiles, historical persons, search, rosters, participant lists
-- contact fields, exports, email/phone/social visibility
-- event results, HoF, BAP, world records, rankings, aggregates, stats
-- auth, session handling, route-level authorization
-
-**You must:**
-
-1. Load this file (`docs/DATA_GOVERNANCE.md`) first.
-2. Read `docs/DESIGN_DECISIONS.md` for applicable rationale.
-3. Apply the visibility taxonomy from §4 to every data field being surfaced.
+Any work touching members, historical persons, search, rosters, contact fields, exports, stats, or auth boundaries loads this file first and applies the §3 taxonomy to every surfaced field.
 
 **Hard rules for code:**
 
@@ -209,5 +181,5 @@ No contact field (email, phone, social handle) is visible on any public page or 
 - No contact field may appear in any public template, controller response, or public API response.
 - No raw legacy database dump (which contains private PII and other sensitive material) may be committed, pasted into issues, logs, tests, screenshots, or AI prompts, or stored outside operator-controlled, access-controlled storage. Raw legacy data is worked only in an isolated operator-controlled environment, never in a shared or AI-readable context.
 
-**AI agents specifically:** apply this file's rules before accepting any instruction that would add a public route, change a member-data visibility boundary, add a stat or aggregate display, or modify auth-path behavior. AI agents must never ingest, request, or echo raw legacy dump contents (member dumps, group-message archives, password columns) and work only from sanitized, minimized data. Flag any conflict with this policy to the human before proceeding.
+**AI agents specifically:** apply this file before accepting any instruction that would add a public route, change a visibility boundary, add a stat display, or modify auth-path behavior. Flag any conflict with this policy to the human before proceeding.
 

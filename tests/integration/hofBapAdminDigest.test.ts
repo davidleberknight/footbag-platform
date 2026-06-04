@@ -319,4 +319,61 @@ describe('SYS_HoF_BAP_Admin_Digest', () => {
     const result = svc.runDailyPass({ now: new Date('2026-05-30T00:00:00.000Z') });
     expect(result.status).toBe('no_matches');
   });
+
+  it('covers honors-bearing claims from EVERY claim path (digest keys on the shared reason code)', async () => {
+    // Real claim flows write the grants here, so this pins the scope
+    // contract: a direct historical-record claim and a legacy-account claim
+    // both surface through the digest's read query, not just one path. The
+    // window bounds are derived from the written rows themselves so the
+    // assertion is independent of the wall clock.
+    const { identityAccessService } = await import('../../src/services/identityAccessService');
+    const { hofBapDigest } = await import('../../src/db/db');
+
+    const d = db();
+    // Path 1: direct historical-record claim of an HoF person.
+    d.prepare(`
+      INSERT INTO historical_persons (person_id, person_name, hof_member)
+      VALUES ('hp-digest-path1', 'Digest Hofster', 1)
+    `).run();
+    insertMember(d, {
+      id: 'mem-digest-path1', slug: 'mem_digest_path1',
+      login_email: 'digest-path1@example.com',
+      real_name: 'Danielle Hofster', display_name: 'Danielle Hofster',
+    });
+    // Path 2: legacy-account claim of an HoF-flagged legacy row.
+    d.prepare(`
+      INSERT INTO legacy_members (
+        legacy_member_id, real_name, display_name, display_name_normalized,
+        is_hof, is_bap, legacy_is_admin, imported_at, version
+      ) VALUES ('legmem-digest-path2', 'Bapster Legacy', 'Bapster Legacy', 'bapster legacy', 1, 0, 0, '2000-01-01T00:00:00.000Z', 1)
+    `).run();
+    insertMember(d, {
+      id: 'mem-digest-path2', slug: 'mem_digest_path2',
+      login_email: 'digest-path2@example.com',
+      real_name: 'Bapster Legacy', display_name: 'Bapster Legacy',
+    });
+    d.close();
+
+    identityAccessService.claimHistoricalPerson('mem-digest-path1', 'hp-digest-path1');
+    identityAccessService.claimLegacyAccount('mem-digest-path2', 'legmem-digest-path2');
+
+    // Both paths must have written the shared digest reason code.
+    const check = db();
+    const grants = check.prepare(`
+      SELECT member_id, reason_code, created_at FROM member_tier_grants
+      WHERE member_id IN ('mem-digest-path1', 'mem-digest-path2')
+        AND reason_code = 'legacy.claim_tier_grant'
+      ORDER BY created_at ASC
+    `).all() as Array<{ member_id: string; created_at: string }>;
+    check.close();
+    expect(grants.map((g) => g.member_id).sort()).toEqual(['mem-digest-path1', 'mem-digest-path2']);
+
+    // The digest read query must return both, using bounds derived from the
+    // rows themselves (half-open upper bound, hence the +1ms).
+    const lower = grants[0].created_at;
+    const upper = new Date(new Date(grants[1].created_at).getTime() + 1).toISOString();
+    const digestRows = hofBapDigest.listRecentHonorsClaims.all(lower, upper) as Array<{ member_id: string }>;
+    const digestMembers = digestRows.map((r) => r.member_id).sort();
+    expect(digestMembers).toEqual(['mem-digest-path1', 'mem-digest-path2']);
+  });
 });

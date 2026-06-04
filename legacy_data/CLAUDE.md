@@ -81,7 +81,7 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 
 ## Clubs + classification + bootstrap
 - Extraction: `scripts/extract_clubs.py` parses mirror HTML → `seed/clubs.csv`. Columns include `contact_member_id` (from `members/profile/{id}`) alongside `contact_email`.
-- Classification: `clubs/scripts/02_build_legacy_club_candidates.py` implements MIGRATION_PLAN §9.1 R1–R10. Emits `clubs/out/legacy_club_candidates.csv` with `category` ∈ {pre_populate, onboarding_visible, dormant, junk}. `bootstrap_eligible=1` iff `category='pre_populate'`.
+- Classification: `clubs/scripts/02_build_legacy_club_candidates.py` implements MIGRATION_PLAN §10.1 classification rules (R1–R10). Emits `clubs/out/legacy_club_candidates.csv` with `category` ∈ {pre_populate, onboarding_visible, dormant, junk}. `bootstrap_eligible=1` iff `category='pre_populate'`.
 - Contact signal: R3/R4/R5 use real `contact_member_id` when present, substitute predicate ("any affiliated member active 2020+") when absent. `contact_signal_substitute_applied=1` marks substitute usage.
 - Bootstrap leaders: `clubs/scripts/04_build_club_bootstrap_leaders.py` emits `club_bootstrap_leaders.csv`. Filters `confidence_score >= 0.70` + `bootstrap_eligible=1`.
 - DB load order (pipeline): Phase G `09_load_enrichment_to_sqlite.py` loads candidates + affiliations. Phase H: `06_cutover_pre_populated_clubs.py` writes `mapped_club_id` on eligible candidates and ensures matching `clubs` rows exist; then `07_load_bootstrap_leaders.py` loads `club_bootstrap_leaders` (FK `club_id → clubs.id` via `mapped_club_id`). All loaders use DELETE+INSERT, idempotent.
@@ -102,7 +102,7 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 
 ## Persons layers in historical_persons
 - `source_scope='CANONICAL'`: event-results-derived, owned by `08_load_mvfp_seed_full_to_sqlite.py`. DELETE+INSERT pattern.
-- `source_scope='PROVISIONAL'`: club-only + membership-only cohorts (MIGRATION_PLAN §9.2), owned by `09_load_enrichment_to_sqlite.py`. `source` column distinguishes `CLUB` / `MEMBERSHIP` / `RESULTS`. DELETE WHERE source_scope='PROVISIONAL' + INSERT pattern; CANONICAL rows preserved.
+- `source_scope='PROVISIONAL'`: club-only + membership-only cohorts (MIGRATION_PLAN §10.2), owned by `09_load_enrichment_to_sqlite.py`. `source` column distinguishes `CLUB` / `MEMBERSHIP` / `RESULTS`. DELETE WHERE source_scope='PROVISIONAL' + INSERT pattern; CANONICAL rows preserved.
 - Identity locks are patch-toolchain only (`legacy_data/tools/patch_pt_*.py`, `legacy_data/tools/patch_placements_*.py`). Patches mutate `Persons_Truth_Final.csv` / `Placements_ByPerson.csv` in place; git log is the version trail.
 
 ## Loader invariants (applies to all DB-load scripts)
@@ -113,15 +113,15 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 - Loaders report counter-mismatch explicitly: every skipped row has a named category (dedup, FK miss, PK collision, bad row).
 
 ## MIGRATION_PLAN references (load targeted sections only)
-- §2 + §8 — `legacy_members` structure, claim merge rules.
-- §6 — Auto-link (registration-time tier classifier).
-- §9.1 — Club classification R1–R10 rules.
-- §9.2 — `historical_persons` expansion for club members (~1,600 cohort).
-- §9.3 — Club onboarding flow stages 1–3 (platform Phase 4; not in this subtree).
-- §14 — Required schema changes (club tables + `name_variants`).
-- §14.16 — `name_variants` schema + contract.
-- §18 — Legacy-site data dump requirements.
-- §25 — Persons count baseline (historical figure; current state in IP "Already done").
+- §2 + §9 — `legacy_members` structure, claim merge rules.
+- §7 — Auto-link (candidate matching and classification).
+- §10.1 — Club classification rules.
+- §10.2 — `historical_persons` expansion for club members (~1,600 cohort).
+- §10.3 — Club onboarding flow (stages 1, 2A, 2B, wrap-up; platform-side, not in this subtree).
+- §15 — Required schema changes (club tables + `name_variants`).
+- §15.15 — `name_variants` schema + contract.
+- §19 — Legacy-site data dump requirements (export delivered; validation pending).
+- §26 — Persons count baseline (historical figure; current state in IP "Already done").
 
 ## Curator-canonical sidecar invariants
 

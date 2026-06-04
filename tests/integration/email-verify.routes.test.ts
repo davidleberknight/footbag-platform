@@ -129,10 +129,16 @@ describe('GET /verify/:token', () => {
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const m = db.prepare(
-      `SELECT email_verified_at FROM members WHERE login_email_normalized = ?`,
-    ).get('verify-good@example.com') as { email_verified_at: string | null };
+      `SELECT id, email_verified_at FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-good@example.com') as { id: string; email_verified_at: string | null };
+    // Verification is an account-lifecycle transition and leaves an audit row.
+    const audit = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+        WHERE action_type = 'auth.email_verified' AND entity_id = ?`,
+    ).get(m.id) as { n: number };
     db.close();
     expect(m.email_verified_at).not.toBeNull();
+    expect(audit.n).toBe(1);
   });
 
   it('second consume of the same token → 400 with generic error', async () => {

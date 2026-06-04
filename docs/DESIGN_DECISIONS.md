@@ -884,7 +884,7 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Deceased members: memberStatus="deceased" disables login immediately; private contact information is permanently removed after a configurable grace period (parameter key: `deceased_cleanup_grace_days`; in case of error), while historical contributions and honor data (HoF, BAP) are preserved.
 
-- Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on clubs_base database table. Club operability/contactability policy: clubs_base.contact_email remains nullable by design for legacy import, remediation, and exceptional cases. Club creation requires a contact email at the application/workflow level. A club with no current leader and/or no contact email is treated as non-operable and is flagged to the admin work queue for remediation (assign/reassign leader, obtain/update contact email, or archive if defunct).  
+- Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on clubs_base database table. Club operability/contactability policy: clubs_base.contact_email remains nullable by design for legacy import, remediation, and exceptional cases. Club creation requires a contact email at the application/workflow level. A club with at least one current leader is operable: leader contact email is visible to authenticated members, so the club is reachable. A club with zero current leaders is non-operable and surfaces in the admin leadership queue, and in the contact queue when it also lacks a club contact email; remediation is assign/reassign a leader, obtain a contact email, or archive if defunct. A successful leadership claim returns a club of any status to `'active'`; a new current affiliation does the same for an inactive club.  
 
 - Photos and video links: retained while member is active; when deleted by the member (or via account deletion), photo data is removed from primary storage immediately. Deleted items persist in backups until backup retention expiry (operational constraint).
 
@@ -936,7 +936,7 @@ Rules:
 
 5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`.
 
-6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §4.
+6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §3.
 
 7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row (fill-if-empty merge semantics; the live account always wins for login and auth fields), and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
@@ -1154,6 +1154,67 @@ Impact:
 - Production bootstrap mechanism is operator-facing; the SSM-token provisioning and claim flow are documented in DEVOPS_GUIDE.
 
 - The bootstrap grant satisfies the "could be done also by a System Administrator (a developer role not a user role)" clause in US §6.
+
+## 2.10 Member Name Model
+
+Decision:
+
+Registration collects two name fields: `real_name` (full legal name, required) and `display_name` (optional, defaulting to `real_name`). The display name must share a surname with `real_name`, compared after suffix stripping (Jr, Sr, II, III, IV). The display name and its derived slug are permanent post-registration. Imported legacy account rows (`legacy_members`) are exempt from the surname constraint.
+
+Rationale:
+
+- Claim matching and auto-link depend on a reliable surname signal on live accounts; an unconstrained display name would break the primary non-email anchor.
+- The community expects real identities on member profiles, while a display name allows preferred forms (diminutives, alternate spellings) without severing the surname link between the two fields.
+- Legacy data predates the model; an imported `real_name` is the best-available name from the export and may be a display name or a username. Retrofitting the constraint onto imports would fabricate data.
+- A permanent slug keeps inbound links and person-link dispatch stable.
+
+Requirements:
+
+- `real_name` is required: two words minimum, no digits, capitalization normalized on save rather than policed.
+- `display_name` is optional and defaults to `real_name`; the shared-surname constraint applies at registration and on every profile edit.
+- The slug derives from `display_name` and never changes after registration.
+- `legacy_members` rows are exempt; the import preserves names as delivered.
+- Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the variants table covers first-name equivalences only, never surname changes.
+
+Trade-offs:
+
+- A member whose surname legally changed uses the declared-former-surname affordance rather than a divergent display name.
+- Suffix-stripping surname extraction is heuristic; unusual compound surnames may need the admin help path during claims.
+- Permanent slugs trade rename flexibility for link stability.
+
+Impact:
+
+- Registration and `M_Edit_Profile` enforce the constraint; the user stories own the acceptance criteria and copy.
+- Auto-link and claim flows match on the current real-name surname plus declared former surnames.
+- Imported rows carry a name-quality asymmetry that claim-candidate surfaces present as-is.
+
+## 2.11 Competition History Fields
+
+Decision:
+
+`members` carries `first_competition_year` (nullable, member-editable, hidden when blank) and `show_competitive_results` (default on), a member-controlled toggle governing whether competitive results render on the member's public profile. The member always sees their own results regardless of the toggle.
+
+Rationale:
+
+- Members deserve agency over the profile presentation of their competitive history without erasing the historical record: the toggle hides the profile section, never the underlying published results.
+- "Competing since {year}" gives profiles lightweight historical context; prefilling from a claimed historical person reduces friction while the member's own value always wins.
+- An explicit caveat on the results section manages expectations about incomplete historical data.
+
+Requirements:
+
+- `first_competition_year`: nullable; prefilled at claim time from `historical_persons.first_year` via COALESCE (member value wins); editable via `M_Edit_Profile`; clearing it hides the "Competing since" line.
+- `show_competitive_results`: default on; collected within the onboarding `personal_details` task; editable via `M_Edit_Profile`; own-profile view always shows results to the owner.
+- The results section renders the caveat: "Published event results only. Historical records may be incomplete."
+- The toggle governs the member-profile surface only; published results remain on event and history pages per the data-governance policy for the historical record.
+
+Trade-offs:
+
+- Because event pages keep the historical record public, member-facing copy must not promise removal, only profile de-emphasis.
+- A self-asserted `first_competition_year` may disagree with the historical record; the profile displays the member's value.
+
+Impact:
+
+- Two columns on `members`; the onboarding `personal_details` task collects both; profile rendering branches on the toggle and on owner-view.
 
 # 3. Security, Authentication, and Sessions
 
@@ -1656,28 +1717,30 @@ Requirements:
 
 Decision:
 
-Express's `trust proxy` setting in production is the named-range string `'loopback, linklocal, uniquelocal'` (loopback, link-local, RFC1918). Integer hop-count and the boolean `true` form are rejected. The setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`, with the named-range string as the production default in `src/config/env.ts`.
+Express's `trust proxy` setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`. Each host sets the exact integer hop count of the proxy chain between the client and Express, so `req.ip` resolves to the true client address, which per-IP rate limiting keys on. With the legacy front door proxying the apex into CloudFront the production count is 3 (legacy proxy, CloudFront edge, nginx); staging without that hop runs 2. When `TRUST_PROXY` is unset, production falls back to the named-range string `'loopback, linklocal, uniquelocal'`; the boolean `true` form is rejected.
 
 Rationale:
 
-- The structural property "the immediate peer is a private/loopback IP" matches the deployment topology: nginx peers Express over the docker bridge (172.16/12, inside `uniquelocal`); CloudFront and any external caller terminates at nginx, not Express. A trusted-peer test is therefore equivalent to a "this came through nginx" test.
-- Integer hop-count form (e.g. `2`) breaks silently if an inline service is added or removed. Named-range form is stable under topology changes that preserve the private-peer property.
-- The `true` form trusts every peer, which would honor `X-Forwarded-For` from a public-IP attacker if origin firewall enforcement ever fails open. Named-range form fails closed: a public-IP peer's spoofed XFF is rejected.
+- `X-Forwarded-For` is multi-entry: each hop appends its peer's address, so nginx appends CloudFront's public edge IP. A named-range walk (loopback, link-local, RFC1918) trusts nginx's docker-bridge entry and stops at that first public address, so `req.ip` resolves to the edge IP and every visitor behind one edge shares a rate-limit bucket. Only an exact hop count walks past the operated proxies and lands on the true client entry.
+- The fallback degrades fail-closed: a missing or non-integer value yields coarse per-edge rate-limit buckets, never a spoofable trust walk and never a boot refusal. Boot-level enforcement would buy precision at the price of an operational trap on a hand-maintained host file.
+- The boolean `true` form trusts every peer, which would honor a spoofed `X-Forwarded-For` from any direct caller if origin enforcement ever fails open.
 
 Requirements:
 
-- Production default lives in `src/config/env.ts`. `docker-compose.prod.yml` sets `TRUST_PROXY` explicitly to the same string; the explicit set is documentation, not config redundancy.
-- Tests exercise the compiled trust function with crafted addresses (loopback peer + spoofed XFF, public peer + spoofed XFF) so a regression that broadens the trust set is caught regardless of the integration test's peering posture.
+- Hosts set the integer in `/srv/footbag/env`; `docker-compose.prod.yml` passes it through with the named-range string as the fallback default. The dev compose defaults to 1 (nginx only).
+- `scripts/verify-staging-env.sh` warns (advisory, non-fatal) when the value is missing or non-integer.
+- The count changes only when the proxy chain changes: at the DNS handover milestone the legacy front-door hop retires and production drops from 3 to 2. The deploy checklist carries the change.
+- Trust-proxy tests exercise the compiled trust function with crafted multi-entry XFF chains, pinning: correct count resolves the real client; named ranges resolve the edge address (the coarse-bucket fallback); a count larger than the chain hands `req.ip` control to the viewer (why the count drops when a hop retires).
 
 Trade-offs:
 
-- Adds a topology assumption (nginx is on the docker bridge inside RFC1918). Any move to a multi-instance or non-bridge networking model must re-evaluate trust scope.
-- Does not protect against an attacker who can reach nginx directly (i.e. bypass CloudFront and the Lightsail firewall). Defense-in-depth via §3.11 origin-verify and the Lightsail port-80 prefix-list firewall closes that surface.
+- A count larger than the real chain lets a client prepend forged XFF entries and choose its `req.ip`; a count smaller resolves to an intermediate hop. The advisory check and the handover checklist line exist because the integer tracks topology by hand.
+- An unset value silently coarsens per-IP rate limiting to per-edge buckets rather than failing loudly; the advisory check is the detection surface.
 
 Impact:
 
 - Auth and rate-limit middleware key on `req.ip`; trust-proxy correctness directly bounds the brute-force surface.
-- Login rate limiting partitions on `req.ip`, so spoofed XFF would let an attacker target the victim's IP with throttling while making unbounded attempts from their own.
+- Login rate limiting partitions on `req.ip`; under the named-range fallback all traffic behind one CloudFront edge shares a bucket, which is why hosts set the exact count.
 
 ## 3.11 Origin-verify shared-secret gate
 
@@ -2841,7 +2904,7 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Auto-link cutover surface.** At cutover, the batch auto-link pass stages candidate matches (writes a staged-candidate row per matched live member) without mutating live tables. No notification emails are sent. The wizard surfaces staged candidates to each member at next sign-in via the universal claim task; the member confirms or declines per the umbrella claim flow. Honors-bearing direct historical-record claims (HoF, BAP) apply without admin pre-screening; an admin oversight feed lists them post-facto for read-only visibility. The default post-cutover honors-oversight digest runs for a configurable window (default 56 days). Members who cannot resolve their identity through the platform's self-serve surfaces use the member-initiated admin help request affordance (`A_Review_Member_Link_Help_Requests`); admin reviews, communicates as needed, and approves or rejects.
 
-**Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
+**Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Claim eligibility is independent of club status; a successful claim returns an inactive or archived club to `'active'`, audit-logged as a revival. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
 
 **Legacy-data cleanup.** Club-roster reads show confirmed members and unconfirmed `'pending'` legacy affiliations as two labeled lists on the club detail page; a `'pending'` row is shown as an unconfirmed-but-possible member, never asserted as current. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` predicates are evaluated on demand and surface one-click recommendations; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden or auto-resolved; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, content edits, force-keep requests).
 

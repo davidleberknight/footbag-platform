@@ -23,3 +23,39 @@ variable "ses_sender_identity" {
 resource "aws_ses_email_identity" "sender" {
   email = var.ses_sender_identity
 }
+
+# =============================================================================
+# SES feedback loop -- bounce/complaint notifications to the app webhook
+# =============================================================================
+# Bounces and complaints publish to an SNS topic subscribed to the app's
+# public webhook (shared-secret query key in the endpoint URL). The app marks
+# the matching member's email_status so transactional sends skip dead or
+# complaining addresses. The HTTPS subscription requires an out-of-band
+# confirmation: the app records the SubscribeURL in an audit row and the
+# operator confirms it once.
+
+resource "aws_sns_topic" "ses_feedback" {
+  name = "${local.prefix}-ses-feedback"
+}
+
+resource "aws_ses_identity_notification_topic" "sender_bounce" {
+  identity                 = aws_ses_email_identity.sender.arn
+  notification_type        = "Bounce"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+resource "aws_ses_identity_notification_topic" "sender_complaint" {
+  identity                 = aws_ses_email_identity.sender.arn
+  notification_type        = "Complaint"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
+  count                  = var.ses_feedback_webhook_url == "" ? 0 : 1
+  topic_arn              = aws_sns_topic.ses_feedback.arn
+  protocol               = "https"
+  endpoint               = var.ses_feedback_webhook_url
+  endpoint_auto_confirms = false
+}

@@ -117,15 +117,21 @@ resource "aws_ssm_parameter" "safe_browsing_api_key" {
   lifecycle { ignore_changes = [value] }
 }
 
-# ── Stripe (placeholder — payment deferred) ───────────────────────────────────
-# TODO: Uncomment and populate when payment integration is implemented.
-# resource "aws_ssm_parameter" "stripe_api_key" {
-#   name   = "${local.ssm_prefix}/stripe/api_key"
-#   type   = "SecureString"
-#   key_id = aws_kms_key.main.arn
-#   value  = "TODO-set-via-cli-after-apply"
-#   lifecycle { ignore_changes = [value] }
-# }
+# ── Stripe secret API key (operator-supplied) ─────────────────────────────────
+# Same shell-with-placeholder pattern as safe_browsing_api_key above: Terraform
+# owns the resource existence + KMS reference, the operator supplies the real
+# key (Stripe test-mode key on staging) via put-parameter, and the live
+# payment adapter rejects the TODO placeholder so a deploy without the
+# put-parameter step fails the first checkout loudly, not silently. Path is
+# under /secrets/ because the runtime SecretsAdapter resolves
+# "${local.ssm_prefix}/secrets/<key>".
+resource "aws_ssm_parameter" "stripe_secret_key" {
+  name   = "${local.ssm_prefix}/secrets/stripe_secret_key"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
+}
 
 # ── SES (placeholder — email deferred) ───────────────────────────────────────
 # resource "aws_ssm_parameter" "ses_sender" {

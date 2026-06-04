@@ -217,3 +217,122 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(/not yet implemented/i);
   });
 });
+
+describe('webhook correlation fallback (deferred PaymentIntent creation)', () => {
+  // Stripe may not create the PaymentIntent until the buyer submits payment,
+  // so the pending row inserted at checkout-session creation can carry a NULL
+  // stripe_payment_intent_id. The intent's metadata carries paymentId (stamped
+  // at session creation); the webhook handler falls back to it and backfills
+  // the intent id onto the row.
+  const M_FB_OK   = 'pay-svc-fb-ok';
+  const M_FB_FAIL = 'pay-svc-fb-fail';
+  const M_FB_BIND = 'pay-svc-fb-bind';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: M_FB_OK,   slug: 'fb_ok',   display_name: 'FB Ok',   login_email: 'fb-ok@example.com' });
+    insertMember(db, { id: M_FB_FAIL, slug: 'fb_fail', display_name: 'FB Fail', login_email: 'fb-fail@example.com' });
+    insertMember(db, { id: M_FB_BIND, slug: 'fb_bind', display_name: 'FB Bind', login_email: 'fb-bind@example.com' });
+    db.close();
+  });
+
+  async function startWithNullIntent(memberId: string, slug: string): Promise<string> {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    const result = await paymentService.startMembershipPurchase(memberId, 'tier1', `/members/${slug}`);
+    const db = new BetterSqlite3(dbPath);
+    try {
+      db.prepare('UPDATE payments SET stripe_payment_intent_id = NULL WHERE id = ?').run(result.paymentId);
+    } finally {
+      db.close();
+    }
+    return result.paymentId;
+  }
+
+  async function signedIntentEvent(
+    type: 'payment_intent.succeeded' | 'payment_intent.payment_failed',
+    paymentIntentId: string,
+    metadata: Record<string, string>,
+    eventId: string,
+  ): Promise<{ rawBody: string; signature: string }> {
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const rawBody = JSON.stringify({
+      id: eventId,
+      type,
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { id: paymentIntentId, amount: 2500, currency: 'usd', metadata } },
+    });
+    return { rawBody, signature: signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET) };
+  }
+
+  it('succeeded event with unknown intent id resolves via metadata.paymentId, backfills, and grants the tier', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const paymentId = await startWithNullIntent(M_FB_OK, 'fb_ok');
+    const { rawBody, signature } = await signedIntentEvent(
+      'payment_intent.succeeded', 'pi_deferred_ok_1', { paymentId, memberId: M_FB_OK }, 'evt_fb_ok_1',
+    );
+    const outcome = paymentService.handleWebhook(rawBody, signature);
+    expect(outcome.outcome).toBe('processed');
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db.prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as Record<string, unknown>;
+      expect(row.status).toBe('succeeded');
+      expect(row.stripe_payment_intent_id).toBe('pi_deferred_ok_1');
+      const tier = db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get(M_FB_OK) as { tier_status?: string } | undefined;
+      expect(tier?.tier_status).toBe('tier1');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('payment_failed event with unknown intent id resolves via metadata.paymentId and backfills', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const paymentId = await startWithNullIntent(M_FB_FAIL, 'fb_fail');
+    const { rawBody, signature } = await signedIntentEvent(
+      'payment_intent.payment_failed', 'pi_deferred_fail_1', { paymentId, memberId: M_FB_FAIL }, 'evt_fb_fail_1',
+    );
+    const outcome = paymentService.handleWebhook(rawBody, signature);
+    expect(outcome.outcome).toBe('processed');
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db.prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as Record<string, unknown>;
+      expect(row.status).toBe('failed');
+      expect(row.stripe_payment_intent_id).toBe('pi_deferred_fail_1');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('metadata pointing at a row already bound to a different intent is not trusted', async () => {
+    const { paymentService, RecoverableWebhookError } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    // Bound row: keep the stub-issued intent id in place.
+    const result = await paymentService.startMembershipPurchase(M_FB_BIND, 'tier1', '/members/fb_bind');
+    const { rawBody, signature } = await signedIntentEvent(
+      'payment_intent.succeeded', 'pi_evil_1', { paymentId: result.paymentId, memberId: M_FB_BIND }, 'evt_fb_bind_1',
+    );
+    expect(() => paymentService.handleWebhook(rawBody, signature)).toThrow(RecoverableWebhookError);
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const row = db.prepare('SELECT * FROM payments WHERE id = ?').get(result.paymentId) as Record<string, unknown>;
+      expect(row.status).toBe('pending');
+      expect(row.stripe_payment_intent_id).not.toBe('pi_evil_1');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('unknown intent with no metadata still throws RecoverableWebhookError (Stripe retries)', async () => {
+    const { paymentService, RecoverableWebhookError } = await import('../../src/services/paymentService');
+    const { rawBody, signature } = await signedIntentEvent(
+      'payment_intent.succeeded', 'pi_nobody_1', {}, 'evt_fb_none_1',
+    );
+    expect(() => paymentService.handleWebhook(rawBody, signature)).toThrow(RecoverableWebhookError);
+  });
+});

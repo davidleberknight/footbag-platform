@@ -250,3 +250,182 @@ resource "aws_cloudwatch_dashboard" "main" {
     ]
   })
 }
+
+# ── Outbox backlog ────────────────────────────────────────────────────────────
+# The worker logs a structured `outbox.depth` line per polling cycle; the
+# filter turns $.depth into the OutboxDepth metric. A sustained backlog means
+# the worker is down or SES is failing while members wait for verify links.
+
+resource "aws_cloudwatch_log_metric_filter" "outbox_depth" {
+  name           = "${local.prefix}-outbox-depth"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.message = \"outbox.depth\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "OutboxDepth"
+    value         = "$.depth"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_backlog" {
+  alarm_name          = "${local.prefix}-outbox-backlog"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "OutboxDepth"
+  namespace           = "Footbag/${var.environment}"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 50
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Email outbox backlog above 50 for 15+ minutes (worker down or SES failing)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── SES reputation ────────────────────────────────────────────────────────────
+# Account-level bounce/complaint rates. SES pauses sending around 10% bounce /
+# 0.5% complaint; alarm early at half those levels.
+
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "${local.prefix}-ses-bounce-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.BounceRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 0.05
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES account bounce rate above 5% (SES pauses sending near 10%)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "${local.prefix}-ses-complaint-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Average"
+  threshold           = 0.0025
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES account complaint rate above 0.25% (SES pauses sending near 0.5%)"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── Origin latency ────────────────────────────────────────────────────────────
+# OriginLatency requires the per-distribution additional-metrics subscription.
+
+resource "aws_cloudfront_monitoring_subscription" "main" {
+  distribution_id = aws_cloudfront_distribution.main.id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled"
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "origin_latency" {
+  alarm_name          = "${local.prefix}-origin-latency"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "OriginLatency"
+  namespace           = "AWS/CloudFront"
+  period              = 300
+  extended_statistic  = "p90"
+  threshold           = 3000
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "CloudFront p90 origin latency above 3s for 15+ minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    DistributionId = aws_cloudfront_distribution.main.id
+    Region         = "Global"
+  }
+}
+
+# ── Cutover zero-logins watch ─────────────────────────────────────────────────
+# The login controller logs a structured `auth.login_success` line per
+# successful sign-in. During the cutover window, zero logins for two hours
+# means the front door or auth path is broken even if health checks pass.
+# Default-off: enable for the cutover window, disable once traffic is stable
+# (quiet overnight hours would false-positive in steady state).
+
+variable "enable_cutover_login_alarm" {
+  description = "Zero-successful-logins alarm for the cutover monitoring window. Off in steady state."
+  type        = bool
+  default     = false
+}
+
+resource "aws_cloudwatch_log_metric_filter" "login_success" {
+  name           = "${local.prefix}-login-success"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.message = \"auth.login_success\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "LoginSuccessCount"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cutover_zero_logins" {
+  count               = var.enable_cutover_login_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-cutover-zero-logins"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "LoginSuccessCount"
+  namespace           = "Footbag/${var.environment}"
+  period              = 3600
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "breaching"
+  alarm_description   = "Zero successful logins for 2+ hours during the cutover window"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# ── TLS certificate expiry ────────────────────────────────────────────────────
+# ACM publishes DaysToExpiry in us-east-1 for the CloudFront certificate.
+# ACM auto-renews via the DNS validation CNAMEs; this alarm catches a renewal
+# silently failing (e.g. a validation CNAME removed from the webmaster zone).
+
+resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
+  provider            = aws.us_east_1
+  alarm_name          = "${local.prefix}-acm-cert-expiry"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "DaysToExpiry"
+  namespace           = "AWS/CertificateManager"
+  period              = 86400
+  statistic           = "Minimum"
+  threshold           = 30
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "footbag.org certificate expires in under 30 days (ACM auto-renewal is failing)"
+  alarm_actions       = [aws_sns_topic.alarms_us_east_1.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_east_1.arn]
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.main.arn
+  }
+}
+
+# Alarm actions must target an SNS topic in the alarm's own region; the cert
+# alarm lives in us-east-1, so it gets a sibling topic with the same email
+# subscription.
+resource "aws_sns_topic" "alarms_us_east_1" {
+  provider = aws.us_east_1
+  name     = "${local.prefix}-alarms-use1"
+}
+
+resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
+  provider  = aws.us_east_1
+  topic_arn = aws_sns_topic.alarms_us_east_1.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}

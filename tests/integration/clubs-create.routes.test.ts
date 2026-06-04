@@ -327,24 +327,35 @@ describe('POST /clubs/create', () => {
     expect(res.headers.location).toBe('/clubs/club_portland');
   });
 
-  it('inserts work queue item when no contact method is provided', async () => {
+  it('rejects creation without a contact email: 422, no club row, no work-queue row', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/clubs/create')
       .set('Cookie', authCookie(WQ_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'No Contact Club', city: 'Nowhere', country: 'Neverland', slug: 'nowhere', contactEmail: '', whatsapp: '' }));
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Contact email is required.');
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
+    const club = db.prepare(`SELECT id FROM clubs WHERE name = 'No Contact Club'`).get();
+    expect(club).toBeUndefined();
     const wq = db.prepare(`
-      SELECT * FROM work_queue_items
-      WHERE task_type = 'club_needs_contact' AND entity_type = 'club'
-      ORDER BY created_at DESC LIMIT 1
-    `).get() as Record<string, unknown> | undefined;
-    expect(wq).toBeDefined();
-    expect(wq!.status).toBe('open');
+      SELECT id FROM work_queue_items WHERE entity_type = 'club'
+    `).get();
+    expect(wq).toBeUndefined();
     db.close();
+  });
+
+  it('WhatsApp does not substitute for the required contact email', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/clubs/create')
+      .set('Cookie', authCookie(WQ_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ name: 'WhatsApp Only Club', city: 'Nowhere', country: 'Neverland', slug: 'wa_only', contactEmail: '', whatsapp: '+1 555 123 4567' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Contact email is required.');
   });
 
   it('preserves form values on validation error', async () => {

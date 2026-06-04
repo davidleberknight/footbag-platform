@@ -61,7 +61,13 @@ services:
       - /root/.aws:/root/.aws:ro
     environment:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
-      TRUST_PROXY: "loopback, linklocal, uniquelocal"
+      # Exact X-Forwarded-For hop count of the chain in front of the app,
+      # set per host in /srv/footbag/env: staging (CloudFront -> nginx) 2;
+      # production 3 while the legacy front door proxies the apex, then 2 at
+      # DNS handover. Unset falls back to the named ranges, which fail
+      # closed: req.ip resolves to the CloudFront edge address and per-IP
+      # rate limiting coarsens to per-edge buckets.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback, linklocal, uniquelocal}
       SESSION_SECRET: ${SESSION_SECRET}
       AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (assumed-role source profile)}
       AWS_REGION: ${AWS_REGION}

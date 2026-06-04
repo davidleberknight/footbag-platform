@@ -12,7 +12,7 @@ AFFILIATIONS_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_person_
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
 OUT_CSV = OUT_DIR / "club_bootstrap_leaders.csv"
 
-# MIGRATION_PLAN §3 / §10.1: only pre-populated clubs with at least one
+# MIGRATION_PLAN §2 bootstrap rule / §10.1: only pre-populated clubs with at least one
 # leader candidate whose affiliation_confidence_score >= 0.70 receive
 # provisional bootstrap leader rows. Clubs that fail this floor stay
 # pre_populate but get no provisional leader (first affiliated member

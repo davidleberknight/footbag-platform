@@ -34,11 +34,14 @@
  *     trg_payments_status_monotonicity. Every status change writes a
  *     payment_status_transitions row in the same transaction.
  *   - Payment row written as 'pending' AFTER adapter.createCheckoutSession, in
- *     one INSERT already carrying stripe_checkout_session_id and
- *     stripe_payment_intent_id, so a pending row can never exist without the keys
- *     every webhook lookup needs. A partial unique index allows only one pending
- *     membership payment per member; a concurrent double-submit fails with
- *     ConflictError.
+ *     one INSERT already carrying stripe_checkout_session_id and, when Stripe
+ *     created the PaymentIntent eagerly, stripe_payment_intent_id. Stripe may
+ *     defer intent creation until the buyer pays, so payment_intent.* handlers
+ *     fall back to the paymentId stamped into the intent's metadata at session
+ *     creation and backfill the intent id onto the row (IS NULL-guarded; a row
+ *     bound to a different intent is never re-pointed). A partial unique index
+ *     allows only one pending membership payment per member; a concurrent
+ *     double-submit fails with ConflictError.
  *   - Tier grant applied ONLY in the webhook success branch. Membership tier
  *     never changes from controller code; the tier change is keyed to the
  *     Stripe-confirmed event id.
@@ -474,11 +477,42 @@ function extractPaymentIntentId(event: StripeWebhookEvent): string {
   return obj.id;
 }
 
-function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome {
-  const paymentIntentId = extractPaymentIntentId(event);
-  const payment = paymentsDb.findByPaymentIntentId.get(paymentIntentId) as
+// Resolves the local payment row for a payment_intent.* event. Primary key
+// is the intent id; the fallback covers rows inserted while Stripe had not
+// yet created the PaymentIntent (Stripe may defer intent creation until the
+// buyer pays, so the pending row carries NULL). Checkout-session creation
+// stamps paymentId into the intent's metadata, so the event carries it; a
+// fallback hit backfills the intent id onto the row (IS NULL-guarded, so a
+// row already bound to a different intent is never re-pointed).
+function findPaymentForIntentEvent(
+  event: StripeWebhookEvent,
+  paymentIntentId: string,
+): PaymentRow | undefined {
+  const byIntent = paymentsDb.findByPaymentIntentId.get(paymentIntentId) as
     | PaymentRow
     | undefined;
+  if (byIntent) return byIntent;
+
+  const meta = (event.data?.object as { metadata?: Record<string, unknown> } | undefined)
+    ?.metadata;
+  const paymentId = typeof meta?.paymentId === 'string' ? meta.paymentId : null;
+  if (!paymentId) return undefined;
+
+  const byId = paymentsDb.findById.get(paymentId) as PaymentRow | undefined;
+  if (!byId) return undefined;
+  if (byId.stripe_payment_intent_id !== null) {
+    // Metadata points at a row already bound to a different intent; do not
+    // trust it (a crafted or stale event must not redirect transitions).
+    return undefined;
+  }
+  const now = new Date().toISOString();
+  paymentsDb.setPaymentIntentIdIfNull.run(paymentIntentId, now, 'payment_service', paymentId);
+  return { ...byId, stripe_payment_intent_id: paymentIntentId };
+}
+
+function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome {
+  const paymentIntentId = extractPaymentIntentId(event);
+  const payment = findPaymentForIntentEvent(event, paymentIntentId);
   if (!payment) {
     // Recoverable: the pending row may not be visible yet (live-mode glare).
     // 400 -> Stripe retries; nothing was claimed, so the retry re-runs cleanly.
@@ -551,9 +585,7 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
 
 function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
   const paymentIntentId = extractPaymentIntentId(event);
-  const payment = paymentsDb.findByPaymentIntentId.get(paymentIntentId) as
-    | PaymentRow
-    | undefined;
+  const payment = findPaymentForIntentEvent(event, paymentIntentId);
   if (!payment) {
     throw new RecoverableWebhookError(
       `no payment row found for stripe_payment_intent_id=${paymentIntentId} (event ${event.id})`,

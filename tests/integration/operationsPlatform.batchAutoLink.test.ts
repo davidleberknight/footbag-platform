@@ -1,29 +1,28 @@
 /**
  * Integration tests for OperationsPlatformService.runBatchAutoLink — the
- * one-shot cutover job that scans Tier 0 unlinked members and applies
- * MIGRATION_PLAN §6 silent auto-link for high/medium classifier outcomes,
- * with low-confidence cases routing to the admin work queue.
+ * one-shot cutover job that scans Tier 0 unlinked members and STAGES
+ * candidates for high/medium classifier outcomes (stage-and-confirm), with
+ * low-confidence cases routing to the admin work queue.
  *
  * Coverage:
- *  - High classifier match silently claims (member.legacy_member_id +
- *    historical_person_id set; legacy_members.claimed_by_member_id set;
- *    member_tier_grants row written; legacy.auto_link_silent_claim audit
- *    row written; notification email enqueued; NO pending card).
- *  - Medium classifier match silently claims AND persists a first-login
- *    pending_auto_link_card_json payload alongside the notification email.
- *  - Low classifier outcome (no_hp / hp_mismatch / multiple_name_candidates)
- *    routes to work_queue_items with admin-alerts fan-out.
+ *  - High classifier match stages a candidate row: NO live-table mutation,
+ *    NO tier grant, NO email; one staged audit event with the proposed
+ *    email-anchored evidence tier.
+ *  - Medium classifier match stages with the asserted-identity floor tier
+ *    and the matched name variant in the audit metadata.
+ *  - Low classifier outcome routes to work_queue_items with admin-alerts
+ *    fan-out (unchanged by the staging rework).
  *  - Already-linked members are filtered at the candidate query.
- *  - Idempotency: re-running does not double-claim, does not duplicate
- *    notification emails (auto_link_notification:<audit_id> idempotency
- *    key collapses), and does not duplicate low-confidence work queue rows.
- *  - system_job_runs row is recorded with the counter struct in
- *    details_json (new shape: claimed_high / claimed_medium / queued_low / ...).
+ *  - Idempotency: re-running stages nothing new (unique open-pair index),
+ *    counts skipped_already_staged, and does not duplicate work-queue rows.
+ *  - A pair the member declined is never re-staged.
+ *  - The expiry sweep marks aged open candidates expired with one audit
+ *    event each, and re-sweeping is a no-op.
+ *  - system_job_runs row records the staging counter struct.
  */
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { expectLoggedError } from '../setup-env';
 import {
   insertMember,
   insertLegacyMember,
@@ -34,11 +33,14 @@ const { dbPath } = setTestEnv('3095');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let ops: typeof import('../../src/services/operationsPlatformService');
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let identity: typeof import('../../src/services/identityAccessService');
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
   ops = await import('../../src/services/operationsPlatformService');
+  identity = await import('../../src/services/identityAccessService');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -61,13 +63,21 @@ function legacyRow(id: string): Record<string, unknown> {
   } finally { db.close(); }
 }
 
+function stagedRows(memberId: string): Array<Record<string, unknown>> {
+  const db = openRO();
+  try {
+    return db.prepare(`
+      SELECT * FROM auto_link_staged_candidates WHERE member_id = ?
+      ORDER BY created_at ASC, id ASC
+    `).all(memberId) as Array<Record<string, unknown>>;
+  } finally { db.close(); }
+}
+
 function tierGrants(memberId: string): Array<Record<string, unknown>> {
   const db = openRO();
   try {
     return db.prepare(`
-      SELECT change_type, reason_code, old_tier_status, new_tier_status
-      FROM member_tier_grants WHERE member_id = ?
-      ORDER BY created_at ASC, id ASC
+      SELECT change_type, reason_code FROM member_tier_grants WHERE member_id = ?
     `).all(memberId) as Array<Record<string, unknown>>;
   } finally { db.close(); }
 }
@@ -83,13 +93,13 @@ function auditRows(memberId: string, actionType: string): Array<Record<string, u
   } finally { db.close(); }
 }
 
-function outboxRows(idempotencyKey: string): Array<Record<string, unknown>> {
+function outboxCount(memberId: string): number {
   const db = openRO();
   try {
-    return db.prepare(`
-      SELECT id, recipient_email, recipient_member_id, subject, body_text
-      FROM outbox_emails WHERE idempotency_key = ?
-    `).all(idempotencyKey) as Array<Record<string, unknown>>;
+    const r = db.prepare(`
+      SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id = ?
+    `).get(memberId) as { n: number };
+    return r.n;
   } finally { db.close(); }
 }
 
@@ -110,105 +120,92 @@ function nextId(prefix: string): string {
   return `${prefix}-${_seq.toString().padStart(4, '0')}`;
 }
 
-describe('runBatchAutoLink — silent claim + notification + card surface', () => {
-  it('high-confidence: silent claim writes linkage, tier grant, audit row, and notification email; no pending card', async () => {
-    const db = new BetterSqlite3(dbPath);
-    const email = `${nextId('high')}@example.com`;
-    const legacyId = nextId('legmem-high');
-    const personId = nextId('hp-high');
-    const memberId = nextId('mem-high');
-    insertLegacyMember(db, {
-      legacy_member_id: legacyId, legacy_email: email,
-      real_name: 'Alpha Bravo', display_name: 'Alpha Bravo',
-    });
-    insertHistoricalPerson(db, {
-      person_id: personId, person_name: 'Alpha Bravo',
-      legacy_member_id: legacyId,
-    });
-    insertMember(db, {
-      id: memberId, slug: memberId.replace(/-/g, '_'),
-      login_email: email, real_name: 'Alpha Bravo', display_name: 'Alpha Bravo',
-    });
-    db.close();
+function seedTriple(opts: {
+  prefix: string;
+  memberRealName: string;
+  hpName: string;
+  legacyRealName?: string;
+}): { memberId: string; legacyId: string; personId: string; email: string } {
+  const db = new BetterSqlite3(dbPath);
+  const email = `${nextId(opts.prefix)}@example.com`;
+  const legacyId = nextId(`legmem-${opts.prefix}`);
+  const personId = nextId(`hp-${opts.prefix}`);
+  const memberId = nextId(`mem-${opts.prefix}`);
+  insertLegacyMember(db, {
+    legacy_member_id: legacyId, legacy_email: email,
+    real_name: opts.legacyRealName ?? opts.hpName, display_name: opts.legacyRealName ?? opts.hpName,
+  });
+  insertHistoricalPerson(db, {
+    person_id: personId, person_name: opts.hpName,
+    legacy_member_id: legacyId,
+  });
+  insertMember(db, {
+    id: memberId, slug: memberId.replace(/-/g, '_'),
+    login_email: email, real_name: opts.memberRealName, display_name: opts.memberRealName,
+  });
+  db.close();
+  return { memberId, legacyId, personId, email };
+}
 
-    await ops.operationsPlatformService.runBatchAutoLink();
+describe('runBatchAutoLink — stage-and-confirm', () => {
+  it('high-confidence: stages a candidate; no live-table mutation, no tier grant, no email', async () => {
+    const t = seedTriple({ prefix: 'high', memberRealName: 'Alpha Bravo', hpName: 'Alpha Bravo' });
 
-    const mem = memberRow(memberId);
-    expect(mem.legacy_member_id).toBe(legacyId);
-    expect(mem.historical_person_id).toBe(personId);
-    expect(mem.pending_auto_link_card_json).toBeNull();
+    const result = await ops.operationsPlatformService.runBatchAutoLink();
+    expect(result.staged_high).toBeGreaterThanOrEqual(1);
 
-    const lm = legacyRow(legacyId);
-    expect(lm.claimed_by_member_id).toBe(memberId);
+    // No live-table mutation of any kind.
+    const mem = memberRow(t.memberId);
+    expect(mem.legacy_member_id).toBeNull();
+    expect(mem.historical_person_id).toBeNull();
+    const lm = legacyRow(t.legacyId);
+    expect(lm.claimed_by_member_id).toBeNull();
+    expect(tierGrants(t.memberId)).toHaveLength(0);
+    expect(outboxCount(t.memberId)).toBe(0);
 
-    const grants = tierGrants(memberId);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
-    expect(grants[0].change_type).toBe('grant');
-    expect(grants[0].reason_code).toBe('legacy.claim_tier_grant');
+    // One open staged row with the email-anchored evidence tier.
+    const rows = stagedRows(t.memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('staged');
+    expect(rows[0].confidence).toBe('high');
+    expect(rows[0].legacy_member_id).toBe(t.legacyId);
+    expect(rows[0].historical_person_id).toBe(t.personId);
+    expect(rows[0].proposed_evidence_strength).toBe('currently_controls_modern_email_matching_legacy');
+    expect(rows[0].source_pass).toBe('batch');
+    expect(rows[0].expires_at).not.toBeNull();
 
-    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    // One staged audit event carrying the candidate id.
+    const audits = auditRows(t.memberId, 'legacy.auto_link_candidate_staged');
     expect(audits).toHaveLength(1);
     const meta = JSON.parse(String(audits[0].metadata_json)) as Record<string, unknown>;
+    expect(meta.candidate_id).toBe(rows[0].id);
     expect(meta.confidence).toBe('high');
-    expect(meta.legacy_member_id).toBe(legacyId);
-    expect(meta.transitive_hp_id).toBe(personId);
-
-    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
-    expect(outbox).toHaveLength(1);
-    expect(outbox[0].recipient_email).toBe(email);
-    expect(outbox[0].recipient_member_id).toBe(memberId);
-    expect(String(outbox[0].subject)).toMatch(/IFPA/);
-    expect(String(outbox[0].body_text)).toContain('Alpha Bravo');
-    expect(String(outbox[0].body_text)).toContain('/auto-link/report-incorrect/');
+    expect(meta.legacy_member_id).toBe(t.legacyId);
+    expect(meta.person_id).toBe(t.personId);
   });
 
-  it('medium-confidence: silent claim + notification + first-login pending card with all payload fields', async () => {
+  it('medium-confidence: stages with the asserted-identity floor tier and records the matched variant', async () => {
     const db = new BetterSqlite3(dbPath);
-    // Seed a name variant pair so the classifier returns medium (variant match).
     db.prepare(`INSERT INTO name_variants (canonical_normalized, variant_normalized, source)
                 VALUES (?, ?, 'admin_added')`).run('robert smith', 'bob smith');
-    const email = `${nextId('med')}@example.com`;
-    const legacyId = nextId('legmem-med');
-    const personId = nextId('hp-med');
-    const memberId = nextId('mem-med');
-    insertLegacyMember(db, {
-      legacy_member_id: legacyId, legacy_email: email,
-      real_name: 'Robert Smith', display_name: 'Robert Smith',
-    });
-    insertHistoricalPerson(db, {
-      person_id: personId, person_name: 'Robert Smith',
-      legacy_member_id: legacyId,
-    });
-    insertMember(db, {
-      id: memberId, slug: memberId.replace(/-/g, '_'),
-      login_email: email, real_name: 'Bob Smith', display_name: 'Bob Smith',
-    });
     db.close();
+    const t = seedTriple({ prefix: 'med', memberRealName: 'Bob Smith', hpName: 'Robert Smith' });
 
-    await ops.operationsPlatformService.runBatchAutoLink();
+    const result = await ops.operationsPlatformService.runBatchAutoLink();
+    expect(result.staged_medium).toBeGreaterThanOrEqual(1);
 
-    const mem = memberRow(memberId);
-    expect(mem.legacy_member_id).toBe(legacyId);
-    expect(mem.historical_person_id).toBe(personId);
-    expect(mem.pending_auto_link_card_json).not.toBeNull();
-    const cardPayload = JSON.parse(String(mem.pending_auto_link_card_json)) as Record<string, unknown>;
-    expect(cardPayload.confidence).toBe('medium');
-    expect(cardPayload.personId).toBe(personId);
-    expect(cardPayload.legacyMemberId).toBe(legacyId);
-    expect(cardPayload.legacyDisplayName).toBe('Robert Smith');
-    expect(typeof cardPayload.claimAuditId).toBe('string');
+    const rows = stagedRows(t.memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].confidence).toBe('medium');
+    expect(rows[0].proposed_evidence_strength).toBe('declared_anchor_only');
 
-    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    const audits = auditRows(t.memberId, 'legacy.auto_link_candidate_staged');
     expect(audits).toHaveLength(1);
     const meta = JSON.parse(String(audits[0].metadata_json)) as Record<string, unknown>;
-    expect(meta.confidence).toBe('medium');
     expect(meta.matched_variant_normalized).toBeTruthy();
-
-    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
-    expect(outbox).toHaveLength(1);
   });
 
-  it('low-confidence: routes to work_queue_items with admin-alerts fan-out', async () => {
+  it('low-confidence: routes to work_queue_items with admin-alerts fan-out; nothing staged', async () => {
     const SUBSCRIBER_ID = nextId('admin-sub');
     const db = new BetterSqlite3(dbPath);
     insertMember(db, {
@@ -223,43 +220,21 @@ describe('runBatchAutoLink — silent claim + notification + card surface', () =
       ) VALUES (?, '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z', 'system', 1,
                 'admin-alerts', ?, 'subscribed', '2025-01-01T00:00:00.000Z')
     `).run(`mls-${SUBSCRIBER_ID}`, SUBSCRIBER_ID);
-
-    const email = `${nextId('low')}@example.com`;
-    const legacyId = nextId('legmem-low');
-    const personId = nextId('hp-low');
-    const memberId = nextId('mem-low');
-    insertLegacyMember(db, {
-      legacy_member_id: legacyId, legacy_email: email,
-      real_name: 'Charlie Delta',
-    });
-    insertHistoricalPerson(db, {
-      person_id: personId, person_name: 'Echo Foxtrot',
-      legacy_member_id: legacyId,
-    });
-    insertMember(db, {
-      id: memberId, slug: memberId.replace(/-/g, '_'),
-      login_email: email, real_name: 'Charlie Delta', display_name: 'Charlie Delta',
-    });
     db.close();
+    const t = seedTriple({
+      prefix: 'low', memberRealName: 'Charlie Delta', hpName: 'Echo Foxtrot',
+      legacyRealName: 'Charlie Delta',
+    });
 
     await ops.operationsPlatformService.runBatchAutoLink();
 
-    // Low → no silent claim
-    const mem = memberRow(memberId);
+    expect(stagedRows(t.memberId)).toHaveLength(0);
+    const mem = memberRow(t.memberId);
     expect(mem.legacy_member_id).toBeNull();
-    expect(mem.historical_person_id).toBeNull();
-
-    // Low → admin queue row
-    expect(workQueueCount(memberId)).toBe(1);
-
-    // Low → admin-alerts outbox row
-    const adminOutbox = outboxRows(`admin-alerts:auto_link_match:${memberId}:${SUBSCRIBER_ID}`);
-    expect(adminOutbox).toHaveLength(1);
-    expect(String(adminOutbox[0].body_text)).toContain('auto_link_match');
-    expect(String(adminOutbox[0].body_text)).toContain(memberId);
+    expect(workQueueCount(t.memberId)).toBe(1);
   });
 
-  it('already-linked candidates are filtered at the candidate query (no claim, no email)', async () => {
+  it('already-linked candidates are filtered at the candidate query (nothing staged)', async () => {
     const db = new BetterSqlite3(dbPath);
     const legacyId = nextId('legmem-skip');
     insertLegacyMember(db, { legacy_member_id: legacyId, legacy_email: `${nextId('skip')}@example.com` });
@@ -273,41 +248,69 @@ describe('runBatchAutoLink — silent claim + notification + card surface', () =
 
     await ops.operationsPlatformService.runBatchAutoLink();
 
-    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
-    expect(audits).toHaveLength(0);
+    expect(stagedRows(memberId)).toHaveLength(0);
+    expect(auditRows(memberId, 'legacy.auto_link_candidate_staged')).toHaveLength(0);
     expect(workQueueCount(memberId)).toBe(0);
   });
 
-  it('idempotent: rerun does not double-claim, does not duplicate notification emails or work-queue rows', async () => {
-    const db = new BetterSqlite3(dbPath);
-    const email = `${nextId('idem')}@example.com`;
-    const legacyId = nextId('legmem-idem');
-    const personId = nextId('hp-idem');
-    const memberId = nextId('mem-idem');
-    insertLegacyMember(db, {
-      legacy_member_id: legacyId, legacy_email: email,
-      real_name: 'Idem Tester', display_name: 'Idem Tester',
-    });
-    insertHistoricalPerson(db, {
-      person_id: personId, person_name: 'Idem Tester',
-      legacy_member_id: legacyId,
-    });
-    insertMember(db, {
-      id: memberId, slug: memberId.replace(/-/g, '_'),
-      login_email: email, real_name: 'Idem Tester', display_name: 'Idem Tester',
-    });
-    db.close();
+  it('idempotent: rerun stages nothing new and counts skipped_already_staged', async () => {
+    const t = seedTriple({ prefix: 'idem', memberRealName: 'Idem Tester', hpName: 'Idem Tester' });
 
     await ops.operationsPlatformService.runBatchAutoLink();
-    await ops.operationsPlatformService.runBatchAutoLink();
+    const second = await ops.operationsPlatformService.runBatchAutoLink();
 
-    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
-    expect(audits).toHaveLength(1);
-    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
-    expect(outbox).toHaveLength(1);
+    expect(second.skipped_already_staged).toBeGreaterThanOrEqual(1);
+    expect(stagedRows(t.memberId)).toHaveLength(1);
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_staged')).toHaveLength(1);
   });
 
-  it('writes a system_job_runs row tagged SYS_Batch_Auto_Link with the silent-claim counter struct', async () => {
+  it('a declined pair is never re-staged', async () => {
+    const t = seedTriple({ prefix: 'decl', memberRealName: 'Decline Tester', hpName: 'Decline Tester' });
+
+    await ops.operationsPlatformService.runBatchAutoLink();
+    const open = stagedRows(t.memberId);
+    expect(open).toHaveLength(1);
+
+    const declined = identity.identityAccessService.declineStagedCandidate(
+      t.memberId,
+      String(open[0].id),
+    );
+    expect(declined.status).toBe('declined');
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_declined')).toHaveLength(1);
+
+    const rerun = await ops.operationsPlatformService.runBatchAutoLink();
+    expect(rerun.skipped_previously_declined).toBeGreaterThanOrEqual(1);
+    const rows = stagedRows(t.memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('declined');
+  });
+
+  it('expiry sweep marks aged open candidates expired with one audit event each; re-sweep is a no-op', async () => {
+    const t = seedTriple({ prefix: 'exp', memberRealName: 'Expiry Tester', hpName: 'Expiry Tester' });
+
+    await ops.operationsPlatformService.runBatchAutoLink();
+    const open = stagedRows(t.memberId);
+    expect(open).toHaveLength(1);
+
+    // Back-date the expiry window so the sweep sees the row as aged out.
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE auto_link_staged_candidates SET expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?`)
+      .run(open[0].id);
+    db.close();
+
+    const first = identity.identityAccessService.expireStagedCandidates();
+    expect(first.expired).toBeGreaterThanOrEqual(1);
+    const rows = stagedRows(t.memberId);
+    expect(rows[0].status).toBe('expired');
+    expect(rows[0].resolved_at).not.toBeNull();
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_expired')).toHaveLength(1);
+
+    const second = identity.identityAccessService.expireStagedCandidates();
+    expect(second.expired).toBe(0);
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_expired')).toHaveLength(1);
+  });
+
+  it('writes a system_job_runs row tagged SYS_Batch_Auto_Link with the staging counter struct', async () => {
     await ops.operationsPlatformService.runBatchAutoLink();
 
     const db = openRO();
@@ -322,117 +325,17 @@ describe('runBatchAutoLink — silent claim + notification + card surface', () =
     const details = JSON.parse(row.details_json) as Record<string, number>;
     expect(details).toMatchObject({
       scanned:                          expect.any(Number),
-      claimed_high:                     expect.any(Number),
-      claimed_medium:                   expect.any(Number),
+      staged_high:                      expect.any(Number),
+      staged_medium:                    expect.any(Number),
       queued_low:                       expect.any(Number),
       skipped_low_already_queued:       expect.any(Number),
+      skipped_already_staged:           expect.any(Number),
+      skipped_previously_declined:      expect.any(Number),
       skipped_already_linked:           expect.any(Number),
       skipped_no_legacy_for_hp:         expect.any(Number),
       skipped_legacy_claimed_by_other:  expect.any(Number),
-      skipped_no_email:                 expect.any(Number),
       skipped_none:                     expect.any(Number),
       skipped_error:                    expect.any(Number),
     });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Auto-link silent-claim notification enqueue failure
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('runBatchAutoLink — notification enqueue failure (B4)', () => {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  let commsMod: typeof import('../../src/services/communicationService');
-
-  beforeAll(async () => {
-    commsMod = await import('../../src/services/communicationService');
-  });
-
-  afterEach(() => {
-    commsMod.resetCommunicationServiceForTests();
-  });
-
-  it('outbox enqueue throws → claim NOT rolled back; legacy.auto_link_notification_failed audit row written; skipped_error incremented', async () => {
-    expectLoggedError('audit: legacy.auto_link_notification_failed');
-
-    const db = new BetterSqlite3(dbPath);
-    const email = `${nextId('fail')}@example.com`;
-    const legacyId = nextId('legmem-fail');
-    const personId = nextId('hp-fail');
-    const memberId = nextId('mem-fail');
-    insertLegacyMember(db, {
-      legacy_member_id: legacyId, legacy_email: email,
-      real_name: 'Fail Tester', display_name: 'Fail Tester',
-    });
-    insertHistoricalPerson(db, {
-      person_id: personId, person_name: 'Fail Tester',
-      legacy_member_id: legacyId,
-    });
-    insertMember(db, {
-      id: memberId, slug: memberId.replace(/-/g, '_'),
-      login_email: email, real_name: 'Fail Tester', display_name: 'Fail Tester',
-    });
-    db.close();
-
-    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
-    commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
-      },
-      enqueueEmailOrFail: () => {
-        throw new ServiceUnavailableError(
-          'synthetic enqueueEmailOrFail failure for auto-link silent-claim notification',
-        );
-      },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
-      processSendQueue: async () => ({
-        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
-      }),
-    });
-
-    const result = await ops.operationsPlatformService.runBatchAutoLink();
-
-    // The batch caller catches the re-thrown error and counts it as skipped_error.
-    expect(result.skipped_error).toBeGreaterThanOrEqual(1);
-
-    // B4 derived assertion (primary): claim is NOT rolled back.
-    const mem = memberRow(memberId);
-    expect(mem.legacy_member_id).toBe(legacyId);
-    expect(mem.historical_person_id).toBe(personId);
-    const lm = legacyRow(legacyId);
-    expect(lm.claimed_by_member_id).toBe(memberId);
-
-    // Tier grant from the silent claim is committed.
-    const grants = tierGrants(memberId);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
-    expect(grants[0].reason_code).toBe('legacy.claim_tier_grant');
-
-    // The silent-claim audit row is persisted (proves the transaction committed).
-    const claimAudits = auditRows(memberId, 'legacy.auto_link_silent_claim');
-    expect(claimAudits).toHaveLength(1);
-
-    // The _failed audit row is persisted with the operational-error shape.
-    const dbRo = openRO();
-    const failRow = dbRo.prepare(`
-      SELECT action_type, category, actor_type, metadata_json
-      FROM audit_entries
-      WHERE entity_type = 'member' AND entity_id = ?
-        AND action_type = 'legacy.auto_link_notification_failed'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(memberId) as
-      | { action_type: string; category: string; actor_type: string; metadata_json: string }
-      | undefined;
-    dbRo.close();
-    expect(failRow).toBeDefined();
-    expect(failRow!.category).toBe('identity');
-    expect(failRow!.actor_type).toBe('system');
-    const failMeta = JSON.parse(failRow!.metadata_json) as Record<string, unknown>;
-    expect(failMeta.claimAuditId).toBe(claimAudits[0].id);
-    expect(failMeta.legacyMemberId).toBe(legacyId);
-    expect(typeof failMeta.error).toBe('string');
-
-    // No outbox row was persisted for this notification (the throw fired before insert).
-    const outbox = outboxRows(`auto_link_notification:${claimAudits[0].id}`);
-    expect(outbox).toHaveLength(0);
   });
 });

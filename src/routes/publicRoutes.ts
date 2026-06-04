@@ -7,7 +7,6 @@ import { mediaController } from '../controllers/mediaController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
-import { memberAccountController } from '../controllers/memberAccountController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
 import { memberMediaUploadController } from '../controllers/memberMediaUploadController';
 import { memberMediaEditController } from '../controllers/memberMediaEditController';
@@ -15,6 +14,8 @@ import { claimController } from '../controllers/claimController';
 import { contactRequestController } from '../controllers/contactRequestController';
 import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
+import { legacyRedirectController } from '../controllers/legacyRedirectController';
+import { ipcController } from '../controllers/ipcController';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
 import { freestyleController } from '../controllers/freestyleController';
@@ -33,6 +34,8 @@ export const publicRouter = Router();
 publicRouter.use(requireOnboardingComplete);
 
 publicRouter.get('/',      homeController.home);
+// Legacy forum URLs live on the member-gated archive mirror.
+publicRouter.get(['/forum', '/forum/*', '/forums', '/forums/*'], legacyRedirectController.forum);
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
 publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);
@@ -44,6 +47,9 @@ publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.post
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
 publicRouter.post('/clubs/:key/signal',         requireAuth, clubController.postSignal);
+publicRouter.post('/clubs/:key/content/edit',    requireAuth, clubController.postContentEdit);
+publicRouter.post('/clubs/:key/content/suggest', requireAuth, clubController.postContentSuggest);
+publicRouter.post('/clubs/:key/content/suggestions/:id/review', requireAuth, clubController.postContentSuggestionReview);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
@@ -130,6 +136,9 @@ publicRouter.get('/history/:personId',   historyController.detail);
 // captured as :section. The /members/:memberKey/galleries/* tree must
 // also precede the catch-all so "galleries" is not captured as :section.
 publicRouter.get('/members',                       memberController.landing);
+// Legacy-URL forwarding: must match BEFORE the slug route so old
+// /members/profile/<legacy id> emails never resolve as a slug lookup.
+publicRouter.get('/members/profile/:legacyMemberId', legacyRedirectController.memberProfile);
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',          requireAuth, memberController.getProfileEdit);
 publicRouter.post('/members/:memberKey/edit',         requireAuth, memberController.postProfileEdit);
@@ -173,14 +182,6 @@ publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1B
 publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireAuth, memberMediaEditController.getEdit);
 publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireAuth, requireTier1Benefits(), memberMediaEditController.postUpdate);
 
-// Silent auto-link card / profile-settings actions. Three POSTs on a
-// fixed-path namespace so they don't collide with the :memberKey/:section
-// catch-all below; the controller resolves the acting member from the
-// session, not the URL.
-publicRouter.post('/members/me/auto-link/confirm',          requireAuth, memberAccountController.postAutoLinkConfirm);
-publicRouter.post('/members/me/auto-link/dismiss',          requireAuth, memberAccountController.postAutoLinkDismiss);
-publicRouter.post('/members/me/auto-link/report-incorrect', requireAuth, memberAccountController.postAutoLinkReportIncorrect);
-
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);
@@ -193,10 +194,6 @@ publicRouter.get('/register/check-email',   authController.getCheckEmail);
 publicRouter.get('/verify/:token',          authController.getVerify);
 publicRouter.post('/verify/resend',         authController.postVerifyResend);
 
-// Tokened "report incorrect" link delivered in the silent-claim notification
-// email. Returns a uniform 200 result page for reverted / already-reverted /
-// not-found outcomes (anti-enumeration).
-publicRouter.get('/auto-link/report-incorrect/:token', authController.getReportIncorrectLink);
 
 // Onboarding wizard. Per-action sub-paths land before the catch-all
 // `:taskType` routes so literal segments (find, skip, auto-link, claim,
@@ -205,12 +202,18 @@ publicRouter.get('/auto-link/report-incorrect/:token', authController.getReportI
 publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
 publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
 publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
+publicRouter.post('/register/wizard/legacy_claim/auto-link/decline',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkDecline);
+publicRouter.post('/register/wizard/legacy_claim/help-request',         requireAuth, memberOnboardingController.postLegacyClaimHelpRequest);
+publicRouter.post('/register/wizard/legacy_claim/cross-source/confirm', requireAuth, memberOnboardingController.postCrossSourceLegacyConfirm);
+publicRouter.post('/register/wizard/legacy_claim/anchors/send-verification', requireAuth, memberOnboardingController.postAnchorSendVerification);
+publicRouter.get('/register/wizard/legacy_claim/anchors/verify/:token',      requireAuth, memberOnboardingController.getAnchorVerify);
 publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
 publicRouter.post('/register/wizard/club_affiliations/stage-signal',    requireAuth, memberOnboardingController.postStageSignal);
+publicRouter.post('/register/wizard/club_affiliations/leadership-offer', requireAuth, memberOnboardingController.postLeadershipOffer);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);
@@ -232,6 +235,17 @@ publicRouter.post('/logout',                authController.postLogout);
 // Origin header) per DD §3.3. The path is one shared constant so the
 // parser-skip and the origin exemption can never drift from the route.
 export const STRIPE_WEBHOOK_PATH = '/payments/webhook';
+
+// SES feedback webhook: SNS delivers bounce/complaint notifications here as
+// text/plain (the global JSON parser ignores that type, so the route mounts
+// its own text parser). Auth is the shared-secret query key checked in the
+// controller; like Stripe, the path is exempt from the Origin-pin gate.
+export const SES_FEEDBACK_WEBHOOK_PATH = '/webhooks/ses-feedback';
+publicRouter.post(
+  SES_FEEDBACK_WEBHOOK_PATH,
+  express.text({ type: '*/*', limit: '1mb' }),
+  ipcController.receiveSesFeedback,
+);
 publicRouter.post(
   STRIPE_WEBHOOK_PATH,
   express.raw({ type: 'application/json', limit: '1mb' }),

@@ -98,8 +98,9 @@ const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
-  member_contact_request: 'Member contact request',
-  auto_link_match:        'Auto-link match',
+  member_contact_request:   'Member contact request',
+  auto_link_match:          'Auto-link match',
+  member_link_help_request: 'Member link help request',
 };
 
 export interface WorkQueueViewItem {
@@ -115,6 +116,16 @@ export interface WorkQueueViewItem {
   entityDisplayName: string | null;
   reasonText: string | null;
   decisionLabels: Array<{ value: string; label: string }>;
+  /** Member link-help requests render structured payload + approve/reject
+   * forms instead of the generic resolve form. */
+  isLinkHelpRequest: boolean;
+  linkHelp: {
+    statement: string;
+    claimedLegacyUsername: string | null;
+    claimedLegacyEmail: string | null;
+    vouchers: string | null;
+    isDispute: boolean;
+  } | null;
 }
 
 export interface WorkQueueGroup {
@@ -130,7 +141,24 @@ export interface WorkQueueContent {
   errorMessage: string | null;
 }
 
+function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['linkHelp'] {
+  if (!reasonText) return null;
+  try {
+    const p = JSON.parse(reasonText) as Record<string, unknown>;
+    return {
+      statement:             typeof p.statement === 'string' ? p.statement : '',
+      claimedLegacyUsername: typeof p.claimed_legacy_username === 'string' ? p.claimed_legacy_username : null,
+      claimedLegacyEmail:    typeof p.claimed_legacy_email === 'string' ? p.claimed_legacy_email : null,
+      vouchers:              typeof p.vouchers === 'string' ? p.vouchers : null,
+      isDispute:             p.is_dispute === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
+  const isLinkHelpRequest = raw.taskType === 'member_link_help_request';
   return {
     id: raw.id,
     queueCategory: raw.queueCategory,
@@ -142,8 +170,11 @@ function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
     entityId: raw.entityId,
     entityHref: raw.entityHref,
     entityDisplayName: raw.entityDisplayName,
-    reasonText: raw.reasonText,
+    // The link-help payload renders structured below; raw JSON would be noise.
+    reasonText: isLinkHelpRequest ? null : raw.reasonText,
     decisionLabels: DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] })),
+    isLinkHelpRequest,
+    linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
   };
 }
 

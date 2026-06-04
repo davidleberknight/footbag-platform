@@ -132,7 +132,7 @@ def test_clubs_count_equals_bootstrap_eligible_count(fresh_db: Path) -> None:
     """Invariant 1: COUNT(clubs) == COUNT(candidates WHERE bootstrap_eligible=1).
 
     Three eligible candidates → three live clubs; three non-eligible
-    candidates stay in staging. Pins the §9.1 cutover contract: Phase H
+    candidates stay in staging. Pins the §10.1 cutover contract: Phase H
     promotes ONLY pre_populate-class rows; everything else awaits the
     wizard.
     """

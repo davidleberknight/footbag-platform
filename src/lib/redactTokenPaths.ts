@@ -8,7 +8,7 @@
  *
  *   2. Strip PII-bearing query-string values so member-search terms and
  *      similar free-text inputs do not persist in CloudWatch logs (per
- *      DATA_GOVERNANCE §9: search queries must be anonymized before
+ *      DATA_GOVERNANCE §8: search queries must be anonymized before
  *      persistence). Operators retain the path and parameter names; the
  *      values are redacted.
  *

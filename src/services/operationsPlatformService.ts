@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, workQueue, batchAutoLink, transaction } from '../db/db';
+import { health, systemJobRuns, workQueue, batchAutoLink, outbox, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { readIntConfig } from './configReader';
@@ -100,6 +100,12 @@ export class OperationsPlatformService {
     return clamped * 1000;
   }
 
+  /** Deliverable email backlog (pending + sending rows); the worker logs it
+   * each cycle for the CloudWatch outbox-depth alarm. */
+  getOutboxBacklogDepth(): number {
+    return (outbox.countBacklog.get() as { n: number }).n;
+  }
+
   /**
    * Generic SYS-job lifecycle wrapper. Inserts a `system_job_runs` row with
    * status='running' before invoking the work callback; updates the same row
@@ -197,40 +203,36 @@ export class OperationsPlatformService {
   }
 
   /**
-   * SYS_Batch_Auto_Link cutover job. Scans every Tier 0 unlinked member with
-   * a verified email and runs the auto-link classifier:
+   * SYS_Batch_Auto_Link cutover job (stage-and-confirm). Scans every Tier 0
+   * unlinked member with a verified email and runs the auto-link classifier:
    *
-   *   - high / medium → silent claim transaction (member↔legacy↔HP linkage,
-   *     merge fields, single `legacy.claim_tier_grant` row, audit row).
-   *     Notification email enqueued to the member's verified address with a
-   *     tokened report-incorrect link bound to the claim audit id. Medium
-   *     additionally persists a first-login `pending_auto_link_card_json`
-   *     dashboard card.
+   *   - high / medium → stage a candidate row in auto_link_staged_candidates
+   *     plus a `legacy.auto_link_candidate_staged` audit event. NO live-table
+   *     mutation, NO email. The member confirms or declines the candidate
+   *     from the wizard card at next sign-in.
    *   - low  → admin work queue (`auto_link_match`) with an `admin-alerts`
-   *     fan-out, so an administrator can resolve the case manually. This is
-   *     the same surface as the prior medium/high path before silent claim
-   *     was wired.
+   *     fan-out, so an administrator can resolve the case manually.
    *   - none / error → counter-only skip.
    *
    * Idempotent. Members already linked are skipped via the candidate-scan
-   * filter; on re-run, a previously claimed legacy_members row produces a
-   * `skipped_already_linked` from `applyAutoLinkSilentClaim` and the
-   * notification's `auto_link_notification:<claim_audit_id>` idempotency key
-   * collapses duplicate outbox rows.
+   * filter; on re-run, an existing open staged row for the same member/target
+   * pair is a unique-constraint no-op (`skipped_already_staged`), and a pair
+   * the member declined is never re-staged.
    *
    * Designed to run once at cutover after the legacy data dump is loaded.
    * Wrapped by recordJobRun for `system_job_runs` lifecycle visibility.
    */
   async runBatchAutoLink(): Promise<{
     scanned:                 number;
-    claimed_high:            number;
-    claimed_medium:          number;
+    staged_high:             number;
+    staged_medium:           number;
     queued_low:              number;
     skipped_low_already_queued: number;
+    skipped_already_staged:  number;
+    skipped_previously_declined: number;
     skipped_already_linked:  number;
     skipped_no_legacy_for_hp: number;
     skipped_legacy_claimed_by_other: number;
-    skipped_no_email:        number;
     skipped_none:            number;
     skipped_error:           number;
   }> {
@@ -253,14 +255,15 @@ export class OperationsPlatformService {
     return this.recordJobRun('SYS_Batch_Auto_Link', () => {
       const result = {
         scanned: 0,
-        claimed_high: 0,
-        claimed_medium: 0,
+        staged_high: 0,
+        staged_medium: 0,
         queued_low: 0,
         skipped_low_already_queued: 0,
+        skipped_already_staged: 0,
+        skipped_previously_declined: 0,
         skipped_already_linked: 0,
         skipped_no_legacy_for_hp: 0,
         skipped_legacy_claimed_by_other: 0,
-        skipped_no_email: 0,
         skipped_none: 0,
         skipped_error: 0,
       };
@@ -315,26 +318,37 @@ export class OperationsPlatformService {
           continue;
         }
 
-        // High or medium: silent claim path.
+        // High or medium: stage a candidate for member confirmation.
         let outcome;
         try {
-          outcome = identityAccessService.applyAutoLinkSilentClaim(c.id, {
-            confidence: classification.confidence,
-            personId:   classification.personId,
-            personName: classification.personName,
-            ...(classification.confidence === 'medium'
-              ? { matchedVariantNormalized: classification.matchedVariantNormalized }
-              : {}),
-          });
+          outcome = identityAccessService.stageAutoLinkCandidate(
+            c.id,
+            {
+              confidence:   classification.confidence,
+              personId:     classification.personId,
+              personName:   classification.personName,
+              anchorSource: classification.anchorSource,
+              ...(classification.confidence === 'medium'
+                ? { matchedVariantNormalized: classification.matchedVariantNormalized }
+                : {}),
+            },
+            'batch',
+          );
         } catch {
           result.skipped_error += 1;
           continue;
         }
 
         switch (outcome.status) {
-          case 'claimed':
-            if (outcome.confidence === 'high') result.claimed_high += 1;
-            else result.claimed_medium += 1;
+          case 'staged':
+            if (outcome.confidence === 'high') result.staged_high += 1;
+            else result.staged_medium += 1;
+            break;
+          case 'already_staged':
+            result.skipped_already_staged += 1;
+            break;
+          case 'skipped_previously_declined':
+            result.skipped_previously_declined += 1;
             break;
           case 'skipped_already_linked':
             result.skipped_already_linked += 1;
@@ -345,14 +359,24 @@ export class OperationsPlatformService {
           case 'skipped_legacy_claimed_by_other':
             result.skipped_legacy_claimed_by_other += 1;
             break;
-          case 'skipped_no_email':
-            result.skipped_no_email += 1;
-            break;
         }
       }
       logger.info('SYS_Batch_Auto_Link run', result);
       return result;
     });
+  }
+
+  /**
+   * SYS_Staged_Candidate_Expiry sweep. Marks open auto-link staged
+   * candidates whose expiry window has passed as 'expired', emitting one
+   * `legacy.auto_link_candidate_expired` audit event per row. Idempotent:
+   * the terminal-status guard makes re-sweeping a no-op. Runs on the worker
+   * daily tick alongside the other daily jobs.
+   */
+  async runStagedCandidateExpiry(): Promise<{ expired: number }> {
+    return this.recordJobRun('SYS_Staged_Candidate_Expiry', () =>
+      identityAccessService.expireStagedCandidates(),
+    );
   }
 
   checkReadiness(): ReadinessStatus {

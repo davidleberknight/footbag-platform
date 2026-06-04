@@ -151,7 +151,7 @@ interface ResolutionRow {
 }
 
 function getActiveResolutions(): Map<string, ResolutionRow> {
-  const rows = clubCleanupResolutions.listActive.all() as ResolutionRow[];
+  const rows = clubCleanupResolutions.listAll.all() as ResolutionRow[];
   const map = new Map<string, ResolutionRow>();
   for (const r of rows) {
     map.set(`${r.club_id}:${r.predicate_name}`, r);

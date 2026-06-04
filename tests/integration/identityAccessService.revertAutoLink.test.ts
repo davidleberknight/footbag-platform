@@ -2,7 +2,7 @@
  * Integration tests for identityAccessService.revertAutoLink.
  *
  * Verifies the atomic revert contract:
- *   - reverts a claimed silent auto-link: clears members.legacy_member_id,
+ *   - reverts a confirmed claim by its claim-audit id: clears members.legacy_member_id,
  *     legacy_members.claimed_by_member_id + claimed_at; writes
  *     member_tier_grants revoke row; enqueues work_queue_items;
  *     writes audit_entries row carrying original_claim_audit_id.
@@ -13,7 +13,7 @@
  *     status='already_reverted' without changing state.
  *   - unrecognized member returns status='not_found' (anti-enumeration).
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
@@ -22,18 +22,12 @@ const { dbPath } = setTestEnv('3094');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let tokens: typeof import('../../src/services/accountTokenService').accountTokenService;
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let audit: typeof import('../../src/services/auditService');
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
   const mod = await import('../../src/services/identityAccessService');
   svc = mod.identityAccessService;
-  tokens = (await import('../../src/services/accountTokenService')).accountTokenService;
-  audit = await import('../../src/services/auditService');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -239,55 +233,5 @@ describe('identityAccessService.revertAutoLink', () => {
       actorMemberId: 'does-not-exist',
     });
     expect(result.status).toBe('not_found');
-  });
-});
-
-describe('identityAccessService.revertAutoLinkByToken', () => {
-  function issueRevertToken(memberId: string): string {
-    // target_audit_entry_id has an FK to audit_entries(id), so bind to a real row.
-    const auditId = audit.appendAuditEntry({
-      actionType: 'legacy.auto_link_silent_claim',
-      category: 'identity',
-      actorType: 'system',
-      actorMemberId: memberId,
-      entityType: 'member',
-      entityId: memberId,
-    });
-    const { rawToken } = tokens.issueToken({
-      memberId,
-      tokenType: 'auto_link_report_incorrect',
-      ttlHours: 24,
-      targetAuditEntryId: auditId,
-    });
-    return rawToken;
-  }
-
-  it('does not burn the one-shot token when the revert transaction throws', () => {
-    const { memberId, legacyId } = setupClaimed({ withHpBackLink: true });
-    const rawToken = issueRevertToken(memberId);
-
-    // Force a failure INSIDE the revert writes. Pre-fix the token consume had
-    // already committed in its own transaction, so the token is burned without
-    // the link being reverted; post-fix consume + revert share one transaction
-    // and both roll back, leaving the token reusable.
-    const spy = vi.spyOn(audit, 'appendAuditEntry').mockImplementation(() => {
-      throw new Error('forced audit failure');
-    });
-    expect(() => svc.revertAutoLinkByToken(rawToken)).toThrow('forced audit failure');
-    spy.mockRestore();
-
-    // Link is still in place: the failed revert rolled back.
-    expect(memberRow(memberId).legacy_member_id).toBe(legacyId);
-
-    // Retry with the SAME token. Pre-fix: token already used → 'already_reverted'
-    // and the link stays. Post-fix: token survived → 'reverted' and link cleared.
-    const retry = svc.revertAutoLinkByToken(rawToken);
-    expect(retry.status).toBe('reverted');
-    expect(memberRow(memberId).legacy_member_id).toBeNull();
-  });
-
-  it('returns already_reverted for an unknown token (anti-enumeration)', () => {
-    const result = svc.revertAutoLinkByToken('not-a-real-token');
-    expect(result.status).toBe('already_reverted');
   });
 });

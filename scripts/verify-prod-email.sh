@@ -12,12 +12,14 @@ set -euo pipefail
 SENDER="noreply@footbag.org"   # canonical transactional sender
 REGION="us-east-1"             # SES identity region
 SIMULATOR="success@simulator.amazonses.com"
+BOUNCE_SIMULATOR="bounce@simulator.amazonses.com"
 INBOX=""
 PROFILE=""
 CONFIRMED=0
+BOUNCE_PROBE=0
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> --confirm-production [--inbox <address>]" >&2
+  echo "Usage: $0 --profile <aws-profile> --confirm-production [--inbox <address>] [--bounce-probe]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -25,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; shift 2 ;;
     --inbox) INBOX="$2"; shift 2 ;;
     --confirm-production) CONFIRMED=1; shift ;;
+    --bounce-probe) BOUNCE_PROBE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -63,6 +66,20 @@ if [[ -n "$INBOX" ]]; then
   echo "  MessageId: $(send_one "$INBOX")"
 fi
 
+if [[ "$BOUNCE_PROBE" -eq 1 ]]; then
+  # Synthetic feedback-loop validation: the bounce simulator generates a
+  # reputation-safe permanent bounce, which flows SES -> SNS -> the app's
+  # /webhooks/ses-feedback endpoint. The simulator address matches no member
+  # row, so the app records an email.bounce_recorded audit row with
+  # member_matched=false and no member state changes.
+  echo "Sending to bounce simulator ($BOUNCE_SIMULATOR)..."
+  echo "  MessageId: $(send_one "$BOUNCE_SIMULATOR")"
+  echo "  Within a few minutes, verify an 'email.bounce_recorded' audit row"
+  echo "  appeared (masked b***@simulator.amazonses.com, member_matched=false):"
+  echo "    SELECT created_at, metadata_json FROM audit_entries"
+  echo "    WHERE action_type = 'email.bounce_recorded' ORDER BY created_at DESC LIMIT 3;"
+fi
+
 cat <<'EOF'
 
 Manual confirmation checklist:
@@ -72,6 +89,7 @@ Manual confirmation checklist:
      registration) renders the standard "check your email" copy with NO in-page
      preview card. The preview card is a development and staging affordance
      only; production must never render it.
-  3. Bounce and complaint suppression wiring is validated separately once the
-     SNS feedback handler is implemented; this script does not exercise it.
+  3. Bounce and complaint suppression wiring: run with --bounce-probe to
+     exercise the full SES -> SNS -> webhook loop with a reputation-safe
+     synthetic bounce, then check the audit query the probe prints.
 EOF

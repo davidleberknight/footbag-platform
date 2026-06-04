@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
 import { clubCleanupService } from '../services/clubCleanupService';
-import { ValidationError } from '../services/serviceErrors';
+import { declaredAnchors } from '../db/db';
+import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
@@ -37,9 +38,87 @@ export const clubController = {
    */
   byKey(req: Request, res: Response, next: NextFunction): void {
     try {
-      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId);
+      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId, req.user?.role === 'admin');
       res.render(result.template, result.vm);
     } catch (err) {
+      // Legacy-URL forwarding: an old /clubs/<slug> link whose club did not
+      // survive normalization (a known legacy candidate with no mapped
+      // club) lands on the archive mirror instead of a dead 404.
+      if (err instanceof NotFoundError) {
+        const candidate = declaredAnchors.findLegacyClubCandidateByKey.get(req.params.key ?? '') as
+          | { legacy_club_key: string; mapped_club_id: string | null }
+          | undefined;
+        if (candidate && !candidate.mapped_club_id) {
+          res.redirect(302, `https://archive.footbag.org/clubs/${encodeURIComponent(candidate.legacy_club_key)}`);
+          return;
+        }
+      }
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  /** POST /clubs/:key/content/edit (leaders edit directly) */
+  async postContentEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      await clubService.editClubContent(req.user!.userId, clubId, {
+        description: typeof req.body.description === 'string' ? req.body.description : undefined,
+        externalUrl: typeof req.body.external_url === 'string' ? req.body.external_url : undefined,
+      });
+      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).type('text/plain').send(err.message);
+        return;
+      }
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  /** POST /clubs/:key/content/suggest (non-leader members propose) */
+  postContentSuggest(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      clubService.suggestClubContent(
+        req.user!.userId,
+        clubId,
+        String(req.body.field ?? ''),
+        String(req.body.proposed_value ?? ''),
+        typeof req.body.note === 'string' ? req.body.note : undefined,
+      );
+      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).type('text/plain').send(err.message);
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        res.status(429).type('text/plain').send(err.message);
+        return;
+      }
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  /** POST /clubs/:key/content/suggestions/:id/review (leaders or admin) */
+  async postContentSuggestionReview(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      await clubService.reviewClubContentSuggestion(
+        req.user!.userId,
+        req.user!.role === 'admin',
+        clubId,
+        req.params.id ?? '',
+        req.body.decision === 'approve' ? 'approve' : 'reject',
+        typeof req.body.reason === 'string' ? req.body.reason : undefined,
+      );
+      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).type('text/plain').send(err.message);
+        return;
+      }
       handleControllerError(err, res, next, 'clubs controller');
     }
   },

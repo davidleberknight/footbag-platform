@@ -107,9 +107,11 @@ echo "  → Building seed CSVs from canonical input..."
   --input-dir "${CANONICAL_INPUT_DIR}" \
   --output-dir "${SEED_DIR}"
 
-# Load seed CSVs into database
+# Load seed CSVs into database. The preview-fixture flag injects the
+# synthetic known-good event + person used by dev/CI/staging; production
+# loads never run this script and never set the flag.
 echo "  → Loading seed data into database..."
-"${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
+FOOTBAG_SEED_PREVIEW_FIXTURE=1 "${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
 

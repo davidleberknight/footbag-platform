@@ -38,6 +38,9 @@ async function emailOutboxLoop(): Promise<void> {
   while (!stopping) {
     try {
       await operationsPlatformService.runEmailWorker();
+      // Structured depth line per cycle; the CloudWatch metric filter turns
+      // $.depth into the OutboxDepth metric behind the backlog alarm.
+      logger.info('outbox.depth', { depth: operationsPlatformService.getOutboxBacklogDepth() });
     } catch (err) {
       logger.error('worker: email-outbox unexpected error', {
         error: err instanceof Error ? err.message : String(err),
@@ -57,6 +60,16 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runActivePlayerExpiryCheck();
     } catch (err) {
       logger.error('worker: AP expiry unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    // Staged auto-link candidates expire on the same daily cadence; the
+    // sweep is cheap and idempotent, so it rides the AP-expiry tick rather
+    // than owning a loop.
+    try {
+      await operationsPlatformService.runStagedCandidateExpiry();
+    } catch (err) {
+      logger.error('worker: staged-candidate expiry unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

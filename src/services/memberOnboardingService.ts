@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 import {
   account,
+  clubs,
   clubBootstrapLeaders,
+  clubLeaders,
   clubBootstrapLeaderSignals,
   clubViabilitySignals,
   legacyClubCandidates,
@@ -16,6 +18,7 @@ import {
   type WizardLeadershipCardRow,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
+import { hasTier1Benefits } from './tierPredicates';
 import { memberService } from './memberService';
 import { clubService } from './clubService';
 import {
@@ -23,7 +26,7 @@ import {
   type StructuralSignals,
   type ContextModifiers,
 } from './clubBootstrapClassificationService';
-import { identityAccessService } from './identityAccessService';
+import { identityAccessService, SurnameMismatchError } from './identityAccessService';
 import { getSesAdapter } from '../adapters/sesAdapter';
 import {
   ConflictError,
@@ -315,6 +318,9 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
   const cards = listWizardCardsForMember(memberId);
   if (cards.length > 0) return false;
+  // A pending path-2 leadership offer keeps the task renderable: the offer
+  // surfaces on this task and would be lost if the task auto-resolved.
+  if (listPathTwoLeadershipOffers(memberId).length > 0) return false;
   markTaskNotApplicable(memberId, 'club_affiliations');
   return true;
 }
@@ -1006,7 +1012,7 @@ async function processLegacyClaimSubmit(
     const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier, ip);
     if (outcome.kind === 'auto_linked') {
       completeTask(memberId, 'legacy_claim');
-      return advanceAfter(memberId, 'legacy_claim');
+      return advanceOrOfferCrossSource(memberId);
     }
     startTaskList(memberId);
     if (outcome.kind === 'enqueued') {
@@ -1033,7 +1039,9 @@ async function processLegacyClaimSubmit(
         retryAfterSeconds: err.retryAfterSeconds ?? 60,
       };
     }
-    if (err instanceof ValidationError) {
+    // ConflictError = a concurrent claimant won the race after the
+    // pre-check; same user-readable inline message as the synchronous path.
+    if (err instanceof ValidationError || err instanceof ConflictError) {
       return {
         kind: 'validation_error',
         formState: { identifier },
@@ -1042,6 +1050,18 @@ async function processLegacyClaimSubmit(
     }
     throw err;
   }
+}
+
+
+// After a claim completes on one source, a cross-source offer for the other
+// source may stage; staying on the task renders the offer card immediately,
+// otherwise the wizard advances as usual.
+function advanceOrOfferCrossSource(memberId: string): WizardActionResult<never> {
+  const offer = identityAccessService.offerCrossSourceCandidate(memberId);
+  if (offer.offered) {
+    return { kind: 'retry_same', flash: null };
+  }
+  return advanceAfter(memberId, 'legacy_claim');
 }
 
 function processLegacyClaimAutoLinkConfirm(
@@ -1055,35 +1075,119 @@ function processLegacyClaimAutoLinkConfirm(
       message: 'Invalid claim request.',
     };
   }
-  const classification = identityAccessService.getAutoLinkClassificationForMember(memberId);
-  if (classification.confidence !== 'high' && classification.confidence !== 'medium') {
-    return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
-  }
-  if (classification.personId !== personId) {
-    return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
+  // An open staged row for this member/person is itself authorization to
+  // confirm (the staging pass computed the match); otherwise the view-time
+  // classifier must produce the same person, or the card has drifted.
+  const stagedRow = identityAccessService
+    .listOpenStagedCandidates(memberId)
+    .find((r) => r.historical_person_id === personId);
+  let personName: string;
+  let evidenceStrength: 'currently_controls_modern_email_matching_legacy' | 'declared_anchor_only';
+  let confidence: 'high' | 'medium';
+  if (stagedRow) {
+    confidence = stagedRow.confidence;
+    personName = '';
+    // The staging pass already derived the evidence tier from the matched
+    // anchor set; the confirmation carries it through.
+    evidenceStrength =
+      stagedRow.proposed_evidence_strength === 'currently_controls_modern_email_matching_legacy'
+        ? 'currently_controls_modern_email_matching_legacy'
+        : 'declared_anchor_only';
+  } else {
+    const classification = identityAccessService.getAutoLinkClassificationForMember(memberId);
+    if (classification.confidence !== 'high' && classification.confidence !== 'medium') {
+      return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
+    }
+    if (classification.personId !== personId) {
+      return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
+    }
+    confidence = classification.confidence;
+    personName = classification.personName;
+    // High confidence anchored on the verified login email carries the
+    // email-control tier; a declared-old-email anchor or a name-variant
+    // match carries only the asserted-identity floor tier.
+    evidenceStrength =
+      classification.confidence === 'high' && classification.anchorSource === 'login_email'
+        ? 'currently_controls_modern_email_matching_legacy'
+        : 'declared_anchor_only';
   }
   try {
     // Merge and the wizard task transition run in one transaction: a partial
     // failure cannot leave the member claimed but the task still pending.
+    // The claim resolves any matching staged candidate to 'confirmed' and
+    // emits the confirmed audit event inside the same transaction.
     transaction(() => {
-      identityAccessService.claimHistoricalPersonInTx(memberId, personId);
+      identityAccessService.claimHistoricalPersonInTx(memberId, personId, evidenceStrength);
       completeTask(memberId, 'legacy_claim');
     });
-    return advanceAfter(memberId, 'legacy_claim');
+    return advanceOrOfferCrossSource(memberId);
   } catch (err) {
-    if (err instanceof ValidationError) {
+    if (err instanceof SurnameMismatchError) {
+      // Recorded after the rollback so the forensic row survives the
+      // failed claim.
+      identityAccessService.recordHistoricalPersonClaimBlocked(memberId, err);
+    }
+    if (err instanceof ValidationError || err instanceof ConflictError) {
       return {
         kind: 'validation_error',
         formState: {
-          personId: classification.personId,
-          personName: classification.personName,
-          confidence: classification.confidence,
+          personId,
+          personName,
+          confidence,
         },
         message: err.message,
       };
     }
     throw err;
   }
+}
+
+/**
+ * Member confirms a cross-source LEGACY offer card: the staged offer's
+ * legacy account is claimed with the offer's evidence tier; the offer row
+ * resolves with the cross-source confirmed event inside the claim
+ * transaction.
+ */
+function processCrossSourceLegacyConfirm(
+  memberId: string,
+  candidateId: string,
+): WizardActionResult<null> {
+  if (!candidateId) {
+    return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
+  }
+  try {
+    const result = identityAccessService.confirmCrossSourceLegacyCandidate(memberId, candidateId);
+    if (result.status === 'not_found') {
+      // Already resolved or foreign id: re-render whatever cards remain
+      // (same non-revealing UX as decline).
+      return { kind: 'retry_same', flash: null };
+    }
+    return { kind: 'retry_same', flash: null };
+  } catch (err) {
+    if (err instanceof ValidationError || err instanceof ConflictError) {
+      return { kind: 'validation_error', formState: null, message: err.message };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Member declines a staged auto-link candidate from the wizard card. The
+ * decline is terminal for that member/target pair; the wizard re-renders
+ * without the card.
+ */
+function processLegacyClaimAutoLinkDecline(
+  memberId: string,
+  candidateId: string,
+): WizardActionResult<null> {
+  if (!candidateId) {
+    return { kind: 'validation_error', formState: null, message: 'Invalid request.' };
+  }
+  identityAccessService.declineStagedCandidate(memberId, candidateId);
+  // Both outcomes re-render the task: 'declined' drops the card; 'not_found'
+  // (already resolved or foreign id) renders whatever cards remain, which is
+  // the same non-revealing UX.
+  return { kind: 'retry_same', flash: null };
 }
 
 function processLegacyClaimTokenConfirm(
@@ -1100,9 +1204,9 @@ function processLegacyClaimTokenConfirm(
       identityAccessService.consumeAndClaimLegacyInTx(memberId, token);
       completeTask(memberId, 'legacy_claim');
     });
-    return advanceAfter(memberId, 'legacy_claim');
+    return advanceOrOfferCrossSource(memberId);
   } catch (err) {
-    if (err instanceof ValidationError) {
+    if (err instanceof ValidationError || err instanceof ConflictError) {
       return { kind: 'validation_error', formState: null, message: err.message };
     }
     throw err;
@@ -1161,10 +1265,19 @@ function claimHistoricalPersonAndCompleteTask(
   memberId: string,
   personId: string,
 ): void {
-  transaction(() => {
-    identityAccessService.claimHistoricalPersonInTx(memberId, personId);
-    completeTaskIfOutstanding(memberId, 'legacy_claim');
-  });
+  try {
+    transaction(() => {
+      identityAccessService.claimHistoricalPersonInTx(memberId, personId);
+      completeTaskIfOutstanding(memberId, 'legacy_claim');
+    });
+    identityAccessService.offerCrossSourceCandidate(memberId);
+  } catch (err) {
+    if (err instanceof SurnameMismatchError) {
+      // Recorded after the rollback so the forensic row survives.
+      identityAccessService.recordHistoricalPersonClaimBlocked(memberId, err);
+    }
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1248,7 +1361,12 @@ function processClubAffiliationsSubmit(
     }
     const result = submitDisambiguationResponse(memberId, selectedIds, allIds);
     if (result.taskState === 'completed') {
-      return advanceAfter(memberId, 'club_affiliations');
+      if (listPathTwoLeadershipOffers(memberId).length > 0) {
+      // The just-confirmed affiliation may have created a path-2 leadership
+      // offer; stay on the task so the offer card renders.
+      return { kind: 'retry_same', flash: null };
+    }
+    return advanceAfter(memberId, 'club_affiliations');
     }
     const selectedCount = selectedIds.length;
     return {
@@ -1308,6 +1426,11 @@ function processClubAffiliationsSubmit(
 
   const result = submitClubAffiliationsResponse(memberId, body);
   if (result.taskState === 'completed') {
+    if (listPathTwoLeadershipOffers(memberId).length > 0) {
+      // The just-confirmed affiliation may have created a path-2 leadership
+      // offer; stay on the task so the offer card renders.
+      return { kind: 'retry_same', flash: null };
+    }
     return advanceAfter(memberId, 'club_affiliations');
   }
   return {
@@ -1426,6 +1549,98 @@ function submitStageSignal(
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
+
+// ---------------------------------------------------------------------------
+// Leadership path 2: a Tier 1+ member who confirms affiliation with a club
+// that has no leadership at all is offered co-leadership during onboarding.
+// Acceptance writes a co-leader row; decline is terminal per member/club
+// pair (the decline audit row suppresses re-offers).
+// ---------------------------------------------------------------------------
+
+export interface PathTwoLeadershipOffer {
+  clubId: string;
+  clubName: string;
+}
+
+function listPathTwoLeadershipOffers(memberId: string): PathTwoLeadershipOffer[] {
+  if (!hasTier1Benefits(memberId)) return [];
+  const rows = clubLeaders.listLeaderlessCurrentClubsForMember.all(memberId) as Array<{
+    id: string;
+    name: string;
+  }>;
+  return rows
+    .filter((r) => !clubLeaders.hasPathTwoDecline.get(memberId, r.id))
+    .map((r) => ({ clubId: r.id, clubName: r.name }));
+}
+
+export type PathTwoLeadershipResult =
+  | { status: 'accepted' }
+  | { status: 'declined' }
+  | { status: 'not_eligible' };
+
+function resolvePathTwoLeadership(
+  memberId: string,
+  clubId: string,
+  decision: 'accept' | 'decline',
+): PathTwoLeadershipResult {
+  // Re-validate eligibility at write time: the offer is render-derived and
+  // the club may have gained a leader since the page rendered.
+  const eligible = listPathTwoLeadershipOffers(memberId).some((o) => o.clubId === clubId);
+  if (!eligible) return { status: 'not_eligible' };
+
+  const now = new Date().toISOString();
+  if (decision === 'decline') {
+    appendAuditEntry({
+      actionType:    'club.leadership_path2_declined',
+      category:      'club',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'club',
+      entityId:      clubId,
+      reasonText:    null,
+    });
+    return { status: 'declined' };
+  }
+
+  transaction(() => {
+    clubLeaders.insertClubLeader.run(
+      `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      now, 'onboarding_service', now, 'onboarding_service',
+      clubId, memberId, 'co-leader', now,
+    );
+    appendAuditEntry({
+      actionType:    'club.leadership_path2_accepted',
+      category:      'club',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'club',
+      entityId:      clubId,
+      reasonText:    null,
+      metadata:      { role: 'co-leader' },
+    });
+
+    // Revival: stepping up as leader makes it a live club. Path 2 offers
+    // cover active and inactive clubs; an inactive club returns to 'active'
+    // in the same transaction so the new leader's club is visible.
+    const club = clubs.findById.get(clubId) as
+      | { club_id: string; status: string }
+      | undefined;
+    if (club && club.status !== 'active') {
+      clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
+      appendAuditEntry({
+        actionType:    'club.revived_by_leadership_claim',
+        category:      'club_lifecycle',
+        actorType:     'member',
+        actorMemberId: memberId,
+        entityType:    'club',
+        entityId:      clubId,
+        metadata:      { prior_status: club.status, path: 'path2_offer' },
+      });
+    }
+  });
+  return { status: 'accepted' };
+}
+
 export const memberOnboardingService = {
   getTaskWidget,
   getDashboardTaskWidget,
@@ -1442,10 +1657,14 @@ export const memberOnboardingService = {
   submitTaskResponse,
   submitClubAffiliationsResponse,
   processClubAffiliationsSubmit,
+  listPathTwoLeadershipOffers,
+  resolvePathTwoLeadership,
   listWizardCardsForMember,
   processPersonalDetailsSubmit,
   processLegacyClaimSubmit,
   processLegacyClaimAutoLinkConfirm,
+  processLegacyClaimAutoLinkDecline,
+  processCrossSourceLegacyConfirm,
   processLegacyClaimTokenConfirm,
   processTaskSkip,
   claimHistoricalPersonAndCompleteTask,

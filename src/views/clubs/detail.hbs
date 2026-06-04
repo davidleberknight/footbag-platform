@@ -33,6 +33,76 @@
     </div>
     {{/if}}
 
+    {{#if content.club.contentEditHref}}
+    <section class="mt-4">
+      <div class="section-heading"><h2>Edit club content</h2></div>
+      <form method="POST" action="{{content.club.contentEditHref}}" class="form-block">
+        <div class="form-field">
+          <label for="club_description">Description</label>
+          <textarea id="club_description" name="description" rows="4" maxlength="2000">{{content.club.description}}</textarea>
+        </div>
+        <div class="form-field">
+          <label for="club_external_url">External URL (verified before it appears publicly; leave blank to remove)</label>
+          <input id="club_external_url" name="external_url" maxlength="2048" value="{{content.club.externalUrl}}" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+      </form>
+    </section>
+    {{/if}}
+
+    {{#if content.club.openSuggestions.length}}
+    <section class="mt-4">
+      <div class="section-heading">
+        <h2>Suggested edits awaiting review</h2>
+        <span class="section-count">{{content.club.openSuggestions.length}}</span>
+      </div>
+      {{#each content.club.openSuggestions}}
+        <div class="card">
+          <div class="card-title">{{fieldLabel}} suggestion from {{suggesterDisplayName}}</div>
+          <p>{{proposedValue}}</p>
+          {{#if note}}<p class="card-meta">{{note}}</p>{{/if}}
+          <form method="POST" action="{{reviewHref}}" class="form-block">
+            <input type="hidden" name="decision" value="approve" />
+            <button type="submit" class="btn btn-primary btn-sm">Approve and apply</button>
+          </form>
+          <form method="POST" action="{{reviewHref}}" class="form-block">
+            <input type="hidden" name="decision" value="reject" />
+            <div class="form-field">
+              <label for="reject_reason_{{id}}">Rejection reason</label>
+              <input id="reject_reason_{{id}}" name="reason" required maxlength="500" />
+            </div>
+            <button type="submit" class="btn btn-outline btn-sm">Reject</button>
+          </form>
+        </div>
+      {{/each}}
+    </section>
+    {{/if}}
+
+    {{#if content.club.canSuggestContent}}
+    <section class="mt-4">
+      <div class="section-heading"><h2>See something wrong?</h2></div>
+      <p class="text-muted fs-sm">Suggest a correction to this club's description or website link. A club contact or leader reviews suggestions before they appear.</p>
+      <form method="POST" action="{{content.club.contentSuggestHref}}" class="form-block">
+        <div class="form-field">
+          <label for="suggest_field">What needs correcting?</label>
+          <select id="suggest_field" name="field">
+            <option value="description">Description</option>
+            <option value="external_url">External URL</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="suggest_value">Proposed replacement</label>
+          <textarea id="suggest_value" name="proposed_value" rows="3" maxlength="2000" required></textarea>
+        </div>
+        <div class="form-field">
+          <label for="suggest_note">Note for the reviewer (optional)</label>
+          <input id="suggest_note" name="note" maxlength="500" />
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Submit suggestion</button>
+      </form>
+    </section>
+    {{/if}}
+
     {{#if content.club.viewGalleryHref}}
     <div class="club-gallery-link">
       <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View gallery</a>
@@ -93,6 +163,17 @@
     {{/if}}
 
     {{#if isAuthenticated}}
+    {{#if (or content.club.contactEmail content.club.whatsapp)}}
+    <div class="club-contact-block mt-4">
+      <h2 class="club-contact-heading">Contact</h2>
+      {{#if content.club.contactEmail}}
+        <p><a class="club-contact-email" href="mailto:{{content.club.contactEmail}}">{{content.club.contactEmail}}</a></p>
+      {{/if}}
+      {{#if content.club.whatsapp}}
+        <p class="club-contact-whatsapp">WhatsApp: {{content.club.whatsapp}}</p>
+      {{/if}}
+    </div>
+    {{/if}}
     <div class="club-join-block mt-4">
       {{#if content.club.viewerIsMember}}
         <p class="badge">You are a member of this club</p>

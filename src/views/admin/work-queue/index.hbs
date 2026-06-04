@@ -38,22 +38,61 @@
             <p>{{reasonText}}</p>
           {{/if}}
 
-          <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block work-queue-resolve">
-            <div class="form-field">
-              <label for="decision_label_{{id}}">Decision</label>
-              <select id="decision_label_{{id}}" name="decision_label" required>
-                <option value="" disabled selected>Choose a decision&hellip;</option>
-                {{#each decisionLabels}}
-                  <option value="{{value}}">{{label}}</option>
-                {{/each}}
-              </select>
-            </div>
-            <div class="form-field">
-              <label for="resolution_note_{{id}}">Resolution note</label>
-              <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="Sent to the member by email"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
-          </form>
+          {{#if isLinkHelpRequest}}
+            {{#if linkHelp}}
+              {{#if linkHelp.isDispute}}<p class="badge">Conflict dispute</p>{{/if}}
+              <p>{{linkHelp.statement}}</p>
+              <p class="card-meta">
+                {{#if linkHelp.claimedLegacyUsername}}Claimed legacy username: {{linkHelp.claimedLegacyUsername}}.{{/if}}
+                {{#if linkHelp.claimedLegacyEmail}} Claimed legacy email: {{linkHelp.claimedLegacyEmail}}.{{/if}}
+                {{#if linkHelp.vouchers}} Vouchers: {{linkHelp.vouchers}}.{{/if}}
+              </p>
+            {{/if}}
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block work-queue-resolve">
+              <div class="form-field">
+                <label for="link_help_target_{{id}}">Legacy account id to link</label>
+                <input id="link_help_target_{{id}}" name="target_legacy_member_id" required maxlength="200" />
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">Approve and link</button>
+            </form>
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block work-queue-resolve">
+              <div class="form-field">
+                <label for="link_help_reason_{{id}}">Rejection reason</label>
+                <textarea id="link_help_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm">Reject</button>
+            </form>
+            {{#if linkHelp.isDispute}}
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block work-queue-resolve">
+              <div class="form-field">
+                <label for="dispute_holder_{{id}}">Current holder's member id (claim to revert)</label>
+                <input id="dispute_holder_{{id}}" name="holder_member_id" required maxlength="200" />
+              </div>
+              <div class="form-field">
+                <label for="dispute_reason_{{id}}">Dispute reason</label>
+                <textarea id="dispute_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm">Uphold dispute: revert holder's claim</button>
+            </form>
+            {{/if}}
+          {{else}}
+            <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block work-queue-resolve">
+              <div class="form-field">
+                <label for="decision_label_{{id}}">Decision</label>
+                <select id="decision_label_{{id}}" name="decision_label" required>
+                  <option value="" disabled selected>Choose a decision&hellip;</option>
+                  {{#each decisionLabels}}
+                    <option value="{{value}}">{{label}}</option>
+                  {{/each}}
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="resolution_note_{{id}}">Resolution note</label>
+                <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="Sent to the member by email"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
+            </form>
+          {{/if}}
         </div>
       {{/each}}
     </section>

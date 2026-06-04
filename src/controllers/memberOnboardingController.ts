@@ -18,7 +18,7 @@ import {
 import { memberService } from '../services/memberService';
 import { logger } from '../config/logger';
 import { handleControllerError } from '../lib/controllerErrors';
-import { ValidationError } from '../services/serviceErrors';
+import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import {
   FLASH_KIND,
@@ -56,6 +56,7 @@ interface ClubAffiliationsCardContent {
   cardsRemaining:  number;
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline' } | null;
   formError:       string | null;
+  leadershipOffers?: Array<{ clubId: string; clubName: string }>;
   stage?:          string;
   canCreateClub?:  boolean;
   nearbyCandidates?: Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
@@ -174,6 +175,12 @@ async function renderLegacyClaim(
   }
   data.dashboardHref = dashboardHrefFor(req);
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
+  data.helpRequestNotice = req.query.help_request === 'sent';
+  const anchorVerification = req.query.anchor_verification;
+  data.anchorVerificationNotice =
+    anchorVerification === 'sent' || anchorVerification === 'verified' || anchorVerification === 'invalid'
+      ? anchorVerification
+      : null;
   if (validationMessage) data.validationMessage = validationMessage;
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
     seo:  { title: 'Find your past records and clubs' },
@@ -220,6 +227,7 @@ function renderClubAffiliationsCard(
     nearbyCandidates = memberOnboardingService.getStage2bCandidates(memberId);
   }
 
+  const leadershipOffers = memberOnboardingService.listPathTwoLeadershipOffers(memberId);
   const prefill = memberService.getPersonalDetailsPrefill(memberId);
   const memberCountry = prefill.country ?? null;
   const countrySlug = memberCountry
@@ -238,6 +246,7 @@ function renderClubAffiliationsCard(
       cardsRemaining,
       resolvedNotice,
       formError:      opts.formError ?? null,
+      leadershipOffers,
       stage,
       canCreateClub:  (() => {
         const tier = getTierStatus(memberId);
@@ -379,8 +388,19 @@ export const memberOnboardingController = {
 
       const taskState = memberOnboardingService.getTaskState(memberId, taskType);
       if (taskState === 'completed' || taskState === 'not_applicable') {
-        res.redirect(303, nextPendingHref(memberId));
-        return;
+        // A completed legacy_claim still renders while open staged
+        // candidates remain (the cross-source follow-on offer surfaces here
+        // right after the first claim completes); otherwise completed tasks
+        // bounce to the next outstanding one.
+        const hasOpenOffers =
+          (taskType === 'legacy_claim' &&
+            identityAccessService.listOpenStagedCandidates(memberId).length > 0) ||
+          (taskType === 'club_affiliations' &&
+            memberOnboardingService.listPathTwoLeadershipOffers(memberId).length > 0);
+        if (!hasOpenOffers) {
+          res.redirect(303, nextPendingHref(memberId));
+          return;
+        }
       }
 
       await renderTaskByType(req, res, taskType);
@@ -449,6 +469,100 @@ export const memberOnboardingController = {
         // banner inside the wizard chrome rather than dropping the member
         // onto the standalone history/auto-link-confirm template.
         writeWizardFlash(req, res, { kind: 'WIZARD_AUTO_LINK_DRIFT' });
+        res.redirect(303, taskUrlFor('legacy_claim'));
+      },
+    });
+  },
+
+  async postCrossSourceLegacyConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const candidateId = String(req.body.candidateId ?? '').trim();
+    await dispatch<null>(req, res, next, 'legacy_claim', {
+      action: () => memberOnboardingService.processCrossSourceLegacyConfirm(req.user!.userId, candidateId),
+      renderValidationError: () => {
+        writeWizardFlash(req, res, { kind: 'WIZARD_AUTO_LINK_DRIFT' });
+        res.redirect(303, taskUrlFor('legacy_claim'));
+      },
+    });
+  },
+
+  async postAnchorSendVerification(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      identityAccessService.requestAnchorMailboxVerification(
+        req.user!.userId,
+        String(req.body.anchorId ?? ''),
+        req.ip ?? 'unknown',
+      );
+      // Non-revealing: enqueued, already-verified, and not-found all land on
+      // the same banner; the member sees mail only when it was really sent.
+      res.redirect(303, `${taskUrlFor('legacy_claim')}?anchor_verification=sent`);
+    } catch (err) {
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429, err.message);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async getAnchorVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = identityAccessService.consumeAnchorMailboxVerification(
+        req.user!.userId,
+        req.params.token ?? '',
+      );
+      const flag = result.status === 'verified' ? 'verified' : 'invalid';
+      res.redirect(303, `${taskUrlFor('legacy_claim')}?anchor_verification=${flag}`);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async postLeadershipOffer(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const decision = req.body.decision === 'accept' ? 'accept' : 'decline';
+      memberOnboardingService.resolvePathTwoLeadership(
+        req.user!.userId,
+        String(req.body.clubId ?? ''),
+        decision,
+      );
+      // not_eligible collapses to the same redirect: the offer card simply
+      // no longer renders.
+      res.redirect(303, taskUrlFor('club_affiliations'));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async postLegacyClaimHelpRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      identityAccessService.submitLinkHelpRequest(req.user!.userId, {
+        statement:             String(req.body.statement ?? ''),
+        claimedLegacyUsername: String(req.body.claimed_legacy_username ?? ''),
+        claimedLegacyEmail:    String(req.body.claimed_legacy_email ?? ''),
+        vouchers:              String(req.body.vouchers ?? ''),
+        isDispute:             req.body.is_dispute === '1',
+      });
+      res.redirect(303, `${taskUrlFor('legacy_claim')}?help_request=sent`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429, err.message);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async postLegacyClaimAutoLinkDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const candidateId = String(req.body.candidateId ?? '').trim();
+    await dispatch<null>(req, res, next, 'legacy_claim', {
+      action: () => memberOnboardingService.processLegacyClaimAutoLinkDecline(req.user!.userId, candidateId),
+      renderValidationError: () => {
         res.redirect(303, taskUrlFor('legacy_claim'));
       },
     });

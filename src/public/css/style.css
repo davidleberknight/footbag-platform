@@ -1575,6 +1575,11 @@ section.home-media { padding-top: 0; }
   color: var(--text);
 }
 .club-gallery-link { margin-top: 20px; }
+.club-contact-block { margin-top: 24px; }
+.club-contact-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+.club-contact-email { font-size: 0.95rem; }
+.club-leader-email { font-size: 0.9rem; margin-left: 6px; }
+.club-contact-whatsapp { font-size: 0.95rem; color: var(--text); margin: 4px 0 0; }
 .club-members { margin-top: 32px; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
 .club-member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }

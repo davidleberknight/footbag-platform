@@ -9,7 +9,7 @@
 #    that address after first apply.
 #
 # 2. Domain identity + DKIM + Route53 records (resources below, count-gated
-#    by var.ses_enable_domain_auth, default true).
+#    by var.ses_enable_domain_auth, default false until the DNS handover).
 #    Domain identity verification via DNS, DKIM CNAMEs, and SPF + DMARC TXT
 #    records are required for SES production access (out of sandbox) and
 #    for deliverability against major mail providers. Without DKIM-aligned
@@ -45,12 +45,13 @@ variable "ses_enable_domain_auth" {
   description = <<-EOT
     Set to true to provision the SES domain identity, DKIM verification,
     and SPF/DMARC TXT records. Required before exiting SES sandbox and
-    before any meaningful deliverability. Default true on production; set
-    false during the first apply pass if var.route53_zone_id is not yet
-    populated (the records cannot be created without the hosted zone).
+    before any meaningful deliverability. Default FALSE: the webmaster holds
+    the authoritative zone until the DNS-handover milestone, so the Route 53
+    records these resources create would not resolve; flip to true only when
+    var.route53_zone_id names a zone Route 53 actually serves.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "ses_dmarc_rua_email" {
@@ -144,4 +145,58 @@ resource "aws_route53_record" "dmarc" {
     ? "v=DMARC1; p=quarantine; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=s; pct=100"
     : "v=DMARC1; p=quarantine; adkim=s; aspf=s; pct=100"
   ]
+}
+
+# =============================================================================
+# SES feedback loop -- bounce/complaint notifications to the app webhook
+# =============================================================================
+# Bounces and complaints publish to an SNS topic subscribed to the app's
+# public webhook (shared-secret query key in the endpoint URL). The app marks
+# the matching member's email_status so transactional sends skip dead or
+# complaining addresses. The HTTPS subscription requires an out-of-band
+# confirmation: the app records the SubscribeURL in an audit row and the
+# operator confirms it once.
+
+resource "aws_sns_topic" "ses_feedback" {
+  name = "${local.prefix}-ses-feedback"
+}
+
+resource "aws_ses_identity_notification_topic" "sender_bounce" {
+  identity                 = aws_ses_email_identity.sender.arn
+  notification_type        = "Bounce"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+resource "aws_ses_identity_notification_topic" "sender_complaint" {
+  identity                 = aws_ses_email_identity.sender.arn
+  notification_type        = "Complaint"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+# When domain-level auth is enabled, mail sends under the domain identity;
+# its feedback must reach the same topic.
+resource "aws_ses_identity_notification_topic" "domain_bounce" {
+  count                    = var.ses_enable_domain_auth ? 1 : 0
+  identity                 = aws_ses_domain_identity.main[0].arn
+  notification_type        = "Bounce"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+resource "aws_ses_identity_notification_topic" "domain_complaint" {
+  count                    = var.ses_enable_domain_auth ? 1 : 0
+  identity                 = aws_ses_domain_identity.main[0].arn
+  notification_type        = "Complaint"
+  topic_arn                = aws_sns_topic.ses_feedback.arn
+  include_original_headers = false
+}
+
+resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
+  count                  = var.ses_feedback_webhook_url == "" ? 0 : 1
+  topic_arn              = aws_sns_topic.ses_feedback.arn
+  protocol               = "https"
+  endpoint               = var.ses_feedback_webhook_url
+  endpoint_auto_confirms = false
 }

@@ -244,17 +244,43 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     filter {}
     noncurrent_version_expiration { noncurrent_days = 90 }
   }
+  # The routine backup producer (scripts/backup-db.sh, every 5 minutes)
+  # accumulates ~288 objects/day under routine/; expire them after 30 days.
+  # The pre-cutover snapshot lands in the DR bucket under pre-flip/, never
+  # under routine/, so this rule cannot age it out.
+  rule {
+    id     = "expire-routine-stream"
+    status = "Enabled"
+    filter { prefix = "routine/" }
+    expiration { days = 30 }
+  }
 }
 
 # ── DR bucket (cross-region snapshots backup) ────────────────────────────────
-# Lives in us-west-2 (backup region per AWS_PROJECT_SPECIFICS). Object Lock
-# would normally apply per MIGRATION_PLAN OR1 but Object Lock can only be
-# enabled at bucket creation; revisit as a separate gated decision before
-# enabling Object Lock requires recreating the bucket.
+# Lives in us-west-2 (backup region). Object Lock is enabled at creation
+# (it cannot be retrofitted): the pre-flip cutover snapshot and replicated
+# routine backups become undeletable for the default retention window, which
+# covers the 48h rollback window plus operator-review headroom. GOVERNANCE
+# mode (not COMPLIANCE) so an operator with s3:BypassGovernanceRetention can
+# still recover from a mistaken upload; COMPLIANCE would make errors
+# permanent for the full window. If this bucket already exists without
+# Object Lock, it must be recreated (import will not add the flag).
 
 resource "aws_s3_bucket" "dr" {
+  provider            = aws.us_west_2
+  bucket              = "${local.prefix}-db-snapshots-dr"
+  object_lock_enabled = true
+}
+
+resource "aws_s3_bucket_object_lock_configuration" "dr" {
   provider = aws.us_west_2
-  bucket   = "${local.prefix}-db-snapshots-dr"
+  bucket   = aws_s3_bucket.dr.id
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = 60
+    }
+  }
 }
 
 resource "aws_s3_bucket_versioning" "dr" {

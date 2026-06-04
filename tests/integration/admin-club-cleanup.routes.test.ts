@@ -126,3 +126,99 @@ describe('POST /admin/club-cleanup/:clubId/resolve', () => {
     }
   });
 });
+
+describe('stale-provisional predicate surfaces unresolved bootstrap rows', () => {
+  it('a club whose only leadership is a provisional bootstrap row appears in the queue', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const { insertClub: mkClub, insertClubBootstrapLeader: mkBootstrap } = await import('../fixtures/factories');
+    const clubId = mkClub(db, { id: 'cleanup-stale-club', name: 'Stale Provisional Club' });
+    mkBootstrap(db, { club_id: clubId, legacy_member_id: 'lm-stale-1', role: 'leader', status: 'provisional' });
+    db.close();
+
+    const res = await request(createApp())
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stale Provisional Club');
+    expect(res.text.toLowerCase()).toContain('provisional');
+  });
+});
+
+describe('deferred resolutions re-surface after the window expires', () => {
+  it('a deferred club is absent before expiry and returns once deferred_until passes', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const { insertClub: mkClub, insertClubViabilitySignal: mkSignal, insertMember: mkMember } = await import('../fixtures/factories');
+    const clubId = mkClub(db, { id: 'cleanup-defer-club', name: 'Deferred Club' });
+    mkMember(db, { id: 'cleanup-sig-1', slug: 'cleanup_sig_1', login_email: 'sig1@example.com' });
+    mkMember(db, { id: 'cleanup-sig-2', slug: 'cleanup_sig_2', login_email: 'sig2@example.com' });
+    mkSignal(db, { member_id: 'cleanup-sig-1', club_id: clubId, activity_signal: 'not_active' });
+    mkSignal(db, { member_id: 'cleanup-sig-2', club_id: clubId, activity_signal: 'not_active' });
+    db.close();
+
+    // A concordant-inactive club is also active+leaderless, so it carries
+    // two queue items; defer both predicates to take it fully off the page.
+    for (const predicate of ['crowdsource_viability', 'leaderless_active']) {
+      const deferRes = await request(createApp())
+        .post(`/admin/club-cleanup/${clubId}/resolve`)
+        .set('Cookie', adminCookie())
+        .send({ action: 'defer_90', predicate, reasonText: 'Revisit later' });
+      expect(deferRes.status).toBe(303);
+    }
+
+    const before = await request(createApp())
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(before.text).not.toContain('Deferred Club');
+
+    // Move the deferral windows into the past; the club must re-surface.
+    const db2 = new BetterSqlite3(dbPath);
+    db2.prepare(`
+      UPDATE club_cleanup_resolutions
+         SET deferred_until = '2020-01-01T00:00:00.000Z'
+       WHERE club_id = ?
+    `).run(clubId);
+    db2.close();
+
+    const after = await request(createApp())
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(after.text).toContain('Deferred Club');
+  });
+});
+
+describe('demote cascade retires pending legacy residue', () => {
+  it('demoting a club transitions its pending affiliations to former_only', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const {
+      insertClub: mkClub,
+      insertClubViabilitySignal: mkSignal,
+      insertLegacyClubCandidate: mkCandidate,
+      insertLegacyPersonClubAffiliation: mkAffiliation,
+    } = await import('../fixtures/factories');
+    const clubId = mkClub(db, { id: 'cleanup-residue-club', name: 'Residue Club' });
+    const candidateId = mkCandidate(db, { mapped_club_id: clubId, classification: 'pre_populate' });
+    const affId = mkAffiliation(db, {
+      legacy_club_candidate_id: candidateId,
+      legacy_member_id: 'lm-residue-1',
+      resolution_status: 'pending',
+    });
+    mkSignal(db, { member_id: 'cleanup-sig-1', club_id: clubId, activity_signal: 'not_active' });
+    mkSignal(db, { member_id: 'cleanup-sig-2', club_id: clubId, activity_signal: 'not_active' });
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'demote_inactive', predicate: 'crowdsource_viability', reasonText: 'Concordant inactive' });
+    expect(res.status).toBe(303);
+
+    const db2 = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const aff = db2.prepare('SELECT resolution_status FROM legacy_person_club_affiliations WHERE id = ?')
+        .get(affId) as { resolution_status: string };
+      expect(aff.resolution_status).toBe('former_only');
+    } finally {
+      db2.close();
+    }
+  });
+});

@@ -1,0 +1,26 @@
+# =============================================================================
+# /etc/systemd/system/footbag-backup.service
+#
+# One-shot SQLite backup producer; scheduled by footbag-backup.timer.
+# Install: sudo cp ops/systemd/footbag-backup.service /etc/systemd/system/
+#          sudo cp ops/systemd/footbag-backup.timer   /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now footbag-backup.timer
+#
+# Host prerequisites: sqlite3 CLI (apt-get install -y sqlite3), aws CLI with
+# the /root/.aws assumed-role chain, and BACKUP_S3_BUCKET in /srv/footbag/env.
+# After the first scheduled runs emit BackupAgeMinutes, flip the terraform
+# enable_backup_alarm variable to true so the staleness alarm goes live.
+# =============================================================================
+
+[Unit]
+Description=Footbag SQLite backup producer
+Documentation=https://github.com/davidleberknight/footbag-platform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/footbag
+EnvironmentFile=/srv/footbag/env
+ExecStart=/usr/bin/env bash scripts/backup-db.sh

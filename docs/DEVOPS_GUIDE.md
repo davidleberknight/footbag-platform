@@ -37,7 +37,9 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [5.8 SESSION_SECRET rotation runbook](#58-session_secret-rotation-runbook)
   - [5.9 Origin-verify shared-secret rotation runbook](#59-origin-verify-shared-secret-rotation-runbook)
   - [5.10 Safe Browsing API key rotation runbook](#510-safe-browsing-api-key-rotation-runbook)
-  - [5.11 Host env verification](#511-host-env-verification)
+  - [5.11 SES feedback loop activation](#511-ses-feedback-loop-activation)
+  - [5.12 Production first-admin bootstrap](#512-production-first-admin-bootstrap)
+  - [5.13 Host env verification](#513-host-env-verification)
 - [6. Terraform and Infrastructure Change Control](#6-terraform-and-infrastructure-change-control)
   - [6.1 Terraform authority](#61-terraform-authority)
   - [6.1.1 Manual bootstrap boundary](#611-manual-bootstrap-boundary)
@@ -118,6 +120,10 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [16.3 Snapshot restore checklist](#163-snapshot-restore-checklist)
   - [16.4 Access review checklist](#164-access-review-checklist)
   - [16.5 Backup-drill checklist](#165-backup-drill-checklist)
+  - [16.6 Cutover preflight checklist](#166-cutover-preflight-checklist)
+  - [16.7 DNS cutover sequence runbook](#167-dns-cutover-sequence-runbook)
+  - [16.8 External DNS/mail upstream coordination runbook](#168-external-dnsmail-upstream-coordination-runbook)
+  - [16.9 Environment bring-up sequence](#169-environment-bring-up-sequence)
 - [17. Test-data Operations](#17-test-data-operations)
   - [17.1 Scope and isolation model](#171-scope-and-isolation-model)
   - [17.2 Staging admin seed](#172-staging-admin-seed)
@@ -584,6 +590,31 @@ Use customer-managed KMS keys for sensitive `SecureString` parameters and for ap
 
 This is the direct operationalization of the older `SA_Rotate_Stripe_Keys` story.
 
+#### First-time activation (turning live payments on)
+
+The application-side switch is `PAYMENT_ADAPTER` in `/srv/footbag/env`; everything else is credential provisioning. Production refuses to boot with `PAYMENT_ADAPTER=stub`, so on the production host these steps are boot prerequisites, not optional hardening. Staging normally runs `PAYMENT_ADAPTER=stub` (the programmable in-memory Stripe mirror); staging may be pointed at real Stripe by running the same steps with test-mode credentials.
+
+`scripts/activate-payments.sh --target <staging|production> --profile <profile>` walks this sequence end to end: the SSM key write (step 1), the host env rewrite with a masked confirmation diff (step 3), and the PAYMENTS-BOOT gate. Step 2 (the Stripe Dashboard webhook endpoint) is inherently manual; the script pauses for it and prompts for the resulting signing secret. The numbered steps below remain the canonical procedure the script implements.
+
+1. **Secret API key (SSM).** `terraform apply` creates the SecureString shell `/footbag/{env}/secrets/stripe_secret_key` with a `TODO-` placeholder. Supply the real key (live-mode `sk_live_...` for production; test-mode `sk_test_...` for staging):
+
+   ```
+   aws ssm put-parameter \
+     --name "/footbag/production/secrets/stripe_secret_key" \
+     --value file:///tmp/stripe-key --type SecureString \
+     --key-id alias/footbag-production --overwrite
+   ```
+
+   (`file://` hygiene keeps the key out of shell history; delete the temp file after.) The live adapter resolves the key lazily on the first payment operation and rejects the `TODO-` placeholder loudly, so a deploy that skips this step fails the first checkout, never silently.
+
+2. **Webhook endpoint (Stripe Dashboard).** Create a webhook endpoint pointing at `https://footbag.org/payments/webhook` (the environment's `PUBLIC_BASE_URL` + `/payments/webhook`), subscribed to: `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `checkout.session.expired`. Other event types are acknowledged and ignored; the recurring-donation slice adds its subscription and invoice events when it ships. Copy the endpoint's signing secret (`whsec_...`).
+
+3. **Host env (`/srv/footbag/env`).** Set `PAYMENT_ADAPTER=live` and `STRIPE_WEBHOOK_SECRET=whsec_...`. The boot guard rejects a `whsec_stub`-prefixed webhook secret in production, and live mode refuses to boot without a webhook secret at all. `SECRETS_ADAPTER=live` must already be set so the SSM key lookup works.
+
+4. **Deploy / restart** via `./deploy_to_aws.sh`. Boot-time config validation enforces the env pair; the SSM key is validated on first checkout.
+
+5. **Verify** per Required verification below: one real checkout (smallest tier), webhook signature validation observed in logs, payment row `succeeded` plus the tier grant present, then refund the test transaction from the Stripe Dashboard and confirm the refund webhook transitions the row to `refunded` while the tier grant is preserved.
+
 #### When to run
 
 - scheduled credential rotation
@@ -764,7 +795,26 @@ Bootstrap lives in DEV_ONBOARDING §4.10. This section covers recurring rotation
 - Validator returns "URL could not be reached" instead of Safe Browsing rejection: the reachability check (preceding gate) is failing first; not a Safe Browsing wiring issue.
 - Quota errors (HTTP 429): rate limit exceeded. Check daily lookup volume in GCP Console; back off and retry. If sustained, application traffic exceeds the free tier; reduce or upgrade the GCP billing tier.
 
-### 5.11 Host env verification
+### 5.11 SES feedback loop activation
+
+Bounce and complaint notifications flow SES → SNS → the app's public webhook, which marks the matching member's `email_status` so transactional sends skip dead or complaining addresses.
+
+1. Set the Terraform variable `ses_feedback_webhook_url` to the full HTTPS webhook URL including the shared-secret query key: `https://<host>/webhooks/ses-feedback?key=<INTERNAL_EVENT_SECRET value>`. The variable is `sensitive`; keep it out of committed tfvars files. Apply.
+2. SNS posts a subscription-confirmation message. The app never auto-fetches the SubscribeURL (that would fetch an attacker-suppliable URL); it records it in an `email.sns_subscription_pending` audit row. Read the URL from that row and confirm it once:
+   `sqlite3 database/footbag.db "SELECT metadata_json FROM audit_entries WHERE action_type = 'email.sns_subscription_pending' ORDER BY created_at DESC LIMIT 1;"`
+   then open the `subscribe_url` value (curl or browser).
+3. Validate end-to-end with a reputation-safe synthetic bounce: `scripts/verify-prod-email.sh --profile <prod-profile> --confirm-production --bounce-probe`, then check for the `email.bounce_recorded` audit row the probe's output describes.
+
+### 5.12 Production first-admin bootstrap
+
+The production platform launches with zero admins; the single-shot bootstrap token creates the first one.
+
+1. Provision the token (a System Administrator action, never committed anywhere):
+   `aws ssm put-parameter --name /footbag/production/app/bootstrap/admin_token --type SecureString --value "<operator-generated token>" --profile <prod-profile>`
+2. Hand the token to the intended first admin out-of-band. They register a normal account, sign in, and submit the token at `/admin/bootstrap-claim`. On a match the platform writes `is_admin=1` plus the Tier 2 invariant grant plus the `grant_admin_bootstrap` audit row atomically, then deletes the parameter.
+3. Verify closure: `aws ssm get-parameter --name /footbag/production/app/bootstrap/admin_token` must return ParameterNotFound. If the grant succeeded but deletion failed, an `admin.bootstrap_token_delete_failed` operational error is raised; delete the parameter by hand.
+
+### 5.13 Host env verification
 
 `/srv/footbag/env` on each Lightsail host is operator-managed plain text (root:root 0600) and is not reconciled by Terraform automatically. `scripts/verify-staging-env.sh` reads the host env file over ssh and compares it against the terraform-output contract (KMS JWT key ARN, SES sender identity, media bucket name) plus the production-hardening invariants enforced by `src/config/env.ts` (NODE_ENV cross-invariant, SESSION_SECRET length and non-placeholder shape, internal-event secret non-default, image worker URL non-localhost, dev-shortcut posture per target).
 
@@ -790,7 +840,7 @@ Bootstrap lives in DEV_ONBOARDING §4.10. This section covers recurring rotation
 #### Required verification
 
 - The script exits 0 with the summary `All critical invariants passed`.
-- Any `WARN` entries are reviewed; advisory items (e.g. `TRUST_PROXY` unset on a CloudFront-fronted host) are either intentional or remediated in the host env file.
+- Any `WARN` entries are reviewed and either intentional or remediated in the host env file. `TRUST_PROXY` warns unless it is the exact integer hop count (staging 2; production 3 while the legacy front door proxies the apex; drops by one at the DNS-handover milestone when that hop retires); a missing value degrades to coarse per-edge rate limiting rather than blocking boot.
 
 #### Failure modes and recovery
 
@@ -801,6 +851,7 @@ Bootstrap lives in DEV_ONBOARDING §4.10. This section covers recurring rotation
 - `INTERNAL_EVENT_SECRET is the dev-default literal`: the operator copied a dev `.env` to the host. Generate a fresh value with `openssl rand -hex 32` and update `/srv/footbag/env`.
 - `IMAGE_PROCESSOR_URL references localhost`: the host env still carries the dev fallback. Set to the docker-compose service name (e.g. `http://image-worker:4000`).
 - `FOOTBAG_DEV_ADMIN_GRANT_TIER2`, `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS`, or a similar dev-bootstrap var present on a production host env: remove the line. The env-config boot guard refuses to start the container with these set on production, so the deploy would also fail at container boot; the script catches the misconfiguration earlier.
+- `BACKUP_S3_BUCKET unset` (WARN): the app boots without it, but `footbag-backup.timer` cannot upload snapshots. Set it to the environment's db-snapshots bucket name (terraform output) before installing the timer per §10.
 
 #### Synthetic mode
 
@@ -887,6 +938,12 @@ Rules:
 - keep variable files or workspace variables explicit
 - environment-specific names, tags, bucket paths, and alarms must be deterministic
 - do not allow a single command to mutate multiple environments implicitly
+
+Milestone-gated variables (default off; flip at the DNS-handover milestone, when the zone moves to Route 53 and the legacy front-door proxy retires):
+
+- `enable_apex_alias_records`: creates the apex/www ALIAS records to CloudFront. Before handover the webmaster's proxy fronts the apex and these records would not resolve.
+- `ses_enable_domain_auth`: provisions the SES domain identity, DKIM, and SPF/DMARC records in Route 53. Requires a zone Route 53 actually serves.
+- The same milestone drops production `TRUST_PROXY` from 3 to 2 (the proxy hop retires).
 
 ### 6.5 Emergency console changes
 
@@ -1294,6 +1351,8 @@ Required behavior:
 - raise an alarm after repeated failure
 - wait for in-flight backup completion on controlled shutdown when that shutdown hook exists
 
+Operator wiring: the producer is `scripts/backup-db.sh`, scheduled by the systemd pair `ops/systemd/footbag-backup.service` + `footbag-backup.timer` (5-minute cadence). Install from the operator workstation with `scripts/install-backup-timer.sh --target <staging|production>`, which stages both units onto the host, installs them into `/etc/systemd/system/`, enables the timer, and runs the service once so a missing prerequisite fails loudly at install time. The script requires `BACKUP_S3_BUCKET` in `/srv/footbag/env` and emits the `BackupAgeMinutes` CloudWatch heartbeat; once the metric flows, flip the Terraform variable `enable_backup_alarm` to arm the staleness alarm (`treat_missing_data = breaching`, so arming it before the metric exists pages immediately).
+
 ### 10.3 Nightly cross-region DR sync
 
 A separate nightly sync protects against regional failure.
@@ -1569,8 +1628,11 @@ Required rules:
 - backup age and backup failure
 - job missed-run counts
 - Stripe webhook failures
-- SES bounce/complaint thresholds
-- dead-letter / outbox failure growth
+- SES bounce/complaint thresholds (account `Reputation.BounceRate` > 5% and `Reputation.ComplaintRate` > 0.25%; SES pauses sending near double those levels)
+- dead-letter / outbox failure growth (`OutboxDepth` metric from the worker's per-cycle `outbox.depth` log line; backlog alarm at > 50 sustained 15 minutes)
+- CloudFront p90 `OriginLatency` (> 3s sustained; requires the per-distribution additional-metrics subscription)
+- ACM `DaysToExpiry` for the CloudFront certificate (< 30 days; lives in us-east-1 with a sibling SNS topic, since alarm actions must target a same-region topic)
+- cutover zero-logins watch (`LoginSuccessCount` from the `auth.login_success` log line; gated by Terraform `enable_cutover_login_alarm`, enabled for the cutover monitoring window only and disabled in steady state, where quiet overnight hours would false-positive)
 - any `logger.error()` line in the app log group — a CloudWatch log metric filter on `{ $.level = "error" }` increments a count routed through SNS to the admin email. Every error worth logging surfaces to an operator automatically.
 
 #### Administrator-visible summaries
@@ -1789,22 +1851,21 @@ Operator workflow:
 
 1. Open the daily digest email.
 2. For each listed claim, read the original claim audit row to identify the linked member display name, the linked legacy member display name, and the honor type (HoF or BAP).
-3. Spot-check the link for plausibility against public history. If anything looks wrong, contact the linked member directly. The silent-and-notified design assumes the member has agency to revert from the notification email or first-login card; this digest is a back-stop.
-4. If a wrong link is identified and the member is unreachable, the operator may trigger the revert handler from the admin queue per §13.11.
+3. Spot-check the link for plausibility against public history. If anything looks wrong, contact the linked member directly. Claims apply only on the member's own wizard confirmation; this digest is a post-facto back-stop, never a gate.
+4. If a wrong link is identified, route it through the dispute-revert procedure per §13.11.
 
-The digest is informational. Actions on flagged claims are taken through the `A_Review_Auto_Link_Matches` queue per §13.11.
+The digest is informational. Actions on flagged claims are taken through the dispute-revert procedure per §13.11.
 
-### 13.11 Auto-link revert handling
+### 13.11 Claim dispute and revert handling
 
-When a member reports a silent high-confidence or medium-confidence auto-link as incorrect (via the notification email link, the first-login confirmation card, or the profile-settings affordance), the system runs the revert handler atomically per MIGRATION_PLAN §6 and enqueues a `work_queue_items` row with `task_type='auto_link_revert_review'` for admin confirmation.
+When a confirmed claim is disputed (a member believes their own confirmation was wrong, or a real person arrives after someone else confirmed a claim under their identity), the dispute routes through the member-initiated help request reviewed under `A_Review_Member_Link_Help_Requests` (MIGRATION_PLAN §13 carries the system-side contract).
 
 Operator workflow:
 
-1. Open the `A_Review_Auto_Link_Matches` admin queue and filter for `auto_link_revert_review` items.
-2. For each item, review the original claim audit row and the revert event to understand the chronology and what the member observed.
-3. Decide: confirm-revert (leave the cleared state in place; the legacy account is available for the correct person to claim), hard-decline (re-establish the link if the member who reported was mistaken; reason required), or defer.
-4. Record the decision per the audit rules in `A_Review_Auto_Link_Matches`: audit-logged with actor, original claim audit id, revert audit id, decision, optional reason, timestamp.
-5. If hard-declined, the member is notified by email that their link was re-established and given a contact path if they want to follow up.
+1. Open the admin work queue and review the dispute item alongside the original claim audit row to understand the chronology and the evidence-strength tag the claim carried.
+2. Decide: revert (clear the back-link columns and revoke the claim tier grant; the legacy account or historical person becomes claimable by the correct person), decline (the original claim stands; reason required), or defer.
+3. Record the decision per the audit rules in `A_Review_Member_Link_Help_Requests`: audit-logged with actor, original claim audit id, decision, optional reason, timestamp.
+4. Notify the disputing member of the outcome by email, with a contact path for follow-up.
 
 ---
 
@@ -2081,7 +2142,7 @@ Each precondition halts the cutover if it fails. The orchestrator's pass means a
 
 The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken. This sequence swaps only the apex and `www` A/AAAA records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§16.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.
 
-The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any future cutover that does not have its own cutover-specific overrides. For the production footbag.org cutover, MIGRATION_PLAN §29.12 overrides these defaults: TTL pre-shrink to 300s (legacy DNS host needs more margin), TTL restore at T+48h (extended for the §27 48h rollback window), and a 48h rollback window per §27 (rather than the §7.6 T+4h operator-call boundary). Where MP §29.12 and §16.7 disagree, MP §29.12 wins for the footbag.org cutover.
+The numerics below (60s TTL pre-shrink, T+24h TTL restore, T-0 to T+1h rollback window) are the generic-procedure defaults used for staging dry-runs and any cutover without its own overrides. For production footbag.org: the front-door cutover does not move DNS at all (MIGRATION_PLAN §29.12; the agreed Option A cutover is a reverse-proxy flip on the legacy server). This runbook applies later, at the post-stability DNS-handover milestone, where MIGRATION_PLAN §29.12 additionally requires a fresh zone snapshot first so mail and retained-subdomain records copy faithfully into Route 53. Where MIGRATION_PLAN §29.12 and this section disagree, MIGRATION_PLAN §29.12 wins for footbag.org.
 
 Sequence:
 
@@ -2107,7 +2168,7 @@ All three should return CloudFront edge IPs (the `aws-cloudfront-net` block) and
 
 **T+24 hours -- TTL restore.** With the cutover stable, raise the TTL on the (now Route 53-managed) apex + `www` records to the long-term default (3600s). Re-apply Terraform; record the timestamp.
 
-Rollback (anywhere from T-0 to T+1 hour): apply the prior Terraform state pinning the legacy-origin A/AAAA records. With TTLs at 60s, world resolves to the legacy origin inside two minutes. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult §7.6 (Cutover rollback decision rule) before triggering.
+Rollback (anywhere from T-0 to T+1 hour): apply the prior Terraform state pinning the legacy-origin A/AAAA records. With TTLs at 60s, world resolves to the legacy origin inside two minutes. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult the rollback decision framework in `MIGRATION_PLAN.md` §27 before triggering.
 
 Dry-run note: dry-run the full sequence against the staging zone before production. Staging uses `staging.footbag.org` (or whatever the staging zone resolves to in `terraform/staging/route53.tf`); the same sequence applies and exercises the same Terraform pathways. A green dry-run confirms the Terraform module, the AWS profile permissions, and the propagation-check tooling all work before they're load-bearing on production.
 
@@ -2163,6 +2224,19 @@ Skeleton (detailed provider click-paths are filled in when the step is first exe
 6. Once confirmed, withdraw legacy `@footbag.org` delivery and remove the backup MX.
 
 Rollback: if Google inbound fails verification, revert the `footbag.org` MX to the legacy mail server (authoritative until step 6). The web cutover (§16.7) is independent and unaffected. Never modify the `ifpa.footbag.org` MX during this step.
+
+### 16.9 Environment bring-up sequence
+
+The ordered sequence for standing up a staging or production environment from provisioned infrastructure to serving traffic. Steps 3, 5, 6, and 7 are milestone-gated rather than same-day: run them when their milestone arrives, not eagerly. At any point, `scripts/bringup-status.sh --target <staging|production> --profile <profile>` reports each step as DONE / PENDING / UNKNOWN with the exact next command.
+
+1. **Host env file** (`/srv/footbag/env`, per host). Set `TRUST_PROXY` to the exact X-Forwarded-For hop count (staging 2; production 3 while the legacy front door proxies the apex, dropping to 2 at the DNS-handover milestone) and `BACKUP_S3_BUCKET` to the environment's db-snapshots bucket. A missing `TRUST_PROXY` degrades to coarse per-edge rate limiting; a missing `BACKUP_S3_BUCKET` blocks step 4's uploads. Verify: `scripts/verify-staging-env.sh --target <t>` (§5.13).
+2. **Terraform** (staging first, then production). `terraform -chdir=terraform/<t> plan`, review, `terraform import` any Console-created resource before applying (§6), then apply. The gated flags (`enable_backup_alarm`, `enable_cutover_login_alarm`, `ses_feedback_webhook_url`) default off and are flipped by the later steps.
+3. **Payments activation** (at the payments-activation milestone, not before). `scripts/activate-payments.sh --target production --profile <prod-profile>` (§5.5): Stripe key to SSM, Dashboard webhook endpoint (manual, the script pauses for it), host env flip to `PAYMENT_ADAPTER=live` + `STRIPE_WEBHOOK_SECRET`, PAYMENTS-BOOT gate. Production refuses to boot on the stub adapter, so this precedes the production go-live deploy.
+4. **Backup timer.** `scripts/install-backup-timer.sh --target <t>` (§10): installs and starts the systemd pair and runs the first snapshot immediately. After two `BackupAgeMinutes` datapoints, set `enable_backup_alarm = true` in `terraform/<t>/terraform.tfvars` and apply.
+5. **SES feedback loop** (§5.11). Set the `ses_feedback_webhook_url` tfvar (full webhook URL including `?key=<INTERNAL_EVENT_SECRET>`; the variable is sensitive, keep it out of committed tfvars), apply, confirm the SNS SubscribeURL recorded in the `email.sns_subscription_pending` audit row, then validate with `scripts/verify-prod-email.sh --profile <prod-profile> --confirm-production --bounce-probe`.
+6. **First admin** (production; §5.12). Provision the single-shot bootstrap token in SSM, hand it off out-of-band, and verify the parameter self-deletes after the claim.
+7. **Cutover login alarm** (cutover window only). Set `enable_cutover_login_alarm = true` and apply for the window; set it back to false and apply after. Steady state is off.
+8. **Deploy.** `./deploy_to_aws.sh` (ships the local working tree; §7). The per-deploy gates live in §16.1.
 
 ## 17. Test-data Operations
 

@@ -80,6 +80,10 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
               '2025-01-01T00:00:00.000Z', 'system', 1,
               'Test Club', 'Testville', 'US', 'active', 'tag-club-1')
   `).run();
+  // lcc-1 maps to the bootstrapped club (after the clubs FK target exists)
+  // so the leader-coverage gate sees a covered pre-populate club; lcc-2
+  // stays unmapped (defers to leadership path 2).
+  db.prepare(`UPDATE legacy_club_candidates SET mapped_club_id = 'club-1' WHERE id = 'lcc-1'`).run();
   db.prepare(`
     INSERT INTO club_bootstrap_leaders (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -87,6 +91,16 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
     ) VALUES ('cbl-1', '2025-01-01T00:00:00.000Z', 'system',
               '2025-01-01T00:00:00.000Z', 'system', 1,
               'club-1', 'legmem-1', 'leader', 'provisional', 0.85)
+  `).run();
+
+  // The G20 data-review sign-off row the green path requires.
+  db.prepare(`
+    INSERT INTO audit_entries
+      (id, created_at, created_by, occurred_at, actor_type, actor_member_id,
+       action_type, entity_type, entity_id, category, reason_text, metadata_json)
+    VALUES ('aud-g20-signoff', '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z',
+            'system', NULL, 'legacy_pipeline.data_review_signoff', 'system', 'legacy_pipeline',
+            'system', 'Legacy data complete; member-list presentation reviewed.', '{}')
   `).run();
 
   // Optional name_variants seed (omit for the red-path test to fail G11).
@@ -104,13 +118,25 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
 }
 
 function runChecklist(dbPath: string, snapshotDir: string): { status: number; stdout: string; stderr: string } {
+  // The payments-boot gate reads a deploy env file; a live-mode fixture
+  // beside the test DB satisfies it.
+  const envFile = path.join(path.dirname(dbPath), 'deploy-env');
+  fs.writeFileSync(envFile, 'PAYMENT_ADAPTER=live\nSTRIPE_WEBHOOK_SECRET=whsec_fixture\n');
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     FOOTBAG_DB_PATH:                  dbPath,
     FOOTBAG_SNAPSHOT_DIR:             snapshotDir,
+    FOOTBAG_ENV_FILE:                 envFile,
+    // Local rehearsal: the snapshot step's cross-region DR upload is
+    // explicitly skipped (a real cutover run sets FOOTBAG_DR_BUCKET).
+    FOOTBAG_SNAPSHOT_LOCAL_ONLY:      '1',
     FOOTBAG_PRECUTOVER_MOCK_AWS:      '1',
     FOOTBAG_PRECUTOVER_SKIP_TESTS:    '1',
     FOOTBAG_NAME_VARIANTS_MIN:        '250',
+    // The fixture DB carries no club-only persons; the G12 floor is a
+    // real-data gate, zeroed for the orchestrator-shape test.
+    FOOTBAG_CLUB_ONLY_PERSONS_MIN:    '0',
+
     FOOTBAG_BOOTSTRAP_LEADER_MIN:     '1',
   };
   const result = spawnSync('bash', ['scripts/pre-cutover-checklist.sh'], {
@@ -146,7 +172,7 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'DNS-TTL']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'FIXTURE-ABSENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
   });
@@ -157,5 +183,18 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout).toMatch(/GATE: G11 FAIL/);
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
+  });
+
+  it('red path: synthetic preview fixture present → FIXTURE-ABSENCE FAIL', { timeout: 60_000 }, () => {
+    buildFixtureDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(
+      `INSERT INTO historical_persons (person_id, person_name) VALUES ('hp-fixture-hacky', 'Footbag Hacky')`,
+    ).run();
+    db.close();
+    const r = runChecklist(dbPath, snapshotDir);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/GATE: FIXTURE-ABSENCE FAIL/);
+    expect(r.stdout).toMatch(/Footbag Hacky rows: 1/);
   });
 });

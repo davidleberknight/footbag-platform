@@ -1,11 +1,10 @@
 /**
- * MemberService -- member-account page shaping and lifecycle.
+ * MemberService -- member-account page shaping and the PII-purge primitive.
  *
  * Owns:
  *   - Page shaping for /members/* surfaces (public welcome with tier explainer;
  *     own-profile as authenticated personal home; limited HoF/BAP public profile;
  *     profile edit including inline avatar upload)
- *   - Member-account lifecycle: soft-delete, deceased handling, GDPR export
  *   - Member search (`searchMembers`)
  *   - Row-level PII clearing logic (`purgeAccountPII`)
  *
@@ -16,18 +15,20 @@
  *   - Purge eligibility orchestration (OperationsPlatformService decides which
  *     members qualify and calls into purgeAccountPII)
  *
+ * Current: the account lifecycle beyond the purge primitive is unbuilt. There
+ *   is no soft-delete, no deceased handling, and no data export here.
+ * Target: soft-delete and deceased are distinct lifecycle paths with distinct
+ *   grace configs; deceased or deleted leaders' club_leaders rows end so their
+ *   clubs surface for admin remediation; exports deliver via emailed
+ *   time-limited links.
+ *
  * Required patterns:
  *   - Member search uses the `members_searchable` view; never add WHERE clauses
  *     on top of `members_active` or the bare `members` table for search.
  *   - `searchMembers` is authenticated Tier 0+ only; never callable from public
  *     routes. Minimum 2-character query; substring match on display name; 20-result
  *     cap with `hasMore` flag; no browse-all pagination.
- *   - Account deletion requires S3 photo deletion to succeed BEFORE `deleted_at`
- *     is set; gallery HD lives in the same atomic operation.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
- *   - Deceased and soft-deleted are distinct lifecycle paths with distinct grace
- *     configs (`deceased_cleanup_grace_days` for markDeceased;
- *     `member_cleanup_grace_days` for deleteAccount).
  *   - Own-profile routes are owner-only; non-owner public viewing is limited to
  *     the explicit HoF/BAP exception. No contact-field leakage on public profiles.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
@@ -37,19 +38,17 @@
  *
  * Persistence:
  *   members, members_active, members_all, members_searchable, member_links,
- *   media_items, member_galleries, account_tokens, audit_entries, outbox_emails,
- *   work_queue_items.
+ *   member_declared_anchors (deleted on PII purge),
+ *   legacy_members (claim-state columns cleared on PII purge),
+ *   audit_entries.
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (export-link, deceased notifications)
- *   - work_queue_items insert (sole-leader or organizer flags on deceased) with
- *     admin-alerts mailing-list notification
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
-import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, declaredAnchors, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -214,14 +213,8 @@ export interface OwnProfileContent {
   search?: SearchBlockView;
   comingSoon?: ComingSoonFeature[];
   memberSlug?: string;
-  /** Pending first-login confirmation card from a silent medium-confidence
-   * auto-link claim. Null when no card is pending or when the member has
-   * dismissed it. The three action endpoints (confirm / dismiss / report
-   * incorrect) live under /members/me/auto-link. */
-  pendingAutoLinkCard?: PendingAutoLinkCardContent | null;
-  /** List of legacy accounts the member has claimed. Used by the profile
-   * settings affordance so a member can revert a prior silent auto-link
-   * from outside the first-login card surface. */
+  /** List of legacy accounts the member has claimed (display-only; a member
+   * who believes a confirmed link is wrong uses the dispute path). */
   claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
   /** Onboarding-task widget for the personal dashboard. Null when the
    * member has no onboarding-task rows yet (pre-task-list bootstrap state).
@@ -231,28 +224,10 @@ export interface OwnProfileContent {
   myClubs?: MyClubsView;
 }
 
-export interface PendingAutoLinkCardContent {
-  personId:               string;
-  personName:             string;
-  matchedVariantNormalized: string | null;
-  legacyMemberId:         string;
-  legacyDisplayName:      string;
-  claimAuditId:           string;
-  country:                string | null;
-  isHof:                  boolean;
-  isBap:                  boolean;
-  firstYear:              number | null;
-  /** Endpoint URLs pre-shaped for the template; templates never construct URLs. */
-  confirmHref:            string;
-  dismissHref:            string;
-  reportIncorrectHref:    string;
-}
-
 export interface ClaimedLegacyIdentityView {
-  legacyMemberId:      string;
-  displayName:         string;
-  claimedAtDisplay:    string | null;
-  reportIncorrectHref: string;
+  legacyMemberId:   string;
+  displayName:      string;
+  claimedAtDisplay: string | null;
 }
 
 /** Wraps MemberSearchResult with the form action so the partial can render
@@ -400,34 +375,12 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
   return row;
 }
 
-function buildPendingAutoLinkCardContent(memberId: string): PendingAutoLinkCardContent | null {
-  const card = identityAccessService.getPendingAutoLinkCard(memberId);
-  if (!card) return null;
-  const c = card as unknown as Record<string, unknown>;
-  return {
-    personId:                 card.personId,
-    personName:               card.personName,
-    matchedVariantNormalized: card.matchedVariantNormalized,
-    legacyMemberId:           card.legacyMemberId,
-    legacyDisplayName:        card.legacyDisplayName,
-    claimAuditId:             card.claimAuditId,
-    country:                  typeof c.country === 'string' ? c.country : null,
-    isHof:                    Boolean(c.isHof),
-    isBap:                    Boolean(c.isBap),
-    firstYear:                typeof c.firstYear === 'number' ? c.firstYear : null,
-    confirmHref:              '/members/me/auto-link/confirm',
-    dismissHref:              '/members/me/auto-link/dismiss',
-    reportIncorrectHref:      '/members/me/auto-link/report-incorrect',
-  };
-}
-
 function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdentityView[] {
   const rows = identityAccessService.listClaimedLegacyIdentities(memberId);
   return rows.map(r => ({
-    legacyMemberId:      r.legacyMemberId,
-    displayName:         r.displayName,
-    claimedAtDisplay:    r.claimedAt ? formatDateDisplay(r.claimedAt) : null,
-    reportIncorrectHref: '/members/me/auto-link/report-incorrect',
+    legacyMemberId:   r.legacyMemberId,
+    displayName:      r.displayName,
+    claimedAtDisplay: r.claimedAt ? formatDateDisplay(r.claimedAt) : null,
   }));
 }
 
@@ -436,7 +389,99 @@ function buildDashboardTasksView(memberId: string): DashboardTaskWidget | null {
   return widget.hasOutstanding ? widget : null;
 }
 
+export type PurgeAccountPIIResult =
+  | {
+      status: 'purged';
+      honorsPreserved: boolean;
+      clearedLegacyMemberId: string | null;
+      anchorsDeleted: number;
+    }
+  | { status: 'already_purged' }
+  | { status: 'not_found' };
+
+/**
+ * Row-level PII erasure for a member whose grace period elapsed. Eligibility
+ * (which members qualify, grace windows) is OperationsPlatformService's
+ * decision; this method only performs the clearing, in one transaction:
+ *
+ *   - credentials and contact fields to NULL (purged branch of the members
+ *     credential CHECK); location, birth date, and legacy metadata to NULL
+ *   - identity placeholders anonymized; HoF/BAP rows keep display_name and
+ *     bio because the honor record outlives the personal data
+ *   - legacy and historical-person links severed on the member row, and the
+ *     claimed legacy_members row returns to the claimable pool
+ *   - every declared identity anchor deleted
+ *   - one member.pii_purged audit row recording what was cleared
+ *
+ * Idempotent: a purged row returns 'already_purged' without writes.
+ */
+function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
+  const row = memberPurge.readForPurge.get(memberId) as
+    | {
+        id: string;
+        slug: string;
+        is_hof: number;
+        is_bap: number;
+        legacy_member_id: string | null;
+        historical_person_id: string | null;
+        personal_data_purged_at: string | null;
+      }
+    | undefined;
+  if (!row) return { status: 'not_found' };
+  if (row.personal_data_purged_at !== null) return { status: 'already_purged' };
+
+  const honorsPreserved = Boolean(row.is_hof) || Boolean(row.is_bap);
+  const preserveFlag = honorsPreserved ? 1 : 0;
+  const now = new Date().toISOString();
+  const placeholderName = 'Removed Member';
+  // Slug derives from the member id so the placeholder is unique and the
+  // member's chosen slug returns to the available pool.
+  const placeholderSlug = `removed_${memberId.replace(/[^a-zA-Z0-9]/g, '').slice(-16).toLowerCase()}`;
+
+  return transaction(() => {
+    const res = memberPurge.purgeRow.run(
+      preserveFlag,
+      placeholderName,
+      preserveFlag, placeholderName,
+      preserveFlag, 'removed member',
+      placeholderSlug,
+      now, now, 'operations_purge',
+      memberId,
+    );
+    if (res.changes === 0) return { status: 'already_purged' as const };
+
+    if (row.legacy_member_id) {
+      legacyMembers.clearClaim.run(row.legacy_member_id);
+    }
+    const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+
+    appendAuditEntry({
+      actionType:    'member.pii_purged',
+      category:      'member',
+      actorType:     'system',
+      actorMemberId: null,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    null,
+      metadata: {
+        honors_preserved:             honorsPreserved,
+        cleared_legacy_member_id:     row.legacy_member_id,
+        cleared_historical_person_id: row.historical_person_id,
+        anchors_deleted:              anchors.changes,
+      },
+    });
+
+    return {
+      status:                'purged' as const,
+      honorsPreserved,
+      clearedLegacyMemberId: row.legacy_member_id,
+      anchorsDeleted:        anchors.changes,
+    };
+  });
+}
+
 export const memberService = {
+  purgeAccountPII,
   getOwnProfile(
     slug: string,
     opts?: { query?: string },
@@ -475,7 +520,6 @@ export const memberService = {
         comingSoon:   COMING_SOON_FEATURES,
         myClubs:      buildMyClubsView(row.id),
         memberSlug:   slug,
-        pendingAutoLinkCard:    buildPendingAutoLinkCardContent(row.id),
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
         dashboardTasks:         buildDashboardTasksView(row.id),
       },

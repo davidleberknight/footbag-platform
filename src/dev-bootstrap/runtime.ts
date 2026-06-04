@@ -10,8 +10,8 @@
  *       At registration time, members whose email matches this allowlist
  *       are atomically granted is_admin=1 + Tier 2 ledger row + audit row
  *       in one transaction. Production has a separate single-shot bootstrap
- *       path (SSM-token claim via `/admin/bootstrap-claim`, deferred
- *       slice).
+ *       path (SSM-token claim via `/admin/bootstrap-claim`, owned by
+ *       adminBootstrapService).
  *   - FOOTBAG_DEV_ADMIN_GRANT_TIER2
  *       Backfill repair pass for legacy admin accounts that pre-date the
  *       unified bootstrap. Iterates is_admin=1 members and writes a Tier 2

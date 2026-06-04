@@ -9,13 +9,17 @@ import { authMiddleware } from './middleware/auth';
 import { requireOriginPin } from './middleware/requireOriginPin';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
-import { internalRouter } from './routes/internalRoutes';
 import { ipcRouter }      from './routes/ipcRoutes';
+// The internal QC subsystem router. Production images strip dist/internal-qc
+// and replace this module with a stub exporting null, so the import is safe
+// everywhere and the null guard below keeps production from mounting it.
+import { internalRouter } from './routes/internalRoutes';
 import { adminRouter }    from './routes/adminRoutes';
 import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // Permanent test scaffolding: the persona harness dev router. Mounted only in
 // development and staging (see the mount block below); never mounted in
-// production. Lives in src/testkit/ and is not removed at cutover.
+// production. Production images strip dist/testkit and stub this module to
+// export null, so the import is safe everywhere.
 import { devRouter }      from './testkit/devRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
@@ -309,14 +313,20 @@ export function createApp(): express.Application {
 
   app.use('/health',   healthRouter);
   app.use('/ipc',      ipcRouter);
-  app.use('/internal', internalRouter);
+  // Internal QC subsystem: dev/staging tooling only, retired at go-live.
+  // Double gate: env check plus the null guard (production images stub the
+  // router module to null after stripping dist/internal-qc).
+  if (config.footbagEnv !== 'production' && internalRouter) {
+    app.use('/internal', internalRouter);
+  }
   app.use('/admin',    adminRouter);
   // Permanent test scaffolding mount. Registered only when footbagEnv is
   // 'development' or 'staging', so the /dev surface (persona switch + listing)
   // is reachable in dev and staging but never in production. The harness lives
   // in src/testkit/ and is not removed at cutover; production exclusion is by
-  // this env-gated mount plus the build-time image strip.
-  if (config.footbagEnv === 'development' || config.footbagEnv === 'staging') {
+  // this env-gated mount plus the build-time image strip (which stubs the
+  // module to null).
+  if ((config.footbagEnv === 'development' || config.footbagEnv === 'staging') && devRouter) {
     app.use('/dev', devRouter);
   }
   app.use('/',         publicRouter);

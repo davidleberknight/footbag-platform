@@ -510,10 +510,24 @@ done
 echo ""
 echo "Advisory:"
 
-if [[ -n "${HOST_ENV[TRUST_PROXY]:-}" ]]; then
-  check_pass "trust proxy: TRUST_PROXY explicitly set to '${HOST_ENV[TRUST_PROXY]}'"
+# TRUST_PROXY should be the exact integer X-Forwarded-For hop count of the
+# chain in front of the app (staging: CloudFront -> nginx = 2). Unset or
+# non-integer falls back to named ranges in env.ts, which fails closed:
+# req.ip resolves to the CloudFront edge address and per-IP rate limiting
+# coarsens to per-edge buckets.
+if [[ "${HOST_ENV[TRUST_PROXY]:-}" =~ ^[0-9]+$ ]]; then
+  check_pass "trust proxy: TRUST_PROXY=${HOST_ENV[TRUST_PROXY]} (integer hop count)"
 else
-  check_warn "trust proxy: TRUST_PROXY unset; env.ts will default to 'loopback, linklocal, uniquelocal' under NODE_ENV=production. Acceptable; explicit is recommended."
+  check_warn "trust proxy: TRUST_PROXY is not an integer XFF hop count (staging: 2); rate limiting degrades to coarse per-edge buckets under the named-range fallback"
+fi
+
+# BACKUP_S3_BUCKET feeds the footbag-backup systemd timer, not app boot:
+# backup-db.sh refuses to run without it, so an unset value means no
+# snapshots upload once the timer is installed.
+if [[ -n "${HOST_ENV[BACKUP_S3_BUCKET]:-}" ]]; then
+  check_pass "backup bucket: BACKUP_S3_BUCKET=${HOST_ENV[BACKUP_S3_BUCKET]}"
+else
+  check_warn "backup bucket: BACKUP_S3_BUCKET unset; footbag-backup.timer cannot upload snapshots without it"
 fi
 
 # -----------------------------------------------------------------------------

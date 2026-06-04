@@ -45,8 +45,19 @@ COPY --from=builder /app/dist ./dist
 #   `node dist/dev-shortcuts/...` is unreachable inside the prod container.
 # Target: remove this ARG and the subtree entirely after production cutover.
 ARG INCLUDE_DEV_SHORTCUTS=0
+# Current: the internal QC subsystem (dist/internal-qc) ships in source but
+#   must never reach a production runtime image; stripped alongside the dev
+#   shortcuts as the interim safeguard. The statically-imported router
+#   modules are replaced with null stubs so app boot stays intact.
+# Target: the QC retirement removes the source subtree and this strip
+#   together.
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/testkit dist/dev-bootstrap; \
+      rm -rf dist/testkit dist/dev-bootstrap dist/internal-qc && \
+      mkdir -p dist/testkit && \
+      printf 'module.exports = { devRouter: null };\n' > dist/testkit/devRoutes.js && \
+      printf 'module.exports = { internalRouter: null };\n' > dist/routes/internalRoutes.js && \
+      mkdir -p dist/dev-bootstrap && \
+      printf 'module.exports = { initDevShortcuts: function () {}, applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, repairAdminTier2Invariant: function () { return { repaired: 0 }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi
 
 # Copy non-compiled assets that tsc does not process.

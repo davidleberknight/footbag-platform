@@ -6,7 +6,7 @@
  *     activate/deactivate, archive
  *   - Leader and co-leader management (including step-down)
  *   - Roster management (self-service join, leave, swap primary)
- *   - Operability enforcement (work queue items for missing contact)
+ *   - Operability enforcement at creation (contact email required)
  *
  * Does not own:
  *   - Media (MediaGalleryService)
@@ -20,13 +20,16 @@
  *     creation; permanent (not HD).
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier.
- *   - Club with zero leaders inserts a "Needs Leader" `work_queue_items` row; club
- *     with no contact email inserts a "Needs Contact" row.
+ *   - Contact email is required at creation: every new club starts operable.
+ *     WhatsApp is optional and never substitutes for the email.
+ *   - A successful leadership claim returns a club of any status to 'active'
+ *     (revival); a new current affiliation revives an inactive club.
  *   - News items emitted via `NewsService.emitNewsItem` only.
- *   - Leader contact exposure (`showContact` on `ClubLeader`) is a default-deny
- *     predicate: emits true only when status admits exposure AND the member has
- *     given explicit consent for this leader row AND a public contact source is
- *     present. Any missing input maps to false.
+ *   - Leader contact exposure (`showContact` on `ClubLeader`) is role-based
+ *     and member-scoped: current (claimed/assigned) leaders' emails render to
+ *     authenticated viewers only; provisional bootstrap entries never expose
+ *     contact. Club contact email and WhatsApp follow the same
+ *     member-visible rule.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
  *     rendering path: it surfaces identity (display name, role, status), not
  *     authority. Claiming a `club_bootstrap_leaders` row links member identity
@@ -41,13 +44,12 @@
  *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,
  *   legacy_club_candidates, legacy_person_club_affiliations,
  *   member_club_affiliations, members, tags, news_items,
- *   audit_entries, outbox_emails, work_queue_items.
+ *   audit_entries, outbox_emails.
  *
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (join/leave/co-leader/archive emails)
  *   - news_items emission via NewsService (`club_created`, `club_archived`)
- *   - work_queue_items insert with admin-alerts mailing-list notification
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -63,13 +65,16 @@ import {
   mediaTags,
   countGalleryItemsByCriteria,
   memberClubAffiliations,
-  workQueue,
+  clubContentSuggestions,
   transaction,
   type ClubBootstrapLeaderRow,
   type LegacyClubCandidateRow,
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { hit as rateLimitHit } from './rateLimitService';
+import { readIntConfig } from './configReader';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
 import { applyClubJoin as applyActivePlayerClubJoin } from './activePlayerService';
@@ -208,7 +213,7 @@ export interface ClubLeader {
   status: ClubLeaderStatus;
   badgeLabel?: string;          // pre-shaped display text (e.g. 'Provisional leader')
   badgeNote?: string;           // pre-shaped explanatory text under the badge
-  showContact: boolean;         // privacy gate: false for provisional, regardless of source data
+  showContact: boolean;         // member-visible-by-role gate: true only for current leaders shown to an authenticated viewer
   contactEmail?: string;        // present only when showContact === true
 }
 
@@ -218,8 +223,25 @@ export interface PublicClubDetail extends PublicClubSummary {
   members: ClubMemberSummary[];           // confirmed current members
   unconfirmedMembers: ClubMemberSummary[]; // 'pending' legacy affiliations, shown labeled as unconfirmed
   leaders: ClubLeader[];
+  // Club contact channels, member-visible by role: populated only for
+  // authenticated viewers; always null for the anonymous public.
+  contactEmail: string | null;
+  whatsapp: string | null;
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
+  /** Content-validation loop: leaders edit directly; other members suggest. */
+  viewerIsLeader: boolean;
+  canSuggestContent: boolean;
+  contentEditHref: string | null;
+  contentSuggestHref: string | null;
+  openSuggestions: Array<{
+    id: string;
+    fieldLabel: string;
+    proposedValue: string;
+    note: string | null;
+    suggesterDisplayName: string;
+    reviewHref: string;
+  }>;
   joinHref: string | null;
   viewGalleryHref: string | null;
   // TEMP-DEVIATION: club-classification QC panel.
@@ -473,8 +495,15 @@ function toPublicClubDetail(
     countrySlug: slugifyCountry(row.country),
     members,
     unconfirmedMembers,
+    contactEmail: null,
+    whatsapp: null,
     viewerIsMember: false,
     viewerCanJoin: false,
+    viewerIsLeader: false,
+    canSuggestContent: false,
+    contentEditHref: null,
+    contentSuggestHref: null,
+    openSuggestions: [],
     joinHref: null,
     viewGalleryHref: null,
   };
@@ -730,9 +759,9 @@ export type ClubRouteResult =
 
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
-  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null): ClubRouteResult {
+  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null, viewerIsAdmin = false): ClubRouteResult {
     if (key.startsWith('club_')) {
-      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId) };
+      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId, viewerIsAdmin) };
     }
     return { template: 'clubs/country', vm: this.getPublicCountryPage(key) };
   }
@@ -887,7 +916,7 @@ export class ClubService {
     });
   }
 
-  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null): PageViewModel<{ club: PublicClubDetail }> {
+  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null, viewerIsAdmin = false): PageViewModel<{ club: PublicClubDetail }> {
     const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
 
     return runSqliteRead('clubService.getPublicClubPage', () => {
@@ -906,26 +935,51 @@ export class ClubService {
       // not folded into the current-member list.
       const affiliationRows = clubs.listMembersByClubId.all(row.club_id) as AffiliationRow[];
 
-      // Leaders are public per V_Browse_Clubs / M_View_Club: provisional
-      // leader names render to visitors and members alike. Contact-email
-      // exposure is gated separately via ClubLeader.showContact.
-      const bootstrapRows = clubs.listBootstrapLeadersByClubId.all(row.club_id) as BootstrapLeaderRow[];
-      const bootstrapLeaders: ClubLeader[] = bootstrapRows.map(toClubLeader);
+      // Leaders are public per V_Browse_Clubs / M_View_Club: leader names
+      // render to visitors and members alike. Contact email is member-visible
+      // by role: current (claimed/assigned) leaders expose it to
+      // authenticated viewers; provisional entries never expose contact.
+      const liveLeaderRows = clubLeaders.listCurrentLeadersForClubPage.all(row.club_id) as Array<{
+        member_id: string;
+        role: 'leader' | 'co-leader';
+        display_name: string;
+        login_email: string | null;
+      }>;
+      const liveLeaders: ClubLeader[] = liveLeaderRows.map((l) => {
+        const leader: ClubLeader = {
+          displayName: l.display_name,
+          role:        l.role,
+          roleLabel:   l.role === 'leader' ? 'Leader' : 'Co-leader',
+          status:      'claimed',
+          claimedMemberId: l.member_id,
+          showContact: isAuthenticated && !!l.login_email,
+        };
+        if (isAuthenticated && l.login_email) leader.contactEmail = l.login_email;
+        return leader;
+      });
+      // Bootstrap rows render only while unclaimed: a claimed row's person is
+      // already on the live list above under their member identity. The full
+      // row set still feeds the person-id dedup below so a claimed person's
+      // affiliation-inferred ghost does not reappear as provisional.
+      const allBootstrapRows = clubs.listBootstrapLeadersByClubId.all(row.club_id) as BootstrapLeaderRow[];
+      const bootstrapLeaders: ClubLeader[] = allBootstrapRows
+        .filter((r) => r.status === 'provisional')
+        .map(toClubLeader);
 
       // TEMP-DEVIATION: fallback path for clubs without bootstrap leader rows
       // (everything outside the pre_populate cohort). Surface affiliations
       // tagged role='leader' / 'co-leader' / 'contact' as provisional leaders,
       // deduplicated against bootstrap rows by person_id.
       const bootstrapPersonIds = new Set(
-        bootstrapRows.map((r) => r.person_id).filter((id): id is string => !!id),
+        allBootstrapRows.map((r) => r.person_id).filter((id): id is string => !!id),
       );
       const affiliationLeaders: ClubLeader[] = affiliationRows
         .filter((r) => r.inferred_role === 'leader' || r.inferred_role === 'co-leader' || r.inferred_role === 'contact')
         .filter((r) => !r.person_id || !bootstrapPersonIds.has(r.person_id))
         .map(affiliationRowToClubLeader);
-      const leaders: ClubLeader[] = [...bootstrapLeaders, ...affiliationLeaders];
+      const leaders: ClubLeader[] = [...liveLeaders, ...bootstrapLeaders, ...affiliationLeaders];
 
-      // Members-only roster (DATA_GOVERNANCE §8): the lists render only for
+      // Members-only roster (DATA_GOVERNANCE §7): the lists render only for
       // authenticated viewers. Confirmed members ('confirmed_current' /
       // 'promoted') are current members; 'pending' rows are shown separately,
       // labeled as unconfirmed-but-possible.
@@ -989,6 +1043,13 @@ export class ClubService {
 
       const club = toPublicClubDetail(row, vitality, members, unconfirmedMembers, leaders, qcPanel);
 
+      // Club contact channels are member-visible by role: authenticated
+      // viewers see them; the anonymous public never does.
+      if (isAuthenticated) {
+        club.contactEmail = row.contact_email ?? null;
+        club.whatsapp = row.whatsapp ?? null;
+      }
+
       const tagRow = mediaTags.findTagByNormalized.get(row.tag_normalized) as { id: string } | undefined;
       if (tagRow) {
         const mediaCount = countGalleryItemsByCriteria([tagRow.id]);
@@ -1007,6 +1068,29 @@ export class ClubService {
         }
         if (club.viewerCanJoin) {
           club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
+        }
+
+        // Content-validation loop affordances: leaders edit directly and
+        // review the suggestion queue; everyone else suggests.
+        const viewerLeadership = clubLeaders.memberInClubLeadership.get(row.club_id, viewerMemberId) as
+          | { id: string } | undefined;
+        club.viewerIsLeader = viewerLeadership != null;
+        if (club.viewerIsLeader || viewerIsAdmin) {
+          club.contentEditHref = club.viewerIsLeader ? `/clubs/${encodeURIComponent(clubKey)}/content/edit` : null;
+          club.openSuggestions = (clubContentSuggestions.listOpenByClub.all(row.club_id) as Array<{
+            id: string; field: string; proposed_value: string; note: string | null;
+            suggester_display_name: string;
+          }>).map((sg) => ({
+            id: sg.id,
+            fieldLabel: sg.field === 'external_url' ? 'External URL' : 'Description',
+            proposedValue: sg.proposed_value,
+            note: sg.note,
+            suggesterDisplayName: sg.suggester_display_name,
+            reviewHref: `/clubs/${encodeURIComponent(clubKey)}/content/suggestions/${sg.id}/review`,
+          }));
+        } else {
+          club.canSuggestContent = true;
+          club.contentSuggestHref = `/clubs/${encodeURIComponent(clubKey)}/content/suggest`;
         }
       }
 
@@ -1193,6 +1277,26 @@ export class ClubService {
             affiliationId = null;
           }
         }
+
+        // Revival: a successful leadership claim makes it a live club no
+        // matter how it was retired. Inactive and archived clubs return to
+        // 'active' in the same transaction, so the new leader's club is
+        // immediately visible in listings.
+        const club = clubs.findById.get(clubId) as
+          | { club_id: string; status: string }
+          | undefined;
+        if (club && club.status !== 'active') {
+          clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
+          appendAuditEntry({
+            actionType:    'club.revived_by_leadership_claim',
+            category:      'club_lifecycle',
+            actorType:     'member',
+            actorMemberId,
+            entityType:    'club',
+            entityId:      clubId,
+            metadata:      { prior_status: club.status, bootstrap_leader_id: bootstrapLeaderId },
+          });
+        }
       });
     } catch (err) {
       if (err instanceof ConflictError) throw err;
@@ -1340,6 +1444,27 @@ export class ClubService {
             newAffiliationId = null;
           }
         }
+
+        // Revival: a confirmed current affiliation returns an inactive club
+        // to 'active' (demote is reversible by interest). Archived clubs
+        // revive only via a leadership claim.
+        if (newAffiliationId) {
+          const club = clubs.findById.get(resolvedClubId) as
+            | { club_id: string; status: string }
+            | undefined;
+          if (club && club.status === 'inactive') {
+            clubs.updateStatus.run('active', now, 'onboarding_service', resolvedClubId);
+            appendAuditEntry({
+              actionType:    'club.revived_by_affiliation',
+              category:      'club_lifecycle',
+              actorType:     'member',
+              actorMemberId,
+              entityType:    'club',
+              entityId:      resolvedClubId,
+              metadata:      { prior_status: 'inactive', affiliation_id: newAffiliationId },
+            });
+          }
+        }
       });
     } catch (err) {
       if (err instanceof ConflictError) throw err;
@@ -1391,7 +1516,9 @@ export class ClubService {
     else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
     if (!city) fieldErrors.city = 'City is required.';
     if (!country) fieldErrors.country = 'Country is required.';
-    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    if (!contactEmail) {
+      fieldErrors.contactEmail = 'Contact email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       fieldErrors.contactEmail = 'Enter a valid email address.';
     }
 
@@ -1479,17 +1606,6 @@ export class ClubService {
           entityId: clubId,
           metadata: { club_name: name, tag_normalized: tagNormalized, city, country },
         });
-
-        if (!contactEmail && !whatsapp) {
-          const wqId = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-          workQueue.insertItem.run(
-            wqId, now, 'club_service', now, 'club_service',
-            'club_leadership', 'club_needs_contact',
-            'club', clubId,
-            5, now,
-            'Club created without any contact method.',
-          );
-        }
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -1573,6 +1689,24 @@ export class ClubService {
           entityId: affiliationId,
           metadata: { club_id: clubId, club_name: club.name, is_primary: isPrimary },
         });
+
+        // Revival: a new current member returns an inactive club to
+        // 'active' (demote is reversible by interest). Archived clubs are
+        // not joinable at all (guarded above), so revival-by-join applies
+        // to inactive only; archived clubs revive only via a leadership
+        // claim.
+        if (club.status === 'inactive') {
+          clubs.updateStatus.run('active', now, 'club_service', clubId);
+          appendAuditEntry({
+            actionType:    'club.revived_by_affiliation',
+            category:      'club_lifecycle',
+            actorType:     'member',
+            actorMemberId,
+            entityType:    'club',
+            entityId:      clubId,
+            metadata:      { prior_status: 'inactive', affiliation_id: affiliationId },
+          });
+        }
       }
     });
 
@@ -1692,6 +1826,219 @@ export class ClubService {
     });
 
     return { branch: 'swapped' };
+  }
+
+  /**
+   * Content-validation loop: a club leader or co-leader (an authoritative
+   * editor) edits description and external URL directly, no approval gate.
+   * External URLs pass URL verification before touching the live row; a
+   * failed verification changes nothing and surfaces the validator's error.
+   */
+  async editClubContent(
+    actorMemberId: string,
+    clubId: string,
+    input: { description?: string; externalUrl?: string },
+  ): Promise<void> {
+    const club = clubContentSuggestions.findClubContentForEdit.get(clubId) as
+      | { id: string; description: string | null; external_url: string | null }
+      | undefined;
+    if (!club) throw new NotFoundError('Club not found.');
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string }
+      | undefined;
+    if (!leadership) {
+      throw new ValidationError("Only the club's leaders can edit club content directly.");
+    }
+
+    const changes: Record<string, { before: unknown; after: unknown }> = {};
+    let normalizedUrl: string | null | undefined;
+    if (input.externalUrl !== undefined) {
+      const trimmed = input.externalUrl.trim();
+      if (trimmed === '') {
+        normalizedUrl = null;
+      } else {
+        const validated = await validateExternalUrl(trimmed);
+        if (!validated.valid) {
+          throw new ValidationError(validated.error ?? 'That URL did not pass verification.');
+        }
+        normalizedUrl = validated.normalizedUrl;
+      }
+      changes.external_url = { before: club.external_url, after: normalizedUrl };
+    }
+    const description = input.description?.trim();
+    if (description !== undefined) {
+      changes.description = { before: club.description, after: description };
+    }
+    if (Object.keys(changes).length === 0) {
+      throw new ValidationError('Nothing to update.');
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      if (description !== undefined) {
+        clubContentSuggestions.updateClubDescription.run(description, now, actorMemberId, clubId);
+      }
+      if (normalizedUrl !== undefined) {
+        clubContentSuggestions.updateClubExternalUrl.run(
+          normalizedUrl, normalizedUrl ? now : null, now, actorMemberId, clubId,
+        );
+      }
+      appendAuditEntry({
+        actionType:    'club.content_edited',
+        category:      'club',
+        actorType:     'member',
+        actorMemberId,
+        entityType:    'club',
+        entityId:      clubId,
+        reasonText:    null,
+        metadata:      { changes },
+      });
+    });
+  }
+
+  /**
+   * Content-validation loop: any non-leader member flags the current
+   * description or external URL and proposes replacement text. The
+   * suggestion enters the club's review queue; nothing applies until an
+   * approver acts.
+   */
+  suggestClubContent(
+    memberId: string,
+    clubId: string,
+    field: string,
+    proposedValue: string,
+    note?: string,
+  ): { status: 'submitted' } {
+    const max = readIntConfig('club_content_suggestion_rate_limit_max_per_member', 10);
+    const windowMinutes = readIntConfig('club_content_suggestion_rate_limit_window_minutes', 1440);
+    const rl = rateLimitHit(`club-content-suggest:${memberId}`, max, windowMinutes);
+    if (!rl.allowed) {
+      throw new RateLimitedError('Too many suggestions. Please try again later.', rl.retryAfterSeconds);
+    }
+    const club = clubs.findById.get(clubId) as { club_id: string } | undefined;
+    if (!club) throw new NotFoundError('Club not found.');
+    if (field !== 'description' && field !== 'external_url') {
+      throw new ValidationError('Suggestions cover the description or the external URL.');
+    }
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, memberId) as { id: string } | undefined;
+    if (leadership) {
+      throw new ValidationError('Club leaders edit content directly; the suggestion queue is for other members.');
+    }
+    const trimmed = proposedValue.trim();
+    if (!trimmed) throw new ValidationError('Proposed replacement text is required.');
+    if (trimmed.length > 2000) throw new ValidationError('Please keep the proposal under 2000 characters.');
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      clubContentSuggestions.insert.run(
+        `ccs_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+        now, memberId, now, memberId,
+        clubId, memberId, field, trimmed, note?.trim() || null,
+      );
+      appendAuditEntry({
+        actionType:    'club.content_suggestion_submitted',
+        category:      'club',
+        actorType:     'member',
+        actorMemberId: memberId,
+        entityType:    'club',
+        entityId:      clubId,
+        reasonText:    null,
+        metadata:      { field },
+      });
+    });
+    return { status: 'submitted' };
+  }
+
+  /**
+   * Content-validation loop: an approver (club leader, co-leader, or admin)
+   * approves or rejects an open suggestion. Approval applies the value to
+   * the live row; an external URL must pass verification first, and a
+   * failed verification rejects the suggestion back to the suggester with
+   * the verification error as the reason. Both outcomes are audit-logged.
+   */
+  async reviewClubContentSuggestion(
+    actorMemberId: string,
+    isAdmin: boolean,
+    clubId: string,
+    suggestionId: string,
+    decision: 'approve' | 'reject',
+    reason?: string,
+  ): Promise<{ status: 'approved' | 'rejected'; reason?: string }> {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as { id: string } | undefined;
+    if (!leadership && !isAdmin) {
+      throw new ValidationError("Only the club's leaders or an admin can review suggestions.");
+    }
+    const suggestion = clubContentSuggestions.findOpenById.get(suggestionId, clubId) as
+      | { id: string; field: 'description' | 'external_url'; proposed_value: string; suggester_member_id: string }
+      | undefined;
+    if (!suggestion) throw new NotFoundError('Suggestion not found or already resolved.');
+
+    const now = new Date().toISOString();
+    const actorType = isAdmin && !leadership ? 'admin' as const : 'member' as const;
+
+    if (decision === 'reject') {
+      const trimmedReason = (reason ?? '').trim();
+      if (!trimmedReason) throw new ValidationError('A rejection reason is required.');
+      transaction(() => {
+        clubContentSuggestions.resolve.run('rejected', now, actorMemberId, trimmedReason, now, actorMemberId, suggestionId);
+        appendAuditEntry({
+          actionType:    'club.content_suggestion_rejected',
+          category:      'club',
+          actorType,
+          actorMemberId,
+          entityType:    'club',
+          entityId:      clubId,
+          reasonText:    trimmedReason,
+          metadata:      { suggestion_id: suggestionId, field: suggestion.field },
+        });
+      });
+      return { status: 'rejected', reason: trimmedReason };
+    }
+
+    // Approval path. External URLs verify BEFORE any write (async I/O stays
+    // outside the transaction); a failure rejects back to the suggester.
+    let normalizedUrl: string | null = null;
+    if (suggestion.field === 'external_url') {
+      const validated = await validateExternalUrl(suggestion.proposed_value);
+      if (!validated.valid) {
+        const failReason = `URL verification failed: ${validated.error ?? 'unreachable or unsafe'}. Please revise and re-submit.`;
+        transaction(() => {
+          clubContentSuggestions.resolve.run('rejected', now, actorMemberId, failReason, now, actorMemberId, suggestionId);
+          appendAuditEntry({
+            actionType:    'club.content_suggestion_rejected',
+            category:      'club',
+            actorType,
+            actorMemberId,
+            entityType:    'club',
+            entityId:      clubId,
+            reasonText:    failReason,
+            metadata:      { suggestion_id: suggestionId, field: suggestion.field, url_verification_failed: true },
+          });
+        });
+        return { status: 'rejected', reason: failReason };
+      }
+      normalizedUrl = validated.normalizedUrl;
+    }
+
+    transaction(() => {
+      if (suggestion.field === 'description') {
+        clubContentSuggestions.updateClubDescription.run(suggestion.proposed_value, now, actorMemberId, clubId);
+      } else {
+        clubContentSuggestions.updateClubExternalUrl.run(normalizedUrl, now, now, actorMemberId, clubId);
+      }
+      clubContentSuggestions.resolve.run('approved', now, actorMemberId, null, now, actorMemberId, suggestionId);
+      appendAuditEntry({
+        actionType:    'club.content_suggestion_approved',
+        category:      'club',
+        actorType,
+        actorMemberId,
+        entityType:    'club',
+        entityId:      clubId,
+        reasonText:    null,
+        metadata:      { suggestion_id: suggestionId, field: suggestion.field },
+      });
+    });
+    return { status: 'approved' };
   }
 
   stepDownFromLeader(

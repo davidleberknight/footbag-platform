@@ -112,9 +112,14 @@ export interface AppConfig {
   //   the helper level regardless of this value.
   // Target: remove after the production first-admin bootstrap is complete.
   initialAdminFile: string;
-  // Value for Express's `trust proxy` setting. Number, boolean, or
-  // comma-separated subnet/IP list — anything Express's setting accepts.
-  // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
+  // Value for Express's `trust proxy` setting. Hosts set the exact
+  // X-Forwarded-For hop count of the proxy chain in front of the app
+  // (nginx + CloudFront = 2; plus the legacy front-door proxy while it
+  // carries the apex = 3) so req.ip resolves to the real client. Unset in
+  // production falls back to the named IP ranges, which fail closed: the
+  // trust walk stops at CloudFront's public edge address, so req.ip becomes
+  // the edge IP and per-IP rate limiting coarsens to per-edge buckets.
+  // Outside production: 0 unless overridden.
   trustProxy: number | boolean | string;
   // CUTOVER-REMOVE: dev-only Tier 2 backfill for admin members.
   // Current: when true, the boot orchestrator ensures every is_admin=1 member
@@ -566,6 +571,13 @@ function loadConfig(): AppConfig {
   const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
   const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);
 
+  // Hosts set the exact integer hop count of the proxy chain in front of
+  // the app (nginx + CloudFront = 2; plus the legacy front-door proxy while
+  // it carries the apex = 3); only the exact count makes req.ip resolve to
+  // the real client, which per-IP rate limiting keys on. Unset in production
+  // falls back to the named ranges, which fail closed: the trust walk stops
+  // at CloudFront's public edge address, so req.ip becomes the edge IP and
+  // rate limiting coarsens to per-edge buckets rather than refusing to boot.
   const rawTrustProxy = process.env.TRUST_PROXY;
   let trustProxy: number | boolean | string;
   if (rawTrustProxy === undefined || rawTrustProxy === '') {

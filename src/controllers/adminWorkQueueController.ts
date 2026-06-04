@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { contactRequestService } from '../services/contactRequestService';
-import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { identityAccessService } from '../services/identityAccessService';
+import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
 import { readIntConfig } from '../services/configReader';
 import { handleControllerError } from '../lib/controllerErrors';
@@ -49,6 +50,83 @@ export const adminWorkQueueController = {
         decisionLabel: decisionLabel as never,
         resolutionNote,
       });
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
+      res.redirect(303, '/admin/work-queue');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/link-help/approve */
+  async linkHelpApprove(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceWorkQueueResolveLimit(req, res)) return;
+    const queueItemId = req.params['id'] ?? '';
+    const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
+    try {
+      identityAccessService.approveLinkHelpRequest(req.user!.userId, queueItemId, targetLegacyMemberId);
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
+      res.redirect(303, '/admin/work-queue');
+    } catch (err) {
+      if (err instanceof ValidationError || err instanceof ConflictError) {
+        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/link-help/dispute-revert
+   *
+   * Upheld dispute: reverts the current HOLDER's confirmed claim. Leaves
+   * the queue item open so the admin can then approve the requester's link
+   * (which resolves the item) or reject it. */
+  async linkHelpDisputeRevert(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceWorkQueueResolveLimit(req, res)) return;
+    const holderMemberId = String(req.body?.holder_member_id ?? '').trim();
+    const reason = String(req.body?.reason ?? '');
+    try {
+      if (!holderMemberId) {
+        throw new ValidationError('The current holder\'s member id is required.');
+      }
+      const result = identityAccessService.revertClaimForDispute(req.user!.userId, holderMemberId, reason);
+      if (result.status === 'nothing_to_revert') {
+        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That member holds no claim to revert.' }));
+        return;
+      }
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, req.params['id'] ?? '');
+      res.redirect(303, '/admin/work-queue');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'No member with that id.' }));
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/link-help/reject */
+  async linkHelpReject(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!enforceWorkQueueResolveLimit(req, res)) return;
+    const queueItemId = req.params['id'] ?? '';
+    const reason = String(req.body?.reason ?? '');
+    try {
+      identityAccessService.rejectLinkHelpRequest(req.user!.userId, queueItemId, reason);
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
       res.redirect(303, '/admin/work-queue');
     } catch (err) {

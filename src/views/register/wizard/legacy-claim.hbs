@@ -12,6 +12,38 @@
       <p class="form-notice" role="alert">{{content.validationMessage}}</p>
     {{/if}}
 
+    {{#if content.helpRequestNotice}}
+      <p class="form-success-banner" role="status">Your request has been sent to an administrator. We'll email you once it has been reviewed.</p>
+    {{/if}}
+
+    {{#if (eq content.anchorVerificationNotice 'sent')}}
+      <p class="form-success-banner" role="status">If that address can receive mail, a confirmation link is on its way. Open it while signed in to this account.</p>
+    {{else if (eq content.anchorVerificationNotice 'verified')}}
+      <p class="form-success-banner" role="status">Mailbox confirmed. Claims matched through this address now carry hard evidence.</p>
+    {{else if (eq content.anchorVerificationNotice 'invalid')}}
+      <p class="form-notice" role="alert">That confirmation link is no longer valid. You can request a fresh one below.</p>
+    {{/if}}
+
+    {{#if content.conflictPrompt}}
+      <div class="card card-static mb-4">
+        <div class="card-title">We already have a claim under this name. Is one of these you?</div>
+        <ul>
+          {{#each content.conflictPrompt.records}}
+            <li><strong>{{this.displayName}}</strong> <span class="text-muted fs-sm">({{this.sourceLabel}})</span></li>
+          {{/each}}
+        </ul>
+        <p class="text-muted fs-sm">These records are already linked to another account. If one of them is yours, tell an administrator and we'll investigate.</p>
+        <form method="POST" action="/register/wizard/legacy_claim/help-request" class="form-block">
+          <input type="hidden" name="is_dispute" value="1" />
+          <div class="form-field">
+            <label for="disputeStatement">Which record is yours, and how can we verify that?</label>
+            <textarea id="disputeStatement" name="statement" rows="3" maxlength="2000" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">One of these is me &mdash; ask an administrator</button>
+        </form>
+      </div>
+    {{/if}}
+
     {{#if content.lowConfidenceBanner}}
       <p class="form-notice" role="status">We searched for a confident match and didn't find one. Try searching by your old footbag.org member id, username, email, or historical-record id.</p>
     {{/if}}
@@ -63,6 +95,21 @@
                 <input type="hidden" name="personId" value="{{this.personId}}" />
                 <button type="submit" class="btn btn-primary">This is me, link my history</button>
               </form>
+              {{#if this.stagedCandidateId}}
+              <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
+                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
+                <button type="submit" class="btn btn-outline">This is not me</button>
+              </form>
+              {{/if}}
+            {{else if (eq this.claimMode 'cross_source_legacy')}}
+              <form method="POST" action="/register/wizard/legacy_claim/cross-source/confirm" class="candidate-card-action">
+                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
+                <button type="submit" class="btn btn-primary">Yes, this is also me</button>
+              </form>
+              <form method="POST" action="/register/wizard/legacy_claim/auto-link/decline" class="candidate-card-action">
+                <input type="hidden" name="candidateId" value="{{this.stagedCandidateId}}" />
+                <button type="submit" class="btn btn-outline">This is not me</button>
+              </form>
             {{else if (eq this.claimMode 'legacy_claim')}}
               <form method="POST" action="/register/wizard/legacy_claim/find" class="candidate-card-action">
                 <input type="hidden" name="identifier" value="{{this.legacyMemberId}}" />
@@ -88,6 +135,13 @@
         {{#each content.declaredAnchors}}
           <li class="mb-2">
             <span class="badge">{{this.anchorTypeLabel}}</span> {{this.anchorValue}}
+            {{#if this.verified}}<span class="badge">Mailbox verified</span>{{/if}}
+            {{#if this.canRequestVerification}}
+            <form method="POST" action="/register/wizard/legacy_claim/anchors/send-verification" class="inline-form">
+              <input type="hidden" name="anchorId" value="{{this.id}}" />
+              <button type="submit" class="btn-link fs-sm">Verify this mailbox</button>
+            </form>
+            {{/if}}
             <form method="POST" action="/register/wizard/legacy_claim/anchors/remove" class="inline-form">
               <input type="hidden" name="anchorId" value="{{this.id}}" />
               <button type="submit" class="btn-link text-muted fs-sm">Remove</button>
@@ -126,13 +180,30 @@
       <button type="submit" class="btn btn-secondary">Find</button>
     </form>
 
+    <h2 class="mt-6">Still can't find your records?</h2>
+    <form method="POST" action="/register/wizard/legacy_claim/help-request" class="card card-static mb-4">
+      <div class="form-field">
+        <label for="helpStatement">Tell an administrator which records you believe are yours</label>
+        <textarea id="helpStatement" name="statement" rows="3" maxlength="2000" required placeholder="I competed at Worlds 2003 under the name..."></textarea>
+      </div>
+      <div class="form-field">
+        <label for="helpUsername">Old footbag.org username (if known)</label>
+        <input type="text" id="helpUsername" name="claimed_legacy_username" maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="helpEmail">Old footbag.org email (if known)</label>
+        <input type="text" id="helpEmail" name="claimed_legacy_email" maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="helpVouchers">Community members who can vouch for you (optional)</label>
+        <input type="text" id="helpVouchers" name="vouchers" maxlength="200" />
+      </div>
+      <button type="submit" class="btn btn-secondary">Send to an administrator</button>
+    </form>
+
     <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
       <button type="submit" class="btn-link text-muted">Skip for now</button>
     </form>
-
-    {{#if content.memberSlug}}
-      <p class="mt-4 text-muted">Can't find your record? <a href="/members/{{content.memberSlug}}/contact-admin?category=identity_link_issue&from=wizard">Get help</a></p>
-    {{/if}}
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>

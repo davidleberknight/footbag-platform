@@ -1,0 +1,47 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading">
+      <h2>Needs Leader</h2>
+      <span class="section-count">{{content.needsLeader.length}}</span>
+    </div>
+    {{#unless content.needsLeader.length}}
+      <p class="text-muted">Every active club has at least one leader.</p>
+    {{/unless}}
+    {{#each content.needsLeader}}
+      <div class="card">
+        <div class="card-title">{{name}}</div>
+        <p class="card-meta">{{location}}</p>
+        <a href="{{manageHref}}" class="btn btn-primary btn-sm">Manage leadership</a>
+      </div>
+    {{/each}}
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Needs Contact</h2>
+      <span class="section-count">{{content.needsContact.length}}</span>
+    </div>
+    {{#unless content.needsContact.length}}
+      <p class="text-muted">Every active club has a contact email.</p>
+    {{/unless}}
+    {{#each content.needsContact}}
+      <div class="card">
+        <div class="card-title">{{name}}</div>
+        <p class="card-meta">{{location}}</p>
+        <a href="{{manageHref}}" class="btn btn-primary btn-sm">Manage leadership</a>
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4 text-muted">Defunct clubs are archived from the <a href="/admin/club-cleanup">club cleanup queue</a>.</p>
+</div>

@@ -5,7 +5,7 @@
 IP Item 3a — pre-populated clubs cutover.
 
 For each `legacy_club_candidates` row with `bootstrap_eligible = 1` (the
-59 `category=pre_populate` rows from the §9.1 classifier), ensure the
+59 `category=pre_populate` rows from the §10.1 classifier), ensure the
 matching live `clubs` row exists and set `legacy_club_candidates.mapped_club_id`
 to that `clubs.id`. The mapping is the audit link that lets bootstrap
 leaders (item 3b) attach by FK to `clubs.id`.
@@ -251,7 +251,7 @@ def main() -> int:
             )
             print(
                 "       Phase G classifier ran (non-dormant classifications "
-                "exist) but no candidates are eligible. The §9.1 classifier "
+                "exist) but no candidates are eligible. The §10.1 classifier "
                 "rules regressed silently. Confirm "
                 "clubs/scripts/02_build_legacy_club_candidates.py classifier "
                 "rules and the input clubs CSV.",

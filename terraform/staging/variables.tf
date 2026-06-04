@@ -155,3 +155,10 @@ variable "enable_backup_alarm" {
   type        = bool
   default     = false
 }
+
+variable "ses_feedback_webhook_url" {
+  description = "Full HTTPS URL of the app's SES-feedback webhook, including the shared-secret query key (e.g. https://<host>/webhooks/ses-feedback?key=...). Empty disables the subscription."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

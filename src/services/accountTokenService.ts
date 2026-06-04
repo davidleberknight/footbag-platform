@@ -6,7 +6,7 @@ export type AccountTokenType =
   | 'password_reset'
   | 'data_export'
   | 'account_claim'
-  | 'auto_link_report_incorrect';
+  | 'mailbox_link';
 
 export interface IssuedToken {
   /** The raw URL-safe token handed to the caller. Never stored. */
@@ -21,6 +21,7 @@ export interface ConsumedToken {
   tokenRowId: string;
   targetLegacyMemberId: string | null;
   targetAuditEntryId: string | null;
+  targetAnchorId: string | null;
 }
 
 export interface PeekedToken {
@@ -28,6 +29,7 @@ export interface PeekedToken {
   tokenRowId: string;
   targetLegacyMemberId: string | null;
   targetAuditEntryId: string | null;
+  targetAnchorId: string | null;
   expiresAt: string;
 }
 
@@ -55,6 +57,7 @@ export function issueToken(opts: {
   ttlHours: number;
   targetLegacyMemberId?: string;
   targetAuditEntryId?: string;
+  targetAnchorId?: string;
 }): IssuedToken {
   if (opts.ttlHours <= 0) {
     throw new Error('ttlHours must be > 0');
@@ -74,6 +77,7 @@ export function issueToken(opts: {
     opts.memberId,
     opts.targetLegacyMemberId ?? null,
     opts.targetAuditEntryId ?? null,
+    opts.targetAnchorId ?? null,
     opts.tokenType,
     tokenHash,
     nowIso,
@@ -117,6 +121,7 @@ export function consumeToken(
     tokenRowId: row.id,
     targetLegacyMemberId: row.target_legacy_member_id,
     targetAuditEntryId: row.target_audit_entry_id,
+    targetAnchorId: row.target_anchor_id,
   };
 }
 
@@ -148,6 +153,7 @@ export function consumeIfUnusedInTx(
   const tokenRowId = row.id;
   const targetLegacyMemberId = row.target_legacy_member_id;
   const targetAuditEntryId = row.target_audit_entry_id;
+  const targetAnchorId = row.target_anchor_id;
   const nowIso = new Date().toISOString();
   const result = accountTokens.consumeIfUnusedAndUnexpired.run(
     nowIso,
@@ -156,7 +162,7 @@ export function consumeIfUnusedInTx(
     nowIso,
   );
   if (result.changes !== 1) return null;
-  return { memberId, tokenRowId, targetLegacyMemberId, targetAuditEntryId };
+  return { memberId, tokenRowId, targetLegacyMemberId, targetAuditEntryId, targetAnchorId };
 }
 
 /**
@@ -183,6 +189,7 @@ export function peekToken(
     tokenRowId: row.id,
     targetLegacyMemberId: row.target_legacy_member_id,
     targetAuditEntryId: row.target_audit_entry_id,
+    targetAnchorId: row.target_anchor_id,
     expiresAt: row.expires_at,
   };
 }

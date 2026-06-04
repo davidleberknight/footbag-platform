@@ -8,7 +8,7 @@ Static guard preventing accidental re-introduction of
 
 Rationale: load_clubs_seed.py bulk-loads every seed/clubs.csv row into
 the live `clubs` table, which defeats Phase H's classifier-driven
-cutover gating (MIGRATION_PLAN §9.1). It survives as a dev-convenience
+cutover gating (MIGRATION_PLAN §10.1). It survives as a dev-convenience
 script invoked by scripts/reset-local-db.sh (David-owned). In production,
 Phase H (clubs/scripts/06_cutover_pre_populated_clubs.py) is the sole
 creator of live `clubs` rows, gated to the pre_populate-class candidates.
@@ -55,7 +55,7 @@ def test_run_pipeline_sh_exists():
 def test_load_clubs_seed_not_invoked_in_production_pipeline():
     """run_pipeline.sh must NOT invoke scripts/load_clubs_seed.py in any
     executable position. The bulk-load defeats Phase H gating
-    (MIGRATION_PLAN §9.1).
+    (MIGRATION_PLAN §10.1).
     """
     text = RUN_PIPELINE.read_text()
     hits = _executable_invocations_of("load_clubs_seed.py", text)
@@ -63,7 +63,7 @@ def test_load_clubs_seed_not_invoked_in_production_pipeline():
         "run_pipeline.sh has resurrected an executable invocation of "
         "load_clubs_seed.py. This bulk-loads every seed/clubs.csv row "
         "into live `clubs` and defeats Phase H's classifier-driven "
-        "cutover (MIGRATION_PLAN §9.1). The production pipeline must "
+        "cutover (MIGRATION_PLAN §10.1). The production pipeline must "
         "let Phase H create the pre_populate clubs exclusively. "
         f"Offending lines: {hits}"
     )
@@ -85,7 +85,7 @@ def test_load_club_members_seed_still_invoked():
 def test_phase_h_still_invoked_in_production_pipeline():
     """Sanity: Phase H's 06_cutover_pre_populated_clubs.py must still run.
     It is now the SOLE creator of live `clubs` rows in production
-    (per MIGRATION_PLAN §9.1)."""
+    (per MIGRATION_PLAN §10.1)."""
     text = RUN_PIPELINE.read_text()
     hits = _executable_invocations_of("06_cutover_pre_populated_clubs.py", text)
     assert hits, (

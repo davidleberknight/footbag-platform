@@ -83,6 +83,10 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
+      # X-Forwarded-For hop count for Express trust-proxy. This stack fronts
+      # web with nginx only, so the local default is 1. Staging/production
+      # hosts set their real chain length in /srv/footbag/env.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       # SecretsAdapter selector. Local-default reads .local/secrets.json for
       # dev parity; staging/prod override to 'live' via /srv/footbag/env.
       # FOOTBAG_ENV is required when SECRETS_ADAPTER=live; it derives the

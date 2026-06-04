@@ -1,10 +1,12 @@
 /**
  * PaymentAdapter: interface + implementations + singleton getter for
- * Stripe-backed payment operations. `createLivePaymentAdapter` will wrap
- * the Stripe SDK once the Stripe-integration slice ships; today it is a
- * placeholder that throws on construction. `createStubPaymentAdapter`
- * simulates Stripe end-to-end for dev/test with programmable
- * success/failure/cancel outcomes per session.
+ * Stripe-backed payment operations. `createLivePaymentAdapter` wraps the
+ * Stripe SDK: hosted Checkout sessions (payment and subscription mode),
+ * webhook verification through the shared verifier, and
+ * cancel-at-period-end. The API key resolves lazily from SecretsAdapter on
+ * first use, so construction never performs network I/O and boot stays off
+ * AWS. `createStubPaymentAdapter` simulates Stripe end-to-end for dev/test
+ * with programmable success/failure/cancel outcomes per session.
  *
  * Services call the interface; the getter returns the configured
  * implementation based on `config.paymentAdapter`. Consumers (the webhook
@@ -12,8 +14,14 @@
  * implementations identically.
  */
 import { randomUUID } from 'node:crypto';
+import Stripe from 'stripe';
 import { config } from '../config/env';
 import { verifyStripeWebhook, signStripeWebhook } from './stripeWebhook';
+import {
+  type SecretsAdapter,
+  getSecretsAdapter,
+  SecretNotConfiguredError,
+} from './secretsAdapter';
 
 // ── Method args / results ────────────────────────────────────────────────────
 
@@ -271,12 +279,194 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
   };
 }
 
-// ── Live adapter (placeholder until Stripe SDK is wired) ─────────────────────
+// ── Live adapter (Stripe SDK) ─────────────────────────────────────────────────
 
-export function createLivePaymentAdapter(_opts: Record<string, unknown> = {}): PaymentAdapter {
-  throw new Error(
-    'Live Stripe payment adapter is not yet implemented. Set PAYMENT_ADAPTER=stub or wait for the Stripe-SDK integration slice.',
-  );
+const STRIPE_SECRET_KEY_NAME = 'stripe_secret_key';
+const TODO_PLACEHOLDER_PREFIX = 'TODO-';
+
+// Narrow structural view of the Stripe client so tests can inject a fake
+// call path without mocking the SDK package itself. The default factory
+// constructs the real SDK client, whose API is a superset of these shapes.
+interface StripeCheckoutSessionLike {
+  id: string;
+  url: string | null;
+  payment_intent?: string | { id: string } | null;
+}
+
+export interface StripeCheckoutSessionCreateParams {
+  mode: 'payment' | 'subscription';
+  client_reference_id: string;
+  line_items: Array<{
+    quantity: number;
+    price_data: {
+      currency: string;
+      unit_amount: number;
+      recurring?: { interval: 'year' };
+      product_data: { name: string };
+    };
+  }>;
+  success_url: string;
+  cancel_url: string;
+  metadata: Record<string, string>;
+  payment_intent_data?: { metadata: Record<string, string> };
+  subscription_data?: { metadata: Record<string, string> };
+}
+
+export interface StripeClientLike {
+  checkout: {
+    sessions: {
+      create(params: StripeCheckoutSessionCreateParams): Promise<StripeCheckoutSessionLike>;
+    };
+  };
+  subscriptions: {
+    update(id: string, params: { cancel_at_period_end: boolean }): Promise<unknown>;
+  };
+}
+
+export interface LivePaymentAdapterDeps {
+  secrets?: SecretsAdapter;
+  secretKey?: string;
+  stripeFactory?: (apiKey: string) => StripeClientLike;
+}
+
+export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): PaymentAdapter {
+  const secrets = deps.secrets ?? getSecretsAdapter();
+  const secretKey = deps.secretKey ?? STRIPE_SECRET_KEY_NAME;
+  const stripeFactory =
+    deps.stripeFactory ?? ((apiKey: string) => new Stripe(apiKey) as unknown as StripeClientLike);
+
+  // Lazy client: the API key lives in SSM (SecureString) and resolves on the
+  // first payment operation, never at construction, so the app boots without
+  // AWS reachability and a misconfigured key fails the first checkout loudly.
+  let client: StripeClientLike | null = null;
+  async function getClient(): Promise<StripeClientLike> {
+    if (client) return client;
+    let apiKey: string;
+    try {
+      apiKey = await secrets.getRequired(secretKey);
+    } catch (err) {
+      if (err instanceof SecretNotConfiguredError) {
+        throw new Error(
+          `Stripe API key not configured. SSM parameter ".../secrets/${secretKey}" is missing. ` +
+            `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+        );
+      }
+      throw err;
+    }
+    if (apiKey.startsWith(TODO_PLACEHOLDER_PREFIX)) {
+      throw new Error(
+        `Stripe API key SSM parameter still has the bootstrap placeholder ('${apiKey}'). ` +
+          `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+      );
+    }
+    client = stripeFactory(apiKey);
+    return client;
+  }
+
+  function extractPaymentIntentId(session: StripeCheckoutSessionLike): string | null {
+    // Stripe may defer PaymentIntent creation until the buyer submits
+    // payment, so a fresh session can carry null here. The webhook handler
+    // falls back to the paymentId stamped into the intent metadata below.
+    if (typeof session.payment_intent === 'string') return session.payment_intent;
+    return session.payment_intent?.id ?? null;
+  }
+
+  return {
+    async createCheckoutSession(opts) {
+      const stripe = await getClient();
+      const metadata = {
+        ...(opts.metadata ?? {}),
+        paymentId: opts.paymentId,
+        memberId: opts.memberId,
+      };
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        client_reference_id: opts.paymentId,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: opts.currency.toLowerCase(),
+              unit_amount: opts.amountCents,
+              product_data: { name: opts.descriptor },
+            },
+          },
+        ],
+        success_url: opts.successUrl,
+        cancel_url: opts.cancelUrl,
+        metadata,
+        // Mirrored onto the PaymentIntent so payment_intent.succeeded /
+        // payment_failed events carry the correlation keys even when the
+        // intent id was unknown at row-insert time.
+        payment_intent_data: { metadata },
+      });
+      if (!session.url) {
+        throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
+      }
+      return {
+        sessionId: session.id,
+        paymentIntentId: extractPaymentIntentId(session),
+        redirectUrl: session.url,
+      };
+    },
+
+    async createSubscriptionCheckoutSession(opts) {
+      const stripe = await getClient();
+      const metadata = {
+        ...(opts.metadata ?? {}),
+        paymentId: opts.paymentId,
+        memberId: opts.memberId,
+        ...(opts.comment !== null ? { comment: opts.comment } : {}),
+      };
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        client_reference_id: opts.paymentId,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: opts.currency.toLowerCase(),
+              unit_amount: opts.amountCents,
+              recurring: { interval: 'year' },
+              product_data: { name: 'Recurring annual donation' },
+            },
+          },
+        ],
+        success_url: opts.successUrl,
+        cancel_url: opts.cancelUrl,
+        metadata,
+        // Mirrored onto the Subscription so customer.subscription.* events
+        // carry the correlation keys.
+        subscription_data: { metadata },
+      });
+      if (!session.url) {
+        throw new Error(`Stripe checkout session ${session.id} returned no redirect URL`);
+      }
+      return {
+        sessionId: session.id,
+        paymentIntentId: null,
+        redirectUrl: session.url,
+      };
+    },
+
+    constructWebhookEvent(rawBody, signature) {
+      const secret = config.stripeWebhookSecret;
+      if (!secret) {
+        // Configuration invariant: live mode requires STRIPE_WEBHOOK_SECRET
+        // at boot, so reaching here means the config layer was bypassed.
+        throw new Error('STRIPE_WEBHOOK_SECRET is not configured for the live payment adapter');
+      }
+      const event = verifyStripeWebhook(rawBody, signature, secret);
+      return mapStripeEvent(event);
+    },
+
+    async cancelSubscriptionAtPeriodEnd(stripeSubscriptionId) {
+      const stripe = await getClient();
+      await stripe.subscriptions.update(stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+    },
+  };
 }
 
 // ── Singleton getter + test helpers ──────────────────────────────────────────

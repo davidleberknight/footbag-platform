@@ -9,12 +9,32 @@
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db).
 # Output dir overridable via FOOTBAG_SNAPSHOT_DIR (default: ./database/snapshots).
+#
+# The snapshot is the load-bearing rollback artifact, so it must leave the
+# host: FOOTBAG_DR_BUCKET names the cross-region DR bucket and the snapshot
+# plus manifest upload to pre-flip/<snapshot-id>/ there (a path distinct from
+# the routine backup stream, so retention never ages it out; Object Lock on
+# the bucket makes it undeletable for the retention window). A run without
+# FOOTBAG_DR_BUCKET is refused unless FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 is set
+# explicitly (local rehearsals), so a cutover run can never silently produce
+# a local-only snapshot.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 OUT_DIR="${FOOTBAG_SNAPSHOT_DIR:-./database/snapshots}"
+LOCAL_ONLY="${FOOTBAG_SNAPSHOT_LOCAL_ONLY:-0}"
+
+if [[ "${LOCAL_ONLY}" != "1" && -z "${FOOTBAG_DR_BUCKET:-}" ]]; then
+  echo "FOOTBAG_DR_BUCKET is not set. The pre-cutover snapshot must land in the" >&2
+  echo "cross-region DR bucket. Set FOOTBAG_DR_BUCKET, or set" >&2
+  echo "FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 for an explicitly local rehearsal run." >&2
+  exit 1
+fi
+if [[ "${LOCAL_ONLY}" != "1" ]]; then
+  command -v aws >/dev/null || { echo "aws CLI not installed (required for the DR upload)" >&2; exit 1; }
+fi
 
 if [[ ! -f "${DB_FILE}" ]]; then
   echo "DB file not found: ${DB_FILE}" >&2
@@ -52,6 +72,13 @@ count_hp=$(q      "SELECT COUNT(*) FROM historical_persons;")
 count_nv=$(q      "SELECT COUNT(*) FROM name_variants;")
 count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
 
+dr_uri_json="null"
+if [[ "${LOCAL_ONLY}" != "1" ]]; then
+  DR_URI="s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.db"
+  aws s3 cp --only-show-errors "${SNAPSHOT_PATH}" "${DR_URI}"
+  dr_uri_json="\"${DR_URI}\""
+fi
+
 cat > "${MANIFEST_PATH}" <<EOF
 {
   "snapshot_id": "${SNAPSHOT_ID}",
@@ -59,6 +86,7 @@ cat > "${MANIFEST_PATH}" <<EOF
   "byte_size": ${byte_size},
   "sha256": "${sha256}",
   "integrity_check": "ok",
+  "dr_s3_uri": ${dr_uri_json},
   "row_counts": {
     "members": ${count_members},
     "legacy_members": ${count_legacy},
@@ -69,6 +97,11 @@ cat > "${MANIFEST_PATH}" <<EOF
   "created_at": "${TS}"
 }
 EOF
+
+if [[ "${LOCAL_ONLY}" != "1" ]]; then
+  aws s3 cp --only-show-errors "${MANIFEST_PATH}" \
+    "s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.manifest.json"
+fi
 
 cat "${MANIFEST_PATH}"
 exit 0

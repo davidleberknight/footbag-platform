@@ -10,9 +10,9 @@ variable "environment" {
 }
 
 variable "aws_region" {
-  description = "Primary AWS region"
+  description = "Primary AWS region. us-east-1: the SES sender identity and the CloudFront ACM certificate are region-bound there."
   type        = string
-  default     = "us-east-2" # TODO: Confirm production region
+  default     = "us-east-1"
 }
 
 variable "aws_account_id" {
@@ -101,4 +101,11 @@ variable "enable_backup_alarm" {
   EOT
   type        = bool
   default     = false
+}
+
+variable "ses_feedback_webhook_url" {
+  description = "Full HTTPS URL of the app's SES-feedback webhook, including the shared-secret query key (e.g. https://<host>/webhooks/ses-feedback?key=...). Empty disables the subscription."
+  type        = string
+  default     = ""
+  sensitive   = true
 }
