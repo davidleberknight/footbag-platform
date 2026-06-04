@@ -3697,6 +3697,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'stepping-osis',           // stepping operator on osis (set-modifier showcase)
   'eggbeater',               // folk-name resolution (≡ atomic legover)
   'paradox-symposium-whirl', // multi-operator chain showcase
+  // FootbagMoves single-source 8-ADD torque compounds. Sibling-composed
+  // notation (not curator-confirmed); promoted under the arithmetic-closes
+  // policy with honest single-source provenance.
+  'surging-ducking-paradox-torque', // surging + ducking + paradox on torque(4) = 8
+  'big-apple-sauce',                 // spinning + paradox + miraging + symposium on torque(4) = 8; FM lists 9
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
