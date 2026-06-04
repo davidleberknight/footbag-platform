@@ -1720,4 +1720,32 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (paradoxMoves.txt). 3-operator-stack compression of stepping ducking paradox mirage.
     provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (paradoxMoves.txt). FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche: same modifier stack, illusion base swapped for mirage (dex direction OP IN vs OP OUT).',
   },
+
+  // ── FootbagMoves single-source 8-ADD promotions (torque family). Operators
+  //    all defined, math closes at 8, torque base canonical. FM is the sole
+  //    source so the structure is uncorroborated and the notation is
+  //    sibling-composed (not curator-confirmed); promoted under the
+  //    arithmetic-closes policy with honest single-source provenance.
+  {
+    slug:        'surging-ducking-paradox-torque',
+    name:        'surging ducking paradox torque',
+    operator:    'surging + ducking + paradox',
+    base:        'torque',
+    baseAdd:     4,
+    totalAdd:    8,
+    derivation:  'surging(2) + ducking(1) + paradox(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [DEX] + [BOD] + [DEX] + [BOD] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from stepping-ducking-torque + a spinning prefix + paradox on the stepping dex; bracket count 8 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves single-source 8-ADD promotion. surging decomposes to spinning + stepping; ducking and paradox are settled +1 body modifiers; torque is a 4-ADD canonical (miraging osis). All operators defined, ADD closes at 8, torque family. FootbagMoves is the only source, so the structure is uncorroborated; promoted under the arithmetic-closes policy with honest single-source provenance. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'big-apple-sauce',
+    name:        'big apple sauce',
+    operator:    'spinning + paradox + miraging + symposium',
+    base:        'torque',
+    baseAdd:     4,
+    totalAdd:    8,
+    derivation:  'spinning(1) + paradox(1) + miraging(1) + symposium(1) + torque(4) = 8 ADD ([BOD] + [PDX] + [BOD] + [DEX] + [DEX] + [BOD] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from spinning-ducking-paradox-symposium-whirl (paradox + symposium on a no-plant dex) + torque terminal; bracket count 8 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves promotion. Folk name big-apple-sauce; technical reading Spinning Paradox Miraging Symposium Torque. Structural ADD 8 (spinning + paradox + miraging + symposium on torque). FootbagMoves lists 9; published at the structural 8 with the FM-9 over-count recorded as a single-source divergence, consistent with the frequency-is-not-authority and outlier precedent. All operators defined; torque family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
+  },
 ];
