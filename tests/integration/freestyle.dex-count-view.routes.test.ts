@@ -97,9 +97,9 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
 
   it('renders the dex-count intro line on the dex-count view only', async () => {
     const dexRes = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(dexRes.text).toContain('How many dex moves does this trick involve?');
+    expect(dexRes.text).toContain('how many dexterity moves they involve');
     const addRes = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(addRes.text).not.toContain('How many dex moves does this trick involve?');
+    expect(addRes.text).not.toContain('how many dexterity moves they involve');
   });
 
   it('groups tricks into the expected dex buckets', async () => {

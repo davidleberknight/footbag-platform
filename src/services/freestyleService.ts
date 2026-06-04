@@ -2563,6 +2563,19 @@ export interface FreestyleTricksIndexContent {
    *  ALL labels in its enumeration (wrapped-chip form) so the landing feels
    *  encyclopedic and navigable rather than truncated. */
   landingGrid: DictionaryLandingGrid;
+  // Beginner orientation bridge above the landing grid on the default view:
+  // what the dictionary is, a high-level ADD definition, a single-base build-up
+  // example, the three exploration lenses, and deep links into the glossary.
+  landingOnboarding: DictionaryLandingOnboarding;
+}
+
+export interface DictionaryLandingOnboarding {
+  heading: string;
+  intro: readonly string[];
+  definitions: readonly { term: string; plain: string }[];
+  example: { label: string; steps: readonly { name: string; note: string }[] };
+  lenses: readonly { label: string; note: string }[];
+  links: readonly { label: string; href: string }[];
 }
 
 export interface DictionaryLandingGrid {
@@ -3821,7 +3834,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
   //    surfaces the JOB+ADD browse-card row (was: bare op-notation
   //    display only on trick-detail pages).
-  'around-the-world-kick',       // around-the-world(2) - terminal stall(1) = 1 ADD (kick-rule)
+  'around-the-world-kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
   'triple-around-the-world',     // dex(3) + stall(1) = 4 ADD
   'double-around-the-world-heel', // dex(2) + heel-stall(1) = 3 ADD
   'hop-over',                    // inside-delay(1) + bod(1) = 2 ADD
@@ -7367,7 +7380,7 @@ export const freestyleService = {
               count:        dexCountGroups.length,
               countDisplay: fmtCount(dexCountGroups.length),
               countSuffix:  'dex buckets',
-              lensQuestion: 'How many dex events does it have?',
+              lensQuestion: 'How many dexterity moves does it have?',
               chips:        dexCountGroups.map(g => ({ label: dexChipLabel(g.dexCount), href: `/freestyle/tricks?view=dex-count#${g.bucketId}`, count: g.cards.length })),
             },
           ],
@@ -7383,7 +7396,7 @@ export const freestyleService = {
               count:        PUBLIC_DISPLAY_FAMILIES.length,
               countDisplay: fmtCount(PUBLIC_DISPLAY_FAMILIES.length),
               countSuffix:  'families',
-              lensQuestion: 'What core movement topology does the trick inherit from?',
+              lensQuestion: 'What core movement pattern does the trick build on?',
               chips:        PUBLIC_DISPLAY_FAMILIES.map(f => ({ label: f.label, href: `/freestyle/tricks?family=${f.slug}`, count: familyTrickCounts.get(f.slug) ?? 0 })),
             },
             {
@@ -7395,7 +7408,7 @@ export const freestyleService = {
               count:        setsClusterView.length,
               countDisplay: fmtCount(setsClusterView.length),
               countSuffix:  'modifier groups',
-              lensQuestion: 'What named operator, set, or modifier appears in the trick?',
+              lensQuestion: 'Which named moves, sets, or twists does it use?',
               chips:        setsClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=sets#cluster-${c.key}`, count: c.groups.reduce((n, g) => n + g.cards.length, 0) })),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
             },
@@ -7407,7 +7420,7 @@ export const freestyleService = {
               // The four primary compositional axes PLUS a separately-modeled
               // Alternative Surfaces grouping (parallel layer, not a fifth axis).
               countSuffix:  'axes + surfaces',
-              lensQuestion: 'What compositional systems shape the trick?',
+              lensQuestion: 'Which broad movement style does it belong to?',
               chips:        [
                 ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.groups.reduce((n, g) => n + g.cards.length, 0) })),
                 { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.tricks.length, 0) },
@@ -7420,9 +7433,9 @@ export const freestyleService = {
               count:        topologyView.groups.length,
               countDisplay: fmtCount(topologyView.groups.length),
               countSuffix:  'neighborhoods',
-              lensQuestion: 'Mechanical similarity clusters that cut across families, modifiers, and ADD.',
+              lensQuestion: 'Tricks that move alike, even across different families.',
               chips:        topologyView.groups.map(g => ({ label: g.topologyName, href: `/freestyle/tricks?view=topology#${g.anchorId}`, count: g.memberCount })),
-              crossLink:    { label: 'Compare to By family for the canonical view.', href: '/freestyle/tricks?view=family' },
+              crossLink:    { label: 'Compare to By family for the official grouping.', href: '/freestyle/tricks?view=family' },
             },
           ],
         },
@@ -7434,8 +7447,8 @@ export const freestyleService = {
               href:         '/freestyle/observational',
               count:        OBSERVATIONAL_UNIVERSE_STATS.total,
               countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
-              countSuffix:  'tracked names',
-              lensQuestion: 'Tracked names under review, not unique tricks.',
+              countSuffix:  'unconfirmed names',
+              lensQuestion: 'Names the community is still confirming, not separate tricks yet.',
               chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
             },
           ],
@@ -7516,11 +7529,43 @@ export const freestyleService = {
         relatedSetGroups,
         totalTricks: canonicalCount,
         landingGrid,
+        landingOnboarding: {
+          heading: 'New to freestyle? Start here.',
+          intro: [
+            'This is a reference for tricks: the named moves players do. Every trick is a base move with modifiers layered on top, and the more you layer, the harder it gets.',
+            'That difficulty has a score: ADD (added difficulty). A simple base is around 2 to 3; a heavily modified trick can reach 7 or more.',
+          ],
+          definitions: [
+            { term: 'ADD', plain: 'how hard a trick is, as a number; the more you layer on, the higher it goes.' },
+            { term: 'Dex', plain: 'a dexterity move, where you circle a leg around the bag.' },
+            { term: 'Family', plain: 'a group of tricks built on the same base move.' },
+            { term: 'Modifier', plain: 'a twist you add to a base move, like a spin or a hip-pivot.' },
+          ],
+          example: {
+            label: 'Build-up example',
+            steps: [
+              { name: 'Whirl', note: 'a base move · 3 ADD' },
+              { name: 'Spinning Whirl', note: '+ a spin · 4 ADD' },
+              { name: 'Spinning Paradox Whirl', note: '+ a hip-pivot · 5 ADD' },
+            ],
+          },
+          lenses: [
+            { label: 'By difficulty (ADD)', note: 'easiest to hardest' },
+            { label: 'By family', note: 'grouped by the base move' },
+            { label: 'By modifier / set', note: 'grouped by the layers added' },
+          ],
+          links: [
+            { label: 'What is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
+            { label: 'How trick names work', href: '/freestyle/glossary#section-notation' },
+            { label: 'How to read the dictionary', href: '/freestyle/glossary#section-reading-the-dictionary' },
+            { label: 'Beginner glossary', href: '/freestyle/glossary#section-core-concepts' },
+          ],
+        },
         dictionaryIntro:
-          `${canonicalCount} canonical tricks documented to date. The dictionary lets you ` +
+          `${canonicalCount} officially documented tricks to date. The dictionary lets you ` +
           'understand freestyle through three lenses: difficulty (how layered is a trick), ' +
           'structure (what kind of trick is it), and tracking & expansion (what\'s tracked ' +
-          'beyond the canonical set). Pick a lens below.',
+          'beyond the documented set). Pick a lens below.',
         // Per-view context note for the advanced family browse view.
         familyViewIntro:
           'Family groupings cluster tricks that preserve a conserved terminal mechanic. ' +

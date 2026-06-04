@@ -11065,6 +11065,89 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    Renders only on the landing default view; secondary views render the
    inline trick-view-toggle nav (existing pattern) for quick switching.
    ───────────────────────────────────────────────────────────────────────── */
+.dict-onboarding {
+  margin: 18px 0 22px;
+  padding: 16px 18px;
+  background: #fbf9f2;
+  border: 1px solid #e6e0cf;
+  border-radius: 6px;
+}
+.dict-onboarding-heading {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.dict-onboarding-intro {
+  margin: 0 0 8px;
+  max-width: 72ch;
+}
+.dict-onboarding-defs {
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 18px;
+}
+.dict-onboarding-def {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.dict-onboarding-def dt {
+  font-weight: 600;
+}
+.dict-onboarding-def dd {
+  margin: 0;
+  color: var(--text-subtle, #888);
+  font-size: 0.9rem;
+}
+.dict-onboarding-example {
+  margin: 10px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.dict-onboarding-example-label {
+  font-weight: 600;
+  color: var(--text-subtle, #888);
+}
+.dict-onboarding-step {
+  white-space: nowrap;
+}
+.dict-onboarding-step-note {
+  color: var(--text-subtle, #888);
+  font-size: 0.88rem;
+}
+.dict-onboarding-arrow {
+  color: var(--text-subtle, #aaa);
+}
+.dict-onboarding-lenses {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.dict-onboarding-lens-note {
+  color: var(--text-subtle, #888);
+  font-size: 0.9rem;
+}
+.dict-onboarding-links {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+}
+.dict-onboarding-link-sep {
+  color: var(--text-subtle, #ccc);
+}
+@media (max-width: 480px) {
+  .dict-onboarding { padding: 14px; }
+  .dict-onboarding-defs { grid-template-columns: 1fr; }
+  .dict-onboarding-example { flex-direction: column; gap: 4px; }
+  .dict-onboarding-step { white-space: normal; }
+  .dict-onboarding-lenses { flex-direction: column; gap: 6px; }
+}
+
 .dict-landing-grid {
   margin: 18px 0 20px;
 }

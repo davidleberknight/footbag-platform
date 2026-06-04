@@ -93,10 +93,9 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   it('opens with the plain movement-first dictionary intro + glossary link', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="browse-view-intro"');
-    // 2026-05-24 governance/polish slice: vague "vast and growing movement
-    // vocabulary" replaced with a dynamic canonical-tricks count. Assertion
-    // updated to match new "{N} canonical tricks documented to date" prose.
-    expect(res.text).toMatch(/\d+ canonical tricks documented to date/);
+    // The intro carries a live count of documented tricks, in beginner-facing
+    // wording ("officially documented", not the internal "canonical").
+    expect(res.text).toMatch(/\d+ officially documented tricks to date/);
     expect(res.text).toContain('class="dictionary-intro-glossary-link"');
     expect(res.text).toContain('href="/freestyle/glossary"');
   });
@@ -156,8 +155,11 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
 
   it('groups tricks by ADD value, with the gentlest first', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    const twoIdx   = res.text.indexOf('2 ADD');
-    const threeIdx = res.text.indexOf('3 ADD');
+    // Scope the order check to the ADD ladder (below the view-toggle); the
+    // beginner bridge above it legitimately mentions higher ADD values first.
+    const ladder = res.text.indexOf('class="trick-view-toggle"');
+    const twoIdx   = res.text.indexOf('2 ADD', ladder);
+    const threeIdx = res.text.indexOf('3 ADD', ladder);
     expect(twoIdx).toBeGreaterThan(-1);
     expect(threeIdx).toBeGreaterThan(twoIdx);
     expect(res.text).toContain('data-trick-slug="mirage"');
@@ -169,7 +171,7 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   // Each portal-card count badge must show a VISIBLE noun (what the number
   // counts), not only an aria-label. The number sits in a
   // .dict-landing-card-count-num span; the noun follows as visible text.
-  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'tracked names'];
+  const NOUNS = ['ADD buckets', 'dex buckets', 'families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'unconfirmed names'];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
   it('every portal-card badge renders a visible noun label after the number', async () => {
@@ -211,14 +213,14 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d+<\/span> modifier groups/);
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*sets#cluster-set-uptime"/);
     // The broad, non-entry lens copy.
-    expect(res.text).toMatch(/What named operator, set, or modifier appears in the trick\?/);
+    expect(res.text).toMatch(/Which named moves, sets, or twists does it use\?/);
   });
 
   it('large counts are thousands-separated in the visible badge (Emerging vocabulary)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // The intake-queue total is well above 999, so the tracked-names badge must
-    // render a comma-grouped number in the visible label.
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> tracked names<\/span>/);
+    // The intake-queue total is well above 999, so the unconfirmed-names badge
+    // must render a comma-grouped number in the visible label.
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})+<\/span> unconfirmed names<\/span>/);
   });
 
   it('no portal-card badge renders a bare number with no noun (old behavior)', async () => {
@@ -226,6 +228,68 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     // The old badge was `<span class="dict-landing-card-count" ...>91</span>`
     // (number only). That form must no longer appear.
     expect(res.text).not.toMatch(/<span class="dict-landing-card-count"[^>]*>\d[\d,]*<\/span>/);
+  });
+});
+
+describe('GET /freestyle/tricks — beginner orientation bridge', () => {
+  it('renders the orientation bridge on the default landing view', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toContain('class="dict-onboarding"');
+    expect(res.text).toContain('New to freestyle? Start here.');
+    // High-level ADD definition in plain words.
+    expect(res.text).toMatch(/ADD \(added difficulty\)/);
+    // The single-base build-up example, in order.
+    const whirl   = res.text.indexOf('<strong>Whirl</strong>');
+    const spin     = res.text.indexOf('<strong>Spinning Whirl</strong>');
+    const paradox = res.text.indexOf('<strong>Spinning Paradox Whirl</strong>');
+    expect(whirl).toBeGreaterThan(-1);
+    expect(spin).toBeGreaterThan(whirl);
+    expect(paradox).toBeGreaterThan(spin);
+    // The three exploration lenses in beginner wording.
+    expect(res.text).toContain('By difficulty (ADD)');
+    expect(res.text).toContain('grouped by the base move');
+    expect(res.text).toContain('grouped by the layers added');
+  });
+
+  it('defines the four entry terms (ADD / Dex / Family / Modifier) in plain words', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const start = res.text.indexOf('class="dict-onboarding-defs"');
+    expect(start).toBeGreaterThan(-1);
+    const defs = res.text.slice(start, start + 900);
+    for (const term of ['ADD', 'Dex', 'Family', 'Modifier']) {
+      expect(defs, `term ${term}`).toContain(`<dt>${term}</dt>`);
+    }
+    // Plain-language glosses, not insider phrasing.
+    expect(defs).toContain('how hard a trick is');
+    expect(defs).toContain('circle a leg around the bag');
+    expect(defs).toContain('built on the same base move');
+    expect(defs).toContain('a twist you add to a base move');
+  });
+
+  it('the bridge links into the glossary primer sections', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const start = res.text.indexOf('class="dict-onboarding-links"');
+    expect(start).toBeGreaterThan(-1);
+    const links = res.text.slice(start, start + 700);
+    expect(links).toContain('href="/freestyle/glossary#section-add-accounting"');
+    expect(links).toContain('What is an ADD?');
+    expect(links).toContain('#section-notation');
+    expect(links).toContain('#section-reading-the-dictionary');
+    expect(links).toContain('#section-core-concepts');
+  });
+
+  it('does not render the bridge on secondary or filtered views', async () => {
+    const family = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(family.text).not.toContain('class="dict-onboarding"');
+    const filtered = await request(createApp()).get('/freestyle/tricks?family=whirl');
+    expect(filtered.text).not.toContain('class="dict-onboarding"');
+  });
+
+  it('softens internal ontology terms to beginner entry vocabulary', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // "topology" -> "movement pattern" on the By-family lens question.
+    expect(res.text).toContain('What core movement pattern does the trick build on?');
+    expect(res.text).not.toContain('What core movement topology does the trick inherit from?');
   });
 });
 

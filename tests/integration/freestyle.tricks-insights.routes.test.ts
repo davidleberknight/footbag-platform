@@ -503,9 +503,9 @@ describe('public dictionary presentation', () => {
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
-    // 2026-05-24 governance/polish slice: vague "vast and growing
-    // movement vocabulary" replaced with a dynamic canonical-trick count.
-    expect(res.text).toMatch(/\d+ canonical tricks documented to date/);
+    // The intro carries a live documented-trick count, in beginner-facing
+    // wording ("officially documented", not the internal "canonical").
+    expect(res.text).toMatch(/\d+ officially documented tricks to date/);
     // The retired publication-state expansion note must not return.
     expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });

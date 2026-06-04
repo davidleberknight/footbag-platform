@@ -31,6 +31,30 @@
       previous separate footer-style paragraph. }}
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
+  {{! ── Beginner orientation bridge. Plain-language welcome above the advanced
+      taxonomy nav, default landing only. The ontology underneath is unchanged;
+      this is progressive disclosure, not simplification. ── }}
+  {{#if content.landingOnboarding}}
+  <aside class="dict-onboarding" aria-label="New to freestyle? Start here">
+    <h2 class="dict-onboarding-heading">{{content.landingOnboarding.heading}}</h2>
+    {{#each content.landingOnboarding.intro}}<p class="dict-onboarding-intro">{{this}}</p>{{/each}}
+    {{#if content.landingOnboarding.definitions.length}}
+    <dl class="dict-onboarding-defs">
+      {{#each content.landingOnboarding.definitions}}<div class="dict-onboarding-def"><dt>{{term}}</dt><dd>{{plain}}</dd></div>{{/each}}
+    </dl>
+    {{/if}}
+    <p class="dict-onboarding-example">
+      <span class="dict-onboarding-example-label">{{content.landingOnboarding.example.label}}:</span>
+      {{#each content.landingOnboarding.example.steps}}<span class="dict-onboarding-step"><strong>{{name}}</strong> <span class="dict-onboarding-step-note">{{note}}</span></span>{{#unless @last}} <span class="dict-onboarding-arrow">&rarr;</span> {{/unless}}{{/each}}
+    </p>
+    <ul class="dict-onboarding-lenses">
+      {{#each content.landingOnboarding.lenses}}<li><strong>{{label}}</strong> <span class="dict-onboarding-lens-note">{{note}}</span></li>{{/each}}
+    </ul>
+    <p class="dict-onboarding-links">
+      {{#each content.landingOnboarding.links}}<a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="dict-onboarding-link-sep">·</span> {{/unless}}{{/each}}
+    </p>
+  </aside>
+  {{/if}}
   <div class="dict-landing-grid" aria-label="Dictionary browse axes">
     {{#each content.landingGrid.bands}}
     <section class="dict-landing-band">
@@ -150,7 +174,7 @@
       notation. Same generalized dictionary-trick-row partial as the ADD and
       Family views; only the bucketing axis differs. }}
   {{#if (eq content.activeView "dex-count")}}
-  <p class="browse-view-intro">Tricks grouped by the number of dex events in their operational notation. How many dex moves does this trick involve?</p>
+  <p class="browse-view-intro">Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.</p>
   {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
   {{#each content.dexCountGroups}}
   <section class="content-section trick-dex-count-group trick-group--trick-rows" id="{{bucketId}}">
@@ -159,7 +183,7 @@
       <span class="section-count">{{cards.length}}</span>
     </div>
     {{#unless dexCount}}{{#if (eq bucketId "dex-unknown")}}
-    <p class="dex-count-unknown-note"><em>These canonical rows do not yet have operational notation populated. The trick exists; its dex count cannot be derived without notation.</em></p>
+    <p class="dex-count-unknown-note"><em>We haven&rsquo;t mapped these tricks&rsquo; moves in detail yet, so they can&rsquo;t be sorted by dexterity-move count. The tricks still exist.</em></p>
     {{/if}}{{/unless}}
     <div class="dict-trick-row-stack">
       {{#each cards}}
@@ -380,7 +404,7 @@
        public label renamed from "Topology"). The backend slug + URL
        parameter `?view=topology` are preserved for URL stability. ── }}
   {{#if (eq content.activeView "topology")}}
-  <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
+  <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
   <p class="topology-view-note">
     {{content.topologyView.observationalNote}}
   </p>
@@ -424,8 +448,8 @@
       Axes shaped in declaration order; empty axes pruned. Modifier groups
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
-  <p class="browse-view-status-label"><strong>Exploratory / pedagogical — not canonical taxonomy.</strong></p>
-  <p class="browse-view-intro"><strong>By movement system = the four higher-level conceptual axes</strong> (set/uptime · entry topology · midtime body · no-plant suspension). Each axis groups the modifiers that belong to it. The model also recognizes <strong>Alternative surfaces</strong> (tricks defined by an unusual catch surface), grouped separately below the four axes. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
+  <p class="browse-view-intro"><strong>By movement system = the four big groupings</strong> (sets &amp; uptime · how you enter · mid-air body moves · airborne). Each grouping gathers the modifiers that belong to it. It also recognizes <strong>Alternative surfaces</strong> (tricks caught on an unusual part of the body), listed separately below the four groupings. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
   {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}
 
