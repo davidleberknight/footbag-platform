@@ -42,6 +42,25 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
   'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
 };
 
+// Mutual movement neighborhoods: every member relates to the others. Surface
+// stalls each sit in their own trick_family, so no family or base rule connects
+// the foot-stall set or the body-stall set; this overlay groups them by where
+// the bag is caught (a movement neighborhood, not a taxonomy change).
+const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
+  ['toe-stall', 'inside-stall', 'outside-stall', 'clipper-stall', 'heel-stall', 'sole-stall', 'knee-clipper', 'cross-body-sole-stall'],
+  ['head-stall', 'forehead-stall', 'neck-stall', 'shoulder-stall', 'knee-stall', 'cloud-stall'],
+];
+
+// Curated neighbors for a slug: its one-directional overlay entry plus the
+// other members of any mutual group it belongs to.
+function explicitNeighborsFor(slug: string): readonly string[] {
+  const out = [...(EXPLICIT_NEIGHBORS[slug] ?? [])];
+  for (const group of NEIGHBORHOOD_GROUPS) {
+    if (group.includes(slug)) out.push(...group.filter(s => s !== slug));
+  }
+  return out;
+}
+
 function bucketByAdds<T extends { adds: string | null; slug: string }>(rows: T[]): T[][] {
   const buckets = new Map<number, T[]>();
   for (const r of rows) {
@@ -120,7 +139,7 @@ export function buildRelatedTricks(
 
   // R0 — curated movement-neighborhood overlay (sui-generis primitives whose
   // self-family and self-base leave them with no rule-derived neighbors).
-  const r0 = (EXPLICIT_NEIGHBORS[current.slug] ?? [])
+  const r0 = explicitNeighborsFor(current.slug)
     .map(s => eligible.find(r => r.slug === s))
     .filter((r): r is FreestyleTrickRow => r != null);
 

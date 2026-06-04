@@ -31,6 +31,11 @@ So TT#15 ("Toe Stall", the actual stall tutorial) is inactive, and TT#14 (the ki
 
 Net: the stall trick points at the "Toe Stall" video; the kick trick points at the plain "Around The World" video.
 
-## Why this is here and not done inline
+## Status: applied (media-track edit)
 
-`media_links.csv` is a media/gallery seeder file (Dave's track). The doctrine track corrected the descriptions, the kick's 1-ADD notation/dex-count membership, and the related-tricks logic, but left the tutorial remap for the media track to apply and rebuild.
+The two cells above were applied to `media_links.csv` at the maintainer's direction, crossing into the media seeder from the doctrine track. Two follow-ups remain for the media track:
+
+- a DB rebuild for the remap to render on the site;
+- Dave's awareness, in case it intersects gallery-edit-tool state.
+
+This file documents the evidence and the exact change so the media track can verify or revert it cleanly.

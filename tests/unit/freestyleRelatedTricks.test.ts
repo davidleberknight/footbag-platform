@@ -101,6 +101,13 @@ const FIXTURE: FreestyleTrickRow[] = [
   row('flying-clipper',  '2', 'body',     'clipper',        'clipper'),
   row('double-leg-over', '3', 'compound', 'legover',        'legover'),
 
+  // ── surface stalls (self-families) for the mutual stall-neighborhood overlay.
+  row('toe-stall',     '1', 'surface', 'toe-stall',     'toe-stall'),
+  row('inside-stall',  '1', 'surface', 'inside-stall',  'inside-stall'),
+  row('clipper-stall', '2', 'surface', 'clipper-stall', 'clipper-stall'),
+  row('head-stall',    '1', 'surface', 'head-stall',    'head-stall'),
+  row('neck-stall',    '1', 'surface', 'neck-stall',    'neck-stall'),
+
   // modifier-category row that MUST be excluded from any related list
   row('paradox', 'modifier', 'modifier', 'paradox', 'paradox'),
 ];
@@ -126,6 +133,20 @@ describe('buildRelatedTricks — modifier-prefix allowlist + neighborhood overla
       'neighborhood:flying-outside',
       'neighborhood:flying-clipper',
     ]);
+  });
+
+  it('foot stalls relate to each other as a neighborhood, not to body stalls', () => {
+    const result = buildRelatedTricks(pick('toe-stall'), FIXTURE);
+    expect(result.every(r => r.rule === 'neighborhood')).toBe(true);
+    const slugs = result.map(r => r.slug);
+    expect(slugs).toEqual(expect.arrayContaining(['inside-stall', 'clipper-stall']));
+    expect(slugs).not.toContain('head-stall');
+  });
+
+  it('body stalls relate to each other, not across to the foot-stall group', () => {
+    const slugs = buildRelatedTricks(pick('head-stall'), FIXTURE).map(r => r.slug);
+    expect(slugs).toContain('neck-stall');
+    expect(slugs).not.toContain('toe-stall');
   });
 });
 
