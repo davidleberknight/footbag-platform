@@ -6,6 +6,29 @@
 
 ---
 
+## Resolution update (2026-06-04, Red rulings applied)
+
+Red returned six rulings that decompose the held tokens into stacks of registered operators (composed-set folk-names, not new primitives). Dispositions were applied at the lowest-risk reversible layer (TypeScript content modules: no new rows, no new primitive operators, no SQL).
+
+| Ruling | Disposition | Status |
+|---|---|---|
+| Shooting = Symposium Stepping Paradox Illusioning set; second dex = Paradox Illusion | `shooting-star` wired as an alias on its decomposition (no competition record). ADD closes to 7 (a +3 prefix on a 4-ADD illusion plus cross-body terminal). | **Q1b RESOLVED**, structural hold lifted |
+| Flailing = Symposium Illusioning set | Equivalence recorded; reconciles the live Holden "Symposium Reverse Miraging" (illusioning equals reverse miraging). | **Q2 `flailing` RESOLVED** (disposition B) |
+| Surfing = Fairy Symposium Swirling set | Composed-set reading wired. | **Q2 `surfing` RESOLVED** (B) |
+| Slicing = Gyro Whirling set | Composed-set reading wired. | **RESOLVED** (B; not originally listed) |
+| Splicing = Gyro Reving (Gyro Reverse Whirling) set | Composed-set reading wired; new equivalence `reving` equals `reverse whirling`. | **Q2 `splicing` RESOLVED** (B) |
+
+Wired in `freestyleSymbolicEquivalences.ts` (five chain entries) and `freestyleCanonicalSets.ts` (Flailing equivalence note). No new primitive operators; fewer-rows bias preserved.
+
+**Still open (no Red ruling):**
+- **Q1a**, alias-vs-row heuristic. Applied at the lowest-risk default (no record, so alias on decomposition). Promotion to standalone rows still awaits a policy confirmation or a surfacing record.
+- **Q2 tokens `railing`, `floating`, `warping`**, undispositioned.
+- **Q3**, blurry redundant-paradox.
+
+**Non-blocking derivation note (Shooting Star):** the prefix-to-base dex partition has a plus-or-minus-one wobble (whether `illusioning` contributes the 2-ADD illusion or a single +1 reverse-miraging dex); the total 7 and the selected structure are unaffected. Resolve when authoring the single canonical no-plant/RAKE notation.
+
+---
+
 ## Organizing principle: arithmetic validity ≠ structural certainty
 
 Every item below has **valid arithmetic** — the ADD math closes, and where sources diverge on the number, the divergence resolves under the existing outlier rules. What is **uncertain is the structure**: which operators compose the trick, which base it lands on, whether a token is a real operator at all, and which of several readings is canonical.

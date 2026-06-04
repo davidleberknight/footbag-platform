@@ -298,6 +298,31 @@ describe('freestyleSymbolicEquivalences — Path B canonical promotions (2026-05
   });
 });
 
+describe('freestyleSymbolicEquivalences — composed-set folk-name dispositions', () => {
+  // Five folk-name prefixes ruled to decompose to stacks of registered
+  // operators (no new primitives). shooting-star is dispositioned as an alias
+  // on its decomposition rather than a standalone row (no competition record).
+  it('shooting-star resolves to its symposium-stepping-paradox-illusioning decomposition', () => {
+    const chain = getSymbolicEquivalenceChain('shooting-star');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['symposium stepping paradox illusioning']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('the four composed-set tokens resolve to their operator stacks', () => {
+    expect(getSymbolicEquivalenceChain('flailing')?.readings).toEqual(['symposium illusioning']);
+    expect(getSymbolicEquivalenceChain('surfing')?.readings).toEqual(['fairy symposium swirling']);
+    expect(getSymbolicEquivalenceChain('slicing')?.readings).toEqual(['gyro whirling']);
+    expect(getSymbolicEquivalenceChain('splicing')?.readings).toEqual(['gyro reving']);
+  });
+
+  it('all five composed-set dispositions are curator-confirmed (not pending)', () => {
+    for (const slug of ['shooting-star', 'flailing', 'surfing', 'slicing', 'splicing']) {
+      expect(getSymbolicEquivalenceChain(slug)?.curatorConfirmPending).toBe(false);
+    }
+  });
+});
+
 describe('freestyleSymbolicEquivalences — lookup behavior', () => {
   it('is case-insensitive and trims whitespace', () => {
     expect(getSymbolicEquivalenceChain('MOBIUS')?.slug).toBe('mobius');

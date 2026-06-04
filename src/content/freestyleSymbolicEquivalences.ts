@@ -680,6 +680,42 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     // Migrated from aliases_json (folk-name compression to 3-operator stack).
     curatorConfirmPending: false,
   },
+  // Composed-set folk-names: each resolves to a stack of already-registered
+  // operators, so they wire as decomposition readings rather than as new
+  // primitives or standalone rows (fewer-rows bias).
+  {
+    slug:     'shooting-star',
+    readings: ['symposium stepping paradox illusioning'],
+    // The paradox-bearing second dex is a paradox illusion living inside the
+    // prefix, not a separate double-over-down or torque base. With no
+    // competition record it lands as an alias on its decomposition rather
+    // than a standalone canonical row.
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'flailing',
+    readings: ['symposium illusioning'],
+    // Operator form of flail (static reading symposium illusion); illusioning
+    // is the reverse-miraging dex, reconciling the Holden "symposium reverse
+    // miraging" form to canonical operator naming.
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'surfing',
+    readings: ['fairy symposium swirling'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'slicing',
+    readings: ['gyro whirling'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'splicing',
+    readings: ['gyro reving'],
+    // reving is reverse whirling.
+    curatorConfirmPending: false,
+  },
 ];
 
 /**

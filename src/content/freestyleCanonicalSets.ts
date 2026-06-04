@@ -504,6 +504,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       'symposium constraint. Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Symposium Reverse Miraging', citation: 'Holden parenthetical' },
+      { reading: 'Symposium Illusioning', citation: 'Curator-adjudicated' },
     ],
     derivedSystems: [],
     relatedSystems: [
