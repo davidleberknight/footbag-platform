@@ -92,6 +92,15 @@ const FIXTURE: FreestyleTrickRow[] = [
   row('paradox-illusion', '3', 'compound', 'illusion',         'illusion'),
   row('avalanche',        '5', 'compound', 'paradox-illusion', 'paradox-illusion'),
 
+  // ── airborne contact-surface primitives (self-families) + a `double-*`
+  // multiplier compound. Exercises the R2 modifier-prefix allowlist (double is
+  // a multiplier, not a modifier) and the explicit neighborhood overlay.
+  row('double-knee',     '1', 'body',     'double-knee',    'double-knee'),
+  row('flying-inside',   '1', 'body',     'flying-inside',  'flying-inside'),
+  row('flying-outside',  '1', 'body',     'flying-outside', 'flying-outside'),
+  row('flying-clipper',  '2', 'body',     'clipper',        'clipper'),
+  row('double-leg-over', '3', 'compound', 'legover',        'legover'),
+
   // modifier-category row that MUST be excluded from any related list
   row('paradox', 'modifier', 'modifier', 'paradox', 'paradox'),
 ];
@@ -101,6 +110,24 @@ function pick(slug: string): FreestyleTrickRow {
   if (!r) throw new Error(`fixture missing slug: ${slug}`);
   return r;
 }
+
+describe('buildRelatedTricks — modifier-prefix allowlist + neighborhood overlay', () => {
+  it('does not prefix-match the non-modifier "double" across families', () => {
+    // Under the old first-segment rule, double-leg-over pulled in every other
+    // double-* slug (double-knee etc.); "double" is a multiplier, not a modifier.
+    const slugs = buildRelatedTricks(pick('double-leg-over'), FIXTURE).map(r => r.slug);
+    expect(slugs).not.toContain('double-knee');
+  });
+
+  it('double-knee surfaces its airborne contact neighbors, not unrelated double-* tricks', () => {
+    const result = buildRelatedTricks(pick('double-knee'), FIXTURE);
+    expect(result.map(r => `${r.rule}:${r.slug}`)).toEqual([
+      'neighborhood:flying-inside',
+      'neighborhood:flying-outside',
+      'neighborhood:flying-clipper',
+    ]);
+  });
+});
 
 describe('buildRelatedTricks — worked examples', () => {
   it('mirage: 5 results, all R1, no cap', () => {

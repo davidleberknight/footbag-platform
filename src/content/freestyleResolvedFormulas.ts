@@ -1267,7 +1267,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'around-the-world',
     baseAdd:     2,
     totalAdd:    1,
-    derivation:  'around-the-world(2) − terminal stall(1) = 1 ADD (kick-rule)',
+    derivation:  'dex(1) = 1 ADD; around-the-world without its terminal stall',
     operationalNotation: 'TOE > SAME IN [DEX]',  // Pre-Adrian promotion 2026-05-25; fb.org-derived (fborg-1add.txt); kick-rule applied; not Red-confirmed.
     provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Kick-rule derivation: remove terminal [DEL] and stall(1) from around-the-world. fb.org-derived (fborg-1add.txt "Around the World Kick"); not Red-confirmed. Surfaces Red Q K-1..K-3 in CLEANUP_AUDIT.md (kick-family ADD reading + uniform [bod] vs structural [dex] interpretation).',
   },

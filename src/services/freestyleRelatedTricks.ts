@@ -7,7 +7,7 @@ export interface FreestyleRelatedTrick {
   hashtag:       string;
   adds:          string | null;
   detailHref:    string;
-  rule:          'family' | 'modifier-prefix' | 'parent' | 'grandparent';
+  rule:          'neighborhood' | 'family' | 'modifier-prefix' | 'parent' | 'grandparent';
 }
 
 const MAX_RESULTS  = 8;
@@ -17,6 +17,30 @@ function modifierPrefix(slug: string): string | null {
   const i = slug.indexOf('-');
   return i > 0 ? slug.slice(0, i) : null;
 }
+
+// Modifier / set-operator prefixes that legitimately form `{modifier}-{base}`
+// trick names. R2 ("same modifier-prefix, different family") fires only when a
+// slug's first segment is one of these. Multipliers (double, triple), catch
+// surfaces (sole, knee, cloud, heel), base atoms (butterfly, around), and
+// directions (down) are excluded: first segments that collide by spelling
+// without sharing a movement, which otherwise manufacture false neighborhoods
+// (e.g. double-knee pulling in every unrelated double-* trick).
+const MODIFIER_PREFIXES: ReadonlySet<string> = new Set([
+  'spinning', 'inspinning', 'fairy', 'pixie', 'gyro', 'ducking', 'diving',
+  'weaving', 'stepping', 'paradox', 'symposium', 'atomic', 'quantum', 'tapping',
+  'blazing', 'barraging', 'terraging', 'illusioning', 'miraging', 'swirling',
+  'whirling', 'surging', 'furious', 'nuclear', 'blurry', 'flying',
+]);
+
+// Curated movement-neighborhood overlay for sui-generis primitives that sit in
+// their own trick_family with a self-referential base, so no family or base
+// rule connects them to their true neighbors. Double Knee is an airborne
+// both-knee contact: its neighbors are the other airborne contact-surface
+// variants, not the unrelated `double-*` multiplier tricks. Extend as airborne
+// contact variants are added (e.g. double-inside, double-toe).
+const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
+  'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
+};
 
 function bucketByAdds<T extends { adds: string | null; slug: string }>(rows: T[]): T[][] {
   const buckets = new Map<number, T[]>();
@@ -94,16 +118,24 @@ export function buildRelatedTricks(
     r => r.category !== 'modifier' && r.slug !== current.slug,
   );
 
+  // R0 — curated movement-neighborhood overlay (sui-generis primitives whose
+  // self-family and self-base leave them with no rule-derived neighbors).
+  const r0 = (EXPLICIT_NEIGHBORS[current.slug] ?? [])
+    .map(s => eligible.find(r => r.slug === s))
+    .filter((r): r is FreestyleTrickRow => r != null);
+
   const r1 = eligible.filter(r => r.trick_family === current.trick_family);
 
+  // R2 fires only when the slug's first segment is a real modifier; a bare
+  // spelling collision (double-knee, around-the-world) is not a shared modifier.
   const prefix = modifierPrefix(current.slug);
-  const r2 = prefix
+  const r2 = prefix && MODIFIER_PREFIXES.has(prefix)
     ? eligible.filter(
         r => r.trick_family !== current.trick_family && r.slug.startsWith(`${prefix}-`),
       )
     : [];
 
-  const r1AndR2Count = r1.length + r2.length;
+  const r1AndR2Count = r0.length + r1.length + r2.length;
   let r3: FreestyleTrickRow[] = [];
   if (r1AndR2Count < R3_GATE_SIZE && current.base_trick) {
     const baseRow = eligible.find(r => r.slug === current.base_trick);
@@ -142,6 +174,12 @@ export function buildRelatedTricks(
   const out: FreestyleRelatedTrick[] = [];
   const seen = new Set<string>();
 
+  for (const row of r0) {
+    if (out.length >= MAX_RESULTS) break;
+    if (seen.has(row.slug)) continue;
+    seen.add(row.slug);
+    out.push(shape(row, 'neighborhood'));
+  }
   for (const row of r1Sampled) {
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;

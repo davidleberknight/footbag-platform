@@ -1248,6 +1248,7 @@ double-orbit,notation,,DOUBLE ORBIT,double-* core-atom JOB (mechanical rule)
 double-orbit,operational_notation,,TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],orbit op + one extra dex (double-* = +1); parity with double-around-the-world; ADD-math 2 DEX + 1 DEL = 3
 butterfly-kick,trick_family,butterfly,butterfly-kick,Kick self-families per sibling convention (cloud-kick/dragonfly-kick/sole-kick); butterfly-kick lacks butterfly's terminal clipper-delay [XBD][DEL] so it is not a butterfly-family member. base_trick=butterfly retained for derivation provenance; kick grouping via kind-overrides.
 around-the-world-kick,trick_family,around-the-world,around-the-world-kick,Kick self-families per sibling convention; ATW-kick has no terminal toe-stall [DEL] so it is not an around-the-world-family member. base_trick retained for derivation provenance.
+around-the-world-kick,operational_notation,,TOE > SAME IN [DEX],One dex and no terminal stall; enables dex-count bucketing into the 1-dex group.
 atom-bomb,description,,Folk name; decomposes to flailing symposium mirage.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
 atomic-eclipse,description,,Atomic-modified eclipse.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
 barfly-swirl,description,,Barfly with an added back-swirl dex.,P3b: strip Wave Alpha/promotion provenance per public-prose hygiene; canonical description template.
