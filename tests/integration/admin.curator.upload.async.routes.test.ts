@@ -33,6 +33,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 let createApp: typeof import('../../src/app').createApp;
@@ -56,11 +57,7 @@ function adminBCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: ADMIN_A, slug: 'async_admin_a', display_name: 'A', login_email: 'a@example.com', is_admin: 1 });
   insertMember(db, { id: ADMIN_B, slug: 'async_admin_b', display_name: 'B', login_email: 'b@example.com', is_admin: 1 });
   db.close();
@@ -612,6 +609,48 @@ describe('POST /admin/curator/upload/finalize', () => {
       .send({ jobId });
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/not been uploaded/);
+  });
+
+  it('rejects an uploaded video larger than the per-type max with 413 and never dispatches (the presigned PUT cannot bind size)', async () => {
+    const { jobId, videoKey, posterKey } = await signFor(adminACookie());
+    writeLocalMediaFile(posterKey);
+    // Sparse file: logical size just over the 150 MB video max without
+    // writing real bytes.
+    const full = path.join(TEST_MEDIA_DIR, videoKey);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, '');
+    fs.truncateSync(full, 150 * 1024 * 1024 + 1);
+
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/finalize')
+      .set('Cookie', adminACookie())
+      .send({ jobId });
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatch(/too large/i);
+    expect(dispatchedJobs).toHaveLength(0);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const row = db.prepare('SELECT state FROM media_jobs WHERE id = ?').get(jobId) as { state: string };
+    db.close();
+    expect(row.state).toBe('pending_upload');
+  });
+
+  it('rejects an uploaded poster larger than the per-type max with 413 and never dispatches', async () => {
+    const { jobId, videoKey, posterKey } = await signFor(adminACookie());
+    writeLocalMediaFile(videoKey);
+    const full = path.join(TEST_MEDIA_DIR, posterKey);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, '');
+    fs.truncateSync(full, 25 * 1024 * 1024 + 1);
+
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/finalize')
+      .set('Cookie', adminACookie())
+      .send({ jobId });
+    expect(res.status).toBe(413);
+    expect(dispatchedJobs).toHaveLength(0);
   });
 
   it('happy path: transitions to pending_transcode, dispatches, returns statusUrl', async () => {

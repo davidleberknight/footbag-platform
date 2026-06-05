@@ -23,6 +23,10 @@
     </ul>
   {{/if}}
 
+  {{#if content.truncationNotice}}
+    <div class="notice notice-info">{{content.truncationNotice}}</div>
+  {{/if}}
+
   {{#if content.items.length}}
     <ul class="gallery-grid">
       {{#each content.items}}

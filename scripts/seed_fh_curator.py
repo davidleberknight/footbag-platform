@@ -202,10 +202,12 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
     """Insert the FH (Footbag Hacky) system member row if missing, then link
     to the matching historical_persons row. Returns the FH members.id.
 
-    Idempotent: re-runs are no-ops on the row insert (INSERT OR IGNORE) and
-    the historical-person link is guarded by IS NULL conditions. The link
-    is best-effort: if no matching historical_persons row exists yet (cold
-    start), we skip with a notice and let later loaders pick it up.
+    Idempotent and convergent: re-runs are no-ops on the row insert
+    (INSERT OR IGNORE), and the historical-person link is recomputed on every
+    run so it self-heals in both directions: when the matching
+    historical_persons row exists the FK is (re)linked, and when it does not
+    (cold start, or a later historical_persons reload removed it) the FK is
+    cleared to NULL rather than left dangling.
     """
     member_id = stable_id("member", "footbag-hacky")
     slug = "footbag_hacky"
@@ -270,6 +272,9 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
         {"lid": hacky_legacy_id},
     )
     linked_hp = cur.rowcount
+    # Recompute unconditionally: HP present -> linked, HP absent -> NULL. A
+    # later historical_persons reload can remove the row this FK points at;
+    # leaving the old value would dangle, so convergence beats preservation.
     con.execute(
         """UPDATE members
            SET historical_person_id = (
@@ -277,7 +282,7 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
              WHERE person_name = 'Footbag Hacky'
              LIMIT 1
            )
-           WHERE id = :mid AND historical_person_id IS NULL""",
+           WHERE id = :mid""",
         {"mid": member_id},
     )
     if linked_hp:

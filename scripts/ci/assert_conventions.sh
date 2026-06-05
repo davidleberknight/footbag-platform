@@ -224,6 +224,59 @@ if [ -n "$font_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: no committed skipped tests (.skip / .todo / xit).
+# Reason: a silently skipped test is a coverage regression nothing reports;
+# if a test cannot land, the feature cannot either. Conditional gating via
+# describe.skipIf (e.g. smoke suites behind RUN_STAGING_SMOKE) is allowed:
+# the condition is explicit and environment-driven, not a silent off switch.
+echo "[conventions] check: committed .skip/.todo/xit in tests"
+skip_hits=$(grep -rnE --include='*.ts' '(\.skip\(|\.todo\(|\bxit\()' tests/ \
+  | grep -v 'skipIf' \
+  || true)
+if [ -n "$skip_hits" ]; then
+  echo "$skip_hits" >&2
+  echo "  FAIL: committed skipped tests are forbidden; gate conditionally with skipIf or fix the test" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: short-form Handlebars comments must not contain mustaches.
+# Reason: {{! ... }} terminates at the FIRST }}, so a comment containing a
+# mustache (e.g. an inline {{example}}) ends early and spills its remaining
+# text into the rendered page, evaluating any embedded expression along the
+# way. Comments that need to mention template syntax use the long form
+# {{!-- ... --}} (which tolerates internal mustaches) or plain words.
+echo "[conventions] check: short-form {{! comments containing mustaches in templates"
+comment_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+for f in sorted(pathlib.Path('src/views').rglob('*.hbs')):
+    text = f.read_text()
+    for m in re.finditer(r'\{\{!(?!--)', text):
+        end = text.find('}}', m.end())
+        if end == -1:
+            continue
+        if '{{' in text[m.end():end]:
+            line = text.count('\n', 0, m.start()) + 1
+            print(f"{f}:{line}: short-form comment terminates early at its first embedded mustache")
+PYEOF
+)
+if [ -n "$comment_hits" ]; then
+  echo "$comment_hits" >&2
+  echo "  FAIL: use {{!-- --}} for comments that contain template syntax" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: synthetic-only identifiers in fixtures/content/scripts.
+# Rule: script credential-handling discipline.
+# Both delegated to dedicated checkers so their pattern sets stay readable.
+echo "[conventions] check: synthetic-only identifiers (delegated)"
+if ! bash scripts/ci/check_synthetic_identifiers.sh; then
+  violations=$((violations + 1))
+fi
+echo "[conventions] check: script credential handling (delegated)"
+if ! bash scripts/ci/check_script_credentials.sh; then
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

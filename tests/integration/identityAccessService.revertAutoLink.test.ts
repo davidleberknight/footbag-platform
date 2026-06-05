@@ -235,3 +235,87 @@ describe('identityAccessService.revertAutoLink', () => {
     expect(result.status).toBe('not_found');
   });
 });
+
+describe('identityAccessService.revertClaimForDispute (queue-item binding)', () => {
+  const ADMIN_ID = 'admin-dispute-revert';
+  let adminSeeded = false;
+
+  function seedAdmin(): void {
+    if (adminSeeded) return;
+    const db = open();
+    insertMember(db, { id: ADMIN_ID, login_email: `${ADMIN_ID}@example.com`, is_admin: 1 });
+    db.close();
+    adminSeeded = true;
+  }
+
+  function insertQueueItem(opts: { entityId: string; isDispute: boolean }): string {
+    const id = nextId('wq');
+    const now = '2026-01-01T00:00:00.000Z';
+    const payload = JSON.stringify({
+      statement: 'That record is mine, not theirs.',
+      claimed_legacy_username: null,
+      claimed_legacy_email: null,
+      vouchers: null,
+      is_dispute: opts.isDispute,
+    });
+    const db = open();
+    db.prepare(`
+      INSERT INTO work_queue_items (
+        id, created_at, created_by, updated_at, updated_by, version,
+        queue_category, task_type, entity_type, entity_id,
+        status, priority, opened_at, reason_text
+      ) VALUES (?, ?, 'system', ?, 'system', 1,
+        'membership', 'member_link_help_request', 'member', ?,
+        'open', 5, ?, ?)
+    `).run(id, now, now, opts.entityId, now, payload);
+    db.close();
+    return id;
+  }
+
+  it('refuses a revert not bound to any open help-request queue item', () => {
+    seedAdmin();
+    const { memberId } = setupClaimed({ withHpBackLink: false });
+    expect(() =>
+      svc.revertClaimForDispute(ADMIN_ID, 'wq-does-not-exist', memberId, 'forged dispute'),
+    ).toThrow(/not found or already resolved/i);
+    // The holder's claim must be untouched.
+    expect(memberRow(memberId).legacy_member_id).not.toBeNull();
+  });
+
+  it('refuses a revert bound to an open help-request item that is not a dispute', () => {
+    seedAdmin();
+    const { memberId } = setupClaimed({ withHpBackLink: false });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: false });
+    expect(() =>
+      svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'not actually disputed'),
+    ).toThrow(/not a conflict dispute/i);
+    expect(memberRow(memberId).legacy_member_id).not.toBeNull();
+  });
+
+  it('reverts when bound to an open dispute item and records the queue-item id in both forensic audit rows', () => {
+    seedAdmin();
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true });
+
+    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'dispute upheld');
+    expect(result.status).toBe('reverted');
+
+    expect(memberRow(memberId).legacy_member_id).toBeNull();
+    expect(legacyMemberRow(legacyId).claimed_by_member_id).toBeNull();
+
+    for (const actionType of ['claim.dispute_opened', 'claim.revert_applied']) {
+      const rows = listAuditEntries(memberId, actionType);
+      expect(rows).toHaveLength(1);
+      const meta = JSON.parse(String(rows[0].metadata_json)) as Record<string, unknown>;
+      expect(meta.work_queue_item_id).toBe(itemId);
+    }
+  });
+});

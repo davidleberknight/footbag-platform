@@ -50,15 +50,16 @@
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (join/leave/co-leader/archive emails)
+ *   - outbox_emails enqueue (join/leave notifications to the member and
+ *     current club leaders; best-effort after the affiliation commit)
  *   - news_items emission via NewsService (`club_created`, `club_archived`)
  *
  * Service shape: singleton object (no external adapters).
  */
 import {
   PublicClubRow,
-  PublicClubMemberRow,
   MemberCountRow,
+  account,
   clubs,
   clubBootstrapLeaders,
   clubLeaders,
@@ -73,6 +74,8 @@ import {
   type LegacyClubCandidateRow,
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
+import { getCommunicationService } from './communicationService';
+import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { appendAuditEntry } from './auditService';
@@ -125,12 +128,76 @@ function normalizePublicClubKeyToStoredTag(clubKey: string): string {
 
 // ── Create-club result ───────────────────────────────────────────────────────
 
+export interface ClubNearMatch {
+  name: string;
+  location: string;
+  /** Live clubs link to their page; legacy candidates have no page yet. */
+  clubHref: string | null;
+}
+
 type CreateClubResult =
   | { branch: 'created'; clubId: string; clubKey: string }
   | { branch: 'already_leader'; existingClubName: string }
   | { branch: 'affiliation_cap' }
   | { branch: 'exact_name_exists'; existingClubName: string; existingClubKey: string }
+  | { branch: 'near_matches_found'; nearMatches: ClubNearMatch[] }
   | { branch: 'tag_conflict'; tagNormalized: string };
+
+/**
+ * Conservative name normalization for the near-match warning: lowercase,
+ * punctuation stripped, whitespace collapsed. Catches spelling variants like
+ * "Hacky-Crew" vs "hacky crew" without a similarity engine; genuinely
+ * different names never match, so the warning stays low-noise.
+ */
+function normalizeClubNameForMatch(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatCandidateLocation(parts: Array<string | null>): string {
+  return parts.filter((p): p is string => p !== null && p.trim() !== '').join(', ');
+}
+
+function findNearMatchClubs(name: string, country: string): ClubNearMatch[] {
+  const wanted = normalizeClubNameForMatch(name);
+  if (wanted === '') return [];
+
+  const out: ClubNearMatch[] = [];
+
+  const liveClubs = clubs.listNamesByCountryForDuplicateCheck.all(country) as Array<{
+    name: string; city: string | null; club_key: string;
+  }>;
+  for (const c of liveClubs) {
+    // Raw NOCASE-equal names are already hard-blocked upstream; this
+    // catches only the normalized variants.
+    if (c.name.toLowerCase() === name.toLowerCase()) continue;
+    if (normalizeClubNameForMatch(c.name) === wanted) {
+      out.push({
+        name: c.name,
+        location: formatCandidateLocation([c.city, country]),
+        clubHref: `/clubs/${encodeURIComponent(c.club_key)}`,
+      });
+    }
+  }
+
+  const candidates = legacyClubCandidates.listDuplicateCheckCandidatesByCountry.all(country) as Array<{
+    display_name: string; city: string | null; region: string | null; country: string | null;
+  }>;
+  for (const cand of candidates) {
+    if (normalizeClubNameForMatch(cand.display_name) === wanted) {
+      out.push({
+        name: cand.display_name,
+        location: formatCandidateLocation([cand.city, cand.region, cand.country]),
+        clubHref: null,
+      });
+    }
+  }
+
+  return out;
+}
 
 // ── Shared view-model types ────────────────────────────────────────────────────
 
@@ -774,6 +841,71 @@ export interface CountryPageContent {
 export type ClubRouteResult =
   | { template: 'clubs/detail'; vm: PageViewModel<{ club: PublicClubDetail }> }
   | { template: 'clubs/country'; vm: PageViewModel<CountryPageContent> };
+
+/**
+ * Join/leave notification fan-out: one email to the member, one to each
+ * current club leader (skipping the member when they are themselves a
+ * leader). Best-effort by contract: the affiliation change is already
+ * committed, so a notification failure must never surface as a failed
+ * join/leave; it logs and moves on. Idempotency keys ride the affiliation
+ * row id plus its post-write version: rejoining reuses the same row (the
+ * affiliation table holds one row per member-club pair for life), so the
+ * version is what separates a fresh join/leave event from a double-submit
+ * of the same one.
+ */
+function enqueueClubMembershipEmails(opts: {
+  kind: 'join' | 'leave';
+  memberId: string;
+  clubId: string;
+  clubName: string;
+  notificationKey: string;
+}): void {
+  try {
+    const comms = getCommunicationService();
+    const member = account.findContactInfoById.get(opts.memberId) as
+      | { id: string; display_name: string; login_email: string | null }
+      | undefined;
+    const leaders = clubLeaders.listCurrentLeadersForClubPage.all(opts.clubId) as Array<{
+      member_id: string; display_name: string; login_email: string | null;
+    }>;
+    const verb = opts.kind === 'join' ? 'joined' : 'left';
+
+    if (member?.login_email) {
+      comms.enqueueEmail({
+        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:member`,
+        recipientEmail: member.login_email,
+        recipientMemberId: member.id,
+        subject: `You ${verb} ${opts.clubName}`,
+        bodyText:
+          `Hi ${member.display_name},\n\n` +
+          `This confirms you ${verb} the club "${opts.clubName}".\n\n` +
+          `You can review your club memberships on your profile page.\n\n` +
+          `-- IFPA platform`,
+      });
+    }
+
+    for (const leader of leaders) {
+      if (!leader.login_email || leader.member_id === opts.memberId) continue;
+      comms.enqueueEmail({
+        idempotencyKey: `club-${opts.kind}:${opts.notificationKey}:leader:${leader.member_id}`,
+        recipientEmail: leader.login_email,
+        recipientMemberId: leader.member_id,
+        subject: `${member?.display_name ?? 'A member'} ${verb} ${opts.clubName}`,
+        bodyText:
+          `Hi ${leader.display_name},\n\n` +
+          `${member?.display_name ?? 'A member'} ${verb} your club "${opts.clubName}".\n\n` +
+          `You can review the roster on the club page.\n\n` +
+          `-- IFPA platform`,
+      });
+    }
+  } catch (err) {
+    logger.warn('club membership notification enqueue failed', {
+      kind: opts.kind,
+      clubId: opts.clubId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
@@ -1509,6 +1641,8 @@ export class ClubService {
       contactEmail: string;
       whatsapp: string;
       slug: string;
+      /** Set when the creator saw the near-match warning and chose to proceed. */
+      confirmNearMatches?: boolean;
     },
   ): CreateClubResult {
     const name = input.name.trim();
@@ -1574,6 +1708,16 @@ export class ClubService {
       return { branch: 'exact_name_exists', existingClubName: dupRow.name, existingClubKey: dupRow.club_key };
     }
 
+    // Near-match warning: same-country live clubs whose normalized name
+    // collides (case/punctuation/spacing variants beyond the NOCASE exact
+    // block above) plus unmapped non-junk legacy candidates. The creator
+    // may proceed after seeing the list; the acknowledgment is recorded in
+    // the club.created audit metadata.
+    const nearMatches = findNearMatchClubs(name, country);
+    if (nearMatches.length > 0 && !input.confirmNearMatches) {
+      return { branch: 'near_matches_found', nearMatches };
+    }
+
     const existingTag = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
     if (existingTag) {
       return { branch: 'tag_conflict', tagNormalized };
@@ -1612,7 +1756,17 @@ export class ClubService {
           actorMemberId,
           entityType: 'club',
           entityId: clubId,
-          metadata: { club_name: name, tag_normalized: tagNormalized, city, country },
+          metadata: {
+            club_name: name,
+            tag_normalized: tagNormalized,
+            city,
+            country,
+            // Flags a creation the member confirmed as distinct despite
+            // listed near-matches, so an admin can audit the collision.
+            near_matches_acknowledged: nearMatches.length > 0
+              ? nearMatches.map((m) => m.name)
+              : null,
+          },
         });
       });
     } catch (err) {
@@ -1684,7 +1838,21 @@ export class ClubService {
         );
       } catch (err) {
         if (!isUniqueViolation(err)) throw err;
-        affiliationId = null;
+        // Rejoin after a leave: UNIQUE(member_id, club_id) keeps one row per
+        // pair for life, so the violation here means a deactivated row exists
+        // (a CURRENT row was already handled by the already_member branch).
+        // Reactivate it; reporting this as cap_reached would wrongly tell a
+        // zero-club member they are in two clubs.
+        const revived = memberClubAffiliations.reactivate.run(
+          isPrimary, now, 'club_service', actorMemberId, clubId,
+        );
+        if (revived.changes === 1) {
+          const row = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+            | { id: string } | undefined;
+          affiliationId = row?.id ?? null;
+        } else {
+          affiliationId = null;
+        }
       }
 
       if (affiliationId) {
@@ -1739,6 +1907,16 @@ export class ClubService {
           cause: err,
         });
       }
+
+      const current = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+        | { id: string; version: number } | undefined;
+      enqueueClubMembershipEmails({
+        kind: 'join',
+        memberId: actorMemberId,
+        clubId,
+        clubName: club.name,
+        notificationKey: `${affiliationId}:v${current?.version ?? 1}`,
+      });
     }
 
     return {
@@ -1755,7 +1933,7 @@ export class ClubService {
     remainingClubName: string | null;
   } {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
-      | { id: string; is_primary: number } | undefined;
+      | { id: string; is_primary: number; version: number } | undefined;
     if (!existing) {
       return { branch: 'not_member', remainingClubName: null };
     }
@@ -1792,6 +1970,17 @@ export class ClubService {
           had_leadership: leadership?.role ?? null,
         },
       });
+    });
+
+    // Leaders are re-read AFTER the transaction, so a leaving co-leader is
+    // already off the leadership list and receives only the member email.
+    const clubRow = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
+    enqueueClubMembershipEmails({
+      kind: 'leave',
+      memberId: actorMemberId,
+      clubId,
+      clubName: clubRow?.name ?? 'your club',
+      notificationKey: `${existing.id}:v${existing.version + 1}`,
     });
 
     // Check if the member has a remaining club (for the "designate as primary" prompt).
@@ -1984,7 +2173,11 @@ export class ClubService {
     clubId: string,
     newSlug: string,
     actorMemberId: string,
-  ): { branch: 'updated' | 'not_leader' | 'tag_conflict' | 'invalid_format' } {
+  ):
+    | { branch: 'updated'; newClubKey: string }
+    | { branch: 'not_leader' }
+    | { branch: 'tag_conflict' }
+    | { branch: 'invalid_format' } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'leader' | 'co-leader' } | undefined;
     if (!leadership) {
@@ -2009,7 +2202,6 @@ export class ClubService {
       return { branch: 'tag_conflict' };
     }
 
-    const now = new Date().toISOString();
     transaction(() => {
       mediaTags.updateTagDisplay.run(tagNormalized, tagDisplay, club.hashtag_tag_id);
 
@@ -2024,7 +2216,9 @@ export class ClubService {
       });
     });
 
-    return { branch: 'updated' };
+    // The hashtag IS the public URL key, so the old /clubs/:key slug is dead
+    // after this write; callers must redirect to the new key.
+    return { branch: 'updated', newClubKey: `club_${normalized}` };
   }
 }
 

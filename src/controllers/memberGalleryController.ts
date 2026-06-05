@@ -134,6 +134,8 @@ export const memberGalleryController = {
       const memberId = req.user!.userId;
       const svc = buildSvc();
       const summaries = svc.listGalleriesForOwner(memberId);
+      const savedFlag = readMediaSavedFlag(req, res);
+      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       const galleries = summaries.map((g) => ({
         id: g.id,
         name: g.name,
@@ -144,9 +146,8 @@ export const memberGalleryController = {
         itemCount: g.itemCount,
         editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
         deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
+        isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId,
       }));
-      const savedFlag = readMediaSavedFlag(req, res);
-      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render('members/galleries/list', {
         seo: { title: 'My Galleries' },
         page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
@@ -155,8 +156,9 @@ export const memberGalleryController = {
           listHref: listHref(memberKey),
           newGalleryHref: `/members/${memberKey}/galleries/new`,
           uploadMediaHref: `/members/${memberKey}/media/upload`,
-          savedFlag,
-          confirmDeleteId,
+          // Pre-shaped flash message so the template never branches on the
+          // raw flash code.
+          savedMessage: savedFlag === 'upload' ? 'Uploaded.' : savedFlag ? 'Saved.' : null,
         },
       });
     } catch (err) {
@@ -272,6 +274,7 @@ export const memberGalleryController = {
         // the anti-enumeration convention of the rest of /members/.
         const g = svc.getGalleryForEdit(galleryId, memberId, { memberKey });
         const currentItems = g.currentItems;
+        const currentItemsTruncated = g.currentItemsTruncated;
         res.render('members/galleries/edit', {
           seo: { title: 'Edit Gallery' },
           page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -287,6 +290,7 @@ export const memberGalleryController = {
           cancelHref: listHref(memberKey),
           uploadMediaHref: `/members/${memberKey}/media/upload`,
           currentItems,
+          currentItemsTruncated,
           // Pre-fill the upload widget's tag input with the gallery's
           // criteria as a suggestion. User-editable; user-supplied value
           // is what gets applied to uploads (no auto-stamping).
@@ -352,6 +356,7 @@ export const memberGalleryController = {
         if (err instanceof ValidationError) {
           const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
           const currentItems = reread.currentItems;
+          const currentItemsTruncated = reread.currentItemsTruncated;
           res.status(422).render('members/galleries/edit', {
             seo: { title: 'Edit Gallery' },
             page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -369,6 +374,7 @@ export const memberGalleryController = {
             cancelHref: listHref(memberKey),
             uploadMediaHref: `/members/${memberKey}/media/upload`,
             currentItems,
+            currentItemsTruncated,
             uploadTags: (req.body?.uploadTags ?? '') as string,
             externalLinkSlots: buildExternalLinkSlots(externalLinks, [], err.fieldErrors),
           });
@@ -669,8 +675,11 @@ async function executeMultipartUpdate(args: {
     fieldErrors?: Record<string, string>,
   ): void {
     let currentItems: CuratorGalleryEditView['currentItems'] = [];
+    let currentItemsTruncated = false;
     try {
-      currentItems = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey }).currentItems;
+      const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
+      currentItems = reread.currentItems;
+      currentItemsTruncated = reread.currentItemsTruncated;
     } catch {
       /* gallery may have been deleted concurrently; render with empty items */
     }
@@ -691,6 +700,7 @@ async function executeMultipartUpdate(args: {
       cancelHref: listHref(memberKey),
       uploadMediaHref: `/members/${memberKey}/media/upload`,
       currentItems,
+      currentItemsTruncated,
       uploadTags: uploadTagsRaw,
       externalLinkSlots: buildExternalLinkSlots(externalLinks, [], fieldErrors),
     });

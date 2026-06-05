@@ -171,6 +171,9 @@ const DEV_FIXTURE: Record<string, string> = {
   PAYMENT_ADAPTER: 'live',
   // env.ts requires STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER=live.
   STRIPE_WEBHOOK_SECRET: 'whsec_live_realvalue',
+  // The compose file requires this explicitly (no fallback literal);
+  // scripts/compose-dev.sh generates a per-run value at launch.
+  INTERNAL_EVENT_SECRET: 'c'.repeat(48),
 };
 
 /**

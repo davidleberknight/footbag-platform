@@ -16,10 +16,26 @@
         {{#if existingClubHref}}
           <p><a href="{{existingClubHref}}">View {{existingClubName}}</a></p>
         {{/if}}
+        {{#if nearMatches.length}}
+          <ul>
+            {{#each nearMatches}}
+              <li>{{#if clubHref}}<a href="{{clubHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{#if location}} ({{location}}){{/if}}</li>
+            {{/each}}
+          </ul>
+        {{/if}}
       </div>
     {{/if}}
 
     <form method="POST" action="{{formAction}}" class="login-form">
+
+      {{#if nearMatches.length}}
+        <div class="form-field">
+          <label>
+            <input type="checkbox" name="confirm_near_matches" value="1" required />
+            My club is distinct from the matches listed above.
+          </label>
+        </div>
+      {{/if}}
 
       <div class="form-field">
         <label for="name">Club name</label>

@@ -61,7 +61,7 @@ import {
 } from '../db/db';
 import { appendAuditEntry, type AuditActorType } from './auditService';
 import { readIntConfig } from './configReader';
-import { ConflictError, RateLimitedError, ValidationError } from './serviceErrors';
+import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
@@ -670,7 +670,7 @@ export function applyClubJoin(
 }
 
 /**
- * Internal helper called by SYS_Check_Active_Player_Expiry (Phase C job).
+ * Internal helper for the periodic Active Player expiry check.
  * Writes an `expire` row when the latest AP row for a member has an expiry
  * in the past and is not already `expire` or `end`. Returns whether a row
  * was written. `now` defaults to wall-clock time; tests may inject a fixed

@@ -38,6 +38,16 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
+# The compose file requires an explicit INTERNAL_EVENT_SECRET (no fallback
+# literal; a known value would let anything that reaches /ipc/* publish
+# forged job events). Precedence: an exported shell value wins, then a
+# .env entry; otherwise generate a per-run value here so all containers in
+# this stack share one token with zero operator setup.
+if [[ -z "${INTERNAL_EVENT_SECRET:-}" ]] && ! grep -qE '^INTERNAL_EVENT_SECRET=.+' .env; then
+  INTERNAL_EVENT_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  export INTERNAL_EVENT_SECRET
+fi
+
 COMPOSE_ARGS=(--env-file .env -f docker/docker-compose.yml)
 COMPOSE_PID=""
 

@@ -6,17 +6,9 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { ValidationError, NotFoundError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
+import { isSafePath } from '../lib/safePath';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function isSafePath(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.startsWith('/') &&
-    !value.startsWith('//') &&
-    !value.includes('\\')
-  );
-}
 
 function safeReturnTo(value: unknown, fallback: string): string {
   return isSafePath(value) ? value : fallback;

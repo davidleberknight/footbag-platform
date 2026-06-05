@@ -1,3 +1,39 @@
+/**
+ * ContactRequestService -- member contact-IFPA-admin requests and the admin
+ * work-queue page.
+ *
+ * Owns:
+ *   - Contact-request submission (category-validated, per-member open-request cap)
+ *   - Contact-request resolution (decision label + admin note + member notification)
+ *   - Admin work-queue page shaping (all open items grouped by category,
+ *     including structured link-help payload display)
+ *
+ * Does not own:
+ *   - Link-help request workflow (IdentityAccessService; this service only
+ *     shapes the payload for display)
+ *   - Work-queue resolve rate limiting (IdentityAccessService.enforceWorkQueueResolveLimit,
+ *     shared bucket across all resolve actions)
+ *   - Email delivery (CommunicationService outbox)
+ *
+ * Required patterns:
+ *   - Member-authored free text never enters audit_entries metadata: the
+ *     ledger is append-only and exempt from PII purge, so the mutable
+ *     work_queue_items row holds the only copy of the member's message.
+ *   - Work-queue UPDATE and the resolution audit row commit in one
+ *     transaction; the member notification enqueue happens after commit and
+ *     records an operational error on failure instead of rolling back.
+ *
+ * Persistence:
+ *   work_queue_items, audit_entries.
+ *
+ * Side effects:
+ *   - audit_entries append (support.contact_request_submitted / _resolved)
+ *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
+ *     notification on resolve)
+ *   - operational-error audit + alarm on post-commit notification failure
+ *
+ * Service shape: singleton object (no external adapters beyond db.ts).
+ */
 import { randomUUID } from 'node:crypto';
 import { workQueue, account, transaction } from '../db/db';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
@@ -311,11 +347,14 @@ export const contactRequestService = {
         entityType:    'member',
         entityId:      row.entity_id,
         reasonText:    decisionLabel,
+        // Member-authored free text stays out of the metadata: the audit
+        // ledger is append-only and exempt from PII purge, so anything
+        // personal in the request prefix would survive erasure. The mutable
+        // work-queue row keeps the operational copy.
         metadata:      {
           queue_item_id: input.queueItemId,
           decision_label: decisionLabel,
           resolution_note: note,
-          original_reason_text: row.reason_text,
         },
       });
     });

@@ -73,12 +73,12 @@
 
     {{! ── Pagination ────────────────────────────────────────────── }}
     <div class="pagination-row">
-      {{#if content.prevPage}}
-      <a href="/internal/persons/browse?page={{content.prevPage}}{{#if content.activeFilters.search}}&search={{content.activeFilters.search}}{{/if}}{{#if content.activeFilters.source}}&source={{content.activeFilters.source}}{{/if}}">&larr; Previous</a>
+      {{#if content.prevHref}}
+      <a href="{{content.prevHref}}">&larr; Previous</a>
       {{/if}}
       <span>Page {{content.currentPage}} of {{content.totalPages}}</span>
-      {{#if content.nextPage}}
-      <a href="/internal/persons/browse?page={{content.nextPage}}{{#if content.activeFilters.search}}&search={{content.activeFilters.search}}{{/if}}{{#if content.activeFilters.source}}&source={{content.activeFilters.source}}{{/if}}">Next &rarr;</a>
+      {{#if content.nextHref}}
+      <a href="{{content.nextHref}}">Next &rarr;</a>
       {{/if}}
     </div>
     {{else}}

@@ -19,6 +19,7 @@ import {
   insertClub,
   insertTag,
   insertMemberClubAffiliation,
+  insertLegacyClubCandidate,
   createMemberAtTier,
   createTestSessionJwt,
   completeOnboarding,
@@ -368,5 +369,98 @@ describe('POST /clubs/create', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('TestCity');
     expect(res.text).toContain('preserve_test');
+  });
+});
+
+describe('POST /clubs/create — near-match duplicate warning', () => {
+  let _nmSeq = 0;
+  function seedCreator(): string {
+    _nmSeq += 1;
+    const id = `cc-nm-${_nmSeq}`;
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    createMemberAtTier(db, { id, slug: `cc_nm_${_nmSeq}`, tier: 'tier1' });
+    completeOnboarding(db, id);
+    db.close();
+    return id;
+  }
+
+  function seedCandidate(displayName: string, classification: 'onboarding_visible' | 'dormant' | 'junk', country: string): void {
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    const id = insertLegacyClubCandidate(db, { display_name: displayName, classification });
+    // The shared factory does not set location columns; the duplicate check
+    // filters on country, so stamp it directly.
+    db.prepare('UPDATE legacy_club_candidates SET country = ?, city = ? WHERE id = ?')
+      .run(country, 'Tampere', id);
+    db.close();
+  }
+
+  it('a legacy candidate with the same normalized name in the same country triggers the warning; confirming proceeds and is audit-flagged', async () => {
+    seedCandidate('Tampere Kickers', 'onboarding_visible', 'Finland');
+    const creator = seedCreator();
+    const app = createApp();
+
+    const warned = await request(app)
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(formData({ name: 'Tampere  Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere' }));
+    expect(warned.status).toBe(422);
+    expect(warned.text).toContain('similarly named club');
+    expect(warned.text).toContain('Tampere Kickers');
+    expect(warned.text).toContain('confirm_near_matches');
+
+    const confirmed = await request(app)
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(formData({ name: 'Tampere  Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere', confirm_near_matches: '1' }));
+    expect(confirmed.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const audit = db.prepare(`
+      SELECT metadata_json FROM audit_entries
+      WHERE action_type = 'club.created' AND metadata_json LIKE '%Tampere%'
+      ORDER BY rowid DESC LIMIT 1
+    `).get() as { metadata_json: string };
+    db.close();
+    const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
+    expect(meta.near_matches_acknowledged).toEqual(['Tampere Kickers']);
+  });
+
+  it('junk-classified candidates are never surfaced as potential duplicates', async () => {
+    seedCandidate('Junkville Jugglers', 'junk', 'Finland');
+    const creator = seedCreator();
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(formData({ name: 'Junkville Jugglers', country: 'Finland', city: 'Junkville', slug: 'junkville' }));
+    expect(res.status).toBe(303);
+  });
+
+  it('a punctuation variant of an existing live club name in the same country triggers the warning with a link to the club', async () => {
+    const creator = seedCreator();
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(formData({ name: 'Helsinki-Hackers', country: 'Finland', city: 'Helsinki', slug: 'helsinki_two' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('similarly named club');
+    expect(res.text).toContain('Helsinki Hackers');
+    expect(res.text).toContain('/clubs/club_helsinki');
+  });
+
+  it('a dormant candidate in a DIFFERENT country does not trigger the warning', async () => {
+    seedCandidate('Oslo Footbag', 'dormant', 'Norway');
+    const creator = seedCreator();
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(formData({ name: 'Oslo Footbag', country: 'Sweden', city: 'Stockholm', slug: 'stockholm_oslo' }));
+    expect(res.status).toBe(303);
   });
 });

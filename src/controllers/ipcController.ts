@@ -16,6 +16,7 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { publishJobEvent, type JobEventState } from '../services/jobEventBus';
 import { sesFeedbackService } from '../services/sesFeedbackService';
+import { verifySnsSignature } from '../lib/snsSignature';
 
 const SECRET_HEADER = 'x-internal-secret';
 
@@ -26,14 +27,16 @@ function isJobEventState(value: unknown): value is JobEventState {
 export const ipcController = {
   /**
    * SES feedback webhook (mounted on the PUBLIC router: SNS posts from the
-   * internet, and nginx drops /ipc/* from public traffic). Auth is a
-   * dedicated shared secret embedded as a query key in the subscription
-   * endpoint URL, compared timing-safe; the URL is known only to the
-   * AWS-side subscription configuration. The key is deliberately not
-   * INTERNAL_EVENT_SECRET: query strings land in instance access logs, and
-   * a leak there must not extend to the worker IPC endpoints.
+   * internet, and nginx drops /ipc/* from public traffic). Two auth layers:
+   * a dedicated shared secret embedded as a query key in the subscription
+   * endpoint URL, compared timing-safe, then verification of the SNS payload
+   * signature against the AWS signing certificate. The query string lands in
+   * instance access logs on every delivery, so the URL key alone must not be
+   * enough to forge a bounce/complaint; the signature check closes that.
+   * The key is deliberately not INTERNAL_EVENT_SECRET: a leak there must
+   * not extend to the worker IPC endpoints.
    */
-  receiveSesFeedback(req: Request, res: Response, next: NextFunction): void {
+  async receiveSesFeedback(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const secret = config.sesFeedbackWebhookKey;
       if (!secret) {
@@ -47,6 +50,11 @@ export const ipcController = {
         return;
       }
       const rawBody = typeof req.body === 'string' ? req.body : (Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '');
+      if (!(await verifySnsSignature(rawBody))) {
+        logger.warn('ses_feedback.signature_rejected');
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
       const result = sesFeedbackService.processSnsMessage(rawBody);
       logger.info('ses_feedback.received', { result: result.status });
       res.status(200).json({ ok: true });

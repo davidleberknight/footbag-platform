@@ -31,6 +31,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 
 import {
   insertMember,
@@ -38,6 +39,7 @@ import {
   insertMemberTierGrant,
   createTestSessionJwt,
   insertMediaItem,
+  insertTag,
 } from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mme-owner-001';
@@ -78,12 +80,7 @@ function findMediaExternalUrl(mediaId: string): string | null {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'MME Owner' });
   completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'MME Other' });
@@ -294,5 +291,119 @@ describe('member per-item media edit routes', () => {
     } finally {
       rlMod.resetRateLimitForTests();
     }
+  });
+});
+
+describe('member per-item media delete route', () => {
+  function rowExists(mediaId: string): boolean {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      return db.prepare('SELECT 1 FROM media_items WHERE id = ?').get(mediaId) !== undefined;
+    } finally { db.close(); }
+  }
+
+  function attachTag(mediaId: string): string {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.pragma('foreign_keys = ON');
+    try {
+      const tagId = insertTag(db, {});
+      db.prepare(`
+        INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
+        VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', 1, ?, ?, '#deltest')
+      `).run(`mtag-del-${mediaId}`, mediaId, tagId);
+      return tagId;
+    } finally { db.close(); }
+  }
+
+  function tagRowCount(mediaId: string): number {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      return (db.prepare('SELECT COUNT(*) AS n FROM media_tags WHERE media_id = ?').get(mediaId) as { n: number }).n;
+    } finally { db.close(); }
+  }
+
+  it('POST owner delete -> 303, row permanently gone, tag rows cascade, audit written', async () => {
+    const mediaId = insertOwnerMedia('owner-delete.jpg');
+    attachTag(mediaId);
+    expect(tagRowCount(mediaId)).toBe(1);
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/delete`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
+    expect(rowExists(mediaId)).toBe(false);
+    expect(tagRowCount(mediaId)).toBe(0);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const audit = db.prepare(
+        `SELECT actor_member_id FROM audit_entries WHERE action_type = 'delete_member_media' AND entity_id = ?`,
+      ).get(mediaId) as { actor_member_id: string } | undefined;
+      expect(audit?.actor_member_id).toBe(OWNER_ID);
+    } finally { db.close(); }
+  });
+
+  it("POST against another member's item -> 404, row intact (anti-enumeration)", async () => {
+    const otherMediaId = insertOtherMedia('other-delete.jpg');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${otherMediaId}/delete`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(404);
+    expect(rowExists(otherMediaId)).toBe(true);
+  });
+
+  it('POST unauthenticated -> 302 /login, row intact', async () => {
+    const mediaId = insertOwnerMedia('owner-delete-anon.jpg');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/delete`)
+      .type('form')
+      .send({});
+    expect(res.status).toBe(302);
+    expect(rowExists(mediaId)).toBe(true);
+  });
+
+  it('POST by a tier-0 owner -> 403 (delete controls require Tier 1 benefits), row intact', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.pragma('foreign_keys = ON');
+    const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0-del.jpg', caption: null });
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/members/${TIER0_SLUG}/media/${mediaId}/delete`)
+      .set('Cookie', cookieFor(TIER0_ID))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(403);
+    expect(rowExists(mediaId)).toBe(true);
+  });
+
+  it('POST against an avatar row -> 404, row intact (avatar lifecycle belongs to avatar upload)', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.pragma('foreign_keys = ON');
+    const avatarId = insertMediaItem(db, { uploader_member_id: OWNER_ID, is_avatar: 1, source_filename: 'owner-avatar.jpg', caption: null });
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${avatarId}/delete`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({});
+    expect(res.status).toBe(404);
+    expect(rowExists(avatarId)).toBe(true);
+  });
+
+  it('the edit page renders the delete form with a confirm guard', async () => {
+    const mediaId = insertOwnerMedia('owner-delete-form.jpg');
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`action="/members/${OWNER_SLUG}/media/${mediaId}/delete"`);
+    expect(res.text).toContain('data-confirm=');
   });
 });

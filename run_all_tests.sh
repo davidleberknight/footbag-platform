@@ -2,8 +2,8 @@
 # run_all_tests.sh — canonical local full-suite test runner.
 #
 # Runs every CI gate that is SAFE to run on a developer workstation: type-check,
-# convention gate, unit + integration (vitest), e2e (Playwright), and terraform
-# fmt/validate. Prints a per-gate pass/fail summary and exits non-zero if any
+# lint, dependency audit, convention gate, secret scan, unit + integration
+# (vitest), e2e (Playwright), and terraform fmt/validate. Prints a per-gate pass/fail summary and exits non-zero if any
 # gate fails.
 #
 # SAFE BY DESIGN — never touches real data:
@@ -24,8 +24,8 @@
 #     --with-smoke (requires RUN_STAGING_SMOKE=1 + AWS credentials).
 #
 # Usage:
-#   ./run_all_tests.sh              # full safe suite: build, conventions, unit, integration, e2e, terraform
-#   ./run_all_tests.sh --quick      # fast loop: build, conventions, unit, integration (skips e2e + terraform)
+#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, e2e, terraform
+#   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
@@ -48,11 +48,11 @@ Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--fail-fast]
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
 
-Default (no flags): build, conventions, unit, integration, e2e, terraform.
+Default (no flags): build, lint, audit, conventions, secret-scan, unit,
+integration, e2e, terraform.
 
 Options:
-  --quick       Fast inner loop: build, conventions, unit, integration only
-                (skips e2e + terraform).
+  --quick       Fast inner loop: skips e2e + terraform.
   --with-smoke  Additionally run the staging-AWS adapter smoke suite
                 (npm run test:smoke). Requires RUN_STAGING_SMOKE=1 and a
                 configured staging AWS profile; errors out otherwise.
@@ -218,6 +218,21 @@ gate_smoke() {
   npm run test:smoke
 }
 
+# Secret scan, matching CI's gitleaks job. Uses the local gitleaks CLI when
+# present, falls back to the dockerized scanner, and SKIPs when neither is
+# available (CI still enforces it on every push).
+gate_secret_scan() {
+  if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks detect --source . --config .gitleaks.toml --no-banner
+  elif command -v docker >/dev/null 2>&1; then
+    docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+      detect --source /repo --config /repo/.gitleaks.toml --no-banner
+  else
+    echo "  gitleaks and docker both absent — skipping (CI's secret-scan job covers it)."
+    return 77
+  fi
+}
+
 # =============================================================================
 # GATE SEQUENCE — ADD NEW SUITES HERE.
 # Each line is one gate: `run_gate <label> <command...>`. To extend coverage as
@@ -228,7 +243,10 @@ gate_smoke() {
 echo "→ run_all_tests.sh starting (mode: $( (( QUICK )) && echo quick || echo full )$( (( WITH_SMOKE )) && echo +smoke || true ))"
 
 run_gate build       npm run build
+run_gate lint        npm run lint
+run_gate audit       npm run audit
 run_gate conventions bash scripts/ci/assert_conventions.sh
+run_gate secret-scan gate_secret_scan
 run_gate unit        npm run test:unit
 run_gate integration npm run test:integration
 

@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -69,12 +70,7 @@ function otherCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  testDb = new BetterSqlite3(TEST_DB_PATH);
-  testDb.pragma('journal_mode = WAL');
-  testDb.pragma('foreign_keys = ON');
-  testDb.exec(schema);
-
+  testDb = createTestDb(TEST_DB_PATH);
   insertMember(testDb, { id: CLAIMER_ID, slug: CLAIMER_SLUG,
     real_name: CLAIMER_NAME, display_name: CLAIMER_NAME,
     login_email: 'hpc-claimer@example.com', country: null });

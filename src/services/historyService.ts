@@ -106,9 +106,16 @@ export const historyService = {
     // Look up linked member account (if any) for member profile link and avatar.
     const linkedRow = runSqliteRead('findLinkedMemberSlug', () =>
       publicPlayers.findLinkedMemberSlug.get(personId),
-    ) as { slug: string } | undefined;
+    ) as { slug: string; is_hof: number; is_bap: number } | undefined;
 
-    const memberHref = personHref(linkedRow?.slug ?? null, null);
+    // Redirect to the member profile only when that profile is publicly
+    // viewable (the HoF/BAP exception). An ordinary member's claim must not
+    // take this public historical record offline: the anonymous public has
+    // no access to ordinary member profiles, so the redirect would land on
+    // a 404 and the event-results attribution page would disappear.
+    const linkedIsPubliclyViewable =
+      linkedRow !== undefined && (linkedRow.is_hof === 1 || linkedRow.is_bap === 1);
+    const memberHref = linkedIsPubliclyViewable ? personHref(linkedRow.slug, null) : null;
 
     if (memberHref) {
       return { action: 'redirect', href: memberHref };

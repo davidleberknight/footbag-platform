@@ -60,7 +60,7 @@
             <td>
               <a href="/admin/curator/galleries/{{id}}/edit">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              {{#if (eq id ../confirmDeleteId)}}
+              {{#if isConfirmDelete}}
                 <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form">
                   <input type="hidden" name="confirmed" value="1" />
                   <span class="text-secondary">Are you sure?</span>

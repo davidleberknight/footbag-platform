@@ -17,6 +17,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 
 import { insertMember, insertMemberTierGrant, createTestSessionJwt } from '../fixtures/factories';
 
@@ -81,12 +82,7 @@ function seedTagAndLink(
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'Galleries Admin', login_email: 'admin-galleries@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Galleries Member', login_email: 'member-galleries@example.com' });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky_galleries', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });

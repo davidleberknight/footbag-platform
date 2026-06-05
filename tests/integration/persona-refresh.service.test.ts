@@ -20,8 +20,11 @@ import { refreshAllPersonas } from '../../src/testkit/personaRefreshRunner';
 import {
   insertMember,
   insertClub,
+  insertLegacyMember,
+  insertMemberClubAffiliation,
   insertMemberTierGrant,
   insertAuditEntry,
+  insertPayment,
 } from '../../src/testkit/personaRowBuilders';
 
 const { dbPath } = setTestEnv('3097');
@@ -138,6 +141,282 @@ describe('refreshAllPersonas', () => {
     expect(tags()).toBe(t0);
     expect(variants()).toBe(v0);
     expect(tierOf(T1)).toBe('tier1');
+  });
+
+  it('tears down every row a tester session can mint through deployed flows', () => {
+    const TS = '2026-01-01T00:00:00.000Z';
+
+    // A real (non-seeded) club the persona joined and leads: the club itself
+    // must survive refresh; only the persona's membership rows go.
+    insertClub(db, { id: 'club-real-keep-1' });
+    insertMemberClubAffiliation(db, T1, 'club-real-keep-1');
+    db.prepare(
+      `INSERT INTO club_leaders
+         (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
+       VALUES ('cl-real-1', ?, 'club_service', ?, 'club_service', 1, 'club-real-keep-1', ?, 'leader', ?)`,
+    ).run(TS, TS, T1, TS);
+    db.prepare(
+      `INSERT INTO club_viability_signals
+         (id, created_at, created_by, member_id, club_id, source_stage, activity_signal)
+       VALUES ('cvs-persona-1', ?, 'system', ?, 'club-real-keep-1', 'club_detail', 'active')`,
+    ).run(TS, T1);
+
+    // Auth and identity flows: reset token, declared anchor, the anchor's
+    // mailbox-link token, and a notification email.
+    db.prepare(
+      `INSERT INTO account_tokens
+         (id, created_at, created_by, updated_at, updated_by, version, member_id, token_type, token_hash, issued_at, expires_at)
+       VALUES ('tok-persona-1', ?, 'system', ?, 'system', 1, ?, 'password_reset', 'hash-1', ?, ?)`,
+    ).run(TS, TS, T1, TS, TS);
+    db.prepare(
+      `INSERT INTO member_declared_anchors
+         (id, created_at, created_by, updated_at, updated_by, version, member_id, anchor_type, anchor_value)
+       VALUES ('anchor-persona-1', ?, 'system', ?, 'system', 1, ?, 'old_email', 'old@example.com')`,
+    ).run(TS, TS, T1);
+    db.prepare(
+      `INSERT INTO account_tokens
+         (id, created_at, created_by, updated_at, updated_by, version, member_id, target_anchor_id, token_type, token_hash, issued_at, expires_at)
+       VALUES ('tok-persona-2', ?, 'system', ?, 'system', 1, ?, 'anchor-persona-1', 'mailbox_link', 'hash-2', ?, ?)`,
+    ).run(TS, TS, T1, TS, TS);
+    db.prepare(
+      `INSERT INTO outbox_emails
+         (id, created_at, created_by, updated_at, updated_by, version, recipient_member_id, subject)
+       VALUES ('out-persona-1', ?, 'system', ?, 'system', 1, ?, 'Welcome')`,
+    ).run(TS, TS, T1);
+
+    // A purchase: the persona as audit ACTOR, the payment, and its append-only
+    // status transition.
+    insertAuditEntry(db, {
+      created_by: 'system',
+      actor_type: 'member',
+      actor_member_id: T1,
+      action_type: 'payment.checkout_started',
+      entity_type: 'payment',
+      entity_id: 'pay-persona-pst-1',
+    });
+    insertPayment(db, { id: 'pay-persona-pst-1', member_id: T1, status: 'pending' });
+    db.prepare(
+      `INSERT INTO payment_status_transitions
+         (id, created_at, created_by, payment_id, event_type, to_status, transition_at)
+       VALUES ('pst-persona-1', ?, 'system', 'pay-persona-pst-1', 'payment_intent.succeeded', 'succeeded', ?)`,
+    ).run(TS, TS);
+
+    // Media flows: an uploaded photo and a created gallery.
+    db.prepare(
+      `INSERT INTO media_items
+         (id, created_at, created_by, updated_at, updated_by, version, uploader_member_id, media_type, uploaded_at, s3_key_thumb, s3_key_display)
+       VALUES ('media-persona-1', ?, 'system', ?, 'system', 1, ?, 'photo', ?, 'k/thumb.jpg', 'k/display.jpg')`,
+    ).run(TS, TS, T1, TS);
+    db.prepare(
+      `INSERT INTO member_galleries
+         (id, created_at, created_by, updated_at, updated_by, version, owner_member_id, name)
+       VALUES ('gal-persona-1', ?, 'system', ?, 'system', 1, ?, 'My Gallery')`,
+    ).run(TS, TS, T1);
+
+    // Admin-persona surfaces: a work-queue item the persona resolved (about a
+    // real entity, so the row must survive minus its resolver), one about the
+    // persona, and a curator video job the persona started.
+    db.prepare(
+      `INSERT INTO work_queue_items
+         (id, created_at, created_by, updated_at, updated_by, version, queue_category, task_type, entity_type, entity_id, status, opened_at, resolved_at, resolved_by_member_id)
+       VALUES ('wq-resolved-1', ?, 'system', ?, 'system', 1, 'membership', 'link_help', 'club', 'club-real-keep-1', 'resolved', ?, ?, ?)`,
+    ).run(TS, TS, TS, TS, T2);
+    db.prepare(
+      `INSERT INTO work_queue_items
+         (id, created_at, created_by, updated_at, updated_by, version, queue_category, task_type, entity_type, entity_id, status, opened_at)
+       VALUES ('wq-entity-1', ?, 'system', ?, 'system', 1, 'membership', 'contact_admin', 'member', ?, 'open', ?)`,
+    ).run(TS, TS, T1, TS);
+    db.prepare(
+      `INSERT INTO media_jobs
+         (id, created_at, created_by, updated_at, updated_by, version, kind, state, admin_member_id)
+       VALUES ('mj-persona-1', ?, ?, ?, ?, 1, 'curator_video', 'pending_upload', ?)`,
+    ).run(TS, T1, TS, T1, T1);
+
+    // The expiry worker's reminder ledger (append-only, both guards).
+    db.prepare(
+      `INSERT INTO active_player_reminder_sent
+         (id, created_at, created_by, updated_at, updated_by, version, member_id, expires_at, offset_label, sent_at)
+       VALUES ('aprs-persona-1', ?, 'system', ?, 'system', 1, ?, ?, 'days_1', ?)`,
+    ).run(TS, TS, T1, TS, TS);
+
+    // Harness-origin switch audit row: NULL actor, persona entity. Piles up
+    // one per /dev/switch unless the refresh cleans it.
+    insertAuditEntry(db, {
+      id: 'audit-switch-1',
+      created_by: 'system',
+      actor_type: 'system',
+      actor_member_id: null,
+      action_type: 'dev_switch_persona',
+      entity_type: 'member',
+      entity_id: T1,
+    });
+
+    // The reverse direction: a NON-persona member who joined a persona club
+    // and tagged a gallery with its hashtag. The persona club and tag are
+    // deleted on refresh, so every row referencing them must go too, while the
+    // outsider member and their gallery survive.
+    const personaClub = db
+      .prepare(`SELECT id, hashtag_tag_id FROM clubs WHERE id LIKE 'club-test-%' LIMIT 1`)
+      .get() as { id: string; hashtag_tag_id: string };
+    insertMember(db, { id: 'member-outsider-2', slug: 'outsider_2' });
+    insertMemberClubAffiliation(db, 'member-outsider-2', personaClub.id, { id: 'mca-outsider-1' });
+    db.prepare(
+      `INSERT INTO active_player_grants
+         (id, created_at, created_by, member_id, change_type, new_active_player_expires_at, reason_code, related_club_id, related_club_affiliation_id)
+       VALUES ('apg-outsider-1', ?, 'system', 'member-outsider-2', 'grant', ?, 'club_join', ?, 'mca-outsider-1')`,
+    ).run(TS, TS, personaClub.id);
+    db.prepare(
+      `INSERT INTO member_galleries
+         (id, created_at, created_by, updated_at, updated_by, version, owner_member_id, name)
+       VALUES ('gal-outsider-1', ?, 'system', ?, 'system', 1, 'member-outsider-2', 'Outsider Gallery')`,
+    ).run(TS, TS);
+    db.prepare(
+      `INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+       VALUES ('gal-outsider-1', ?, ?, 'system')`,
+    ).run(personaClub.hashtag_tag_id, TS);
+
+    expect(() => refreshAllPersonas(db, repoRoot)).not.toThrow();
+
+    // The outsider and their gallery survive; only the rows referencing the
+    // deleted persona club/tag are gone.
+    expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = 'member-outsider-2'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM member_galleries WHERE id = 'gal-outsider-1'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM member_club_affiliations WHERE id = 'mca-outsider-1'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM active_player_grants WHERE id = 'apg-outsider-1'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM member_gallery_tags WHERE gallery_id = 'gal-outsider-1'`)).toBe(0);
+
+    // The real club survives; the persona's rows on it do not.
+    expect(count(`SELECT COUNT(*) AS n FROM clubs WHERE id = 'club-real-keep-1'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM club_leaders WHERE id = 'cl-real-1'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM club_viability_signals WHERE id = 'cvs-persona-1'`)).toBe(0);
+
+    // The real-entity work item survives with only its resolver detached.
+    const wqSurvivor = db
+      .prepare(`SELECT status, resolved_by_member_id FROM work_queue_items WHERE id = 'wq-resolved-1'`)
+      .get() as { status: string; resolved_by_member_id: string | null } | undefined;
+    expect(wqSurvivor).toBeDefined();
+    expect(wqSurvivor!.status).toBe('resolved');
+    expect(wqSurvivor!.resolved_by_member_id).toBeNull();
+
+    // Every minted row is gone.
+    const goneIds: Array<[string, string]> = [
+      ['account_tokens', 'tok-persona-1'],
+      ['account_tokens', 'tok-persona-2'],
+      ['member_declared_anchors', 'anchor-persona-1'],
+      ['outbox_emails', 'out-persona-1'],
+      ['payments', 'pay-persona-pst-1'],
+      ['payment_status_transitions', 'pst-persona-1'],
+      ['media_items', 'media-persona-1'],
+      ['member_galleries', 'gal-persona-1'],
+      ['work_queue_items', 'wq-entity-1'],
+      ['media_jobs', 'mj-persona-1'],
+      ['active_player_reminder_sent', 'aprs-persona-1'],
+      ['audit_entries', 'audit-switch-1'],
+    ];
+    for (const [table, id] of goneIds) {
+      expect(count(`SELECT COUNT(*) AS n FROM ${table} WHERE id = ?`, id), table).toBe(0);
+    }
+    expect(
+      count(`SELECT COUNT(*) AS n FROM audit_entries WHERE actor_member_id LIKE 'member_persona_%'`),
+    ).toBe(0);
+
+    // Whole-DB referential integrity after teardown + reseed.
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+
+    // All five append-only DELETE guards restored.
+    expect(
+      count(
+        `SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name IN (
+           'trg_tier_grants_no_delete','trg_active_player_grants_no_delete','trg_audit_no_delete',
+           'trg_payment_transitions_no_delete','trg_active_player_reminder_sent_no_delete')`,
+      ),
+    ).toBe(5);
+  });
+
+  it('claim flows and actor grants converge across the persona/real boundary', () => {
+    const TS = '2026-01-01T00:00:00.000Z';
+
+    // Direction 1: a persona claimed a REAL legacy account through the normal
+    // claim flow. The real row must survive refresh UNCLAIMED (claimable
+    // again), never deleted.
+    insertLegacyMember(db, { legacy_member_id: 'legmem_real_keep_1' });
+    db.prepare(
+      `UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = ?
+        WHERE legacy_member_id = 'legmem_real_keep_1'`,
+    ).run(T2, TS);
+    db.prepare(`UPDATE members SET legacy_member_id = 'legmem_real_keep_1' WHERE id = ?`).run(T2);
+
+    // Direction 2: a REAL member claimed a persona identity (synthetic
+    // surnames are claimable). The member must survive with both identity
+    // links detached so the persona HP/legacy rows can be torn down.
+    insertMember(db, { id: 'member-outsider-3', slug: 'outsider_3' });
+    const freeRoot = (
+      db
+        .prepare(
+          `SELECT legacy_member_id AS id FROM legacy_members
+            WHERE legacy_member_id LIKE 'legmem_persona_%'
+              AND legacy_member_id NOT IN
+                (SELECT legacy_member_id FROM members WHERE legacy_member_id IS NOT NULL)
+            LIMIT 1`,
+        )
+        .get() as { id: string }
+    ).id;
+    const personaHp = (
+      db
+        .prepare(
+          `SELECT person_id FROM historical_persons
+            WHERE legacy_member_id LIKE 'legmem_persona_%' LIMIT 1`,
+        )
+        .get() as { person_id: string }
+    ).person_id;
+    db.prepare(
+      `UPDATE legacy_members SET claimed_by_member_id = 'member-outsider-3', claimed_at = ?
+        WHERE legacy_member_id = ?`,
+    ).run(TS, freeRoot);
+    db.prepare(
+      `UPDATE members SET legacy_member_id = ?, historical_person_id = ?
+        WHERE id = 'member-outsider-3'`,
+    ).run(freeRoot, personaHp);
+
+    // A persona acting as admin granted a tier on a real member: the row is
+    // removed (reverting the member to pre-test state) and counted.
+    insertMemberTierGrant(db, {
+      id: 'mtg-actor-1',
+      member_id: 'member-outsider-3',
+      actor_member_id: T1,
+      new_tier_status: 'tier1',
+      created_at: '2026-02-01T00:00:00.000Z',
+      reason_code: 'admin.correction',
+    });
+
+    const result = refreshAllPersonas(db, repoRoot);
+    expect(result.actorGrantRowsRemoved).toBe(1);
+
+    // The real legacy account survives, unclaimed.
+    const realLegacy = db
+      .prepare(
+        `SELECT claimed_by_member_id, claimed_at FROM legacy_members
+          WHERE legacy_member_id = 'legmem_real_keep_1'`,
+      )
+      .get() as { claimed_by_member_id: string | null; claimed_at: string | null } | undefined;
+    expect(realLegacy).toBeDefined();
+    expect(realLegacy!.claimed_by_member_id).toBeNull();
+    expect(realLegacy!.claimed_at).toBeNull();
+
+    // The real member survives with both persona identity links detached.
+    const outsider = db
+      .prepare(
+        `SELECT legacy_member_id, historical_person_id FROM members
+          WHERE id = 'member-outsider-3'`,
+      )
+      .get() as { legacy_member_id: string | null; historical_person_id: string | null } | undefined;
+    expect(outsider).toBeDefined();
+    expect(outsider!.legacy_member_id).toBeNull();
+    expect(outsider!.historical_person_id).toBeNull();
+    expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants WHERE id = 'mtg-actor-1'`)).toBe(0);
+
+    // Whole-DB referential integrity holds after the boundary teardown.
+    expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 
   it('restores the append-only DELETE guards after refresh', () => {

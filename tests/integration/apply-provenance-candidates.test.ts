@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -20,11 +21,7 @@ const DB_PATH = path.resolve(
 
 function freshDb(): BetterSqlite3.Database {
   if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
+  const db = createTestDb(DB_PATH);
   return db;
 }
 

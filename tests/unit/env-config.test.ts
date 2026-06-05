@@ -37,6 +37,9 @@ function baselineRequired(): void {
   // Valid by default so live-SES configurations load; the dedicated
   // required-when-live test deletes it.
   process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
+  // Always required (the /ipc router is always mounted); valid by default
+  // so configurations load. The dedicated required-when-unset tests delete it.
+  process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 }
 
 function clearAwsWiring(): void {
@@ -66,7 +69,6 @@ function clearAwsWiring(): void {
   delete process.env.WORKER_INTERNAL_PORT;
   delete process.env.WORKER_INTERNAL_URL;
   delete process.env.WEB_INTERNAL_URL;
-  delete process.env.INTERNAL_EVENT_SECRET;
   delete process.env.MEDIA_JOB_LEASE_SECONDS;
   delete process.env.MEDIA_JOB_MAX_RETRIES;
   delete process.env.PAYMENT_ADAPTER;
@@ -1193,6 +1195,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
   it('throws when MEDIA_STORAGE_ADAPTER=s3 but INTERNAL_EVENT_SECRET is unset', async () => {
     baselineRequired();
     clearAwsWiring();
+    delete process.env.INTERNAL_EVENT_SECRET;
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
@@ -1206,19 +1209,21 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3/,
+      /INTERNAL_EVENT_SECRET is required/,
     );
   });
 
-  it('defaults INTERNAL_EVENT_SECRET in dev so web + image worker share a token without operator config', async () => {
+  it('throws in dev when INTERNAL_EVENT_SECRET is unset: the /ipc router is always mounted, so no mode boots on an implicit fallback token', async () => {
     baselineRequired();
     clearAwsWiring();
+    delete process.env.INTERNAL_EVENT_SECRET;
     process.env.NODE_ENV = 'development';
-    const { config } = await import('../../src/config/env');
-    expect(config.internalEventSecret).toBe('dev-internal-event-secret-not-for-prod');
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /INTERNAL_EVENT_SECRET is required/,
+    );
   });
 
-  it('honors an explicit INTERNAL_EVENT_SECRET over the dev default', async () => {
+  it('uses the operator-supplied INTERNAL_EVENT_SECRET', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
@@ -1227,9 +1232,10 @@ describe('env config: MEDIA_STORAGE_*', () => {
     expect(config.internalEventSecret).toBe('operator-supplied-token');
   });
 
-  it('does NOT default INTERNAL_EVENT_SECRET in production with local storage', async () => {
+  it('throws in production with local storage when INTERNAL_EVENT_SECRET is unset', async () => {
     baselineRequired();
     clearAwsWiring();
+    delete process.env.INTERNAL_EVENT_SECRET;
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
@@ -1240,8 +1246,9 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
-    const { config } = await import('../../src/config/env');
-    expect(config.internalEventSecret).toBeUndefined();
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /INTERNAL_EVENT_SECRET is required/,
+    );
   });
 });
 

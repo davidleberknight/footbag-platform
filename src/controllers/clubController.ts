@@ -94,8 +94,9 @@ export const clubController = {
       const contactEmail = String(req.body?.contactEmail ?? '');
       const whatsapp = String(req.body?.whatsapp ?? '');
       const slug = String(req.body?.slug ?? '');
+      const confirmNearMatches = req.body?.confirm_near_matches === '1';
 
-      const club = { name, description, city, region, country, contactEmail, whatsapp, slug };
+      const club = { name, description, city, region, country, contactEmail, whatsapp, slug, confirmNearMatches };
 
       const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>) => {
         res.status(status).render('clubs/create', {
@@ -136,6 +137,11 @@ export const clubController = {
           renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`, undefined, {
             existingClubHref: `/clubs/${encodeURIComponent(result.existingClubKey)}`,
             existingClubName: result.existingClubName,
+          });
+          return;
+        case 'near_matches_found':
+          renderForm(422, 'A similarly named club may already exist in that country. Review the matches below; if your club is distinct, confirm and submit again.', undefined, {
+            nearMatches: result.nearMatches,
           });
           return;
         case 'tag_conflict':
@@ -264,7 +270,8 @@ export const clubController = {
         res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
         return;
       }
-      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
+      // The hashtag is the club's URL key, so success must land on the NEW slug.
+      res.redirect(303, `/clubs/${encodeURIComponent(result.newClubKey)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }

@@ -91,6 +91,11 @@ export interface PublicEventSummary {
   registrationDeadline: string | null;
   capacityLimit: number | null;
   status: string;
+  // Pre-shaped status presentation so templates never branch on or print
+  // the raw enum: a new status value renders with a readable label and a
+  // styled fallback class instead of a bare code and an undefined class.
+  statusLabel: string;
+  statusCssClass: string;
   registrationStatus: string;
   publishedAt: string | null;
   hashtagTagId: string;
@@ -206,6 +211,25 @@ function normalizePublicEventKeyToStoredTag(eventKey: string): string {
   return `#${eventKey.toLowerCase()}`;
 }
 
+// Closed label/class set for the event-status badge. Statuses with no badge
+// class in style.css fall back to the neutral badge so an unmapped value can
+// never render unstyled raw-code text.
+const EVENT_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  pending_approval: 'Pending approval',
+  published: 'Published',
+  registration_full: 'Registration full',
+  closed: 'Closed',
+  completed: 'Completed',
+  canceled: 'Canceled',
+};
+const EVENT_STATUS_BADGE_CLASSES: Record<string, string> = {
+  published: 'badge-published',
+  registration_full: 'badge-registration_full',
+  closed: 'badge-closed',
+  completed: 'badge-completed',
+};
+
 function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
   return {
     eventId: row.event_id,
@@ -222,6 +246,8 @@ function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
     registrationDeadline: row.registration_deadline,
     capacityLimit: row.capacity_limit,
     status: row.status,
+    statusLabel: EVENT_STATUS_LABELS[row.status] ?? row.status,
+    statusCssClass: EVENT_STATUS_BADGE_CLASSES[row.status] ?? 'badge-muted',
     registrationStatus: row.registration_status,
     publishedAt: row.published_at,
     hashtagTagId: row.hashtag_tag_id,

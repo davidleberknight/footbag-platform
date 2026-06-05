@@ -179,6 +179,52 @@ describe('registration-time conflict prompt', () => {
     ).get(memberId) as { reason_text: string };
     expect(JSON.parse(item.reason_text).is_dispute).toBe(true);
   });
+
+  it('never surfaces a claimed legacy account\'s legal real_name: the card matches and shows the chosen display handle only', async () => {
+    // A claimed record whose legal name differs from the public handle.
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-conflict-2', legacy_email: 'conflict-claimed-2@old.example.com',
+      real_name: 'Greta Hiddenlegal', display_name: 'Greta Showhandle',
+    });
+    insertMember(db, {
+      id: 'mem-conflict-owner-2', slug: 'mem_conflict_owner_2',
+      login_email: 'conflict-owner-2@example.com',
+      real_name: 'Greta Hiddenlegal', display_name: 'Greta Showhandle',
+    });
+    identity.identityAccessService.claimLegacyAccount('mem-conflict-owner-2', 'LM-conflict-2');
+
+    // A registrant sharing the LEGAL surname must not learn it exists here:
+    // matching on real_name and showing display_name would still link the
+    // public handle to the legal surname, so neither match nor display may
+    // consult real_name.
+    const legalMatchId = insertMember(db, {
+      id: 'mem-conflict-legal', slug: 'mem_conflict_legal',
+      login_email: 'conflict-legal@example.com',
+      real_name: 'Hans Hiddenlegal', display_name: 'Hans Hiddenlegal',
+    });
+    const legalPage = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(legalMatchId));
+    expect(legalPage.status).toBe(200);
+    // The registrant's own name renders on the wizard, so assert on the
+    // claimed record's names specifically.
+    expect(legalPage.text).not.toContain('Greta Hiddenlegal');
+    expect(legalPage.text).not.toContain('Greta Showhandle');
+
+    // A registrant sharing the HANDLE surname sees the handle, never the
+    // legal name.
+    const handleMatchId = insertMember(db, {
+      id: 'mem-conflict-handle', slug: 'mem_conflict_handle',
+      login_email: 'conflict-handle@example.com',
+      real_name: 'Berta Showhandle', display_name: 'Berta Showhandle',
+    });
+    const handlePage = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(handleMatchId));
+    expect(handlePage.status).toBe(200);
+    expect(handlePage.text).toContain('Greta Showhandle');
+    expect(handlePage.text).not.toContain('Greta Hiddenlegal');
+  });
 });
 
 describe('cross-source offer after a one-source claim', () => {

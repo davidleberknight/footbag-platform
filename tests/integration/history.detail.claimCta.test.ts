@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import BetterSqlite3 from 'better-sqlite3';
 import {
   setTestEnv,
   createTestDb,
@@ -148,5 +149,58 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Claim this identity');
+  });
+});
+
+describe('GET /history/:personId — claimed-record dispatch', () => {
+  // A claim must never take the public historical record offline: only a
+  // publicly-viewable member profile (the HoF/BAP exception) may absorb the
+  // page via redirect; an ordinary member's claim keeps the HP page rendering.
+  it('an honor HP claimed by an ORDINARY member keeps rendering for the anonymous public (no redirect to a profile the public cannot see)', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const hpId = insertHistoricalPerson(db, {
+      person_id: 'hp-claimed-ordinary',
+      person_name: 'Quinn Claimedby',
+      hof_member: 1,
+      country: 'US',
+    });
+    insertMember(db, {
+      id: 'mem-ordinary-claimant',
+      slug: 'ordinary_claimant',
+      display_name: 'Ordinary Claimant',
+      login_email: 'ordinary-claimant@example.com',
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run(hpId, 'mem-ordinary-claimant');
+    db.close();
+
+    const res = await request(createApp()).get(`/history/${hpId}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Quinn Claimedby');
+  });
+
+  it('an honor HP claimed by a HoF MEMBER still redirects to that member profile (publicly viewable)', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const hpId = insertHistoricalPerson(db, {
+      person_id: 'hp-claimed-honor',
+      person_name: 'Hofie Claimedby',
+      hof_member: 1,
+      country: 'US',
+    });
+    insertMember(db, {
+      id: 'mem-hof-claimant',
+      slug: 'hof_claimant',
+      display_name: 'Hofie Claimant',
+      login_email: 'hof-claimant@example.com',
+      is_hof: 1,
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run(hpId, 'mem-hof-claimant');
+    db.close();
+
+    const res = await request(createApp()).get(`/history/${hpId}`);
+    // Canonical-identity redirect (permanent).
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/members/hof_claimant');
   });
 });

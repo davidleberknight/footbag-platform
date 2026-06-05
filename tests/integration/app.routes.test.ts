@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -59,16 +60,7 @@ function validAuthCookie(): string {
 }
 
 async function buildTestDatabase(): Promise<void> {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   // Footbag Hacky: test member with login_email='footbag' (non-email identifier).
   // Password comes from STUB_PASSWORD env var (local dev's gitignored .env, or
   // the per-run default set in tests/setup-env.ts). Never hardcoded in git.
@@ -968,6 +960,14 @@ describe('GET /hof', () => {
     expect(res.text).toContain('Hacky Sack');
     expect(res.text).toContain('Stalberger');
   });
+
+  it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/hof');
+    expect(res.text).not.toContain('[object Object]');
+    expect(res.text).not.toContain('}}');
+    expect(res.text).not.toContain('render is safe');
+  });
 });
 
 // ── BAP landing page ──────────────────────────────────────────────────────────
@@ -1010,6 +1010,14 @@ describe('GET /bap', () => {
     const res = await request(app).get('/bap');
     expect(res.text).toContain('History of the BAP');
     expect(res.text).toContain('Additional Degree of Difficulty');
+  });
+
+  it('leaks no template artifacts into the page (a short-form Handlebars comment containing a mustache terminates early and spills its text)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).not.toContain('[object Object]');
+    expect(res.text).not.toContain('}}');
+    expect(res.text).not.toContain('render is safe');
   });
 });
 

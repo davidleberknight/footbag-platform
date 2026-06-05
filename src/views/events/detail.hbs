@@ -19,7 +19,7 @@
           {{#if content.event.hostClub}}
             <span>&#127968; {{content.event.hostClub}}</span>
           {{/if}}
-          <span class="badge badge-{{content.event.status}}">{{content.event.status}}</span>
+          <span class="badge {{content.event.statusCssClass}}">{{content.event.statusLabel}}</span>
         </div>
 
         {{#if content.event.externalUrl}}

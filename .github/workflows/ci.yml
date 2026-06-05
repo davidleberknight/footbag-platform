@@ -8,16 +8,25 @@ on:
     branches:
       - main
 
+# Least privilege: every job reads the repo and nothing else. A job that one
+# day needs more (e.g. PR comments) takes a job-level override rather than
+# widening the whole workflow.
+permissions:
+  contents: read
+
+# Third-party actions are pinned to commit SHAs (tag comments are for humans):
+# a force-pushed tag must not be able to swap the code CI executes.
+
 jobs:
   typecheck:
     name: Type-check
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -28,12 +37,66 @@ jobs:
       - name: Type-check
         run: npm run build
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies (moderate+)
+        run: npm run audit
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # Full history so gitleaks scans every commit in the push, not just
+          # the checkout snapshot.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   conventions:
     name: Convention gate
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
@@ -43,10 +106,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -62,10 +125,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -81,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install sqlite3 CLI + ffmpeg
         # ffmpeg: required by scripts/seed_curator_media.py to
@@ -89,7 +152,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y sqlite3 ffmpeg
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
 
@@ -110,10 +173,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -133,7 +196,7 @@ jobs:
 
       - name: Upload Playwright trace on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-trace
           path: tests/test-results/
@@ -141,7 +204,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, conventions, unit-tests, integration-tests, db-load-smoke, e2e]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e]
     runs-on: ubuntu-latest
     if: always()
 
@@ -149,6 +212,9 @@ jobs:
       - name: Check results
         run: |
           if [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.dependency-audit.result }}" != "success" ] || \
+             [ "${{ needs.secret-scan.result }}" != "success" ] || \
              [ "${{ needs.conventions.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
@@ -156,6 +222,9 @@ jobs:
              [ "${{ needs.e2e.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
+            echo "  lint: ${{ needs.lint.result }}"
+            echo "  dependency-audit: ${{ needs.dependency-audit.result }}"
+            echo "  secret-scan: ${{ needs.secret-scan.result }}"
             echo "  conventions: ${{ needs.conventions.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
@@ -169,10 +238,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
 
       - name: terraform fmt
         run: terraform fmt -check -recursive

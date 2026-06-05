@@ -28,7 +28,6 @@ import {
   transaction,
   type PopularTagRow,
   type StandardTagWithMediaRow,
-  type TagSuggestRow,
   type TagStatSourceRow,
   type MemberTagRow,
 } from '../db/db';

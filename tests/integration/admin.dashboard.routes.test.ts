@@ -17,6 +17,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
@@ -31,15 +32,7 @@ function memberCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: ADMIN_ID,  slug: 'dashboard_admin',  display_name: 'Dashboard Admin', login_email: 'dash-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'dashboard_member', display_name: 'Dashboard Member', login_email: 'dash-member@example.com' });
   db.close();

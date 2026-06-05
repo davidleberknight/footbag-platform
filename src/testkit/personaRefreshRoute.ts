@@ -40,7 +40,11 @@ export async function postDevPersonasRefresh(
       entityType: 'system',
       entityId: PERSONA_SEED_CREATED_BY,
       reasonText: 'dev /dev/personas/refresh rebuild to seeded state',
-      metadata: { reseeded: result.reseeded, deletedMembers: result.deletedMembers },
+      metadata: {
+        reseeded: result.reseeded,
+        deletedMembers: result.deletedMembers,
+        actorGrantRowsRemoved: result.actorGrantRowsRemoved,
+      },
     });
 
     res.redirect(302, '/dev/personas');

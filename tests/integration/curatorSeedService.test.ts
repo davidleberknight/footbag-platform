@@ -60,6 +60,7 @@ function makeStubStorage(): StubStorage {
     async delete(key) { deletes.push(key); },
     constructURL(key) { return `/media-store/${key}`; },
     async exists() { return false; },
+    async headSize() { return null; },
   };
 }
 

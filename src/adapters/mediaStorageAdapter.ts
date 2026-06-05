@@ -16,7 +16,7 @@
  * handles photos, system-account video bytes, and posters identically.
  * Per DD §1.5.
  */
-import { mkdir, writeFile, unlink, access, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, unlink, access, readFile, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
 import {
@@ -44,6 +44,14 @@ export interface MediaStorageAdapter {
 
   /** Check whether an object exists at the given storage key. */
   exists(key: string): Promise<boolean>;
+
+  /**
+   * Return the stored object's size in bytes, or null when the key does not
+   * exist. The presigned PUT cannot bind a size, so server-side gates (e.g.
+   * the curator finalize step) use this to enforce per-type maxima against
+   * the bytes actually uploaded rather than the client-reported hint.
+   */
+  headSize(key: string): Promise<number | null>;
 
   /**
    * Return a time-bounded signed URL the browser can use to PUT bytes directly
@@ -121,6 +129,16 @@ export function createLocalMediaStorageAdapter(opts: {
         }
       }
       return false;
+    },
+    async headSize(key: string): Promise<number | null> {
+      for (const dir of fallbackDir ? [baseDir, fallbackDir] : [baseDir]) {
+        try {
+          return (await stat(path.join(dir, key))).size;
+        } catch {
+          // not in this lane; try the next
+        }
+      }
+      return null;
     },
     // The async sign + S3 PUT + finalize curator video flow (DD §6.8) runs
     // only in S3-adapter mode. In local-adapter mode the admin upload form
@@ -215,6 +233,15 @@ export function createS3MediaStorageAdapter(opts: {
         return true;
       } catch (err: unknown) {
         if ((err as { name?: string }).name === 'NotFound') return false;
+        throw err;
+      }
+    },
+    async headSize(key: string): Promise<number | null> {
+      try {
+        const res = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return res.ContentLength ?? null;
+      } catch (err: unknown) {
+        if ((err as { name?: string }).name === 'NotFound') return null;
         throw err;
       }
     },

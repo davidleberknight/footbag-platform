@@ -1,3 +1,34 @@
+/**
+ * AccountTokenService -- single-use account tokens: issue, peek, consume.
+ *
+ * Owns:
+ *   - Token generation (32 random bytes, URL-safe) and SHA-256 hash storage;
+ *     the raw token is returned to the caller once and never persisted
+ *   - Consumption with expiry + single-use enforcement, including the
+ *     `consumeIfUnusedInTx` variant composed inside a caller transaction so
+ *     a rolled-back claim un-consumes the token
+ *   - Non-consuming lookup (`peekToken`) for pre-flight rendering
+ *
+ * Does not own:
+ *   - Token delivery (callers enqueue the email carrying the raw token)
+ *   - The account workflows the token gates (verify, reset, claim, export,
+ *     mailbox link); callers act on the returned binding
+ *   - TTL policy (callers pass ttlHours per flow)
+ *
+ * Required patterns:
+ *   - Single-use and expiry are enforced in the UPDATE's WHERE clause, not a
+ *     read-then-write, so concurrent consumers cannot double-spend.
+ *   - Lookups are by token hash and token type together; a token never
+ *     crosses flows.
+ *
+ * Persistence:
+ *   account_tokens.
+ *
+ * Side effects: none beyond account_tokens writes (no audit, outbox, or
+ * logging; callers own those).
+ *
+ * Service shape: singleton object (no external adapters beyond db.ts).
+ */
 import { randomBytes, createHash, randomUUID } from 'node:crypto';
 import { accountTokens, type AccountTokenRow } from '../db/db';
 

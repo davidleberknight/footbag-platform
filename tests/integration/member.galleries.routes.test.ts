@@ -45,6 +45,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import {
@@ -76,12 +77,7 @@ function adminCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: OWNER_ID,  slug: OWNER_SLUG,  display_name: 'Gallery Owner' });
   completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID,  slug: OTHER_SLUG,  display_name: 'Other Member' });

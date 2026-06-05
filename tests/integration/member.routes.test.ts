@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -60,15 +61,7 @@ function linkedCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Test Member',  login_email: 'testmember@example.com' });
   completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member', login_email: 'othermember@example.com' });
@@ -198,12 +191,72 @@ describe('GET /members/:memberKey — profile view', () => {
     expect(res.status).toBe(200);
   });
 
-  it("another member's profile → 404", async () => {
+  it("another member's profile → 200 read-only view for an authenticated viewer (no edit links, no payment/audit surfaces)", async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/members/${OWN_SLUG}`)
       .set('Cookie', otherCookie());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Test Member');
+    // Read-only: the own-profile affordances must not leak to other viewers.
+    expect(res.text).not.toContain(`/members/${OWN_SLUG}/edit`);
+    expect(res.text).not.toContain('Change Password');
+  });
+
+  it("another member's profile shows the login email only when the owner opted in (email_visibility)", async () => {
+    const app = createApp();
+
+    // Default email_visibility is 'private': no email for other viewers.
+    const hidden = await request(app)
+      .get(`/members/${OWN_SLUG}`)
+      .set('Cookie', otherCookie());
+    expect(hidden.status).toBe(200);
+    expect(hidden.text).not.toContain('testmember@example.com');
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare("UPDATE members SET email_visibility = 'members' WHERE id = ?").run(OWN_ID);
+    db.close();
+    try {
+      const shown = await request(app)
+        .get(`/members/${OWN_SLUG}`)
+        .set('Cookie', otherCookie());
+      expect(shown.status).toBe(200);
+      expect(shown.text).toContain('testmember@example.com');
+    } finally {
+      const restore = new BetterSqlite3(TEST_DB_PATH);
+      restore.prepare("UPDATE members SET email_visibility = 'private' WHERE id = ?").run(OWN_ID);
+      restore.close();
+    }
+  });
+
+  it('an anonymous visitor still cannot see an ordinary member profile (redirects to login), and a public HoF profile never carries the email even when visibility is public', async () => {
+    const app = createApp();
+    const anon = await request(app).get(`/members/${OWN_SLUG}`);
+    expect(anon.status).toBe(302);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare("UPDATE members SET is_hof = 1, email_visibility = 'public' WHERE id = ?").run(OTHER_ID);
+    db.close();
+    try {
+      const hof = await request(app).get(`/members/${OTHER_SLUG}`);
+      expect(hof.status).toBe(200);
+      // Contact fields never reach an unauthenticated page.
+      expect(hof.text).not.toContain('othermember@example.com');
+      // Tier badges are member-visible only.
+      expect(hof.text).not.toContain('badge-tier');
+
+      // The same profile viewed by a logged-in member carries both.
+      const authed = await request(app)
+        .get(`/members/${OTHER_SLUG}`)
+        .set('Cookie', ownCookie());
+      expect(authed.status).toBe(200);
+      expect(authed.text).toContain('othermember@example.com');
+      expect(authed.text).toContain('badge-tier');
+    } finally {
+      const restore = new BetterSqlite3(TEST_DB_PATH);
+      restore.prepare("UPDATE members SET is_hof = 0, email_visibility = 'private' WHERE id = ?").run(OTHER_ID);
+      restore.close();
+    }
   });
 
   it('nonexistent member key → 404', async () => {

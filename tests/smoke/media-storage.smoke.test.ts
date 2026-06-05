@@ -86,4 +86,12 @@ describe.skipIf(!RUN)('media storage adapter against staging S3', () => {
     const key = `${SMOKE_PREFIX}/probe-url.jpg`;
     expect(adapter.constructURL(key)).toBe(`/media-store/${key}`);
   });
+
+  it('headSize: reports the stored byte count, and null for a missing key', async () => {
+    const key = `${SMOKE_PREFIX}/probe-headsize.jpg`;
+    trackedKeys.push(key);
+    await adapter.put(key, Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+    expect(await adapter.headSize(key)).toBe(4);
+    expect(await adapter.headSize(`${SMOKE_PREFIX}/never-existed.jpg`)).toBeNull();
+  });
 });

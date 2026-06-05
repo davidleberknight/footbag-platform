@@ -8,10 +8,26 @@
     </div>
     {{/if}}
 
+    {{#if content.tierBadgeText}}
+    <div class="membership-badges mb-6">
+      <span class="badge badge-tier">{{content.tierBadgeText}}</span>
+      {{#if content.isActivePlayer}}
+        <span class="badge badge-honor">Active Player</span>
+      {{/if}}
+    </div>
+    {{/if}}
+
     {{#if content.bio}}
     <div class="profile-section">
       <h2 class="profile-section-heading">About</h2>
       <p>{{content.bio}}</p>
+    </div>
+    {{/if}}
+
+    {{#if content.contactEmail}}
+    <div class="profile-section">
+      <h2 class="profile-section-heading">Contact</h2>
+      <p><a href="mailto:{{content.contactEmail}}">{{content.contactEmail}}</a></p>
     </div>
     {{/if}}
 

@@ -403,7 +403,7 @@ Success Criteria:
 
 - Initial educational pages (trick tutorials, rules, equipment guides, etc.) are static content.
 - Developers provide initial content as static files for the website.
-- Rules pages are served from the IFPA-governed `ifpa/rules/` content. Their currency is verified in cooperation with IFPA; until IFPA ratifies a page as current, it carries a visible reference notice that it may not reflect the most recent IFPA rule changes and that IFPA maintains the authoritative current rules. No rule page is presented as current official rules without IFPA-cooperative source verification.
+- Rules pages are served from the IFPA-governed `ifpa/rules/` content, which IFPA authors and maintains; the published pages are the IFPA rules, and no separate ratification notice is required.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
 
 ### V_View_Gallery

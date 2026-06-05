@@ -13,6 +13,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -39,15 +40,7 @@ let app: Express.Application;
 type AppModule = typeof import('../../src/app');
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   // Hash passwords at setup time — no hashes stored in git.
   const [testMemberHash, footbagHash] = await Promise.all([
     hashTestPassword(TEST_PASSWORD),

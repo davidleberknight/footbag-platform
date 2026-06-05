@@ -20,12 +20,7 @@ interface MemberPasswordEditContent {
 
 type MemberStubContent = Record<string, never>;
 import { logger } from '../config/logger';
-
-// Local safe-path guard for redirect targets derived from request input,
-// mirroring the copies in authController / paymentController (no shared lib).
-function isSafePath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
-}
+import { isSafePath } from '../lib/safePath';
 
 // Avatar-upload flash: filename display is capped so a maliciously long
 // filename cannot blow out the banner. Cookie semantics live in lib/flashCookie.
@@ -66,7 +61,9 @@ export const memberController = {
     }
   },
 
-  /** GET /members/:memberKey, own profile or public read-only for HoF/BAP. */
+  /** GET /members/:memberKey: own profile, any member profile for an
+   * authenticated viewer, or the HoF/BAP public read-only exception for
+   * anonymous visitors (others redirect to login). */
   getProfile(req: Request, res: Response, next: NextFunction): void {
     const memberKey = req.params.memberKey;
 
@@ -79,8 +76,7 @@ export const memberController = {
           clearFlash(res, req);
         }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-        const vm = memberService.getOwnProfile(memberKey, { query });
-        if (profileNotice) vm.page.notice = profileNotice;
+        const vm = memberService.getOwnProfile(memberKey, { query, notice: profileNotice });
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -91,7 +87,9 @@ export const memberController = {
     }
 
     try {
-      const publicVm = memberService.getPublicProfile(memberKey);
+      const publicVm = memberService.getMemberProfilePage(memberKey, {
+        authenticated: req.isAuthenticated,
+      });
       if (publicVm) {
         res.render('members/public-profile', publicVm);
         return;
@@ -205,9 +203,11 @@ export const memberController = {
     let limitExceeded = false;
     let uploadedFilename = '';
 
+    // fields: 0 because the avatar form posts only the file input; busboy
+    // would otherwise buffer up to ~100 flooded field parts before rejecting.
     const busboy = Busboy({
       headers: req.headers,
-      limits: { fileSize: AVATAR_MAX_BYTES, files: 1 },
+      limits: { fileSize: AVATAR_MAX_BYTES, files: 1, fields: 0 },
     });
 
     busboy.on('file', (_fieldname, stream, info) => {

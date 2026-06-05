@@ -175,6 +175,103 @@ describe('revival on affiliation (self-service join)', () => {
   });
 });
 
+describe('join/leave notification emails', () => {
+  function seedLeader(clubId: string): string {
+    _n += 1;
+    const leaderId = `cll-leader-${_n}`;
+    insertMember(db, { id: leaderId, slug: `cll_leader_${_n}`, login_email: `${leaderId}@example.com` });
+    db.prepare(`
+      INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+    `).run(`cll-cl-${_n}`, clubId, leaderId);
+    return leaderId;
+  }
+
+  function outboxFor(recipientMemberId: string): Array<{ subject: string; idempotency_key: string }> {
+    return db.prepare(`
+      SELECT subject, idempotency_key FROM outbox_emails
+      WHERE recipient_member_id = ? ORDER BY rowid
+    `).all(recipientMemberId) as Array<{ subject: string; idempotency_key: string }>;
+  }
+
+  it('joining enqueues a notification to the member and every current club leader', () => {
+    const clubId = seedClub('active');
+    const leaderId = seedLeader(clubId);
+    const memberId = seedMember();
+
+    const result = clubSvc.joinClub(memberId, clubId);
+    expect(result.branch).toBe('joined_primary');
+
+    const memberMail = outboxFor(memberId);
+    expect(memberMail).toHaveLength(1);
+    expect(memberMail[0].subject).toContain('You joined');
+    expect(memberMail[0].idempotency_key).toBe(`club-join:${result.affiliationId}:v1:member`);
+
+    const leaderMail = outboxFor(leaderId);
+    expect(leaderMail).toHaveLength(1);
+    expect(leaderMail[0].subject).toContain('joined');
+    expect(leaderMail[0].idempotency_key).toBe(`club-join:${result.affiliationId}:v1:leader:${leaderId}`);
+  });
+
+  it('leaving enqueues a notification to the leaving member and the current leaders, and a later re-join produces fresh notifications', () => {
+    const clubId = seedClub('active');
+    const leaderId = seedLeader(clubId);
+    const memberId = seedMember();
+
+    const joined = clubSvc.joinClub(memberId, clubId);
+    const left = clubSvc.leaveClub(memberId, clubId);
+    expect(left.branch).toBe('left');
+
+    const memberMail = outboxFor(memberId);
+    expect(memberMail).toHaveLength(2);
+    expect(memberMail[1].subject).toContain('You left');
+    expect(outboxFor(leaderId)).toHaveLength(2);
+
+    // Re-join: the affiliation table holds one row per member-club pair for
+    // life, so rejoining reactivates the SAME row; the bumped row version in
+    // the idempotency key is what keeps the new notifications from being
+    // swallowed as duplicates of the first join's.
+    const rejoined = clubSvc.joinClub(memberId, clubId);
+    expect(rejoined.branch).toBe('joined_primary');
+    expect(rejoined.affiliationId).toBe(joined.affiliationId);
+    expect(outboxFor(memberId)).toHaveLength(3);
+    expect(outboxFor(leaderId)).toHaveLength(3);
+  });
+
+  it('rejoining after a leave reactivates the affiliation (never the misleading two-club cap message)', () => {
+    const clubId = seedClub('active');
+    const memberId = seedMember();
+
+    const joined = clubSvc.joinClub(memberId, clubId);
+    expect(joined.branch).toBe('joined_primary');
+    expect(clubSvc.leaveClub(memberId, clubId).branch).toBe('left');
+
+    const rejoined = clubSvc.joinClub(memberId, clubId);
+    expect(rejoined.branch).toBe('joined_primary');
+    expect(rejoined.affiliationId).toBe(joined.affiliationId);
+
+    const row = db.prepare(
+      'SELECT is_current, is_primary, source FROM member_club_affiliations WHERE id = ?',
+    ).get(joined.affiliationId) as { is_current: number; is_primary: number; source: string };
+    expect(row.is_current).toBe(1);
+    expect(row.is_primary).toBe(1);
+    expect(row.source).toBe('member_self_service');
+  });
+
+  it('a failed join (cap reached) enqueues nothing', () => {
+    const clubA = seedClub('active');
+    const clubB = seedClub('active');
+    const clubC = seedClub('active');
+    const memberId = seedMember();
+    clubSvc.joinClub(memberId, clubA);
+    clubSvc.joinClub(memberId, clubB);
+    const before = outboxFor(memberId).length;
+    const result = clubSvc.joinClub(memberId, clubC);
+    expect(result.branch).toBe('cap_reached');
+    expect(outboxFor(memberId)).toHaveLength(before);
+  });
+});
+
 describe('leader contact is member-visible by role', () => {
   let clubKey: string;
   let leaderEmail: string;

@@ -555,7 +555,7 @@ export const publicPlayers = {
       erp_co.participant_order ASC
   `); },
   get findLinkedMemberSlug() { return db.prepare(`
-    SELECT m.slug
+    SELECT m.slug, m.is_hof, m.is_bap
     FROM members AS m
     WHERE m.deleted_at IS NULL
       AND m.historical_person_id = ?
@@ -658,6 +658,18 @@ export const clubs = {
      WHERE c.name = ? COLLATE NOCASE AND c.country = ? COLLATE NOCASE
        AND c.status != 'archived'
      LIMIT 1
+  `); },
+
+  // Same-country club names for the create-club near-match warning. The
+  // service compares normalized names in memory (the per-country set is
+  // small), so this stays a flat read.
+  get listNamesByCountryForDuplicateCheck() { return db.prepare(`
+    SELECT c.name, c.city,
+           REPLACE(t.tag_normalized, '#', '') AS club_key
+      FROM clubs AS c
+      INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
+     WHERE c.country = ? COLLATE NOCASE
+       AND c.status != 'archived'
   `); },
 
   get updateStatus() { return db.prepare(`
@@ -910,6 +922,17 @@ export const legacyClubCandidates = {
            classification, mapped_club_id
       FROM legacy_club_candidates
      WHERE id = ?
+  `); },
+
+  // Create-club duplicate check: same-country candidates the member could
+  // be duplicating. Junk-classified rows never surface; mapped candidates
+  // are already live clubs, which the clubs-table check covers.
+  get listDuplicateCheckCandidatesByCountry() { return db.prepare(`
+    SELECT display_name, city, region, country, classification
+      FROM legacy_club_candidates
+     WHERE country = ? COLLATE NOCASE
+       AND classification IN ('onboarding_visible', 'dormant')
+       AND mapped_club_id IS NULL
   `); },
 
   get findPrePopulatedByCountry() { return db.prepare(`
@@ -1458,6 +1481,16 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 
+  // Rejoin after leave: the table-level UNIQUE(member_id, club_id) keeps
+  // one row per pair for life, so a re-join reactivates the deactivated
+  // row instead of inserting a new one.
+  get reactivate() { return db.prepare(`
+    UPDATE member_club_affiliations
+       SET is_current = 1, is_primary = ?, source = 'member_self_service',
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND club_id = ? AND is_current = 0
+  `); },
+
   get swapPrimary() { return db.prepare(`
     UPDATE member_club_affiliations
        SET is_primary = CASE WHEN is_primary = 1 THEN 0 ELSE 1 END,
@@ -1466,7 +1499,7 @@ export const memberClubAffiliations = {
   `); },
 
   get findCurrentByMemberAndClub() { return db.prepare(`
-    SELECT id, is_primary
+    SELECT id, is_primary, version
       FROM member_club_affiliations
      WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
@@ -4490,6 +4523,7 @@ export const auth = {
     SELECT id, slug, login_email, real_name, password_version, is_admin, birth_date
     FROM members_active
     WHERE id = ?
+      AND is_deceased = 0
   `); },
 
   get findMemberByEmail() { return db.prepare(`
@@ -4728,6 +4762,23 @@ export const outbox = {
         version = version + 1
     WHERE id = ?
   `); },
+
+  // Crash recovery: a worker killed between markSending and markSent /
+  // markFailedRetry leaves the row 'sending' forever, and selectPendingBatch
+  // reads 'pending' only, so the email would silently never send. Rows whose
+  // send attempt started before the lease threshold go back to 'pending'
+  // with a retry bump so the next queue pass re-claims them.
+  get reapStaleSending() { return db.prepare(`
+    UPDATE outbox_emails
+    SET status = 'pending',
+        retry_count = retry_count + 1,
+        last_error = 'stale_sending_reaped',
+        updated_at = ?,
+        updated_by = 'system',
+        version = version + 1
+    WHERE status = 'sending'
+      AND last_attempt_at < ?
+  `); },
 };
 
 // Sort enum for the admin curator media list view. The closed set + the
@@ -4964,7 +5015,7 @@ export const media = {
     SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
            mi.s3_key_thumb, mi.s3_key_display,
            mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
-           mi.source_filename, mi.external_url
+           mi.source_filename, mi.external_url, mi.is_avatar
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
     WHERE mi.id = ?
@@ -5390,12 +5441,18 @@ export function queryGalleryItemsByCriteria(
  * Tag-AND-of-N gallery query for the grouped /media/<id> view. Items appear
  * grouped by their canonical trick tag. Ordering is controlled by the
  * gallery's `sort_order` column: 'upload_desc' (default), 'upload_asc',
- * 'caption_asc'. No LIMIT/OFFSET; the grouped view renders all results on
- * one page (corpus is small, ~60 items at scale).
+ * 'caption_asc'. Callers pass an explicit LIMIT; nothing enforces a small
+ * corpus, so an unbounded fetch on this public route would be a
+ * resource-exhaustion vector once the corpus grows.
  */
 export interface NamedGalleryGroupedRow extends CuratorGalleryRow {
   source_id: string | null;
 }
+
+// Upper bound for single-page gallery renders (public named gallery and the
+// owner/admin edit grid). Services fetch cap+1 to detect overflow and show a
+// truncation notice instead of fanning out an unbounded render.
+export const GALLERY_ITEMS_QUERY_CAP = 100;
 
 const GALLERY_ORDER_CLAUSE: Record<GallerySortOrder, string> = {
   upload_desc: 'mi.uploaded_at DESC, mi.id DESC',
@@ -5407,6 +5464,7 @@ export function queryGalleryItemsByCriteriaGrouped(
   tagIds: string[],
   sortOrder: GallerySortOrder = 'upload_desc',
   excludeTagIds: string[] = [],
+  limit: number = GALLERY_ITEMS_QUERY_CAP + 1,
 ): NamedGalleryGroupedRow[] {
   if (tagIds.length === 0) return [];
   const placeholders = tagIds.map(() => '?').join(',');
@@ -5440,7 +5498,8 @@ export function queryGalleryItemsByCriteriaGrouped(
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY ${orderBy}
-  `).all(...tagIds, ...excludeTagIds, tagIds.length) as NamedGalleryGroupedRow[];
+    LIMIT ?
+  `).all(...tagIds, ...excludeTagIds, tagIds.length, limit) as NamedGalleryGroupedRow[];
 }
 
 // Returns slim display rows for the items currently matching a gallery's
@@ -5465,6 +5524,7 @@ export interface GalleryItemDisplayRow {
 export function listGalleryItemsForDisplay(
   tagIds: string[],
   excludeTagIds: string[] = [],
+  limit: number = GALLERY_ITEMS_QUERY_CAP + 1,
 ): GalleryItemDisplayRow[] {
   if (tagIds.length === 0) return [];
   const placeholders = tagIds.map(() => '?').join(',');
@@ -5492,7 +5552,8 @@ export function listGalleryItemsForDisplay(
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY mi.uploaded_at DESC, mi.id DESC
-  `).all(...tagIds, ...excludeTagIds, tagIds.length) as GalleryItemDisplayRow[];
+    LIMIT ?
+  `).all(...tagIds, ...excludeTagIds, tagIds.length, limit) as GalleryItemDisplayRow[];
 }
 
 export function countGalleryItemsByCriteria(
@@ -6476,8 +6537,8 @@ export const declaredAnchors = {
   // Legacy-URL forwarding lookups: in-flight emails reference
   // /members/profile/<legacy id> and /clubs/<slug> for years after cutover.
   get findLiveMemberSlugByLegacyId() { return db.prepare(`
-    SELECT slug FROM members
-    WHERE legacy_member_id = ? AND deleted_at IS NULL
+    SELECT slug FROM members_active
+    WHERE legacy_member_id = ?
   `); },
 
   get findLegacyClubCandidateByKey() { return db.prepare(`
@@ -6488,8 +6549,10 @@ export const declaredAnchors = {
   // Conflict-prompt scan inputs: every claimed identity's display name, so
   // a new registrant's surname can be checked against records that are
   // already taken (same-name collision and impersonation detection).
+  // Only the member's chosen public display_name is selected; the legacy
+  // legal real_name must never surface to an unrelated registrant.
   get listClaimedLegacyForConflictScan() { return db.prepare(`
-    SELECT legacy_member_id, real_name, display_name
+    SELECT legacy_member_id, display_name
     FROM legacy_members
     WHERE claimed_by_member_id IS NOT NULL
   `); },
@@ -6718,7 +6781,6 @@ export const hofBapDigest = {
            g.created_at AS granted_at,
            g.member_id,
            g.new_tier_status,
-           m.display_name,
            m.legacy_member_id,
            m.is_hof,
            m.is_bap
@@ -6801,7 +6863,7 @@ export const activePlayer = {
   `); },
 
   // Auxiliary FK lookups for AP grant provenance. Kept here because the AP
-  // service is the only consumer in Phase A; promote to a dedicated
+  // service is currently the only consumer; promote to a dedicated
   // statement group if other services start reading these rows.
   get getRegistrationEventId() { return db.prepare(`
     SELECT event_id, member_id
@@ -6910,9 +6972,10 @@ export const mailingListSubscriptions = {
 
   // Active-subscriber lookup for mailing-list fan-out. Returns one row per
   // member with status='subscribed' on the given list, where the list itself
-  // is active and the member's email is verified. Filters out
-  // unsubscribed/bounced/complained/suppressed rows and members whose email
-  // is unconfirmed. Used by CommunicationService.enqueueMailingListEmail.
+  // is active, the member's email is verified, and the address is deliverable
+  // (email_status='ok'): enqueueing to an SES-bounced/complained address only
+  // produces repeated rejections, dead-letter rows, and alarm noise.
+  // Used by CommunicationService.enqueueMailingListEmail.
   get listActiveSubscribersBySlug() { return db.prepare(`
     SELECT
       s.member_id,
@@ -6925,6 +6988,7 @@ export const mailingListSubscriptions = {
       AND s.status = 'subscribed'
       AND ml.status = 'active'
       AND m.email_verified_at IS NOT NULL
+      AND m.email_status = 'ok'
   `); },
 };
 

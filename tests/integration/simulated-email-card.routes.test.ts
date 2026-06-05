@@ -67,6 +67,14 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).not.toContain('/internal/dev-outbox');
   });
 
+  it('sends Cache-Control: no-store (the dev card can carry a live verify-token link a shared proxy must not cache)', async () => {
+    const app = createApp();
+    const flash = await registerFlash(app, 'sim-card-nostore@example.com');
+    const res = await request(app).get('/register/check-email').set('Cookie', flash);
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toMatch(/no-store/);
+  });
+
   it('renders one row with To/Subject/Open link after a registration', async () => {
     const app = createApp();
     const flash = await registerFlash(app, 'sim-card-one@example.com');

@@ -437,6 +437,11 @@ if (( ${#SESSION_SECRET_VAL} < 32 )); then
   exit 1
 fi
 
+# The secret is on disk in /srv/footbag/env now; nothing below needs it, so
+# drop it from the shell environment rather than letting it linger for the
+# rest of the run.
+unset SESSION_SECRET_VAL
+
 if [[ -z "$DB_PATH" || "$DB_PATH" == "/" ]]; then
   echo "Refusing to deploy with unsafe FOOTBAG_DB_PATH: '$DB_PATH'" >&2
   exit 1

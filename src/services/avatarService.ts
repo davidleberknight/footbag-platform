@@ -1,3 +1,37 @@
+/**
+ * AvatarService -- member avatar upload, processing, and atomic replacement.
+ *
+ * Owns:
+ *   - Avatar input validation (JPEG/PNG magic-byte detection, 5 MB cap)
+ *   - Processing to thumb + display variants via the image-processing adapter
+ *   - Atomic avatar swap: prior avatar row deleted and the new one inserted,
+ *     tagged `#by_<slug>`, and audited in one transaction
+ *
+ * Does not own:
+ *   - Image transformation internals (ImageProcessingAdapter)
+ *   - Storage/CDN mechanics (MediaStorageAdapter)
+ *   - Non-avatar member media (CuratorMediaService) or avatar rendering
+ *     (profile shaping reads the keys)
+ *
+ * Required patterns:
+ *   - One avatar per member (partial UNIQUE index `ux_media_avatar_per_member`);
+ *     replacement is delete-then-insert inside the transaction.
+ *   - Storage puts happen BEFORE the transaction opens; a failed put means
+ *     the DB never changes.
+ *   - Deterministic storage keys per member so caches replace in place; the
+ *     fresh media id is the cache-bust handle.
+ *   - Per-member upload throttle (config-tunable, admin-exempt).
+ *
+ * Persistence:
+ *   media_items, media_tags, tags, audit_entries.
+ *
+ * Side effects:
+ *   - audit_entries append (upload_member_media, mediaType avatar)
+ *   - storage adapter puts (thumb + display)
+ *
+ * Service shape: factory `createAvatarService({ storage, imageProcessor })`
+ * with the `getDefaultAvatarService()` default wiring; tests inject stubs.
+ */
 import { randomUUID } from 'crypto';
 import { media, mediaTags as mediaTagsDb, transaction, ExistingAvatarRow } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';

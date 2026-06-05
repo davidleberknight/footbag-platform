@@ -102,10 +102,10 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
-      # Local-default is fine here because the parity stack runs on a private
-      # docker network; override via project-root .env when running against
-      # real AWS resources.
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
+      # No default literal: a known fallback would let anything that reaches
+      # /ipc/* publish forged job events. scripts/compose-dev.sh generates a
+      # per-run value when neither the shell nor .env supplies one.
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
       # Dedicated SNS feedback-webhook key: separate from INTERNAL_EVENT_SECRET
       # because the subscription URL carries it in the query string, where
       # access logs capture it.
@@ -148,7 +148,7 @@ services:
       IMAGE_PORT: "4000"
       IMAGE_MAX_CONCURRENT: "2"
       LOG_LEVEL: info
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
@@ -198,7 +198,7 @@ services:
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
       SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.

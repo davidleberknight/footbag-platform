@@ -1,3 +1,53 @@
+/**
+ * OperationsPlatformService -- operational health and background-job
+ * orchestration.
+ *
+ * Owns:
+ *   - Readiness composition for GET /health/ready (database probe + container
+ *     memory pressure)
+ *   - The system_job_runs lifecycle wrapper (`recordJobRun`): insert on start,
+ *     succeeded/failed on completion, stale-running reap for crash recovery
+ *   - Worker-loop entry points and their config-tunable intervals: outbox
+ *     drain, Active Player expiry, HoF/BAP admin digest, staged-candidate
+ *     expiry, batch auto-link
+ *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
+ *     high/medium-confidence candidates, queue low-confidence ones with an
+ *     admin alert
+ *
+ * Does not own:
+ *   - The delegated job bodies (ActivePlayerExpiryService,
+ *     HofBapAdminDigestService, IdentityAccessService classification/staging,
+ *     CommunicationService drain)
+ *   - Outbox row mechanics (CommunicationService)
+ *
+ * Current: the designed purge-eligibility scan (grace-window eligibility +
+ *   erasure_log) is unbuilt; PII purges are manual calls into
+ *   memberService.purgeAccountPII.
+ * Target: this service decides which members qualify for purge and calls the
+ *   row-level primitive.
+ *
+ * Required patterns:
+ *   - Every periodic job runs through `recordJobRun` so operators can see
+ *     last-run status and failures in system_job_runs.
+ *   - Batch auto-link is idempotent per member: already-linked, already-staged,
+ *     and declined candidates are skipped on re-run; each low-confidence
+ *     work-queue insert + admin-alert enqueue commits in one transaction.
+ *   - Interval getters clamp config floors so a bad value cannot hot-loop a
+ *     worker.
+ *
+ * Persistence:
+ *   system_job_runs, work_queue_items, outbox_emails (backlog read +
+ *   mailing-list enqueue), health (read).
+ *
+ * Side effects:
+ *   - system_job_runs insert/update
+ *   - work_queue_items insert (auto_link_match, low confidence)
+ *   - outbox_emails enqueue (admin-alerts fan-out)
+ *   - logger.error on job failure (drives the CloudWatch alarm)
+ *
+ * Service shape: class singleton (`operationsPlatformService`); adapters are
+ * obtained via singleton getters inside method bodies.
+ */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { health, systemJobRuns, workQueue, batchAutoLink, outbox, transaction } from '../db/db';

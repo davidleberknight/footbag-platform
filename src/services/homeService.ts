@@ -45,7 +45,7 @@ export interface HomePageViewModel {
 }
 
 export const homeService = {
-  getPublicHomePage(nowIso: string): HomePageViewModel {
+  getPublicHomePage(_nowIso: string): HomePageViewModel {
     return {
       seo: { title: '' },
       page: {

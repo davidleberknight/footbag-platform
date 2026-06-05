@@ -115,7 +115,6 @@ export function createLiveHttpReachabilityAdapter(opts: {
       try {
         let lastStatus = 0;
         let hops = 0;
-        // eslint-disable-next-line no-constant-condition
         while (true) {
           const parsed = new URL(currentUrl);
           if (await hostIsBlocked(parsed.hostname)) {

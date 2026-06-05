@@ -235,6 +235,49 @@ describe('processSendQueue', () => {
     expect(row.subject).toBe('Reset link');
   });
 
+  it('reaps a crash-stranded sending row back to pending and delivers it on the same pass', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'stranded@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    // Simulate a worker killed between markSending and markSent: the row sits
+    // in 'sending' with a stale last_attempt_at, invisible to the pending batch.
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      UPDATE outbox_emails
+      SET status = 'sending', last_attempt_at = '2020-01-01T00:00:00.000Z'
+      WHERE id = ?
+    `).run(id);
+    db.close();
+
+    const res = await svc.processSendQueue();
+    expect(res.sent).toBe(1);
+    const row = readRow(id);
+    expect(row.status).toBe('sent');
+    // The reap counts as a retry so a repeatedly-stranded row is visible.
+    expect(row.retry_count).toBe(1);
+  });
+
+  it('does not reap a sending row inside its lease (an in-flight attempt keeps its claim)', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'inflight@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      UPDATE outbox_emails
+      SET status = 'sending', last_attempt_at = ?
+      WHERE id = ?
+    `).run(new Date().toISOString(), id);
+    db.close();
+
+    const res = await svc.processSendQueue();
+    expect(res.sent).toBe(0);
+    expect(readRow(id).status).toBe('sending');
+  });
+
   it('transient failure stays pending, increments retry_count, records last_error', async () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
@@ -405,6 +448,25 @@ describe('enqueueMailingListEmail', () => {
       subject:              'T',
       bodyText:             'B',
       idempotencyKeyPrefix: 'admin-alerts:filter-test:1',
+    });
+    expect(result).toEqual({ enqueued: 1, duplicates: 0 });
+  });
+
+  it('filters subscribed members whose address SES marked undeliverable (email_status != ok)', () => {
+    seedSubscriber({ memberId: 'mlmem-deliverable',  subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-ses-bounced',  subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-ses-complain', subStatus: 'subscribed' });
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE members SET email_status = 'bounced' WHERE id = 'mlmem-ses-bounced'`).run();
+    db.prepare(`UPDATE members SET email_status = 'complained' WHERE id = 'mlmem-ses-complain'`).run();
+    db.close();
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'T',
+      bodyText:             'B',
+      idempotencyKeyPrefix: 'admin-alerts:email-status-test:1',
     });
     expect(result).toEqual({ enqueued: 1, duplicates: 0 });
   });

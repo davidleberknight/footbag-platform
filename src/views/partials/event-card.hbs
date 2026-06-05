@@ -12,7 +12,7 @@
     {{#if hostClub}}<span>{{hostClub}}</span>{{/if}}
     {{#if registrationStatus}}<span>Registration: {{registrationStatus}}</span>{{/if}}
   </div>
-  <span class="badge badge-{{status}}">{{status}}</span>
+  <span class="badge {{statusCssClass}}">{{statusLabel}}</span>
   {{#if description}}
     <p class="card-description">{{description}}</p>
   {{/if}}

@@ -6,16 +6,16 @@
     <a href="/admin/curator/upload">Upload new</a>.
   </p>
 
-  {{#if savedFlag}}
+  {{#if savedWasEdit}}
     <div class="form-success-banner" role="status">
-      {{#if (eq savedFlag "edit")}}
-        Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
-        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
-      {{/if}}
-      {{#if (eq savedFlag "delete")}}
-        Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
-        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
-      {{/if}}
+      Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
+      run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
+    </div>
+  {{/if}}
+  {{#if savedWasDelete}}
+    <div class="form-success-banner" role="status">
+      Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
+      run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
     </div>
   {{/if}}
 
@@ -51,7 +51,7 @@
           </th>
           <th>Tags</th>
           <th>
-            <a href="{{sortLinks.date}}">Uploaded</a>{{#if (eq sortIndicator.date "desc")}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if (eq sortIndicator.date "asc")}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+            <a href="{{sortLinks.date}}">Uploaded</a>{{#if sortIndicator.dateDesc}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if sortIndicator.dateAsc}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
           </th>
           <th>Actions</th>
         </tr>
@@ -74,7 +74,7 @@
             <td>{{formatDate uploadedAt}}</td>
             <td>
               <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
-              {{#if (eq mediaId ../confirmDeleteId)}}
+              {{#if isConfirmDelete}}
                 <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form">
                   <input type="hidden" name="confirmed" value="1" />
                   <span class="text-secondary">Are you sure?</span>

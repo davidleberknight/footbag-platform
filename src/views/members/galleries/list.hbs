@@ -12,9 +12,9 @@
     <a href="{{content.newGalleryHref}}" class="btn">Create new gallery</a>
   </p>
 
-  {{#if content.savedFlag}}
+  {{#if content.savedMessage}}
     <div class="form-success-banner" role="status">
-      {{#if (eq content.savedFlag "upload")}}Uploaded.{{else}}Saved.{{/if}}
+      {{content.savedMessage}}
     </div>
   {{/if}}
 
@@ -53,7 +53,7 @@
             <td>
               <a href="{{editHref}}">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              {{#if (eq id ../content.confirmDeleteId)}}
+              {{#if isConfirmDelete}}
                 <form method="POST" action="{{deleteHref}}" class="inline-form">
                   <input type="hidden" name="confirmed" value="1" />
                   <span class="text-secondary">Are you sure?</span>

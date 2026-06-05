@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -36,15 +37,7 @@ process.env.SESSION_SECRET           = 'register-test-secret';
 let createApp: typeof import('../../src/app').createApp;
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   // Pre-existing member for duplicate-email tests.
   insertMember(db, {
     id:          'member-existing-001',

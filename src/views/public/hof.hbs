@@ -11,11 +11,11 @@
   {{#each content.sections}}
     <section>
       <h2 class="section-heading">{{this.heading}}</h2>
-      {{! Current: paragraphs are static operator-authored string literals with
-          intentional inline <a> markup, so unescaped {{{this}}} render is safe.
+      {{!-- Current: paragraphs are static operator-authored string literals with
+          intentional inline <a> markup, so unescaped triple-stash render is safe.
           Target: if the paragraph source becomes DB-backed or admin-editable,
-          switch to an allowlisted-HTML helper (or {{this}}) before that lands;
-          unescaped render of untrusted data is stored XSS. }}
+          switch to an allowlisted-HTML helper (or escaped render) before that
+          lands; unescaped render of untrusted data is stored XSS. --}}
       {{#each this.paragraphs}}
         <p class="ws-pre-line">{{{this}}}</p>
       {{/each}}

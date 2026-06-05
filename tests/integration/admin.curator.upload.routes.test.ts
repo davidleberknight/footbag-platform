@@ -38,6 +38,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -76,15 +77,7 @@ function openDb(): BetterSqlite3.Database {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'Curator Admin', login_email: 'admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Regular Member', login_email: 'member@example.com' });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });

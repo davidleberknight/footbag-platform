@@ -335,7 +335,7 @@ Lightweight integration with auth uses the existing `tests/fixtures/personas.ts`
 The platform targets four environments. Each has parity contracts that tests verify.
 
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
-- *CI.* Runs every test job (typecheck, conventions, unit, integration, db-load smoke, e2e, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
+- *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, unit, integration, db-load smoke, e2e, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
 - *Production.* The real AWS production account. Both `src/testkit/` and `src/dev-bootstrap/` are excluded from the production image at build time (the Dockerfile strips both subtrees when `INCLUDE_DEV_SHORTCUTS=0`); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is the removable set deleted at cutover.
 

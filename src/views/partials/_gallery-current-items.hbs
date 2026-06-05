@@ -7,6 +7,8 @@
   Caller passes:
     currentItems[] — each:
       { mediaId, mediaType, thumbnailUrl, caption, sourceFilename, editHref }
+    currentItemsTruncated — true when the matching set exceeds the render
+      cap and only the first page-worth is shown.
 --}}
 <fieldset class="form-fieldset">
   <legend>Items currently in this gallery ({{currentItems.length}})</legend>
@@ -14,6 +16,9 @@
     These items match the gallery's criteria + exclude tags. To remove one,
     open it via the "Edit item" link and remove the matching criterion tag.
   </p>
+  {{#if currentItemsTruncated}}
+    <div class="notice notice-info">More items match than are shown here; narrow the criteria tags to see a specific subset.</div>
+  {{/if}}
   <div class="picker-grid">
     {{#each currentItems}}
       <div class="picker-cell">

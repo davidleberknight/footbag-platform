@@ -16,7 +16,7 @@
 # Then on staging:
 #
 #   ~/staging_diagnostics.sh help
-#   ~/staging_diagnostics.sh outbox davidleberknightphone@gmail.com
+#   ~/staging_diagnostics.sh outbox <recipient-email>
 #   ~/staging_diagnostics.sh worker-logs 60
 #   ~/staging_diagnostics.sh force-tick -y
 #

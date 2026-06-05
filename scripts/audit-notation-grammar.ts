@@ -28,7 +28,6 @@ process.env.JWT_LOCAL_KEYPAIR_PATH ??= path.join(
 process.env.SES_ADAPTER            ??= 'stub';
 process.env.AWS_REGION             ??= 'us-east-1';
 process.env.INTERNAL_EVENT_SECRET  ??= 'audit-script-internal-event-secret';
-process.env.STUB_PASSWORD          ??= 'audit-script-stub-password';
 
 // ── Picklist (25 slugs, by bucket) ───────────────────────────────────────────
 interface Pick {

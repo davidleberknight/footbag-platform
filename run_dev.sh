@@ -22,6 +22,15 @@ cd "$(dirname "$0")"
 # stray .env entry won't clobber this.
 export FOOTBAG_ENV=development
 
+# The app refuses to boot without an explicit INTERNAL_EVENT_SECRET (the /ipc
+# router is always mounted and a known fallback literal would be guessable).
+# Web and image worker launch from this shell, so one generated per-run value
+# gives both processes the same token; an operator-exported value wins.
+if [[ -z "${INTERNAL_EVENT_SECRET:-}" ]]; then
+  INTERNAL_EVENT_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+fi
+export INTERNAL_EVENT_SECRET
+
 # Free any port already held by a leaked prior dev process.
 kill_port() {
   local port=$1

@@ -19,10 +19,7 @@ import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCooki
 import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
-
-function isSafePath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
-}
+import { isSafePath } from '../lib/safePath';
 
 function getLogin(req: Request, res: Response): void {
   if (req.isAuthenticated) {
@@ -152,6 +149,10 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
 
 async function getCheckEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    // The stub-SES branch can render a live verify-token link, so a shared
+    // proxy must never cache this page against one visitor and serve it to
+    // the next.
+    setNoStore(res);
     // Scope the dev card to the just-registered recipient, carried in a signed
     // flash across the 303. A visitor WITHOUT the flash (direct navigation, or
     // another user's browser) gets an empty card so the dev card can never

@@ -3,8 +3,9 @@
  *
  * Owns:
  *   - Page shaping for /members/* surfaces (public welcome with tier explainer;
- *     own-profile as authenticated personal home; limited HoF/BAP public profile;
- *     profile edit including inline avatar upload)
+ *     own-profile as authenticated personal home; member-viewable read-only
+ *     profile of any other member, with the HoF/BAP exception as the only
+ *     anonymous-public render; profile edit including inline avatar upload)
  *   - Member search (`searchMembers`)
  *   - Row-level PII clearing logic (`purgeAccountPII`)
  *
@@ -29,8 +30,12 @@
  *     routes. Minimum 2-character query; substring match on display name; 20-result
  *     cap with `hasMore` flag; no browse-all pagination.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
- *   - Own-profile routes are owner-only; non-owner public viewing is limited to
- *     the explicit HoF/BAP exception. No contact-field leakage on public profiles.
+ *   - Own-profile routes are owner-only. Anonymous non-owner viewing is limited
+ *     to the explicit HoF/BAP exception; authenticated members may view any
+ *     member profile read-only. Contact fields never reach an anonymous page;
+ *     the login email renders to authenticated viewers only when the owner
+ *     opted in (email_visibility 'members'/'public'). Tier and Active Player
+ *     badges are member-visible only.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
@@ -268,6 +273,13 @@ export interface PublicProfileContent {
   showCompetitiveResults: boolean;
   heroData: PlayerHeroData;
   eventGroups: PlayerEventGroup[];
+  // Member-visible fields, null/false for the anonymous HoF/BAP render:
+  // the login email when the owner opted in (email_visibility 'members' or
+  // 'public'; contact fields never reach an unauthenticated page), and the
+  // tier / Active Player badges (visible to logged-in members only).
+  contactEmail: string | null;
+  tierBadgeText: string | null;
+  isActivePlayer: boolean;
 }
 
 export interface ProfileEditInput {
@@ -486,7 +498,7 @@ export const memberService = {
   purgeAccountPII,
   getOwnProfile(
     slug: string,
-    opts?: { query?: string },
+    opts?: { query?: string; notice?: string },
   ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
@@ -506,7 +518,12 @@ export const memberService = {
     };
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
-      page: { sectionKey: 'members', pageKey: 'member_profile', title: 'My Profile' },
+      page: {
+        sectionKey: 'members',
+        pageKey: 'member_profile',
+        title: 'My Profile',
+        ...(opts?.notice ? { notice: opts.notice } : {}),
+      },
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
       },
@@ -529,17 +546,39 @@ export const memberService = {
   },
 
   /**
-   * Public read-only profile for HoF/BAP members. No PII, no edit links.
-   * Returns null if the member is not HoF/BAP (caller should 404 or require auth).
+   * Read-only profile of another member. Viewer-aware (the one shaping
+   * input this service takes besides ownership): an anonymous viewer may
+   * see only the explicit HoF/BAP public exception; an authenticated
+   * member may view any member profile. Per-field gates: the login email
+   * appears only to authenticated viewers of members who opted in
+   * (email_visibility 'members'/'public'); tier and Active Player badges
+   * are member-visible only; competition results honor
+   * show_competitive_results. No payment, audit, or edit surfaces.
+   * Returns null when the viewer may not see this member (caller 404s or
+   * requires auth).
    */
-  getPublicProfile(slug: string): PageViewModel<PublicProfileContent> | null {
+  getMemberProfilePage(
+    slug: string,
+    viewer: { authenticated: boolean },
+  ): PageViewModel<PublicProfileContent> | null {
     const row = fetchMemberBySlug(slug);
     const isHof = Boolean(row.is_hof);
     const isBap = Boolean(row.is_bap);
-    if (!isHof && !isBap) return null;
+    if (!viewer.authenticated && !isHof && !isBap) return null;
 
     const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
     const heroData = buildMemberHeroData(row);
+
+    const contactEmail =
+      viewer.authenticated && row.email_visibility !== 'private'
+        ? row.login_email
+        : null;
+    const tierBadgeText = viewer.authenticated
+      ? TIER_BADGE_TEXT[getTierStatus(row.id).tier_status]
+      : null;
+    const isActivePlayer = viewer.authenticated
+      ? getActivePlayerStatus(row.id).is_active_player === 1
+      : false;
 
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
@@ -558,6 +597,9 @@ export const memberService = {
         showCompetitiveResults: row.show_competitive_results !== 0,
         heroData,
         eventGroups,
+        contactEmail,
+        tierBadgeText,
+        isActivePlayer,
       },
     };
   },
@@ -1101,7 +1143,7 @@ function buildMyClubsView(memberId: string): MyClubsView {
 function buildIdentityCta(
   legacyLinked: boolean,
   hpLinked: boolean,
-  slug?: string,
+  _slug?: string,
 ): IdentityLinkView['cta'] {
   if (legacyLinked && hpLinked) return null;
   // CTA target is the onboarding wizard's legacy_claim task, which renders

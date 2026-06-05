@@ -254,8 +254,11 @@ describe('SYS_HoF_BAP_Admin_Digest', () => {
       expect(body).toContain(`member=${ids.honor}`);
       expect(body).toContain(`legacy=${ids.legacy}`);
       expect(body).toContain('flags=HoF');
-      // Anti-PII: body must not include login_email of the linked member.
+      // Anti-PII: body must not include login_email of the linked member,
+      // nor any member name; identifiers are enough for admin lookup.
       expect(body).not.toContain(`${ids.honor}@example.com`);
+      expect(body).not.toContain('name="');
+      expect(body).not.toContain(`Member ${ids.honor}`);
     }
   });
 

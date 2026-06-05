@@ -125,10 +125,13 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(row!.resolved_by_member_id).toBe(ADMIN_ID);
 
     const audit = db
-      .prepare(`SELECT action_type, actor_type FROM audit_entries WHERE action_type = 'support.contact_request_resolved' AND entity_id = ?`)
+      .prepare(`SELECT action_type, actor_type, metadata_json FROM audit_entries WHERE action_type = 'support.contact_request_resolved' AND entity_id = ?`)
       .get(MEMBER_ID) as Record<string, unknown> | undefined;
     expect(audit).toBeDefined();
     expect(audit!.actor_type).toBe('admin');
+    // The append-only ledger is exempt from PII purge, so the member's
+    // free-text message must never be copied into resolution metadata.
+    expect(String(audit!.metadata_json)).not.toContain('please fix my name');
 
     // Services enqueue notification emails via the outbox table; the SES
     // adapter is never called directly from a service or controller.

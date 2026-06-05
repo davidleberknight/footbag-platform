@@ -1,3 +1,43 @@
+/**
+ * CommunicationService -- the email outbox: enqueue, fan-out, and SES drain.
+ *
+ * Owns:
+ *   - Outbox enqueue with idempotency-key dedupe (plus the strict
+ *     enqueueEmailOrFail variant that maps transport failure to a typed 503)
+ *   - Mailing-list fan-out (one outbox row per active, verified, deliverable
+ *     subscriber)
+ *   - The send-queue drain batch: stale-sending reap, claim, SES send,
+ *     retry/dead-letter bookkeeping
+ *
+ * Does not own:
+ *   - Triggering sends (other services enqueue; nothing here decides WHO
+ *     gets mail)
+ *   - Email content composition (callers pass subject + bodyText)
+ *   - Subscription management (rows read via mailing_list_subscriptions only)
+ *   - SES credentials/config (SesAdapter)
+ *
+ * Required patterns:
+ *   - Outbox pattern: no service calls SES directly; every send rides an
+ *     outbox row drained here.
+ *   - body_text is scrubbed to NULL after a successful send so receipt
+ *     tokens never persist in DB backups.
+ *   - Idempotency key uniqueness collapses duplicate enqueues onto the
+ *     original row id.
+ *   - Crash recovery: rows stranded in 'sending' past the lease are reaped
+ *     back to 'pending' with a retry bump at the top of every drain pass.
+ *   - scheduled_for defers a row until due (the pending batch filters on it).
+ *   - Admin pause flag (email_outbox_paused) halts draining without losing rows.
+ *
+ * Persistence:
+ *   outbox_emails; mailing_list_subscriptions (read-only).
+ *
+ * Side effects:
+ *   - SES adapter sendEmail per claimed row
+ *   - logger.error on dead-letter (drives the CloudWatch alarm)
+ *
+ * Service shape: factory `createCommunicationService(adapter)` with the
+ * `getCommunicationService()` lazy singleton; tests inject a stub adapter.
+ */
 import { randomUUID } from 'node:crypto';
 import { outbox, mailingListSubscriptions, type OutboxRow } from '../db/db';
 import { config } from '../config/env';
@@ -187,6 +227,17 @@ export function createCommunicationService(
       const maxRetries = readIntConfig('outbox_max_retry_attempts', 5);
       const limit = opts.limit ?? 10;
       const now = new Date().toISOString();
+
+      // Crash recovery: rows stranded in 'sending' by a worker killed mid-send
+      // are invisible to selectPendingBatch, so without this reap the email is
+      // silently lost. The lease is generous next to a single SES call; only
+      // a genuinely abandoned attempt gets reset.
+      const leaseSeconds = readIntConfig('outbox_sending_lease_seconds', 600);
+      const staleBefore = new Date(Date.now() - leaseSeconds * 1000).toISOString();
+      const reaped = outbox.reapStaleSending.run(now, staleBefore);
+      if (reaped.changes > 0) {
+        logger.warn('outbox stale sending rows reaped back to pending', { count: reaped.changes });
+      }
 
       const rows = outbox.selectPendingBatch.all(now, limit) as OutboxRow[];
 

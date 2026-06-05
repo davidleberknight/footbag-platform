@@ -51,6 +51,7 @@ function noopStorage(): MediaStorageAdapter {
     async delete() {},
     constructURL(key) { return `/stub/${key}`; },
     async exists() { return false; },
+    async headSize() { return null; },
     async generatePresignedPutUrl() { return '/stub-presigned'; },
   };
 }

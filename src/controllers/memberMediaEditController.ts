@@ -1,6 +1,7 @@
 /**
- * Member-owned per-item media edit. Owner-only surface for
- * /members/:memberKey/media/:mediaId/edit (GET form, POST save).
+ * Member-owned per-item media edit and delete. Owner-only surface for
+ * /members/:memberKey/media/:mediaId/edit (GET form, POST save) and
+ * /members/:memberKey/media/:mediaId/delete (POST, permanent).
  *
  * Authz mirrors memberGalleryController / memberMediaUploadController:
  *   - requireAuth redirects unauthenticated requests to /login.
@@ -70,6 +71,7 @@ function renderForm(
     seo: { title: 'Edit Media' },
     page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
     formAction: editHref(memberKey, mediaId),
+    deleteAction: `/members/${memberKey}/media/${mediaId}/delete`,
     cancelHref: galleriesHref(memberKey),
     errorMessage: opts.errorMessage,
     formValues: values,
@@ -177,6 +179,48 @@ export const memberMediaEditController = {
         return;
       }
       logger.error('member media edit POST error', { error: err instanceof Error ? err.message : String(err) });
+      next(err);
+    }
+  },
+
+  /** POST /members/:memberKey/media/:mediaId/delete — permanent delete of
+   * an owned item with cascading tag removal. Mirrors the gallery-delete
+   * flow: ownership 404s, success flashes and returns to the galleries
+   * list. */
+  async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!isOwnRoute(req)) {
+      renderNotFound(res);
+      return;
+    }
+    if (req.params.mediaId === 'upload') {
+      renderNotFound(res);
+      return;
+    }
+    const memberKey = req.params.memberKey;
+    const mediaId = req.params.mediaId;
+    try {
+      const svc = buildSvc();
+      await svc.deleteMemberMedia({
+        memberId: req.user!.userId,
+        actorIsAdmin: req.user?.role === 'admin',
+        mediaId,
+      });
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
+      res.redirect(303, galleriesHref(memberKey));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        renderForm(res, memberKey, mediaId, { caption: '', tags: '', externalUrl: '' }, {
+          status: 429,
+          errorMessage: err.message,
+        });
+        return;
+      }
+      logger.error('member media delete POST error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
     }
   },

@@ -50,7 +50,6 @@ interface DigestRow {
   granted_at: string;
   member_id: string;
   new_tier_status: string;
-  display_name: string;
   legacy_member_id: string | null;
   is_hof: number;
   is_bap: number;
@@ -76,12 +75,14 @@ function fmtFlags(isHof: number, isBap: number): string {
 function buildBodyText(rows: DigestRow[], remainingDays: number): string {
   const header =
     `Silent auto-link claims with HoF or BAP honor flag in the prior 24 hours.\n\n`;
+  // Row identifiers only, no names: email transits and archives outside the
+  // admin tooling's access controls, and member_id is enough to look the
+  // row up there.
   const renderedRows = rows
     .map((r) =>
       `- ${r.granted_at} | member=${r.member_id}` +
       ` | legacy=${r.legacy_member_id ?? '(none)'}` +
       ` | tier_grant=${r.tier_grant_id}` +
-      ` | name="${r.display_name}"` +
       ` | flags=${fmtFlags(r.is_hof, r.is_bap)}` +
       ` | new_tier=${r.new_tier_status}`,
     )

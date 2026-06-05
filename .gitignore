@@ -155,7 +155,6 @@ tests/test-results/
 
 # Local audit reports (never commit)
 prepublish_audit_*.txt
-BUG_HUNT.md
 BUGS.md
 
 # Local AWS project specifics (sensitive values, never commit)

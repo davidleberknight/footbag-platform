@@ -100,6 +100,7 @@ function makeFakeMediaStorage(opts: {
     delete: async () => {},
     constructURL: (key) => `/media-store/${key}`,
     exists: async () => false,
+    headSize: async () => null,
     generatePresignedPutUrl: opts.presignedPut ?? (async (key) =>
       `https://fake-presign.example/${key}?put=1`),
     generatePresignedGetUrl: opts.presignedGet ?? (async (key) =>
@@ -686,6 +687,14 @@ describe('adapter-parity: MediaStorageAdapter contract', () => {
     expect(url).toContain('X-Amz-Expires=900');
     expect(url).toContain('Content-Type=video%2Fmp4');
   });
+
+  it('local headSize returns stored byte count, and null for a missing key (parity with S3 HeadObject ContentLength)', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
+    const key = 'pending/job1/source.mp4';
+    expect(await adapter.headSize(key)).toBeNull();
+    await adapter.put(key, Buffer.from('twelve-bytes'));
+    expect(await adapter.headSize(key)).toBe(12);
+  });
 });
 
 // Composite two-lane local adapter: baseDir = runtime upload lane (read+write),
@@ -791,7 +800,8 @@ function makeFakeS3Client(): FakeS3State {
       if (cmd instanceof HeadObjectCommand) {
         heads.push(cmd);
         const lookupKey = `${cmd.input.Bucket}/${cmd.input.Key}`;
-        if (store.has(lookupKey)) return {};
+        const stored = store.get(lookupKey);
+        if (stored) return { ContentLength: stored.length };
         const err = new Error('Not Found');
         err.name = 'NotFound';
         throw err;
@@ -848,6 +858,18 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     expect(input.Key).toBe('avatars/m-2/display.jpg');
     expect(input.ContentType).toBe('image/jpeg');
     expect(input.CacheControl).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('s3 headSize returns ContentLength, and null on NotFound (parity with local)', async () => {
+    const fake = makeFakeS3Client();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: fake.client,
+    });
+    const key = 'pending/job1/source.mp4';
+    expect(await adapter.headSize(key)).toBeNull();
+    await adapter.put(key, Buffer.from('twelve-bytes'));
+    expect(await adapter.headSize(key)).toBe(12);
   });
 
   it('s3 exists returns false on NotFound', async () => {

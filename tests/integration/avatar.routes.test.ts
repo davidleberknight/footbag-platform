@@ -31,6 +31,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import {
@@ -61,15 +62,7 @@ function otherCookie(): string {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema.sql'),
-    'utf8',
-  );
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Avatar Owner',  login_email: 'avatarowner@example.com' });
   completeOnboarding(db, OWN_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Avatar Other', login_email: 'avatarother@example.com' });

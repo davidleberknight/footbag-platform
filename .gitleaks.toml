@@ -1,0 +1,25 @@
+# Gitleaks config for the secret-scan CI job. Extends the default ruleset;
+# the allowlist below covers the repository's verified false-positive
+# classes. Anything new the scanner reports is a real finding to triage,
+# not an excuse to widen this list without looking.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified false positives"
+paths = [
+  # Historical-pipeline identity CSVs: UUID columns trip the generic-api-key
+  # rule. The tree holds no credentials by design (synthetic-only rule).
+  '''legacy_data/.*''',
+  # Scanner output from local runs must never feed back into the scan.
+  '''\.gitleaks-report\.json''',
+]
+regexes = [
+  # Synthetic Stripe-shaped literals in the payments activation test; the
+  # sk_test_/whsec_ prefixes are Stripe test-mode shapes with obviously
+  # fake bodies.
+  '''(sk_test|whsec)_synthetic\d+''',
+  # Doc prose: a parameter name followed by '=' is not a key value.
+  '''thumbnail_url=''',
+]

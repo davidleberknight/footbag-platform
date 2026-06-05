@@ -77,6 +77,7 @@ import {
   ValidationError,
   ConflictError,
   RateLimitedError,
+  ServiceUnavailableError,
 } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
 import {
@@ -89,6 +90,7 @@ import {
   type StripeWebhookEvent,
 } from '../adapters/paymentAdapter';
 import { getCommunicationService } from './communicationService';
+import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -219,15 +221,6 @@ function tierDescriptor(tier: 'tier1' | 'tier2'): string {
 
 function isPurchasableTier(value: unknown): value is 'tier1' | 'tier2' {
   return value === 'tier1' || value === 'tier2';
-}
-
-function isSafePath(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.startsWith('/') &&
-    !value.startsWith('//') &&
-    !value.includes('\\')
-  );
 }
 
 function validateEligibility(currentTier: MemberTier, target: 'tier1' | 'tier2'): void {
@@ -946,6 +939,10 @@ function getPaymentHistoryPage(
 }
 
 // ── Donation / event-registration / recurring (not yet implemented) ──────────
+//
+// Typed ServiceUnavailableError (503), not a bare Error: a stray call site
+// must produce a clean HTTP response, not a stack-trace 500; bare Error is
+// reserved for internal invariant assertions.
 
 function startDonation(
   _memberId: string,
@@ -953,8 +950,8 @@ function startDonation(
   _comment: string | null,
   _recurring: boolean,
 ): never {
-  throw new Error(
-    'startDonation is not yet implemented. The PaymentAdapter interface and stub already cover it; wire the service body when the donation flow is built.',
+  throw new ServiceUnavailableError(
+    'Donations are not available yet. The PaymentAdapter interface and stub already cover it; wire the service body when the donation flow is built.',
   );
 }
 
@@ -963,8 +960,8 @@ function startEventRegistrationPayment(
   _eventRegistrationId: string,
   _amountCents: number,
 ): never {
-  throw new Error(
-    'startEventRegistrationPayment is not yet implemented.',
+  throw new ServiceUnavailableError(
+    'Event registration payments are not available yet.',
   );
 }
 
@@ -972,8 +969,8 @@ function cancelRecurringDonation(
   _memberId: string,
   _stripeSubscriptionId: string,
 ): never {
-  throw new Error(
-    'cancelRecurringDonation is not yet implemented.',
+  throw new ServiceUnavailableError(
+    'Recurring donation management is not available yet.',
   );
 }
 

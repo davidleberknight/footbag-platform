@@ -66,6 +66,14 @@
       <a href="{{cancelHref}}" class="btn btn-link">Cancel</a>
     </p>
   </form>
+
+  {{!-- Separate form: nesting it inside the edit form would orphan the
+        edit form's controls (HTML closes the outer form at the first
+        closing form tag). Deletion is permanent with cascading tag
+        removal. --}}
+  <form method="POST" action="{{deleteAction}}" class="inline-form" data-confirm="Delete this item permanently? Its tags are removed with it. This cannot be undone.">
+    <button type="submit" class="btn-link-danger">Delete this item</button>
+  </form>
 </div>
 <script src="/js/tag-chips.js" defer></script>
 {{#if tagSuggestions}}

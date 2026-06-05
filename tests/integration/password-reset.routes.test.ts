@@ -226,6 +226,33 @@ describe('POST /password/reset/:token', () => {
     expect(second.text).toContain('invalid, expired, or already used');
   });
 
+  it('token issued before the member was marked deceased no longer consumes: 422, password unchanged, no session cookie', async () => {
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET is_deceased=1 WHERE id=?').run(MEMBER_ID);
+    db.close();
+    try {
+      const res = await request(app).post(`/password/reset/${token}`).type('form').send({
+        newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+      });
+      expect(res.status).toBe(422);
+      expect(res.text).toContain('invalid, expired, or already used');
+      const cookies = res.headers['set-cookie'] as string[] | undefined;
+      expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const row = ro.prepare('SELECT password_version FROM members WHERE id=?').get(MEMBER_ID) as
+        | { password_version: number }
+        | undefined;
+      ro.close();
+      expect(row!.password_version).toBe(1);
+    } finally {
+      const restore = new BetterSqlite3(dbPath);
+      restore.prepare('UPDATE members SET is_deceased=0 WHERE id=?').run(MEMBER_ID);
+      restore.close();
+    }
+  });
+
   it('mismatched passwords → 422', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);

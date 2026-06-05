@@ -5,13 +5,22 @@
  * nothing; an admin-set 'suppressed' status is never overwritten; a
  * subscription-confirmation message is recorded for out-of-band operator
  * confirmation and never auto-fetched; the shared-secret query key gates
- * every request.
+ * every request; an unsigned/forged payload is rejected even when the URL
+ * key is correct.
+ *
+ * Behavior tests install a permissive signature verifier (real SNS
+ * signatures require AWS-signed payloads and a network cert fetch); the
+ * forged-payload test runs the real verifier.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import {
+  setSnsSignatureVerifierForTests,
+  resetSnsSignatureVerifierForTests,
+} from '../../src/lib/snsSignature';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -29,10 +38,12 @@ beforeAll(async () => {
   insertMember(db, { id: 'sf-2', slug: 'sf_2', login_email: 'complainer@example.com' });
   insertMember(db, { id: 'sf-3', slug: 'sf_3', login_email: 'suppressed@example.com' });
   db.prepare(`UPDATE members SET email_status = 'suppressed' WHERE id = 'sf-3'`).run();
+  setSnsSignatureVerifierForTests(async () => true);
   createApp = await importApp();
 });
 
 afterAll(() => {
+  resetSnsSignatureVerifierForTests();
   db.close();
   cleanupTestDb(dbPath);
 });
@@ -78,6 +89,20 @@ describe('SES feedback webhook', () => {
       .send(bounceBody(['bouncer@example.com']));
     expect(res.status).toBe(401);
     expect(statusOf('sf-1')).toBe('ok');
+  });
+
+  it('rejects an unsigned forged payload even with the correct URL key (the key lands in access logs; the SNS signature must gate processing)', async () => {
+    resetSnsSignatureVerifierForTests();
+    try {
+      const res = await request(createApp())
+        .post(PATH_WITH_KEY())
+        .type('text/plain')
+        .send(bounceBody(['bouncer@example.com']));
+      expect(res.status).toBe(401);
+      expect(statusOf('sf-1')).toBe('ok');
+    } finally {
+      setSnsSignatureVerifierForTests(async () => true);
+    }
   });
 
   it('a synthetic permanent bounce marks the member bounced with an audit row', async () => {

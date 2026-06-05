@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "IFPA Footbag Platform — current deployed public baseline and long-term community platform",
+  "description": "IFPA Footbag Platform \u2014 current deployed public baseline and long-term community platform",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -13,6 +13,8 @@
     "dev:all": "bash scripts/dev.sh",
     "compose:dev": "bash scripts/compose-dev.sh",
     "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "audit": "audit-ci --moderate",
     "start": "node dist/server.js",
     "test": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",
     "test:watch": "vitest --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",
@@ -45,6 +47,7 @@
     "helmet": "^8.1.0",
     "marked": "^14.1.4",
     "sharp": "^0.34.5",
+    "sns-validator": "^0.3.5",
     "stripe": "^22.2.0"
   },
   "devDependencies": {
@@ -55,15 +58,23 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
+    "@types/sns-validator": "^0.3.3",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.5",
     "audit-ci": "^7.1.0",
+    "eslint": "^10.4.1",
     "fast-check": "^4.8.0",
     "happy-dom": "^20.9.0",
     "supertest": "^7.0.0",
     "tsx": "^4.15.7",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.60.1",
     "vitest": "^4.1.5",
     "yaml": "^2.8.3"
+  },
+  "overrides": {
+    "typed-rest-client": {
+      "qs": "6.15.2"
+    }
   }
 }

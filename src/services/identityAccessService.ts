@@ -963,10 +963,13 @@ export interface RegistrationConflictRecord {
 function detectRegistrationConflicts(memberId: string, realName: string): RegistrationConflictRecord[] {
   const out: RegistrationConflictRecord[] = [];
   const claimedLegacy = declaredAnchors.listClaimedLegacyForConflictScan.all() as Array<{
-    legacy_member_id: string; real_name: string | null; display_name: string | null;
+    legacy_member_id: string; display_name: string | null;
   }>;
   for (const row of claimedLegacy) {
-    const name = row.real_name ?? row.display_name;
+    // Match and display only the chosen public handle: matching on the legal
+    // real_name would let a surname-matched registrant link a member's public
+    // handle to their legal surname, which is itself a disclosure.
+    const name = row.display_name;
     if (!name) continue;
     if (surnameMatchesWithAnchors(memberId, realName, name)) {
       out.push({ displayName: name, sourceLabel: 'Claimed legacy footbag.org account' });
@@ -1220,7 +1223,6 @@ function getLinkHistoryView(
   // this person (transitive: email → legacy → HP back-link). Declared
   // old-email cards are appended by the wizard wrapper with their own
   // provenance labels.
-  let emailLegacyMemberId: string | null = null;
   const seenLegacyIds = new Set<string>(
     stagedRows.map((r) => r.legacy_member_id).filter((v): v is string => v != null),
   );
@@ -1231,7 +1233,6 @@ function getLinkHistoryView(
         const row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
         if (row && !seenLegacyIds.has(row.legacy_member_id)) {
           seenLegacyIds.add(row.legacy_member_id);
-          emailLegacyMemberId = row.legacy_member_id;
           // Detect "both" via HP back-link to avoid duplicate cards.
           const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
           const isBoth = backHp != null;
@@ -3237,6 +3238,7 @@ export function enforceWorkQueueResolveLimit(adminMemberId: string): void {
 
 function revertClaimForDispute(
   adminMemberId: string,
+  workQueueItemId: string,
   targetMemberId: string,
   reason: string,
 ): DisputeRevertResult {
@@ -3244,6 +3246,15 @@ function revertClaimForDispute(
   const trimmed = reason.trim();
   if (!trimmed) {
     throw new ValidationError('A dispute reason is required.');
+  }
+  // The revert is bound to an open dispute queue item: the item cannot name
+  // the holder itself (the disputed record is identified by member-typed free
+  // text), so the binding is that an open dispute must exist and every audit
+  // row names it. Without this, a forged holder id could revert any member's
+  // claim with no trace of which dispute justified it.
+  const item = loadOpenLinkHelpItem(workQueueItemId);
+  if (!isDisputeLinkHelpPayload(item.reason_text)) {
+    throw new ValidationError('That queue item is not a conflict dispute.');
   }
   const originalClaim = legacyClaim.findLatestClaimAuditForMember.get(targetMemberId) as
     | { id: string }
@@ -3258,7 +3269,10 @@ function revertClaimForDispute(
       entityType:    'member',
       entityId:      targetMemberId,
       reasonText:    trimmed,
-      metadata: { original_claim_audit_id: originalClaim?.id ?? null },
+      metadata: {
+        original_claim_audit_id: originalClaim?.id ?? null,
+        work_queue_item_id:      item.id,
+      },
     });
     const reverted = revertAutoLinkInTx(targetMemberId, originalClaim?.id ?? 'unknown', actor);
     if (reverted.status === 'not_found') {
@@ -3275,10 +3289,22 @@ function revertClaimForDispute(
       entityType:    'member',
       entityId:      targetMemberId,
       reasonText:    trimmed,
-      metadata: { original_claim_audit_id: originalClaim?.id ?? null },
+      metadata: {
+        original_claim_audit_id: originalClaim?.id ?? null,
+        work_queue_item_id:      item.id,
+      },
     });
     return { status: 'reverted' as const, originalClaimAuditId: originalClaim?.id ?? null };
   });
+}
+
+function isDisputeLinkHelpPayload(reasonText: string | null): boolean {
+  if (!reasonText) return false;
+  try {
+    return (JSON.parse(reasonText) as Record<string, unknown>).is_dispute === true;
+  } catch {
+    return false;
+  }
 }
 
 export interface ClaimedLegacyIdentity {
@@ -3347,7 +3373,7 @@ function findCrossSourceCandidateAfterHpClaim(memberId: string, personId: string
   return null;
 }
 
-function findCrossSourceCandidateAfterLegacyClaim(memberId: string, legacyMemberId: string): CrossSourceCandidate | null {
+function findCrossSourceCandidateAfterLegacyClaim(memberId: string, _legacyMemberId: string): CrossSourceCandidate | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as
     | { historical_person_id: string | null; real_name: string }
     | undefined;
@@ -3933,4 +3959,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate };

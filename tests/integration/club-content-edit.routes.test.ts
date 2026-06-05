@@ -103,3 +103,24 @@ describe('direct edit (authoritative editors)', () => {
     expect(clubRow(clubId).external_url).toBeNull();
   });
 });
+
+describe('hashtag update', () => {
+  it('a successful hashtag change redirects to the NEW club key (the hashtag is the URL key, so the old slug is dead)', async () => {
+    const { clubKey, leaderId } = seedClubWithLeader();
+    const newSlug = `renamed_${_n}`;
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/hashtag`)
+      .set('Cookie', cookieFor(leaderId))
+      .type('form')
+      .send({ newSlug });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/clubs/club_${newSlug}`);
+
+    // The redirect target resolves; the pre-change slug no longer does.
+    const landed = await request(createApp()).get(`/clubs/club_${newSlug}`);
+    expect(landed.status).toBe(200);
+    const stale = await request(createApp()).get(`/clubs/${clubKey}`);
+    expect(stale.status).toBe(404);
+  });
+});

@@ -153,12 +153,15 @@ describe('GET /members/:slug — regular member', () => {
     expect(res.headers.location).toContain('/login');
   });
 
-  it('returns 404 for different authenticated user', async () => {
+  it('renders a read-only profile for a different authenticated member, without the private contact field', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/members/${REGULAR_SLUG}`)
       .set('Cookie', viewerCookie());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Regular Player');
+    // Default email_visibility is private: the login email must not appear.
+    expect(res.text).not.toContain('regular@example.com');
   });
 });
 

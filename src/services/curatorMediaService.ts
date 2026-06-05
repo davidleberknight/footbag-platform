@@ -4,6 +4,9 @@
  * Owns:
  *   - Admin upload, edit, delete, and list of curator photos and videos on behalf
  *     of the system member account
+ *   - Member-self media lifecycle: photo upload, video URL submission,
+ *     per-item edit, and permanent delete (owner-scoped row loads;
+ *     auto-applied `#by_<slug>` uploader marker)
  *   - Magic-byte and format validation
  *   - ffmpeg curator transcode pipeline
  *   - Storage key construction matching the curator-seed layout
@@ -12,7 +15,9 @@
  *     `member_galleries` rows)
  *
  * Does not own:
- *   - Member-attributed uploads (MediaGalleryService)
+ *   - Public gallery/browse page shaping (MediaGalleryService) or the
+ *     avatar lifecycle (AvatarService; avatar rows are refused by the
+ *     member-self delete)
  *
  * Required patterns:
  *   - `uploader_member_id` is always the system member id (`is_system=1`); the admin
@@ -80,7 +85,7 @@
  */
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
+import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType } from '../lib/imageProcessing';
@@ -117,11 +122,9 @@ import {
   GALLERY_DESCRIPTION_MAX_LEN,
   type GallerySortOrderValue,
   validateGallerySidecarData,
-  formatGallerySidecarJson,
   writeGallerySidecarFile,
   deleteGallerySidecarFile,
   deriveGallerySidecarPath,
-  GallerySidecarValidationError,
   type GallerySidecarData,
 } from '../lib/curatorGallerySidecar';
 import { writeSidecar } from '../lib/curatorSidecar';
@@ -817,6 +820,9 @@ export interface CuratorGalleryEditView {
     editHref: string;
     isUnavailableEmbed: boolean;
   }>;
+  // True when the matching set exceeds the single-page render cap and
+  // currentItems holds only the first page-worth; the form shows a notice.
+  currentItemsTruncated: boolean;
   // External URLs already attached to the gallery; pre-fills the edit
   // form's external-link fieldset. Empty when none have been set.
   // `quarantineReason` is non-null when the runtime boot scan rejected the
@@ -966,6 +972,8 @@ interface MediaItemRow {
   thumbnail_url: string | null;
   source_filename: string | null;
   external_url: string | null;
+  // Present on the owner-scoped read; the curator-side statement omits it.
+  is_avatar?: number;
 }
 
 interface MediaListRow {
@@ -1946,7 +1954,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }>;
         const criteriaTagIds = criteriaTagRows.map((t) => t.id);
         const excludeTagIds = excludeTagRows.map((t) => t.id);
-        const itemRows = listGalleryItemsForDisplay(criteriaTagIds, excludeTagIds);
+        // Cap+1 fetch so a broad criteria set cannot fan the edit grid out
+        // into an unbounded render; the form shows a truncation notice.
+        const itemRowsFetched = listGalleryItemsForDisplay(
+          criteriaTagIds, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+        );
+        const currentItemsTruncated = itemRowsFetched.length > GALLERY_ITEMS_QUERY_CAP;
+        const itemRows = currentItemsTruncated
+          ? itemRowsFetched.slice(0, GALLERY_ITEMS_QUERY_CAP)
+          : itemRowsFetched;
         const currentItems = itemRows.map((r) => ({
           mediaId: r.id,
           mediaType: r.media_type,
@@ -1985,6 +2001,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             .join(' '),
           excludeTags: excludeTagRows.map((t) => t.tag_display),
           currentItems,
+          currentItemsTruncated,
           externalLinks,
         };
       });
@@ -2170,7 +2187,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // the error message (`member_galleries.id` vs `…owner_member_id, …name`).
       const MAX_ID_ATTEMPTS = 100;
       let attempt = 0;
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         try {
           transaction(() => {
@@ -2300,8 +2316,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
 
     // Lists every gallery owned by a given member, including item count.
-    // Public read; no authz gate. Used by the member profile "Galleries"
-    // section (slice 2b consumer) and tests.
+    // Public read; no authz gate. Drives the member profile "Galleries"
+    // section.
     listGalleriesForOwner(memberId: string): CuratorGallerySummary[] {
       return runSqliteRead('listGalleriesForOwner', () => {
         const rows = media.listMemberGalleriesByOwner.all(memberId) as Array<{
@@ -2510,6 +2526,77 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { mediaId: input.mediaId, updatedAt: now };
     },
 
+    // Member-self delete. Permanent (no soft delete for media) with
+    // cascading removal of the item's tag rows, per US M_Delete_Own_Media.
+    // Owner-scoped: the row load is gated by uploader_member_id, so a
+    // non-owner gets NotFoundError. Avatar rows are refused: the avatar
+    // lifecycle (replace-on-upload) belongs to AvatarService, and deleting
+    // the row out from under it would silently clear the member's avatar.
+    async deleteMemberMedia(input: {
+      memberId: string;
+      actorIsAdmin: boolean;
+      mediaId: string;
+    }): Promise<{ mediaId: string }> {
+      if (!input.actorIsAdmin) {
+        throttlePerActor(
+          'media-edit', input.memberId,
+          'media_edit_rate_limit_per_hour', 15,
+          'Too many media changes.',
+        );
+      }
+      assertTier1Benefits(input.memberId);
+
+      const row = runSqliteRead('getMemberMediaItemById', () =>
+        media.getMemberMediaItemById.get(input.mediaId, input.memberId),
+      ) as MediaItemRow | undefined;
+      if (!row || row.is_avatar === 1) {
+        throw new NotFoundError(`Member media not found: ${input.mediaId}`);
+      }
+
+      // Member media is a photo (stored bytes) or a YouTube/Vimeo URL
+      // reference (no stored bytes); collect storage keys for the photo case.
+      const keysToDelete: string[] = [];
+      if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
+      if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
+
+      const deletedTagIds = (tagStats.listTagIdsByMediaId.all(input.mediaId) as { tag_id: string }[]).map(r => r.tag_id);
+
+      transaction(() => {
+        mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
+        media.deleteMediaItem.run(input.mediaId);
+        appendAuditEntry({
+          actionType: 'delete_member_media',
+          category: 'media',
+          actorType: 'member',
+          actorMemberId: input.memberId,
+          entityType: 'media_item',
+          entityId: input.mediaId,
+          metadata: {
+            mediaType: row.media_type,
+            sourceFilename: row.source_filename,
+            videoPlatform: row.video_platform,
+            videoUrl: row.video_url,
+          },
+        });
+      });
+      hashtagDiscoveryService.decrementTagStats(deletedTagIds);
+
+      // Storage cleanup after the DB transaction commits. Best-effort: a
+      // failed delete leaves an orphan object but never resurrects the row.
+      for (const key of keysToDelete) {
+        try {
+          await storage.delete(key);
+        } catch (err) {
+          logger.warn('curatorMediaService.deleteMemberMedia: storage.delete failed', {
+            key,
+            error: (err as Error).message,
+          });
+        }
+      }
+
+      return { mediaId: input.mediaId };
+    },
+
     // Member-attributed video URL submission. URL-reference only (no
     // bytes hosted), per US M_Submit_Video. The service verifies the
     // URL via the platform's oEmbed endpoint (the only reliable
@@ -2553,6 +2640,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
 
+      // Store the canonical platform URL reconstructed from the parsed id,
+      // not the member-typed string: the raw string renders verbatim as an
+      // anchor href (video facade), and the id parsers substring-match, so
+      // a wrapper URL on a foreign host could otherwise carry a valid id
+      // and become a member-authored off-platform link.
+      const canonicalVideoUrl = input.videoPlatform === 'youtube'
+        ? `https://www.youtube.com/watch?v=${videoId}`
+        : `https://vimeo.com/${videoId}`;
+
       let thumbnailUrl: string | null = null;
       if (input.videoPlatform === 'vimeo') {
         const t = (verify.body as { thumbnail_url?: unknown } | undefined)?.thumbnail_url;
@@ -2580,7 +2676,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         media.insertMemberVideo.run(
           mediaId, now, now,
           input.memberId, input.caption, now,
-          input.videoPlatform, videoId, input.videoUrl, thumbnailUrl,
+          input.videoPlatform, videoId, canonicalVideoUrl, thumbnailUrl,
         );
         if (normalizedExternalUrl !== null) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, input.memberId);

@@ -90,9 +90,9 @@ export interface AppConfig {
   // URL the worker container uses to call back into the web container for job
   // event notifications. Required in production.
   webInternalUrl: string;
-  // Shared secret for the worker<->web internal-event channel. Required when
-  // workerInternalUrl or webInternalUrl is set to a non-loopback host.
-  internalEventSecret: string | undefined;
+  // Shared secret for the worker<->web internal-event channel. Always
+  // required: the /ipc router that trusts it is always mounted.
+  internalEventSecret: string;
   sesFeedbackWebhookKey: string | undefined;
   // Lease duration for a worker's claim on a media_jobs row. Worker boot-time
   // recovery considers any 'processing' row whose lease has expired to be
@@ -554,18 +554,16 @@ function loadConfig(): AppConfig {
   const webInternalUrl =
     process.env.WEB_INTERNAL_URL || `http://localhost:${port}`;
   // INTERNAL_EVENT_SECRET authenticates web<->image-worker and web<->
-  // transcode-worker calls. Dev convenience: default to a known
-  // non-production value when unset under non-production NODE_ENV. Web
-  // and image worker run in the same shell under `./run_dev.sh` so
-  // they read the same env via dotenv and end up with the same token.
-  // Production reaches the existing fail-fast below via
-  // MEDIA_STORAGE_ADAPTER=s3, so no separate prod gate is needed here.
-  const explicitInternalSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
-  const internalEventSecret =
-    explicitInternalSecret ?? (isProd ? undefined : 'dev-internal-event-secret-not-for-prod');
-  if (mediaStorageAdapter === 's3' && !internalEventSecret) {
+  // transcode-worker calls. The /ipc router that trusts it is always
+  // mounted, so an explicit secret is required in every mode: a known
+  // fallback literal would let anyone who can reach /ipc/* on a
+  // misconfigured host publish forged job events. `./run_dev.sh` and the
+  // compose files supply the value for local stacks; web and image worker
+  // launched from the same shell inherit the same token.
+  const internalEventSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
+  if (!internalEventSecret) {
     throw new Error(
-      'INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3 (worker<->web event channel)',
+      'INTERNAL_EVENT_SECRET is required (worker<->web event channel; the /ipc router is always mounted)',
     );
   }
   // SES_FEEDBACK_WEBHOOK_KEY authenticates the public SNS feedback webhook

@@ -36,6 +36,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
 import {
@@ -73,12 +74,7 @@ async function makeJpeg(): Promise<Buffer> {
 }
 
 beforeAll(async () => {
-  const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(TEST_DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(schema);
-
+  const db = createTestDb(TEST_DB_PATH);
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'Upload Owner' });
   completeOnboarding(db, OWNER_ID);
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member' });
@@ -591,6 +587,37 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
         | undefined;
       expect(row?.video_platform).toBe('youtube');
       expect(row?.video_id).toBe('dQw4w9WgXcQ');
+      // The stored URL is the canonical platform URL, not the raw string.
+      expect(row?.video_url).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('stores the canonical platform URL, never the member-typed string: a foreign-host wrapper URL carrying a valid id must not become the rendered href', async () => {
+    const app = createApp();
+    // The verifier stub accepts this (worst case: the platform oEmbed lets a
+    // wrapper through); the persisted URL must still be canonical.
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://evil.example/redirect?u=https://www.youtube.com/watch?v=wRaPPeRiD11')
+      .field('caption', 'wrapped')
+      .field('tags', '');
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const row = db.prepare(`
+        SELECT video_id, video_url
+        FROM media_items
+        WHERE uploader_member_id = ? AND media_type = 'video' AND caption = 'wrapped'
+      `).get(OWNER_ID) as { video_id: string; video_url: string } | undefined;
+      expect(row?.video_id).toBe('wRaPPeRiD11');
+      expect(row?.video_url).toBe('https://www.youtube.com/watch?v=wRaPPeRiD11');
+      expect(row?.video_url).not.toContain('evil.example');
     } finally {
       db.close();
     }

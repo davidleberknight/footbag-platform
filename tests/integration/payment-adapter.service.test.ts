@@ -211,10 +211,11 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     }
   });
 
-  it('startDonation and startEventRegistrationPayment throw (not yet implemented)', async () => {
+  it('startDonation and startEventRegistrationPayment throw a typed unavailable error (clean 503, not a stack-trace 500)', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
-    expect(() => paymentService.startDonation('m', 1000, null, false)).toThrow(/not yet implemented/i);
-    expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(/not yet implemented/i);
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    expect(() => paymentService.startDonation('m', 1000, null, false)).toThrow(ServiceUnavailableError);
+    expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(ServiceUnavailableError);
   });
 });
 

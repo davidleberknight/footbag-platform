@@ -1,36 +1,28 @@
 /**
- * MediaGalleryService -- member-attributed media upload, gallery, and moderation.
+ * MediaGalleryService -- public media page shaping for the /media URL space.
  *
- * (Implementation file is `mediaService.ts`; the avatar sub-service lives in
+ * (Implementation file is `mediaService.ts`. Member/curator media WRITES live
+ * in `curatorMediaService.ts`; the avatar sub-service lives in
  * `avatarService.ts` via the factory `createAvatarService`.)
  *
  * Owns:
- *   - Member photo upload and processing
- *   - Member video link submission
- *   - Gallery management (criteria/exclude tag sets; ordering)
- *   - Media tagging operations
- *   - Media flag and moderation workflows
+ *   - /media hub page read (FH-owned + member-owned named-gallery listing)
+ *   - /media/:galleryId named-gallery page read (tag-AND membership)
+ *   - /media/browse on-the-fly tag browse read (paginated results mode)
  *
  * Does not own:
- *   - Curator-attributed (system-member) uploads (CuratorMediaService)
+ *   - Any media or gallery write: uploads, edits, deletes, gallery
+ *     management, tagging (CuratorMediaService)
  *   - Tag stats recomputation (HashtagDiscoveryService.rebuildTagStats, run via
  *     OperationsPlatformService)
  *   - S3 lifecycle management
  *
  * Required patterns:
- *   - HD media (no soft-delete). Flags and tags cascade-delete with media.
- *     Gallery contents cascade with gallery delete. Avatar and club logo detach on
- *     media delete (`ON DELETE SET NULL`).
- *   - Photo security pipeline mandatory: re-encode as JPEG 85%, strip EXIF/ICC,
- *     generate 300x300 thumbnail and 800px display variant, discard original.
- *   - Max 5 video embeds per gallery.
- *   - One avatar per member (partial UNIQUE index `ux_media_avatar_per_member`).
- *   - Standard tags must not be HD.
- *   - Tag validation is delegated to `HashtagDiscoveryService.validateAndResolveTag`;
- *     this service does not normalize or create tags directly.
- *   - Uploader-attribution `#by_<slug>` namespace is system-managed at upload time.
+ *   - Read-only: no persistence writes, no audit rows, no outbox enqueues.
  *   - Named-gallery and browse page reads filter `moderation_status = 'active'` and
  *     `is_avatar = 0`; default ordering follows `member_galleries.sort_order`.
+ *   - Named-gallery render is capped at `GALLERY_ITEMS_QUERY_CAP` rows with a
+ *     pre-shaped truncation notice when the matching set exceeds it.
  *   - `/media/browse` accepts repeatable `?tag=` and `?exclude=`, normalized to
  *     `#<lowercase>`, deduplicated; include wins over same-token exclude. Mode is
  *     `browse` (form pane only) when no token resolves, otherwise `results`
@@ -39,25 +31,16 @@
  *   - Hero `byMember` chip lifts from any `#by_<slug>` criterion (auth-gated profile
  *     link) so the template renders "by *Member Name*" attribution distinct from
  *     gallery ownership.
+ *   - Viewer-aware shaping (`viewer: ViewerContext`): per-item member hrefs are
+ *     nulled when the viewer cannot reach the linked profile.
  *
- * Persistence:
- *   media_items, member_galleries, member_gallery_tags, member_gallery_exclude_tags,
- *   gallery_external_links, media_tags, media_flags, tags, members, work_queue_items,
- *   audit_entries, outbox_emails.
- *
- * Side effects:
- *   - audit_entries append
- *   - work_queue_items insert (media flag) with admin-alerts mailing-list notification
- *   - outbox_emails enqueue (admin takedown notification)
- *
- * Service shape: singleton object (no external adapters beyond db.ts). Avatar via
- * the `createAvatarService(deps)` factory in `avatarService.ts`.
+ * Service shape: singleton object (storage adapter used only to construct
+ * read URLs).
  */
 import {
   CuratorGalleryRow,
-  FhNamedGalleryRow,
   FhNamedGalleryTagRow,
-  NamedGalleryGroupedRow,
+  GALLERY_ITEMS_QUERY_CAP,
   countGalleryItemsByCriteria,
   media,
   queryCuratorMediaTags,
@@ -253,6 +236,9 @@ export interface NamedGalleryContent {
   // Pre-pluralized nouns so the hero subtitle never counts in the template.
   totalItemsNoun: string;   // 'item' / 'items'
   excludeTagsNoun: string;  // 'tag' / 'tags'
+  // Pre-shaped notice when the result set exceeds the single-page render
+  // cap; null when everything fits.
+  truncationNotice: string | null;
 }
 
 // /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
@@ -321,10 +307,6 @@ function sanitizePage(raw: unknown): number {
     : NaN;
   if (!Number.isFinite(n) || n < 1) return 1;
   return Math.floor(n);
-}
-
-function buildHref(galleryId: string, page: number): string {
-  return page === 1 ? `/media/${galleryId}` : `/media/${galleryId}?page=${page}`;
 }
 
 function shapeItem(
@@ -445,7 +427,17 @@ export const mediaService = {
       const tagIds = tagRows.map((t) => t.id);
       const excludeTagIds = excludeTagRows.map((t) => t.id);
 
-      const rows = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds);
+      // Fetch cap+1 to detect overflow: this is a public unauthenticated
+      // route, so the render must stay bounded no matter how broad the
+      // gallery criteria are.
+      const fetched = queryGalleryItemsByCriteriaGrouped(
+        tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+      );
+      const truncated = fetched.length > GALLERY_ITEMS_QUERY_CAP;
+      const rows = truncated ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
+      const truncationNotice = truncated
+        ? `Showing the first ${GALLERY_ITEMS_QUERY_CAP} of ${countGalleryItemsByCriteria(tagIds, excludeTagIds)} items.`
+        : null;
 
       // Per-item tag rows for tile-level chip rendering.
       const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
@@ -503,6 +495,7 @@ export const mediaService = {
           totalItems: rows.length,
           totalItemsNoun: rows.length === 1 ? 'item' : 'items',
           excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
+          truncationNotice,
         },
       };
     });

@@ -173,11 +173,12 @@ publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, re
 publicRouter.get('/members/:memberKey/media/upload',  requireAuth, memberMediaUploadController.getUpload);
 publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1Benefits(), memberMediaUploadController.postUpload);
 
-// Per-item edit (caption + tags + external URL). MUST be registered
-// after /media/upload so the literal `upload` segment wins on POST;
-// controller also defends with an `:mediaId === 'upload'` 404.
+// Per-item edit (caption + tags + external URL) and permanent delete.
+// MUST be registered after /media/upload so the literal `upload` segment
+// wins on POST; controller also defends with an `:mediaId === 'upload'` 404.
 publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireAuth, memberMediaEditController.getEdit);
 publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireAuth, requireTier1Benefits(), memberMediaEditController.postUpdate);
+publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireAuth, requireTier1Benefits(), memberMediaEditController.postDelete);
 
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 

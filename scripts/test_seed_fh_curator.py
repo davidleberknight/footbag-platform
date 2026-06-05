@@ -113,19 +113,15 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
             ).fetchone()
             assert s3_count == 2, f"expected 2 s3-platform rows, got {s3_count}"
 
-            # Atomic shared tags: both demo loops carry #demo; the
-            # freestyle demo additionally carries #freestyle and the net
-            # demo additionally carries #net.
-            (demo_count,) = con.execute(
-                "SELECT COUNT(*) FROM media_tags WHERE tag_display = '#demo'"
-            ).fetchone()
-            assert demo_count == 2, f"expected 2 rows tagged #demo, got {demo_count}"
-            for tag in ("#freestyle", "#net"):
+            # Demo tags mirror the curated sidecars: each demo loop carries
+            # its own discipline-scoped demo tag, and the freestyle demo
+            # additionally carries the shared #freestyle tag.
+            for tag, expected in (("#demo_freestyle", 1), ("#demo_net", 1), ("#freestyle", 1)):
                 (tagged,) = con.execute(
                     "SELECT COUNT(*) FROM media_tags WHERE tag_display = ?",
                     (tag,),
                 ).fetchone()
-                assert tagged == 1, f"expected 1 row for tag {tag!r}, got {tagged}"
+                assert tagged == expected, f"expected {expected} row(s) for tag {tag!r}, got {tagged}"
 
             # FH avatar pointer must be set to the avatar media row.
             (fh_id, fh_avatar_id) = con.execute(
@@ -919,6 +915,86 @@ def test_file_paired_tag_shape_validation() -> None:
         )
 
 
+def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
+    """The FH member's historical_person_id self-heals on every seed run:
+    linked while a matching historical person exists, cleared to NULL when a
+    historical_persons reload removed that row (loaders run with foreign keys
+    off, so a stale value would otherwise dangle), and re-linked when the row
+    returns."""
+    if not PYTHON.exists():
+        raise RuntimeError(
+            f"venv python missing at {PYTHON}; run `bash scripts/reset-local-db.sh` "
+            f"once or `python3 -m venv scripts/.venv && scripts/.venv/bin/pip install "
+            f"-r scripts/requirements.txt` to bootstrap."
+        )
+
+    def insert_hacky_hp(db_path: Path, person_id: str) -> None:
+        con = sqlite3.connect(db_path)
+        try:
+            con.execute(
+                """INSERT INTO historical_persons
+                     (person_id, person_name, country, event_count, placement_count,
+                      bap_member, hof_member, hof_induction_year)
+                   VALUES (?, 'Footbag Hacky', 'USA', 1, 1, 0, 1, 2025)""",
+                (person_id,),
+            )
+            con.commit()
+        finally:
+            con.close()
+
+    def fh_link(db_path: Path) -> str | None:
+        con = sqlite3.connect(db_path)
+        try:
+            row = con.execute(
+                "SELECT historical_person_id FROM members WHERE slug = 'footbag_hacky'"
+            ).fetchone()
+            assert row is not None, "FH member row missing"
+            return row[0]
+        finally:
+            con.close()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = tmp_path / "curated"
+        source_dir.mkdir()
+        for subdir in ("avatars", "events", "landing", "galleries"):
+            (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
+        subprocess.run(
+            ["sqlite3", str(db_path)],
+            input=SCHEMA.read_text(),
+            text=True,
+            check=True,
+        )
+
+        # HP present at seed time -> linked.
+        insert_hacky_hp(db_path, "person-hacky-test")
+        run_seeds(db_path, media_dir, source_dir)
+        assert fh_link(db_path) == "person-hacky-test", (
+            f"expected FK linked to person-hacky-test, got {fh_link(db_path)!r}"
+        )
+
+        # A historical_persons reload removed the row -> re-run clears to NULL.
+        con = sqlite3.connect(db_path)
+        try:
+            con.execute("DELETE FROM historical_persons WHERE person_id = 'person-hacky-test'")
+            con.commit()
+        finally:
+            con.close()
+        run_seeds(db_path, media_dir, source_dir)
+        assert fh_link(db_path) is None, (
+            f"expected NULL after HP removal, got {fh_link(db_path)!r}"
+        )
+
+        # The HP returns (fresh id, as a rebuild would mint) -> re-linked.
+        insert_hacky_hp(db_path, "person-hacky-test-2")
+        run_seeds(db_path, media_dir, source_dir)
+        assert fh_link(db_path) == "person-hacky-test-2", (
+            f"expected FK re-linked to person-hacky-test-2, got {fh_link(db_path)!r}"
+        )
+
+
 if __name__ == "__main__":
     test_seed_fh_curator_against_fresh_schema()
     print("OK: seed_fh_curator.py produces expected rows + on-disk artifacts; idempotent on re-run")
@@ -945,3 +1021,5 @@ if __name__ == "__main__":
     print("OK: file-paired malformed sidecar fails fast (3f)")
     test_file_paired_tag_shape_validation()
     print("OK: file-paired tag shape validation (3g)")
+    test_fh_historical_person_link_converges_across_hp_reloads()
+    print("OK: FH historical-person link converges across historical_persons reloads")

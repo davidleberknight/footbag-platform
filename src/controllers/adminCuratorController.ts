@@ -516,17 +516,23 @@ export const adminCuratorController = {
         type: sortQuery('type_asc'),
         caption: sortQuery('caption_asc'),
       };
+      // Pre-shaped booleans so the template never branches on raw sort or
+      // flash codes.
       const sortIndicator = {
-        date: sort === 'date_desc' ? 'desc' : sort === 'date_asc' ? 'asc' : null,
-        type: sort === 'type_asc' ? 'asc' : null,
-        caption: sort === 'caption_asc' ? 'asc' : null,
+        dateDesc: sort === 'date_desc',
+        dateAsc: sort === 'date_asc',
+        type: sort === 'type_asc',
+        caption: sort === 'caption_asc',
       };
 
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render('admin/curator/list', {
         seo: { title: 'Curated Media' },
         page: { sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media' },
-        items: result.items,
+        items: result.items.map((item) => ({
+          ...item,
+          isConfirmDelete: confirmDeleteId !== null && item.mediaId === confirmDeleteId,
+        })),
         total: result.total,
         currentPage: result.page,
         totalPages,
@@ -537,8 +543,8 @@ export const adminCuratorController = {
         prevPageHref,
         nextPageHref,
         emptyState: result.items.length === 0,
-        savedFlag,
-        confirmDeleteId,
+        savedWasEdit: savedFlag === 'edit',
+        savedWasDelete: savedFlag === 'delete',
       });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -677,10 +683,12 @@ export const adminCuratorController = {
       res.render('admin/curator/galleries/list', {
         seo: { title: 'Curator Galleries' },
         page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_list', title: 'Curator Galleries' },
-        items,
+        items: items.map((item) => ({
+          ...item,
+          isConfirmDelete: confirmDeleteId !== null && item.id === confirmDeleteId,
+        })),
         emptyState: items.length === 0,
         savedFlag,
-        confirmDeleteId,
       });
     } catch (err) {
       next(err);
@@ -754,6 +762,7 @@ export const adminCuratorController = {
       try {
         const g = svc.getGalleryForEdit(galleryId);
         const currentItems = g.currentItems;
+        const currentItemsTruncated = g.currentItemsTruncated;
         res.render('admin/curator/galleries/edit', {
           seo: { title: 'Edit Curator Gallery' },
           page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
@@ -767,6 +776,7 @@ export const adminCuratorController = {
             excludeTagsString: g.excludeTags.join(' '),
           },
           currentItems,
+          currentItemsTruncated,
           uploadTags: g.criteriaTags.join(' '),
           externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
         });
@@ -1032,12 +1042,25 @@ export const adminCuratorController = {
       }
 
       const storage = getMediaStorageAdapter();
-      const [videoExists, posterExists] = await Promise.all([
-        storage.exists(job.source_video_key),
-        storage.exists(job.source_poster_key),
+      const [videoSize, posterSize] = await Promise.all([
+        storage.headSize(job.source_video_key),
+        storage.headSize(job.source_poster_key),
       ]);
-      if (!videoExists || !posterExists) {
+      if (videoSize === null || posterSize === null) {
         res.status(409).json({ error: 'source files have not been uploaded yet' });
+        return;
+      }
+      // The presigned PUT binds content-type but cannot bind size, so the
+      // sign-time check only saw a client-reported number; this is the first
+      // point the actual uploaded bytes can be measured. Reject before
+      // markPendingTranscode so the worker is never dispatched an oversized
+      // source.
+      if (videoSize > VIDEO_MAX_BYTES) {
+        res.status(413).json({ error: 'Video is too large. Maximum size is 150 MB.' });
+        return;
+      }
+      if (posterSize > POSTER_MAX_BYTES) {
+        res.status(413).json({ error: 'Poster is too large. Maximum size is 25 MB.' });
         return;
       }
 
@@ -1223,8 +1246,11 @@ function renderCuratorGalleryEditError(
   ctx: CuratorGalleryEditErrorContext,
 ): void {
   let currentItems: CuratorGalleryEditView['currentItems'] = [];
+  let currentItemsTruncated = false;
   try {
-    currentItems = buildSvc().getGalleryForEdit(ctx.galleryId).currentItems;
+    const reread = buildSvc().getGalleryForEdit(ctx.galleryId);
+    currentItems = reread.currentItems;
+    currentItemsTruncated = reread.currentItemsTruncated;
   } catch {
     /* gallery may have been deleted concurrently; render with empty items */
   }
@@ -1243,6 +1269,7 @@ function renderCuratorGalleryEditError(
       excludeTagsString: ctx.excludeTagsRaw,
     },
     currentItems,
+    currentItemsTruncated,
     uploadTags: ctx.uploadTagsRaw,
     externalLinkSlots: buildExternalLinkSlots(ctx.externalLinks, [], ctx.fieldErrors),
   });

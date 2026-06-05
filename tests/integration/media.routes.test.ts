@@ -651,6 +651,42 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.text).toContain(`${suffix}-00`);
   });
 
+  it('caps the public render and shows a truncation notice when more items match than the single-page bound', async () => {
+    // Dedicated gallery + tag so the 101-item corpus cannot pollute the
+    // FH-gallery expectations of other tests in this file.
+    const db = openDb();
+    const capTagId = `tag-test-capstress`;
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#capstress', '#capstress', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(capTagId, TS, TS);
+    insertNamedGallery(db, {
+      id: 'gallery_cap_stress',
+      ownerId: SYSTEM_ID,
+      name: 'Cap Stress',
+    });
+    insertGalleryCriteria(db, 'gallery_cap_stress', [capTagId]);
+    for (let i = 0; i < 101; i++) {
+      const seq = String(i).padStart(3, '0');
+      const id = insertPhoto(db, {
+        id: `media_cap_${seq}`,
+        caption: `capstress-${seq}`,
+        uploaded_at: `2026-01-01T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`,
+      });
+      attachTag(db, id, capTagId, '#capstress');
+    }
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get('/media/gallery_cap_stress');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Showing the first 100 of 101 items.');
+    // Exactly one matching item drops: with upload_desc ordering the oldest
+    // (lowest sequence) is the one past the cap.
+    expect(res.text).toContain('capstress-100');
+    expect(res.text).not.toContain('capstress-000');
+  });
+
   it('ignores ?page query in grouped mode (no crash, still 200)', async () => {
     const app = createApp();
     for (const bad of ['abc', '-5', '0', '0.5', '999']) {

@@ -94,13 +94,14 @@ export const adminWorkQueueController = {
    * the queue item open so the admin can then approve the requester's link
    * (which resolves the item) or reject it. */
   async linkHelpDisputeRevert(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const queueItemId = req.params['id'] ?? '';
     const holderMemberId = String(req.body?.holder_member_id ?? '').trim();
     const reason = String(req.body?.reason ?? '');
     try {
       if (!holderMemberId) {
         throw new ValidationError('The current holder\'s member id is required.');
       }
-      const result = identityAccessService.revertClaimForDispute(req.user!.userId, holderMemberId, reason);
+      const result = identityAccessService.revertClaimForDispute(req.user!.userId, queueItemId, holderMemberId, reason);
       if (result.status === 'nothing_to_revert') {
         res.status(422).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That member holds no claim to revert.' }));
         return;

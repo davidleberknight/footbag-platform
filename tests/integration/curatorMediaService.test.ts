@@ -90,6 +90,7 @@ function makeStubStorage(): StubStorage {
     },
     constructURL(key) { return `/media-store/${key}`; },
     async exists(key) { return contents.has(key); },
+    async headSize(key) { return contents.get(key)?.length ?? null; },
     async generatePresignedPutUrl(key, contentType, expirationSeconds) {
       return `/_stub-presigned-put/${key}?ct=${encodeURIComponent(contentType)}&exp=${expirationSeconds}`;
     },
@@ -1050,7 +1051,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoPlatform: 'youtube',
       primarySlug: 'around-the-world',
       title: 'Around the world tutorial',
-      creator: 'Kenny Shults',
+      creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
       tier: 'CANONICAL_TUTORIAL',
       startSeconds: null,
@@ -1069,7 +1070,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
       videoPlatform: 'youtube',
       title: 'Around the world tutorial',
-      creator: 'Kenny Shults',
+      creator: 'Synthetic Creator',
       sourceId: 'tt_youtube',
       tier: 'CANONICAL_TUTORIAL',
     });

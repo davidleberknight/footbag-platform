@@ -75,8 +75,10 @@ interface PersonsBrowseContent {
   itemCount: number;
   currentPage: number;
   totalPages: number;
-  prevPage: number | null;
-  nextPage: number | null;
+  // Pre-built pagination hrefs (page + active filters) so the template never
+  // assembles a URL from multiple variables.
+  prevHref: string | null;
+  nextHref: string | null;
 }
 
 interface PersonsQcContent {
@@ -140,6 +142,13 @@ export const personsQcService = {
       flagged: flaggedIds.has(r.person_id),
     }));
 
+    const browseHref = (p: number): string => {
+      const params = new URLSearchParams({ page: String(p) });
+      if (filters.search) params.set('search', filters.search);
+      if (filters.source) params.set('source', filters.source);
+      return `/internal/persons/browse?${params.toString()}`;
+    };
+
     return {
       seo: { title: 'Persons Browse' },
       page: { sectionKey: 'internal', pageKey: 'persons_browse', title: 'Persons Browse' },
@@ -156,8 +165,8 @@ export const personsQcService = {
         itemCount: pageItems.length,
         currentPage: page,
         totalPages,
-        prevPage: page > 1 ? page - 1 : null,
-        nextPage: page < totalPages ? page + 1 : null,
+        prevHref: page > 1 ? browseHref(page - 1) : null,
+        nextHref: page < totalPages ? browseHref(page + 1) : null,
       },
     };
   },
