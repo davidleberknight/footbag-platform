@@ -186,6 +186,17 @@ describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', (
     expect(html).toMatch(/<strong>Documentation is not canonization\.<\/strong>/);
     expect(html).toMatch(/<strong>promoted<\/strong>/);
   });
+
+  it('advanced-reference adds the source-divergence case study (cohort vs single-trick)', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="source-divergence"');
+    // Single-trick case (Big Apple Sauce) contrasted with a systematic cohort
+    // (furious / railing) whose source over-count is a convention, not an error.
+    expect(html).toMatch(/Big Apple Sauce/);
+    expect(html).toMatch(/<code>furious<\/code>/);
+    expect(html).toMatch(/<code>railing<\/code>/);
+    expect(html).toMatch(/cataloguing a number and understanding a grammar/);
+  });
 });
 
 describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () => {

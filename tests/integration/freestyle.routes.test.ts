@@ -2394,10 +2394,16 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                scopes (tutorial / demonstration / record) + teach-
     //                without-resolving framing + galleries link. Glossary
     //                evolution plan, doctrine-free; not prose drift.
+    //   250K → 255K  source-divergence case study in the Advanced
+    //                Reference section: the Big Apple Sauce single-trick
+    //                miscount contrasted with the systematic furious/railing
+    //                cohort convention (publish structural, document the
+    //                source divergence). Curator-requested publication-policy
+    //                pedagogy, not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(250_000);
+    expect(res.text.length).toBeLessThan(255_000);
   });
 });
 
