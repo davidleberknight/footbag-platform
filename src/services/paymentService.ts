@@ -76,7 +76,9 @@ import {
   NotFoundError,
   ValidationError,
   ConflictError,
+  RateLimitedError,
 } from './serviceErrors';
+import { hit as rateLimitHit } from './rateLimitService';
 import {
   applyPurchaseGrantInTx,
   getTierStatus,
@@ -337,6 +339,18 @@ async function startMembershipPurchase(
   }
   const current = getTierStatus(memberId);
   validateEligibility(current.tier_status, tier);
+
+  // Throttle before the checkout-session call: every attempt creates a
+  // session at the payment provider (a real Stripe session in live mode),
+  // so an unthrottled burst piles up orphaned sessions.
+  const rlMax = readIntConfig('purchase_tier_rate_limit_per_hour', 20);
+  const rl = rateLimitHit(`purchase-tier:${memberId}`, rlMax, 60);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many purchase attempts. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
 
   const slug = lookupSlug(memberId);
   const safeReturn = safeReturnTo(returnTo, `/members/${slug}`);
@@ -854,6 +868,27 @@ function getPaymentSuccessPage(
   payment: PaymentRow,
   continueHref: string,
 ): PageViewModel<SuccessContent> {
+  // The browser can reach the success URL before the provider webhook lands
+  // (live mode), so the row may still be 'pending' with the tier ungranted.
+  // The page must not claim activation yet; the webhook stays the only
+  // state mutator, this is display shaping only.
+  if (payment.status === 'pending') {
+    return {
+      seo:  { title: 'Payment processing' },
+      page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment processing' },
+      content: {
+        paymentId: payment.id,
+        paymentType: payment.payment_type,
+        purchasedTierStatus: payment.purchased_tier_status,
+        amountDisplay: formatAmount(payment.amount_cents, payment.currency),
+        message: 'Your payment is processing.',
+        benefits: payment.payment_type === 'membership'
+          ? "We'll activate your membership as soon as your payment is confirmed. You can refresh this page to check for updates."
+          : 'You can refresh this page to check for updates.',
+        continueHref,
+      },
+    };
+  }
   const { message, benefits } = payment.payment_type === 'membership'
     ? membershipSuccessMessage(payment.purchased_tier_status)
     : { message: 'Payment received.', benefits: '' };
@@ -919,7 +954,7 @@ function startDonation(
   _recurring: boolean,
 ): never {
   throw new Error(
-    'startDonation is not yet implemented (donation-flow slice). The PaymentAdapter interface and stub already cover this; wire the service body once M_Donate is implemented.',
+    'startDonation is not yet implemented. The PaymentAdapter interface and stub already cover it; wire the service body when the donation flow is built.',
   );
 }
 
@@ -929,7 +964,7 @@ function startEventRegistrationPayment(
   _amountCents: number,
 ): never {
   throw new Error(
-    'startEventRegistrationPayment is not yet implemented (event-registration slice).',
+    'startEventRegistrationPayment is not yet implemented.',
   );
 }
 
@@ -938,7 +973,7 @@ function cancelRecurringDonation(
   _stripeSubscriptionId: string,
 ): never {
   throw new Error(
-    'cancelRecurringDonation is not yet implemented (recurring-donation slice).',
+    'cancelRecurringDonation is not yet implemented.',
   );
 }
 

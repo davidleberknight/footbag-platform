@@ -1,24 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { contactRequestService } from '../services/contactRequestService';
 import { identityAccessService } from '../services/identityAccessService';
-import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
-// Per-admin rate-limit on resolve. Compromised-admin is the threat model;
-// admin role does not bypass.
-function enforceWorkQueueResolveLimit(req: Request, res: Response): boolean {
-  const adminMemberId = req.user!.userId;
-  const max = readIntConfig('work_queue_resolve_rate_limit_per_hour', 120);
-  const rl = rateLimitHit(`work-queue-resolve:${adminMemberId}`, max, 60);
-  if (rl.allowed) return true;
-  if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-  res.status(429)
-    .type('text/plain')
-    .send(`Too many work-queue operations. Try again in ${rl.retryAfterSeconds} seconds.`);
-  return false;
+// The resolve methods rate-limit in-service (shared per-admin bucket; admin
+// role does not bypass). This controller only maps the error to HTTP.
+function sendRateLimited(res: Response, err: RateLimitedError): void {
+  if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+  res.status(429).type('text/plain').send(err.message);
 }
 
 export const adminWorkQueueController = {
@@ -33,13 +24,16 @@ export const adminWorkQueueController = {
       }
       res.render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ resolvedFlag }));
     } catch (err) {
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
       handleControllerError(err, res, next, 'admin work queue controller');
     }
   },
 
   /** POST /admin/work-queue/:id/resolve */
   async resolve(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceWorkQueueResolveLimit(req, res)) return;
     const queueItemId = req.params['id'] ?? '';
     const decisionLabel = String(req.body?.decision_label ?? '');
     const resolutionNote = String(req.body?.resolution_note ?? '');
@@ -61,13 +55,16 @@ export const adminWorkQueueController = {
         res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
         return;
       }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
       handleControllerError(err, res, next, 'admin work queue controller');
     }
   },
 
   /** POST /admin/work-queue/:id/link-help/approve */
   async linkHelpApprove(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceWorkQueueResolveLimit(req, res)) return;
     const queueItemId = req.params['id'] ?? '';
     const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
     try {
@@ -83,6 +80,10 @@ export const adminWorkQueueController = {
         res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
         return;
       }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
       handleControllerError(err, res, next, 'admin work queue controller');
     }
   },
@@ -93,7 +94,6 @@ export const adminWorkQueueController = {
    * the queue item open so the admin can then approve the requester's link
    * (which resolves the item) or reject it. */
   async linkHelpDisputeRevert(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceWorkQueueResolveLimit(req, res)) return;
     const holderMemberId = String(req.body?.holder_member_id ?? '').trim();
     const reason = String(req.body?.reason ?? '');
     try {
@@ -116,13 +116,16 @@ export const adminWorkQueueController = {
         res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'No member with that id.' }));
         return;
       }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
       handleControllerError(err, res, next, 'admin work queue controller');
     }
   },
 
   /** POST /admin/work-queue/:id/link-help/reject */
   async linkHelpReject(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceWorkQueueResolveLimit(req, res)) return;
     const queueItemId = req.params['id'] ?? '';
     const reason = String(req.body?.reason ?? '');
     try {
@@ -136,6 +139,10 @@ export const adminWorkQueueController = {
       }
       if (err instanceof NotFoundError) {
         res.status(404).render('admin/work-queue/index', contactRequestService.getAdminWorkQueuePage({ errorMessage: 'That queue item is no longer open.' }));
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
         return;
       }
       handleControllerError(err, res, next, 'admin work queue controller');

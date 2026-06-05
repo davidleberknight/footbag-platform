@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-cwagent-staging.sh
 #
-# MODEL PATTERN — DO NOT FOLD INTO deploy_to_aws.sh.
+# MODEL PATTERN: DO NOT FOLD INTO deploy_to_aws.sh.
 # This script is the canonical reference for any future production-environment
 # CloudWatch Agent installer (e.g. install-cwagent-production.sh). Future
 # operators should copy this layout and substitute production-specific values:

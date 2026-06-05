@@ -2,7 +2,7 @@
 # deploy-code.sh
 #
 # Deploys the current working tree to the staging Lightsail host.
-# Code and images only — the live database is never touched.
+# Code and images only; the live database is never touched.
 #
 # Prerequisites:
 #   - ~/.ssh/config alias "footbag-staging" configured with User footbag (§6.2)
@@ -77,7 +77,7 @@ SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "Serve
 # Derive FOOTBAG_ENV from the SSH alias so the remote-half can read the right
 # /footbag/{env}/secrets/origin_verify_secret SSM parameter without the
 # operator having to hand-edit /srv/footbag/env. Exact match against the
-# canonical alias names — substring patterns (e.g. *prod*) silently accept
+# canonical alias names; substring patterns (e.g. *prod*) silently accept
 # aliases like footbag-prod or footbag-prd that are NOT the canonical names.
 # The deploy_to_aws.sh wrapper allowlists DEPLOY_TARGET to the same two
 # values. The remote-half writes this value into /srv/footbag/env if absent

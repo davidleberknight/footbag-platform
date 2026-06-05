@@ -319,9 +319,9 @@ unset SESSION_SECRET_VAL
 # admin from a future registration.
 #
 # Production refusal: this allowlist is a dev/staging-only shortcut. Production
-# first-admin uses the separate SSM-token claim mechanism documented in
-# DESIGN_DECISIONS §3.6 ("Production first-admin design"). Refuse the value
-# unless FOOTBAG_ENV is explicitly 'development' or 'staging' — production OR an
+# first-admin uses the separate single-shot SSM-token claim mechanism, which
+# needs no deploy-time env injection. Refuse the value
+# unless FOOTBAG_ENV is explicitly 'development' or 'staging'; production OR an
 # unset/misspelled FOOTBAG_ENV both trip this guard before anything lands on
 # disk. (env.ts also boot-fail-fasts under the same condition; this
 # script-level guard catches the misconfiguration earlier.)

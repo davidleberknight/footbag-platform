@@ -46,10 +46,7 @@ publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.post
 publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
-publicRouter.post('/clubs/:key/signal',         requireAuth, clubController.postSignal);
 publicRouter.post('/clubs/:key/content/edit',    requireAuth, clubController.postContentEdit);
-publicRouter.post('/clubs/:key/content/suggest', requireAuth, clubController.postContentSuggest);
-publicRouter.post('/clubs/:key/content/suggestions/:id/review', requireAuth, clubController.postContentSuggestionReview);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered

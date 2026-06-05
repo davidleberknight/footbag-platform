@@ -2,21 +2,23 @@
  * ClubCleanupService -- club viability evaluation and admin cleanup queue.
  *
  * Owns:
- *   - `crowdsource_club_viability` predicate (G1-G4 gates per US 7.2)
+ *   - `crowdsource_club_viability` predicate (G1-G4 gates per US 7.2);
+ *     gates weigh onboarding-wizard signals, one vote per member (latest
+ *     signal per member wins); queue items name the members whose latest
+ *     answer was negative (admin-only authorship exposure)
  *   - `leaderless_active_club` predicate
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping
  *   - Admin club cleanup resolution (demote, archive, dismiss, defer)
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
- *   - Club detail page signal submission
  *
  * Does not own:
  *   - Club lifecycle (ClubService)
  *   - Signal collection during onboarding (MemberOnboardingService writes signals)
  *
  * Persistence:
- *   club_viability_signals (read + write for detail page signals),
+ *   club_viability_signals (read),
  *   club_cleanup_resolutions (read + write),
  *   clubs (status write on resolution),
  *   legacy_person_club_affiliations (residue read + de-list write),
@@ -71,7 +73,9 @@ interface SignalCounts {
 }
 
 function evaluateClubViability(clubId: string): ClubViabilityResult {
-  const counts = clubViabilitySignals.countByClub.get(clubId) as SignalCounts | undefined;
+  // Gates weigh onboarding-wizard signals, one vote per member (a member's
+  // latest answer wins, so re-posts and changed answers never inflate them).
+  const counts = clubViabilitySignals.countWizardByClub.get(clubId) as SignalCounts | undefined;
 
   const s1 = (counts?.active_count ?? 0) > 0;
   const s2 = (counts?.not_active_count ?? 0) > 0;
@@ -244,7 +248,7 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
   const resolutions = getActiveResolutions();
   const items: CleanupQueueItem[] = [];
 
-  const signalRows = clubViabilitySignals.listClubsWithSignals.all() as SignalListRow[];
+  const signalRows = clubViabilitySignals.listClubsWithWizardSignals.all() as SignalListRow[];
   for (const row of signalRows) {
     if (isResolved(resolutions, row.club_id, 'crowdsource_viability')) continue;
     const viability = evaluateClubViability(row.club_id);
@@ -257,6 +261,18 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
       case 'G4_needs_review': recommendedAction = 'Review: strong legacy contradicts negative signal'; break;
       default: recommendedAction = 'Review'; break;
     }
+    // Negative votes are rare and admins judge them by who cast them, so
+    // the item names the members whose latest answer was negative. Admin
+    // queue only: signal authorship is never exposed on public surfaces.
+    const reporters = clubViabilitySignals.listNegativeWizardReportersByClub.all(row.club_id) as
+      Array<{ display_name: string; activity_signal: string }>;
+    const saidInactive = reporters.filter((r) => r.activity_signal === 'not_active').map((r) => r.display_name);
+    const saidNeverHeard = reporters.filter((r) => r.activity_signal === 'never_heard_of_it').map((r) => r.display_name);
+    const reporterParts: string[] = [];
+    if (saidInactive.length) reporterParts.push(`inactive per: ${saidInactive.join(', ')}`);
+    if (saidNeverHeard.length) reporterParts.push(`never heard of it per: ${saidNeverHeard.join(', ')}`);
+    const reporterSuffix = reporterParts.length ? ` (${reporterParts.join('; ')})` : '';
+
     items.push({
       clubId: row.club_id,
       clubName: row.club_name,
@@ -265,7 +281,7 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
       clubStatus: row.club_status,
       predicate: 'crowdsource_viability',
       predicateLabel: 'Crowdsource viability',
-      detail: `${row.active_count} active, ${row.not_active_count} inactive, ${row.never_heard_count} never heard`,
+      detail: `${row.active_count} active, ${row.not_active_count} inactive, ${row.never_heard_count} never heard${reporterSuffix}`,
       recommendedAction,
     });
   }
@@ -447,35 +463,9 @@ function delistUnconfirmedResidue(
   return { delistedCount };
 }
 
-// ---------------------------------------------------------------------------
-// Club detail page signal submission
-// ---------------------------------------------------------------------------
-
-type DetailActivitySignal = 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it';
-
-function submitClubDetailSignal(
-  memberId: string,
-  clubId: string,
-  activitySignal: DetailActivitySignal,
-): void {
-  const now = new Date().toISOString();
-  clubViabilitySignals.insertSignal.run(
-    `cvs_detail_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    now,
-    'club_detail_page',
-    memberId,
-    clubId,
-    'club_detail',
-    activitySignal,
-    null,
-    null,
-  );
-}
-
 export const clubCleanupService = {
   evaluateClubViability,
   getCleanupQueuePage,
   resolveClub,
   delistUnconfirmedResidue,
-  submitClubDetailSignal,
 };

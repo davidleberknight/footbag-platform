@@ -11,14 +11,17 @@ import { PageViewModel } from '../types/page';
  * endpoint reveals nothing about the bootstrap state.
  */
 interface BootstrapClaimContent {
-  result: 'granted' | 'invalid' | null;
+  // Pre-shaped from the service's result code so the template branches on
+  // booleans only.
+  isGranted: boolean;
+  isInvalid: boolean;
 }
 
-function render(res: Response, result: BootstrapClaimContent['result'], status = 200): void {
+function render(res: Response, result: 'granted' | 'invalid' | null, status = 200): void {
   res.status(status).render('admin/bootstrap-claim', {
     seo:  { title: 'Administrator bootstrap' },
     page: { sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator bootstrap' },
-    content: { result },
+    content: { isGranted: result === 'granted', isInvalid: result === 'invalid' },
   } satisfies PageViewModel<BootstrapClaimContent>);
 }
 

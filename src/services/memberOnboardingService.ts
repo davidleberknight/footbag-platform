@@ -467,6 +467,11 @@ export interface SignalChecklistRow {
 
 export interface WizardMembershipCard {
   kind: 'membership';
+  isMembership: true;
+  isLeadership: false;
+  isDisambiguation: false;
+  // Pre-shaped legend for the confirm/decline radio fieldset.
+  questionLabel: string;
   candidateId: string;       // legacy_person_club_affiliations.id
   clubId: string;
   clubName: string;
@@ -478,6 +483,10 @@ export interface WizardMembershipCard {
 
 export interface WizardLeadershipCard {
   kind: 'leadership';
+  isMembership: false;
+  isLeadership: true;
+  isDisambiguation: false;
+  questionLabel: string;
   candidateId: string;       // club_bootstrap_leaders.id
   clubId: string;
   clubName: string;
@@ -492,6 +501,9 @@ export interface WizardLeadershipCard {
 
 export interface WizardDisambiguationCard {
   kind: 'disambiguation';
+  isMembership: false;
+  isLeadership: false;
+  isDisambiguation: true;
   city: string;
   clubs: Array<{
     candidateId: string;
@@ -572,6 +584,10 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       const band = confidenceBandFor(r.confidence_score);
       memberships.push({
         kind:                'membership' as const,
+        isMembership:        true as const,
+        isLeadership:        false as const,
+        isDisambiguation:    false as const,
+        questionLabel:       `Were you a member of ${r.club_name}?`,
         candidateId:         r.affiliation_id,
         clubId:              r.club_id,
         clubName:            r.club_name,
@@ -583,6 +599,9 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
     } else {
       memberships.push({
         kind: 'disambiguation' as const,
+        isMembership: false as const,
+        isLeadership: false as const,
+        isDisambiguation: true as const,
         city: rows[0].club_city,
         clubs: rows.map((r) => {
           const band = confidenceBandFor(r.confidence_score);
@@ -613,7 +632,11 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       { signalType: 'geographic_alignment', signalLabel: SIGNAL_LABELS.geographic_alignment, isPresent: modifiers.geographic_alignment },
     ];
     return {
-      kind:                'leadership',
+      kind:                'leadership' as const,
+      isMembership:        false as const,
+      isLeadership:        true as const,
+      isDisambiguation:    false as const,
+      questionLabel:       `Were you a contact for ${r.club_name}?`,
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
       clubName:            r.club_name,
@@ -1224,10 +1247,13 @@ function processPersonalDetailsSubmit(
   showCompetitiveResults: boolean,
 ): WizardActionResult<PersonalDetailsFormState> {
   try {
+    // showCompetitiveResults rides the same setPersonalDetails transaction
+    // as the other fields, so a crash cannot complete the task while
+    // silently losing the preference.
     submitTaskResponse(memberId, 'personal_details', {
       city, region, country, birthDate, yearValue, showFirstCompetitionYear,
+      showCompetitiveResults,
     });
-    memberService.setShowCompetitiveResults(memberId, showCompetitiveResults);
     return advanceAfter(memberId, 'personal_details');
   } catch (err) {
     if (err instanceof ValidationError) {

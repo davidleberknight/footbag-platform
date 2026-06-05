@@ -1,5 +1,5 @@
 /**
- * Curator video transcode pipeline tests (DD §6.8).
+ * Curator video transcode pipeline tests.
  *
  * Validates the canonical ffmpeg argument set and magic-byte format
  * detection. The actual transcode test is gated on ffmpeg availability

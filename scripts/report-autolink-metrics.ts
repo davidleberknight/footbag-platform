@@ -1,5 +1,5 @@
 /**
- * Auto-link metrics report — simulated outcome distribution.
+ * Auto-link metrics report: simulated outcome distribution.
  *
  * Read-only. Prints the tier1/tier2/tier3/none distribution that WOULD
  * result if every `legacy_members` row became a registrant whose

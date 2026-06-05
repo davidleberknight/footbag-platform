@@ -4,8 +4,9 @@
  * on all state-changing POSTs, anti-enumeration on claim lookup, and
  * absence of PII/contact fields in wizard responses.
  *
- * User story anchors: M_Complete_Onboarding_Wizard, M_Claim_Legacy_Account.
- * Design anchors: VIEW_CATALOG section 7.6a, DD section 3.3, DATA_GOVERNANCE section 7.
+ * Contracts verified: the wizard is reachable only by the signed-in member
+ * it belongs to; claim lookups reveal nothing about other accounts; no
+ * contact fields ever render in wizard responses.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

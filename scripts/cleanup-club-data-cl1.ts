@@ -1,5 +1,5 @@
 /**
- * Slice CL-1 — deterministic club-data hygiene fixes.
+ * Deterministic club-data hygiene fixes.
  *
  * Closes 11 high-confidence rows from the 2026-05-09 club-data audit:
  *   F1: 3 club names with double-spaces       → collapse runs of whitespace
@@ -44,14 +44,14 @@ interface UrlFix {
 
 type Fix = NameFix | UrlFix;
 
-// F1 — three names with internal double-space.
+// F1: three names with internal double-space.
 const NAME_FIXES: NameFix[] = [
   { kind: 'name', id: 'club_7708a9c255d1205ded153c47', current_name: 'Tu  Wat',                  new_name: 'Tu Wat' },
   { kind: 'name', id: 'club_a4e25f79b279c5a8f5c34ee1', current_name: 'NightXShadow  Footbag Club', new_name: 'NightXShadow Footbag Club' },
   { kind: 'name', id: 'club_0f2fe506ea83e9b35f7d222f', current_name: 'Marathon  Footbag Club',     new_name: 'Marathon Footbag Club' },
 ];
 
-// F2 — `http://https://...` → strip the leading `http://` so the existing
+// F2: `http://https://...` → strip the leading `http://` so the existing
 // valid `https://...` URL surfaces.
 const URL_PREFIX_FIXES: UrlFix[] = [
   { kind: 'url', id: 'club_626e4b84266bedca942e15d4', current_url: 'http://https://www.facebook.com/MANIACSportTeam',                       new_url: 'https://www.facebook.com/MANIACSportTeam' },
@@ -60,7 +60,7 @@ const URL_PREFIX_FIXES: UrlFix[] = [
   { kind: 'url', id: 'club_7ea35d812706d92138687490', current_url: 'http://https://www.facebook.com/groups/216661849514732/',               new_url: 'https://www.facebook.com/groups/216661849514732/' },
 ];
 
-// F3 — placeholder/junk URLs that aren't navigable.
+// F3: placeholder/junk URLs that aren't navigable.
 const URL_NULL_FIXES: UrlFix[] = [
   { kind: 'url', id: 'club_e3a32bc11e016e3369f0d4c8', current_url: 'http://-',           new_url: null },
   { kind: 'url', id: 'club_29d694a6b89083468c975f3d', current_url: 'http://Bienvenidos', new_url: null },
@@ -222,7 +222,7 @@ function writeAudit(
   }
   writeFileSync(auditPath, auditLines.join('\n') + '\n');
 
-  // Rollback SQL — undo each applied/planned row. Safe to apply even if
+  // Rollback SQL: undo each applied/planned row. Safe to apply even if
   // the user has bumped version since; the WHERE matches by id only.
   const rb: string[] = [
     `-- Rollback for cleanup-club-data-cl1 ${stamp}`,

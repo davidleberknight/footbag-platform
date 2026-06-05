@@ -209,10 +209,10 @@ describe('leader contact is member-visible by role', () => {
     expect(res.text).toContain('+1 555 000 1111');
   });
 
-  it('the anonymous public sees leader names but no contact channels', async () => {
+  it('the anonymous public sees no leader names and no contact channels', async () => {
     const res = await request(createApp()).get(`/clubs/${clubKey}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Visible Leader');
+    expect(res.text).not.toContain('Visible Leader');
     expect(res.text).not.toContain(leaderEmail);
     expect(res.text).not.toContain('club@example.com');
     expect(res.text).not.toContain('+1 555 000 1111');

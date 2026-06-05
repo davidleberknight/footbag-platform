@@ -284,6 +284,19 @@ describe('POST /internal/net/candidates/:candidateId/approve', () => {
     expect(row?.curator_note).toBe('Verified from video footage');
   });
 
+  it('writes a forensic audit row for the approval decision', async () => {
+    // Curation decisions rehearse production data, so each one leaves the
+    // same operator audit trail as any other state change.
+    const db = new BetterSqlite3(dbPath);
+    const rows = db.prepare(
+      `SELECT metadata_json, reason_text FROM audit_entries WHERE action_type = 'net_qc.candidate_approved' AND entity_id = ?`
+    ).all(CAND_BASIC) as Array<{ metadata_json: string; reason_text: string | null }>;
+    db.close();
+    expect(rows).toHaveLength(1);
+    const meta = JSON.parse(rows[0].metadata_json) as Record<string, unknown>;
+    expect(String(meta.curated_match_id)).toMatch(/^curated_/);
+  });
+
   it('returns 409 on double-approve', async () => {
     const app = createApp();
     const res = await internalPost(app, `/internal/net/candidates/${CAND_PRE_APPROVED}/approve`)
@@ -344,6 +357,16 @@ describe('POST /internal/net/candidates/:candidateId/reject', () => {
     ).get(CAND_FOR_REJECT) as { review_status: string } | undefined;
     db.close();
     expect(row?.review_status).toBe('rejected');
+  });
+
+  it('writes a forensic audit row for the rejection decision carrying the note', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const rows = db.prepare(
+      `SELECT metadata_json, reason_text FROM audit_entries WHERE action_type = 'net_qc.candidate_rejected' AND entity_id = ?`
+    ).all(CAND_FOR_REJECT) as Array<{ metadata_json: string; reason_text: string | null }>;
+    db.close();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason_text).toBe('Noise line not a match');
   });
 
   it('returns 409 on double-reject', async () => {

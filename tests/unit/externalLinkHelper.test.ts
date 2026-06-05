@@ -10,7 +10,7 @@ function render(url: unknown, hash: Record<string, unknown> = {}): string {
 }
 
 describe('externalLinkHelper', () => {
-  it('renders all DD §3.17 attributes for a basic URL', () => {
+  it('renders all required external-link attributes for a basic URL', () => {
     const html = render('https://example.com/');
     expect(html).toContain('href="https://example.com/"');
     expect(html).toContain('target="_blank"');

@@ -15,7 +15,7 @@
 # REAL-DATA GUARD (absolute):
 #   The script refuses to clobber a target that looks like real
 #   (non-fixture) data. NO flag, env var, or CI mode bypasses this
-#   guard — the operator must move the directory aside manually if
+#   guard: the operator must move the directory aside manually if
 #   they intend to rebuild from scratch. Triggers:
 #     - mirror_footbag_org/ has www.footbag.org/events/show/ with >100 entries
 #     - event_results/canonical_input/events.csv has >50 rows

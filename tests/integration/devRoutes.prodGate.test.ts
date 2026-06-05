@@ -44,6 +44,7 @@ process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
 process.env.PAYMENT_ADAPTER           = 'live';
 process.env.STRIPE_WEBHOOK_SECRET     = 'whsec_live_realvalue';
+process.env.SES_FEEDBACK_WEBHOOK_KEY  = 'b'.repeat(48); // required when SES_ADAPTER=live
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 

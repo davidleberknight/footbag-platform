@@ -1,5 +1,5 @@
 /**
- * Atomicity regression test for identityAccessService.changePassword (B47).
+ * Atomicity regression test for identityAccessService.changePassword.
  *
  * The password bump (which invalidates all other sessions) and its audit row
  * must commit together. Pre-fix they ran as two separate statements, so a
@@ -40,7 +40,7 @@ function passwordHashOf(id: string): string {
 }
 
 describe('identityAccessService.changePassword atomicity', () => {
-  it('B47: rolls back the password bump when the audit append throws', async () => {
+  it('rolls back the password bump when the audit append throws', async () => {
     const oldHash = await hashTestPassword(OLD_PASSWORD);
     const id = 'pwchange-atom-1';
     const db = new BetterSqlite3(dbPath);

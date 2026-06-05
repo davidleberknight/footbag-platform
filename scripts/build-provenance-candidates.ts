@@ -179,7 +179,7 @@ export function buildProvenanceCandidates(db: BetterSqlite3.Database): {
       (lm.real_name && lm.real_name.trim()) ? lm.real_name! : (lm.display_name ?? '');
 
     if (edges.length > 1) {
-      // Multiple legacy candidates for this HP — all MEDIUM / multi-legacy.
+      // Multiple legacy candidates for this HP: all MEDIUM / multi-legacy.
       for (const e of edges) {
         out.push({
           historical_person_id:      hp.person_id,

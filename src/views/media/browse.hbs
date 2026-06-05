@@ -1,9 +1,9 @@
 <div class="hero hero-sm">
   <div>
     <h1>Browse Media</h1>
-    {{#if (eq content.mode "results")}}
+    {{#if content.isResultsMode}}
       <p class="hero-subtitle">
-        Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}}{{#if content.byMember}} by {{#if content.byMember.href}}<a href="{{content.byMember.href}}" class="tag-chip-link">{{content.byMember.display}}</a>{{else}}{{content.byMember.display}}{{/if}}{{#if content.criteriaTags.length}},{{/if}}{{/if}}{{#if content.criteriaTags.length}} tagged: {{#each content.criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if content.excludeTags.length}} - Excluding {{#if (eq content.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+        Showing {{content.totalItems}} {{content.totalItemsNoun}}{{#if content.byMember}} by {{#if content.byMember.href}}<a href="{{content.byMember.href}}" class="tag-chip-link">{{content.byMember.display}}</a>{{else}}{{content.byMember.display}}{{/if}}{{#if content.criteriaTags.length}},{{/if}}{{/if}}{{#if content.criteriaTags.length}} tagged: {{#each content.criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if content.excludeTags.length}} - Excluding {{content.excludeTagsNoun}}: {{#each content.excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
       </p>
     {{else}}
       <p class="hero-subtitle">Browse all photos and videos by hashtag.</p>
@@ -13,11 +13,11 @@
 
 <div class="wrapper">
 
-  {{#if (eq content.mode "results")}}
+  {{#if content.isResultsMode}}
   <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse all media</a></p>
   {{/if}}
 
-  {{#unless (eq content.mode "results")}}
+  {{#unless content.isResultsMode}}
   <form method="GET" action="/media/browse" class="form-block">
     <div class="form-field">
       <label for="browse-include-tags">Include tags</label>
@@ -43,7 +43,7 @@
     </p>
   {{/if}}
 
-  {{#unless (eq content.mode "results")}}
+  {{#unless content.isResultsMode}}
     {{#if content.standardGalleries}}
       {{#if content.standardGalleries.clubs.length}}
       <section class="browse-standard-section" aria-labelledby="browse-club-galleries-heading">
@@ -100,7 +100,7 @@
     </section>
   {{/unless}}
 
-  {{#if (eq content.mode "results")}}
+  {{#if content.isResultsMode}}
     {{#if content.items.length}}
       <ul class="gallery-grid">
         {{#each content.items}}

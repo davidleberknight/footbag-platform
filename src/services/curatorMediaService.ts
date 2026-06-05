@@ -127,7 +127,9 @@ import {
 import { writeSidecar } from '../lib/curatorSidecar';
 import { promises as fsp } from 'fs';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { hit as rateLimitHit } from './rateLimitService';
+import { readIntConfig } from './configReader';
 import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
@@ -309,6 +311,9 @@ export interface CuratorUploadResult {
 
 export interface MemberPhotoInput {
   memberId: string;
+  // Set true when the actor holds the admin role; admins bypass the
+  // per-member upload throttle.
+  actorIsAdmin?: boolean;
   // Slug of the authenticated member. Auto-applied as `#<slug>` on
   // every member upload (the "uploader tag"; mirrors #curated for
   // curator uploads). Caller is the controller that knows the
@@ -326,6 +331,10 @@ export interface MemberPhotoInput {
 
 export interface MemberVideoInput {
   memberId: string;
+  // Set true when the actor holds the admin role; admins bypass the
+  // per-member submission throttle. The controller is the source of truth
+  // for the role flag.
+  actorIsAdmin?: boolean;
   slug: string;
   // YouTube or Vimeo URL; service extracts the video id and verifies
   // availability via oEmbed. Member video flow is URL-reference only
@@ -356,6 +365,9 @@ export interface MemberMediaItem {
 
 export interface MemberMediaEditInput {
   memberId: string;
+  // Set true when the actor holds the admin role; admins bypass the
+  // per-member edit throttle.
+  actorIsAdmin?: boolean;
   // Slug of the authenticated member. Used by applyTagsForMember when
   // rewriting tags so the auto-applied #by_<slug> stays consistent.
   slug: string;
@@ -378,6 +390,56 @@ interface SystemMemberRow {
 
 function newMediaId(): string {
   return `media_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
+/**
+ * Per-actor write throttle. Throws RateLimitedError when the bucket is
+ * exhausted; controllers map it to 429 with Retry-After.
+ */
+function throttlePerActor(
+  bucket: string,
+  actorId: string,
+  configKey: string,
+  fallbackMax: number,
+  label: string,
+): void {
+  const max = readIntConfig(configKey, fallbackMax);
+  const rl = rateLimitHit(`${bucket}:${actorId}`, max, 60);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      `${label} Try again in ${rl.retryAfterSeconds} seconds.`,
+      rl.retryAfterSeconds,
+    );
+  }
+}
+
+/**
+ * Admin curator-surface write throttle. Compromised-admin is the threat
+ * model, so the admin role never bypasses this bucket.
+ */
+function throttleCuratorWrite(adminMemberId: string): void {
+  throttlePerActor(
+    'curator-write', adminMemberId,
+    'curator_write_rate_limit_per_hour', 60,
+    'Too many curator operations.',
+  );
+}
+
+/**
+ * Gallery-write throttle shared by the member and admin gallery methods:
+ * members get the per-member gallery bucket; admins fold into the
+ * curator-write bucket (no bypass, same threat model as other admin writes).
+ */
+function throttleGalleryWrite(actorMemberId: string, actorIsAdmin: boolean): void {
+  if (actorIsAdmin) {
+    throttleCuratorWrite(actorMemberId);
+    return;
+  }
+  throttlePerActor(
+    'gallery-write', actorMemberId,
+    'gallery_write_rate_limit_per_hour', 30,
+    'Too many gallery operations.',
+  );
 }
 
 /**
@@ -701,6 +763,10 @@ export interface CuratorMediaListItem {
   // External URL on the media_items row (DD §3.17 vetted). NULL when
   // unset.
   externalUrl: string | null;
+  // Pre-shaped for the edit form: the thumbnail-URL field applies only to
+  // Vimeo references (YouTube thumbnails derive from the video id).
+  // Populated by getMediaItem; listMedia leaves it unset.
+  showThumbnailField?: boolean;
 }
 
 export interface CuratorMediaListResult {
@@ -738,13 +804,18 @@ export interface CuratorGalleryEditView {
   // Items currently matching the gallery's criteria/exclude. Drives the
   // edit-form's read-only thumbnail display. Detach (and other item
   // mutations) happen on the item's own edit page; the gallery edit
-  // page never modifies item tags.
+  // page never modifies item tags. editHref points at the item's edit page
+  // for the requesting surface (member-owned vs admin curator).
+  // isUnavailableEmbed marks items the public gallery hides via the
+  // #unavailable_embed tag, so their presence here is explained.
   currentItems: Array<{
     mediaId: string;
     mediaType: 'photo' | 'video';
     thumbnailUrl: string;
     caption: string | null;
     sourceFilename: string;
+    editHref: string;
+    isUnavailableEmbed: boolean;
   }>;
   // External URLs already attached to the gallery; pre-fills the edit
   // form's external-link fieldset. Empty when none have been set.
@@ -1030,6 +1101,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
+      throttleCuratorWrite(input.adminMemberId);
       validateCaption(input.caption);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
@@ -1119,6 +1191,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async uploadVideo(input: CuratorVideoInput): Promise<CuratorUploadResult> {
+      throttleCuratorWrite(input.adminMemberId);
       validateCaption(input.caption);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
@@ -1462,6 +1535,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async editMedia(input: CuratorMediaEditInput): Promise<CuratorMediaEditResult> {
+      throttleCuratorWrite(input.adminMemberId);
       if (input.caption !== undefined) {
         validateCaption(input.caption);
       }
@@ -1598,6 +1672,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async deleteMedia(input: CuratorMediaDeleteInput): Promise<{ mediaId: string }> {
+      throttleCuratorWrite(input.adminMemberId);
       const row = runSqliteRead('getCuratorMediaItemById', () =>
         media.getCuratorMediaItemById.get(input.mediaId),
       ) as MediaItemRow | undefined;
@@ -1736,6 +1811,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         startSeconds,
         endSeconds,
         externalUrl: row.external_url,
+        showThumbnailField: row.video_platform === 'vimeo',
       };
     },
 
@@ -1845,7 +1921,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // matches the existing isOwnProfile/renderNotFound convention).
     // Without the restriction, returns any gallery (admin moderation +
     // public read paths use this).
-    getGalleryForEdit(galleryId: string, restrictToOwnerId?: string): CuratorGalleryEditView {
+    getGalleryForEdit(
+      galleryId: string,
+      restrictToOwnerId?: string,
+      opts: { memberKey?: string } = {},
+    ): CuratorGalleryEditView {
       return runSqliteRead('getGalleryForEdit', () => {
         const g = media.getNamedGalleryById.get(galleryId) as
           | { id: string; name: string; description: string; sort_order: GallerySortOrderValue; owner_member_id: string }
@@ -1873,6 +1953,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           thumbnailUrl: deriveListThumbnail(r),
           caption: r.caption,
           sourceFilename: r.source_filename,
+          // Member-owned galleries edit items under the member's media
+          // routes; the admin curator surface has its own.
+          editHref: opts.memberKey
+            ? `/members/${opts.memberKey}/media/${r.id}/edit`
+            : `/admin/curator/media/${r.id}/edit`,
+          isUnavailableEmbed: r.is_unavailable_embed === 1,
         }));
         const linkRows = media.listGalleryExternalLinks.all(galleryId) as Array<{
           id: string;
@@ -1918,6 +2004,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // audit row inside the same transaction as the write.
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
       assertTier1Benefits(actorMemberId);
 
       const validated = await validateGalleryUpdates(updates);
@@ -2015,6 +2102,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       input: CuratorGalleryCreateInput,
     ): Promise<CuratorGalleryCreateResult> {
       const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, ownerSlug, updates } = input;
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
       assertTier1Benefits(actorMemberId);
 
       const validated = await validateGalleryUpdates(updates);
@@ -2158,6 +2246,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // unauthorized actor; NotFoundError on unknown gallery.
     async deleteGallery(input: CuratorGalleryDeleteInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId } = input;
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
       assertTier1Benefits(actorMemberId);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
@@ -2251,6 +2340,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // caller's perspective: image processing, S3 put, DB insert, and
     // Personal Gallery materialization all complete before return.
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
+      if (!input.actorIsAdmin) {
+        throttlePerActor(
+          'member-photo-upload', input.memberId,
+          'photo_upload_rate_limit_per_hour', 10,
+          'Upload rate limit reached.',
+        );
+      }
       assertTier1Benefits(input.memberId);
       validateCaption(input.caption);
       validateTags(input.tags);
@@ -2345,6 +2441,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // rewrites go through applyTagsForMember so the auto-applied
     // `#by_<slug>` uploader marker is re-attached every save.
     async editMemberMedia(input: MemberMediaEditInput): Promise<MemberMediaEditResult> {
+      if (!input.actorIsAdmin) {
+        throttlePerActor(
+          'media-edit', input.memberId,
+          'media_edit_rate_limit_per_hour', 15,
+          'Too many media edits.',
+        );
+      }
       assertTier1Benefits(input.memberId);
       if (input.caption !== undefined) {
         validateCaption(input.caption);
@@ -2415,6 +2518,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // body (Vimeo thumbnails are not derivable from id; YouTube ids
     // are derived at render time).
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
+      if (!input.actorIsAdmin) {
+        throttlePerActor(
+          'member-video-submit', input.memberId,
+          'video_submission_rate_limit_per_hour', 5,
+          'Submission rate limit reached.',
+        );
+      }
       assertTier1Benefits(input.memberId);
       validateCaption(input.caption);
       validateTags(input.tags);

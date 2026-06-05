@@ -98,6 +98,13 @@ services:
       WORKER_INTERNAL_URL: ${WORKER_INTERNAL_URL:-http://worker:3100}
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?must be set in /srv/footbag/env (worker<->web auth)}
+      # Dedicated SNS feedback-webhook key: the subscription URL carries it in
+      # the query string, where access logs capture it, so it must not be the
+      # same secret that authenticates the worker IPC endpoints. Empty is
+      # allowed here because the runtime requires it only when SES_ADAPTER=live
+      # (production); env.ts fail-fasts there. scripts/activate-ses-feedback.sh
+      # provisions it at live-email activation.
+      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-}
       # This overlay is applied on BOTH staging and production hosts (per the
       # header comment). The env-var passthrough below is required for staging
       # (where the dev/staging admin-bootstrap allowlist is active) and is a
@@ -171,6 +178,7 @@ services:
       WORKER_INTERNAL_URL: ${WORKER_INTERNAL_URL:-http://worker:3100}
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?must be set in /srv/footbag/env (worker<->web auth)}
+      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-}
     deploy:
       resources:
         limits:

@@ -6,9 +6,7 @@ import { identityAccessService } from '../services/identityAccessService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
-import { RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
+import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
@@ -150,20 +148,6 @@ export const memberController = {
       return;
     }
     const memberKey = req.params.memberKey;
-    const memberId = req.user!.userId;
-    if (req.user?.role !== 'admin') {
-      const max = readIntConfig('profile_edit_rate_limit_per_hour', 20);
-      const rl = rateLimitHit(`profile-edit:${memberId}`, max, 60);
-      if (!rl.allowed) {
-        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-        const vm = memberService.getProfileEditPage(
-          memberKey,
-          `Too many profile edits. Try again in ${rl.retryAfterSeconds} seconds.`,
-        );
-        res.status(429).render('members/profile-edit', vm);
-        return;
-      }
-    }
     try {
       const input: ProfileEditInput = {
         bio:             req.body.bio            ?? '',
@@ -184,6 +168,12 @@ export const memberController = {
         if (err instanceof ValidationError) {
           const vm = memberService.getProfileEditPage(memberKey, err.message);
           res.status(422).render('members/profile-edit', vm);
+          return;
+        }
+        if (err instanceof RateLimitedError) {
+          if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+          const vm = memberService.getProfileEditPage(memberKey, err.message);
+          res.status(429).render('members/profile-edit', vm);
           return;
         }
         throw err;
@@ -208,16 +198,6 @@ export const memberController = {
       const vm = memberService.getProfileEditPage(memberKey, undefined, msg);
       res.status(status).render('members/profile-edit', vm);
     };
-
-    if (req.user?.role !== 'admin') {
-      const max = readIntConfig('avatar_upload_rate_limit_per_hour', 10);
-      const rl = rateLimitHit(`avatar-upload:${memberId}`, max, 60);
-      if (!rl.allowed) {
-        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-        renderError(`Too many avatar uploads. Try again in ${rl.retryAfterSeconds} seconds.`, 429);
-        return;
-      }
-    }
 
     const chunks: Buffer[] = [];
     let fileFound = false;
@@ -259,12 +239,19 @@ export const memberController = {
       const fileBuffer = Buffer.concat(chunks);
       const avatarService = getDefaultAvatarService();
 
-      avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename)
+      avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename, {
+        actorIsAdmin: req.user?.role === 'admin',
+      })
         .then(() => {
           writeFlash(res, req, FLASH_KIND.AVATAR_UPLOADED, uploadedFilename || undefined);
           res.redirect(303, `/members/${memberKey}/edit`);
         })
         .catch((err: unknown) => {
+          if (err instanceof RateLimitedError) {
+            if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+            renderError(err.message, 429);
+            return;
+          }
           if (err instanceof ValidationError) {
             renderError(err.message);
             return;
@@ -445,10 +432,23 @@ export const memberController = {
       );
       res.redirect(303, result.redirectUrl);
     } catch (err) {
-      if (err instanceof ValidationError) {
+      // ConflictError covers an already-pending membership purchase: an
+      // ordinary user state, not a server fault, so it renders as 422
+      // instead of falling through to the 500 handler.
+      if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render('errors/not-found', {
           seo:  { title: 'Invalid request' },
           page: { sectionKey: '', pageKey: 'error_422', title: err.message },
+        });
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
+        res.status(429).render('errors/not-found', {
+          seo:  { title: 'Too many requests' },
+          page: { sectionKey: '', pageKey: 'error_429', title: err.message },
         });
         return;
       }

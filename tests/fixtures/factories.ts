@@ -1191,6 +1191,7 @@ export function insertActivePlayerVouch(
 
 export interface ClubViabilitySignalOverrides {
   id?: string;
+  created_at?: string;
   member_id?: string;
   club_id?: string;
   source_stage?: string;
@@ -1207,7 +1208,7 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
        source_stage, activity_signal, source_entity_type, source_entity_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS,
+    id, o.created_at ?? TS, SYS,
     o.member_id ?? `mem_${uid()}`,
     o.club_id ?? `club_${uid()}`,
     o.source_stage ?? 'stage1b_affiliated',

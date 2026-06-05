@@ -253,7 +253,11 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(res.headers.location).toMatch(/^\/login/);
   });
 
-  it('adversarial: HTML in message body persists in audit metadata; escaped when rendered back', async () => {
+  it('adversarial: raw message persists only in the mutable queue row; the audit row carries its length, not its text', async () => {
+    // The audit ledger is append-only and exempt from PII purge, so
+    // member-authored free text (which can carry emails, phone numbers,
+    // anything) must never land in it. The operational copy lives in the
+    // resolvable work-queue row.
     const app = createApp();
     const payload = '<script>alert(1)</script>';
     // Snapshot existing audit-entry ids BEFORE the POST. Prior tests in this
@@ -274,6 +278,11 @@ describe('POST /members/:slug/contact-admin', () => {
       .type('form')
       .send({ category: 'other', message: payload });
     const db = new BetterSqlite3(dbPath);
+    const queueRow = db
+      .prepare(`SELECT reason_text FROM work_queue_items WHERE entity_id = ? AND status = 'open' LIMIT 1`)
+      .get(OWNER_ID) as { reason_text: string } | undefined;
+    expect(queueRow).toBeDefined();
+    expect(queueRow!.reason_text).toContain(payload);
     const newRow = (db
       .prepare(`SELECT id, metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'support.contact_request_submitted'`)
       .all(OWNER_ID) as Array<{ id: string; metadata_json: string }>).find(
@@ -281,7 +290,9 @@ describe('POST /members/:slug/contact-admin', () => {
     );
     expect(newRow).toBeDefined();
     const parsed = JSON.parse(newRow!.metadata_json);
-    expect(parsed.message).toBe(payload);
+    expect(parsed.message_length).toBe(payload.length);
+    expect(parsed).not.toHaveProperty('message');
+    expect(newRow!.metadata_json).not.toContain('alert(1)');
     db.close();
   });
 

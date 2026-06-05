@@ -14,9 +14,9 @@
  *     - If the member is already in this club's leadership, idempotent no-op
  *
  * Classification (strong/weak/none) is recorded in audit metadata for
- * post-cutover analytics but no longer drives branch choice; the decision
- * alone determines the branch. Signal rows are fixture-inserted directly;
- * production pre-compute lands via James's pipeline (see legacy IP).
+ * analytics but does not drive branch choice; the decision alone
+ * determines the branch. Signal rows are fixture-inserted directly;
+ * production pre-compute arrives from the upstream data pipeline.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';

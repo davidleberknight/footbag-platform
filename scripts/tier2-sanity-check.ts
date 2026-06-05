@@ -5,13 +5,13 @@
  * HP has `legacy_member_id` provenance (the Tier-2-ready pool) and flags:
  *
  *   - variant/canonical surname-key mismatches (classifier would downgrade
- *     to tier3/hp_mismatch — expected behavior, but worth listing so the
+ *     to tier3/hp_mismatch, expected behavior, but worth listing so the
  *     loaded seed can be reviewed)
  *   - canonical HP names that collide with another HP's normalized name
  *     (would force tier3/multiple_name_candidates even though the variant
  *     pair itself is clean)
  *
- * Exit code is always 0 — this is reporting, not a gate.
+ * Exit code is always 0: this is reporting, not a gate.
  *
  * Usage:
  *   npx tsx scripts/tier2-sanity-check.ts [--db path/to/footbag.db]

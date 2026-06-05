@@ -7,7 +7,7 @@
  *
  * Schema note: `legacy_members` carries a partial UNIQUE index on
  * `legacy_email WHERE legacy_email IS NOT NULL`, so same-column email
- * duplicates cannot persist — an import attempting to land duplicates
+ * duplicates cannot persist; an import attempting to land duplicates
  * will fail at INSERT time. This audit therefore serves two roles:
  *
  *   1. Pre-import pre-flight: run against a staging copy of the dump

@@ -16,7 +16,7 @@
  *   - hp_already_linked     HP already has legacy_member_id set
  *   - legacy_missing        target legacy_members row does not exist
  *   - legacy_already_claimed  another HP already holds this legacy_member_id
- *   - duplicate_target_in_csv  two CSV rows target the same legacy — keep first
+ *   - duplicate_target_in_csv  two CSV rows target the same legacy (keep first)
  *
  * Usage:
  *   npx tsx scripts/apply-provenance-candidates.ts

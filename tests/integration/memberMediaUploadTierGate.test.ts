@@ -3,11 +3,10 @@
  * member-owned media upload POST route:
  *   POST /members/:memberKey/media/upload
  *
- * Scope mirrors tests/integration/memberGalleryTierGate.test.ts: prove
- * the gate is mounted, fires before the controller's owner check and
- * before multipart parsing, and matches the hasTier1Benefits truth
- * table end-to-end. The predicate's semantic correctness is covered by
- * tests/integration/tierPredicates.service.test.ts (Phase 1).
+ * Proves the gate is mounted, fires before the controller's owner check
+ * and before multipart parsing, and matches the hasTier1Benefits truth
+ * table end-to-end. The predicate's own semantic correctness is covered
+ * by the tier-predicate service suite.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

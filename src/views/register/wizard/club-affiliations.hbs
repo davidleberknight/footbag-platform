@@ -8,9 +8,7 @@
   <section>
     {{#if content.resolvedNotice}}
       <p class="form-success-banner" role="status">
-        {{#if (eq content.resolvedNotice.decision 'confirm')}}Linked {{content.resolvedNotice.clubName}} as your primary club.{{/if}}
-        {{#if (eq content.resolvedNotice.decision 'decline')}}Marked {{content.resolvedNotice.clubName}} as not yours.{{/if}}
-        {{#if (eq content.resolvedNotice.decision 'correct')}}Noted that the {{content.resolvedNotice.clubName}} record needs correction.{{/if}}
+        {{content.resolvedNotice.message}}
       </p>
     {{/if}}
 
@@ -45,7 +43,7 @@
         {{/if}}
       {{/if}}
 
-      {{#if (eq content.card.kind 'membership')}}
+      {{#if content.card.isMembership}}
         <h2>About {{content.card.clubName}}</h2>
         <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
         {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
@@ -55,7 +53,7 @@
         <p class="text-muted fs-sm">Source: legacy roster records.</p>
       {{/if}}
 
-      {{#if (eq content.card.kind 'leadership')}}
+      {{#if content.card.isLeadership}}
         <h2>About {{content.card.clubName}}</h2>
         <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
         {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
@@ -73,7 +71,7 @@
         </ul>
       {{/if}}
 
-      {{#if (eq content.card.kind 'disambiguation')}}
+      {{#if content.card.isDisambiguation}}
         <h2>Which clubs in {{content.card.city}} were you part of?</h2>
         <p class="text-muted fs-sm">Select all that apply, or leave unchecked if none.</p>
 
@@ -107,14 +105,14 @@
         </form>
       {{/if}}
 
-      {{#if (not (eq content.card.kind 'disambiguation'))}}
+      {{#unless content.card.isDisambiguation}}
       <form method="POST" action="{{content.submitHref}}" class="mt-6 wizard-card-actions">
         <input type="hidden" name="kind"        value="{{content.card.kind}}" />
         <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
 
         <fieldset class="activity-signal-fieldset mt-4 mb-6">
           <legend class="fs-sm fw-600">
-            {{#if (eq content.card.kind 'membership')}}Were you a member of {{content.card.clubName}}?{{else}}Were you a contact for {{content.card.clubName}}?{{/if}}
+            {{content.card.questionLabel}}
           </legend>
           <label class="radio-label"><input type="radio" name="userDecision" value="confirm" required /> Yes</label>
           <label class="radio-label"><input type="radio" name="userDecision" value="decline" required /> No</label>
@@ -138,9 +136,9 @@
       <form method="POST" action="{{content.skipHref}}" class="mt-6">
         <button type="submit" class="btn-link text-muted">Skip remaining clubs for now</button>
       </form>
-      {{/if}}
+      {{/unless}}
     {{else}}
-      {{#if (eq content.stage 'stage2a')}}
+      {{#if content.isStage2a}}
         <h2>Clubs in your area</h2>
         <p class="text-muted fs-sm">We're updating our club listings. If you recognize any of these, let us know if they're still active.</p>
         {{#if content.nearbyCandidates.length}}
@@ -156,7 +154,7 @@
                   <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
                   <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
                   <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
-                  <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
+                  <button type="submit" class="btn btn-outline btn-sm mt-1">Submit</button>
                 </form>
               </li>
             {{/each}}
@@ -164,7 +162,7 @@
         {{else}}
           <p>No clubs found in your area.</p>
         {{/if}}
-      {{else if (eq content.stage 'stage2b')}}
+      {{else if content.isStage2b}}
         <h2>More clubs in your area</h2>
         <p class="text-muted fs-sm">Help us confirm whether these clubs are still around.</p>
         {{#if content.nearbyCandidates.length}}
@@ -180,7 +178,7 @@
                   <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
                   <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
                   <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
-                  <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
+                  <button type="submit" class="btn btn-outline btn-sm mt-1">Submit</button>
                 </form>
               </li>
             {{/each}}
@@ -191,7 +189,7 @@
       {{else}}
         <h2>Find your club</h2>
         <p>We didn't link a club to your account yet. You can browse the clubs map to find your local club, or create a new one if yours isn't listed.</p>
-        <p class="mt-4"><a href="/clubs" class="btn btn-secondary">Clubs map</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-secondary">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
+        <p class="mt-4"><a href="/clubs" class="btn btn-outline">Clubs map</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
         {{#if content.canCreateClub}}
           <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
         {{else}}

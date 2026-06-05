@@ -51,7 +51,9 @@
 import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, declaredAnchors, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { hit as rateLimitHit } from './rateLimitService';
+import { readIntConfig } from './configReader';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -590,6 +592,18 @@ export const memberService = {
 
   updateOwnProfile(slug: string, input: ProfileEditInput): void {
     const row = fetchMemberBySlug(slug);
+    // Per-member edit throttle; admins are exempt. Hit before validation so
+    // invalid submissions count against the bucket too.
+    if (row.is_admin !== 1) {
+      const max = readIntConfig('profile_edit_rate_limit_per_hour', 20);
+      const rl = rateLimitHit(`profile-edit:${row.id}`, max, 60);
+      if (!rl.allowed) {
+        throw new RateLimitedError(
+          `Too many profile edits. Try again in ${rl.retryAfterSeconds} seconds.`,
+          rl.retryAfterSeconds,
+        );
+      }
+    }
     const bio         = normalizeText(input.bio);
     const city        = normalizeText(input.city) || null;
     const region      = normalizeText(input.region) || null;
@@ -678,6 +692,7 @@ export const memberService = {
   setPersonalDetails(memberId: string, input: {
     city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
     yearValue?: unknown; showFirstCompetitionYear?: unknown;
+    showCompetitiveResults?: unknown;
   }): void {
     const city = normalizeText(input.city) || null;
     const region = normalizeText(input.region) || null;
@@ -742,6 +757,19 @@ export const memberService = {
            ? 1
            : 0);
 
+    // The competitive-results flag commits with the other fields so a crash
+    // cannot complete the submit while silently dropping the preference
+    // (the schema default is visible, and the wizard never re-offers the
+    // form). Callers that omit the field leave the flag untouched.
+    const hasShowCompetitiveResults = input.showCompetitiveResults !== undefined;
+    const showCompetitiveResults =
+      input.showCompetitiveResults === true ||
+      input.showCompetitiveResults === 'on' ||
+      input.showCompetitiveResults === '1' ||
+      input.showCompetitiveResults === 'true'
+        ? 1
+        : 0;
+
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberPersonalDetails.run(
@@ -749,9 +777,13 @@ export const memberService = {
         firstCompetitionYear, showFirstCompetitionYear,
         now, memberId,
       );
+      if (hasShowCompetitiveResults) {
+        account.updateMemberShowCompetitiveResults.run(showCompetitiveResults, now, memberId);
+      }
       auditProfileUpdate(memberId, [
         'city', 'region', 'country', 'birthDate',
         'firstCompetitionYear', 'showFirstCompetitionYear',
+        ...(hasShowCompetitiveResults ? ['showCompetitiveResults'] : []),
       ]);
     });
   },

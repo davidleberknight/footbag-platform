@@ -293,6 +293,26 @@ describe('recoverOrphanedProcessingJobs', () => {
   });
 });
 
+describe('findRetryEligiblePendingTranscode', () => {
+  it('returns parked retry rows but never fresh pending_transcode rows', () => {
+    // A fresh pending_transcode row (retry_count 0) is awaiting its normal
+    // finalize dispatch and must not be hijacked by boot recovery; a parked
+    // row (retry_count > 0) was failed retryably and has no dispatcher left.
+    const svc = createMediaJobService();
+    const fresh = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/fresh/source.mp4' })).id;
+    svc.markPendingTranscode(fresh, adminId);
+
+    const parked = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/parked/source.mp4' })).id;
+    svc.markPendingTranscode(parked, adminId);
+    svc.claimForProcessing(parked, '2099-01-01T00:00:00.000Z');
+    const r = svc.markFailed(parked, 'transient failure', 3);
+    expect(r.state).toBe('pending_transcode');
+
+    const rows = svc.findRetryEligiblePendingTranscode();
+    expect(rows.map((row) => row.id)).toEqual([parked]);
+  });
+});
+
 describe('markAbandoned and findExpiredPendingUploads', () => {
   it('finds pending_upload rows past expires_at and marks them abandoned', () => {
     const svc = createMediaJobService();

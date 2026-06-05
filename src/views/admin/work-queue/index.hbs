@@ -48,14 +48,14 @@
                 {{#if linkHelp.vouchers}} Vouchers: {{linkHelp.vouchers}}.{{/if}}
               </p>
             {{/if}}
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block work-queue-resolve">
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block">
               <div class="form-field">
                 <label for="link_help_target_{{id}}">Legacy account id to link</label>
                 <input id="link_help_target_{{id}}" name="target_legacy_member_id" required maxlength="200" />
               </div>
               <button type="submit" class="btn btn-primary btn-sm">Approve and link</button>
             </form>
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block work-queue-resolve">
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block">
               <div class="form-field">
                 <label for="link_help_reason_{{id}}">Rejection reason</label>
                 <textarea id="link_help_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
@@ -63,7 +63,7 @@
               <button type="submit" class="btn btn-outline btn-sm">Reject</button>
             </form>
             {{#if linkHelp.isDispute}}
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block work-queue-resolve">
+            <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block">
               <div class="form-field">
                 <label for="dispute_holder_{{id}}">Current holder's member id (claim to revert)</label>
                 <input id="dispute_holder_{{id}}" name="holder_member_id" required maxlength="200" />
@@ -76,7 +76,7 @@
             </form>
             {{/if}}
           {{else}}
-            <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block work-queue-resolve">
+            <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block">
               <div class="form-field">
                 <label for="decision_label_{{id}}">Decision</label>
                 <select id="decision_label_{{id}}" name="decision_label" required>

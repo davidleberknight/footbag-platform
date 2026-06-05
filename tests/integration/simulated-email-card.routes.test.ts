@@ -80,7 +80,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">Open<\/a>/);
   });
 
-  it('renders the resent banner with an EMPTY dev card (B43: resend must not leak tokens or existence)', async () => {
+  it('renders the resent banner with an EMPTY dev card (resend must not leak tokens or existence)', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       realName: 'Sim Card Two',
@@ -151,8 +151,8 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).not.toContain('simulator.amazonses.com');
   });
 
-  // B43: the dev card must not leak one pending user's verify token to another.
-  it('B43: a fresh visitor (no flash) never sees another user\'s verify token after they register', async () => {
+  // The dev card must not leak one pending user's verify token to another.
+  it('a fresh visitor (no flash) never sees another user\'s verify token after they register', async () => {
     const app = createApp();
     // User A registers; a verify email with A's token is captured by the stub.
     await registerFlash(app, 'leak-victim-a@example.com');
@@ -166,7 +166,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">Open</);
   });
 
-  it('B43: the just-registered user, following the redirect with the flash, sees only their own link', async () => {
+  it('the just-registered user, following the redirect with the flash, sees only their own link', async () => {
     const app = createApp();
     // Two users register in the same process; both tokens are in the stub buffer.
     await registerFlash(app, 'other-pending@example.com');

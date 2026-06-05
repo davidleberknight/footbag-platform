@@ -59,7 +59,7 @@ describe('shapeFreestyleRecord', () => {
     expect(vm.dateApproximate).toBe(false);
   });
 
-  // B44: video_url is curator/CSV-writable and lands in an href. Only http(s)
+  // video_url is curator/CSV-writable and lands in an href. Only http(s)
   // absolute URLs survive; everything else maps to null so the template hides it.
   it('preserves http and https video URLs', () => {
     expect(shapeFreestyleRecord(makeRow({ video_url: 'https://youtu.be/abc' })).videoUrl)

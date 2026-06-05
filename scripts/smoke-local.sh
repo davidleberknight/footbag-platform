@@ -53,7 +53,7 @@ check "GET /events (landing page)"        200 "/events"
 check "GET /events/year/2025 (seeded year)"  200 "/events/year/2025"
 check "GET /events/year/1899 (empty year)"   200 "/events/year/1899"
 
-# ── Event detail — must 404 ───────────────────────────────────────────────────
+# ── Event detail: must 404 ───────────────────────────────────────────────────
 check "GET /events/event_2026_draft_event (draft → 404)"         404 "/events/event_2026_draft_event"
 check "GET /events/event_9999_does_not_exist (missing → 404)"    404 "/events/event_9999_does_not_exist"
 check "GET /events/not-a-valid-key (bad format → 404)"           404 "/events/not-a-valid-key"

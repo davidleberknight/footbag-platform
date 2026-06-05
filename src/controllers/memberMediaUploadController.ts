@@ -28,8 +28,6 @@ import {
   PHOTO_MAX_BYTES,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
@@ -238,21 +236,12 @@ export const memberMediaUploadController = {
       const svc = getDefaultCuratorMediaService();
 
       if (mediaType === 'photo') {
-        if (req.user?.role !== 'admin') {
-          const max = readIntConfig('photo_upload_rate_limit_per_hour', 10);
-          const rl = rateLimitHit(`member-photo-upload:${memberId}`, max, 60);
-          if (!rl.allowed) {
-            throw new RateLimitedError(
-              `Upload rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
-              rl.retryAfterSeconds,
-            );
-          }
-        }
         if (!photoBuffer) {
           throw new ValidationError('Choose a photo file (JPEG or PNG).');
         }
         await svc.uploadPhotoForMember({
           memberId,
+          actorIsAdmin: req.user?.role === 'admin',
           slug,
           photoBuffer,
           sourceFilename: photoFilename ?? '',
@@ -266,16 +255,6 @@ export const memberMediaUploadController = {
       }
 
       // video branch
-      if (req.user?.role !== 'admin') {
-        const max = readIntConfig('video_submission_rate_limit_per_hour', 5);
-        const rl = rateLimitHit(`member-video-submit:${memberId}`, max, 60);
-        if (!rl.allowed) {
-          throw new RateLimitedError(
-            `Submission rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
-            rl.retryAfterSeconds,
-          );
-        }
-      }
       const videoUrl = (fields.videoUrl ?? '').trim();
       const videoPlatform = (fields.videoPlatform ?? '').trim();
       if (videoPlatform !== 'youtube' && videoPlatform !== 'vimeo') {
@@ -283,6 +262,7 @@ export const memberMediaUploadController = {
       }
       await svc.submitVideoForMember({
         memberId,
+        actorIsAdmin: req.user?.role === 'admin',
         slug,
         videoUrl,
         videoPlatform,

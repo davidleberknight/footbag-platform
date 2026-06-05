@@ -11,7 +11,7 @@
  *   - milestone section renders
  *   - player names and scores appear correctly
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 
 import {
@@ -189,5 +189,22 @@ describe('GET /records', () => {
     const app = createApp();
     const res = await request(app).get('/records');
     expect(res.text).toContain('World Footbag Association');
+  });
+
+  it('returns 503 (not 500) when a records read hits database contention', async () => {
+    // Every read on this page maps SQLITE_BUSY/LOCKED to the 503 page via
+    // runSqliteRead, so the alarm classifies contention as unavailability
+    // rather than an application fault.
+    const dbMod = await import('../../src/db/db');
+    const spy = vi.spyOn(dbMod.consecutiveKicksRecords, 'listWorldRecords', 'get').mockReturnValue({
+      all: () => {
+        const e = new Error('database is locked') as Error & { code?: string };
+        e.code = 'SQLITE_BUSY';
+        throw e;
+      },
+    } as never);
+    const res = await request(createApp()).get('/records');
+    spy.mockRestore();
+    expect(res.status).toBe(503);
   });
 });

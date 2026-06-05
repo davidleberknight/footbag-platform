@@ -40,6 +40,16 @@ describe('formatDate', () => {
     expect(formatDate('2024-09-XX')).toBe('September 2024');
   });
 
+  it('falls back to month+year when day sentinel is "00" (legacy "day unknown" rows)', () => {
+    // parseInt('00') is 0, which is not NaN, so an isNaN-only guard
+    // rendered this as "0 June 1998".
+    expect(formatDate('1998-06-00')).toBe('June 1998');
+  });
+
+  it('falls back to month+year when day is out of range (>31)', () => {
+    expect(formatDate('2024-09-32')).toBe('September 2024');
+  });
+
   it('handles single-digit numeric month and day correctly', () => {
     expect(formatDate('2024-01-05')).toBe('5 January 2024');
   });

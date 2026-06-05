@@ -25,7 +25,7 @@
       &middot;
       Media id: <code>{{media.mediaId}}</code>
     </p>
-    <p class="hint">
+    <p class="form-hint">
       The <code>#curated</code> tag is auto-applied and not editable here.
       {{#if media.isSidecarBacked}}
         Edits write through to the sidecar JSON under <code>/curated/</code>;
@@ -60,7 +60,7 @@
       {{#if media.isSidecarBacked}}
         <fieldset>
           <legend>URL reference fields</legend>
-          <p class="hint">
+          <p class="form-hint">
             Read-only:
             <code>videoUrl</code> = <code>{{media.videoUrl}}</code>,
             <code>videoPlatform</code> = <code>{{media.videoPlatform}}</code>.
@@ -95,7 +95,7 @@
               <input type="number" name="endSeconds" min="0" value="{{media.endSeconds}}">
             </label>
           </p>
-          {{#if (eq media.videoPlatform "vimeo")}}
+          {{#if media.showThumbnailField}}
             <p>
               <label>
                 Thumbnail URL (Vimeo only, must be https://):

@@ -93,6 +93,7 @@ export interface AppConfig {
   // Shared secret for the worker<->web internal-event channel. Required when
   // workerInternalUrl or webInternalUrl is set to a non-loopback host.
   internalEventSecret: string | undefined;
+  sesFeedbackWebhookKey: string | undefined;
   // Lease duration for a worker's claim on a media_jobs row. Worker boot-time
   // recovery considers any 'processing' row whose lease has expired to be
   // orphaned by a crash and resets it to pending_transcode for re-dispatch.
@@ -567,6 +568,19 @@ function loadConfig(): AppConfig {
       'INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3 (worker<->web event channel)',
     );
   }
+  // SES_FEEDBACK_WEBHOOK_KEY authenticates the public SNS feedback webhook
+  // (/webhooks/ses-feedback). It is deliberately a separate secret from
+  // INTERNAL_EVENT_SECRET: the SNS subscription URL carries the key in the
+  // query string, where instance access logs capture it on every delivery,
+  // so a leak there must not extend to the worker IPC endpoints.
+  const explicitSesFeedbackKey = process.env.SES_FEEDBACK_WEBHOOK_KEY || undefined;
+  const sesFeedbackWebhookKey =
+    explicitSesFeedbackKey ?? (isProd ? undefined : 'dev-ses-feedback-key-not-for-prod');
+  if (sesAdapter === 'live' && !sesFeedbackWebhookKey) {
+    throw new Error(
+      'SES_FEEDBACK_WEBHOOK_KEY is required when SES_ADAPTER=live (SNS feedback webhook auth)',
+    );
+  }
   const mediaJobLeaseSeconds = parseIntEnv('MEDIA_JOB_LEASE_SECONDS', 1200, 60, 7200);
   const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
   const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);
@@ -665,6 +679,7 @@ function loadConfig(): AppConfig {
     workerInternalUrl,
     webInternalUrl,
     internalEventSecret,
+    sesFeedbackWebhookKey,
     mediaJobLeaseSeconds,
     mediaJobMaxRetries,
     sseHeartbeatSeconds,

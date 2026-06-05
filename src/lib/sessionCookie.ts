@@ -28,3 +28,18 @@ export function issueSessionCookie(
     secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
   });
 }
+
+/**
+ * Clear the session cookie with attributes matching the ones it was set
+ * with. RFC 6265-strict browsers (and proxies that enforce attribute parity
+ * on clear) silently ignore a clear whose secure/sameSite do not match the
+ * set, leaving the cookie alive until natural expiry.
+ */
+export function clearSessionCookie(res: Response, req: Request): void {
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+  });
+}

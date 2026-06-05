@@ -163,6 +163,13 @@ describe('GET /verify/:token', () => {
     expect(res.status).toBe(400);
     expect(res.text).toContain('invalid, expired, or already used');
   });
+
+  it('the invalid-token error render is not cacheable (token-bearing URL)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/verify/bogus-token-yyy');
+    expect(res.status).toBe(400);
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
 });
 
 describe('GET /verify/:token — 500 handler redacts the raw token from logs', () => {
@@ -170,7 +177,12 @@ describe('GET /verify/:token — 500 handler redacts the raw token from logs', (
     const identityAccessMod = await import('../../src/services/identityAccessService');
     const logMod = await import('../../src/config/logger');
 
-    const errorSpy = vi.spyOn(logMod.logger, 'error').mockImplementation(() => undefined);
+    // The suite-wide guard already spies logger.error; re-spying returns
+    // that same mock, so the calls inspected here stay visible to the guard
+    // and the opt-in marks the deliberate error. A local mockImplementation
+    // would swallow the call before the guard sees it.
+    expectLoggedError('unhandled error');
+    const errorSpy = vi.spyOn(logMod.logger, 'error');
     const verifySpy = vi
       .spyOn(identityAccessMod.identityAccessService, 'verifyEmailByToken')
       .mockRejectedValue(new Error('database connection refused'));
@@ -188,7 +200,6 @@ describe('GET /verify/:token — 500 handler redacts the raw token from logs', (
       expect(payload.url).not.toContain('SECRET_RAW_TOKEN_xyz123');
     } finally {
       verifySpy.mockRestore();
-      errorSpy.mockRestore();
     }
   });
 });
@@ -549,7 +560,7 @@ describe('Authenticated member search excludes unverified rows', () => {
   });
 });
 
-describe('B51: email_verify token TTL honors system_config', () => {
+describe('email_verify token TTL honors system_config', () => {
   it('uses email_verify_expiry_hours override for both the token expiry and the email copy', async () => {
     const app = createApp();
     // Override the seeded 24h with 48h. effective_start_at is "now" so
@@ -559,7 +570,7 @@ describe('B51: email_verify token TTL honors system_config', () => {
       INSERT INTO system_config
         (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
       VALUES ('b51-ttl-override', '2026-06-03T00:00:00.000Z', 'email_verify_expiry_hours', '48',
-              '2026-06-03T00:00:00.000Z', 'B51 test', NULL)
+              '2026-06-03T00:00:00.000Z', 'TTL test tunable', NULL)
     `).run();
     wdb.close();
     try {
@@ -597,7 +608,7 @@ describe('B51: email_verify token TTL honors system_config', () => {
         INSERT INTO system_config
           (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
         VALUES ('b51-ttl-restore', '2026-06-03T00:00:01.000Z', 'email_verify_expiry_hours', '24',
-                '2026-06-03T00:00:01.000Z', 'B51 test restore', NULL)
+                '2026-06-03T00:00:01.000Z', 'TTL test restore', NULL)
       `).run();
       cdb.close();
     }

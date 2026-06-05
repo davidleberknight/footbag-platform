@@ -241,4 +241,20 @@ describe('demote and contact', () => {
     expect(meta.before).toBeNull();
     expect(meta.after).toBe('fixed@club.example.com');
   });
+
+  it('contact remediation rejects addresses without a local part, domain, or TLD', async () => {
+    // A bare '@' or a half-formed address would persist and break the club
+    // contact flows downstream; the form re-renders with a 422 instead.
+    const clubId = seedClub({ contactEmail: null });
+    for (const bad of ['@', 'user@', '@domain.com', 'user@domain', 'user domain@x.com']) {
+      const res = await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/contact`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ contact_email: bad, reason: 'Attempted fix.' });
+      expect(res.status).toBe(422);
+    }
+    const club = db.prepare('SELECT contact_email FROM clubs WHERE id = ?').get(clubId) as { contact_email: string | null };
+    expect(club.contact_email).toBeNull();
+  });
 });

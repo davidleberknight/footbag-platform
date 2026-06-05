@@ -12,7 +12,7 @@
       <p class="form-notice" role="alert">{{content.error}}</p>
     {{/if}}
 
-    <form method="POST" action="/register/wizard/personal_details/submit" class="profile-edit-form">
+    <form method="POST" action="/register/wizard/personal_details/submit" class="form-block">
       <div class="form-field">
         <label for="city">City <span class="text-muted">(required)</span></label>
         <input type="text" id="city" name="city" maxlength="64" value="{{content.city}}" required />

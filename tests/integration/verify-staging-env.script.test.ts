@@ -1,16 +1,15 @@
 /**
  * scripts/verify-staging-env.sh — boundary value validation harness.
  *
- * The ops script (Pass 3 R7) reads /srv/footbag/env on a deployed host and
+ * The ops script reads /srv/footbag/env on a deployed host and
  * compares against terraform-output expected values. To exercise the check
  * logic in CI without a live staging host, the script exposes a synthetic
  * --env-file mode that takes a local env-file path and accepts the terraform
  * outputs via TF_JWT_KMS_KEY_ARN / TF_SES_SENDER / TF_MEDIA_BUCKET env vars.
  *
  * This suite enumerates the PASS / FAIL / WARN matrix using one fixture per
- * invariant. Boundary value analysis per docs/TESTING.md §4.4: each critical
- * invariant gets one negative case (mutation that should fail) and the clean
- * baseline serves as the all-positive boundary.
+ * invariant: each critical invariant gets one negative case (a mutation that
+ * should fail) and the clean baseline serves as the all-positive boundary.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -41,6 +40,7 @@ const CLEAN_STAGING_ENV = [
   'SECRETS_ADAPTER=live',
   'HTTP_REACHABILITY_ADAPTER=live',
   `INTERNAL_EVENT_SECRET=${'a'.repeat(64)}`,
+  `SES_FEEDBACK_WEBHOOK_KEY=${'b'.repeat(64)}`,
   'PUBLIC_BASE_URL=https://staging.footbag.org',
   'FOOTBAG_DB_PATH=/srv/footbag/data/footbag.db',
   'PORT=3000',
@@ -104,6 +104,14 @@ function mutate(field: RegExp, replacement: string, base = CLEAN_STAGING_ENV): s
     throw new Error(`mutate(): pattern ${field} not found in base env`);
   }
   return base.replace(field, replacement);
+}
+
+// Production-shaped variant with live SES: the feedback-webhook key checks
+// apply only on hosts that actually send real mail.
+function liveSesEnv(): string {
+  return CLEAN_STAGING_ENV
+    .replace('FOOTBAG_ENV=staging', 'FOOTBAG_ENV=production')
+    .replace('SES_ADAPTER=stub', 'SES_ADAPTER=live');
 }
 
 describe('verify-staging-env.sh — clean baseline', () => {
@@ -181,6 +189,48 @@ describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain('is the dev-default literal');
+  });
+
+  it('SES_FEEDBACK_WEBHOOK_KEY checks are skipped while SES is stubbed (key unset → still PASS)', () => {
+    // The key authenticates the SNS feedback webhook, which only exists
+    // once live SES is activated; a stub-SES host must not be forced to
+    // carry it.
+    const env = mutate(/^SES_FEEDBACK_WEBHOOK_KEY=.+\n/m, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('not required (SES_ADAPTER is not');
+  });
+
+  it('SES_FEEDBACK_WEBHOOK_KEY unset under live SES → FAIL', () => {
+    const env = liveSesEnv().replace(/^SES_FEEDBACK_WEBHOOK_KEY=.+\n/m, '');
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('SES_FEEDBACK_WEBHOOK_KEY is unset');
+  });
+
+  it('SES_FEEDBACK_WEBHOOK_KEY = dev-default literal under live SES → FAIL', () => {
+    const env = mutate(
+      /SES_FEEDBACK_WEBHOOK_KEY=.+/,
+      'SES_FEEDBACK_WEBHOOK_KEY=dev-ses-feedback-key-not-for-prod',
+      liveSesEnv(),
+    );
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('is the dev-default literal');
+  });
+
+  it('SES_FEEDBACK_WEBHOOK_KEY equal to INTERNAL_EVENT_SECRET under live SES → FAIL', () => {
+    // The webhook key rides the subscription URL's query string, which
+    // access logs capture; sharing the IPC secret would extend that
+    // exposure to the worker endpoints.
+    const env = mutate(
+      /SES_FEEDBACK_WEBHOOK_KEY=.+/,
+      `SES_FEEDBACK_WEBHOOK_KEY=${'a'.repeat(64)}`,
+      liveSesEnv(),
+    );
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('must not equal INTERNAL_EVENT_SECRET');
   });
 
   it('IMAGE_PROCESSOR_URL pointing at localhost → FAIL', () => {

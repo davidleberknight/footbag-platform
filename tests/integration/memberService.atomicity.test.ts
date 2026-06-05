@@ -1,5 +1,5 @@
 /**
- * Atomicity regression tests for memberService profile writes (B42, B46).
+ * Atomicity regression tests for memberService profile writes.
  *
  * Each setter writes a domain row AND an audit row. They must commit together:
  * if the audit append throws, the domain update must roll back. Pre-fix the
@@ -57,7 +57,7 @@ function throwOnAudit() {
 }
 
 describe('memberService write-path atomicity', () => {
-  it('B42: updateOwnProfile rolls back the profile update when the audit append throws', () => {
+  it('updateOwnProfile rolls back the profile update when the audit append throws', () => {
     const { id, slug } = seedMember({ bio: 'ORIGINAL BIO' });
     const spy = throwOnAudit();
     expect(() => svc.updateOwnProfile(slug, {
@@ -75,7 +75,7 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'bio')).toBe('ORIGINAL BIO');
   });
 
-  it('B46: setPersonalDetails rolls back the city update when the audit append throws', () => {
+  it('setPersonalDetails rolls back the city update when the audit append throws', () => {
     const { id } = seedMember({ city: 'ORIGINAL CITY' });
     const spy = throwOnAudit();
     expect(() => svc.setPersonalDetails(id, {
@@ -85,7 +85,7 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'city')).toBe('ORIGINAL CITY');
   });
 
-  it('B46: setFirstCompetitionYear rolls back the year update when the audit append throws', () => {
+  it('setFirstCompetitionYear rolls back the year update when the audit append throws', () => {
     const { id } = seedMember({ first_competition_year: 1990 });
     const spy = throwOnAudit();
     expect(() => svc.setFirstCompetitionYear(id, '2001')).toThrow('forced audit failure');
@@ -93,7 +93,37 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'first_competition_year')).toBe(1990);
   });
 
-  it('B46: setShowCompetitiveResults rolls back the flag update when the audit append throws', () => {
+  it('setPersonalDetails commits the competitive-results flag with the other fields, all-or-nothing', () => {
+    // The onboarding wizard submits the flag together with the personal
+    // details; a crash mid-submit must not complete the task while silently
+    // reverting the preference to the schema default (visible).
+    const { id } = seedMember({ city: 'ORIGINAL CITY', show_competitive_results: 1 });
+    const spy = throwOnAudit();
+    expect(() => svc.setPersonalDetails(id, {
+      city: 'NewCity', country: 'NewCountry', birthDate: '1990-01-01',
+      showCompetitiveResults: '0',
+    })).toThrow('forced audit failure');
+    spy.mockRestore();
+    expect(memberField(id, 'city')).toBe('ORIGINAL CITY');
+    expect(memberField(id, 'show_competitive_results')).toBe(1);
+
+    svc.setPersonalDetails(id, {
+      city: 'NewCity', country: 'NewCountry', birthDate: '1990-01-01',
+      showCompetitiveResults: '0',
+    });
+    expect(memberField(id, 'city')).toBe('NewCity');
+    expect(memberField(id, 'show_competitive_results')).toBe(0);
+  });
+
+  it('setPersonalDetails leaves the competitive-results flag untouched when the field is omitted', () => {
+    const { id } = seedMember({ show_competitive_results: 0 });
+    svc.setPersonalDetails(id, {
+      city: 'SomeCity', country: 'SomeCountry', birthDate: '1990-01-01',
+    });
+    expect(memberField(id, 'show_competitive_results')).toBe(0);
+  });
+
+  it('setShowCompetitiveResults rolls back the flag update when the audit append throws', () => {
     const { id } = seedMember({ show_competitive_results: 1 });
     const spy = throwOnAudit();
     expect(() => svc.setShowCompetitiveResults(id, '0')).toThrow('forced audit failure');

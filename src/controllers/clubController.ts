@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
-import { clubCleanupService } from '../services/clubCleanupService';
 import { declaredAnchors } from '../db/db';
-import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
@@ -38,7 +37,7 @@ export const clubController = {
    */
   byKey(req: Request, res: Response, next: NextFunction): void {
     try {
-      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId, req.user?.role === 'admin');
+      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId);
       res.render(result.template, result.vm);
     } catch (err) {
       // Legacy-URL forwarding: an old /clubs/<slug> link whose club did not
@@ -65,54 +64,6 @@ export const clubController = {
         description: typeof req.body.description === 'string' ? req.body.description : undefined,
         externalUrl: typeof req.body.external_url === 'string' ? req.body.external_url : undefined,
       });
-      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        res.status(422).type('text/plain').send(err.message);
-        return;
-      }
-      handleControllerError(err, res, next, 'clubs controller');
-    }
-  },
-
-  /** POST /clubs/:key/content/suggest (non-leader members propose) */
-  postContentSuggest(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const clubId = clubService.resolveClubIdByKey(req.params.key);
-      clubService.suggestClubContent(
-        req.user!.userId,
-        clubId,
-        String(req.body.field ?? ''),
-        String(req.body.proposed_value ?? ''),
-        typeof req.body.note === 'string' ? req.body.note : undefined,
-      );
-      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        res.status(422).type('text/plain').send(err.message);
-        return;
-      }
-      if (err instanceof RateLimitedError) {
-        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
-        res.status(429).type('text/plain').send(err.message);
-        return;
-      }
-      handleControllerError(err, res, next, 'clubs controller');
-    }
-  },
-
-  /** POST /clubs/:key/content/suggestions/:id/review (leaders or admin) */
-  async postContentSuggestionReview(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const clubId = clubService.resolveClubIdByKey(req.params.key);
-      await clubService.reviewClubContentSuggestion(
-        req.user!.userId,
-        req.user!.role === 'admin',
-        clubId,
-        req.params.id ?? '',
-        req.body.decision === 'approve' ? 'approve' : 'reject',
-        typeof req.body.reason === 'string' ? req.body.reason : undefined,
-      );
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -313,28 +264,6 @@ export const clubController = {
         res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
         return;
       }
-      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
-    } catch (err) {
-      handleControllerError(err, res, next, 'clubs controller');
-    }
-  },
-
-  postSignal(req: Request, res: Response, next: NextFunction): void {
-    const clubKey = req.params.key;
-    const activitySignal = String(req.body.activitySignal ?? '');
-    const validSignals = new Set(['active', 'not_active', 'not_sure', 'never_heard_of_it']);
-    if (!validSignals.has(activitySignal)) {
-      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
-      return;
-    }
-    try {
-      const clubId = clubService.resolveClubIdByKey(clubKey);
-      clubCleanupService.submitClubDetailSignal(
-        req.user!.userId,
-        clubId,
-        activitySignal as 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it',
-      );
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Thanks for the feedback.');
       res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');

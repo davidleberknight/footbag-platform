@@ -296,13 +296,13 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     expect(followUp.text).toContain(`href="/history/${hpId}/claim"`);
   });
 
-  // ── B5 regression: confirmation-email enqueue failure ────────────────────
+  // ── Regression: confirmation-email enqueue failure ───────────────────────
   //
   // initiateLegacyClaim used to call bare enqueueEmail then return
-  // `{ kind: 'enqueued' }` regardless of outcome. R4 pattern (mirrored from
-  // changePassword): use enqueueEmailOrFail wrapped in try/catch; on catch,
-  // append a `legacy.claim_initiate_notification_failed` audit row and
-  // re-throw so the controller maps to 503 via handleControllerError.
+  // `{ kind: 'enqueued' }` regardless of outcome. The required pattern
+  // (mirrored from changePassword): use enqueueEmailOrFail wrapped in
+  // try/catch; on catch, append a `legacy.claim_initiate_notification_failed`
+  // audit row and re-throw so the controller maps to 503.
   describe('enqueueEmailOrFail failure', () => {
     // eslint-disable-next-line @typescript-eslint/consistent-type-imports
     let commsMod: typeof import('../../src/services/communicationService');

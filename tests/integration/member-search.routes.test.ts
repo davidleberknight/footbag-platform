@@ -49,12 +49,12 @@ beforeAll(async () => {
   insertMember(db, { display_name: 'Jane Placeholder', real_name: 'Jane Placeholder', slug: 'jane_placeholder', email_verified_at: null });
 
   // Historical persons (legacy data)
-  insertHistoricalPerson(db, { person_id: 'person-dave-001', person_name: 'Dave Leberknight', country: 'US' });
+  insertHistoricalPerson(db, { person_id: 'person-dave-001', person_name: 'Dave Mockingbird', country: 'US' });
   insertHistoricalPerson(db, { person_id: 'person-zane-001', person_name: 'Zane Footbag', country: 'CA' });
 
   // 21 members under a unique prefix exercise the 20-result cap + refine
   // prompt per M_Search_Members A6. The 'overflow_' prefix avoids collision
-  // with the jane/bob/zane/footbag/lebe queries above.
+  // with the jane/bob/zane/footbag/mocking queries above.
   for (let i = 0; i < 21; i++) {
     const n = i.toString().padStart(2, '0');
     insertMember(db, {
@@ -80,6 +80,17 @@ describe('GET /members — welcome', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Sign Up');
     expect(res.text).toContain('/register');
+  });
+
+  it('unauthenticated welcome tells legacy footbag.org users they need a new account', async () => {
+    // Arrivals from the old site must learn up front that old credentials do
+    // not carry over and that historical data is linked during setup.
+    const app = createApp();
+    const res = await request(app).get('/members');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Had an account on the old footbag.org?');
+    expect(res.text).toContain('You will need to create a new account here first to become a member in the new system.');
+    expect(res.text).toContain('link to your historical data');
   });
 
   it('authenticated → 200 with welcome page (no search form on /members)', async () => {
@@ -224,8 +235,8 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
 
   it('includes historical persons in results', async () => {
     const app = createApp();
-    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=lebe`).set('Cookie', searcherCookie());
-    expect(res.text).toContain('Dave Leberknight');
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=mocking`).set('Cookie', searcherCookie());
+    expect(res.text).toContain('Dave Mockingbird');
     expect(res.text).toContain('/history/person-dave-001');
   });
 
@@ -234,6 +245,43 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=zane`).set('Cookie', searcherCookie());
     expect(res.text).toContain('Zane Footbag');
     expect(res.text).toContain('/history/person-zane-001');
+  });
+
+  it('resolves a historical person\'s linked-member slug through the searchable filter set', async () => {
+    // The searchable flag (and the deceased / purged / unverified exclusions)
+    // must hold on the historical-person path too: a linked member who is not
+    // eligible for member search must not surface their slug via the
+    // historical person they are linked to.
+    const BetterSqlite3 = (await import('better-sqlite3')).default;
+    const db = new BetterSqlite3(dbPath);
+    insertHistoricalPerson(db, { person_id: 'person-quiet-001', person_name: 'Quietlink Optout', country: 'US' });
+    insertMember(db, {
+      id: 'mem-quiet-link', slug: 'quietlink_optout_member',
+      display_name: 'Quietlink Optout', real_name: 'Quietlink Optout', searchable: 0,
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run('person-quiet-001', 'mem-quiet-link');
+
+    insertHistoricalPerson(db, { person_id: 'person-quiet-002', person_name: 'Quietlink Visible', country: 'US' });
+    // Display name deliberately does not match the query, so any occurrence
+    // of this slug in the results comes from the historical-person linkage.
+    insertMember(db, {
+      id: 'mem-quiet-vis', slug: 'quietlink_visible_member',
+      display_name: 'Linkcontrol Visible', real_name: 'Linkcontrol Visible',
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run('person-quiet-002', 'mem-quiet-vis');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${SEARCHER_SLUG}?q=quietlink`)
+      .set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('/history/person-quiet-001');
+    expect(res.text).not.toContain('quietlink_optout_member');
+    // Control: a search-eligible linked member's slug does surface.
+    expect(res.text).toContain('/members/quietlink_visible_member');
   });
 
   it('caps results at 20 with refine prompt when 21+ matches exist (M_Search_Members A6)', async () => {

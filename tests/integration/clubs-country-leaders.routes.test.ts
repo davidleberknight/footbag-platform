@@ -1,8 +1,10 @@
 /**
  * Integration tests for the leader summary on /clubs/:country.
  *
- * Each club entry on the country page renders up to LEADER_SUMMARY_CAP (=2)
- * leader names; remaining leaders collapse into a "+N more" overflow count.
+ * Leader identities are member-visible: the summary renders to authenticated
+ * viewers only, and anonymous responses carry no leader names (count chips
+ * stay public). Each club entry renders up to LEADER_SUMMARY_CAP (=2) leader
+ * names; remaining leaders collapse into a "+N more" overflow count.
  * Mirrors the detail-page status filter (provisional + claimed only;
  * superseded/rejected suppressed). No N+1 — single bulk query.
  */
@@ -23,12 +25,19 @@ import {
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMember,
+  createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3093');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+
+function authCookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: 'country-test-user', role: 'member' })}`;
+}
 
 // Five clubs in USA exercising every cardinality:
 //   ONE_LEADER     — 1 leader (no overflow)
@@ -41,6 +50,15 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+
+  // Authenticated viewer for the member-visible leader summary.
+  insertMember(db, {
+    id: 'country-test-user',
+    slug: 'country_test_user',
+    login_email: 'country-test-user@example.com',
+    display_name: 'Country Test User',
+  });
+  completeOnboarding(db, 'country-test-user');
 
   const mkClub = (slug: string, name: string, country = 'USA'): string => {
     const tagId = insertTag(db, {
@@ -212,13 +230,13 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('GET /clubs/usa — leader summary on club cards', () => {
   it('returns 200', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     expect(res.status).toBe(200);
   });
 
   it('renders the single leader for a 1-leader club', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     expect(res.text).toContain('Alice OneLeader');
     // No overflow when total ≤ cap.
     const cardSlice = sliceCard(res.text, 'club_country_one');
@@ -228,7 +246,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('renders both names at exactly cap=2 with no overflow', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_two');
     expect(cardSlice).toContain('Bob TwoLeader');
     expect(cardSlice).toContain('Carol TwoCoLead');
@@ -237,7 +255,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('caps at 2 names and shows "+1 more" for a 3-leader club', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_three');
     expect(cardSlice).toContain('Donovan Threelead');
     expect(cardSlice).toContain('Eleanor Threelead');
@@ -247,7 +265,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('caps at 2 names and shows "+3 more" for a 5-leader club', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_five');
     expect(cardSlice).toContain('George Fivelead');
     expect(cardSlice).toContain('Hannah Fivelead');
@@ -259,7 +277,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('puts leader-role names before co-leader-role names in the visible cap', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_three');
     const leaderIdx   = cardSlice.indexOf('Donovan Threelead');
     const coleaderIdx = cardSlice.indexOf('Eleanor Threelead');
@@ -270,7 +288,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('omits the Leaders summary block entirely when a club has zero leaders', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_zero');
     expect(cardSlice).not.toContain('class="club-leaders-summary"');
     expect(cardSlice).not.toContain('Leaders:');
@@ -278,7 +296,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('hides leaders whose status is superseded or rejected', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_supp');
     expect(cardSlice).not.toContain('Lana Supersede');
     expect(cardSlice).not.toContain('Mike Rejected');
@@ -287,27 +305,27 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 
   it('renders leaders with status=claimed (not just provisional)', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_claimed');
     expect(cardSlice).toContain('Nina Claimed');
   });
 
   it('does not leak Canadian leaders onto the USA country page', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     expect(res.text).not.toContain('Olive CanadaLead');
   });
 
   it('renders an HP-less leader using the legacy_members.real_name fallback', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_hpless');
     expect(cardSlice).toContain('Quinn NoHP');
   });
 
   it('renders HP-having and HP-less leaders side-by-side on the same club', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_mixed');
     expect(cardSlice).toContain('Aaron Mixed');
     expect(cardSlice).toContain('Bella Mixed');
@@ -322,7 +340,7 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 describe('GET /clubs/usa — vitality metadata row', () => {
   it('renders a meta-row on every club entry', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     // Six fixture clubs in USA → six meta rows.
     const rowCount = (res.text.match(/class="club-meta-row /g) ?? []).length;
     expect(rowCount).toBeGreaterThanOrEqual(6);
@@ -330,7 +348,7 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
   it('active club with leaders + members → "leaders · members" without a status chip', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_two');
     expect(cardSlice).toContain('class="club-meta-row club-meta-row--known-leaders"');
     expect(cardSlice).toContain('2 leaders');
@@ -343,7 +361,7 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
   it('active club with no leaders but members → "No known leaders yet · N members"', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_members_only');
     expect(cardSlice).toContain('class="club-meta-row club-meta-row--member-activity"');
     expect(cardSlice).toContain('No known leaders yet');
@@ -354,7 +372,7 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
   it('inactive club → "Historical club" chip appended even with leaders + members', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_historical');
     expect(cardSlice).toContain('class="club-meta-row club-meta-row--historical-club"');
     expect(cardSlice).toContain('1 leader');     // singular form
@@ -364,7 +382,7 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
   it('sparse club (no leaders, no members) → "No known leaders yet · Needs update"', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_zero');
     expect(cardSlice).toContain('class="club-meta-row club-meta-row--needs-update"');
     expect(cardSlice).toContain('No known leaders yet');
@@ -373,17 +391,40 @@ describe('GET /clubs/usa — vitality metadata row', () => {
 
   it('singular vs plural leader chip: "1 leader" vs "2 leaders"', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/usa');
+    const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     expect(sliceCard(res.text, 'club_country_one')).toContain('1 leader');
     expect(sliceCard(res.text, 'club_country_one')).not.toContain('1 leaders');
     expect(sliceCard(res.text, 'club_country_two')).toContain('2 leaders');
   });
 });
 
+describe('GET /clubs/usa — anonymous viewers see no leader names', () => {
+  it('PRIVACY GATE: renders no leader summary and no leader names unauthenticated', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="club-leaders-summary"');
+    expect(res.text).not.toContain('Leaders:');
+    expect(res.text).not.toContain('Alice OneLeader');
+    expect(res.text).not.toContain('Bob TwoLeader');
+    expect(res.text).not.toContain('George Fivelead');
+    expect(res.text).not.toContain('Nina Claimed');
+    expect(res.text).not.toContain('Quinn NoHP');
+  });
+
+  it('still renders the public vitality count chips unauthenticated', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    expect(sliceCard(res.text, 'club_country_two')).toContain('2 leaders');
+    expect(sliceCard(res.text, 'club_country_two')).toContain('5 members');
+    expect(sliceCard(res.text, 'club_country_zero')).toContain('No known leaders yet');
+  });
+});
+
 describe('GET /clubs/canada — cross-country isolation', () => {
   it('renders the Canadian leader on the Canadian country page', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/canada');
+    const res = await request(app).get('/clubs/canada').set('Cookie', authCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Olive CanadaLead');
     // And does NOT leak USA leaders.

@@ -38,30 +38,140 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:     #1bb36b;
-  --primary-dk:  #16985b;
-  --secondary:   #0b5e6b;
-  --text:        #333333;
-  --text-muted:  #666666;
-  --text-subtle: #8a8a8a;   /* Reserved for clearly subordinate technical content
-                                (symbolic-object notation lines, lineage attributions).
-                                Distinct from --text-muted, which carries body-relevant
-                                muted content. */
-  --bg:          #ffffff;
-  --bg-light:    #f7f8f9;
-  --border:      #e5e5e5;
+  --font-body:   "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:   ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --primary:     #1bb36b;   /* vivid green */
+  --primary-dk:  #16985b;   /* deep green */
+  --secondary:   #0b5e6b;   /* dark teal */
+  --text:        #333333;   /* near-black gray */
+  --text-muted:  #666666;   /* medium gray */
+  --text-subtle: #8a8a8a;   /* Light gray. Reserved for clearly subordinate technical
+                                content (symbolic-object notation lines, lineage
+                                attributions). Distinct from --text-muted, which carries
+                                body-relevant muted content. */
+  --bg:          #ffffff;   /* white */
+  --bg-light:    #f7f8f9;   /* off-white */
+  --border:      #e5e5e5;   /* light gray */
   --shadow-sm:   0 2px 6px rgba(0,0,0,0.06);
   --shadow-md:   0 4px 12px rgba(0,0,0,0.08);
   --shadow-lg:   0 8px 24px rgba(0,0,0,0.10);
+  --shadow-pop:  0 4px 12px rgba(0,0,0,0.1);
+  --shadow-hero: 0 4px 20px rgba(0,0,0,0.15);
+  --shadow-cta:  0 2px 10px rgba(0,0,0,0.25);
+  --shadow-deep: 0 6px 24px rgba(0,0,0,0.18);
+  --shadow-focus: 0 0 0 3px rgba(27,179,107,0.12);
   --radius:      10px;
   --radius-sm:   6px;
+  --radius-2xs:  3px;
+  --radius-xs:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-pill: 20px;
+  --radius-full: 999px;
+
+  /* Neutral scale (light to dark) */
+  --white:       #fff;      /* white */
+  --black:       #000;      /* black */
+  --gray-50:     #fafafa;   /* near-white */
+  --gray-75:     #f8f8f8;   /* near-white */
+  --gray-100:    #f4f4f4;   /* very light gray */
+  --gray-150:    #f0f0f0;   /* very light gray */
+  --gray-200:    #eee;      /* light gray */
+  --gray-250:    #e5e7eb;   /* light cool gray */
+  --gray-300:    #e0e0e0;   /* light gray */
+  --gray-350:    #ddd;      /* light gray */
+  --gray-400:    #d0d0d0;   /* silver gray */
+  --gray-500:    #aaa;      /* medium gray */
+  --gray-600:    #777;      /* medium-dark gray */
+  --gray-700:    #555;      /* dark gray */
+  --gray-800:    #444;      /* darker gray */
+  --gray-900:    #222;      /* near-black */
+  --surface-dark: #1a1a1a;  /* near-black */
+  --surface-faint: #f9fafb; /* near-white, cool */
+
+  /* Cool neutrals and accent tints (chips, filters, focus) */
+  --slate-100:   #f1f5f9;   /* pale blue-gray */
+  --slate-200:   #e2e8f0;   /* light blue-gray */
+  --slate-500:   #64748b;   /* medium blue-gray */
+  --slate-600:   #475569;   /* dark blue-gray */
+  --sky-100:     #e0f2fe;   /* pale sky blue */
+  --sky-800:     #0369a1;   /* deep sky blue */
+  --hover-tint:  #eef;      /* pale lavender */
+  --focus-ring:  #3366cc;   /* medium blue */
+
+  /* Status families: success / danger / warn / info */
+  --success-bg:     #f0fdf4;   /* palest green */
+  --success-tint:   #dcfce7;   /* pale green */
+  --success-border: #bbf7d0;   /* light green */
+  --success-accent: #16a34a;   /* vivid green */
+  --success-text:   #166534;   /* dark green */
+  --green-soft:     #e6f9f0;   /* pale mint */
+  --green-pale:     #e8f5e9;   /* pale green */
+  --green-deep:     #1a7a4a;   /* deep green */
+  --danger-bg:      #fef2f2;   /* palest pink */
+  --danger-border:  #fecaca;   /* light pink */
+  --danger-accent:  #c0392b;   /* brick red */
+  --danger-text:    #991b1b;   /* dark red */
+  --red-pale:       #fbe9e7;   /* pale peach */
+  --warn-bg:        #fffbeb;   /* palest cream */
+  --warn-tint:      #fef3c7;   /* pale yellow */
+  --warn-accent:    #f59e0b;   /* amber */
+  --warn-strong:    #d97706;   /* dark amber */
+  --warn-deep:      #b45309;   /* brown-orange */
+  --warn-text:      #92400e;   /* dark brown-orange */
+  --warn-muted:     #a16207;   /* mustard */
+  --amber-pale:     #fff8e1;   /* pale cream */
+  --orange-soft:    #fff3e0;   /* pale orange */
+  --orange-deep:    #b06000;   /* burnt orange */
+  --info-bg:        #eff6ff;   /* palest blue */
+  --info-text:      #1e40af;   /* dark blue */
+  --info-accent:    #3b82f6;   /* bright blue */
+  --info-strong:    #2563eb;   /* strong blue */
+  --info-teal-bg:   #ecfeff;   /* palest cyan */
+  --indigo-soft:    #e8eaf6;   /* pale indigo */
+  --indigo-deep:    #3949ab;   /* indigo */
+  --violet-soft:    #ede9fe;   /* pale violet */
+  --violet-deep:    #6d28d9;   /* deep violet */
+  --pink-soft:      #fce7f3;   /* pale pink */
+  --pink-deep:      #9d174d;   /* deep magenta */
+
+  /* Severity text colors (internal QC tables) */
+  --severity-high:   #c62828;  /* strong red */
+  --severity-medium: #e65100;  /* burnt orange */
+  --severity-low:    #616161;  /* medium gray */
+
+  /* Placement medal colors */
+  --medal-gold:   #b8860b;  /* dark gold */
+  --medal-silver: #707070;  /* silver gray */
+  --medal-bronze: #8b4513;  /* bronze brown */
+
+  /* Footer (dark band) */
+  --footer-bg:   #111;      /* near-black */
+
+  /* Clubs world-map fills (light-to-dark green density ramp) */
+  --map-base:      #d0d6dc; /* pale blue-gray */
+  --map-has-clubs: #ecf8f0; /* pale mint */
+  --map-tier-1:    #d4ecdb; /* pale green */
+  --map-tier-2:    #afdcc1; /* light green */
+  --map-tier-3:    #80c7a0; /* soft green */
+  --map-tier-4:    #4eaf7c; /* medium green */
+  --map-tier-5:    #1d9059; /* deep green */
+  --map-tier-6:    #0a4a2a; /* darkest green */
+
+  /* Security/dev notice cards (sec-card family) */
+  --sec-border:     #d0d7de;  /* light blue-gray */
+  --sec-bg:         #f6f8fa;  /* near-white, cool */
+  --sec-text-dim:   #656d76;  /* slate gray */
+  --sec-dev:        #1f883d;  /* vivid green */
+  --sec-sandbox:    #bf8700;  /* dark amber */
+  --sec-sandbox-bg: #fff8c5;  /* pale yellow */
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.6;
   color: var(--text);
@@ -72,7 +182,7 @@ body {
 a { color: var(--primary); text-decoration: none; }
 a:hover { color: var(--primary-dk); text-decoration: underline; }
 
-/* Dev-only notice block (SES_ADAPTER=stub only — hidden in staging/prod) */
+/* Dev-only notice block (SES_ADAPTER=stub only, hidden in staging/prod) */
 .dev-only-note {
   margin-top: 1.5rem;
   padding: 0.75rem 1rem;
@@ -171,12 +281,12 @@ section + section { border-top: 1px solid var(--border); }
 /* ── Hero ───────────────────────────────────────────────────── */
 .hero {
   background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
-  color: #fff;
+  color: var(--white);
   text-align: center;
   padding: 72px 24px;
 }
 
-.hero h1 { color: #fff; margin-bottom: 0.75rem; }
+.hero h1 { color: var(--white); margin-bottom: 0.75rem; }
 .hero p  { font-size: 1.15rem; opacity: 0.9; margin-bottom: 0; }
 .hero .text-muted { color: rgba(255, 255, 255, 0.75); }
 .hero-eyebrow { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.72); margin-bottom: 4px; }
@@ -184,7 +294,7 @@ section + section { border-top: 1px solid var(--border); }
 .hero.hero-sm { padding: 36px 24px; }
 .hero.hero-sm h1 { margin-bottom: 0; }
 .hero .tag-chip-link {
-  color: #fff;
+  color: var(--white);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -217,7 +327,7 @@ section + section { border-top: 1px solid var(--border); }
 .hero-stats span {
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 5px 16px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -306,7 +416,7 @@ th.sortable:hover { color: var(--primary); }
 .player-search-bar input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(27,179,107,0.12);
+  box-shadow: var(--shadow-focus);
 }
 .player-search-empty {
   color: var(--text-muted);
@@ -353,7 +463,7 @@ th.sortable:hover { color: var(--primary); }
 .member-search-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(27,179,107,0.12);
+  box-shadow: var(--shadow-focus);
 }
 .member-search-results {
   display: flex;
@@ -372,24 +482,24 @@ th.sortable:hover { color: var(--primary); }
 }
 .badge-honor {
   background: var(--secondary);
-  color: #fff;
+  color: var(--white);
   font-size: 0.75rem;
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 .badge-member {
   background: var(--primary);
-  color: #fff;
+  color: var(--white);
   font-size: 0.75rem;
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 .badge-historical {
   background: var(--text-muted);
-  color: #fff;
+  color: var(--white);
   font-size: 0.75rem;
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 
 /* ── Profile membership block tiers link ────────────────────── */
@@ -398,7 +508,7 @@ th.sortable:hover { color: var(--primary); }
 /* ── My Clubs block (member dashboard) ─────────────────────── */
 .my-clubs-block { padding: 0 0 8px; }
 .my-clubs-list { list-style: none; padding: 0; margin: 0; }
-.my-clubs-item { padding: 10px 0; border-bottom: 1px solid #eee; }
+.my-clubs-item { padding: 10px 0; border-bottom: 1px solid var(--gray-200); }
 .my-clubs-item:last-child { border-bottom: none; }
 .my-clubs-item-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .my-clubs-name { font-weight: 600; }
@@ -408,7 +518,7 @@ th.sortable:hover { color: var(--primary); }
 /* ── Club create form ───────────────────────────────────────── */
 .club-slug-group { display: flex; align-items: center; }
 .club-slug-prefix {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.95rem;
   color: var(--text-muted);
   margin-right: 4px;
@@ -487,7 +597,7 @@ th.sortable:hover { color: var(--primary); }
   color: var(--text-muted);
   background: var(--bg-light);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 2px 10px;
 }
 
@@ -520,7 +630,7 @@ th.sortable:hover { color: var(--primary); }
 
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
-/* Secondary in-card link — used to position a reference (e.g. Glossary)
+/* Secondary in-card link: used to position a reference (e.g. Glossary)
    below tutorial-series buttons without making it a peer button. */
 .card-secondary-link {
   margin: 8px 0 0;
@@ -636,7 +746,7 @@ th.sortable:hover { color: var(--primary); }
   margin: 24px 0 0;
   padding: 20px;
   background: var(--bg-light);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
 }
 .browse-tags-help h2 {
   margin: 0 0 8px;
@@ -667,15 +777,15 @@ th.sortable:hover { color: var(--primary); }
 }
 .tag-chip {
   display: inline-block;
-  background: #fff;
-  color: var(--text-default, #222);
-  border: 1px solid var(--border-color, #d0d0d0);
+  background: var(--white);
+  color: var(--gray-900);
+  border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
   padding: 4px 10px;
   font-size: 0.85rem;
   text-decoration: none;
 }
-.tag-chip:hover { background: var(--bg-hover, #eef); }
+.tag-chip:hover { background: var(--hover-tint); }
 button.tag-suggestion {
   cursor: pointer;
   font-family: inherit;
@@ -687,23 +797,23 @@ button.tag-suggestion {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border: 1px solid var(--border-color, #d0d0d0);
+  border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--white);
   min-height: 38px;
   cursor: text;
   position: relative;
 }
 .tag-chip-input-container:focus-within {
-  border-color: var(--accent, #3366cc);
+  border-color: var(--focus-ring);
   outline: 2px solid rgba(51, 102, 204, 0.2);
 }
 .tag-chip-input-chip {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: var(--bg-light, #f4f4f4);
-  border: 1px solid var(--border-color, #d0d0d0);
+  background: var(--bg-light);
+  border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
   padding: 2px 6px;
   font-size: 0.85rem;
@@ -719,7 +829,7 @@ button.tag-suggestion {
   color: var(--text-muted);
   font-family: inherit;
 }
-.tag-chip-input-chip-remove:hover { color: var(--text-default, #222); }
+.tag-chip-input-chip-remove:hover { color: var(--gray-900); }
 .tag-chip-input-field {
   border: none;
   outline: none;
@@ -739,10 +849,10 @@ button.tag-suggestion {
   list-style: none;
   margin: 2px 0 0;
   padding: 4px 0;
-  background: #fff;
-  border: 1px solid var(--border-color, #d0d0d0);
+  background: var(--white);
+  border: 1px solid var(--gray-400);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-pop);
   max-height: 240px;
   overflow-y: auto;
 }
@@ -753,7 +863,7 @@ button.tag-suggestion {
 }
 .tag-chip-autocomplete-item:hover,
 .tag-chip-autocomplete-item--active {
-  background: var(--bg-hover, #eef);
+  background: var(--hover-tint);
 }
 .tag-chip-autocomplete-count {
   color: var(--text-muted);
@@ -869,12 +979,12 @@ button.tag-suggestion {
 .hub-card-browse {
   background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
   border-color: transparent;
-  color: #fff;
+  color: var(--white);
 }
-.hub-card-browse .hub-card-link        { color: #fff; }
-.hub-card-browse .hub-card-name        { color: #fff; }
+.hub-card-browse .hub-card-link        { color: var(--white); }
+.hub-card-browse .hub-card-name        { color: var(--white); }
 .hub-card-browse .hub-card-description { color: rgba(255, 255, 255, 0.88); }
-.hub-card-browse .hub-card-arrow       { color: #fff; }
+.hub-card-browse .hub-card-arrow       { color: var(--white); }
 .hub-card-foot-browse {
   border-top-color: rgba(255, 255, 255, 0.18);
 }
@@ -893,31 +1003,37 @@ button.tag-suggestion {
   font-size: 0.75rem;
   font-weight: 600;
   padding: 2px 9px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.badge-published      { background: #e6f9f0; color: #1a7a4a; }
-.badge-registration_full { background: #fff3e0; color: #b06000; }
-.badge-closed         { background: #f0f0f0; color: #555; }
-.badge-completed      { background: #e8eaf6; color: #3949ab; }
+.badge-published      { background: var(--green-soft); color: var(--green-deep); }
+.badge-registration_full { background: var(--orange-soft); color: var(--orange-deep); }
+.badge-closed         { background: var(--gray-150); color: var(--gray-700); }
+.badge-completed      { background: var(--indigo-soft); color: var(--indigo-deep); }
+.badge-tier           { background: var(--info-teal-bg); color: var(--secondary); }
+.badge-ok,
+.badge-success        { background: var(--success-tint); color: var(--success-text); }
+.badge-warn           { background: var(--warn-tint); color: var(--warn-text); }
+.badge-muted          { background: var(--gray-150); color: var(--gray-700); }
+.badge-cell           { white-space: nowrap; }
 
 /* ── Severity indicators (internal QC pages) ───────────────── */
-.severity-high   { color: #c62828; font-weight: 700; }
-.severity-medium { color: #e65100; font-weight: 600; }
-.severity-low    { color: #616161; }
+.severity-high   { color: var(--severity-high); font-weight: 700; }
+.severity-medium { color: var(--severity-medium); font-weight: 600; }
+.severity-low    { color: var(--severity-low); }
 
 /* ── Featured event hero ────────────────────────────────────── */
 .event-hero {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-hero);
   margin: 0 auto 32px;
   max-width: 720px;
-  background: #1a1a1a;
+  background: var(--surface-dark);
 }
 .event-hero-art-link {
   display: block;
@@ -930,7 +1046,7 @@ button.tag-suggestion {
 }
 .event-hero-panel {
   padding: 32px 36px;
-  color: #fff;
+  color: var(--white);
   background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
   display: flex;
   flex-direction: column;
@@ -949,7 +1065,7 @@ button.tag-suggestion {
   line-height: 1.2;
   margin: 0 0 14px 0;
 }
-.event-hero-title a { color: #fff; }
+.event-hero-title a { color: var(--white); }
 .event-hero-title a:hover { color: rgba(255,255,255,0.9); text-decoration: none; }
 .event-hero-meta {
   display: flex;
@@ -961,7 +1077,7 @@ button.tag-suggestion {
 }
 .event-hero-description {
   font-size: 1.02rem;
-  color: #fff;
+  color: var(--white);
   margin: 0 0 22px 0;
 }
 .event-hero-cta {
@@ -969,21 +1085,22 @@ button.tag-suggestion {
   font-weight: 600;
   padding: 12px 22px;
   font-size: 1rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-cta);
 }
 @media (max-width: 768px) {
   .event-hero-panel { padding: 24px 22px; }
   .event-hero-title { font-size: 1.4rem; }
 }
-.btn-white { background: #fff; color: var(--secondary); }
-.btn-white:hover { background: rgba(255,255,255,0.9); color: var(--secondary); }
+/* On-dark button variant: white fill, teal text, for CTAs on dark gradient panels */
+.btn-inverse { background: var(--white); color: var(--secondary); }
+.btn-inverse:hover { background: rgba(255,255,255,0.9); color: var(--secondary); }
 
 /* ── Video facade (click-to-play; partials/video-facade.hbs) ───── */
 section.home-media { padding-top: 0; }
 .home-media { margin: 0; }
 .home-media-caption {
   text-align: center;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   font-size: 0.95rem;
   margin-top: 12px;
 }
@@ -996,7 +1113,7 @@ section.home-media { padding-top: 0; }
   height: 100%;
   cursor: pointer;
   overflow: hidden;
-  background: #000;
+  background: var(--black);
   text-decoration: none;
 }
 .video-facade-thumb {
@@ -1014,7 +1131,7 @@ section.home-media { padding-top: 0; }
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  color: #fff;
+  color: var(--white);
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
   transition: transform 0.2s ease;
 }
@@ -1026,7 +1143,7 @@ section.home-media { padding-top: 0; }
   width: 100%;
   border: 0;
   display: block;
-  background: #000;
+  background: var(--black);
 }
 
 /* Context: home hero standalone (no aspect wrapper) */
@@ -1034,8 +1151,8 @@ section.home-media { padding-top: 0; }
 .home-media .video-facade-iframe,
 .home-media .video-facade-video {
   aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-deep);
 }
 
 /* Context: competition-format card (.video-embed wrapper supplies 16:9) */
@@ -1049,7 +1166,7 @@ section.home-media { padding-top: 0; }
   box-shadow: none;
 }
 
-/* Context: gallery tile — 1:1, drop card chrome since the tile owns it */
+/* Context: gallery tile (1:1, drop card chrome since the tile owns it) */
 .gallery-tile > .video-facade,
 .gallery-tile > .video-facade-iframe,
 .gallery-tile > .video-facade-video {
@@ -1069,7 +1186,7 @@ section.home-media { padding-top: 0; }
   height: auto;
 }
 
-/* Reference Media grid — compact thumbnails (UX3 QC follow-up 2026-05-11).
+/* Reference Media grid: compact thumbnails.
    Default <ul> would stack tiles full-width; constrain to a responsive grid
    with ~220px columns so trick-detail pages stay scan-friendly. */
 .reference-media-grid {
@@ -1089,10 +1206,10 @@ section.home-media { padding-top: 0; }
 .reference-media-grid .reference-media-source {
   margin: 2px 0 0;
   font-size: 0.78rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted);
 }
 
-/* ── Media tag strip (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7) ───────────
+/* ── Media tag strip ───────────
    Visible hashtag chips on curated freestyle media: landing demonstrations,
    trick-detail reference-media tiles. Tag suppression policy applied
    service-side; this is rendering only. */
@@ -1109,22 +1226,22 @@ section.home-media { padding-top: 0; }
   font-size: 0.72rem;
   line-height: 1.2;
   padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--surface-2, #f1f5f9);
-  color: var(--text-muted, #64748b);
+  border-radius: var(--radius-xs);
+  background: var(--slate-100);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .media-tag-chip--trick {
-  background: var(--accent-tint, #e0f2fe);
-  color: var(--accent-strong, #0369a1);
+  background: var(--sky-100);
+  color: var(--sky-800);
   font-weight: 500;
 }
-.media-tag-chip--source        { background: #ede9fe; color: #6d28d9; }
-.media-tag-chip--creator       { background: #fef3c7; color: #92400e; }
-.media-tag-chip--content-type  { background: #dcfce7; color: #166534; }
-.media-tag-chip--event         { background: #fce7f3; color: #9d174d; }
-.media-tag-chip--discipline    { background: #e2e8f0; color: #475569; }
-.media-tag-chip--quality       { background: #fef3c7; color: #b45309; }
+.media-tag-chip--source        { background: var(--violet-soft); color: var(--violet-deep); }
+.media-tag-chip--creator       { background: var(--warn-tint); color: var(--warn-text); }
+.media-tag-chip--content-type  { background: var(--success-tint); color: var(--success-text); }
+.media-tag-chip--event         { background: var(--pink-soft); color: var(--pink-deep); }
+.media-tag-chip--discipline    { background: var(--slate-200); color: var(--slate-600); }
+.media-tag-chip--quality       { background: var(--warn-tint); color: var(--warn-deep); }
 
 /* Reference Media subsections (Tutorials / Demos split) */
 .reference-media-subsection {
@@ -1140,19 +1257,19 @@ section.home-media { padding-top: 0; }
 
 /* ── Coming-soon discipline cards ──────────────────────────── */
 .card-coming-soon {
-  background: #fafafa;
+  background: var(--gray-50);
   border-style: dashed;
   opacity: 0.85;
 }
-.card-coming-soon .card-title { color: #555; }
-.card-coming-soon .card-description { color: #777; }
+.card-coming-soon .card-title { color: var(--gray-700); }
+.card-coming-soon .card-description { color: var(--gray-600); }
 .badge-coming-soon {
   display: inline-block;
   margin-top: 12px;
   padding: 4px 10px;
-  background: #e5e7eb;
-  color: #555;
-  border-radius: 999px;
+  background: var(--gray-250);
+  color: var(--gray-700);
+  border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1191,15 +1308,15 @@ section.home-media { padding-top: 0; }
 }
 .btn:hover { text-decoration: none; transform: translateY(-1px); }
 
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-dk); color: #fff; }
+.btn-primary { background: var(--primary); color: var(--white); }
+.btn-primary:hover { background: var(--primary-dk); color: var(--white); }
 
 .btn-outline {
   background: transparent;
   color: var(--primary);
   border: 2px solid var(--primary);
 }
-.btn-outline:hover { background: var(--primary); color: #fff; }
+.btn-outline:hover { background: var(--primary); color: var(--white); }
 
 /* ── Archive year nav ───────────────────────────────────────── */
 .year-grid {
@@ -1211,7 +1328,7 @@ section.home-media { padding-top: 0; }
 .year-pill {
   display: inline-block;
   padding: 8px 18px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   background: var(--bg-light);
   border: 1px solid var(--border);
   font-weight: 600;
@@ -1222,7 +1339,7 @@ section.home-media { padding-top: 0; }
 .year-pill:hover {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--white);
   text-decoration: none;
 }
 
@@ -1311,7 +1428,7 @@ section.home-media { padding-top: 0; }
   display: inline-block;
   background: var(--bg-light);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 4px 14px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -1361,9 +1478,9 @@ section.home-media { padding-top: 0; }
   color: var(--text);
   width: 40px;
 }
-.placement-num.gold   { color: #b8860b; }
-.placement-num.silver { color: #707070; }
-.placement-num.bronze { color: #8b4513; }
+.placement-num.gold   { color: var(--medal-gold); }
+.placement-num.silver { color: var(--medal-silver); }
+.placement-num.bronze { color: var(--medal-bronze); }
 
 .participants-list { list-style: none; padding: 0; }
 .participants-list li { padding: 1px 0; }
@@ -1403,7 +1520,7 @@ section.home-media { padding-top: 0; }
   font-family: inherit;
 }
 .login-form input:focus { outline: 2px solid var(--primary); outline-offset: 2px; border-color: var(--primary); }
-.form-notice { color: #1e40af; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; font-size: 0.95rem; }
+.form-notice { color: var(--info-text); background: var(--info-bg); border-left: 4px solid var(--info-accent); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; font-size: 0.95rem; }
 
 /* ── Error pages ─────────────────────────────────────────────── */
 .error-page {
@@ -1424,8 +1541,8 @@ section.home-media { padding-top: 0; }
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .site-footer {
-  background: #111;
-  color: #aaa;
+  background: var(--footer-bg);
+  color: var(--gray-500);
   padding: 48px 0 32px;
   margin-top: 40px;
   font-size: 0.875rem;
@@ -1438,14 +1555,14 @@ section.home-media { padding-top: 0; }
   flex-wrap: wrap;
 }
 .footer-brand-block { display: flex; flex-direction: column; gap: 10px; }
-.footer-brand { color: #fff; font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
+.footer-brand { color: var(--white); font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
 .footer-logo { width: 175px; height: 68px; display: block; background: transparent; border-radius: 0; }
-.footer-tagline { color: #777; font-size: 0.8rem; }
+.footer-tagline { color: var(--gray-600); font-size: 0.8rem; }
 .footer-links { column-count: 3; column-gap: 32px; }
-.footer-links a { color: #aaa; display: block; margin-bottom: 6px; break-inside: avoid; }
-.footer-links a:hover { color: #fff; }
+.footer-links a { color: var(--gray-500); display: block; margin-bottom: 6px; break-inside: avoid; }
+.footer-links a:hover { color: var(--white); }
 .footer-legal {
-  border-top: 1px solid #222;
+  border-top: 1px solid var(--gray-900);
   margin-top: 40px;
   padding-top: 24px;
   width: 100%;
@@ -1457,12 +1574,12 @@ section.home-media { padding-top: 0; }
   font-size: 0.85rem;
   margin-bottom: 10px;
 }
-.footer-legal-links a { color: #aaa; }
-.footer-legal-links a:hover { color: #fff; }
-.footer-legal-links span { color: #444; }
+.footer-legal-links a { color: var(--gray-500); }
+.footer-legal-links a:hover { color: var(--white); }
+.footer-legal-links span { color: var(--gray-800); }
 .footer-copy {
   text-align: center;
-  color: #555;
+  color: var(--gray-700);
   font-size: 0.8rem;
   line-height: 1.5;
   max-width: 820px;
@@ -1470,7 +1587,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Breadcrumb ──────────────────────────────────────────────── */
-/* Breadcrumb — one consistent component across every page. Rendered from
+/* Breadcrumb: one consistent component across every page. Rendered from
    navigation.breadcrumbs as loop-driven crumbs with .breadcrumb-sep. */
 .breadcrumb {
   font-size: 0.85rem;
@@ -1486,14 +1603,14 @@ section.home-media { padding-top: 0; }
   margin: 0 4px;
   opacity: 0.5;
 }
-/* Hero has a dark gradient — breadcrumb must use white */
+/* Hero has a dark gradient, so breadcrumb must use white */
 .hero .breadcrumb,
 .hero .breadcrumb a,
 .hero .breadcrumb span {
   color: rgba(255, 255, 255, 0.92);
 }
 .hero .breadcrumb a:hover {
-  color: #fff;
+  color: var(--white);
 }
 .hero .breadcrumb-sep {
   color: rgba(255, 255, 255, 0.4);
@@ -1503,24 +1620,24 @@ section.home-media { padding-top: 0; }
 /* world map */
 #clubs-map { margin: 24px 0 8px; border-radius: var(--radius); overflow: hidden; background: var(--bg-light); line-height: 0; }
 .clubs-map-svg { width: 100%; height: auto; display: block; max-height: 420px; }
-.clubs-map-svg path { fill: #d0d6dc; stroke: #fff; stroke-width: 0.4; }
+.clubs-map-svg path { fill: var(--map-base); stroke: var(--white); stroke-width: 0.4; }
 .clubs-map-svg path#n242 { fill: none; stroke: none; }
-.clubs-map-svg path.has-clubs { fill: #ecf8f0; cursor: pointer; transition: fill 0.12s; }
+.clubs-map-svg path.has-clubs { fill: var(--map-has-clubs); cursor: pointer; transition: fill 0.12s; }
 .clubs-map-svg path.has-clubs:hover { fill: var(--primary-dk); }
 /* Sequential green choropleth keyed on memberBin (0-6) from
    clubService.memberCountBin. Tier 0 falls through to .has-clubs (the
-   palest fill — clubs row exists but zero affiliations); tiers 1-6 are
+   palest fill, clubs row exists but zero affiliations); tiers 1-6 are
    light→dark across the affiliations-per-country distribution
    (boundaries: 1-2 / 3-9 / 10-29 / 30-99 / 100-299 / 300+). */
-.clubs-map-svg path.clubs-map-tier-1 { fill: #d4ecdb; }
-.clubs-map-svg path.clubs-map-tier-2 { fill: #afdcc1; }
-.clubs-map-svg path.clubs-map-tier-3 { fill: #80c7a0; }
-.clubs-map-svg path.clubs-map-tier-4 { fill: #4eaf7c; }
-.clubs-map-svg path.clubs-map-tier-5 { fill: #1d9059; }
-.clubs-map-svg path.clubs-map-tier-6 { fill: #0a4a2a; }
-.clubs-map-tooltip { position: fixed; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 0.82rem; box-shadow: var(--shadow-md); pointer-events: none; z-index: 200; white-space: nowrap; }
+.clubs-map-svg path.clubs-map-tier-1 { fill: var(--map-tier-1); }
+.clubs-map-svg path.clubs-map-tier-2 { fill: var(--map-tier-2); }
+.clubs-map-svg path.clubs-map-tier-3 { fill: var(--map-tier-3); }
+.clubs-map-svg path.clubs-map-tier-4 { fill: var(--map-tier-4); }
+.clubs-map-svg path.clubs-map-tier-5 { fill: var(--map-tier-5); }
+.clubs-map-svg path.clubs-map-tier-6 { fill: var(--map-tier-6); }
+.clubs-map-tooltip { position: fixed; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 0.82rem; box-shadow: var(--shadow-md); pointer-events: none; z-index: 200; white-space: nowrap; }
 
-/* index page — country list */
+/* index page: country list */
 .club-country-index {
   list-style: none;
   padding: 0;
@@ -1534,7 +1651,7 @@ section.home-media { padding-top: 0; }
   align-items: baseline;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border-light, #f0f0f0);
+  border-bottom: 1px solid var(--gray-150);
 }
 .club-country-index-link {
   font-size: 0.95rem;
@@ -1584,9 +1701,6 @@ section.home-media { padding-top: 0; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
 .club-member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
 .club-member-entry { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.95rem; color: var(--text); }
-.club-members-unconfirmed .club-member-entry { color: var(--text-muted); }
-.club-members-unconfirmed-note { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
-.club-members-unconfirmed-cta { font-size: 0.85rem; margin-top: 12px; }
 .club-members-gate {
   margin-top: 32px;
   padding: 14px 18px;
@@ -1598,6 +1712,45 @@ section.home-media { padding-top: 0; }
 .club-back-link {
   margin-top: 32px;
 }
+
+/* Curator classification diagnostic (temporary surface). Plain readable
+   styling only; these rules leave together with the diagnostic section on
+   the club detail template. */
+.club-qc-panel {
+  margin-top: 32px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-light);
+  font-size: 0.9rem;
+}
+.club-qc-panel-banner { margin: 0 0 12px; color: var(--text-muted); font-size: 0.85rem; }
+.club-qc-panel-heading { margin: 0 0 6px; font-size: 1.05rem; }
+.club-qc-panel-subheading { margin: 18px 0 6px; font-size: 0.95rem; }
+.club-qc-narrative { margin: 0 0 8px; }
+.club-qc-panel-summary dt,
+.club-qc-inputs dt,
+.club-qc-pipeline-context dt { margin-top: 6px; font-weight: 600; }
+.club-qc-panel-summary dd,
+.club-qc-inputs dd,
+.club-qc-pipeline-context dd { margin: 0; color: var(--text-muted); }
+.club-qc-warning { font-weight: 600; }
+.club-qc-rule-table { width: 100%; margin: 6px 0 4px; border-collapse: collapse; }
+.club-qc-rule-table th,
+.club-qc-rule-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-weight: 400;
+}
+.club-qc-rule--fired .club-qc-rule-fired-cell { color: var(--primary-dk); font-weight: 600; }
+.club-qc-rule--not-fired .club-qc-rule-fired-cell { color: var(--text-subtle); }
+.club-qc-signals { list-style: none; margin: 0; padding: 0; }
+.club-qc-signal { padding: 3px 0; }
+.club-qc-signal-label { font-weight: 600; }
+.club-qc-signal-state { margin-left: 6px; }
+.club-qc-signal-evidence { margin-left: 6px; color: var(--text-muted); font-size: 0.85rem; }
+.club-qc-gate-output { margin: 8px 0 0; }
 
 
 .club-country-nav {
@@ -1617,7 +1770,7 @@ section.home-media { padding-top: 0; }
   gap: 4px;
   padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   font-size: 0.85rem;
   color: var(--text);
   text-decoration: none;
@@ -1626,7 +1779,7 @@ section.home-media { padding-top: 0; }
 }
 .club-country-nav-list a:hover {
   border-color: var(--primary);
-  background: var(--primary-light, #f0fdf4);
+  background: var(--success-bg);
 }
 .club-country-count {
   font-size: 0.75rem;
@@ -1655,7 +1808,7 @@ section.home-media { padding-top: 0; }
   align-items: baseline;
   gap: 10px;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border-light, #f0f0f0);
+  border-bottom: 1px solid var(--gray-150);
   flex-wrap: wrap;
 }
 .club-name {
@@ -1671,7 +1824,7 @@ section.home-media { padding-top: 0; }
 .club-hashtag {
   font-size: 0.78rem;
   color: var(--text-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 .club-external-link {
   font-size: 0.8rem;
@@ -1712,41 +1865,10 @@ section.home-media { padding-top: 0; }
   opacity: 0.6;
 }
 .club-meta-row--needs-update {
-  color: #a16207;
+  color: var(--warn-muted);
 }
 .club-meta-row--historical-club {
   font-style: italic;
-}
-.club-snapshot {
-  margin: 12px 0 18px;
-  padding: 10px 14px;
-  background-color: #fafafa;
-  border-left: 3px solid var(--border, #e5e5e5);
-  border-radius: 2px;
-}
-.club-snapshot-heading {
-  font-size: 0.92rem;
-  font-weight: 600;
-  margin: 0 0 6px;
-  color: var(--text);
-}
-.club-snapshot-list {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 2px 12px;
-  margin: 0;
-  font-size: 0.88rem;
-}
-.club-snapshot-list dt {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-.club-snapshot-list dd {
-  margin: 0;
-  color: var(--text);
-}
-.club-snapshot--needs-update {
-  border-left-color: #a16207;
 }
 
 /* ── Member profile ────────────────────────────────────────── */
@@ -1948,7 +2070,7 @@ section.home-media { padding-top: 0; }
 .form-field select:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(27,179,107,0.12);
+  box-shadow: var(--shadow-focus);
 }
 .form-field textarea {
   resize: vertical;
@@ -1965,9 +2087,9 @@ section.home-media { padding-top: 0; }
   color: var(--text-muted);
 }
 .form-field-warning {
-  color: #92400e;
-  background: #fffbeb;
-  border-left: 4px solid #f59e0b;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn-accent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 0.9rem;
@@ -1984,23 +2106,23 @@ section.home-media { padding-top: 0; }
 }
 
 .form-error-banner {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-left: 4px solid #c0392b;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-left: 4px solid var(--danger-accent);
   border-radius: var(--radius-sm);
   padding: 12px 16px;
-  color: #991b1b;
+  color: var(--danger-text);
   font-size: 0.95rem;
   margin-bottom: 24px;
 }
 
 .form-success-banner {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-left: 4px solid #16a34a;
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  border-left: 4px solid var(--success-accent);
   border-radius: var(--radius-sm);
   padding: 12px 16px;
-  color: #166534;
+  color: var(--success-text);
   font-size: 0.95rem;
   margin-bottom: 24px;
 }
@@ -2020,7 +2142,7 @@ section.home-media { padding-top: 0; }
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border, #e0e0e0);
+  border-bottom: 1px solid var(--border);
 }
 .onboarding-task-row:last-child { border-bottom: none; }
 .onboarding-task-row-paused .onboarding-task-label {
@@ -2054,7 +2176,7 @@ section.home-media { padding-top: 0; }
 .signal-checklist-mark {
   display: inline-block;
   width: 1.25em;
-  color: var(--text-secondary, #555);
+  color: var(--gray-700);
   font-weight: 600;
 }
 .signal-checklist-label {
@@ -2189,7 +2311,7 @@ section.home-media { padding-top: 0; }
   background: var(--bg-light);
   border-right: 1px solid var(--border);
   color: var(--text-muted);
-  font-family: "SFMono-Regular", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.95rem;
 }
 
@@ -2247,9 +2369,9 @@ section.home-media { padding-top: 0; }
 
 /* ── Profile edit: identity block ──────────────────────────── */
 .profile-identity-block {
-  background: var(--card-bg, #f9fafb);
+  background: var(--surface-faint);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 20px 24px;
   margin-bottom: 24px;
   max-width: 560px;
@@ -2309,7 +2431,7 @@ section.home-media { padding-top: 0; }
   flex: 1;
 }
 .form-field-error {
-  color: #c0392b;
+  color: var(--danger-accent);
   font-size: 0.9rem;
   margin-bottom: 12px;
 }
@@ -2319,6 +2441,20 @@ section.home-media { padding-top: 0; }
   color: var(--text-muted);
   font-size: 0.9rem;
   margin-top: 8px;
+}
+.notice-info {
+  background: var(--info-bg);
+  color: var(--info-text);
+  border-left: 4px solid var(--info-accent);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.notice-warn {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-left: 4px solid var(--warn-accent);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
 }
 
 /* ── Dividers & helpers ──────────────────────────────────────── */
@@ -2332,12 +2468,16 @@ section.home-media { padding-top: 0; }
 .mt-4  { margin-top: 1rem; }
 .mt-5  { margin-top: 1.25rem; }
 .mt-6  { margin-top: 1.5rem; }
+.mt-8  { margin-top: 2rem; }
 .mt-10 { margin-top: 2.5rem; }
+.mb-0  { margin-bottom: 0; }
 .mb-2  { margin-bottom: 0.5rem; }
 .mb-3  { margin-bottom: 0.75rem; }
 .mb-4  { margin-bottom: 1rem; }
 .mb-6  { margin-bottom: 1.5rem; }
 .mb-8  { margin-bottom: 2rem; }
+.mb-10 { margin-bottom: 2.5rem; }
+.ml-2  { margin-left: 0.5rem; }
 .my-4  { margin-top: 1rem; margin-bottom: 1rem; }
 .pt-6  { padding-top: 1.5rem; }
 .pl-5  { padding-left: 1.25rem; }
@@ -2347,6 +2487,9 @@ section.home-media { padding-top: 0; }
 .w-20 { width: 80px; }
 .w-30 { width: 120px; }
 .w-50 { width: 200px; }
+
+/* ── Display utilities ────────────────────────────────────────── */
+.d-inline { display: inline; }
 
 /* ── Type utilities ───────────────────────────────────────────── */
 .text-secondary { color: var(--secondary); }
@@ -2371,17 +2514,17 @@ section.home-media { padding-top: 0; }
   padding: 12px 16px;
   border-left-style: solid;
   border-left-width: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .notice-card p { margin: 0; }
 .notice-card p + p { margin-top: 8px; }
-.notice-card--info        { border-left-color: #0b5e6b; background: #ecfeff; color: #0b5e6b; }
-.notice-card--info-blue   { border-left-color: #2563eb; background: #eff6ff; color: #1e40af; }
-.notice-card--warn        { border-left-color: #d97706; background: #fffbeb; color: #92400e; }
-.notice-card--warn-strong { border-left-color: #b45309; background: #fffbeb; color: #92400e; }
+.notice-card--info        { border-left-color: var(--secondary); background: var(--info-teal-bg); color: var(--secondary); }
+.notice-card--info-blue   { border-left-color: var(--info-strong); background: var(--info-bg); color: var(--info-text); }
+.notice-card--warn        { border-left-color: var(--warn-strong); background: var(--warn-bg); color: var(--warn-text); }
+.notice-card--warn-strong { border-left-color: var(--warn-deep); background: var(--warn-bg); color: var(--warn-text); }
 
 /* ── Row state ────────────────────────────────────────────────── */
-.row-flagged { background: #fff3e0; }
+.row-flagged { background: var(--orange-soft); }
 
 /* ── Pagination row (filter-bar paginators) ───────────────────── */
 .pagination-row {
@@ -2392,24 +2535,24 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Simulated email card (dev/sandbox only; production renders nothing) ── */
-.sec-card { border: 1px solid #d0d7de; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; background: #f6f8fa; }
-.sec-card-dev { border-left: 4px solid #1f883d; }
-.sec-card-sandbox { border-left: 4px solid #bf8700; background: #fff8c5; }
+.sec-card { border: 1px solid var(--sec-border); border-radius: 6px; padding: 1rem; margin-top: 1.5rem; background: var(--sec-bg); }
+.sec-card-dev { border-left: 4px solid var(--sec-dev); }
+.sec-card-sandbox { border-left: 4px solid var(--sec-sandbox); background: var(--sec-sandbox-bg); }
 .sec-card h2 { margin-top: 0; font-size: 1.1rem; }
 .sec-card .sec-body { white-space: pre-wrap; max-height: 200px; overflow: auto; margin: 0; font-size: 0.85em; }
 .sec-card .sec-table td { vertical-align: top; }
-.sec-card .sec-msgid { font-size: 0.75em; color: #656d76; }
+.sec-card .sec-msgid { font-size: 0.75em; color: var(--sec-text-dim); }
 .sec-card ul { margin: 0.25rem 0 0.5rem 1.25rem; }
-.sec-card code { background: rgba(0,0,0,0.05); padding: 0 0.25rem; border-radius: 3px; }
+.sec-card code { background: rgba(0,0,0,0.05); padding: 0 0.25rem; border-radius: var(--radius-2xs); }
 
 /* ── Internal QC: recovery candidates + team corrections decision UI ── */
 .rc-decision-form { display: inline-flex; gap: 0.3rem; align-items: center; }
 .rc-decision-form select,
 .rc-decision-form input[type="text"] { font-size: 0.85em; padding: 0.15rem 0.3rem; }
 .rc-decision-form button { font-size: 0.8em; padding: 0.2rem 0.5rem; cursor: pointer; }
-.rc-approved { background: #e8f5e9; }
-.rc-rejected { background: #fbe9e7; }
-.rc-deferred { background: #fff8e1; }
+.rc-approved { background: var(--green-pale); }
+.rc-rejected { background: var(--red-pale); }
+.rc-deferred { background: var(--amber-pale); }
 
 /* ── Inline forms (delete buttons next to their items) ─────────── */
 /* Class used by templates whose form should flow inline with surrounding
@@ -2419,15 +2562,157 @@ section.home-media { padding-top: 0; }
 .inline-flex-row { display: inline-flex; gap: 0.5rem; align-items: center; }
 
 /* ── Internal QC: net review item edit UI ────────────────────── */
-.review-edit-row td { padding: 0 0.5rem 0.5rem; background: #f8f8f8; }
-.review-edit-row details summary { cursor: pointer; font-size: 0.85em; color: #666; padding: 0.25rem 0; }
+.review-edit-row td { padding: 0 0.5rem 0.5rem; background: var(--gray-75); }
+.review-edit-row details summary { cursor: pointer; font-size: 0.85em; color: var(--text-muted); padding: 0.25rem 0; }
 .review-edit-forms { display: flex; flex-wrap: wrap; gap: 1rem; padding: 0.5rem 0; }
-.review-inline-form fieldset { border: 1px solid #ddd; border-radius: 4px; padding: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
+.review-inline-form fieldset { border: 1px solid var(--gray-350); border-radius: var(--radius-xs); padding: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
 .review-inline-form legend { font-weight: 600; font-size: 0.85em; }
 .review-inline-form label { display: flex; flex-direction: column; font-size: 0.8em; gap: 0.15rem; }
 .review-inline-form select,
 .review-inline-form input[type="text"] { font-size: 0.85em; padding: 0.2rem 0.3rem; }
 .review-inline-form button { font-size: 0.8em; padding: 0.3rem 0.6rem; cursor: pointer; }
+
+/* ── Generic data table (payment history, admin lists) ──────── */
+.data-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.data-table th,
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.data-table th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* ── Muted detail text and small table variants ─────────────── */
+.detail-muted { color: var(--text-muted); font-size: 0.92rem; }
+.records-table-sm { font-size: 0.9rem; }
+.records-table-sm th,
+.records-table-sm td { padding: 6px 10px; }
+.section-desc { color: var(--text-muted); margin: 4px 0 14px; }
+.col-note { color: var(--text-muted); font-size: 0.9rem; }
+.year-heading { margin: 22px 0 8px; }
+
+/* ── Internal QC: review vocabulary ─────────────────────────── */
+.review-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.review-card {
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+.review-card-alert { background: var(--warn-bg); border-color: var(--warn-accent); }
+.review-filter-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 14px 0; }
+.review-filter-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.section-meta { color: var(--text-muted); font-size: 0.85rem; font-weight: 400; margin-left: 8px; }
+.section-heading-sm h3 { margin: 0; font-size: 1.05rem; }
+.content-section-sub { margin: 12px 0; }
+.col-date { white-space: nowrap; }
+.col-id { font-variant-numeric: tabular-nums; }
+.col-message { word-break: break-word; }
+
+/* ── Wizard and dashboard candidate cards ───────────────────── */
+.candidate-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.candidate-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 12px 14px;
+}
+.candidate-card-linked { background: var(--success-bg); border-color: var(--success-border); }
+.candidate-card-name { font-weight: 600; }
+.candidate-card-meta { color: var(--text-muted); font-size: 0.9rem; }
+.candidate-card-provenance {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.candidate-card-action { display: inline-block; margin: 8px 8px 0 0; }
+.confirm-summary {
+  list-style: none;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.claimed-legacy-row { padding: 4px 0; }
+
+/* ── Member dashboard blocks ─────────────────────────────────── */
+.quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.membership-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.membership-upgrade-form { margin-top: 8px; }
+.onboarding-task-list-skipped { opacity: 0.65; }
+.onboarding-task-row-skipped { color: var(--text-muted); }
+.identity-claim-link { font-size: 0.9rem; margin-top: 8px; }
+
+/* ── Payments ────────────────────────────────────────────────── */
+.payment-checkout-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ── Admin: curator media list + work queue ──────────────────── */
+.curator-list-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+.curator-pagination { display: flex; gap: 10px; align-items: center; margin: 16px 0; }
+.curator-thumb { border-radius: var(--radius-sm); height: auto; }
+.btn-link-danger {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--danger-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-link-danger:hover { color: var(--danger-text); }
+.work-queue-item { margin-bottom: 14px; }
+
+/* ── Gallery edit: current-items picker ──────────────────────── */
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.picker-cell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.picker-cell img { width: 100%; height: auto; border-radius: var(--radius-2xs); }
+.picker-meta { font-size: 0.8rem; color: var(--text-muted); }
+.picker-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--gray-150);
+  color: var(--gray-700);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+}
+.picker-edit-link { font-size: 0.85rem; }
+.gallery-external-link-row { margin-bottom: 10px; }
+.gallery-external-link-row-quarantined { opacity: 0.7; }
+
+/* ── IFPA hub footer sections ────────────────────────────────── */
+.ifpa-footer-back,
+.ifpa-footer-link { margin-top: 24px; }
 
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
@@ -2536,7 +2821,7 @@ section.home-media { padding-top: 0; }
 .records-table .col-num { text-align: right; font-variant-numeric: tabular-nums; }
 .records-table .col-adds { text-align: center; }
 
-/* Trick name: two-line display — common name bold, sort name muted below */
+/* Trick name: two-line display (common name bold, sort name muted below) */
 .trick-name {
   display: block;
   font-weight: 500;
@@ -2863,8 +3148,8 @@ section.home-media { padding-top: 0; }
   color: var(--primary, #1bb36b);
 }
 
-/* ── Trick detail: role-aware notation display (Phase 6) ──────────────────
- * Restraint-first palette per PHASE6 §0: only the four primary roles
+/* ── Trick detail: role-aware notation display ──────────────────
+ * Restraint-first palette: only the four primary roles
  * (core_family, set, rotation, modifier) carry color saturation. Secondary
  * roles render muted gray; unresolved is amber dashed (community-evolving),
  * NOT red error styling.
@@ -2880,12 +3165,12 @@ section.home-media { padding-top: 0; }
   border-radius: 3px;
 }
 
-/* O1a/O1b (2026-05-10) — operational notation block.
+/* Operational notation block.
  *
  * Warm palette for token-role coloring (amber / orange / teal) deliberately
  * distinct from semantic notation's cool palette (blue / teal / green). A
  * reader who scrolls past both notation sections sees the layer change at a
- * glance. Restraint-first per RENDERING_SURFACE_PROPOSAL §3: only the four
+ * glance. Restraint-first: only the four
  * primary roles (surface, body-action, rotation-variant) carry color
  * saturation; secondary roles (side, direction, component-flag, pre-state,
  * sequence-op) render muted gray.
@@ -2909,11 +3194,11 @@ section.home-media { padding-top: 0; }
   padding: 0 0.15em;
   border-radius: 2px;
 }
-/* Primary three — color-saturated, load-bearing operational distinctions. */
+/* Primary three: color-saturated, load-bearing operational distinctions. */
 .op-token--surface           { color: #b45309; font-weight: 600; }   /* amber-700 */
 .op-token--body-action       { color: #c2410c; font-weight: 600; }   /* orange-700 */
 .op-token--rotation-variant  { color: #0f766e; font-weight: 600; }   /* teal-700 */
-/* Secondary — muted; visible but recede. */
+/* Secondary: muted; visible but recede. */
 .op-token--side              { color: #525252; }                     /* neutral-600 */
 .op-token--direction         { color: #525252; }                     /* neutral-600 */
 /* Component flags render at slightly smaller font (annotation-shape). */
@@ -2923,12 +3208,12 @@ section.home-media { padding-top: 0; }
   letter-spacing: 0;
 }
 /* Optional micro-distinguishers for the high-frequency 3 flags via dotted
- * underline border. Per RENDERING_SURFACE_PROPOSAL §3.2 — DEX green, BOD
+ * underline border: DEX green, BOD
  * orange, PDX violet. Other flags render plain. */
 .op-token--component-flag-dex { border-bottom: 1px dotted #16a34a; } /* green-600 */
 .op-token--component-flag-bod { border-bottom: 1px dotted #ea580c; } /* orange-600 */
 .op-token--component-flag-pdx { border-bottom: 1px dotted #7c3aed; } /* violet-600 */
-/* Pre-state flags render italic — they're annotation language, not structural tokens. */
+/* Pre-state flags render italic: they're annotation language, not structural tokens. */
 .op-token--pre-state {
   color: #737373;                                                    /* neutral-500 */
   font-style: italic;
@@ -2937,7 +3222,7 @@ section.home-media { padding-top: 0; }
 /* Sequence operators. >> is slightly heavier weight than > (major boundary). */
 .op-token--sequence-op-minor { color: #a3a3a3; }                     /* neutral-400 */
 .op-token--sequence-op-major { color: #525252; font-weight: 600; }   /* neutral-600 */
-/* Unknown — pass-through, no visual styling. Renders verbatim so curator
+/* Unknown: pass-through, no visual styling. Renders verbatim so curator
  * can spot tokens that fell outside the closed vocabulary. */
 .op-token--unknown { color: inherit; }
 
@@ -2959,7 +3244,7 @@ section.home-media { padding-top: 0; }
   color: #b45309;  /* match operational palette primary on hover */
 }
 
-/* UX1 Phase B 2026-05-11: parallel glossary deeplink for the semantic
+/* Parallel glossary deeplink for the semantic
  * notation block. Same styling shape; hover color picks the cool-palette
  * primary (notation-core-family green) to maintain layer distinction. */
 .notation-glossary-link {
@@ -2979,7 +3264,7 @@ section.home-media { padding-top: 0; }
 
 /* O1d: curator-authored provenance / citation line. Muted italic so it
  * recedes below the token block; sits between the notation and the
- * glossary deeplink. Free-form text — supports the three real states
+ * glossary deeplink. Free-form text supporting the three real states
  * (FM curator-reviewed / IFPA-authored / FM alternative-reading) plus
  * ontology-conflict transparency. Omits entirely when null. */
 .operational-notation-source-note {
@@ -2994,12 +3279,12 @@ section.home-media { padding-top: 0; }
   padding: 0 0.15em;
   border-radius: 2px;
 }
-/* Primary four — color-saturated, load-bearing semantic distinctions. */
+/* Primary four: color-saturated, load-bearing semantic distinctions. */
 .notation-core-family       { color: #2a7a3a; font-weight: bold; }
 .notation-set               { color: #1f5fa8; }
 .notation-rotation          { color: #c46a1a; }
 .notation-modifier          { color: #8a7a14; }
-/* Secondary — muted, low-saturation; visible but recede. */
+/* Secondary: muted, low-saturation; visible but recede. */
 .notation-delay-surface     { color: #555; }
 .notation-unusual-surface   { color: #555; }
 .notation-directionality    { color: #777; font-style: italic; }
@@ -3007,7 +3292,7 @@ section.home-media { padding-top: 0; }
 .notation-footedness        { color: #777; font-style: italic; }
 .notation-multiplicity      { color: #555; font-weight: 600; }
 .notation-suffix            { color: #888; }
-/* Unresolved — soft amber dashed; "evolving" not "error". */
+/* Unresolved: soft amber dashed; "evolving" not "error". */
 .notation-unresolved {
   color: #8a6a14;
   text-decoration: underline dashed #c4a73c;
@@ -3184,7 +3469,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   /freestyle/compositional-sets — dictionary-hub exploration surface.
+   /freestyle/compositional-sets: dictionary-hub exploration surface.
    Sibling to .moves-* above; operator cards in grids + visual ladders
    for the uptime-reinterpretation section. Restrained palette per the
    post-IA-cleanup standard (no warm/amber colors; white cards;
@@ -3311,7 +3596,7 @@ section.home-media { padding-top: 0; }
   color: #94a3b8;
 }
 
-/* Uptime-reinterpretation ladders — visual hierarchy with step indent. */
+/* Uptime-reinterpretation ladders: visual hierarchy with step indent. */
 .compositional-sets-ladders-intro {
   max-width: 720px;
   margin: 0 0 1rem;
@@ -3400,7 +3685,7 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-/* §4 audit — compact dl summary + status-badged row list. Status badge
+/* §4 audit: compact dl summary + status-badged row list. Status badge
    colors echo the ladder accents: green=aligned, neutral=partial,
    dashed-grey=conflict, light-grey=Holden-only. No warm palette. */
 .compositional-sets-audit-intro {
@@ -3619,7 +3904,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ==========================================================================
-   Freestyle landing — onboarding layout
+   Freestyle landing: onboarding layout
    ========================================================================== */
 
 /* Hero with mascot: text left, mascot right */
@@ -3829,8 +4114,8 @@ section.home-media { padding-top: 0; }
    CSS-only tab pattern. The mediaType radio inputs sit at the top of
    .upload-tabs; :checked ~ sibling selectors style the matching label
    and reveal the matching .upload-tab-panel. No JS required. Without
-   this CSS (or if it fails to load) all panels stay visible — graceful
-   degradation per src/public/CLAUDE.md progressive-enhancement rule.
+   this CSS (or if it fails to load) all panels stay visible, a graceful
+   degradation so core content never depends on the stylesheet loading.
 */
 .upload-form .upload-tabs {
   margin: 16px 0;
@@ -3921,7 +4206,7 @@ section.home-media { padding-top: 0; }
 
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX2 single-page pilot (2026-05-11) -- flagship editorial trick layout.
+   Single-page pilot: flagship editorial trick layout.
    Active only on freestyle/trick-ux2.hbs (today: /freestyle/tricks/montage).
    Restraint-first additions; no token / palette redesign.
    ───────────────────────────────────────────────────────────────────────── */
@@ -4072,7 +4357,7 @@ section.home-media { padding-top: 0; }
 /* Tier-4 executable-accounting disclosure on trick-detail. Matches the
    collapsed-by-default disclosure aesthetic of the structural panel but
    sits earlier in the flow (between modifier-layering and execution
-   prose) — the goal is educational, not diagnostic. */
+   prose); the goal is educational, not diagnostic. */
 .trick-add-analysis-disclosure {
   background: #fff;
   border: 1px solid var(--border, #e2e8f0);
@@ -4128,10 +4413,9 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-/* Primitive-note callout on core-atom trick-detail pages
-   (post-Wave-7 ontology-clarification slice, 2026-05-23). Pairs with
-   the service-layer suppression of addAnalysis + equivalenceTopology
-   on atoms — the suppressed sections are replaced editorially by a
+/* Primitive-note callout on core-atom trick-detail pages.
+   Pairs with the service-layer suppression of addAnalysis + equivalenceTopology
+   on atoms: the suppressed sections are replaced editorially by a
    compact two-line callout explaining the ontological role.
    Restrained styling; never dominates the trick-about above it. */
 .trick-primitive-note {
@@ -4178,8 +4462,8 @@ section.home-media { padding-top: 0; }
   white-space: nowrap;
 }
 
-/* Movement-intuition prose section (trick-detail enrichment slice,
-   2026-05-23). Curator-locked flagship enrichments only. Reads as
+/* Movement-intuition prose section, a trick-detail enrichment.
+   Curator-locked flagship enrichments only. Reads as
    the page's "feel" section between the compositional About block
    and the symbolic Notation block. Restrained typography; the prose
    is the visual lead, the attribution is a small muted line.
@@ -4258,7 +4542,7 @@ section.home-media { padding-top: 0; }
   margin: 0.15rem 0;
 }
 
-/* ── Trick-detail ontology doctrine — Phase A/B (2026-05-25) ──
+/* ── Trick-detail ontology doctrine ──
    L2-L6 layered ontology sections for Tier A flagship pages.
    Movement-first; restrained typography; no decorative drift. */
 .trick-mechanical-delta,
@@ -4428,10 +4712,10 @@ section.home-media { padding-top: 0; }
   color: var(--text-primary, #333);
 }
 
-/* Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
+/* Reverse-pair transform overlay.
    Renders below the canonical JOB notation on 5 curator-locked trick
    pages (illusion / pickup / rev-whirl / rev-swirl / orbit). Compact,
-   secondary visual hierarchy — never competes with the canonical
+   secondary visual hierarchy that never competes with the canonical
    notation block above. Educational overlay only. */
 .trick-transform {
   padding: 12px 16px;
@@ -4570,7 +4854,7 @@ section.home-media { padding-top: 0; }
 .trick-equivalence-topology-role-badge--doctrine-locked-alternate { border-color: #94a3b8; color: #475569; }
 .trick-equivalence-topology-role-badge--deprecated { border-color: #c7c0b0; color: #8a8270; font-style: italic; }
 
-/* Browse-card secondary row — surfaces the OPERATIONAL/JOB chain +
+/* Browse-card secondary row: surfaces the OPERATIONAL/JOB chain +
    ADD breakdown beneath the primary card content for pilot first-class
    slugs only. Compact + neutral; sits below the primary card body
    without competing with non-first-class siblings on the same view.
@@ -4658,10 +4942,9 @@ section.home-media { padding-top: 0; }
   margin-bottom: 8px;
 }
 
-/* Notation summary — first-class trick reference card. Neutral palette
+/* Notation summary: first-class trick reference card. Neutral palette
    (white background, thin gray border, smaller typography); visually
-   secondary to the hero, not a warning panel. Replaces the prior gold
-   metadata strip per the FC polish slice. */
+   secondary to the hero, not a warning panel. */
 .trick-notation-summary {
   margin: 0 0 18px 0;
   padding: 10px 14px;
@@ -4732,8 +5015,8 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-/* "Compressed from" / "Compressed reading" pedagogy line (2026-05-25
-   glossary follow-on). Single line; visually subordinate to the JOB/
+/* "Compressed from" / "Compressed reading" pedagogy line, a
+   glossary follow-on. Single line; visually subordinate to the JOB/
    ADD/ALT cluster above it. Margin-top pulls it close to the notation
    summary block. */
 .trick-compressed-from {
@@ -4763,8 +5046,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3c-b ADD-tiered family lineage (2026-05-11). Replaces the flat
-   .family-ladder list with tier-grouped rows: numeric ADD tiers ascending,
+   ADD-tiered family lineage. Tier-grouped rows: numeric ADD tiers ascending,
    "Modifiers" tier last. Current trick row highlighted within its tier.
    Restraint-first: muted tier labels, sentence-cased member names, single
    star indicator for record-bearing rows.
@@ -4839,7 +5121,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3c-c (2026-05-11) hero quick-stat ADD-derivation strip. Renders below
+   Hero quick-stat ADD-derivation strip. Renders below
    the hero-stats chips and above the editorial summary. Each operand is a
    role-coloured token (cool palette); operators (+, =) are muted; weight
    parentheticals are dimmed. Atom rows render the short form. Restraint:
@@ -4888,7 +5170,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3d-a (2026-05-11) hero decomposition strip. Prominent role-coloured
+   Hero decomposition strip. Prominent role-coloured
    token row rendered between h1 and the family badge for compound tricks
    where modifier_links.length >= 2. Augments (not replaces) the title.
    Cool-palette tokens adapted to the dark hero gradient with semi-opaque
@@ -4946,7 +5228,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3d-b (2026-05-11) nested modifier-layering panel. Activates only when
+   Nested modifier-layering panel. Activates only when
    modifier_links.length >= 3 (current dictionary: Montage only). Restraint:
    one panel; no client JS; pure CSS for nesting. Each layer is a coloured
    bordered box wrapping the next deeper layer; innermost is the base trick.
@@ -5042,7 +5324,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3d-d (2026-05-11) semantic-density convergence for trick-detail pages.
+   Semantic-density convergence for trick-detail pages.
    Scoped to .trick-shell so non-trick pages are unaffected. Brings the
    per-section rhythm closer to the prototype's "semantic instrument panel"
    feel: quieter h2, tighter section padding, smaller section intros,
@@ -5083,7 +5365,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3d-e (2026-05-11) semantic-cluster shared chrome. Three structural
+   Semantic-cluster shared chrome. Three structural
    surfaces (notation, operational notation, modifier layering) render as
    matching cards. Shared chrome + tighter spacing communicates "single
    integrated analysis cluster" without HTML restructuring. Atom pages with
@@ -5120,7 +5402,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3e-b (2026-05-11) relationship intelligence panels: parallel tricks +
+   Relationship intelligence panels: parallel tricks +
    modifier substitutions. Renders below Related Tricks, above the Media
    block. Compact lists; visually lighter than prose sections; no hashtags;
    role-coloured swap tokens for the substitutions panel.
@@ -5235,13 +5517,12 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3f-b (2026-05-11) hero metadata ribbon. Consolidates the previous
-   standalone eyebrow + hero-stats div + family-badge paragraph into a
+   Hero metadata ribbon. Eyebrow, hero-stats, and family-badge render as a
    single flex-wrapping chip row directly below the h1. Each chip carries
    a semi-opaque white tint on the dark hero gradient; family chip is a
    link (hover-emphasised); ADD + record chips are static. Mobile flex-
-   wraps the chips; gap tightens. Drops the "compound" category chip
-   universally on trick-detail pages (low-signal per UX3f-a §12).
+   wraps the chips; gap tightens. Omits the "compound" category chip
+   universally on trick-detail pages, since it carries little signal there.
    ───────────────────────────────────────────────────────────────────────── */
 
 .trick-hero-meta-ribbon {
@@ -5301,7 +5582,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UX3f-b F8 (2026-05-11) substitution inline-compact mode. Activates when
+   Substitution inline-compact mode. Activates when
    content.substitutions.length >= 3 (Matador's 4-row case + similar
    1-modifier flagships). Collapses the per-substitution two-row layout
    (swap on top, result below) into a single row: swap pills + bullet +
@@ -5358,12 +5639,11 @@ section.home-media { padding-top: 0; }
  *   - dim "observational" badge to label the layer explicitly
  *   - readable footer disclaiming non-canonical status
  *
- * Per UX-SHIP-1 Phases 4-7; consolidated per UX-CONSOLIDATION-1.
- * Keep additive — never overrides canonical styles already used by
+ * Keep additive: never overrides canonical styles already used by
  * `.related-tricks-list` etc.
  * ────────────────────────────────────────────────────────────────────── */
 
-/* Shared symbolic-card pattern — muted background + warm-tone left border.
+/* Shared symbolic-card pattern: muted background + warm-tone left border.
  * Future symbolic surfaces should use this directly in HTML.
  * Existing surfaces (related-topology / progression-step / confusion-card /
  * connective-panel) still ship their own rules with the same declarations;
@@ -5374,8 +5654,8 @@ section.home-media { padding-top: 0; }
   border-radius: 0 4px 4px 0;
 }
 
-/* Shared ADD-value chip — used by every symbolic surface that surfaces ADD
- * counts next to a trick name. Per UX-CONSOLIDATION-1 visual unification. */
+/* Shared ADD-value chip: used by every symbolic surface that surfaces ADD
+ * counts next to a trick name, unifying their visual treatment. */
 .symbolic-adds-chip,
 .symbolic-topology-adds,
 .symbolic-walking-progression .step-adds,
@@ -5424,7 +5704,7 @@ section.home-media { padding-top: 0; }
   margin-left: 6px;
 }
 
-/* Glossary tier badges — lightweight orientation labels on section headings.
+/* Glossary tier badges: lightweight orientation labels on section headings.
    Three tiers (beginner / intermediate / advanced) shape a learner's
    reading path; visually restrained so the page reads as a primer first
    and a tier-graded reference second. */
@@ -5456,7 +5736,7 @@ section.home-media { padding-top: 0; }
   border-color: #ddd3c2;
 }
 
-/* Glossary sidebar layout — CSS-only sticky positioning. Desktop ≥1024px
+/* Glossary sidebar layout: CSS-only sticky positioning. Desktop ≥1024px
    places the sidebar as a left rail next to the main column. Below
    1024px the sidebar moves to a horizontal-scroll strip above the
    content; below 480px it stacks vertically.
@@ -5516,9 +5796,9 @@ section.home-media { padding-top: 0; }
      .wrapper, which already constrains overall page width. */
 }
 
-/* ── Trick-detail scoring notes (Wave 7 doctrine-divergence) ────────────
-   Per exploration/doctrine_divergence_framework_2026-05-23.md §3:
-   factual + brief + muted; rendered on trick-detail ONLY (browse
+/* ── Trick-detail scoring notes ────────────
+   Where competition doctrine diverges, the note stays factual, brief, and
+   muted; rendered on trick-detail ONLY (browse
    cards / glossary / landing never carry this surface). */
 .trick-scoring-notes {
   border-left: 3px solid var(--border);
@@ -5559,7 +5839,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ── Glossary §1 core trick atoms band ─────────────────────────────────
-   Pedagogical onboarding cards (curator 2026-05-22). Twelve foundational
+   Pedagogical onboarding cards (curator-authored). Twelve foundational
    atoms with movement-physical leads + foundational/cultural notes +
    optional secondary family-role lines. Distinct from the §10 compact
    symbolic-object grid (same atoms, different presentation). */
@@ -5693,7 +5973,7 @@ section.home-media { padding-top: 0; }
   }
 }
 
-/* Glossary term lists — unified <dl> styling for term/definition entries
+/* Glossary term lists: unified <dl> styling for term/definition entries
    across §2 / §3 / §4. Lean spacing; consistent across sections. */
 .glossary-term-list {
   margin: 0.5rem 0 0 0;
@@ -5715,7 +5995,7 @@ section.home-media { padding-top: 0; }
   margin-top: 0.5rem;
 }
 
-/* §4 timing-clock visual — horizontal four-beat clock as inline SVG.
+/* §4 timing-clock visual: horizontal four-beat clock as inline SVG.
    Restrained sizing so the figure reads as orientation, not feature. */
 .glossary-timing-clock-figure {
   margin: 1.25rem auto 0.5rem auto;
@@ -5734,11 +6014,11 @@ section.home-media { padding-top: 0; }
   line-height: 1.45;
 }
 
-/* §5 family-tree visual — anchor + branched compound members rendered
+/* §5 family-tree visual: anchor + branched compound members rendered
    as a compact registry-style list. Tree characters (├ └) provided by
    pseudo-elements so the markup stays semantic. */
-/* §5 family card primitives (P2 IA refactor). Two grids — Root
-   Terminal Families + Branch Families — each rendering a bordered card
+/* §5 family card primitives. Two grids (Root
+   Terminal Families + Branch Families), each rendering a bordered card
    with title + type chip + 5 labeled fields + optional collapsed
    observational panels. */
 .glossary-family-card-grid {
@@ -6099,7 +6379,7 @@ section.home-media { padding-top: 0; }
   margin-left: 6px;
 }
 
-/* §6 modifier feel cards — player-facing pedagogical view (Surface A).
+/* §6 modifier feel cards: player-facing pedagogical view (Surface A).
    Compact cards grouped into set / body clusters. Restrained borders;
    no saturated colors; movement-first hierarchy. */
 .glossary-modifier-cluster {
@@ -6180,7 +6460,7 @@ section.home-media { padding-top: 0; }
   border-left: 2px solid #ddd5c2;
 }
 
-/* §6 Advanced Decomposition & Operator Theory group — Surface B.
+/* §6 Advanced Decomposition & Operator Theory group: Surface B.
    Subtle background tint signals the optional-reference role without
    visually overpowering Surface A above. */
 .glossary-advanced-reference-group {
@@ -6210,7 +6490,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.92rem;
 }
 .symbolic-topology-members-list li > a { font-weight: 500; }
-/* .symbolic-topology-adds — see consolidated .symbolic-adds-chip rule above */
+/* .symbolic-topology-adds: see consolidated .symbolic-adds-chip rule above */
 .symbolic-layer-footer {
   font-size: 0.78rem;
   color: #8a8470;
@@ -6221,7 +6501,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Walking-family progression page (UX-SHIP-1 Phase 5)
+ * Walking-family progression page
  * ────────────────────────────────────────────────────────────────────── */
 
 .symbolic-walking-progression {
@@ -6324,7 +6604,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Modifier-family teaching page (UX-SHIP-1 Phase 6 — spinning pilot)
+ * Modifier-family teaching page (spinning pilot)
  *
  * Single template; per-modifier content authored in
  * src/services/symbolicModifierEducation.ts.
@@ -6484,7 +6764,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Glossary connective panels (UX-SHIP-1 Phase 7)
+ * Glossary connective panels
  *
  * Six small per-term panels rendered as a new section near the bottom of
  * the freestyle glossary. Each panel surfaces a short coach-tone definition
@@ -6594,7 +6874,7 @@ section.home-media { padding-top: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Symbolic learn index page (/freestyle/learn) — DISCOVERABILITY phase
+ * Symbolic learn index page (/freestyle/learn).
  * Single entry-point page listing the observational educational subsystem.
  * ────────────────────────────────────────────────────────────────────── */
 
@@ -6752,7 +7032,7 @@ section.home-media { padding-top: 0; }
 .operator-board-lede {
   font-size: 1.05rem;
   color: #555;
-  /* NCR-4 density cleanup: tighter lede-to-tiers spacing. */
+  /* Tighter lede-to-tiers spacing for a denser layout. */
   margin: 0 0 22px 0;
   max-width: 680px;
   line-height: 1.55;
@@ -6762,9 +7042,9 @@ section.home-media { padding-top: 0; }
   margin: 36px 0 24px 0;
   --tier-color: #555e6b;
 }
-.operator-tier-set        { --tier-color: #b87333; }   /* amber — set */
-.operator-tier-body       { --tier-color: #2a6fb5; }   /* steel — body */
-.operator-tier-structural { --tier-color: #555e6b; }   /* slate — structural */
+.operator-tier-set        { --tier-color: #b87333; }   /* amber: set */
+.operator-tier-body       { --tier-color: #2a6fb5; }   /* steel: body */
+.operator-tier-structural { --tier-color: #555e6b; }   /* slate: structural */
 
 .operator-tier-eyebrow {
   font-size: 0.72rem;
@@ -6841,10 +7121,9 @@ section.home-media { padding-top: 0; }
  * destination exists). Tier-color tinted, italic, no underline at rest, no
  * card-wide hover state. Cards without a mature destination render no footer
  * element at all. */
-/* Phase 1 / D: deeplink renders as icon-only chip anchored to the card's
+/* Deeplink renders as icon-only chip anchored to the card's
    bottom-right; the pre-shaped `hrefLabel` becomes the accessible name +
-   tooltip. Text-label `Notation reference` / `Glossary entry` / `Modifier
-   page` was scaffolding noise; the destination icon (→) is enough. */
+   tooltip. No visible text label; the destination icon (→) is enough. */
 .operator-card-deeplink {
   position: absolute;
   bottom: 8px;
@@ -6915,9 +7194,9 @@ section.home-media { padding-top: 0; }
   line-height: 1.65;
   padding: 4px 0;
 }
-.equivalent-reading-depth-0 { font-size: 1rem;    /* 100% — primary */    }
-.equivalent-reading-depth-1 { font-size: 0.92rem; /* 92%  — secondary */  color: #3a4858; }
-.equivalent-reading-depth-2 { font-size: 0.86rem; /* 86%  — tertiary */   color: #4a5868; }
+.equivalent-reading-depth-0 { font-size: 1rem;    /* 100%: primary */    }
+.equivalent-reading-depth-1 { font-size: 0.92rem; /* 92%:  secondary */  color: #3a4858; }
+.equivalent-reading-depth-2 { font-size: 0.86rem; /* 86%:  tertiary */   color: #4a5868; }
 .equivalent-reading + .equivalent-reading::before {
   content: '\2261\00a0';   /* ≡ with non-breaking space */
   color: #99a;
@@ -6972,11 +7251,10 @@ section.home-media { padding-top: 0; }
   letter-spacing: 0.01em;
 }
 
-/* /freestyle/observational — observational-layer cards.
+/* /freestyle/observational: observational-layer cards.
  * Visually distinct from canonical dict-card to make the layer
- * separation immediately legible. Per
- * exploration/freestyle-public-coherence-wave-2026-05-18/
- * curated_vs_observational_boundary.md: NO hashtag chip, NO ADD chip
+ * separation immediately legible. To keep observational entries from
+ * reading as official: NO hashtag chip, NO ADD chip
  * with canonical styling, NO trick-detail link. */
 .freestyle-observational .observational-layer-note {
   margin: 0 0 16px 0;
@@ -7170,7 +7448,7 @@ section.home-media { padding-top: 0; }
   color: #666;
 }
 
-/* Tracked-vocabulary section — the broader documented-but-unpublished
+/* Tracked-vocabulary section: the broader documented-but-unpublished
    name list, grouped by source, on /freestyle/observational. */
 .observational-tracked {
   margin-top: 36px;
@@ -7185,7 +7463,7 @@ section.home-media { padding-top: 0; }
   column-gap: 32px;
   font-size: 0.9rem;
 }
-/* Tracked tag — the tag identity for observational / tracked entries.
+/* Tracked tag: the tag identity for observational / tracked entries.
    Deliberately distinct from the canonical #slug chip (dashed, italic,
    muted) so a visible tag never implies official status. */
 .tracked-tag {
@@ -7374,7 +7652,7 @@ section.home-media { padding-top: 0; }
   .observed-matrix td { padding: 4px 6px; }
 }
 
-/* PassBack-vs-IFPA ADD framing — §3c subsection on /freestyle/add-analysis */
+/* PassBack-vs-IFPA ADD framing: §3c subsection on /freestyle/add-analysis */
 .passback-add-framing-prose {
   margin: 8px 0 14px 0;
   padding: 12px 16px;
@@ -7436,7 +7714,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.92em;
 }
 
-/* Canonical Formula Resolution Sprint 1 — settled +1-stack reference */
+/* Canonical formula resolution: settled +1-stack reference */
 .resolved-formulas-table {
   width: 100%;
   margin-top: 8px;
@@ -7472,7 +7750,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.86rem;
 }
 
-/* Glossary §3 — Intermediate-operator reference (NF-2A).
+/* Glossary §3: Intermediate-operator reference.
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds
  * structured sub-paragraphs per entry (meaning / decomposition / pending /
@@ -7530,7 +7808,7 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-/* Freestyle landing — pointer paragraph into /freestyle/learn */
+/* Freestyle landing: pointer paragraph into /freestyle/learn */
 .freestyle-learn-pointer {
   margin-top: 14px;
   padding: 10px 14px;
@@ -7549,12 +7827,12 @@ section.home-media { padding-top: 0; }
 .modifier-glossary-link { margin-top: 10px; font-size: 0.86rem; }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Dictionary trick card (DSC-2 slice 1).
+ * Dictionary trick card.
  *
  * The canonical symbolic trick card. Operational notation is the visual
  * center of gravity: larger than aliases, typographically stronger than
  * metadata. The card renders sparse single-token tricks (Toe Stall) and
- * deep compounds (Mobius, Montage) through the same template — no special-
+ * deep compounds (Mobius, Montage) through the same template; no special-
  * case templates allowed.
  * ────────────────────────────────────────────────────────────────────── */
 
@@ -7563,20 +7841,20 @@ section.home-media { padding-top: 0; }
    on the landing page and the glossary compression-flow: #slug (primary)
    → ≡ equivalence (secondary, future) → notation (subordinate) → ADD chip.
    The dictionary surface adds metadata rows below the symbolic-core
-   (aliases, media-coverage chip, status badge) — that's the only
+   (aliases, media-coverage chip, status badge), the only
    surface-specific extension. */
 .dict-card {
   padding: 12px 14px 10px 14px;
   margin-bottom: 14px;
   background: transparent;
-  /* Container heaviness lifted — typography + whitespace carry object identity. */
+  /* Container heaviness lifted: typography + whitespace carry object identity. */
 }
 .dict-card--external-placeholder {
   opacity: 0.65;
 }
 
-/* .dict-card-header is no longer emitted (PRESENTATION_OBJECT_HIERARCHY normalization, 2026-05-16).
-   Browse density now stacks children directly so field order matches registry density:
+/* No .dict-card-header wrapper is emitted.
+   Browse density stacks children directly so field order matches registry density:
    title → formula → ADD chip → media chip → status badge → placeholder note. */
 .dict-card-title {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -7610,7 +7888,7 @@ a.dict-card-title:hover {
   flex-shrink: 0;
 }
 
-/* Tag identity chip — every dictionary card surfaces its #slug. */
+/* Tag identity chip: every dictionary card surfaces its #slug. */
 .dict-card-hashtag {
   display: inline-block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -7619,8 +7897,8 @@ a.dict-card-title:hover {
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* External-source rows: a visually distinct "tracked tag" — dashed,
-   not solid — so a visible tag never implies official status. */
+/* External-source rows: a visually distinct "tracked tag" (dashed,
+   not solid) so a visible tag never implies official status. */
 .dict-card--external-placeholder .dict-card-hashtag {
   color: var(--text-subtle);
   border: 1px dashed var(--border);
@@ -7647,7 +7925,7 @@ a.dict-card-title:hover {
 /* Successive ≡ lines hug each other (same tight-stack rule as
    .core-trick-equivalence on landing). */
 
-/* Notation is subordinate technical detail — clearly dimmer than the slug,
+/* Notation is subordinate technical detail: clearly dimmer than the slug,
    and (post-equivalence-rollout) clearly dimmer than equivalence readings. */
 .dict-card-notation {
   display: block;
@@ -7665,7 +7943,7 @@ a.dict-card-title:hover {
   margin: 0;
 }
 
-/* ── ADD-view two-line row contract (2026-05-27) ──────────────────────────
+/* ── ADD-view two-line row contract ──────────────────────────
    Every /freestyle/tricks?view=add row: line 1 = name/hashtag/≡/media;
    line 2 = JOB: + ADD:. No green ADD chip. Uniform structure across rows. */
 .dict-trick-row-stack {
@@ -7762,7 +8040,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-muted, #94a3b8);
 }
 
-/* JOB block container — wraps the operational-notation row with a small
+/* JOB block container: wraps the operational-notation row with a small
    "JOB" label prefix so the notation reads as a labeled metadata block,
    consistent with the detail page's "Set notation" section, NOT as
    loose body text. Applies across all browse views (ADD / family /
@@ -7863,11 +8141,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #92400e;            /* amber-800 */
 }
 
-/* Slice M (2026-05-16): small italic pill for curator-flagged folk-derived
+/* Small italic pill for curator-flagged folk-derived
  * / mechanically-ambiguous rows. Renders inline with the ADD chip; muted
  * tone so it never competes with the trick title or notation row.
  * Source: freestyleUnresolvedCompounds.ts. Restraint: no severity scale,
- * no tooltip, no link, no category — strictly a binary honest hedge. */
+ * no tooltip, no link, no category, strictly a binary honest hedge. */
 .dict-card-pending-pill {
   display: inline-block;
   margin: 0 0 0 6px;
@@ -7880,10 +8158,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 
-/* ─── BROWSE-REFACTOR-1 Slice 1 (2026-05-15) ────────────────────────────────
+/* ─── Browse registry surface ────────────────────────────────
    Registry density + semantic tokens + family-anchor emphasis.
-   Restraint discipline per SEMANTIC_COMPRESSION_DOCTRINE §5 + BROWSE_SURFACE_
-   AUDIT §B.2: 4-color budget; no decorative color; unknown tokens neutral. */
+   Restraint discipline: 4-color budget; no decorative color; unknown
+   tokens neutral. */
 
 /* Semantic browse tokens. Four roles. Lowercase, body font (not mono).
    Persistent across registry + browse densities. */
@@ -7899,7 +8177,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 
 /* Family-anchor emphasis. Solid underline on canonical-family + component
    surfaces; dotted on observational topology. Data-anchor-style on the
-   group section drives the variant — purely declarative, no JS. */
+   group section drives the variant: purely declarative, no JS. */
 [data-anchor-style="solid"] .sem-token[data-anchor="true"] {
   border-bottom: 1.5px solid #5a7b48;
   padding-bottom: 1px;
@@ -7929,7 +8207,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .dict-card--registry .dict-card-title {
   font-size: 0.95rem;
   font-weight: 500;
-  /* less dominant than browse-density title — slug becomes secondary identifier. */
+  /* less dominant than browse-density title: slug becomes secondary identifier. */
 }
 .dict-card--registry .dict-card-add {
   font-size: 0.78rem;
@@ -7970,9 +8248,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .dict-card-equivalence--inline .sem-token + .sem-token { margin-left: 0.35em; }
 
 /* ── Browse density: vertical stack, same field order as registry ──────────
-   PRESENTATION_OBJECT_HIERARCHY normalization (2026-05-16): the browse card
-   stacks its direct children top-to-bottom in DOM order, which now matches
-   registry: title → formula → ADD → media → status → placeholder. */
+   The browse card stacks its direct children top-to-bottom in DOM order,
+   matching registry: title → formula → ADD → media → status → placeholder. */
 .dict-card--browse {
   display: flex;
   flex-direction: column;
@@ -8015,12 +8292,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     grid-area: reading;
     font-size: 0.95rem;
   }
-  /* Slice V (2026-05-16): both the symbolic-equivalence row AND the
+  /* Both the symbolic-equivalence row AND the
    * operational-notation fallback must explicitly land in the named
    * "reading" grid area at mobile widths. Without these assignments
    * the formula falls through grid-auto-flow placement and overlaps
-   * the title row. See exploration/comparative-reconciliation-2026-05/
-   * SLICE_V_AUDIT.md §5.5. */
+   * the title row. */
   .dict-card--registry .dict-card-equivalence--inline,
   .dict-card--registry .dict-card-notation--inline {
     grid-area: reading;
@@ -8028,7 +8304,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* Family-heading cross-link to a symbolic educational surface (e.g.
- * walking-progression). DSC-2 slice 2 (By Family). */
+ * walking-progression), rendered on the By Family browse view. */
 .trick-family-cross-link {
   margin: 4px 0 12px 0;
   font-size: 0.86rem;
@@ -8039,13 +8315,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .trick-family-cross-link a:hover { text-decoration: underline solid; }
 
-/* Family-level shared-terminal-structure invariant. Slice I of 2026-05
- * normalization. Subdued single line under the family heading; sits
+/* Family-level shared-terminal-structure invariant.
+ * Subdued single line under the family heading; sits
  * above the optional cross-link and above the card stack. Pedagogical
  * surface that teaches the conserved terminal mechanic of a terminal
  * family (e.g., whirl: leggy in dex > ss clipper). Never rendered
- * inside cards. See exploration/dictionary-glossary-normalization-
- * audit-2026-05/FAMILY_LEVEL_INVARIANTS.md. */
+ * inside cards. */
 .trick-family-shared-structure {
   margin: 4px 0 6px 0;
   font-size: 0.88rem;
@@ -8062,11 +8337,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.02em;
 }
 
-/* Component view (DSC-2 slice 3A). Two axes (body modifiers + set modifiers);
+/* Component view. Two axes (body modifiers + set modifiers);
  * intentional duplication; axis-jump nav at top; per-group heading with
  * one-line body-mechanics definition above the dict-card-stack.
  *
- * Soft-retired 2026-05-18 — the retirement notice sits above the
+ * Soft-retired: the retirement notice sits above the
  * duplication note when the view is reached directly. */
 .component-view-retirement-notice {
   margin: 16px 0 18px 0;
@@ -8085,8 +8360,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #5a4f3c;
 }
 
-/* Category view retirement notice — soft-retired per
- * exploration/dictionary-coherence-2026-05-18/category_view_retirement_review.md.
+/* Category view retirement notice: the view is soft-retired.
  * Mirrors the component-view-retirement-notice shape exactly; only the
  * class name + retirement target differ. */
 .category-view-retirement-notice {
@@ -8178,7 +8452,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Movement System view (Slice L2 of 2026-05 normalization).
+/* Movement System view.
  * Curator-authored four-axis projection: Set / Uptime · Entry Topologies
  * · Midtime Body · No-Plant & Suspension. Mirrors the Component view's
  * outer structure but renders an axis-level definition under each axis
@@ -8271,8 +8545,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #5a5644;
   line-height: 1.55;
 }
-/* Slice M (2026-05-16): per-modifier educational composition gloss.
- * Single italic line above the trick-card stack — reinforces that
+/* Per-modifier educational composition gloss.
+ * Single italic line above the trick-card stack that reinforces that
  * modifiers like paradox read as compositional systems, not terminal
  * families. Sourced from MODIFIER_COMPOSITION_GLOSSES; null suppresses. */
 .movement-group-composition-gloss {
@@ -8293,8 +8567,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Trick-detail reverse-semantic-membership panels (UX-SHIP-1 Phase 5).
- * Two small subordinate panels — Topology + Component — surfacing the
+/* Trick-detail reverse-semantic-membership panels.
+ * Two small subordinate panels (Topology + Component) surfacing the
  * browse-view groups the current trick belongs to. Observational layer. */
 .trick-semantic-memberships {
   margin: 28px 0;
@@ -8356,7 +8630,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Topology view (DSC-2 topology slice). Observational symbolic-grammar layer.
+/* Topology view. Observational symbolic-grammar layer.
  * Six pedagogically-grounded educational groups; layer attribution visible. */
 .topology-view-note {
   margin: 8px 0 24px 0;
@@ -8381,8 +8655,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* Mobile: scale title / ADD / notation slightly down. Browse density
- * already stacks (post-PRESENTATION_OBJECT_HIERARCHY normalization
- * 2026-05-16); no .dict-card-header to reflow. */
+ * already stacks its children, with no .dict-card-header to reflow. */
 @media (max-width: 480px) {
   .dict-card-title { font-size: 1.05rem; }
   .dict-card-add { font-size: 0.85rem; }
@@ -8392,11 +8665,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 /* ── Freestyle landing: The Language of Freestyle Footbag ──────────
    Three structured surfaces sit between the hero/intro and the existing
    competition / operator-board sections:
-     1. .freestyle-language-intro — short lede + optional demo loop.
-     2. .freestyle-basic-components — Contact / Set / Dex / Spin / Duck / Delay.
-     3. .freestyle-core-tricks     — twelve compact symbolic objects.
+     1. .freestyle-language-intro: short lede + optional demo loop.
+     2. .freestyle-basic-components: Contact / Set / Dex / Spin / Duck / Delay.
+     3. .freestyle-core-tricks: twelve compact symbolic objects.
    And one curated strip below the operator board:
-     4. .freestyle-demonstrations — five conceptual curation slots.
+     4. .freestyle-demonstrations: five conceptual curation slots.
    Visual feel target: elegant, compositional, symbolic, alive.
    Anti-targets: tabular, database-like, sterile. ────────────────── */
 
@@ -8416,7 +8689,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0 0 16px 0;
 }
 
-/* NCR-4 / Slice N3 density cleanup (Notation Normalization Wave) -------
+/* Density cleanup for the teaching block -------
  * The three teaching sections (Basic Components, Operator Board, Core
  * Tricks) sit between Featured and Get Started post-Reading-A. Tighten
  * their vertical rhythm relative to the base .content-section spacing
@@ -8441,11 +8714,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .freestyle-basic-components-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  /* NCR-4 density cleanup: tighter inter-card gap. */
+  /* Tighter inter-card gap for a denser layout. */
   gap: 16px 20px;
 }
 .freestyle-component-card {
-  /* NCR-4 density cleanup: tighter card padding. */
+  /* Tighter card padding for a denser layout. */
   padding: 14px 16px 12px 16px;
   border-left: 3px solid var(--primary);
   background: transparent;
@@ -8490,23 +8763,22 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0 4px;
 }
 
-/* Core Tricks — compact symbolic objects ------------------------------- */
-/* ── Symbolic objects — the universal language-token primitive ────────
-   PART H-pre of FREESTYLE_IA_REALIGNMENT_PLAN.md + Batch-4 typography
-   refinements. Renders identically across landing Core Tricks grid,
-   glossary compression-flow, and (post-C-4-G) dictionary browse cards.
+/* Core Tricks: compact symbolic objects ------------------------------- */
+/* ── Symbolic objects: the universal language-token primitive ────────
+   Renders identically across landing Core Tricks grid,
+   glossary compression-flow, and dictionary browse cards.
 
    Hierarchy: #slug > ≡ equivalence > notation > ADD.
-   Containment: typography + whitespace + grid gap only — no borders,
+   Containment: typography + whitespace + grid gap only; no borders,
    no shadows, no min-height, no animation. */
 
 .freestyle-core-trick-grid {
-  /* 2026-05-18 v3 reorganization: lock to 4 columns at desktop for a
+  /* Lock to 4 columns at desktop for a
      clean 3-row × 4-column rhythm with the 12 core atoms. Narrower
-     viewports step down at the breakpoints below. The prior
-     `auto-fit, minmax(210px, 1fr)` produced inconsistent column counts
-     (4 vs 5 vs 6) depending on viewport width, which broke the
-     scannable-grid rhythm called out in the audit. */
+     viewports step down at the breakpoints below. A fluid
+     `auto-fit, minmax(210px, 1fr)` would yield inconsistent column counts
+     (4 vs 5 vs 6) depending on viewport width, breaking the
+     scannable-grid rhythm. */
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 20px 22px;
@@ -8587,7 +8859,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-subtle);
   font-style: italic;
   padding: 1px 7px;
-  /* No outline on pending — the visual absence signals "pending" honestly. */
+  /* No outline on pending: the visual absence signals "pending" honestly. */
 }
 .core-trick-footnote {
   font-size: 0.82rem;
@@ -8596,11 +8868,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* Featured strip (merged competition formats + demonstrations) ---------
-   SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: one compact grid replacing
-   the prior 4-card formats section + 2-card demonstrations section. Cards
-   shrink to thumbnail + title + 1-line caption + optional chip strip. */
+   One compact grid carrying both competition formats and demonstrations.
+   Cards shrink to thumbnail + title + 1-line caption + optional chip strip. */
 .freestyle-featured-grid {
-  /* 2026-05-18 v3 reorganization: lock to 4 columns at desktop for a
+  /* Lock to 4 columns at desktop for a
      clean 2-row × 4-column rhythm with the 8 featured items. Narrower
      viewports step down at the breakpoints below. */
   display: grid;
@@ -8635,7 +8906,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-top: 6px;
 }
 
-/* Top reference jump (Slice K — 2026-05-16) ---------------------------
+/* Top reference jump ---------------------------
    Compact top-of-page shortcuts to the two core reference surfaces.
    Sits immediately after the hero, before the in-page section jump-nav. */
 .freestyle-top-reference-jump {
@@ -8688,7 +8959,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     overflow-wrap: anywhere;
   }
   .core-trick-equivalence {
-    /* VIS-TUNE-1 (2026-05-14): mobile parity with .core-trick-notation
+    /* Mobile parity with .core-trick-notation
        overflow safety net. Most ≡ readings have whitespace breaks
        (e.g. "spinning ducking paradox symposium whirl") and wrap fine
        on natural word boundaries; this rule plugs the edge case where
@@ -8707,13 +8978,13 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    Vertical stack of three .core-trick-object cards demonstrating the
    torque/mobius compositional progression. Visual rhythm matches the
    landing-page Core Tricks grid; this is the worked example for the
-   PART H-pre rendering rule. ───────────────────────────────────────── */
+   symbolic-object rendering rule. ───────────────────────────────────────── */
 .glossary-compression-flow {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Slice K (2026-05-16): tightened from 4px → 2px and outer margins
-     trimmed for a more compact vertical rhythm. The arrow + card pairs
+  /* Tight 2px gap and trimmed outer margins for a more compact vertical
+     rhythm. The arrow + card pairs
      should feel like one continuous flow, not a stack of separated cells. */
   gap: 2px;
   max-width: 480px;
@@ -8722,7 +8993,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .glossary-compression-card {
   width: 100%;
   max-width: 380px;
-  /* Slice K: tighter internal padding so each step reads as one compact
+  /* Tighter internal padding so each step reads as one compact
      symbolic object rather than a tall card. */
   padding: 6px 10px;
 }
@@ -8743,7 +9014,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-align: center;
 }
 
-/* SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / E: tokenized ≡ readings inside
+/* Tokenized ≡ readings inside
    the symbolic-compression flow. The notation-token classes already carry
    role-specific color cues via the §8 notation-display rules; here we just
    tighten line spacing so the readings read as compact symbolic objects. */
@@ -8755,7 +9026,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: 0 2px;
 }
 
-/* Phase 2 / H: set-modifier registry grid (glossary §10). One tile per
+/* Set-modifier registry grid (glossary §10). One tile per
    set-modifier entry; tighter than the body-text rhythm so it reads as a
    reference panel. */
 .glossary-set-modifiers-grid {
@@ -8835,7 +9106,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 
 /* ── Glossary §8: thesis sentence + section bridge ─────────────────────
    Typography-led emphasis: italic serif + thin primary rule. No fill,
-   no radius — the typography carries the lead role. */
+   no radius; the typography carries the lead role. */
 .glossary-thesis {
   font-family: Georgia, 'Iowan Old Style', serif;
   font-size: 1.10rem;
@@ -8862,7 +9133,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 
-/* ── Glossary §3: Execution Mechanics — PassBack-adapted concepts ────── */
+/* ── Glossary §3: Execution Mechanics, PassBack-adapted concepts ────── */
 .glossary-execution-mechanics {
   margin: 12px 0 0 0;
   max-width: 880px;
@@ -8921,8 +9192,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.88rem;
 }
 
-/* ── Slice C of 2026-05 normalization ────────────────────────────────────
-   §7 glyph quick-reference: compact at-the-top strip surfacing the
+/* ── §7 glyph quick-reference ────────────────────────────────────
+   Compact at-the-top strip surfacing the
    operator-board glyphs as visible symbols before the prose explainer.
    Three tiers; restrained palette mirroring the operator-board tier hues. */
 .glossary-glyph-quickref {
@@ -8999,8 +9270,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 
-/* §9 compression-ladder vs alternate-derivation subsection (equivalence-
-   topology Phase 3). Compact distinctions table + worked-example list. */
+/* §9 compression-ladder vs alternate-derivation subsection (equivalence
+   topology). Compact distinctions table + worked-example list. */
 .glossary-equivalence-distinctions {
   margin: 0.5rem 0 1rem;
   border-collapse: collapse;
@@ -9055,7 +9326,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Dictionary Pedagogy Phase 3 (2026-05-21): family-anchor callout on
+/* Family-anchor callout on
    trick-detail pages. Renders only when the current trick IS the
    family-anchor for a curator-confirmed terminal family. Reuses the
    muted-tone aesthetic of .browse-view-intro for visual cohesion
@@ -9094,7 +9365,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Dictionary Pedagogy Phase 2 (2026-05-21): family-anchor sub-label
+/* Family-anchor sub-label
    beneath each family heading on the family view. Names the
    canonical family-anchor trick so readers connect the glossary's
    "family-anchor trick" vocabulary to the dictionary. */
@@ -9118,7 +9389,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--accent-strong, #374151);
 }
 
-/* Dictionary Pedagogy Phase 1 (2026-05-21): per-view pedagogical intro
+/* Per-view pedagogical intro
    paragraphs. Rendered at the top of each browse view (after the
    dict-note row, before grids) to teach WHY tricks group the way they
    do under that axis. Muted tone; max-width so the paragraph reads
@@ -9157,7 +9428,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Standardized outward-link affordance (Glossary Architecture Phase 6).
+/* Standardized outward-link affordance.
    Single class controls placement + tone for all glossary→destination
    navigation: "View full ontology →", "Browse {Name} tricks →",
    "Modifier reference →", etc. Forbidden phrasings ("See tricks using",
@@ -9184,7 +9455,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-align: right;
 }
 
-/* §1 publication-states dl (glossary architecture overhaul Phase 1).
+/* §1 publication-states dl.
    Compact definition-list rendering the six publication-state vocab
    entries. Mirrors the §2 glossary-term-list tone. */
 .glossary-publication-states {
@@ -9252,7 +9523,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Slice L-polish (2026-05-16) — additional compact symbolic blocks. */
+/* Additional compact symbolic blocks. */
 
 /* §5 root-vs-branch family-kinds list */
 .glossary-family-kinds {
@@ -9265,7 +9536,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.55;
 }
 
-/* §5 sibling-pair list — visually tight, side-by-side mirror form */
+/* §5 sibling-pair list: visually tight, side-by-side mirror form */
 .glossary-family-sibling-pair {
   list-style: none;
   padding: 0;
@@ -9284,7 +9555,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #5a5644;
 }
 
-/* §6 movement-system-axes list — preview of the 4-axis ontology */
+/* §6 movement-system-axes list: preview of the 4-axis ontology */
 .glossary-movement-system-axes {
   margin: 0.6rem 0 0.8rem;
   padding-left: 1.4rem;
@@ -9303,7 +9574,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-left: 0.4rem;
 }
 
-/* §7 operator → named compound mappings (Slice L-polish). Same row
+/* §7 operator → named compound mappings. Same row
    shape as the §7 Notation-in-practice block; reuses the row class. */
 .glossary-notation-mappings {
   margin: 8px 0 14px;
@@ -9325,8 +9596,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #5a5644;
 }
 
-/* §7 Notation in practice — three compact symbol-first examples
-   (Slice K, 2026-05-16). Sits at the top of §7 so the section opens
+/* §7 Notation in practice: three compact symbol-first examples.
+   Sits at the top of §7 so the section opens
    with visible tokens rather than prose density. */
 .glossary-notation-in-practice {
   margin: 8px 0 12px;
@@ -9356,7 +9627,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--secondary);
 }
 
-/* §12 sources list — named source families. */
+/* §12 sources list: named source families. */
 .glossary-sources-list {
   list-style: disc;
   padding-left: 1.5rem;
@@ -9367,10 +9638,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.5;
 }
 
-/* ── Slice E of 2026-05 normalization ────────────────────────────────────
+/* ── Dictionary-to-glossary cross-links ────────────────────────────────────
    Cross-link affordances between dictionary and glossary surfaces.
 
-   Linked semantic tokens — preserve the role-color, drop the underline so
+   Linked semantic tokens preserve the role-color and drop the underline so
    the token reads as inline content not a screaming link. Underline appears
    only on hover, signalling navigation without visual noise on every card. */
 .sem-token--linked {
@@ -9419,7 +9690,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: #fff;
 }
 
-/* Slice X Phase 1 — ADD Accounting & Analysis page (/freestyle/add-analysis).
+/* ADD Accounting & Analysis page (/freestyle/add-analysis).
  * Minimal restraint-first styling: reuses .content-section + .section-heading
  * patterns. Adds a small set of page-specific classes for the worked examples,
  * discrepancy cases, and cross-links inventory. No new color tokens. */
@@ -9696,9 +9967,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* ── /freestyle/derivation-pilot — P4 derivation primitives ───────────────
- * Standalone preview surface for the derivation-first compositional atlas
- * (exploration/glossary-derivation-first-2026-05-20/DESIGN.md). Five
+/* ── /freestyle/derivation-pilot: derivation primitives ───────────────
+ * Standalone preview surface for the derivation-first compositional atlas.
+ * Five
  * primitives: derivation panel, semantic-depth ladder, compression card,
  * equivalence chain, doctrine note.
  *
@@ -10181,8 +10452,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Alternative surfaces subsection (2026-05-24 follow-on to nonstandard-
-   topology audit). Compact educational subsection of the Movement System
+/* Alternative surfaces subsection covering nonstandard
+   topology. Compact educational subsection of the Movement System
    view, rendered AFTER the 4 movement-system axes. Density is intentionally
    lower than the dictionary-trick-card surface; the rendering is a
    labelled inline list, not a card grid. */
@@ -10228,11 +10499,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-left: 4px;
 }
 
-/* Pass B Slice 1 polish (2026-05-24). Four small surface-clarity adds:
-   - Observational count strip (R11.1)
-   - Dex-count "Unknown" bucket explainer (R11.3)
-   - Family view ordering note (R7.2)
-   - Movement System ↔ Compositional Sets cross-links (R9.2)
+/* Four small surface-clarity adds:
+   - Observational count strip
+   - Dex-count "Unknown" bucket explainer
+   - Family view ordering note
+   - Movement System ↔ Compositional Sets cross-links
 */
 .observed-count-strip {
   margin: 12px 0 18px;
@@ -10262,9 +10533,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
 }
 
-/* 2026-05-24 governance/polish slice.
+/* Governance and polish surfaces.
    - Toggle aside for the Operators & Modifiers reference link
-   - Sets browse view (?view=sets) — Core / Secondary cohorts
+   - Sets browse view (?view=sets): Core / Secondary cohorts
    - Browse-view status label (Movement System / Neighborhoods exploratory)
    - Observational lane sections
    - "By Set" trick-list density
@@ -10441,9 +10712,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-secondary, #555);
 }
 
-/* ── Set Encyclopedia (standalone /freestyle/sets, 2026-05-25) ──────────
+/* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
  * Denser visual treatment than the Set Hub at ?view=sets. Goal:
- * compositional vocabulary board / set periodic table — cards are
+ * compositional vocabulary board / set periodic table; cards are
  * scan-friendly, formula-forward, with deep content deferred to
  * /freestyle/sets/<slug> detail pages.
  */
@@ -10656,7 +10927,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 500;
 }
 
-/* ── Set detail page (Phase B 2026-05-25) ────────────────────────── */
+/* ── Set detail page ────────────────────────── */
 .set-detail {
   max-width: 760px;
   margin: 16px auto 40px;
@@ -10758,7 +11029,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 8px 0 0;
   line-height: 1.4;
 }
-/* S5 subtype-internal sibling navigation — compact strip placed between
+/* S5 subtype-internal sibling navigation: compact strip placed between
    cross-references and the provenance footer. Prev anchor flush-left,
    next anchor flush-right; either side may be absent independently. */
 .set-detail-sibling-nav {
@@ -10847,12 +11118,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .observed-lane--source-only .section-heading h2 { color: var(--text-primary, #333); }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Glossary Phase 1 refinement — intro card, tier-break rulers, §7 mini-TOC,
+   Glossary structural refinements: intro card, tier-break rulers, §7 mini-TOC,
    §7 operational-notation collapsible details. Pure structural polish; no
    new ontology surfaces. Anchors preserved.
    ───────────────────────────────────────────────────────────────────────── */
 
-/* Intro card — onboarding orientation block above §1 Movement Basics */
+/* Intro card: onboarding orientation block above §1 Movement Basics */
 .glossary-intro-card {
   margin: 0 0 22px;
   padding: 18px 22px;
@@ -10892,7 +11163,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.45;
 }
 
-/* Tier-break ruler — between major reading arcs */
+/* Tier-break ruler: between major reading arcs */
 .glossary-tier-break {
   margin: 36px 0 28px;
   padding: 14px 18px 0;
@@ -10919,7 +11190,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 
-/* §7 mini-TOC — inline pill row beneath the Notation H2 */
+/* §7 mini-TOC: inline pill row beneath the Notation H2 */
 .glossary-mini-toc {
   margin: 4px 0 16px;
   padding: 8px 12px;
@@ -10964,7 +11235,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-decoration: underline;
 }
 
-/* §7 Operational notation — collapsible reference subsection */
+/* §7 Operational notation: collapsible reference subsection */
 .glossary-operational-details {
   margin: 24px 0 8px;
   border: 1px solid #ece6d4;
@@ -11013,13 +11284,13 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .glossary-operational-details > *:last-child { padding-bottom: 16px; }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Glossary Phase 1 Slice 4 — pathway scaffolding. Two small components:
+   Glossary pathway scaffolding. Two small components:
    "Read next" section-footer line (compact, right-aligned, italic) and a
    ★ flagship-example marker (tiny inline chip). Both deliberately small
    to add navigation without visual clutter.
    ───────────────────────────────────────────────────────────────────────── */
 
-/* Read-next footer — one-line forward-pointing link at end of a section
+/* Read-next footer: one-line forward-pointing link at end of a section
    or subsection. Right-aligned, italic, muted. The link text itself
    stays upright for legibility. */
 .glossary-section-next {
@@ -11041,7 +11312,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-decoration: underline;
 }
 
-/* ★ flagship-example marker — tiny inline chip placed next to a trick
+/* ★ flagship-example marker: tiny inline chip placed next to a trick
    name (e.g. ripwalk, mobius, flurry) on its first canonical pedagogical
    mention. Deliberately small (0.72rem, single glyph) so it reads as a
    subtle hint, not a badge. */
@@ -11055,7 +11326,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Dictionary landing grid (DL-1+2+5 2026-05-26)
+   Dictionary landing grid
 
    3-band conceptual grid for /freestyle/tricks default view.
    Bands: DIFFICULTY (2 cards) / STRUCTURE (4 cards) / TRACKING & EXPANSION

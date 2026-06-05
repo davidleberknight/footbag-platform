@@ -320,7 +320,9 @@ function updateContactEmail(
   const trimmedReason = requireReason(reason);
   const club = loadClub(clubId);
   const email = contactEmail.trim();
-  if (!email || !email.includes('@')) {
+  // Minimal local@domain.tld shape check: a bare '@' or a missing domain
+  // would persist and break downstream club contact flows.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new ValidationError('A valid contact email is required.');
   }
   const now = new Date().toISOString();

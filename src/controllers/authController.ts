@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { SESSION_COOKIE_NAME } from '../middleware/auth';
 import { createSessionJwt } from '../services/jwtService';
-import { issueSessionCookie } from '../lib/sessionCookie';
+import { clearSessionCookie, issueSessionCookie } from '../lib/sessionCookie';
 import {
   identityAccessService,
   LoginContent,
@@ -188,6 +187,9 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
   try {
     const result = await identityAccessService.verifyEmailByToken(token);
     if (!result) {
+      // The token is in the URL, so a shared proxy must not cache this
+      // render against the token-bearing address.
+      setNoStore(res);
       res.status(400).render('auth/verify-result', {
         seo: { title: 'Verification' },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
@@ -210,6 +212,7 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
         memberId: result.memberId,
         error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
       });
+      setNoStore(res);
       res.status(503).render('auth/verify-result', {
         seo: { title: 'Verification' },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
@@ -272,16 +275,7 @@ function getLogout(_req: Request, res: Response): void {
 }
 
 function postLogout(req: Request, res: Response): void {
-  // Match the attributes used when the cookie was set so RFC 6265-strict
-  // browsers (and proxies that enforce attribute parity on clear) honor
-  // the clear. Without secure/sameSite matching the set, some clients
-  // silently ignore the clear and the cookie persists until natural expiry.
-  res.clearCookie(SESSION_COOKIE_NAME, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
-  });
+  clearSessionCookie(res, req);
   writeFlash(res, req, FLASH_KIND.LOGOUT);
   const referer = req.get('Referer');
   if (referer) {

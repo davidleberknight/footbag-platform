@@ -190,6 +190,20 @@ describe('POST /ipc/job-events', () => {
       });
     expect(res.status).toBe(204);
   });
+
+  it('accepts the retrying state the worker emits between transcode attempts', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/ipc/job-events')
+      .set('x-internal-secret', TEST_SECRET)
+      .send({
+        jobId: 'mediajob_x',
+        state: 'retrying',
+        errorMessage: 'transient transcode failure',
+        occurredAtIso: '2026-01-01T00:00:00.000Z',
+      });
+    expect(res.status).toBe(204);
+  });
 });
 
 // ── GET /admin/curator/upload/jobs/:jobId ──────────────────────────────────

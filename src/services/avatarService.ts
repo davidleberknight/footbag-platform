@@ -3,7 +3,9 @@ import { media, mediaTags as mediaTagsDb, transaction, ExistingAvatarRow } from 
 import { detectImageType } from '../lib/imageProcessing';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
-import { ValidationError } from './serviceErrors';
+import { RateLimitedError, ValidationError } from './serviceErrors';
+import { hit as rateLimitHit } from './rateLimitService';
+import { readIntConfig } from './configReader';
 import { runSqliteRead } from './sqliteRetry';
 import { appendAuditEntry } from './auditService';
 
@@ -35,7 +37,25 @@ export function getDefaultAvatarService(): ReturnType<typeof createAvatarService
 export function createAvatarService(deps: AvatarServiceDeps) {
   const { storage, imageProcessor } = deps;
   return {
-    async uploadAvatar(memberId: string, slug: string, fileBuffer: Buffer, sourceFilename: string): Promise<{ thumbUrl: string }> {
+    async uploadAvatar(
+      memberId: string,
+      slug: string,
+      fileBuffer: Buffer,
+      sourceFilename: string,
+      opts: { actorIsAdmin?: boolean } = {},
+    ): Promise<{ thumbUrl: string }> {
+      // Per-member upload throttle; admins are exempt. The controller is the
+      // source of truth for the role flag, matching the gallery inputs.
+      if (!opts.actorIsAdmin) {
+        const max = readIntConfig('avatar_upload_rate_limit_per_hour', 10);
+        const rl = rateLimitHit(`avatar-upload:${memberId}`, max, 60);
+        if (!rl.allowed) {
+          throw new RateLimitedError(
+            `Too many avatar uploads. Try again in ${rl.retryAfterSeconds} seconds.`,
+            rl.retryAfterSeconds,
+          );
+        }
+      }
       if (fileBuffer.length > AVATAR_MAX_BYTES) {
         throw new ValidationError('File is too large. Maximum size is 5 MB.');
       }

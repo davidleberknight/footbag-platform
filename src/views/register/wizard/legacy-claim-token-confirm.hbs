@@ -24,7 +24,7 @@
       <ul>{{#each content.eventsAttended}}<li>{{this.title}} ({{this.year}})</li>{{/each}}</ul>
     {{/if}}
 
-    <form method="POST" action="/register/wizard/legacy_claim/claim/confirm" class="profile-edit-form">
+    <form method="POST" action="/register/wizard/legacy_claim/claim/confirm" class="form-block">
       <input type="hidden" name="token" value="{{content.token}}" />
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Confirm and link</button>

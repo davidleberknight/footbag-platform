@@ -1,5 +1,5 @@
 /**
- * Schema invariants for the system member account (DD §2.8).
+ * Schema invariants for the system member account.
  *
  * Asserts the three-branch credential CHECK rejects malformed system rows
  * and accepts the well-formed alive-without-credentials shape, plus the
@@ -57,7 +57,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-describe('members credential CHECK: three-branch invariant (DD §2.8)', () => {
+describe('members credential CHECK: three-branch invariant', () => {
   // Order matters: the CHECK-violation cases must run before any well-formed
   // is_system=1 row exists, otherwise the partial UNIQUE on is_system fires
   // first and we cannot observe the CHECK rejection.
@@ -86,7 +86,7 @@ describe('members credential CHECK: three-branch invariant (DD §2.8)', () => {
   });
 });
 
-describe('ux_members_system partial UNIQUE (DD §2.8)', () => {
+describe('ux_members_system partial UNIQUE', () => {
   it('rejects a second is_system=1 row (single-row enforcement)', () => {
     // 'sys-ok' was inserted in the previous describe block.
     expect(() => {
@@ -95,7 +95,7 @@ describe('ux_members_system partial UNIQUE (DD §2.8)', () => {
   });
 });
 
-describe('FH lookup cardinality (DD §2.8)', () => {
+describe('FH lookup cardinality', () => {
   it('COUNT(is_system=1) = 1 even when several non-system members coexist', () => {
     // 'sys-ok' is already present from the credential CHECK describe block.
     // Insert two well-formed live (non-system) members alongside it.

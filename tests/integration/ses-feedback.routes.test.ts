@@ -18,7 +18,9 @@ const { dbPath } = setTestEnv('3083');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
 
-const KEY = process.env.INTERNAL_EVENT_SECRET ?? '';
+// The webhook authenticates with its own dedicated key (the env.ts dev
+// default when the env var is unset), never with INTERNAL_EVENT_SECRET.
+const KEY = process.env.SES_FEEDBACK_WEBHOOK_KEY ?? 'dev-ses-feedback-key-not-for-prod';
 const PATH_WITH_KEY = () => `/webhooks/ses-feedback?key=${encodeURIComponent(KEY)}`;
 
 beforeAll(async () => {
@@ -61,6 +63,17 @@ describe('SES feedback webhook', () => {
   it('rejects requests without the shared-secret key', async () => {
     const res = await request(createApp())
       .post('/webhooks/ses-feedback?key=wrong')
+      .type('text/plain')
+      .send(bounceBody(['bouncer@example.com']));
+    expect(res.status).toBe(401);
+    expect(statusOf('sf-1')).toBe('ok');
+  });
+
+  it('rejects the worker IPC secret: an access-log leak of this URL must not extend to the IPC endpoints, and vice versa', async () => {
+    const ipcSecret = process.env.INTERNAL_EVENT_SECRET ?? '';
+    expect(ipcSecret).not.toBe('');
+    const res = await request(createApp())
+      .post(`/webhooks/ses-feedback?key=${encodeURIComponent(ipcSecret)}`)
       .type('text/plain')
       .send(bounceBody(['bouncer@example.com']));
     expect(res.status).toBe(401);

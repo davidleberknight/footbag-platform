@@ -18,6 +18,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3088');
 
@@ -249,5 +250,54 @@ describe('cross-source offer after a one-source claim', () => {
     // The pair never re-offers.
     const again = identity.identityAccessService.offerCrossSourceCandidate(memberId);
     expect(again.offered).toBe(false);
+  });
+});
+
+describe('mailbox-control verification email enqueue failure', () => {
+  it('records an operational audit row carrying the committed token id, then rethrows', async () => {
+    // The token row commits before the email enqueue; a lost enqueue must
+    // leave an operator-visible trail that correlates with the orphaned
+    // token when the member reports the missing email.
+    expectLoggedError('audit: legacy.mailbox_link_email_enqueue_failed');
+    const memberId = insertMember(db, {
+      id: 'mem-anchor-enq', slug: 'mem_anchor_enq', login_email: 'anchor-enq@example.com',
+    });
+    declareOldEmail(memberId, 'anchor-enq-old@old.example.com');
+    const anchor = db.prepare(
+      'SELECT id FROM member_declared_anchors WHERE member_id = ?',
+    ).get(memberId) as { id: string };
+
+    const commsMod = await import('../../src/services/communicationService');
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    commsMod.setCommunicationServiceForTests({
+      enqueueEmail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure');
+      },
+      enqueueEmailOrFail: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure for mailbox-control email');
+      },
+      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
+      }),
+    });
+    try {
+      expect(() =>
+        identity.identityAccessService.requestAnchorMailboxVerification(memberId, anchor.id, '10.0.0.9'),
+      ).toThrow('synthetic enqueue failure for mailbox-control email');
+    } finally {
+      commsMod.resetCommunicationServiceForTests();
+    }
+
+    const rows = audits(memberId, 'legacy.mailbox_link_email_enqueue_failed');
+    expect(rows).toHaveLength(1);
+    const meta = JSON.parse(String(rows[0].metadata_json)) as Record<string, unknown>;
+    expect(meta.anchor_id).toBe(anchor.id);
+    expect(String(meta.token_row_id)).not.toBe('');
+    const token = db.prepare(
+      'SELECT used_at FROM account_tokens WHERE id = ?',
+    ).get(String(meta.token_row_id)) as { used_at: string | null } | undefined;
+    expect(token).toBeTruthy();
+    expect(token!.used_at).toBeNull();
   });
 });

@@ -19,6 +19,8 @@ const ARCHIVE_BASE_URL = 'https://archive.footbag.org';
 
 interface LegacyLinkContent {
   branch: 'claimable' | 'not_routable';
+  // Pre-shaped so the template branches on a boolean, not the branch code.
+  isClaimable: boolean;
   /** Display name of the unclaimed account; null for unauthenticated
    * visitors, who are never shown any account detail. */
   displayName: string | null;
@@ -54,6 +56,7 @@ export const legacyRedirectController = {
       if (legacyRow && !legacyRow.claimed_by_member_id) {
         renderLegacyLink(res, {
           branch:      'claimable',
+          isClaimable: true,
           displayName: req.isAuthenticated ? (legacyRow.display_name ?? legacyRow.real_name) : null,
           claimHref:   req.isAuthenticated ? '/register/wizard/legacy_claim' : null,
           registerHref: req.isAuthenticated ? null : '/register',
@@ -62,7 +65,7 @@ export const legacyRedirectController = {
       }
 
       renderLegacyLink(res, {
-        branch: 'not_routable', displayName: null, claimHref: null, registerHref: null,
+        branch: 'not_routable', isClaimable: false, displayName: null, claimHref: null, registerHref: null,
       }, 404);
     } catch (err) {
       next(err);

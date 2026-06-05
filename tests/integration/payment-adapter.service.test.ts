@@ -189,7 +189,7 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     }
   });
 
-  it('B4: a second pending membership purchase for the same member is rejected', async () => {
+  it('a second pending membership purchase for the same member is rejected', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { ConflictError } = await import('../../src/services/serviceErrors');
     const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');

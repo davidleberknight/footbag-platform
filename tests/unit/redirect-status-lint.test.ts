@@ -1,6 +1,6 @@
 /**
  * Static lint: every `res.redirect(` site in `src/controllers/` must declare
- * its HTTP status explicitly. DD §5.2: "the framework's implicit 302 default
+ * its HTTP status explicitly: "the framework's implicit 302 default
  * does not reach the wire: every redirect site sets its status explicitly."
  * The one exemption is the `/login?returnTo=...` redirect from `requireAuth`
  * middleware in `src/middleware/auth.ts`; controller code does not get the
@@ -50,7 +50,7 @@ function findBareRedirects(file: string): BareRedirect[] {
   return out;
 }
 
-describe('redirect-status lint (DD §5.2)', () => {
+describe('redirect-status lint', () => {
   it('no controller emits a bare res.redirect(<path>) without an explicit status code', () => {
     const offenders: BareRedirect[] = [];
     for (const f of listTsFiles(CONTROLLERS_DIR)) {
@@ -63,7 +63,7 @@ describe('redirect-status lint (DD §5.2)', () => {
         .join('\n');
       throw new Error(
         `Found ${offenders.length} controller redirect(s) without an explicit status code.\n` +
-        `Per DD §5.2 every redirect site must declare its HTTP status:\n` +
+        `Every redirect site must declare its HTTP status explicitly:\n` +
         `${report}\n` +
         `Fix: change res.redirect(<path>) to res.redirect(302|303|301, <path>) per intent.`,
       );

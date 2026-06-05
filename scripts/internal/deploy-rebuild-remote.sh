@@ -336,7 +336,7 @@ unset ORIGIN_VERIFY_SECRET_VAL
 # keeps the host env in sync after a `terraform apply
 # -replace=random_id.session_secret`. SESSION_SECRET rotation invalidates
 # every active session (cookie signatures fail under the new secret).
-# IAM: same as X_ORIGIN_VERIFY_SECRET — app_runtime holds ssm:GetParameter
+# IAM: same as X_ORIGIN_VERIFY_SECRET; app_runtime holds ssm:GetParameter
 # on /footbag/{env}/* and kms:Decrypt on the main key.
 ssm_session_param="/footbag/${FOOTBAG_ENV_VAL}/secrets/session_secret"
 echo "    Syncing SESSION_SECRET from $ssm_session_param ..."
@@ -387,16 +387,16 @@ chown root:root "$ENV_PATH"
 # admin from a future registration.
 #
 # Production refusal: this allowlist is a dev/staging-only shortcut. Production
-# first-admin uses the separate SSM-token claim mechanism documented in
-# DESIGN_DECISIONS §3.6 ("Production first-admin design"). Refuse the value
-# unless FOOTBAG_ENV is explicitly 'development' or 'staging' — production OR an
+# first-admin uses the separate single-shot SSM-token claim mechanism, which
+# needs no deploy-time env injection. Refuse the value
+# unless FOOTBAG_ENV is explicitly 'development' or 'staging'; production OR an
 # unset/misspelled FOOTBAG_ENV both trip this guard before anything lands on
 # disk. (env.ts also boot-fail-fasts under the same condition; this
 # script-level guard catches the misconfiguration earlier.)
 : "${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=}"
 if [[ -n "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" && "$FOOTBAG_ENV" != "development" && "$FOOTBAG_ENV" != "staging" ]]; then
   echo "ERROR: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev/staging-only but was passed with FOOTBAG_ENV=${FOOTBAG_ENV:-<unset>}." >&2
-  echo "       Production-first-admin uses the SSM-token claim path; see DESIGN_DECISIONS §3.6." >&2
+  echo "       Production first-admin uses a separate SSM-token claim path that requires no deploy-time env injection." >&2
   echo "       Either empty .local/initial-admins.txt on this workstation before redeploying," >&2
   echo "       or use a workstation that does not have the file present." >&2
   exit 1

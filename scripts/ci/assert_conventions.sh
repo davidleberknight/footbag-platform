@@ -198,6 +198,32 @@ if [ -n "$form_class_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: every font-family declaration in style.css resolves through the
+# --font-body / --font-mono tokens (or inherits), except inside @font-face
+# blocks, which by nature name the typeface they register.
+# Reason: the site has one type system behind two tokens; a raw typeface
+# stack in a rule reintroduces a parallel type vocabulary that drifts from
+# the shared standard and ships a different font to one surface.
+# Current: the scan stops at the "Freestyle records" section banner because
+# the freestyle sections below it still predate the font tokens.
+# Target: scan the whole file once the freestyle surfaces are tokenized.
+echo "[conventions] check: raw font-family outside @font-face in style.css (core region)"
+font_hits=$(awk '
+  /^   Freestyle records$/ { exit }
+  /@font-face/ { ff = 1 }
+  ff { if (/}/) ff = 0; next }
+  /font-family:/ {
+    if ($0 !~ /font-family:[[:space:]]*var\(--font-(body|mono)\)/ &&
+        $0 !~ /font-family:[[:space:]]*inherit/)
+      print FILENAME ":" NR ": " $0
+  }
+' src/public/css/style.css || true)
+if [ -n "$font_hits" ]; then
+  echo "$font_hits" >&2
+  echo "  FAIL: font-family must use var(--font-body) or var(--font-mono); raw typeface stacks belong only in @font-face" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

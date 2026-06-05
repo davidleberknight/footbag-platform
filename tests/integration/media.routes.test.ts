@@ -349,7 +349,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
   it('renders #by_<slug> as "items by <Name>" prose, not as a hashtag chip in the "tagged:" list', async () => {
     // Set up a gallery whose criteria includes both #by_<slug> and a
     // regular hashtag (#footbags). Bug being regressed: the hero read
-    // "Showing 3 items tagged: David Leberknight #footbags", which
+    // "Showing 3 items tagged: David Mockingbird #footbags", which
     // (a) treated the member name as a hashtag and (b) rendered
     // green-on-green via the global `a { color: var(--primary) }` rule.
     const db = openDb();

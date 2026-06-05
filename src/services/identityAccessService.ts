@@ -831,25 +831,32 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
  * Returns null if the token is invalid, expired, or already used.
  */
 async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult | null> {
-  const consumed = accountTokenService.consumeToken(rawToken, 'email_verify');
-  if (!consumed) return null;
+  // Consume and mark-verified commit together: a crash between the two would
+  // otherwise burn the single-use token while the member stays unverified,
+  // leaving them a dead link recoverable only via resend.
+  const consumed = transaction(() => {
+    const c = accountTokenService.consumeIfUnusedInTx(rawToken, 'email_verify');
+    if (!c) return null;
 
-  const now = new Date().toISOString();
-  const update = auth.markEmailVerified.run(now, now, consumed.memberId);
-  // update.changes may be 0 if the member was already verified; that's fine
-  // since the token itself is single-use, we proceed with login in any case.
-  if (update.changes > 0) {
-    // Account-lifecycle trail: verification is the transition that activates
-    // the account, so it gets an audit row like register and password events.
-    appendAuditEntry({
-      actionType: 'auth.email_verified',
-      category: 'auth',
-      actorType: 'member',
-      actorMemberId: consumed.memberId,
-      entityType: 'member',
-      entityId: consumed.memberId,
-    });
-  }
+    const now = new Date().toISOString();
+    const update = auth.markEmailVerified.run(now, now, c.memberId);
+    // update.changes may be 0 if the member was already verified; that's fine
+    // since the token itself is single-use, we proceed with login in any case.
+    if (update.changes > 0) {
+      // Account-lifecycle trail: verification is the transition that activates
+      // the account, so it gets an audit row like register and password events.
+      appendAuditEntry({
+        actionType: 'auth.email_verified',
+        category: 'auth',
+        actorType: 'member',
+        actorMemberId: c.memberId,
+        entityType: 'member',
+        entityId: c.memberId,
+      });
+    }
+    return c;
+  });
+  if (!consumed) return null;
 
   const row = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
     | { id: string; slug: string | null; login_email: string | null; real_name: string | null; password_version: number; is_admin: number; birth_date: string | null }
@@ -3212,11 +3219,28 @@ export type DisputeRevertResult =
  * forensic pair (claim.dispute_opened + claim.revert_applied) always lands
  * together with the state change.
  */
+/**
+ * Shared per-admin throttle for work-queue resolution actions, including
+ * ContactRequestService.resolve (same bucket key). Compromised-admin is the
+ * threat model, so the admin role never bypasses it.
+ */
+export function enforceWorkQueueResolveLimit(adminMemberId: string): void {
+  const max = readIntConfig('work_queue_resolve_rate_limit_per_hour', 120);
+  const rl = rateLimitHit(`work-queue-resolve:${adminMemberId}`, max, 60);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      `Too many work-queue operations. Try again in ${rl.retryAfterSeconds} seconds.`,
+      rl.retryAfterSeconds,
+    );
+  }
+}
+
 function revertClaimForDispute(
   adminMemberId: string,
   targetMemberId: string,
   reason: string,
 ): DisputeRevertResult {
+  enforceWorkQueueResolveLimit(adminMemberId);
   const trimmed = reason.trim();
   if (!trimmed) {
     throw new ValidationError('A dispute reason is required.');
@@ -3572,19 +3596,35 @@ function requestAnchorMailboxVerification(
     targetAnchorId: anchorId,
   });
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-  getCommunicationService().enqueueEmailOrFail({
-    idempotencyKey:    `mailbox_link:${tokenRowId}`,
-    recipientEmail:    anchor.anchor_value,
-    recipientMemberId: memberId,
-    subject:           'IFPA: confirm this was your footbag.org email address',
-    bodyText:
-      'You (or someone signed in to an IFPA Footbag account) told us this email ' +
-      'address was used on the old footbag.org site.\n\n' +
-      'If that was you, open the link below WHILE SIGNED IN to your IFPA account ' +
-      `to confirm you still control this mailbox. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
-      `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}\n\n` +
-      'If this was not you, you can ignore this message.',
-  });
+  try {
+    getCommunicationService().enqueueEmailOrFail({
+      idempotencyKey:    `mailbox_link:${tokenRowId}`,
+      recipientEmail:    anchor.anchor_value,
+      recipientMemberId: memberId,
+      subject:           'IFPA: confirm this was your footbag.org email address',
+      bodyText:
+        'You (or someone signed in to an IFPA Footbag account) told us this email ' +
+        'address was used on the old footbag.org site.\n\n' +
+        'If that was you, open the link below WHILE SIGNED IN to your IFPA account ' +
+        `to confirm you still control this mailbox. The link expires in ${ttlHours} hour${ttlHours === 1 ? '' : 's'}.\n\n` +
+        `${baseUrl}/register/wizard/legacy_claim/anchors/verify/${rawToken}\n\n` +
+        'If this was not you, you can ignore this message.',
+    });
+  } catch (err) {
+    // The token row committed above; a lost enqueue would otherwise orphan
+    // it with no operator signal to correlate when the member reports the
+    // missing email.
+    recordOperationalError({
+      actionType: 'legacy.mailbox_link_email_enqueue_failed',
+      category:   'identity',
+      entityType: 'member',
+      entityId:   memberId,
+      reasonText: 'Mailbox-control token committed but the verification-email enqueue failed.',
+      cause:      err,
+      metadata:   { anchor_id: anchorId, token_row_id: tokenRowId },
+    });
+    throw err;
+  }
   appendAuditEntry({
     actionType:    'legacy.mailbox_link_token_issued',
     category:      'identity',
@@ -3766,11 +3806,12 @@ function submitLinkHelpRequest(
       entityType:    'member',
       entityId:      memberId,
       reasonText:    null,
+      // The audit ledger is append-only and exempt from PII purge, so the
+      // claimed legacy identifiers stay out of it; the mutable work-queue
+      // row carries the operational copy.
       metadata: {
-        work_queue_item_id:      id,
-        claimed_legacy_username: payload.claimed_legacy_username,
-        claimed_legacy_email:    payload.claimed_legacy_email,
-        is_dispute:              payload.is_dispute,
+        work_queue_item_id: id,
+        is_dispute:         payload.is_dispute,
       },
     });
     if (payload.is_dispute) {
@@ -3826,6 +3867,7 @@ function approveLinkHelpRequest(
   workQueueItemId: string,
   targetLegacyMemberId: string,
 ): void {
+  enforceWorkQueueResolveLimit(adminMemberId);
   const target = targetLegacyMemberId.trim();
   if (!target) {
     throw new ValidationError('A target legacy account id is required to approve.');
@@ -3862,6 +3904,7 @@ function rejectLinkHelpRequest(
   workQueueItemId: string,
   reason: string,
 ): void {
+  enforceWorkQueueResolveLimit(adminMemberId);
   const trimmed = reason.trim();
   if (!trimmed) {
     throw new ValidationError('A rejection reason is required.');

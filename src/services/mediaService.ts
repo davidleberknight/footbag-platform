@@ -250,6 +250,9 @@ export interface NamedGalleryContent {
   gallery: NamedGalleryHero;
   items: GalleryItem[];
   totalItems: number;
+  // Pre-pluralized nouns so the hero subtitle never counts in the template.
+  totalItemsNoun: string;   // 'item' / 'items'
+  excludeTagsNoun: string;  // 'tag' / 'tags'
 }
 
 // /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
@@ -279,6 +282,11 @@ export interface BrowseTagChip {
 
 export interface MediaBrowseContent {
   mode: 'browse' | 'results';
+  // Pre-shaped so the template never compares the raw mode code.
+  isResultsMode: boolean;
+  // Pre-pluralized nouns for the results hero subtitle.
+  totalItemsNoun: string;
+  excludeTagsNoun: string;
   formIncludeText: string;
   formExcludeText: string;
   unresolvedTokens: string[];
@@ -493,6 +501,8 @@ export const mediaService = {
           },
           items,
           totalItems: rows.length,
+          totalItemsNoun: rows.length === 1 ? 'item' : 'items',
+          excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
         },
       };
     });
@@ -554,6 +564,9 @@ export const mediaService = {
           },
           content: {
             mode: 'browse',
+            isResultsMode: false,
+            totalItemsNoun: 'items',
+            excludeTagsNoun: 'tags',
             formIncludeText,
             formExcludeText,
             unresolvedTokens,
@@ -630,6 +643,9 @@ export const mediaService = {
         },
         content: {
           mode: 'results',
+          isResultsMode: true,
+          totalItemsNoun: total === 1 ? 'item' : 'items',
+          excludeTagsNoun: heroChips.excludeTags.length === 1 ? 'tag' : 'tags',
           formIncludeText,
           formExcludeText,
           unresolvedTokens,

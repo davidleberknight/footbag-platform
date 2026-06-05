@@ -22,6 +22,9 @@
       html = '<p>Upload complete. Waiting for the worker to start transcoding.</p>';
     } else if (state === 'processing') {
       html = '<p>Transcoding now. This usually takes one to three minutes for a typical curator clip.</p>';
+    } else if (state === 'retrying') {
+      var retryPart = errorMessage ? ': ' + escapeHtml(errorMessage) : '';
+      html = '<p>Transcode hit a temporary error' + retryPart + '. Retrying now.</p>';
     } else if (state === 'succeeded') {
       var link = mediaId
         ? ' <a href="/admin/curator/media/' + encodeURIComponent(mediaId) + '/edit">Open the new media item.</a>'

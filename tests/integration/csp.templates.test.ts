@@ -1,7 +1,7 @@
 /**
  * Regression: no Handlebars template carries an inline event-handler
  * attribute or inline `style=""` attribute. The CSP is `script-src-attr
- * 'none'` and `style-src 'self'` (see DD §3.3 and src/app.ts:77-94), so
+ * 'none'` and `style-src 'self'`, so
  * inline `onsubmit`, `onclick`, etc., and inline `style=""` are silently
  * blocked by modern browsers. Confirmation dialogs on delete forms and
  * other delegated handlers must use `data-*` attributes + a script under

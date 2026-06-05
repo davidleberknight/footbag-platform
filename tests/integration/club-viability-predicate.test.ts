@@ -14,13 +14,17 @@ const MEMBER_A = 'viab-mem-a';
 const MEMBER_B = 'viab-mem-b';
 const MEMBER_C = 'viab-mem-c';
 
-const CLUB_ACTIVE     = 'viab-club-active';
-const CLUB_INACTIVE   = 'viab-club-inactive';
-const CLUB_WEAK       = 'viab-club-weak';
-const CLUB_REVIEW     = 'viab-club-review';
-const CLUB_NOSIGNAL   = 'viab-club-nosignal';
-const CLUB_MIXED      = 'viab-club-mixed';
-const CLUB_LEADERLESS = 'viab-club-leaderless';
+const CLUB_ACTIVE      = 'viab-club-active';
+const CLUB_INACTIVE    = 'viab-club-inactive';
+const CLUB_WEAK        = 'viab-club-weak';
+const CLUB_REVIEW      = 'viab-club-review';
+const CLUB_NOSIGNAL    = 'viab-club-nosignal';
+const CLUB_MIXED       = 'viab-club-mixed';
+const CLUB_LEADERLESS  = 'viab-club-leaderless';
+const CLUB_DETAIL_POS  = 'viab-club-detail-pos';
+const CLUB_DUP_MEMBER  = 'viab-club-dup-member';
+const CLUB_CHANGED     = 'viab-club-changed';
+const CLUB_DETAIL_ONLY = 'viab-club-detail-only';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -54,6 +58,31 @@ beforeAll(async () => {
   // Mixed: active + inactive -> G1 wins
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_MIXED, activity_signal: 'not_active' });
   insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_MIXED, activity_signal: 'active' });
+
+  // Detail-page 'active' must not decide a gate: the wizard channel says
+  // one member inactive, so the gate is G3, not G1.
+  insertClub(db, { id: CLUB_DETAIL_POS, name: 'Detail Positive Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_POS, source_stage: 'club_detail', activity_signal: 'active' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_DETAIL_POS, activity_signal: 'not_active' });
+
+  // One member re-posting 'not_active' is one vote, not two: G3, not G2.
+  insertClub(db, { id: CLUB_DUP_MEMBER, name: 'Duplicate Member Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DUP_MEMBER, activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DUP_MEMBER, activity_signal: 'not_active', created_at: '2026-01-02T00:00:00.000Z' });
+
+  // A member who changes their answer counts at their latest answer only:
+  // earlier 'not_active' superseded by later 'active' -> G1.
+  insertClub(db, { id: CLUB_CHANGED, name: 'Changed Answer Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'active', created_at: '2026-02-01T00:00:00.000Z' });
+
+  // Rows from the retired club-page poll channel only: the gates see
+  // nothing and no crowdsource queue item appears.
+  insertClub(db, { id: CLUB_DETAIL_ONLY, name: 'Detail Only Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'not_active', created_at: '2026-01-02T00:00:00.000Z' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'never_heard_of_it' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_C, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'active' });
 
   db.close();
   await importApp();
@@ -103,6 +132,32 @@ describe('evaluateClubViability', () => {
     const result = clubCleanupService.evaluateClubViability(CLUB_MIXED);
     expect(result.gate).toBe('G1_confirmed_active');
   });
+
+  it('a detail-page active signal does not decide a gate', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(CLUB_DETAIL_POS);
+    expect(result.gate).toBe('G3_weak_inactive');
+    expect(result.s1AnyActive).toBe(false);
+  });
+
+  it('one member re-posting inactive is one vote, not concordant', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(CLUB_DUP_MEMBER);
+    expect(result.gate).toBe('G3_weak_inactive');
+    expect(result.s3ConcordantInactive).toBe(false);
+  });
+
+  it('a changed answer counts at its latest value', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(CLUB_CHANGED);
+    expect(result.gate).toBe('G1_confirmed_active');
+  });
+
+  it('detail-page-only reports leave the gates at no_signals', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(CLUB_DETAIL_ONLY);
+    expect(result.gate).toBe('no_signals');
+  });
 });
 
 describe('getCleanupQueuePage', () => {
@@ -127,5 +182,27 @@ describe('getCleanupQueuePage', () => {
       i => i.clubId === CLUB_ACTIVE && i.predicate === 'crowdsource_viability',
     );
     expect(activeClub).toBeUndefined();
+  });
+
+  it('retired club-page poll rows never produce a crowdsource queue item', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+    // CLUB_DETAIL_ONLY carries only club_detail rows: no gate fires and no
+    // crowdsource item appears (it may still surface as leaderless, which
+    // is independent of signals).
+    const crowdsourceItem = vm.content.items.find(
+      i => i.clubId === CLUB_DETAIL_ONLY && i.predicate === 'crowdsource_viability',
+    );
+    expect(crowdsourceItem).toBeUndefined();
+  });
+
+  it('names the negative wizard reporters on the crowdsource item', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+    const item = vm.content.items.find(
+      i => i.clubId === CLUB_WEAK && i.predicate === 'crowdsource_viability',
+    );
+    expect(item).toBeTruthy();
+    expect(item!.detail).toContain('inactive per: Viab A');
   });
 });

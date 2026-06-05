@@ -1,10 +1,12 @@
 /**
  * Integration tests for the Leaders section on /clubs/:key.
  *
- * Bootstrap leaders are pipeline-derived (status='provisional'). They
- * render publicly with a "Provisional leader" badge and an "imported
- * from historical records" note. Contact email is gated and MUST NOT
- * appear in HTML for provisional rows.
+ * Leader identities on the club detail page are member-visible: names
+ * render to authenticated viewers only; anonymous responses carry no
+ * leader names. Bootstrap leaders are pipeline-derived
+ * (status='provisional') and render with a "Provisional leader" badge
+ * and an "imported from historical records" note. Contact email is
+ * gated and MUST NOT appear in HTML for provisional rows.
  *
  * Other status values (claimed, verified) share the same ClubLeader
  * shape; only the service mapping varies by status.
@@ -26,12 +28,19 @@ import {
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMember,
+  createTestSessionJwt,
+  completeOnboarding,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+
+function authCookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: 'leaders-test-user', role: 'member' })}`;
+}
 
 const CLUB_TAG_NORMALIZED = '#club_test_leaders';
 const CLUB_KEY            = 'club_test_leaders';
@@ -43,6 +52,15 @@ let CLUB_ID = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+
+  // Authenticated viewer for the member-visible leaders section.
+  insertMember(db, {
+    id: 'leaders-test-user',
+    slug: 'leaders_test_user',
+    login_email: 'leaders-test-user@example.com',
+    display_name: 'Leaders Test User',
+  });
+  completeOnboarding(db, 'leaders-test-user');
 
   const tagId = insertTag(db, {
     standard_type: 'club',
@@ -206,6 +224,32 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
+  // Solo co-leader club: the only known leader entry is a co-leader. The page
+  // must present it as Leader (a lone co-leader reads as a contradiction).
+  const soloTagId = insertTag(db, {
+    standard_type: 'club',
+    tag_normalized: '#club_test_solo_coleader',
+  });
+  const soloClubId = insertClub(db, {
+    hashtag_tag_id: soloTagId,
+    name:           'Solo Co-leader Club',
+    city:           'Singleton',
+    country:        'USA',
+  });
+  insertLegacyMember(db, { legacy_member_id: 'legacy-solo-006', real_name: 'Solo Wingman' });
+  insertHistoricalPerson(db, {
+    person_id:        'person-solo-006',
+    person_name:      'Solo Wingman',
+    legacy_member_id: 'legacy-solo-006',
+    source_scope:     'CANONICAL',
+  });
+  insertClubBootstrapLeader(db, {
+    club_id:          soloClubId,
+    legacy_member_id: 'legacy-solo-006',
+    role:             'co-leader',
+    status:           'provisional',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -214,44 +258,43 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // ----------------------------------------------------------------------------
 
-describe(`GET /clubs/${CLUB_KEY} — Leaders section`, () => {
+describe(`GET /clubs/${CLUB_KEY} — Leaders section (authenticated)`, () => {
   it('returns 200 and renders the Leaders section', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="club-leaders-heading"');
     expect(res.text).toContain('>Leaders<');
   });
 
   it('renders both leader display names', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toContain('Zelda Headleader');
     expect(res.text).toContain('Anna Sidekick');
   });
 
   it('renders the Provisional leader badge wording', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toContain('Provisional leader');
   });
 
   it('renders the "imported from historical records" note', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toContain('imported from historical records');
   });
 
   it('renders explicit role labels (Leader / Co-leader)', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toMatch(/Zelda Headleader[\s\S]{0,80}Leader/);
     expect(res.text).toContain('Co-leader');
   });
 
   it('sorts leader before co-leader regardless of alphabetical order', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     const leaderIdx   = res.text.indexOf('Zelda Headleader');
     const coleaderIdx = res.text.indexOf('Anna Sidekick');
     expect(leaderIdx).toBeGreaterThan(0);
@@ -261,24 +304,28 @@ describe(`GET /clubs/${CLUB_KEY} — Leaders section`, () => {
 
   it('links leader name to /history/:personId when personId is set', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).toContain(`href="/history/${LEADER_PERSON_ID}"`);
     expect(res.text).toContain(`href="/history/${COLEADER_PERSON_ID}"`);
   });
 
   it('PRIVACY GATE: does not expose contact email for provisional leaders', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`).set('Cookie', authCookie());
     expect(res.text).not.toMatch(/href="mailto:[^"]*"/);
     expect(res.text).not.toContain('class="club-leader-email"');
   });
+});
 
-  it('renders Leaders section to UNAUTHENTICATED visitors (public)', async () => {
+describe(`GET /clubs/${CLUB_KEY} — Leaders hidden from anonymous visitors`, () => {
+  it('PRIVACY GATE: renders no Leaders section and no leader names unauthenticated', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toContain('>Leaders<');
-    expect(res.text).toContain('Zelda Headleader');
-    // Members section gated, but leaders are not.
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('>Leaders<');
+    expect(res.text).not.toContain('Zelda Headleader');
+    expect(res.text).not.toContain('Anna Sidekick');
+    // The members login gate still shows.
     expect(res.text).toContain('club-members-gate');
   });
 });
@@ -286,9 +333,8 @@ describe(`GET /clubs/${CLUB_KEY} — Leaders section`, () => {
 describe('GET /clubs/club_test_no_leaders — empty leaders case', () => {
   it('does NOT render the Leaders section when no bootstrap leaders exist', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/club_test_no_leaders');
+    const res = await request(app).get('/clubs/club_test_no_leaders').set('Cookie', authCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="club-leaders-heading"');
     expect(res.text).not.toContain('>Leaders<');
   });
 });
@@ -296,74 +342,62 @@ describe('GET /clubs/club_test_no_leaders — empty leaders case', () => {
 describe('GET /clubs/club_test_suppressed — suppression filter', () => {
   it('does NOT render leaders with status=superseded or rejected', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/club_test_suppressed');
+    const res = await request(app).get('/clubs/club_test_suppressed').set('Cookie', authCookie());
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Old Leader');
     expect(res.text).not.toContain('Rejected Person');
-    expect(res.text).not.toContain('class="club-leaders-heading"');
+    expect(res.text).not.toContain('>Leaders<');
   });
 });
 
-describe(`GET /clubs/${CLUB_KEY} — At-a-glance section`, () => {
-  it('renders the at-a-glance section', async () => {
+describe('GET /clubs/club_test_solo_coleader — lone co-leader presents as Leader', () => {
+  it('labels the only leader entry "(Leader)" even though the stored role is co-leader', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toContain('class="club-at-a-glance');
-  });
-
-  it('shows the known-leaders count in the inline stats line', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toMatch(/2 known leaders/);
-  });
-
-  it('shows the member count from legacy affiliations in the inline stats line', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toMatch(/4 members/);
-  });
-
-  it('shows the status label as "Known leaders" when leaders exist on an active club', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toContain('club-status-label');
-    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Known leaders<\/p>/);
+    const res = await request(app).get('/clubs/club_test_solo_coleader').set('Cookie', authCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Solo Wingman');
+    expect(res.text).toMatch(/Solo Wingman[\s\S]{0,120}\(Leader\)/);
+    expect(res.text).not.toContain('(Co-leader)');
   });
 });
 
-describe('GET /clubs/club_test_no_leaders — At-a-glance for sparse club', () => {
-  it('shows "None known yet" for known leaders and "Needs update" status', async () => {
+// Vitality chips render only inside the auth-gated curator diagnostic panel;
+// the public detail page carries no at-a-glance card. Chip shaping itself is
+// covered by the country-page leader-summary tests and the curator-panel tests.
+describe(`GET /clubs/${CLUB_KEY} — no public at-a-glance card`, () => {
+  it('renders no at-a-glance card or vitality chips to unauthenticated visitors', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('aria-label="At a glance"');
+    expect(res.text).not.toMatch(/2 leaders/);
+    expect(res.text).not.toMatch(/4 members/);
+  });
+});
+
+describe('GET /clubs/club_test_no_leaders — no vitality surface without classification evidence', () => {
+  it('renders no vitality chips when the club has no candidate row', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_test_no_leaders');
-    expect(res.text).toMatch(/None known yet known leaders/);
-    expect(res.text).toMatch(/Unknown members/);
-    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Needs update<\/p>/);
-    expect(res.text).toContain('club-at-a-glance--needs-update');
-  });
-});
-
-describe('GET /clubs/club_test_historical — At-a-glance for inactive club', () => {
-  it('shows "Historical club" status for a status=inactive club', async () => {
-    const app = createApp();
-    const res = await request(app).get('/clubs/club_test_historical');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Historical club<\/p>/);
-    expect(res.text).toContain('club-at-a-glance--historical-club');
+    expect(res.text).not.toContain('aria-label="At a glance"');
+    expect(res.text).not.toContain('No known leaders yet');
+    expect(res.text).not.toContain('Needs update');
   });
 });
 
 describe('GET /clubs/club_test_hpless — leader without historical_persons row', () => {
   it('renders the leader using the legacy_members.real_name fallback', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/club_test_hpless');
+    const res = await request(app).get('/clubs/club_test_hpless').set('Cookie', authCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="club-leaders-heading"');
+    expect(res.text).toContain('>Leaders<');
     expect(res.text).toContain('Mira NoHistorical');
   });
 
   it('does NOT link the leader name to /history/:personId when no HP row exists', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/club_test_hpless');
+    const res = await request(app).get('/clubs/club_test_hpless').set('Cookie', authCookie());
     // No anchor wrapping the name (template branches on personId presence).
     expect(res.text).toMatch(/<span class="club-leader-name">Mira NoHistorical<\/span>/);
     expect(res.text).not.toMatch(/<a [^>]+href="\/history\/[^"]+"[^>]*>Mira NoHistorical<\/a>/);
@@ -371,7 +405,7 @@ describe('GET /clubs/club_test_hpless — leader without historical_persons row'
 
   it('still surfaces the Provisional leader badge for an HP-less leader', async () => {
     const app = createApp();
-    const res = await request(app).get('/clubs/club_test_hpless');
+    const res = await request(app).get('/clubs/club_test_hpless').set('Cookie', authCookie());
     expect(res.text).toContain('Provisional leader');
   });
 });

@@ -48,6 +48,7 @@ interface CapturedEvent {
 function makeWorker(opts: {
   finalize?: (job: MediaJobRow) => Promise<{ mediaId: string }>;
   events?: CapturedEvent[];
+  maxRetries?: number;
 }) {
   const events = opts.events ?? [];
   return createTranscodeWorker({
@@ -63,6 +64,7 @@ function makeWorker(opts: {
     },
     internalSecret: SECRET,
     semaphoreWaitMs: 5000,
+    maxRetries: opts.maxRetries,
   });
 }
 
@@ -223,6 +225,69 @@ describe('POST /transcode/dispatch — failure path', () => {
   });
 });
 
+describe('POST /transcode/dispatch — retry path', () => {
+  it('retries a transient failure in-process and succeeds, with a retrying event in between', async () => {
+    expectLoggedError('transcodeWorker: finalize failed');
+    const events: CapturedEvent[] = [];
+    seedMediaItem('media_retry_001');
+    let attempts = 0;
+    const w = makeWorker({
+      finalize: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('transient transcode failure');
+        return { mediaId: 'media_retry_001' };
+      },
+      events,
+      maxRetries: 3,
+    });
+    const jobId = seedPendingTranscode();
+
+    await request(w.app)
+      .post('/transcode/dispatch')
+      .set('x-internal-secret', SECRET)
+      .send({ jobId });
+    await w.pendingForTests();
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('succeeded');
+    expect(row?.retry_count).toBe(1);
+    expect(attempts).toBe(2);
+
+    const states = events.map((e) => e.state);
+    expect(states).toContain('retrying');
+    expect(states).toContain('succeeded');
+    const retrying = events.find((e) => e.state === 'retrying');
+    expect(retrying?.errorMessage).toBe('transient transcode failure');
+  });
+
+  it('exhausts the retry budget and lands terminal failed with a final failed event', async () => {
+    expectLoggedError('transcodeWorker: finalize failed');
+    const events: CapturedEvent[] = [];
+    const w = makeWorker({
+      finalize: async () => {
+        throw new Error('persistent transcode failure');
+      },
+      events,
+      maxRetries: 2,
+    });
+    const jobId = seedPendingTranscode();
+
+    await request(w.app)
+      .post('/transcode/dispatch')
+      .set('x-internal-secret', SECRET)
+      .send({ jobId });
+    await w.pendingForTests();
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('failed');
+    expect(row?.retry_count).toBe(2);
+
+    const states = events.map((e) => e.state);
+    expect(states.filter((s) => s === 'retrying')).toHaveLength(1);
+    expect(states[states.length - 1]).toBe('failed');
+  });
+});
+
 describe('recoverOnBoot', () => {
   it('re-enqueues orphaned processing rows whose lease has expired', async () => {
     const svc = createMediaJobService();
@@ -265,6 +330,44 @@ describe('recoverOnBoot', () => {
     const w = makeWorker({});
     const result = await w.recoverOnBoot();
     expect(result.reclaimedIds).toEqual([]);
+  });
+
+  it('re-enqueues a parked retry row left behind by a crash between park and re-claim', async () => {
+    const svc = createMediaJobService();
+    const jobId = seedPendingTranscode();
+    // Simulate the crash window: a previous process claimed the job, failed
+    // it retryably (parking it back in pending_transcode with retry_count 1),
+    // and died before re-claiming.
+    svc.claimForProcessing(jobId, '2099-01-01T00:00:00.000Z');
+    const parked = svc.markFailed(jobId, 'transient failure before crash', 3);
+    expect(parked.state).toBe('pending_transcode');
+
+    const events: CapturedEvent[] = [];
+    seedMediaItem('media_parked_001');
+    const w = makeWorker({
+      finalize: async () => ({ mediaId: 'media_parked_001' }),
+      events,
+      maxRetries: 3,
+    });
+
+    const result = await w.recoverOnBoot();
+    expect(result.reclaimedIds).toEqual([jobId]);
+    await w.pendingForTests();
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('succeeded');
+  });
+
+  it('does not hijack fresh pending_transcode rows that await their normal dispatch', async () => {
+    const jobId = seedPendingTranscode();
+
+    const w = makeWorker({});
+    const result = await w.recoverOnBoot();
+    expect(result.reclaimedIds).toEqual([]);
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('pending_transcode');
+    expect(row?.retry_count).toBe(0);
   });
 });
 

@@ -86,7 +86,26 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
     expect(res.status).toBe(422);
   });
 
-  it('persists the stripe ids on the pending row with no NULL window (B41)', async () => {
+  it('returns 422 with the conflict message when a membership purchase is already pending', async () => {
+    // The one-pending-membership-per-member unique index rejects the second
+    // insert; that is an ordinary user state (double-click, second tab) and
+    // must render as a 422 conflict, not fall through to the 500 handler.
+    const app = createApp();
+    const first = await request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1', returnTo: `/members/${MEMBER_SLUG}` });
+    expect(first.status).toBe(303);
+
+    const second = await request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1', returnTo: `/members/${MEMBER_SLUG}` });
+    expect(second.status).toBe(422);
+    expect(second.text).toContain('already in progress');
+  });
+
+  it('persists the stripe ids on the pending row with no NULL window', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${MEMBER_SLUG}/purchase-tier`)
@@ -110,7 +129,7 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
     }
   });
 
-  it('does not orphan a NULL-stripe-id pending row when checkout creation fails (B41)', async () => {
+  it('does not orphan a NULL-stripe-id pending row when checkout creation fails', async () => {
     const app = createApp();
     // Force the external checkout-session call to fail once. Pre-fix the pending
     // row was inserted BEFORE this call, so it persists with NULL stripe ids and
@@ -219,6 +238,39 @@ describe('POST /payments/checkout/:sessionId/confirm (stub adapter)', () => {
 });
 
 describe('GET /payments/success (stub adapter)', () => {
+  it('renders the processing variant while the payment row is still pending', async () => {
+    // In live mode the browser redirect can land before the provider
+    // webhook; the page must not claim the membership is active while the
+    // row is pending and the tier ungranted.
+    const PENDING_ID = 'purchase-route-pending';
+    const PENDING_SLUG = 'pending_purchaser';
+    const seedDb = new BetterSqlite3(dbPath);
+    insertMember(seedDb, {
+      id: PENDING_ID, slug: PENDING_SLUG,
+      display_name: 'Pending Purchaser', login_email: 'pending-purchaser@example.com',
+    });
+    completeOnboarding(seedDb, PENDING_ID);
+    seedDb.close();
+
+    const app = createApp();
+    const start = await request(app)
+      .post(`/members/${PENDING_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie(PENDING_ID))
+      .send({ tier: 'tier1', returnTo: `/members/${PENDING_SLUG}` });
+    expect(start.status).toBe(303);
+    const sessionId = start.headers.location.split('/').pop()!;
+
+    // No checkout confirm: the row stays 'pending'.
+    const res = await request(app)
+      .get(`/payments/success?session_id=${sessionId}&returnTo=%2Fmembers%2F${PENDING_SLUG}`)
+      .set('Cookie', memberCookie(PENDING_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Payment processing');
+    expect(res.text).toContain('Your payment is processing.');
+    expect(res.text).toContain('as soon as your payment is confirmed');
+    expect(res.text).not.toContain('activated');
+  });
+
   it('renders tier-1 success copy after confirming a tier1 purchase', async () => {
     const app = createApp();
     const start = await request(app)
@@ -237,5 +289,56 @@ describe('GET /payments/success (stub adapter)', () => {
     expect(res.text).toContain('Tier 1 IFPA Member activated');
     expect(res.text).toContain('vote in IFPA elections');
     expect(res.text).toContain(`/members/${OTHER_SLUG}`);
+  });
+});
+
+// Kept last: this block tunes purchase_tier_rate_limit_per_hour via
+// system_config, a latest-effective value that would otherwise throttle
+// purchase POSTs in any subsequent describe.
+describe('POST /members/:memberKey/purchase-tier — rate limit', () => {
+  it('member exceeding the purchase-attempt limit -> 429 with Retry-After', async () => {
+    // Every attempt creates a checkout session at the payment provider
+    // before the duplicate-pending index can reject it, so bursts must be
+    // throttled to stop orphaned sessions from piling up.
+    const RL_ID = 'purchase-route-rl';
+    const RL_SLUG = 'rl_purchaser';
+    const seedDb = new BetterSqlite3(dbPath);
+    insertMember(seedDb, {
+      id: RL_ID, slug: RL_SLUG,
+      display_name: 'RL Purchaser', login_email: 'rl-purchaser@example.com',
+    });
+    completeOnboarding(seedDb, RL_ID);
+    seedDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'purchase_tier_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run('test-purchase-tier-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+    seedDb.close();
+
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    try {
+      const app = createApp();
+      const first = await request(app)
+        .post(`/members/${RL_SLUG}/purchase-tier`)
+        .set('Cookie', memberCookie(RL_ID))
+        .send({ tier: 'tier1', returnTo: `/members/${RL_SLUG}` });
+      expect(first.status).toBe(303);
+
+      const second = await request(app)
+        .post(`/members/${RL_SLUG}/purchase-tier`)
+        .set('Cookie', memberCookie(RL_ID))
+        .send({ tier: 'tier1', returnTo: `/members/${RL_SLUG}` });
+      expect(second.status).toBe(422);
+
+      const blocked = await request(app)
+        .post(`/members/${RL_SLUG}/purchase-tier`)
+        .set('Cookie', memberCookie(RL_ID))
+        .send({ tier: 'tier1', returnTo: `/members/${RL_SLUG}` });
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
   });
 });

@@ -34,7 +34,7 @@ Controllers emit these statuses by convention. Service errors route through `han
 
 ## Cookies
 
-Session cookies are set or cleared exclusively through `issueSessionCookie(res, jwt)` and `clearSessionCookie(res)` from `src/lib/sessionCookie.ts`. Controllers never call `res.cookie()` or `res.setHeader('Set-Cookie', ...)` directly (logout's explicit `clearCookie(SESSION_COOKIE_NAME, ...)` for RFC-6265 attribute matching is the only documented exception). Transient UI state (logout banner, post-success notice) uses `writeFlash(res, req, FLASH_KIND.X, payload)` from `src/lib/flashCookie.ts`.
+Session cookies are set or cleared exclusively through `issueSessionCookie(res, jwt)` and `clearSessionCookie(res, req)` from `src/lib/sessionCookie.ts`. Controllers never call `res.cookie()`, `res.clearCookie()`, or `res.setHeader('Set-Cookie', ...)` directly. Transient UI state (logout banner, post-success notice) uses `writeFlash(res, req, FLASH_KIND.X, payload)` from `src/lib/flashCookie.ts`.
 
 ## Password change
 

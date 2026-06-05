@@ -3,18 +3,36 @@
  *
  * The browser PUTs source bytes directly to S3, then POSTs to /finalize, which
  * calls markPendingTranscode. The web container HTTP-pushes the job id to the
- * image worker, which calls claimForProcessing, runs ffmpeg, and finally calls
- * markSucceeded or markFailed. State changes are also broadcast back to the
- * web container via /ipc/job-events; this service does not know about
- * the event bus, only about persistence.
+ * transcode worker, which calls claimForProcessing, runs ffmpeg, and finally
+ * calls markSucceeded or markFailed. A retry-eligible failure parks the row
+ * back in pending_transcode with retry_count incremented; the worker re-claims
+ * it immediately, and boot recovery picks up rows parked by a crash. State
+ * changes are broadcast back to the web container via /ipc/job-events; this
+ * service does not know about the event bus, only about persistence.
  *
- * The only periodic-ish call is recoverOrphanedProcessingJobs, invoked once at
- * worker boot to reset rows whose dispatch lease has expired (worker crashed
- * mid-transcode). There is no steady-state polling.
+ * Recovery is boot-time only: recoverOrphanedProcessingJobs resets rows whose
+ * dispatch lease has expired (worker crashed mid-transcode) and
+ * findRetryEligiblePendingTranscode lists parked retry rows; both run once at
+ * worker startup. There is no steady-state polling.
+ *
+ * Persistence: media_jobs only.
+ *
+ * Side effects: none beyond media_jobs writes. No audit append, no outbox
+ * enqueue, no work-queue insert; forensics for this surface live in the
+ * media_jobs row itself (state, retry_count, last_error).
+ *
+ * Transaction discipline: every transition is a single guarded UPDATE with
+ * the expected state in the WHERE clause, so no multi-statement transaction
+ * is needed; concurrent claimers race the UPDATE and exactly one wins.
+ *
+ * Service shape: factory (createMediaJobService) with a process singleton via
+ * getMediaJobService(); no injected adapters, db.ts only.
  */
 import { randomUUID } from 'node:crypto';
 import { mediaJobs, type MediaJobRow } from '../db/db';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { hit as rateLimitHit } from './rateLimitService';
+import { readIntConfig } from './configReader';
 
 const ADMIN_ACTOR = 'admin';
 const SYSTEM_ACTOR = 'system';
@@ -61,6 +79,7 @@ export interface MediaJobService {
   markFailed(jobId: string, errorMessage: string, maxRetries: number): MarkFailedResult;
   getJobForAdmin(jobId: string, adminMemberId: string): MediaJobRow | null;
   recoverOrphanedProcessingJobs(nowIso: string): RecoverResult;
+  findRetryEligiblePendingTranscode(): MediaJobRow[];
   markAbandoned(jobId: string): void;
   findExpiredPendingUploads(nowIso: string): MediaJobRow[];
 }
@@ -70,6 +89,16 @@ export function createMediaJobService(): MediaJobService {
     createPendingUploadJob(input) {
       if (!input.adminMemberId) {
         throw new ValidationError('adminMemberId is required.');
+      }
+      // Same per-admin curator-write bucket as the synchronous curator
+      // writes; compromised-admin is the threat model, so no bypass.
+      const max = readIntConfig('curator_write_rate_limit_per_hour', 60);
+      const rl = rateLimitHit(`curator-write:${input.adminMemberId}`, max, 60);
+      if (!rl.allowed) {
+        throw new RateLimitedError(
+          `Too many curator operations. Try again in ${rl.retryAfterSeconds} seconds.`,
+          rl.retryAfterSeconds,
+        );
       }
       if (!input.sourceVideoKey || !input.sourcePosterKey) {
         throw new ValidationError('sourceVideoKey and sourcePosterKey are required.');
@@ -175,6 +204,10 @@ export function createMediaJobService(): MediaJobService {
         if (result.changes === 1) recoveredIds.push(row.id);
       }
       return { recoveredIds };
+    },
+
+    findRetryEligiblePendingTranscode() {
+      return mediaJobs.selectRetryEligiblePendingTranscode.all() as MediaJobRow[];
     },
 
     markAbandoned(jobId) {

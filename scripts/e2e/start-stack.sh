@@ -2,13 +2,13 @@
 # Boot the dev stack (web + image worker) for the Playwright E2E suite.
 #
 # Differs from scripts/dev.sh in three ways:
-#   1. Uses plain `tsx` (no --watch) — the E2E run never edits source
+#   1. Uses plain `tsx` (no --watch); the E2E run never edits source
 #      files; watch mode just adds 2-3s of cold-start latency.
 #   2. Owns its own trap so Playwright's SIGTERM cleanly tears both
 #      children down even when bash job-control quirks would otherwise
 #      orphan them.
 #   3. Provisions an ephemeral DB and exports INTERNAL_EVENT_SECRET into
-#      both child envs — the regression that prompted this whole layer
+#      both child envs; the regression that prompted this whole layer
 #      was the image worker not seeing that var, so the launcher MUST
 #      make both children see it.
 

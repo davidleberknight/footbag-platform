@@ -142,10 +142,10 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs);
   const videoSemaphore = new Semaphore(videoMaxConcurrent, videoSemaphoreWaitMs);
 
-  // Mirror src/controllers/ipcController.ts: 503 when secret is unconfigured
-  // (graceful misconfig signal — the caller knows to skip), 401 on header
-  // mismatch (active rejection of an unauthorized caller). Applied before the
-  // body parser on each /process/* route.
+  // 503 when the secret is unconfigured (graceful misconfig signal, the
+  // caller knows to skip), 401 on header mismatch (active rejection of an
+  // unauthorized caller); the same split every internal endpoint uses.
+  // Applied before the body parser on each /process/* route.
   const requireInternalSecret: RequestHandler = (req, res, next) => {
     if (!internalSecret) {
       res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });

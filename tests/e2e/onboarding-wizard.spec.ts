@@ -5,8 +5,8 @@
  * prove: session cookie chain, redirect handling, form fill + PRG,
  * dashboard widget rendering, and accessibility.
  *
- * User story anchors: M_Complete_Onboarding_Wizard, M_Claim_Legacy_Account.
- * Design anchors: TESTING.md section 6.2 (lightweight suite belongs list).
+ * Kept deliberately lightweight: only checks that genuinely need a real
+ * browser belong here; everything else lives in the integration suite.
  */
 import { test, expect } from '@playwright/test';
 import {

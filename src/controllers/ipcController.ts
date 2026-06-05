@@ -20,22 +20,24 @@ import { sesFeedbackService } from '../services/sesFeedbackService';
 const SECRET_HEADER = 'x-internal-secret';
 
 function isJobEventState(value: unknown): value is JobEventState {
-  return value === 'claimed' || value === 'succeeded' || value === 'failed';
+  return value === 'claimed' || value === 'retrying' || value === 'succeeded' || value === 'failed';
 }
 
 export const ipcController = {
   /**
    * SES feedback webhook (mounted on the PUBLIC router: SNS posts from the
-   * internet, and nginx drops /ipc/* from public traffic). Auth is the
-   * shared secret embedded as a query key in the subscription endpoint URL,
-   * compared timing-safe; the URL is known only to the AWS-side
-   * subscription configuration.
+   * internet, and nginx drops /ipc/* from public traffic). Auth is a
+   * dedicated shared secret embedded as a query key in the subscription
+   * endpoint URL, compared timing-safe; the URL is known only to the
+   * AWS-side subscription configuration. The key is deliberately not
+   * INTERNAL_EVENT_SECRET: query strings land in instance access logs, and
+   * a leak there must not extend to the worker IPC endpoints.
    */
   receiveSesFeedback(req: Request, res: Response, next: NextFunction): void {
     try {
-      const secret = config.internalEventSecret;
+      const secret = config.sesFeedbackWebhookKey;
       if (!secret) {
-        res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });
+        res.status(503).json({ error: 'SES_FEEDBACK_WEBHOOK_KEY not configured' });
         return;
       }
       const provided = Buffer.from(typeof req.query.key === 'string' ? req.query.key : '');

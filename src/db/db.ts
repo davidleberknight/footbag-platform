@@ -475,9 +475,8 @@ export const publicPlayers = {
       hp.hof_member,
       hp.bap_member,
       (SELECT m.slug
-       FROM members AS m
-       WHERE m.deleted_at IS NULL
-         AND m.historical_person_id = hp.person_id
+       FROM members_searchable AS m
+       WHERE m.historical_person_id = hp.person_id
        LIMIT 1
       ) AS linked_member_slug
     FROM historical_persons AS hp
@@ -753,24 +752,29 @@ export const clubs = {
   `); },
 
   // Historical affiliations for a club's roster. Returns resolution_status so
-  // the service can split the roster into a confirmed members list and a
-  // separate, labeled "possible members from legacy records" list: 'pending'
-  // rows render as unconfirmed-but-possible, never laundered into current
-  // membership. A 'pending' row leaves the roster when its member confirms or
-  // declines it in onboarding, or when an admin de-lists club residue (which
-  // transitions it to 'former_only'). inferred_role lets the service also
-  // split out leaders and contacts.
+  // the service can label 'pending' rows as unconfirmed-but-possible, never
+  // laundered into current membership. A 'pending' row leaves the roster when
+  // its member confirms or declines it in onboarding, or when an admin
+  // de-lists club residue (which transitions it to 'former_only').
+  // inferred_role lets the service also split out leaders and contacts.
+  // member_slug joins through members_searchable so a confirmed affiliation
+  // whose person has claimed a live, search-visible member account can link
+  // to that member's profile; NULL for everyone else (the searchable view
+  // keeps opted-out / unverified / purged profiles unlinkable).
   get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
       COALESCE(hp.person_name, lpca.display_name) AS person_name,
       lpca.inferred_role AS inferred_role,
-      lpca.resolution_status AS resolution_status
+      lpca.resolution_status AS resolution_status,
+      ms.slug AS member_slug
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = lpca.historical_person_id
+    LEFT JOIN members_searchable AS ms
+      ON ms.historical_person_id = lpca.historical_person_id
     WHERE
       lcc.mapped_club_id = ?
       AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
@@ -1217,36 +1221,7 @@ export const clubBootstrapLeaderSignals = {
 
 // Club content-validation loop rows: member-proposed description and
 // external-URL replacements awaiting leader/contact/admin review.
-export const clubContentSuggestions = {
-  get insert() { return db.prepare(`
-    INSERT INTO club_content_suggestions (
-      id, created_at, created_by, updated_at, updated_by, version,
-      club_id, suggester_member_id, field, proposed_value, note
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-  `); },
-
-  get listOpenByClub() { return db.prepare(`
-    SELECT s.id, s.club_id, s.suggester_member_id, s.field, s.proposed_value,
-           s.note, s.created_at, m.display_name AS suggester_display_name
-    FROM club_content_suggestions s
-    JOIN members m ON m.id = s.suggester_member_id
-    WHERE s.club_id = ? AND s.status = 'open'
-    ORDER BY s.created_at
-  `); },
-
-  get findOpenById() { return db.prepare(`
-    SELECT id, club_id, suggester_member_id, field, proposed_value, note
-    FROM club_content_suggestions
-    WHERE id = ? AND club_id = ? AND status = 'open'
-  `); },
-
-  get resolve() { return db.prepare(`
-    UPDATE club_content_suggestions
-    SET status = ?, resolved_at = ?, resolved_by_member_id = ?, resolution_reason = ?,
-        updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ? AND status = 'open'
-  `); },
-
+export const clubContent = {
   get findClubContentForEdit() { return db.prepare(`
     SELECT id, description, external_url FROM clubs WHERE id = ?
   `); },
@@ -1506,34 +1481,80 @@ export const clubViabilitySignals = {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
-  get countByClub() { return db.prepare(`
+  // Counts feeding the G1-G4 viability gates. Signals are collected only
+  // in the onboarding wizard; rows from the retired club-page poll channel
+  // are excluded defensively. Counting is one vote per member: a member's
+  // latest signal for the club wins, so duplicate rows from form re-posts
+  // or changed answers never inflate the thresholds.
+  get countWizardByClub() { return db.prepare(`
+    WITH latest AS (
+      SELECT member_id, activity_signal,
+             ROW_NUMBER() OVER (
+               PARTITION BY member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE club_id = ? AND source_stage != 'club_detail'
+    )
     SELECT
       SUM(CASE WHEN activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
       SUM(CASE WHEN activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
       SUM(CASE WHEN activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
-    FROM club_viability_signals
-    WHERE club_id = ?
+    FROM latest
+    WHERE rn = 1
   `); },
 
-  get listClubsWithSignals() { return db.prepare(`
+  get listClubsWithWizardSignals() { return db.prepare(`
+    WITH latest AS (
+      SELECT club_id, member_id, activity_signal,
+             ROW_NUMBER() OVER (
+               PARTITION BY club_id, member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE source_stage != 'club_detail'
+    )
     SELECT
-      cvs.club_id,
+      l.club_id,
       c.name          AS club_name,
       c.city          AS club_city,
       c.country       AS club_country,
       c.status        AS club_status,
-      SUM(CASE WHEN cvs.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
-      SUM(CASE WHEN cvs.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
-      SUM(CASE WHEN cvs.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
-      SUM(CASE WHEN cvs.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
+      SUM(CASE WHEN l.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
+      SUM(CASE WHEN l.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
+      SUM(CASE WHEN l.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
+      SUM(CASE WHEN l.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
-    FROM club_viability_signals AS cvs
-    INNER JOIN clubs AS c ON c.id = cvs.club_id
-    GROUP BY cvs.club_id
+    FROM latest AS l
+    INNER JOIN clubs AS c ON c.id = l.club_id
+    WHERE l.rn = 1
+    GROUP BY l.club_id
     ORDER BY not_active_count DESC, never_heard_count DESC
   `); },
+
+  // Negative reporters for one club, one vote per member (latest signal
+  // wins). Admin-queue use only: signal authorship is never exposed outside
+  // admin surfaces. Negative reports are rare, so the queue item carries
+  // the names inline.
+  get listNegativeWizardReportersByClub() { return db.prepare(`
+    WITH latest AS (
+      SELECT member_id, activity_signal,
+             ROW_NUMBER() OVER (
+               PARTITION BY member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE club_id = ? AND source_stage != 'club_detail'
+    )
+    SELECT m.display_name, l.activity_signal
+    FROM latest AS l
+    INNER JOIN members AS m ON m.id = l.member_id
+    WHERE l.rn = 1 AND l.activity_signal IN ('not_active', 'never_heard_of_it')
+    ORDER BY l.activity_signal, m.display_name COLLATE NOCASE
+  `); },
+
 };
 
 // ---------------------------------------------------------------------------
@@ -5436,6 +5457,10 @@ export interface GalleryItemDisplayRow {
   video_platform: string | null;
   video_id: string | null;
   thumbnail_url: string | null;
+  // 1 when the item carries the #unavailable_embed tag, which public
+  // gallery queries exclude; the owner/admin edit grid badges these so an
+  // item visible here but missing publicly is explained.
+  is_unavailable_embed: number;
 }
 export function listGalleryItemsForDisplay(
   tagIds: string[],
@@ -5452,7 +5477,12 @@ export function listGalleryItemsForDisplay(
        )`;
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.source_filename,
-           mi.s3_key_thumb, mi.video_platform, mi.video_id, mi.thumbnail_url
+           mi.s3_key_thumb, mi.video_platform, mi.video_id, mi.thumbnail_url,
+           EXISTS (
+             SELECT 1 FROM media_tags mtu
+             JOIN tags tu ON tu.id = mtu.tag_id
+             WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+           ) AS is_unavailable_embed
     FROM media_items mi
     JOIN media_tags mt ON mt.media_id = mi.id
     WHERE mi.moderation_status = 'active'
@@ -5857,6 +5887,12 @@ export const mediaJobs = {
     SELECT * FROM media_jobs
     WHERE state = 'processing'
       AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+  `); },
+
+  get selectRetryEligiblePendingTranscode() { return db.prepare(`
+    SELECT * FROM media_jobs
+    WHERE state = 'pending_transcode'
+      AND retry_count > 0
   `); },
 
   get resetOrphanedToTranscode() { return db.prepare(`

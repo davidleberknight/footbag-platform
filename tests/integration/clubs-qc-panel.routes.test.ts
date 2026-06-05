@@ -157,23 +157,34 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe(`GET /clubs/${PRE_POPULATE_KEY} — at-a-glance card (visible to all)`, () => {
-  it('renders the at-a-glance section with category chip and confidence', async () => {
+describe(`GET /clubs/${PRE_POPULATE_KEY} — classification summary lives in the curator panel only`, () => {
+  it('renders no at-a-glance card and no classification data to unauthenticated visitors', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${PRE_POPULATE_KEY}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="club-at-a-glance');
-    expect(res.text).toContain('Pre-populate');
-    expect(res.text).toContain('Confidence 0.92');
+    expect(res.text).not.toContain('aria-label="At a glance"');
+    expect(res.text).not.toContain('class="badge">Pre-populate<');
+    expect(res.text).not.toContain('Confidence ');
+    expect(res.text).not.toContain('Strong signals of recent activity');
   });
 
-  it('renders the most-recent member-activity year inline', async () => {
+  it('renders the category chip, confidence, vitality chips, and tagline inside the curator panel', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${PRE_POPULATE_KEY}`);
+    const res = await request(app)
+      .get(`/clubs/${PRE_POPULATE_KEY}`)
+      .set('Cookie', authCookie());
+    expect(res.text).toContain('class="badge">Pre-populate<');
+    expect(res.text).toContain('Confidence 0.92');
+    expect(res.text).toContain('No known leaders yet');
     // Fixture sets no max_affiliated_member_last_year on this club, so the
     // 'members active through' phrase only appears when present. The pre_populate
     // tagline is always rendered.
     expect(res.text).toContain('Strong signals of recent activity');
+    // The summary sits inside the panel, after the curator banner.
+    const bannerIdx  = res.text.indexOf('Curator view:');
+    const chipIdx    = res.text.indexOf('Confidence 0.92');
+    expect(bannerIdx).toBeGreaterThan(-1);
+    expect(chipIdx).toBeGreaterThan(bannerIdx);
   });
 
   it('does NOT render the full diagnostic panel to unauthenticated visitors', async () => {
@@ -210,9 +221,9 @@ describe(`GET /clubs/${PRE_POPULATE_KEY} — full diagnostic (authenticated only
     const res = await request(app)
       .get(`/clubs/${PRE_POPULATE_KEY}`)
       .set('Cookie', authCookie());
-    expect(res.text).toMatch(/club-qc-rule club-qc-rule--fired[\s\S]{0,200}>R1:/);
-    expect(res.text).toMatch(/club-qc-rule club-qc-rule--fired[\s\S]{0,200}>R3:/);
-    expect(res.text).toMatch(/club-qc-rule club-qc-rule--not-fired[\s\S]{0,200}>R2:/);
+    expect(res.text).toMatch(/club-qc-rule--fired[\s\S]{0,200}>R1:/);
+    expect(res.text).toMatch(/club-qc-rule--fired[\s\S]{0,200}>R3:/);
+    expect(res.text).toMatch(/club-qc-rule--not-fired[\s\S]{0,200}>R2:/);
   });
 
   it('renders the rule table with a Stage column carrying pre_populate / onboarding_visible values', async () => {
@@ -252,15 +263,16 @@ describe(`GET /clubs/${PRE_POPULATE_KEY} — full diagnostic (authenticated only
     expect(res.text).toContain('classifier as-built');
   });
 
-  it('renders the pipeline-context block reflecting mapped_club_id stamping', async () => {
+  it('renders the pipeline-context block with the affiliation counts only', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/clubs/${PRE_POPULATE_KEY}`)
       .set('Cookie', authCookie());
     expect(res.text).toContain('Pipeline context');
-    expect(res.text).toContain('mapped_club_id stamped');
-    expect(res.text).toMatch(/mapped_club_id stamped<\/dt>\s*<dd>yes/);
-    expect(res.text).toContain('Live club row source');
+    expect(res.text).toMatch(/Affiliations linked to this club<\/dt>\s*<dd>0 total\s*\(0 pending\)<\/dd>/);
+    // Permanent-placeholder rows (no backing data exists) stay deleted.
+    expect(res.text).not.toContain('mapped_club_id stamped');
+    expect(res.text).not.toContain('Live club row source');
   });
 
   it('hides the combination-gate signals section when signals are not yet emitted', async () => {
@@ -278,36 +290,63 @@ describe(`GET /clubs/${PRE_POPULATE_KEY} — full diagnostic (authenticated only
 describe(`GET /clubs/${ONBOARDING_KEY} — affiliation-derived leader fallback`, () => {
   it('renders the Leaders section using affiliation rows (no bootstrap_leaders present)', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${ONBOARDING_KEY}`);
+    const res = await request(app)
+      .get(`/clubs/${ONBOARDING_KEY}`)
+      .set('Cookie', authCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="club-leaders-heading"');
+    expect(res.text).toContain('>Leaders<');
     expect(res.text).toContain('Qc Leader Person');
   });
 
   it('renders the Contact role label for inferred_role=contact', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${ONBOARDING_KEY}`);
+    const res = await request(app)
+      .get(`/clubs/${ONBOARDING_KEY}`)
+      .set('Cookie', authCookie());
     expect(res.text).toContain('Qc Contact Person');
     expect(res.text).toMatch(/Qc Contact Person[\s\S]{0,200}Contact/);
   });
 
-  it('does NOT render members in the Leaders section', async () => {
+  it('does NOT surface plain members as leaders', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${ONBOARDING_KEY}`)
+      .set('Cookie', authCookie());
+    // The member renders in the roster list, never as a leader entry.
+    expect(res.text).not.toMatch(/club-leader-name[^>]*>Qc Member Person/);
+    expect(res.text).not.toMatch(/Qc Member Person<\/a>\s*<span class="text-muted fs-sm">\((Leader|Co-leader|Contact)\)/);
+  });
+
+  it('PRIVACY GATE: no leader or member names render unauthenticated', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${ONBOARDING_KEY}`);
-    // Member name should not appear (auth-gated; unauthenticated request).
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('>Leaders<');
+    expect(res.text).not.toContain('Qc Leader Person');
+    expect(res.text).not.toContain('Qc Contact Person');
     expect(res.text).not.toContain('Qc Member Person');
   });
 
   it('PRIVACY GATE: no email-shaped strings on the affiliation-derived path', async () => {
     const app = createApp();
-    const res = await request(app).get(`/clubs/${ONBOARDING_KEY}`);
+    const res = await request(app)
+      .get(`/clubs/${ONBOARDING_KEY}`)
+      .set('Cookie', authCookie());
     // The affiliation fixture has no contact_email, but assert no mailto: leaks anyway.
     expect(res.text).not.toMatch(/mailto:/);
   });
 
-  it('renders the onboarding_visible category label in the visitor summary', async () => {
+  it('does NOT render the onboarding_visible category label to unauthenticated visitors', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${ONBOARDING_KEY}`);
+    expect(res.text).not.toContain('Onboarding-visible');
+  });
+
+  it('renders the onboarding_visible category label in the authenticated curator panel', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${ONBOARDING_KEY}`)
+      .set('Cookie', authCookie());
     expect(res.text).toContain('Onboarding-visible');
   });
 
@@ -322,35 +361,35 @@ describe(`GET /clubs/${ONBOARDING_KEY} — affiliation-derived leader fallback`,
 });
 
 describe(`GET /clubs/${NO_EVIDENCE_KEY} — QC panel absent when no candidate row`, () => {
-  it('renders the at-a-glance section without classifier chip or diagnostic (unauthenticated)', async () => {
+  it('renders no classification surface at all (unauthenticated)', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${NO_EVIDENCE_KEY}`);
     expect(res.status).toBe(200);
-    // At-a-glance is always rendered (vitality fields are independent of qcPanel)
-    expect(res.text).toContain('class="club-at-a-glance');
-    // Classifier chip + diagnostic are absent when qcPanel is undefined
-    expect(res.text).not.toContain('club-qc-category-chip');
+    expect(res.text).not.toContain('aria-label="At a glance"');
+    expect(res.text).not.toContain('Confidence ');
     expect(res.text).not.toContain('class="club-qc-panel');
     expect(res.text).not.toContain('Why this category?');
   });
 
-  it('renders the at-a-glance without diagnostic (authenticated)', async () => {
+  it('renders no classification surface at all (authenticated)', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/clubs/${NO_EVIDENCE_KEY}`)
       .set('Cookie', authCookie());
-    expect(res.text).toContain('class="club-at-a-glance');
-    expect(res.text).not.toContain('club-qc-category-chip');
+    expect(res.text).not.toContain('aria-label="At a glance"');
+    expect(res.text).not.toContain('Confidence ');
     expect(res.text).not.toContain('class="club-qc-panel');
   });
 });
 
-describe(`GET /clubs/${ONBOARDING_KEY} — member links to /history/{personId}`, () => {
-  it('links member names to /history/{personId} when historical_person_id is set', async () => {
+describe(`GET /clubs/${ONBOARDING_KEY} — Club members roster entries`, () => {
+  it('links a pending member to /history/{personId} with the unconfirmed status note', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/clubs/${ONBOARDING_KEY}`)
       .set('Cookie', authCookie());
-    expect(res.text).toMatch(/<a class="club-member-name" href="\/history\/person-qc-member-001">Qc Member Person<\/a>/);
+    expect(res.text).toContain('Club members');
+    expect(res.text).toMatch(/<a href="\/history\/person-qc-member-001">Qc Member Person<\/a>/);
+    expect(res.text).toMatch(/Qc Member Person<\/a>\s*<span class="text-muted fs-sm">\(historical member, unconfirmed current\)<\/span>/);
   });
 });

@@ -35,11 +35,11 @@ let createApp: typeof import('../../src/app').createApp;
 
 let testDb: BetterSqlite3.Database;
 
-// Member real-names use "Leberknight" surname so the surname-reconciliation
+// Member real-names use "Mockingbird" surname so the surname-reconciliation
 // checks against HPs carrying the same surname pass.
 const CLAIMER_ID   = 'hpc-claimer';
 const CLAIMER_SLUG = 'hpc_claimer';
-const CLAIMER_NAME = 'David Leberknight';
+const CLAIMER_NAME = 'David Mockingbird';
 
 const OTHER_ID     = 'hpc-other';
 const OTHER_SLUG   = 'hpc_other';
@@ -85,7 +85,7 @@ beforeAll(async () => {
   // Scenario D: HP-only, no legacy_member.
   insertHistoricalPerson(testDb, {
     person_id: HP_NO_LEGACY,
-    person_name: 'David Leberknight',
+    person_name: 'David Mockingbird',
     legacy_member_id: null,
     country: 'NZ',
     hof_member: 1,
@@ -97,13 +97,13 @@ beforeAll(async () => {
   // Scenario E: HP + legacy_member both exist but not linked to a member yet.
   insertLegacyMember(testDb, {
     legacy_member_id: LM_FOR_HP_E,
-    real_name: 'David Leberknight', display_name: 'David Leberknight',
+    real_name: 'David Mockingbird', display_name: 'David Mockingbird',
     city: 'Wellington', region: null, country: null,
     is_hof: 0, is_bap: 0, legacy_email: 'e@oldsite.test',
   });
   insertHistoricalPerson(testDb, {
     person_id: HP_WITH_LM,
-    person_name: 'David Leberknight',
+    person_name: 'David Mockingbird',
     legacy_member_id: LM_FOR_HP_E,
     country: 'NZ',
     hof_member: 1, hof_induction_year: 2005,
@@ -113,11 +113,11 @@ beforeAll(async () => {
 
   // HP already owned by a different member (partial UNIQUE will block re-claim).
   insertMember(testDb, { id: HP_TAKEN_OWNER_ID, slug: 'hpc_takenowner',
-    real_name: 'David Leberknight', display_name: 'David Leberknight',
+    real_name: 'David Mockingbird', display_name: 'David Mockingbird',
     login_email: 'hpc-takenowner@example.com' });
   insertHistoricalPerson(testDb, {
     person_id: HP_TAKEN,
-    person_name: 'David Leberknight',
+    person_name: 'David Mockingbird',
     legacy_member_id: null,
     country: 'NZ',
     hof_member: 0, bap_member: 0,
@@ -129,10 +129,10 @@ beforeAll(async () => {
   // HP whose legacy_member is already claimed by someone else.
   insertLegacyMember(testDb, {
     legacy_member_id: LM_TAKEN,
-    real_name: 'David Leberknight', display_name: 'David Leberknight',
+    real_name: 'David Mockingbird', display_name: 'David Mockingbird',
   });
   insertMember(testDb, { id: LM_TAKEN_OWNER_ID, slug: 'hpc_lmtakenowner',
-    real_name: 'David Leberknight', display_name: 'David Leberknight',
+    real_name: 'David Mockingbird', display_name: 'David Mockingbird',
     login_email: 'hpc-lmtakenowner@example.com',
     legacy_member_id: LM_TAKEN,
   });
@@ -141,7 +141,7 @@ beforeAll(async () => {
   ).run(LM_TAKEN_OWNER_ID, LM_TAKEN);
   insertHistoricalPerson(testDb, {
     person_id: HP_LM_TAKEN,
-    person_name: 'David Leberknight',
+    person_name: 'David Mockingbird',
     legacy_member_id: LM_TAKEN,
     country: 'NZ', hof_member: 0, bap_member: 0,
   });
@@ -171,7 +171,7 @@ describe('GET /history/:personId/claim', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('David Leberknight');
+    expect(res.text).toContain('David Mockingbird');
     expect(res.text).toContain('link the record');
     expect(res.text).toContain('NZ'); // country surfaced
   });
@@ -250,7 +250,7 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
     // CLAIMER already linked from the previous test; a second HP claim must fail.
     const secondHp = 'hp-second-for-claimer';
     insertHistoricalPerson(testDb, {
-      person_id: secondHp, person_name: 'David Leberknight',
+      person_id: secondHp, person_name: 'David Mockingbird',
       hof_member: 0, bap_member: 0,
     });
     const app = createApp();
@@ -265,7 +265,7 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
 describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed legacy)', () => {
   it('transitive legacy_members claim: HP claim also marks legacy row claimed', async () => {
     const scenarioEClaimerId = insertMember(testDb, {
-      slug: 'scenario_e', real_name: 'David Leberknight', display_name: 'David Leberknight',
+      slug: 'scenario_e', real_name: 'David Mockingbird', display_name: 'David Mockingbird',
       login_email: 'scenario-e@example.com', country: null,
     });
     const scenarioECookie = `footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
@@ -339,7 +339,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     // CLAIMER already owns HP_NO_LEGACY from earlier. A fresh member with
     // matching surname attempts a second claim.
     const secondClaimerId = insertMember(testDb, {
-      slug: 'hpc_second', real_name: 'Jamie Leberknight', display_name: 'Jamie Leberknight',
+      slug: 'hpc_second', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
       login_email: 'hpc-second@example.com',
     });
     const secondCookie = `footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;

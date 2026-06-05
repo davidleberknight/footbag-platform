@@ -29,7 +29,9 @@
  *     and member-scoped: current (claimed/assigned) leaders' emails render to
  *     authenticated viewers only; provisional bootstrap entries never expose
  *     contact. Club contact email and WhatsApp follow the same
- *     member-visible rule.
+ *     member-visible rule. On the club detail page, leader identities are
+ *     member-visible too: the view-model carries an empty leaders list for
+ *     anonymous viewers.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
  *     rendering path: it surfaces identity (display name, role, status), not
  *     authority. Claiming a `club_bootstrap_leaders` row links member identity
@@ -65,16 +67,14 @@ import {
   mediaTags,
   countGalleryItemsByCriteria,
   memberClubAffiliations,
-  clubContentSuggestions,
+  clubContent,
   transaction,
   type ClubBootstrapLeaderRow,
   type LegacyClubCandidateRow,
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
-import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { hit as rateLimitHit } from './rateLimitService';
-import { readIntConfig } from './configReader';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
 import { applyClubJoin as applyActivePlayerClubJoin } from './activePlayerService';
@@ -175,6 +175,8 @@ export interface ClubVitalitySignals {
   statusLabel: ClubStatusLabel;
   statusLabelKebab: string;        // CSS hook, e.g. 'historical-club'
   knownLeadersText: string;        // '3' or 'None known yet'
+  knownLeadersNoun: string;        // pre-pluralized 'leader' / 'leaders'
+  memberNoun: string;              // pre-pluralized 'member' / 'members'
   memberCountText: string;         // '12' or 'Unknown'
 
   // Country-page metadata-row chips, in display order. Composition rules:
@@ -193,9 +195,16 @@ export interface ClubLeaderSummary {
   status: ClubLeaderStatus;
 }
 
+// One roster entry on the club detail page. The single members list carries
+// confirmed and pending affiliations together; rendering consumes pre-shaped
+// fields only. href points at the live member profile when the person has
+// claimed a search-visible account, otherwise at the historical-person page,
+// and is null when neither exists. statusNote labels pending rows as
+// unconfirmed; null for confirmed members.
 export interface ClubMemberSummary {
-  personId: string | null;
   name: string;
+  href: string | null;
+  statusNote: string | null;
 }
 
 export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
@@ -220,8 +229,7 @@ export interface ClubLeader {
 export interface PublicClubDetail extends PublicClubSummary {
   description: string;
   countrySlug: string;
-  members: ClubMemberSummary[];           // confirmed current members
-  unconfirmedMembers: ClubMemberSummary[]; // 'pending' legacy affiliations, shown labeled as unconfirmed
+  members: ClubMemberSummary[]; // full roster: confirmed members plus 'pending' legacy affiliations labeled unconfirmed
   leaders: ClubLeader[];
   // Club contact channels, member-visible by role: populated only for
   // authenticated viewers; always null for the anonymous public.
@@ -229,19 +237,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   whatsapp: string | null;
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
-  /** Content-validation loop: leaders edit directly; other members suggest. */
+  /** Leaders edit club content directly; there is no suggestion loop. */
   viewerIsLeader: boolean;
-  canSuggestContent: boolean;
   contentEditHref: string | null;
-  contentSuggestHref: string | null;
-  openSuggestions: Array<{
-    id: string;
-    fieldLabel: string;
-    proposedValue: string;
-    note: string | null;
-    suggesterDisplayName: string;
-    reviewHref: string;
-  }>;
   joinHref: string | null;
   viewGalleryHref: string | null;
   // TEMP-DEVIATION: club-classification QC panel.
@@ -285,6 +283,12 @@ export interface ClubClassificationSignal {
   kind: ClubClassificationSignalKind;
   label: string;
   isPresent: boolean | null;
+  // Pre-shaped display state so the template never derives it from the
+  // tri-state isPresent: 'present' | 'absent' | 'unemitted' plus the
+  // matching human label ('observed' / 'not observed' /
+  // '(pipeline not yet emitting)').
+  stateKey: 'present' | 'absent' | 'unemitted';
+  stateLabel: string;
   evidenceText?: string;
 }
 
@@ -297,10 +301,6 @@ export interface ClubClassificationGateOutput {
 export interface ClubPipelineContext {
   affiliationsTotal: number;
   affiliationsPendingCount: number;
-  liveClubRowSource: 'phase_h' | 'phase_g_legacy' | 'manual' | 'unknown';
-  mappedClubIdStamped: boolean;
-  mappedClubIdStampRule: 'broad' | 'narrow_bootstrap_eligible_only' | 'unknown';
-  fallbackQueryApplied: boolean;
 }
 
 export interface ClubClassificationEvidence {
@@ -374,6 +374,8 @@ function computeVitality(
     statusLabelKebab: statusLabel.toLowerCase().replace(/\s+/g, '-'),
     knownLeadersText,
     memberCountText,
+    knownLeadersNoun: knownLeadersCount === 1 ? 'leader' : 'leaders',
+    memberNoun: memberCount === 1 ? 'member' : 'members',
     metaChips: chips,
   };
 }
@@ -483,7 +485,6 @@ function toPublicClubDetail(
   row: PublicClubRow,
   vitality: ClubVitalitySignals,
   members: ClubMemberSummary[],
-  unconfirmedMembers: ClubMemberSummary[],
   leaders: ClubLeader[],
   qcPanel?: ClubClassificationEvidence,
 ): PublicClubDetail {
@@ -494,16 +495,12 @@ function toPublicClubDetail(
     description: row.description,
     countrySlug: slugifyCountry(row.country),
     members,
-    unconfirmedMembers,
     contactEmail: null,
     whatsapp: null,
     viewerIsMember: false,
     viewerCanJoin: false,
     viewerIsLeader: false,
-    canSuggestContent: false,
     contentEditHref: null,
-    contentSuggestHref: null,
-    openSuggestions: [],
     joinHref: null,
     viewGalleryHref: null,
   };
@@ -523,6 +520,27 @@ interface AffiliationRow {
   person_name: string;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
   resolution_status: 'confirmed_current' | 'promoted' | 'pending';
+  member_slug: string | null; // claimed, search-visible member account; NULL otherwise
+}
+
+// Shapes one roster entry for the club detail members list. Confirmed members
+// who have claimed a search-visible account link to their live member profile;
+// everyone else links to the historical-person page when one exists. Pending
+// rows carry a status note so they are never presented as confirmed current
+// membership.
+function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
+  const isUnconfirmed = row.resolution_status === 'pending';
+  let href: string | null = null;
+  if (!isUnconfirmed && row.member_slug) {
+    href = `/members/${row.member_slug}`;
+  } else if (row.person_id) {
+    href = `/history/${row.person_id}`;
+  }
+  return {
+    name: row.person_name,
+    href,
+    statusNote: isUnconfirmed ? '(historical member, unconfirmed current)' : null,
+  };
 }
 
 // TEMP-DEVIATION: affiliationRowToClubLeader fallback for clubs outside the
@@ -759,11 +777,11 @@ export type ClubRouteResult =
 
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
-  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null, viewerIsAdmin = false): ClubRouteResult {
+  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null): ClubRouteResult {
     if (key.startsWith('club_')) {
-      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId, viewerIsAdmin) };
+      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId) };
     }
-    return { template: 'clubs/country', vm: this.getPublicCountryPage(key) };
+    return { template: 'clubs/country', vm: this.getPublicCountryPage(key, isAuthenticated) };
   }
 
   getPublicClubsIndexPage(): PageViewModel<ClubsIndexContent> {
@@ -819,7 +837,7 @@ export class ClubService {
     });
   }
 
-  getPublicCountryPage(countrySlug: string): PageViewModel<CountryPageContent> {
+  getPublicCountryPage(countrySlug: string, isAuthenticated: boolean): PageViewModel<CountryPageContent> {
     return runSqliteRead('clubService.getPublicCountryPage', () => {
       const rows = clubs.listOpen.all() as PublicClubRow[];
 
@@ -860,7 +878,14 @@ export class ClubService {
         const { leaders, leadersOverflow, total: knownLeadersCount } = summarizeLeaders(row.club_id);
         const memberCount = memberCountByClubId.get(row.club_id) ?? 0;
         const vitality = computeVitality(row, knownLeadersCount, memberCount);
-        return toPublicClubSummary(row, vitality, leaders, leadersOverflow);
+        // Leader identities are member-visible here as on the detail page:
+        // anonymous viewers get the count chips but never leader names.
+        return toPublicClubSummary(
+          row,
+          vitality,
+          isAuthenticated ? leaders : [],
+          isAuthenticated ? leadersOverflow : 0,
+        );
       };
 
       // Only group by region when ALL clubs have a named region and 2+ distinct
@@ -916,7 +941,7 @@ export class ClubService {
     });
   }
 
-  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null, viewerIsAdmin = false): PageViewModel<{ club: PublicClubDetail }> {
+  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null): PageViewModel<{ club: PublicClubDetail }> {
     const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
 
     return runSqliteRead('clubService.getPublicClubPage', () => {
@@ -930,15 +955,16 @@ export class ClubService {
       }
 
       // The roster carries both confirmed members and 'pending' legacy
-      // affiliations. Pending rows are surfaced honestly under a separate
-      // "possible members from legacy records" label (see member split below),
-      // not folded into the current-member list.
+      // affiliations. Pending rows are surfaced honestly with a per-entry
+      // unconfirmed status note (see member shaping below), never presented
+      // as confirmed current membership.
       const affiliationRows = clubs.listMembersByClubId.all(row.club_id) as AffiliationRow[];
 
-      // Leaders are public per V_Browse_Clubs / M_View_Club: leader names
-      // render to visitors and members alike. Contact email is member-visible
-      // by role: current (claimed/assigned) leaders expose it to
-      // authenticated viewers; provisional entries never expose contact.
+      // Leader identities on the detail page are member-visible: names render
+      // to authenticated viewers only (gated below, where the view-model is
+      // composed). Contact email is member-visible by role: current
+      // (claimed/assigned) leaders expose it to authenticated viewers;
+      // provisional entries never expose contact.
       const liveLeaderRows = clubLeaders.listCurrentLeadersForClubPage.all(row.club_id) as Array<{
         member_id: string;
         role: 'leader' | 'co-leader';
@@ -979,20 +1005,20 @@ export class ClubService {
         .map(affiliationRowToClubLeader);
       const leaders: ClubLeader[] = [...liveLeaders, ...bootstrapLeaders, ...affiliationLeaders];
 
-      // Members-only roster (DATA_GOVERNANCE §7): the lists render only for
-      // authenticated viewers. Confirmed members ('confirmed_current' /
-      // 'promoted') are current members; 'pending' rows are shown separately,
-      // labeled as unconfirmed-but-possible.
+      // A lone "(Co-leader)" reads as a contradiction when no leader is shown
+      // beside it; present the single known leader entry as Leader. The stored
+      // role is unchanged; only the display label adjusts.
+      if (leaders.length === 1 && leaders[0].role === 'co-leader') {
+        leaders[0].roleLabel = 'Leader';
+      }
+
+      // Members-only roster (DATA_GOVERNANCE §7): the list renders only for
+      // authenticated viewers. One alphabetical list carries confirmed members
+      // ('confirmed_current' / 'promoted') and 'pending' rows together; pending
+      // entries carry a status note so they are never presented as confirmed.
       const memberRows = affiliationRows.filter((r) => r.inferred_role === 'member');
       const members: ClubMemberSummary[] = isAuthenticated
-        ? memberRows
-            .filter((r) => r.resolution_status !== 'pending')
-            .map((m) => ({ personId: m.person_id, name: m.person_name }))
-        : [];
-      const unconfirmedMembers: ClubMemberSummary[] = isAuthenticated
-        ? memberRows
-            .filter((r) => r.resolution_status === 'pending')
-            .map((m) => ({ personId: m.person_id, name: m.person_name }))
+        ? memberRows.map(toClubMemberSummary)
         : [];
 
       // Vitality signals: counts mirror the auth-gated members list scope
@@ -1011,19 +1037,15 @@ export class ClubService {
       // A_Periodic_Club_Cleanup admin queue ships and absorbs this surface
       // entirely.
       let qcPanel: ClubClassificationEvidence | undefined;
-      let evidenceRowPresent = false;
-      let fallbackQueryApplied = false;
       try {
         const evidenceRow = clubs.getClassificationEvidenceByClubId.get(row.club_id) as
           | ClassificationEvidenceRow
           | undefined;
-        evidenceRowPresent = evidenceRow !== undefined;
         qcPanel = evidenceRow ? toClassificationEvidence(evidenceRow) : undefined;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes('no such column') && !msg.includes('no such table')) throw err;
         qcPanel = undefined;
-        fallbackQueryApplied = true;
       }
       if (qcPanel) {
         // Augment the classifier-as-built evidence with combination-gate +
@@ -1034,14 +1056,14 @@ export class ClubService {
         qcPanel.pipelineContext = {
           affiliationsTotal:        affiliationRows.length,
           affiliationsPendingCount: affiliationRows.filter((r) => r.resolution_status === 'pending').length,
-          liveClubRowSource:        'unknown',
-          mappedClubIdStamped:      evidenceRowPresent,
-          mappedClubIdStampRule:    'unknown',
-          fallbackQueryApplied,
         };
       }
 
-      const club = toPublicClubDetail(row, vitality, members, unconfirmedMembers, leaders, qcPanel);
+      // Leader identities are member-visible like the roster: the anonymous
+      // public never receives leader names. Gated here at the data level so
+      // no template branch can leak them. Vitality above still counts the
+      // full leader set; its chips render only in the curator panel.
+      const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : [], qcPanel);
 
       // Club contact channels are member-visible by role: authenticated
       // viewers see them; the anonymous public never does.
@@ -1070,27 +1092,13 @@ export class ClubService {
           club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
         }
 
-        // Content-validation loop affordances: leaders edit directly and
-        // review the suggestion queue; everyone else suggests.
+        // Leaders edit club content directly; other members reach club
+        // leadership out of band, so no suggestion affordance is shaped.
         const viewerLeadership = clubLeaders.memberInClubLeadership.get(row.club_id, viewerMemberId) as
           | { id: string } | undefined;
         club.viewerIsLeader = viewerLeadership != null;
-        if (club.viewerIsLeader || viewerIsAdmin) {
-          club.contentEditHref = club.viewerIsLeader ? `/clubs/${encodeURIComponent(clubKey)}/content/edit` : null;
-          club.openSuggestions = (clubContentSuggestions.listOpenByClub.all(row.club_id) as Array<{
-            id: string; field: string; proposed_value: string; note: string | null;
-            suggester_display_name: string;
-          }>).map((sg) => ({
-            id: sg.id,
-            fieldLabel: sg.field === 'external_url' ? 'External URL' : 'Description',
-            proposedValue: sg.proposed_value,
-            note: sg.note,
-            suggesterDisplayName: sg.suggester_display_name,
-            reviewHref: `/clubs/${encodeURIComponent(clubKey)}/content/suggestions/${sg.id}/review`,
-          }));
-        } else {
-          club.canSuggestContent = true;
-          club.contentSuggestHref = `/clubs/${encodeURIComponent(clubKey)}/content/suggest`;
+        if (club.viewerIsLeader) {
+          club.contentEditHref = `/clubs/${encodeURIComponent(clubKey)}/content/edit`;
         }
       }
 
@@ -1839,7 +1847,7 @@ export class ClubService {
     clubId: string,
     input: { description?: string; externalUrl?: string },
   ): Promise<void> {
-    const club = clubContentSuggestions.findClubContentForEdit.get(clubId) as
+    const club = clubContent.findClubContentForEdit.get(clubId) as
       | { id: string; description: string | null; external_url: string | null }
       | undefined;
     if (!club) throw new NotFoundError('Club not found.');
@@ -1876,10 +1884,10 @@ export class ClubService {
     const now = new Date().toISOString();
     transaction(() => {
       if (description !== undefined) {
-        clubContentSuggestions.updateClubDescription.run(description, now, actorMemberId, clubId);
+        clubContent.updateClubDescription.run(description, now, actorMemberId, clubId);
       }
       if (normalizedUrl !== undefined) {
-        clubContentSuggestions.updateClubExternalUrl.run(
+        clubContent.updateClubExternalUrl.run(
           normalizedUrl, normalizedUrl ? now : null, now, actorMemberId, clubId,
         );
       }
@@ -1894,151 +1902,6 @@ export class ClubService {
         metadata:      { changes },
       });
     });
-  }
-
-  /**
-   * Content-validation loop: any non-leader member flags the current
-   * description or external URL and proposes replacement text. The
-   * suggestion enters the club's review queue; nothing applies until an
-   * approver acts.
-   */
-  suggestClubContent(
-    memberId: string,
-    clubId: string,
-    field: string,
-    proposedValue: string,
-    note?: string,
-  ): { status: 'submitted' } {
-    const max = readIntConfig('club_content_suggestion_rate_limit_max_per_member', 10);
-    const windowMinutes = readIntConfig('club_content_suggestion_rate_limit_window_minutes', 1440);
-    const rl = rateLimitHit(`club-content-suggest:${memberId}`, max, windowMinutes);
-    if (!rl.allowed) {
-      throw new RateLimitedError('Too many suggestions. Please try again later.', rl.retryAfterSeconds);
-    }
-    const club = clubs.findById.get(clubId) as { club_id: string } | undefined;
-    if (!club) throw new NotFoundError('Club not found.');
-    if (field !== 'description' && field !== 'external_url') {
-      throw new ValidationError('Suggestions cover the description or the external URL.');
-    }
-    const leadership = clubLeaders.memberInClubLeadership.get(clubId, memberId) as { id: string } | undefined;
-    if (leadership) {
-      throw new ValidationError('Club leaders edit content directly; the suggestion queue is for other members.');
-    }
-    const trimmed = proposedValue.trim();
-    if (!trimmed) throw new ValidationError('Proposed replacement text is required.');
-    if (trimmed.length > 2000) throw new ValidationError('Please keep the proposal under 2000 characters.');
-
-    const now = new Date().toISOString();
-    transaction(() => {
-      clubContentSuggestions.insert.run(
-        `ccs_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
-        now, memberId, now, memberId,
-        clubId, memberId, field, trimmed, note?.trim() || null,
-      );
-      appendAuditEntry({
-        actionType:    'club.content_suggestion_submitted',
-        category:      'club',
-        actorType:     'member',
-        actorMemberId: memberId,
-        entityType:    'club',
-        entityId:      clubId,
-        reasonText:    null,
-        metadata:      { field },
-      });
-    });
-    return { status: 'submitted' };
-  }
-
-  /**
-   * Content-validation loop: an approver (club leader, co-leader, or admin)
-   * approves or rejects an open suggestion. Approval applies the value to
-   * the live row; an external URL must pass verification first, and a
-   * failed verification rejects the suggestion back to the suggester with
-   * the verification error as the reason. Both outcomes are audit-logged.
-   */
-  async reviewClubContentSuggestion(
-    actorMemberId: string,
-    isAdmin: boolean,
-    clubId: string,
-    suggestionId: string,
-    decision: 'approve' | 'reject',
-    reason?: string,
-  ): Promise<{ status: 'approved' | 'rejected'; reason?: string }> {
-    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as { id: string } | undefined;
-    if (!leadership && !isAdmin) {
-      throw new ValidationError("Only the club's leaders or an admin can review suggestions.");
-    }
-    const suggestion = clubContentSuggestions.findOpenById.get(suggestionId, clubId) as
-      | { id: string; field: 'description' | 'external_url'; proposed_value: string; suggester_member_id: string }
-      | undefined;
-    if (!suggestion) throw new NotFoundError('Suggestion not found or already resolved.');
-
-    const now = new Date().toISOString();
-    const actorType = isAdmin && !leadership ? 'admin' as const : 'member' as const;
-
-    if (decision === 'reject') {
-      const trimmedReason = (reason ?? '').trim();
-      if (!trimmedReason) throw new ValidationError('A rejection reason is required.');
-      transaction(() => {
-        clubContentSuggestions.resolve.run('rejected', now, actorMemberId, trimmedReason, now, actorMemberId, suggestionId);
-        appendAuditEntry({
-          actionType:    'club.content_suggestion_rejected',
-          category:      'club',
-          actorType,
-          actorMemberId,
-          entityType:    'club',
-          entityId:      clubId,
-          reasonText:    trimmedReason,
-          metadata:      { suggestion_id: suggestionId, field: suggestion.field },
-        });
-      });
-      return { status: 'rejected', reason: trimmedReason };
-    }
-
-    // Approval path. External URLs verify BEFORE any write (async I/O stays
-    // outside the transaction); a failure rejects back to the suggester.
-    let normalizedUrl: string | null = null;
-    if (suggestion.field === 'external_url') {
-      const validated = await validateExternalUrl(suggestion.proposed_value);
-      if (!validated.valid) {
-        const failReason = `URL verification failed: ${validated.error ?? 'unreachable or unsafe'}. Please revise and re-submit.`;
-        transaction(() => {
-          clubContentSuggestions.resolve.run('rejected', now, actorMemberId, failReason, now, actorMemberId, suggestionId);
-          appendAuditEntry({
-            actionType:    'club.content_suggestion_rejected',
-            category:      'club',
-            actorType,
-            actorMemberId,
-            entityType:    'club',
-            entityId:      clubId,
-            reasonText:    failReason,
-            metadata:      { suggestion_id: suggestionId, field: suggestion.field, url_verification_failed: true },
-          });
-        });
-        return { status: 'rejected', reason: failReason };
-      }
-      normalizedUrl = validated.normalizedUrl;
-    }
-
-    transaction(() => {
-      if (suggestion.field === 'description') {
-        clubContentSuggestions.updateClubDescription.run(suggestion.proposed_value, now, actorMemberId, clubId);
-      } else {
-        clubContentSuggestions.updateClubExternalUrl.run(normalizedUrl, now, now, actorMemberId, clubId);
-      }
-      clubContentSuggestions.resolve.run('approved', now, actorMemberId, null, now, actorMemberId, suggestionId);
-      appendAuditEntry({
-        actionType:    'club.content_suggestion_approved',
-        category:      'club',
-        actorType,
-        actorMemberId,
-        entityType:    'club',
-        entityId:      clubId,
-        reasonText:    null,
-        metadata:      { suggestion_id: suggestionId, field: suggestion.field },
-      });
-    });
-    return { status: 'approved' };
   }
 
   stepDownFromLeader(

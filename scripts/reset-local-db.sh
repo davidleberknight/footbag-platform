@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # reset-local-db.sh
 # Drops and rebuilds the local SQLite database from schema + full seed pipeline.
-# Safe to run repeatedly — destroys all local data each time.
+# Safe to run repeatedly; destroys all local data each time.
 #
 # Usage:
 #   ./scripts/reset-local-db.sh
@@ -170,7 +170,7 @@ echo "  → Loading given_name_variants..."
 "${PYTHON}" legacy_data/scripts/load_given_name_variants_to_sqlite.py \
   --db "${DB_FILE}"
 
-# Phase NET: net enrichment layer (discipline groups, teams, appearances, review queue).
+# Net enrichment layer (discipline groups, teams, appearances, review queue).
 # Reads canonical tables, writes net_* tables. Must run after script 08.
 echo "  → Building net discipline groups..."
 "${PYTHON}" legacy_data/event_results/scripts/12_build_net_discipline_groups.py \
@@ -196,55 +196,55 @@ echo "  → Loading club seed data into database..."
 echo "  → Loading club member data into database..."
 "${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 
-# Phase G — enrichment load. Reads classifier output CSVs from
+# Club enrichment load. Reads classifier output CSVs from
 # legacy_data/clubs/out/ + legacy_data/persons/out/ and DELETE+INSERTs the
 # real legacy_club_candidates (with R1-R10 evidence + real classification) +
-# legacy_person_club_affiliations (resolution_status='pending' per 4ca0909).
+# legacy_person_club_affiliations (resolution_status='pending').
 # Skipped when any required CSV is absent (CI smoke fixtures + fresh clones).
 if [[ -f legacy_data/clubs/out/legacy_club_candidates.csv \
    && -f legacy_data/clubs/out/legacy_person_club_affiliations.csv \
    && -f legacy_data/persons/out/persons_master.csv ]]; then
-  echo "  → Loading club enrichment (Phase G)..."
+  echo "  → Loading club enrichment..."
   "${PYTHON}" legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py \
     --db "${DB_FILE}" \
     --persons-csv      legacy_data/persons/out/persons_master.csv \
     --candidates-csv   legacy_data/clubs/out/legacy_club_candidates.csv \
     --affiliations-csv legacy_data/clubs/out/legacy_person_club_affiliations.csv
 else
-  echo "  → Skipping club enrichment (Phase G; classifier CSVs absent)."
+  echo "  → Skipping club enrichment (classifier CSVs absent)."
 fi
 
-# Phase H step 1 — stamp mapped_club_id for every candidate whose clubs row
+# Club-candidate linking: stamp mapped_club_id for every candidate whose clubs row
 # exists. In dev (load_clubs_seed.py above created all 311 clubs) this links
 # all 311 candidates. In prod the script also creates the 41 pre_populate
 # clubs rows on first run; here those rows already exist so it only links.
 if [[ -f legacy_data/seed/clubs.csv ]]; then
-  echo "  → Stamping mapped_club_id for matching candidates (Phase H step 1)..."
+  echo "  → Stamping mapped_club_id for matching candidates..."
   "${PYTHON}" legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py --db "${DB_FILE}"
 else
-  echo "  → Skipping Phase H step 1 (legacy_data/seed/clubs.csv absent)."
+  echo "  → Skipping mapped_club_id stamping (legacy_data/seed/clubs.csv absent)."
 fi
 
-# Phase H step 2 — load club bootstrap leaders from
+# Club bootstrap leaders: load from
 # legacy_data/clubs/out/club_bootstrap_leaders.csv (~51 rows). Depends on
 # legacy_club_candidates and historical_persons being loaded by earlier
 # steps. Skipped when the CSV is absent (CI smoke fixtures + fresh clones);
 # the CSV is owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leaders.csv ]]; then
-  echo "  → Loading club bootstrap leaders (Phase H step 2)..."
+  echo "  → Loading club bootstrap leaders..."
   "${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
 else
   echo "  → Skipping club bootstrap leaders (legacy_data/clubs/out/club_bootstrap_leaders.csv absent)."
 fi
 
-# Phase H step 3 — load club bootstrap leader signals from
+# Club bootstrap leader signals: load from
 # legacy_data/clubs/out/club_bootstrap_leader_signals.csv (~7 signals per
 # leader). Depends on club_bootstrap_leaders rows existing (step 2 above);
 # the FK chain resolves bootstrap_leader_id by stable_id formula. Skipped
 # when the CSV is absent (CI smoke fixtures + fresh clones); the CSV is
 # owned by the James-track classifier and is not regenerated here.
 if [[ -f legacy_data/clubs/out/club_bootstrap_leader_signals.csv ]]; then
-  echo "  → Loading club bootstrap leader signals (Phase H step 3)..."
+  echo "  → Loading club bootstrap leader signals..."
   "${PYTHON}" legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py --db "${DB_FILE}"
 else
   echo "  → Skipping club bootstrap leader signals (legacy_data/clubs/out/club_bootstrap_leader_signals.csv absent)."

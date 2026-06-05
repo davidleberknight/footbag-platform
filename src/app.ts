@@ -25,7 +25,7 @@ import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
 import { formatDate } from './lib/handlebarsHelpers';
-import { ForbiddenError } from './services/serviceErrors';
+import { ForbiddenError, RateLimitedError } from './services/serviceErrors';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
@@ -65,7 +65,7 @@ export function createApp(): express.Application {
 
   // Strict Content-Security-Policy: 'self' for scripts and styles, no inline
   // execution, no inline event handlers, no framing. Third-party origins are
-  // added only when a template or a script references them — currently
+  // added only when a template or a script references them, currently
   // i.ytimg.com and i.vimeocdn.com (YouTube/Vimeo thumbnail CDNs used by the
   // curator gallery tiles for external-platform reference videos),
   // www.youtube-nocookie.com (the privacy-friendly YouTube embed iframe loaded
@@ -120,7 +120,7 @@ export function createApp(): express.Application {
   // bucket. In S3-adapter mode (staging/prod) media is served by CloudFront
   // from S3, the local dirs do not exist in the container, and registering
   // these mounts would risk serving filesystem bytes if the host were ever
-  // misconfigured to local — so they are gated on the adapter mode.
+  // misconfigured to local, so they are gated on the adapter mode.
   //
   // Two lanes mirror the single prod bucket: `config.mediaDir` (runtime
   // member/curator uploads) and the read-only `config.curatedMediaDir`
@@ -348,6 +348,14 @@ export function createApp(): express.Application {
         seo: { title: 'Forbidden' },
         page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
       });
+      return;
+    }
+    // Throttle hits from in-service rate limiting. Controllers that want a
+    // form re-render catch RateLimitedError themselves; everything else gets
+    // the canonical 429 with Retry-After here instead of a spurious 500.
+    if (err instanceof RateLimitedError) {
+      if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      res.status(429).type('text/plain').send(err.message);
       return;
     }
     next(err);

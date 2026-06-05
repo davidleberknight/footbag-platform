@@ -2386,34 +2386,6 @@ CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
 --   ux_club_leaders               → a member appears at most once per club
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
 -- club_id reassignments that would exceed 5 total rows per club.
--- Club content-validation loop: a non-leader member proposes replacement
--- description or external-URL text; the listed contact, a club leader, or
--- admin approves or rejects. Approved values replace live content (external
--- URLs only after URL verification); rejections record the reason.
-CREATE TABLE club_content_suggestions (
-  id         TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL,
-  created_by TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  version    INTEGER NOT NULL DEFAULT 1,
-
-  club_id             TEXT NOT NULL REFERENCES clubs(id),
-  suggester_member_id TEXT NOT NULL REFERENCES members(id),
-  field          TEXT NOT NULL CHECK (field IN ('description','external_url')),
-  proposed_value TEXT NOT NULL,
-  note           TEXT,
-
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','approved','rejected')),
-  resolved_at           TEXT,
-  resolved_by_member_id TEXT REFERENCES members(id),
-  resolution_reason     TEXT,
-  CHECK ((status = 'open') = (resolved_at IS NULL))
-);
-
-CREATE INDEX idx_club_content_suggestions_club_open
-  ON club_content_suggestions(club_id) WHERE status = 'open';
-
 CREATE TABLE club_leaders (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,

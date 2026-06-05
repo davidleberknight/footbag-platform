@@ -92,6 +92,31 @@ beforeAll(async () => {
     resolved_club_id:         clubId,
   });
 
+  // The confirmed person has claimed a live, search-visible member account:
+  // their roster entry must link to the member profile, not the history page.
+  insertMember(db, {
+    id:           'member-zephyr',
+    slug:         'zephyr_kickflip',
+    login_email:  'zephyr@example.com',
+    display_name: 'Zephyr Kickflip',
+  });
+  db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+    .run(personId, 'member-zephyr');
+
+  // Confirmed person WITHOUT a claimed member account: roster entry links to
+  // the historical-person page instead.
+  const unclaimedPersonId = insertHistoricalPerson(db, {
+    person_id:   'person-confirmed-002',
+    person_name: 'Yara Unclaimed',
+    country:     'US',
+  });
+  insertLegacyPersonClubAffiliation(db, {
+    historical_person_id:     unclaimedPersonId,
+    legacy_club_candidate_id: candidateId,
+    resolution_status:        'confirmed_current',
+    resolved_club_id:         clubId,
+  });
+
   // Second person with a 'pending' (unresolved) affiliation — must never appear
   const pendingPersonId = insertHistoricalPerson(db, {
     person_id:   'person-pending-001',
@@ -133,6 +158,7 @@ describe('GET /clubs/club_evergreen — unauthenticated', () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_evergreen');
     expect(res.text).not.toContain('Zephyr Kickflip');
+    expect(res.text).not.toContain('Yara Unclaimed');
   });
 
   it('shows a login prompt in place of the members list', async () => {
@@ -184,32 +210,51 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Update hashtag');
   });
 
-  // Pending legacy affiliations are surfaced honestly: shown to authenticated
-  // members, but under a separate "possible members from legacy records" label,
-  // never folded into the confirmed Members list. Other excluded statuses
-  // (former_only, not_mine, needs_review, rejected, superseded) stay hidden.
-  it('renders pending legacy affiliations under a labeled unconfirmed section', async () => {
+  it('renders one Club members list, not the old split sections', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
-    expect(res.text).toContain('Phantom Unresolved');
-    expect(res.text).toContain('Possible members from legacy records');
-    expect(res.text).toContain('have not yet confirmed their membership in onboarding');
+    expect(res.text).toContain('Club members');
+    expect(res.text).not.toContain('Possible members from legacy records');
+    expect(res.text).not.toContain('have not yet confirmed their membership in onboarding');
   });
 
-  it('places the unconfirmed name after the unconfirmed-section heading, not in the Members list', async () => {
+  it('links a confirmed member with a claimed account to their member profile', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
-    const confirmedIdx   = res.text.indexOf('Zephyr Kickflip');
-    const unconfHeading  = res.text.indexOf('Possible members from legacy records');
-    const unconfNameIdx  = res.text.indexOf('Phantom Unresolved');
-    // Confirmed member appears before the unconfirmed section; the pending
-    // name appears only after it.
-    expect(confirmedIdx).toBeGreaterThan(-1);
-    expect(unconfHeading).toBeGreaterThan(confirmedIdx);
-    expect(unconfNameIdx).toBeGreaterThan(unconfHeading);
+    expect(res.text).toMatch(/<a href="\/members\/zephyr_kickflip">Zephyr Kickflip<\/a>/);
+  });
+
+  it('links a confirmed member without a claimed account to the history page', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).toMatch(/<a href="\/history\/person-confirmed-002">Yara Unclaimed<\/a>/);
+  });
+
+  // Pending legacy affiliations are surfaced honestly: shown to authenticated
+  // members in the same list, labeled per entry as unconfirmed, never presented
+  // as confirmed current membership. Other excluded statuses (former_only,
+  // not_mine, needs_review, rejected, superseded) stay hidden.
+  it('links a pending member to the history page with an unconfirmed status note', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).toMatch(/<a href="\/history\/person-pending-001">Phantom Unresolved<\/a>/);
+    expect(res.text).toMatch(/Phantom Unresolved<\/a>\s*<span class="text-muted fs-sm">\(historical member, unconfirmed current\)<\/span>/);
+  });
+
+  it('does not attach the unconfirmed status note to confirmed members', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).not.toMatch(/Zephyr Kickflip<\/a>\s*<span class="text-muted fs-sm">\(historical member/);
+    expect(res.text).not.toMatch(/Yara Unclaimed<\/a>\s*<span class="text-muted fs-sm">\(historical member/);
   });
 });

@@ -38,6 +38,12 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   12. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
   13. Content (curator): glossary §12 names community contributors; other freestyle pages don't. Decide public-attribution policy.
   14. Docs: fix the `trick.hbs`/`trick-ux2.hbs` reference in `VIEW_CATALOG.md` to the unified `trick-shell.hbs`.
+  15. UI standard (mixed-track: CSS is Dave-track per the comment-hygiene item; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant and two gates enforce it with freestyle excluded. Scope, per surface:
+      - Replace Georgia / Apple-system / raw mono `font-family` stacks (freestyle region of `src/public/css/style.css`, ~60 rules) with `var(--font-body)` / `var(--font-mono)`.
+      - Tokenize ~1,060 hex literals plus raw radii/shadows; new values enter `:root` as named tokens (the existing neutral/status/family token groups are the pattern).
+      - Consolidate breakpoints 520/600/640/680/720/1024 onto canonical 480/768.
+      - Define or replace ~120 undefined class tokens across `src/views/freestyle/**` and the 17 freestyle-owned partials; bespoke families (`dict-card`, `compositional-set-*`, ...) keep their vocabulary but inherit shared tokens per VC §4.5.
+      - Gate updates are mandatory per surface, enforced mechanically: when a template becomes compliant, prune it from `EXCLUDED_FILES` / `EXCLUDED_DIRS` in `tests/unit/template-class-vocabulary.test.ts` (a companion test in that file fails while a compliant surface stays excluded, naming the entry to remove); when the last raw font stack is tokenized, remove the "Freestyle records" early-exit from the font-family check in `scripts/ci/assert_conventions.sh` (also enforced by a companion test).
 
 ### BACKLOG (lower-priority active)
 

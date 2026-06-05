@@ -273,7 +273,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Leberknight',
+        realName: 'David Mockingbird',
         displayName: 'xXFootbagMasterXx',
         email: 'badsurname@example.com',
         password: 'securepass123',
@@ -289,9 +289,9 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Leberknight',
-        displayName: 'Dave Leberknight',
-        email: 'daveleberknight@example.com',
+        realName: 'David Mockingbird',
+        displayName: 'Dave Mockingbird',
+        email: 'davemockingbird@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
@@ -415,7 +415,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Leberknight',
+        realName: 'David Mockingbird',
         email: 'nosurname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',

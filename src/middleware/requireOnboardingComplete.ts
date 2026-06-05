@@ -1,36 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 
-const UNGATED_PREFIXES = [
-  '/register/wizard',
-  '/login',
-  '/logout',
-  '/register',
-  '/verify',
-  '/password',
-  '/auto-link/report-incorrect',
-  '/health',
-  '/ipc',
-  '/internal',
-  '/tags/suggest',
-  '/legal',
-];
-
+// The onboarding gate covers ONLY /members/ and /clubs/ paths; everything
+// else passes untouched. Within the gated scope, these /members/ pages stay
+// reachable mid-onboarding (own profile, edit, contact-admin, anchors, and
+// the auto-link affordances the wizard itself links to).
 const UNGATED_PATTERNS = [
   /^\/members\/[^/]+$/,
   /^\/members\/[^/]+\/edit/,
   /^\/members\/[^/]+\/contact-admin/,
   /^\/members\/[^/]+\/anchors\//,
   /^\/members\/me\/auto-link\//,
-  /^\/history\/[^/]+\/claim/,
-  /^\/history\/[^/]+$/,
 ];
 
 function isUngated(path: string): boolean {
   if (!path.startsWith('/members/') && !path.startsWith('/clubs/')) return true;
-  for (const prefix of UNGATED_PREFIXES) {
-    if (path.startsWith(prefix)) return true;
-  }
   for (const pattern of UNGATED_PATTERNS) {
     if (pattern.test(path)) return true;
   }

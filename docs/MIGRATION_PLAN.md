@@ -700,7 +700,7 @@ For each pre-populated candidate, the live `clubs` row carries:
 - `description`: published as-is from the legacy data.
 - `contact_email`, `whatsapp`: not pre-populated from legacy data.
 
-Description and URL on the live page are subject to the validation loop described in §10.3. The listed contact and the eventual club leader can edit directly; non-contact members can flag inaccuracies and suggest replacements via wizard Stage 1B, Stage 2A, and the M_Join_Club flow, with edits applied only after approval by the listed contact, leader, or admin.
+Description and URL on the live page are edited directly by the listed contact and the eventual club leader, with URL verification per §10.3 before publication. Other members report inaccuracies to club leadership out of band.
 
 #### Promotion rules
 
@@ -742,14 +742,9 @@ System rules the wizard preserves:
 - Junk candidates are never shown on any surface. Onboarding-visible and dormant candidates promote to live `clubs` rows only via the §10.1 promotion paths on member confirmation, or via admin override.
 - Stage 2 candidate matching runs at region level against location fields normalized at pipeline time (NFKD, accent-fold, case-fold in the club extraction scripts); same-city candidates render first.
 
-#### Content validation loop
+#### Content editing
 
-Description and external URL on every live `clubs` row may be edited or replaced through three layered roles:
-
-- **Authoritative editors.** The listed contact and any registered club leader edit description and external URL directly. No approval gate.
-- **Suggesting members.** Any other member (from the wizard's club cards or the normal `M_Join_Club` flow) can flag the current description or external URL as inaccurate and propose replacement text. The suggestion enters a review queue tied to the club.
-- **Approvers.** The listed contact, the club leader, or admin reviews suggested edits and approves or rejects. Approved edits replace the live content; rejected edits are dismissed with audit metadata. Both approval and rejection are audit-logged.
-- **External URL verification.** Every URL bound for a live page (whether copied from legacy data at go-live, edited directly by contact or leader, or approved from a suggestion) must pass URL verification before appearing publicly. Failed verifications leave the column NULL; the proposed URL returns to the suggester or editor for revision.
+Description and external URL on every live `clubs` row are edited directly by the listed contact and any registered club leader; there is no approval gate and no suggestion queue. Other members report inaccuracies to club leadership out of band. Every URL bound for a live page (whether copied from legacy data at go-live or edited by contact or leader) must pass URL verification before appearing publicly. Failed verifications leave the column NULL and surface the validator's error to the editor.
 
 ### 10.4 Long-term cleanup
 
@@ -759,13 +754,7 @@ Admin's user-facing entry point is `A_Periodic_Club_Cleanup` in USER_STORIES.
 
 #### Member flag mechanism
 
-Members can flag any club at any time through three surfaces:
-
-- **Onboarding wizard.** Negative wizard answers (membership rejections, never-heard-of-it reports, not-active activity signals) generate flags as part of completing the wizard, recorded as `club_viability_signals` rows per `M_Complete_Onboarding_Wizard`.
-- **Normal M_Join_Club flow.** When joining a club, the member sees the current description and external URL and can flag inaccuracies or propose replacement text per the §10.3 content validation loop.
-- **Club detail page.** Any member viewing a club can flag the listing as outdated, inactive, duplicate, or wrong.
-
-Every flag is recorded as a structured audit-log row carrying: the candidate or club id, the flagging member id, the flag category (junk, inactive, content-inaccurate, duplicate-of-X, never-heard-of-it, other), an optional note, the location predicates between the flagging member and the club (same-city, same-region, same-country, compared on pipeline-normalized location fields), and a timestamp.
+Members flag clubs through one surface: the onboarding wizard. Negative wizard answers (membership rejections, never-heard-of-it reports, not-active activity signals) are recorded as `club_viability_signals` rows per `M_Complete_Onboarding_Wizard`, carrying the club id, the member id, the signal value, the wizard stage, and a timestamp. The cleanup queue counts them one vote per member (latest signal wins) and names negative voters to the admin; authorship never renders publicly.
 
 #### On-demand cleanup evaluation
 
@@ -779,7 +768,6 @@ When an admin opens the queue, it aggregates the items requiring human judgment:
 
 - Wizard-generated flags grouped by candidate or live club.
 - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
-- Suggested content edits awaiting approval (per §10.3 content validation loop).
 - Junk-flagged candidates (per §10.1 junk rules) and any admin force-keep or force-junk requests.
 - Non-junk candidates not yet promoted to live `clubs` rows.
 - `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club with each club's pending count and oldest-row age.
@@ -793,7 +781,6 @@ Admin's available actions per item:
 - Mark a live `clubs` row `status='inactive'`.
 - Archive a `clubs` row (`status='archived'`).
 - Merge two live `clubs` rows that turn out to be the same club.
-- Approve or reject a suggested content edit.
 - Add a candidate to force-keep or force-junk.
 - Dismiss a flag with an optional reason, or defer with a bounded duration (30 / 90 / 180 days) after which the item re-surfaces.
 - De-list a club's unconfirmed `legacy_person_club_affiliations` residue: one click transitions that club's `'pending'` rows to `'former_only'` in a single transaction (each row carries the actor and timestamp; one summary audit row records the action and count), guided by the oldest-row age shown in the queue. Safe to re-run; also cascaded by demote and archive.
@@ -1390,6 +1377,9 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | PC5 | Production Terraform default region fix: us-east-2 → us-east-1 | §29.8 | State 3 → State 4 |
 | PC6 | Preview fixture scrub | §29.8 | State 3 → State 4 |
 | PC7 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
+| PC8 | First-admin bootstrap rehearsal on staging: provision via `scripts/admin-bootstrap-token.sh`, claim at `/admin/bootstrap-claim` with a non-admin account, confirm the token self-deletes | DEVOPS_GUIDE §17.8 | State 3 → State 4 |
+| PC9 | TRUST_PROXY hop count verified per tier against the live proxy chain (staging: CloudFront → nginx = 2; production: legacy front door → CloudFront → nginx = 3): env value matches, and `req.ip` resolves to the real client under a spoofed `X-Forwarded-For` probe | DEVOPS_GUIDE §5 | State 3 → State 4 |
+| PC10 | Built production image verified to stub `dist/dev-bootstrap/` and `dist/testkit/`: the runtime has no env gate at the import sites, so the build-time strip is the production guard for the dev-admin code | docker/*/Dockerfile | State 3 → State 4 |
 
 ### Retirement gate
 

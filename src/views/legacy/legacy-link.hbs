@@ -6,7 +6,7 @@
 
 <div class="wrapper">
   <section>
-    {{#if (eq content.branch 'claimable')}}
+    {{#if content.isClaimable}}
       <p>This link points to a legacy footbag.org account.</p>
       {{#if content.displayName}}
         <p>The account belongs to <strong>{{content.displayName}}</strong> and has not yet been claimed on the new platform.</p>

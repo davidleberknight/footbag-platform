@@ -78,12 +78,12 @@
                 <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form">
                   <input type="hidden" name="confirmed" value="1" />
                   <span class="text-secondary">Are you sure?</span>
-                  <button type="submit" class="delete-button">Confirm delete</button>
+                  <button type="submit" class="btn-link-danger">Confirm delete</button>
                   <a href="/admin/curator/media">Cancel</a>
                 </form>
               {{else}}
                 <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form" data-confirm="Permanently delete this curated media item? This cannot be undone.">
-                  <button type="submit" class="delete-button">Delete</button>
+                  <button type="submit" class="btn-link-danger">Delete</button>
                 </form>
               {{/if}}
             </td>

@@ -300,7 +300,7 @@ describe('GET /health/ready', () => {
     expect(res.headers['content-type']).toMatch(/application\/json/);
   });
 
-  it('does not leak per-check detail in the anonymous response (regression for B19)', async () => {
+  it('does not leak per-check detail in the anonymous response', async () => {
     // Anonymous /health/ready must not surface container memory % or
     // per-check booleans to public callers. CWAgent publishes
     // mem_used_percent as a host metric; operators read it from
@@ -576,10 +576,11 @@ describe('GET /events/:eventKey', () => {
 // ── Home page ──────────────────────────────────────────────────────────────────
 
 describe('GET /', () => {
-  it('returns 200', async () => {
+  it('returns 200 with the site identity rendered (not an empty shell)', async () => {
     const app = createApp();
     const res = await request(app).get('/');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('Footbag');
   });
 
   it('includes section cards for Events, Clubs, and Members', async () => {

@@ -163,7 +163,7 @@
         </thead>
         <tbody>
           {{#each content.passbackRecords}}
-          <tr class="record-row{{#if isProbable}} record-probable{{/if}}">
+          <tr{{#if isProbable}} class="record-probable"{{/if}}>
             <td>
               {{#if trickHref}}<a href="{{{trickHref}}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
               {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}

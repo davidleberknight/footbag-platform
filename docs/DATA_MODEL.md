@@ -1130,8 +1130,6 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `bootstrap_claim_rate_limit_max_per_member` | `5` | Max first-admin bootstrap-claim attempts per member per window |
 | `bootstrap_claim_rate_limit_max_per_ip` | `5` | Max first-admin bootstrap-claim attempts per source IP per window (silent) |
 | `bootstrap_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for bootstrap-claim attempts |
-| `club_content_suggestion_rate_limit_max_per_member` | `10` | Max club content suggestions per member per window |
-| `club_content_suggestion_rate_limit_window_minutes` | `1440` | Sliding window (minutes) for club content suggestions |
 
 #### Membership pricing config keys (initial pricing, update before launch)
 
@@ -1157,12 +1155,12 @@ Permanent operational table recording live club membership for members. Written 
 
 **Table:** `club_viability_signals`
 
-Append-only table recording crowdsourced activity signals for clubs. Written during the onboarding wizard (stages 1A, 1B, 2A, 2B) and from the club detail page by authenticated members. One row per member per club per submission.
+Append-only table recording crowdsourced activity signals for clubs. Written only during the onboarding wizard (stages 1A, 1B, 2A, 2B). One row per member per club per submission.
 
-- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `stage3a`, `club_detail`, `dashboard`. Tracks which surface produced the signal.
-- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and surfaces `never_heard_of_it` as a separate admin-queue count.
+- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `stage3a`, `club_detail`, `dashboard`. Tracks which surface produced the signal; `stage3a`, `club_detail`, and `dashboard` are reserved values with no writing surface.
+- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and stores `never_heard_of_it` without feeding the gates.
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card (`legacy_person_club_affiliation`, `club_bootstrap_leader`, or `legacy_club_candidate`).
-- No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate aggregates all rows.
+- No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per club.
 
 ### 4.26 Club Cleanup Resolutions
 
@@ -1290,17 +1288,6 @@ The stage-and-confirm surface for auto-link (MIGRATION_PLAN §15.20): batch and 
 - **`ux_auto_link_staged_open`**: partial UNIQUE on `(member_id, COALESCE(legacy_member_id,''), COALESCE(historical_person_id,''))` WHERE `status = 'staged'`; re-staging an open pair is a constraint no-op, making batch reruns idempotent. A declined pair is never re-staged (service-enforced against resolved rows).
 - **`source_pass = 'cross_source'`** rows are post-confirm offers for the member's other identity source; they share the stage/confirm/decline/expire lifecycle but emit the `legacy.cross_source_candidate_*` audit event family instead of `legacy.auto_link_candidate_*`.
 - Open candidates expire after `auto_link_staged_expiry_days` (default 365) via the worker's daily sweep.
-
-### 4.32 Club Content Suggestions
-
-**Table:** `club_content_suggestions`
-
-The review queue of the club content-validation loop (MIGRATION_PLAN §10.3): a non-leader member proposes replacement description or external-URL text; the listed contact, a club leader, or admin approves or rejects. Approved values replace live content; external URLs pass URL verification first, and a verification failure rejects the suggestion back to the suggester with the error as the reason.
-
-- **Columns**: `id` PK; standard metadata columns; `club_id` FK to `clubs(id)`; `suggester_member_id` FK to `members(id)`; `field` CHECK in (`description`, `external_url`); `proposed_value`; `note`; `status` CHECK in (`open`, `approved`, `rejected`); `resolved_at`; `resolved_by_member_id`; `resolution_reason`.
-- **CHECK**: `(status = 'open') = (resolved_at IS NULL)`.
-- **Partial index** on `club_id` WHERE `status = 'open'` serves the per-club review queue render.
-- Submission is rate-limited per member (`club_content_suggestion_rate_limit_*`).
 
 ---
 

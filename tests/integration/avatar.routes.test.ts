@@ -148,7 +148,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
   });
 
-  it('B45: valid upload writes an upload_member_media audit row with mediaType avatar', async () => {
+  it('valid upload writes an upload_member_media audit row with mediaType avatar', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } },

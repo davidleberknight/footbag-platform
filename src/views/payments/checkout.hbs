@@ -5,7 +5,7 @@
 </div>
 
 <div class="wrapper">
-  <section class="payment-checkout">
+  <section>
     <div class="card">
       <h2 class="card-title">{{content.descriptor}}</h2>
       <p class="card-meta">{{content.amountDisplay}}</p>
@@ -20,10 +20,10 @@
           <button type="submit" class="btn btn-primary">Confirm and Pay</button>
         </form>
         <form method="POST" action="{{content.cancelHref}}" class="d-inline ml-2">
-          <button type="submit" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-outline">Cancel</button>
         </form>
         <form method="POST" action="{{content.declineHref}}" class="d-inline ml-2">
-          <button type="submit" class="btn btn-secondary">Decline payment</button>
+          <button type="submit" class="btn btn-outline">Decline payment</button>
         </form>
       </div>
     </div>

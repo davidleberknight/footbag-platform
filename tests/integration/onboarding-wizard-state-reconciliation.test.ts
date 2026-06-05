@@ -131,7 +131,7 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
   });
 });
 
-describe('B2: /register/wizard/complete does not lie about progress', () => {
+describe('/register/wizard/complete does not lie about progress', () => {
   it('GET /register/wizard/complete redirects to the next pending task when tasks remain', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, {

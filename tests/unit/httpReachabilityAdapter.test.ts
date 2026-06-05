@@ -108,7 +108,7 @@ describe('LiveHttpReachabilityAdapter', () => {
     expect(result.error).toMatch(/too many redirects/);
   });
 
-  it('warns but allows on 4xx via the structured logger, not console (B49)', async () => {
+  it('warns but allows on 4xx via the structured logger, not console', async () => {
     const fetchClient = makeFakeFetch(
       new Map([['https://example.com/', { status: 404 }]]),
     );

@@ -1,7 +1,7 @@
 /**
  * Staging rendering of the simulated-email card.
  *
- * Per DD §5.6 the card is keyed on SES_ADAPTER, not on FOOTBAG_ENV:
+ * The card is keyed on SES_ADAPTER, not on FOOTBAG_ENV:
  * SES_ADAPTER=stub (dev AND staging) → the dev card with captured messages;
  * SES_ADAPTER=live (production only) → no card. Staging therefore renders the
  * same card as dev because staging runs the stub adapter — there is no

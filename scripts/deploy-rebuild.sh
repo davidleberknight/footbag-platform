@@ -84,7 +84,7 @@ SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "Serve
 
 # Derive FOOTBAG_ENV from the SSH alias; passed to the remote-half so it can
 # fetch the matching /footbag/{env}/secrets/origin_verify_secret from SSM.
-# Exact match against the canonical alias names — substring patterns
+# Exact match against the canonical alias names; substring patterns
 # (e.g. *prod*) silently accept aliases like footbag-prod or footbag-prd
 # that are NOT the canonical names. The deploy_to_aws.sh wrapper allowlists
 # DEPLOY_TARGET to the same two values, so anything else here is a bug.

@@ -13,7 +13,7 @@
  */
 import { EventEmitter } from 'node:events';
 
-export type JobEventState = 'claimed' | 'succeeded' | 'failed';
+export type JobEventState = 'claimed' | 'retrying' | 'succeeded' | 'failed';
 
 export interface JobEvent {
   jobId: string;

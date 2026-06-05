@@ -69,10 +69,18 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
 
 export const recordsService = {
   getRecordsPage(): PageViewModel<RecordsContent> {
-    const worldRows       = consecutiveKicksRecords.listWorldRecords.all()   as ConsecutiveKicksRow[];
-    const highScoreRows   = consecutiveKicksRecords.listHighestScores.all()  as ConsecutiveKicksRow[];
-    const progressionRows = consecutiveKicksRecords.listProgression.all()    as ConsecutiveKicksRow[];
-    const milestoneRows   = consecutiveKicksRecords.listMilestones.all()     as ConsecutiveKicksRow[];
+    const worldRows = runSqliteRead('consecutiveKicksRecords.listWorldRecords', () =>
+      consecutiveKicksRecords.listWorldRecords.all() as ConsecutiveKicksRow[],
+    );
+    const highScoreRows = runSqliteRead('consecutiveKicksRecords.listHighestScores', () =>
+      consecutiveKicksRecords.listHighestScores.all() as ConsecutiveKicksRow[],
+    );
+    const progressionRows = runSqliteRead('consecutiveKicksRecords.listProgression', () =>
+      consecutiveKicksRecords.listProgression.all() as ConsecutiveKicksRow[],
+    );
+    const milestoneRows = runSqliteRead('consecutiveKicksRecords.listMilestones', () =>
+      consecutiveKicksRecords.listMilestones.all() as ConsecutiveKicksRow[],
+    );
 
     const passbackRows = runSqliteRead('freestyleRecords.listPublic', () =>
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],

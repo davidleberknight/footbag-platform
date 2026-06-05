@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# staging_diagnostics.sh — single-file diagnostic toolkit for the footbag
+# staging_diagnostics.sh: single-file diagnostic toolkit for the footbag
 # staging host. Read-only by default. The only state-changing operation is
 # `force-tick`, which must be invoked explicitly with `-y`.
 #
@@ -438,7 +438,7 @@ JS
 }
 
 cmd_tier_status() {
-  # Effective member tier — what the predicates (hasTier1Benefits / isTier2Plus
+  # Effective member tier: what the predicates (hasTier1Benefits / isTier2Plus
   # / isTier3) actually return for a given member, including admin
   # short-circuit. Resolves the gap between "what's in member_tier_grants"
   # (raw data) and "what does the gate decide" (effective behavior).
@@ -472,7 +472,7 @@ JS
 }
 
 cmd_ap_reminders() {
-  # active_player_reminder_sent inspection — which members have received
+  # active_player_reminder_sent inspection: which members have received
   # which reminders (idempotency-marker-table for the AP expiry worker).
   local member="${1:-}"
   banner "active_player_reminder_sent${member:+ for $member}"
@@ -491,7 +491,7 @@ JS
 }
 
 cmd_stale_runs() {
-  # Stale 'running' rows in system_job_runs — left behind by SIGKILL / OOM
+  # Stale 'running' rows in system_job_runs: left behind by SIGKILL / OOM
   # of a worker pass. The next runBatchAutoLink reaps these (>1h old)
   # automatically; this command surfaces them so operators can investigate
   # the cause (worker crash? host reboot? OOM?) before the auto-reap fires.

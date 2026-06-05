@@ -8,7 +8,7 @@
     currentItems[] — each:
       { mediaId, mediaType, thumbnailUrl, caption, sourceFilename, editHref }
 --}}
-<fieldset class="form-fieldset gallery-current-items">
+<fieldset class="form-fieldset">
   <legend>Items currently in this gallery ({{currentItems.length}})</legend>
   <p class="form-hint">
     These items match the gallery's criteria + exclude tags. To remove one,
@@ -23,6 +23,7 @@
         <span class="picker-meta">
           {{#if caption}}{{caption}}{{else}}<code>{{sourceFilename}}</code>{{/if}}
           {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}
+          {{#if isUnavailableEmbed}} <span class="picker-badge">hidden from public gallery</span>{{/if}}
         </span>
         {{#if editHref}}
           <a href="{{editHref}}" class="picker-edit-link">Edit item</a>

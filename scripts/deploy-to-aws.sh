@@ -242,7 +242,7 @@ fi
 
 # The --no-* opt-outs only make sense with --soup-to-nuts (the only mode that
 # turns these axes on by default). Anywhere else they are already off, so a
-# stray --no-* is almost certainly an operator mistake — fail loud.
+# stray --no-* is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
   for _f in "--no-media:$NO_MEDIA_FLAG" "--no-personas:$NO_PERSONAS_FLAG" "--no-dev-admins:$NO_DEV_ADMINS_FLAG"; do
     if [[ "${_f#*:}" == "yes" ]]; then
@@ -415,13 +415,13 @@ check_canonical_freshness() {
   [[ -d "$ci_dir" ]] || return 0
 
   local ci_oldest
-  # SIGPIPE-safe "first line" idiom — do NOT replace `awk 'NR==1'` with
+  # SIGPIPE-safe "first line" idiom: do NOT replace `awk 'NR==1'` with
   # `head -1`.
   #
   # `head -N` closes its stdin after reading N lines. If the upstream
-  # producer (`sort` here) is still writing — which can happen on slow
+  # producer (`sort` here) is still writing (which can happen on slow
   # filesystems, under heavy parallel load, or non-deterministically at
-  # large fan-in — the producer's next write receives SIGPIPE. With
+  # large fan-in) the producer's next write receives SIGPIPE. With
   # `set -o pipefail` active, the pipeline's exit code becomes the
   # SIGPIPE exit (128 + 13 = 141), `set -e` aborts the script, and the
   # `[[ -n "$ci_oldest" ]]` empty-check below never runs.
@@ -429,7 +429,7 @@ check_canonical_freshness() {
   # `awk 'NR==1'` reads stdin to EOF (printing only the first line as a
   # side effect), so the upstream never SIGPIPEs. Output is identical;
   # the only cost is reading the rest of the (small) input. Do NOT swap
-  # in `awk 'NR==1 {print; exit}'` — `exit` reintroduces the same
+  # in `awk 'NR==1 {print; exit}'`: `exit` reintroduces the same
   # early-close race. If you need the LAST line instead, GNU `tail -N`
   # is safe because it buffers and reads stdin to EOF before emitting.
   ci_oldest=$(find "$ci_dir" -maxdepth 1 -name '*.csv' -printf '%T@\n' 2>/dev/null | sort -n | awk 'NR==1')

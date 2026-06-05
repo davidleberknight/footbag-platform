@@ -24,9 +24,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
-import { NotFoundError, ValidationError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
+import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
@@ -137,23 +135,6 @@ export const memberMediaEditController = {
     const memberId = req.user!.userId;
     const slug = req.user!.slug;
 
-    if (req.user?.role !== 'admin') {
-      const max = readIntConfig('media_edit_rate_limit_per_hour', 15);
-      const rl = rateLimitHit(`media-edit:${memberId}`, max, 60);
-      if (!rl.allowed) {
-        if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-        renderForm(res, memberKey, mediaId, {
-          caption: String(req.body?.caption ?? ''),
-          tags: String(req.body?.tags ?? ''),
-          externalUrl: String(req.body?.externalUrl ?? ''),
-        }, {
-          status: 429,
-          errorMessage: `Too many media edits. Try again in ${rl.retryAfterSeconds} seconds.`,
-        });
-        return;
-      }
-    }
-
     const captionRaw = String(req.body?.caption ?? '').trim();
     const caption: string | null = captionRaw.length === 0 ? null : captionRaw;
     const tags = parseTagsField(req.body?.tags);
@@ -164,6 +145,7 @@ export const memberMediaEditController = {
       const svc = buildSvc();
       await svc.editMemberMedia({
         memberId,
+        actorIsAdmin: req.user?.role === 'admin',
         slug,
         mediaId,
         caption,
@@ -183,6 +165,15 @@ export const memberMediaEditController = {
           tags: (req.body?.tags ?? '') as string,
           externalUrl: externalUrlRaw,
         }, { status: 422, errorMessage: err.message });
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        renderForm(res, memberKey, mediaId, {
+          caption: captionRaw,
+          tags: (req.body?.tags ?? '') as string,
+          externalUrl: externalUrlRaw,
+        }, { status: 429, errorMessage: err.message });
         return;
       }
       logger.error('member media edit POST error', { error: err instanceof Error ? err.message : String(err) });

@@ -140,7 +140,7 @@ describe('Stripe webhook signature verification (real verifier, signed stub)', (
     expect(() => paymentService.handleWebhook(rawBody, '')).toThrow(WebhookSignatureError);
   });
 
-  it('idempotent replay (B2/B3): re-delivering the same signed event applies effects once', async () => {
+  it('idempotent replay: re-delivering the same signed event applies effects once', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { rawBody, signature, paymentId } = await startSignedSuccess(M_REPLAY);
 
@@ -158,7 +158,7 @@ describe('Stripe webhook signature verification (real verifier, signed stub)', (
     }
   });
 
-  it('atomicity (B2/B3): a grant failure rolls back the status change AND the event claim', async () => {
+  it('atomicity: a grant failure rolls back the status change AND the event claim', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const tiering = await import('../../src/services/membershipTieringService');
     const { rawBody, signature, eventId, paymentId } = await startSignedSuccess(M_ATOMIC);
@@ -191,7 +191,7 @@ describe('Stripe webhook signature verification (real verifier, signed stub)', (
   });
 });
 
-describe('POST /payments/webhook status mapping (B5)', () => {
+describe('POST /payments/webhook status mapping', () => {
   // Send the body as the exact string that was signed. superagent transmits a
   // string body verbatim (a Buffer would be JSON-serialized, changing the bytes
   // and breaking the signature). express.raw on the route captures it.

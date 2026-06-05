@@ -22,8 +22,8 @@
 #   scripts/verify-staging-env.sh --target production
 #   scripts/verify-staging-env.sh --target staging --ssh-alias my-staging-host
 #
-# Closes Pass 3 finding §5.6 root cause: the operator-managed /srv/footbag/env
-# file has no terraform reconciliation, so most §5.1-§5.5 cluster gaps reduce
+# Why it exists: the operator-managed /srv/footbag/env file has no automatic
+# terraform reconciliation, so most deployed-host configuration drift reduces
 # to "what is actually in the host's env file?". This script makes that
 # question answerable without ssh-and-grep ad hoc.
 
@@ -31,9 +31,9 @@
 # surface as exit 141 (= 128 + signal 13). The typical offender is
 # `cmd | head -N` because `head` closes its stdin after N lines, leaving
 # the upstream producer to SIGPIPE on its next write. If you add a "first
-# line" pipeline, prefer `awk 'NR==1'` — it reads stdin to EOF so the
+# line" pipeline, prefer `awk 'NR==1'`: it reads stdin to EOF so the
 # upstream cannot SIGPIPE. For "last line", GNU `tail -N` is safe
-# (buffers, reads to EOF). Do NOT use `awk 'NR==1 {print; exit}'` — `exit`
+# (buffers, reads to EOF). Do NOT use `awk 'NR==1 {print; exit}'`: `exit`
 # reintroduces the same early-close race.
 set -euo pipefail
 
@@ -299,16 +299,16 @@ check_unset() {
 # Return the effective source of a config key at container boot, one of:
 #   env-file              /srv/footbag/env sets it explicitly (highest priority)
 #   compose-literal       docker-compose hardcodes a literal value
-#   compose-default       docker-compose uses ${KEY:-default} — default applies
+#   compose-default       docker-compose uses ${KEY:-default}: default applies
 #                         if /srv/footbag/env doesn't override
-#   compose-required-env  docker-compose uses ${KEY:?...} — fails compose-up if
+#   compose-required-env  docker-compose uses ${KEY:?...}: fails compose-up if
 #                         /srv/footbag/env doesn't set it
 #   missing               neither source provides it
 #
 # Probes compose files in the LOCAL working tree (docker/docker-compose.yml +
 # docker/docker-compose.prod.yml) because those are what ./deploy_to_aws.sh
 # will package and ship. If either compose file is missing, that source is
-# skipped silently — operators running this script outside the project root
+# skipped silently; operators running this script outside the project root
 # would still get the env-file-side checks.
 get_effective_source() {
   local key="$1"
@@ -319,12 +319,12 @@ get_effective_source() {
   local cf
   for cf in docker/docker-compose.yml docker/docker-compose.prod.yml; do
     [[ -f "$cf" ]] || continue
-    # ${KEY:?...} — compose-required, must be in env file
+    # ${KEY:?...}: compose-required, must be in env file
     if grep -F "\${${key}:?" "$cf" >/dev/null 2>&1; then
       echo "compose-required-env"
       return
     fi
-    # ${KEY:-default} — compose provides default, env may override
+    # ${KEY:-default}: compose provides default, env may override
     if grep -F "\${${key}:-" "$cf" >/dev/null 2>&1; then
       echo "compose-default"
       return
@@ -430,6 +430,26 @@ elif [[ ${#INTERNAL_SECRET_ACTUAL} -lt 32 ]]; then
   check_warn "internal event secret: INTERNAL_EVENT_SECRET is ${#INTERNAL_SECRET_ACTUAL} chars (suggest >= 32 for collision resistance)"
 else
   check_pass "internal event secret: INTERNAL_EVENT_SECRET present, not the dev default"
+fi
+
+# SNS feedback-webhook key. Deliberately a separate secret from
+# INTERNAL_EVENT_SECRET: the subscription URL carries it in the query
+# string, where access logs capture it, so the two must never share a value.
+# Required only when the host runs live SES (the runtime enforces the same
+# condition); a stub-SES host sends no real mail and has no SNS subscription.
+SES_FEEDBACK_KEY_ACTUAL="${HOST_ENV[SES_FEEDBACK_WEBHOOK_KEY]:-}"
+if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
+  check_pass "ses feedback key: not required (SES_ADAPTER is not 'live'; key is checked at live-email activation)"
+elif [[ -z "$SES_FEEDBACK_KEY_ACTUAL" ]]; then
+  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is unset (required when SES_ADAPTER=live; run scripts/activate-ses-feedback.sh)"
+elif [[ "$SES_FEEDBACK_KEY_ACTUAL" == "dev-ses-feedback-key-not-for-prod" ]]; then
+  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is the dev-default literal (must be a fresh value on $TARGET)"
+elif [[ "$SES_FEEDBACK_KEY_ACTUAL" == "$INTERNAL_SECRET_ACTUAL" ]]; then
+  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY must not equal INTERNAL_EVENT_SECRET (access-log exposure would extend to the worker IPC endpoints)"
+elif [[ ${#SES_FEEDBACK_KEY_ACTUAL} -lt 32 ]]; then
+  check_warn "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is ${#SES_FEEDBACK_KEY_ACTUAL} chars (suggest >= 32 for collision resistance)"
+else
+  check_pass "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY present, distinct from INTERNAL_EVENT_SECRET, not the dev default"
 fi
 
 # Public-facing required vars.

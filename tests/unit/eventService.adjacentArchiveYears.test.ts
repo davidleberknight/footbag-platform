@@ -1,7 +1,7 @@
 /**
  * Unit tests for getAdjacentArchiveYears (eventService internal helper).
  *
- * Regression for B24: the helper previously assumed its `archiveYears`
+ * Guards order-independence: the helper must not assume its `archiveYears`
  * input was DESC-ordered. The current caller `listPublicArchiveYears()`
  * returns DESC, but a future change to ASC would have silently inverted
  * previousYear (older) and nextYear (newer) on every event-archive page.

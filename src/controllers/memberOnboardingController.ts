@@ -54,10 +54,12 @@ interface ClubAffiliationsCardContent {
   card:            WizardCard | null;
   cardsTotal:      number;
   cardsRemaining:  number;
-  resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline' } | null;
+  resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline'; message: string } | null;
   formError:       string | null;
   leadershipOffers?: Array<{ clubId: string; clubName: string }>;
   stage?:          string;
+  isStage2a?:      boolean;
+  isStage2b?:      boolean;
   canCreateClub?:  boolean;
   nearbyCandidates?: Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
   clubsBrowseHref?: string;
@@ -214,7 +216,16 @@ function renderClubAffiliationsCard(
 ): void {
   const memberId = req.user!.userId;
   const cards = memberOnboardingService.listWizardCardsForMember(memberId);
-  const resolvedNotice = readClubResolvedFlash(req, res);
+  const resolvedFlash = readClubResolvedFlash(req, res);
+  // Pre-shaped banner text so the template never branches on the decision code.
+  const RESOLVED_MESSAGES: Record<'confirm' | 'correct' | 'decline', (clubName: string) => string> = {
+    confirm: (n) => `Linked ${n} as your primary club.`,
+    decline: (n) => `Marked ${n} as not yours.`,
+    correct: (n) => `Noted that the ${n} record needs correction.`,
+  };
+  const resolvedNotice = resolvedFlash
+    ? { ...resolvedFlash, message: RESOLVED_MESSAGES[resolvedFlash.decision](resolvedFlash.clubName) }
+    : null;
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
 
@@ -248,6 +259,8 @@ function renderClubAffiliationsCard(
       formError:      opts.formError ?? null,
       leadershipOffers,
       stage,
+      isStage2a:      stage === 'stage2a',
+      isStage2b:      stage === 'stage2b',
       canCreateClub:  (() => {
         const tier = getTierStatus(memberId);
         return tier != null && tier.tier_status !== 'tier0';

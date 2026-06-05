@@ -13,7 +13,8 @@
  * with identical display names race to the same generated slug. The fix
  * regenerates the slug and retries up to N times on UNIQUE-slug collision.
  *
- * Anti-enumeration contract per DD §3.3.
+ * Anti-enumeration contract: existing and non-existing accounts must be
+ * indistinguishable from the outside.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

@@ -6,11 +6,11 @@
 
 <div class="wrapper">
   <section>
-    {{#if (eq content.result 'granted')}}
+    {{#if content.isGranted}}
       <p class="form-success-banner" role="status">Administrator access granted. The bootstrap token has been consumed.</p>
       <p><a href="/admin" class="btn btn-primary">Go to the admin dashboard</a></p>
     {{else}}
-      {{#if (eq content.result 'invalid')}}
+      {{#if content.isInvalid}}
         <p class="form-notice" role="alert">That token was not accepted.</p>
       {{/if}}
       <p>If a System Administrator provisioned a bootstrap token for you, enter it below. The token works exactly once.</p>

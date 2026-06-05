@@ -28,6 +28,7 @@ import {
   transaction,
 } from '../../db/db';
 import { NotFoundError, ConflictError, ValidationError } from '../../services/serviceErrors';
+import { appendAuditEntry } from '../../services/auditService';
 import { personHref } from '../../services/personLink';
 import { shapePartnershipPair } from '../../services/playerShaping';
 import {
@@ -646,7 +647,7 @@ function buildFilterOptions(
     { value: '', label: 'All priorities', selected: filters.priority === undefined },
     ...[1, 2, 3, 4].map(p => ({
       value:    String(p),
-      label:    `${p} — ${PRIORITY_LABELS[p]}`,
+      label:    `${p}: ${PRIORITY_LABELS[p]}`,
       selected: filters.priority === p,
     })),
   ];
@@ -998,7 +999,7 @@ export const netQcService = {
       page: {
         sectionKey: '',
         pageKey:    'net_review_summary',
-        title:      'Net Review — Priority Summary',
+        title:      'Net Review: Priority Summary',
       },
       content: {
         totals: { ...totalsRow, classifiedPct },
@@ -1580,6 +1581,18 @@ export const netQcService = {
         'operator',
       );
       netCurated.updateCandidateStatus.run('accepted', candidateId);
+      // Curation decisions made here rehearse production data, so they get
+      // the same forensic trail as any other operator state change.
+      appendAuditEntry({
+        actionType: 'net_qc.candidate_approved',
+        category:   'admin',
+        actorType:  'system',
+        actorMemberId: null,
+        entityType: 'net_candidate',
+        entityId:   candidateId,
+        reasonText: payload.note ?? null,
+        metadata:   { curated_match_id: curatedId, event_id: row.event_id },
+      });
     });
   },
 
@@ -1607,6 +1620,16 @@ export const netQcService = {
         'operator',
       );
       netCurated.updateCandidateStatus.run('rejected', candidateId);
+      appendAuditEntry({
+        actionType: 'net_qc.candidate_rejected',
+        category:   'admin',
+        actorType:  'system',
+        actorMemberId: null,
+        entityType: 'net_candidate',
+        entityId:   candidateId,
+        reasonText: payload.note ?? null,
+        metadata:   { curated_match_id: curatedId, event_id: row.event_id },
+      });
     });
   },
 
@@ -1694,7 +1717,7 @@ export const netQcService = {
   },
 
   // ── Net event detail (QC reviewer view) ─────────────────────────────────
-  // /internal/net/events/:eventId — net-specific discipline grouping with
+  // /internal/net/events/:eventId: net-specific discipline grouping with
   // conflict_flag-aware labels and QC hints (multi-stage, unknown-team
   // excluded count, discipline review count). Internal use only: the public
   // surface routes to the canonical /events/:eventKey page instead.
@@ -1706,7 +1729,7 @@ export const netQcService = {
     const appearanceRows = netEvents.listAppearancesByEventId.all(eventId) as NetEventAppearanceRow[];
 
     return {
-      seo:  { title: `${eventRow.event_title} — Net QC` },
+      seo:  { title: `${eventRow.event_title}: Net QC` },
       page: {
         sectionKey: 'net',
         pageKey:    'net_event_detail',

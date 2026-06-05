@@ -50,108 +50,29 @@
     </section>
     {{/if}}
 
-    {{#if content.club.openSuggestions.length}}
-    <section class="mt-4">
-      <div class="section-heading">
-        <h2>Suggested edits awaiting review</h2>
-        <span class="section-count">{{content.club.openSuggestions.length}}</span>
-      </div>
-      {{#each content.club.openSuggestions}}
-        <div class="card">
-          <div class="card-title">{{fieldLabel}} suggestion from {{suggesterDisplayName}}</div>
-          <p>{{proposedValue}}</p>
-          {{#if note}}<p class="card-meta">{{note}}</p>{{/if}}
-          <form method="POST" action="{{reviewHref}}" class="form-block">
-            <input type="hidden" name="decision" value="approve" />
-            <button type="submit" class="btn btn-primary btn-sm">Approve and apply</button>
-          </form>
-          <form method="POST" action="{{reviewHref}}" class="form-block">
-            <input type="hidden" name="decision" value="reject" />
-            <div class="form-field">
-              <label for="reject_reason_{{id}}">Rejection reason</label>
-              <input id="reject_reason_{{id}}" name="reason" required maxlength="500" />
-            </div>
-            <button type="submit" class="btn btn-outline btn-sm">Reject</button>
-          </form>
-        </div>
-      {{/each}}
-    </section>
-    {{/if}}
-
-    {{#if content.club.canSuggestContent}}
-    <section class="mt-4">
-      <div class="section-heading"><h2>See something wrong?</h2></div>
-      <p class="text-muted fs-sm">Suggest a correction to this club's description or website link. A club contact or leader reviews suggestions before they appear.</p>
-      <form method="POST" action="{{content.club.contentSuggestHref}}" class="form-block">
-        <div class="form-field">
-          <label for="suggest_field">What needs correcting?</label>
-          <select id="suggest_field" name="field">
-            <option value="description">Description</option>
-            <option value="external_url">External URL</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label for="suggest_value">Proposed replacement</label>
-          <textarea id="suggest_value" name="proposed_value" rows="3" maxlength="2000" required></textarea>
-        </div>
-        <div class="form-field">
-          <label for="suggest_note">Note for the reviewer (optional)</label>
-          <input id="suggest_note" name="note" maxlength="500" />
-        </div>
-        <button type="submit" class="btn btn-secondary btn-sm">Submit suggestion</button>
-      </form>
-    </section>
-    {{/if}}
-
     {{#if content.club.viewGalleryHref}}
     <div class="club-gallery-link">
       <a href="{{content.club.viewGalleryHref}}" class="btn btn-outline">View gallery</a>
     </div>
     {{/if}}
 
-    {{!-- At-a-glance card: merges club snapshot + classification status into
-          one scannable block. Visible to all visitors. TEMP-DEVIATION fields
-          (qcPanel.*) absent in production; section degrades to a plain
-          leader/member count line in that case. --}}
-    <section class="club-at-a-glance club-at-a-glance--{{content.club.vitality.statusLabelKebab}}{{#if content.club.qcPanel}} club-at-a-glance--{{content.club.qcPanel.category}}{{/if}}" aria-label="At a glance">
-      {{#if content.club.qcPanel}}
-      <div class="club-at-a-glance-header">
-        <span class="club-qc-category-chip club-qc-category-chip--{{content.club.qcPanel.category}}">{{content.club.qcPanel.categoryLabel}}</span>
-        {{#if content.club.qcPanel.confidenceScore}}
-        <span class="club-qc-confidence">Confidence {{content.club.qcPanel.confidenceScore}}</span>
-        {{/if}}
-      </div>
-      {{/if}}
-      <p class="club-at-a-glance-stats">
-        {{content.club.vitality.knownLeadersText}} known {{#if (eq content.club.vitality.knownLeadersCount 1)}}leader{{else}}leaders{{/if}}
-        &middot; {{content.club.vitality.memberCountText}} {{#if (eq content.club.vitality.memberCount 1)}}member{{else}}members{{/if}}
-        {{#if content.club.qcPanel.lastMemberActivityYear}}
-        &middot; members active through {{content.club.qcPanel.lastMemberActivityYear}}
-        {{/if}}
-      </p>
-      <p class="club-status-label club-status-label--{{content.club.vitality.statusLabelKebab}}">{{content.club.vitality.statusLabel}}</p>
-      {{#if content.club.qcPanel.summaryTagline}}
-      <p class="club-at-a-glance-tagline">{{content.club.qcPanel.summaryTagline}}</p>
-      {{/if}}
-    </section>
-
     {{#if content.club.leaders.length}}
-    <div class="club-leaders">
-      <h2 class="club-leaders-heading">Leaders</h2>
-      <ul class="club-leaders-list">
+    <section class="mt-4">
+      <div class="section-heading"><h2>Leaders</h2></div>
+      <ul class="club-member-list">
         {{#each content.club.leaders}}
-        <li class="club-leader club-leader-{{status}}">
+        <li class="club-member-entry">
           {{#if personId}}
             <a class="club-leader-name" href="/history/{{personId}}">{{displayName}}</a>
           {{else}}
             <span class="club-leader-name">{{displayName}}</span>
           {{/if}}
-          <span class="club-leader-role">&nbsp;({{roleLabel}})</span>
+          <span class="text-muted fs-sm">({{roleLabel}})</span>
           {{#if badgeLabel}}
-            <span class="club-leader-badge">{{badgeLabel}}</span>
+            <span class="badge">{{badgeLabel}}</span>
           {{/if}}
           {{#if badgeNote}}
-            <p class="club-leader-note">{{badgeNote}}</p>
+            <p class="text-muted fs-sm">{{badgeNote}}</p>
           {{/if}}
           {{#if showContact}}
             <a class="club-leader-email" href="mailto:{{contactEmail}}">{{contactEmail}}</a>
@@ -159,7 +80,7 @@
         </li>
         {{/each}}
       </ul>
-    </div>
+    </section>
     {{/if}}
 
     {{#if isAuthenticated}}
@@ -174,7 +95,7 @@
       {{/if}}
     </div>
     {{/if}}
-    <div class="club-join-block mt-4">
+    <div class="mt-4">
       {{#if content.club.viewerIsMember}}
         <p class="badge">You are a member of this club</p>
       {{else if content.club.viewerCanJoin}}
@@ -183,38 +104,26 @@
         </form>
       {{/if}}
     </div>
+    {{/if}}
+
+    {{#if isAuthenticated}}
     {{#if content.club.members.length}}
     <div class="club-members">
-      <h2 class="club-members-heading">Members</h2>
+      <div class="section-heading"><h2>Club members</h2></div>
       <ul class="club-member-list">
         {{#each content.club.members}}
         <li class="club-member-entry">
-          {{#if personId}}
-            <a class="club-member-name" href="/history/{{personId}}">{{name}}</a>
+          {{#if href}}
+            <a href="{{href}}">{{name}}</a>
           {{else}}
-            <span class="club-member-name">{{name}}</span>
+            <span>{{name}}</span>
+          {{/if}}
+          {{#if statusNote}}
+            <span class="text-muted fs-sm">{{statusNote}}</span>
           {{/if}}
         </li>
         {{/each}}
       </ul>
-    </div>
-    {{/if}}
-    {{#if content.club.unconfirmedMembers.length}}
-    <div class="club-members club-members-unconfirmed">
-      <h2 class="club-members-heading">Possible members from legacy records</h2>
-      <p class="club-members-unconfirmed-note">Unconfirmed: these people have not yet confirmed their membership in onboarding.</p>
-      <ul class="club-member-list">
-        {{#each content.club.unconfirmedMembers}}
-        <li class="club-member-entry">
-          {{#if personId}}
-            <a class="club-member-name" href="/history/{{personId}}">{{name}}</a>
-          {{else}}
-            <span class="club-member-name">{{name}}</span>
-          {{/if}}
-        </li>
-        {{/each}}
-      </ul>
-      <p class="club-members-unconfirmed-cta"><a href="/register/wizard/club_affiliations">Is this you? Confirm your membership in onboarding</a></p>
     </div>
     {{/if}}
     {{else}}
@@ -235,6 +144,12 @@
     <section class="club-qc-panel club-qc-panel--{{content.club.qcPanel.category}}" aria-label="Classification analysis (curator view)">
       <p class="club-qc-panel-banner"><strong>Curator view:</strong> classification diagnostic. Not part of the public design; will be removed before any production environment ships.</p>
 
+      <p><span class="badge">{{content.club.qcPanel.categoryLabel}}</span>{{#if content.club.qcPanel.confidenceScore}} <span class="text-muted fs-sm">Confidence {{content.club.qcPanel.confidenceScore}}</span>{{/if}}</p>
+      <p class="card-meta">{{#each content.club.vitality.metaChips}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}{{#if content.club.qcPanel.lastMemberActivityYear}} &middot; members active through {{content.club.qcPanel.lastMemberActivityYear}}{{/if}}</p>
+      {{#if content.club.qcPanel.summaryTagline}}
+      <p class="card-description">{{content.club.qcPanel.summaryTagline}}</p>
+      {{/if}}
+
       <h2 class="club-qc-panel-heading">Why this category?</h2>
       <p class="club-qc-narrative">{{content.club.qcPanel.narrativeWhy}}</p>
 
@@ -254,7 +169,7 @@
         </thead>
         <tbody>
           {{#each content.club.qcPanel.rules}}
-          <tr class="club-qc-rule club-qc-rule--{{#if fired}}fired{{else}}not-fired{{/if}}">
+          <tr class="club-qc-rule--{{#if fired}}fired{{else}}not-fired{{/if}}">
             <td class="club-qc-rule-fired-cell" aria-label="{{#if fired}}fired{{else}}did not fire{{/if}}">{{#if fired}}&#10003;{{else}}&#215;{{/if}}</td>
             <th scope="row">{{id}}: {{label}}</th>
             <td>{{stage}}</td>
@@ -274,9 +189,9 @@
       <h3 class="club-qc-panel-subheading">Combination-gate signals, classifier as-designed</h3>
       <ul class="club-qc-signals">
         {{#each content.club.qcPanel.signals}}
-        <li class="club-qc-signal club-qc-signal--{{kind}} club-qc-signal--{{#if isPresent}}present{{else}}{{#unless isPresent}}{{#if (eq isPresent null)}}unemitted{{else}}absent{{/if}}{{/unless}}{{/if}}">
+        <li class="club-qc-signal club-qc-signal--{{kind}} club-qc-signal--{{stateKey}}">
           <span class="club-qc-signal-label">{{label}}</span>
-          <span class="club-qc-signal-state">{{#if (eq isPresent null)}}(pipeline not yet emitting){{else}}{{#if isPresent}}observed{{else}}not observed{{/if}}{{/if}}</span>
+          <span class="club-qc-signal-state">{{stateLabel}}</span>
           {{#if evidenceText}}<span class="club-qc-signal-evidence">{{evidenceText}}</span>{{/if}}
         </li>
         {{/each}}
@@ -300,32 +215,10 @@
         <dt>Affiliations linked to this club</dt>
         <dd>{{content.club.qcPanel.pipelineContext.affiliationsTotal}} total
             ({{content.club.qcPanel.pipelineContext.affiliationsPendingCount}} pending)</dd>
-        <dt>Live club row source</dt>
-        <dd>{{content.club.qcPanel.pipelineContext.liveClubRowSource}}</dd>
-        <dt>mapped_club_id stamped</dt>
-        <dd>{{#if content.club.qcPanel.pipelineContext.mappedClubIdStamped}}yes{{else}}no{{/if}}
-            (rule: {{content.club.qcPanel.pipelineContext.mappedClubIdStampRule}})</dd>
-        {{#if content.club.qcPanel.pipelineContext.fallbackQueryApplied}}
-        <dt>Schema-drift fallback</dt>
-        <dd class="club-qc-warning">QC-panel query degraded to fallback for this row</dd>
-        {{/if}}
       </dl>
       {{/if}}
     </section>
     {{/if}}
-    {{/if}}
-
-    {{#if isAuthenticated}}
-    <section class="club-signal-section mt-6">
-      <p class="text-muted fs-sm fw-600">Help us keep this listing accurate</p>
-      <form method="POST" action="/clubs/{{content.club.clubKey}}/signal" class="stage-signal-form mt-2">
-        <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
-        <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active</label>
-        <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
-        <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
-        <button type="submit" class="btn btn-secondary btn-sm mt-1">Submit</button>
-      </form>
-    </section>
     {{/if}}
 
     {{#each navigation.contextLinks}}

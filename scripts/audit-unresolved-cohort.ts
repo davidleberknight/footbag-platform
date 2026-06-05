@@ -2,9 +2,9 @@
  * Dry-run classification of the two unresolved populations remaining
  * after the provenance apply:
  *
- *   Cohort A — historical_persons with NO legacy_member_id (~3,100)
+ *   Cohort A: historical_persons with NO legacy_member_id (~3,100)
  *              (mirror-only identities + genuinely historical names)
- *   Cohort B — legacy_members with NO HP provenance back-link (~245)
+ *   Cohort B: legacy_members with NO HP provenance back-link (~245)
  *              (mirror-derived roster members never tied to a results
  *               person; partner candidates for post-dump resolution)
  *

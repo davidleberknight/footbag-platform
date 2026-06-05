@@ -106,6 +106,10 @@ services:
       # docker network; override via project-root .env when running against
       # real AWS resources.
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
+      # Dedicated SNS feedback-webhook key: separate from INTERNAL_EVENT_SECRET
+      # because the subscription URL carries it in the query string, where
+      # access logs capture it.
+      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -195,6 +199,7 @@ services:
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
+      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw

@@ -229,7 +229,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
   // R4-pattern migration to enqueueEmailOrFail, an outbox failure surfaces
   // as a truthful 503. The queue row stays resolved + the audit row stays
   // written (both committed inside the resolve transaction before the
-  // enqueue runs, per B10 fix); the operator sees a 503 banner driven by
+  // enqueue runs); the operator sees a 503 banner driven by
   // handleControllerError's ServiceUnavailableError → 503 mapping.
   describe('enqueueEmailOrFail failure on resolve', () => {
     // eslint-disable-next-line @typescript-eslint/consistent-type-imports

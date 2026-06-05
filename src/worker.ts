@@ -9,7 +9,7 @@
  *      ledger rows for lapsed grants. system_job_runs row per pass.
  *   3. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
- *      No polling — strictly event-driven.
+ *      No polling; strictly event-driven.
  *
  * All three shut down cleanly on SIGTERM/SIGINT.
  */

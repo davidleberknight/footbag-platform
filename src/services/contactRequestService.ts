@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { workQueue, account, transaction } from '../db/db';
+import { enforceWorkQueueResolveLimit } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { getCommunicationService } from './communicationService';
 import { recordOperationalError } from './operationalErrors';
@@ -236,10 +237,13 @@ export const contactRequestService = {
         entityType:    'member',
         entityId:      input.requestingMemberId,
         reasonText:    categoryLabel,
+        // The audit ledger is append-only and exempt from PII purge, so the
+        // member-authored free text stays out of it; the mutable work-queue
+        // row (queue_item_id) carries the message.
         metadata:      {
           queue_item_id: id,
           category,
-          message: trimmed,
+          message_length: trimmed.length,
         },
       });
       getCommunicationService().enqueueMailingListEmail({
@@ -260,6 +264,7 @@ export const contactRequestService = {
    * currently open.
    */
   async resolve(input: ContactRequestResolveInput): Promise<void> {
+    enforceWorkQueueResolveLimit(input.adminMemberId);
     const decisionLabel = validateDecisionLabel(input.decisionLabel);
     const note = (input.resolutionNote ?? '').trim();
     if (note.length === 0) {

@@ -202,6 +202,9 @@ const STAGING_FIXTURE: Record<string, string> = {
   MEDIA_STORAGE_ADAPTER: 'local',
   PAYMENT_ADAPTER: 'live',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
+  // SES_FEEDBACK_WEBHOOK_KEY deliberately absent: staging runs the SES stub
+  // and must boot without the feedback-webhook key (env.ts requires it only
+  // when SES_ADAPTER=live).
   // Match PRODUCTION_FIXTURE for the intra-docker URL vars. Without these,
   // the staging-side compose-overlay parity check silently uses the compose
   // `:-` defaults instead of exercising the env-explicit path; an
@@ -214,7 +217,7 @@ const STAGING_FIXTURE: Record<string, string> = {
 /**
  * Production interpolation fixture: same compose-overlay pair as staging,
  * with production-shape values. Sandbox-mode is off, IMAGE_MAX_CONCURRENT
- * is the DD §1.8 production target, PhotoStorage adapter is `s3` with a
+ * is the production target, PhotoStorage adapter is `s3` with a
  * production bucket name (which exercises the env.ts `MEDIA_STORAGE_S3_BUCKET`
  * required-when-s3 guard the staging fixture skips). Values are stub-but-
  * shape-valid; real production values live in the host env file.
@@ -242,6 +245,7 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
   PAYMENT_ADAPTER: 'live',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
+  SES_FEEDBACK_WEBHOOK_KEY: 'b'.repeat(48),
   WORKER_INTERNAL_URL: 'http://worker:3100',
   WEB_INTERNAL_URL: 'http://web:3000',
 };

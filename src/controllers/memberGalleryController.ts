@@ -19,11 +19,9 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { getDefaultCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX, buildExternalLinkSlots } from '../services/curatorMediaService';
+import { getDefaultCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX, buildExternalLinkSlots, type CuratorGalleryEditView } from '../services/curatorMediaService';
 import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
@@ -124,18 +122,6 @@ function renderListWithError(
   });
 }
 
-function enforceGalleryWriteLimit(req: Request): RateLimitedError | null {
-  if (req.user?.role === 'admin') return null;
-  const memberId = req.user!.userId;
-  const max = readIntConfig('gallery_write_rate_limit_per_hour', 30);
-  const rl = rateLimitHit(`gallery-write:${memberId}`, max, 60);
-  if (rl.allowed) return null;
-  return new RateLimitedError(
-    `Too many gallery operations. Try again in ${rl.retryAfterSeconds} seconds.`,
-    rl.retryAfterSeconds,
-  );
-}
-
 export const memberGalleryController = {
   /** GET /members/:memberKey/galleries — list this member's own galleries. */
   getList(req: Request, res: Response, next: NextFunction): void {
@@ -206,22 +192,6 @@ export const memberGalleryController = {
       renderNotFound(res);
       return;
     }
-    const rlErr = enforceGalleryWriteLimit(req);
-    if (rlErr) {
-      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
-      const memberKey = req.params.memberKey;
-      res.status(429).render('members/galleries/new', {
-        seo: { title: 'Create Gallery' },
-        page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
-        formAction: listHref(memberKey),
-        errorMessage: rlErr.message,
-        gallery: { name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
-        cancelHref: listHref(memberKey),
-        uploadTags: '',
-        externalLinkSlots: buildExternalLinkSlots(null, []),
-      });
-      return;
-    }
     if (req.is('multipart/form-data')) {
       handleMultipartCreate(req, res, next);
       return;
@@ -253,9 +223,12 @@ export const memberGalleryController = {
         res.redirect(303, listHref(memberKey));
         return;
       } catch (err) {
-        if (err instanceof ValidationError || err instanceof ConflictError) {
+        if (err instanceof ValidationError || err instanceof ConflictError || err instanceof RateLimitedError) {
+          if (err instanceof RateLimitedError && err.retryAfterSeconds) {
+            res.setHeader('Retry-After', String(err.retryAfterSeconds));
+          }
           const fieldErrors = err instanceof ValidationError ? err.fieldErrors : undefined;
-          res.status(422).render('members/galleries/new', {
+          res.status(err instanceof RateLimitedError ? 429 : 422).render('members/galleries/new', {
             seo: { title: 'Create Gallery' },
             page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
             formAction: listHref(memberKey),
@@ -297,14 +270,8 @@ export const memberGalleryController = {
         // restrictToOwnerId enforces a 404 (not 403) when the gallery
         // exists but is not owned by the requesting member — matches
         // the anti-enumeration convention of the rest of /members/.
-        const g = svc.getGalleryForEdit(galleryId, memberId);
-        // currentItems already include thumbnailUrl/caption/etc; here we
-        // tack on the per-item editHref (controller knows the route layout,
-        // service does not).
-        const currentItems = g.currentItems.map((item) => ({
-          ...item,
-          editHref: `/members/${memberKey}/media/${item.mediaId}/edit`,
-        }));
+        const g = svc.getGalleryForEdit(galleryId, memberId, { memberKey });
+        const currentItems = g.currentItems;
         res.render('members/galleries/edit', {
           seo: { title: 'Edit Gallery' },
           page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -342,12 +309,6 @@ export const memberGalleryController = {
   async postUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnRoute(req)) {
       renderNotFound(res);
-      return;
-    }
-    const rlErr = enforceGalleryWriteLimit(req);
-    if (rlErr) {
-      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
-      renderListWithError(req, res, 429, rlErr.message);
       return;
     }
     if (req.is('multipart/form-data')) {
@@ -389,11 +350,8 @@ export const memberGalleryController = {
           return;
         }
         if (err instanceof ValidationError) {
-          const reread = svc.getGalleryForEdit(galleryId, actorMemberId);
-          const currentItems = reread.currentItems.map((item) => ({
-            ...item,
-            editHref: `/members/${memberKey}/media/${item.mediaId}/edit`,
-          }));
+          const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
+          const currentItems = reread.currentItems;
           res.status(422).render('members/galleries/edit', {
             seo: { title: 'Edit Gallery' },
             page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -416,6 +374,11 @@ export const memberGalleryController = {
           });
           return;
         }
+        if (err instanceof RateLimitedError) {
+          if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+          renderListWithError(req, res, 429, err.message);
+          return;
+        }
         throw err;
       }
     } catch (err) {
@@ -433,12 +396,6 @@ export const memberGalleryController = {
     if (req.body?.confirmed !== '1') {
       const memberKey = req.params.memberKey;
       res.redirect(303, `${listHref(memberKey)}?confirmDelete=${encodeURIComponent(req.params.id)}`);
-      return;
-    }
-    const rlErr = enforceGalleryWriteLimit(req);
-    if (rlErr) {
-      if (rlErr.retryAfterSeconds) res.setHeader('Retry-After', String(rlErr.retryAfterSeconds));
-      renderListWithError(req, res, 429, rlErr.message);
       return;
     }
     try {
@@ -459,6 +416,11 @@ export const memberGalleryController = {
       } catch (err) {
         if (err instanceof NotFoundError || err instanceof ValidationError) {
           renderNotFound(res);
+          return;
+        }
+        if (err instanceof RateLimitedError) {
+          if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+          renderListWithError(req, res, 429, err.message);
           return;
         }
         throw err;
@@ -631,6 +593,11 @@ async function executeMultipartCreate(args: {
       rerenderError(422, err.message, fieldErrors);
       return;
     }
+    if (err instanceof RateLimitedError) {
+      if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      rerenderError(429, err.message);
+      return;
+    }
     throw err;
   }
 
@@ -644,6 +611,7 @@ async function executeMultipartCreate(args: {
     try {
       await svc.uploadPhotoForMember({
         memberId: actorMemberId,
+        actorIsAdmin,
         slug,
         photoBuffer: f.buffer,
         sourceFilename: f.filename,
@@ -651,9 +619,12 @@ async function executeMultipartCreate(args: {
         tags: finalUploadTags,
       });
     } catch (err) {
-      if (err instanceof ValidationError) {
+      if (err instanceof ValidationError || err instanceof RateLimitedError) {
+        if (err instanceof RateLimitedError && err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
         rerenderError(
-          422,
+          err instanceof RateLimitedError ? 429 : 422,
           `Gallery "${name}" was created, but uploading "${f.filename}" failed: ${err.message}`,
         );
         return;
@@ -697,13 +668,9 @@ async function executeMultipartUpdate(args: {
     errorMessage: string,
     fieldErrors?: Record<string, string>,
   ): void {
-    let currentItems: Array<{ mediaId: string; thumbnailUrl: string; caption: string | null; sourceFilename: string; mediaType: 'photo' | 'video'; editHref: string }> = [];
+    let currentItems: CuratorGalleryEditView['currentItems'] = [];
     try {
-      const reread = svc.getGalleryForEdit(galleryId, actorMemberId);
-      currentItems = reread.currentItems.map((item) => ({
-        ...item,
-        editHref: `/members/${memberKey}/media/${item.mediaId}/edit`,
-      }));
+      currentItems = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey }).currentItems;
     } catch {
       /* gallery may have been deleted concurrently; render with empty items */
     }
@@ -768,6 +735,11 @@ async function executeMultipartUpdate(args: {
       rerenderError(422, err.message, err.fieldErrors);
       return;
     }
+    if (err instanceof RateLimitedError) {
+      if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      rerenderError(429, err.message);
+      return;
+    }
     throw err;
   }
 
@@ -780,6 +752,7 @@ async function executeMultipartUpdate(args: {
     try {
       await svc.uploadPhotoForMember({
         memberId: actorMemberId,
+        actorIsAdmin,
         slug,
         photoBuffer: f.buffer,
         sourceFilename: f.filename,
@@ -787,9 +760,12 @@ async function executeMultipartUpdate(args: {
         tags: finalUploadTags,
       });
     } catch (err) {
-      if (err instanceof ValidationError) {
+      if (err instanceof ValidationError || err instanceof RateLimitedError) {
+        if (err instanceof RateLimitedError && err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
         rerenderError(
-          422,
+          err instanceof RateLimitedError ? 429 : 422,
           `Gallery saved, but uploading "${f.filename}" failed: ${err.message}`,
         );
         return;

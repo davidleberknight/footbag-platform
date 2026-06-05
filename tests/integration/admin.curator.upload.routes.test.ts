@@ -423,7 +423,7 @@ describe('POST /admin/curator/upload — photo', () => {
     db.close();
   });
 
-  it('disallowed-scheme external URL -> 422 with DD §3.17 message', async () => {
+  it('disallowed-scheme external URL -> 422 with the vetted-URL message', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)

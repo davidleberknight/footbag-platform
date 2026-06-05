@@ -1,5 +1,5 @@
 /**
- * End-to-end verification of the Origin-header CSRF pin (DD §3.3).
+ * End-to-end verification of the Origin-header CSRF pin.
  *
  * This file imports `supertest` directly (not the auto-Origin helper at
  * tests/fixtures/supertestWithOrigin.ts) so it can drive the full Origin /

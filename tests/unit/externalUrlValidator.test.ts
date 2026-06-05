@@ -119,7 +119,7 @@ describe('validateExternalUrl', () => {
     });
   });
 
-  describe('disallowed schemes (DD §3.17)', () => {
+  describe('disallowed schemes', () => {
     it.each([
       ['javascript', 'javascript:alert(1)'],
       ['data', 'data:text/html,<script>alert(1)</script>'],
@@ -166,7 +166,7 @@ describe('validateExternalUrl', () => {
     });
   });
 
-  describe('SSRF block: literal IPv4 (DD §3.17)', () => {
+  describe('SSRF block: literal IPv4', () => {
     it.each([
       ['10.0.0.1 (10/8)', 'http://10.0.0.1/'],
       ['172.16.5.5 (172.16/12 low)', 'http://172.16.5.5/'],
@@ -320,7 +320,7 @@ describe('validateExternalUrl', () => {
     });
   });
 
-  describe('reachability check (DD §3.17)', () => {
+  describe('reachability check', () => {
     it('rejects with the DD-verbatim message when reachability returns false', async () => {
       const stubs = makeStubs();
       stubs.reachability.setUnreachable('https://example.com/', 'timeout');

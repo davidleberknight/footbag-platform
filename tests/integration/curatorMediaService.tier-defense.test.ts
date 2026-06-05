@@ -1,5 +1,5 @@
 /**
- * Defense-in-depth (DD §2020) verification for curatorMediaService.
+ * Defense-in-depth verification for curatorMediaService.
  *
  * The route layer applies requireTier1Benefits middleware on the four
  * member-write POST routes. The service layer adds the same

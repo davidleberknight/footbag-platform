@@ -34,6 +34,9 @@ function baselineRequired(): void {
   process.env.PUBLIC_BASE_URL = 'http://localhost';
   // Valid prod SESSION_SECRET by default; specific tests override.
   process.env.SESSION_SECRET = 'a'.repeat(48);
+  // Valid by default so live-SES configurations load; the dedicated
+  // required-when-live test deletes it.
+  process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
 }
 
 function clearAwsWiring(): void {
@@ -181,6 +184,27 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SES_FROM_IDENTITY is required when SES_ADAPTER=live/,
+    );
+  });
+
+  it('throws when SES_ADAPTER=live but SES_FEEDBACK_WEBHOOK_KEY is unset in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'live';
+    process.env.SES_FROM_IDENTITY = 'noreply@example.com';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    delete process.env.SES_FEEDBACK_WEBHOOK_KEY;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SES_FEEDBACK_WEBHOOK_KEY is required when SES_ADAPTER=live/,
     );
   });
 

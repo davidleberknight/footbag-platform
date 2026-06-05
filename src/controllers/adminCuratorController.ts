@@ -19,10 +19,9 @@ import {
   isValidCategoryName,
   buildExternalLinkSlots,
   type CuratorMediaEditInput,
+  type CuratorGalleryEditView,
 } from '../services/curatorMediaService';
-import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import {
   parseExternalLinkInputs,
@@ -40,20 +39,6 @@ import { randomUUID } from 'node:crypto';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
-
-// Per-admin rate-limit. Compromised-admin is the threat model; admin role
-// does not bypass. Bucket key uses session-derived admin id.
-function enforceCuratorWriteLimit(req: Request, res: Response): boolean {
-  const adminMemberId = req.user!.userId;
-  const max = readIntConfig('curator_write_rate_limit_per_hour', 60);
-  const rl = rateLimitHit(`curator-write:${adminMemberId}`, max, 60);
-  if (rl.allowed) return true;
-  if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-  res.status(429)
-    .type('text/plain')
-    .send(`Too many curator operations. Try again in ${rl.retryAfterSeconds} seconds.`);
-  return false;
-}
 
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);
@@ -185,7 +170,6 @@ export const adminCuratorController = {
    * bytes, caption length, and tag shape.
    */
   postUpload(req: Request, res: Response, next: NextFunction): void {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     const adminMemberId = req.user!.userId;
 
     const fields: Record<string, string> = {};
@@ -249,6 +233,10 @@ export const adminCuratorController = {
             status: err.status,
           });
           renderServiceUnavailable(res);
+          return;
+        }
+        if (err instanceof RateLimitedError) {
+          next(err);
           return;
         }
         logger.error('admin upload error', { error: err instanceof Error ? err.message : String(err) });
@@ -611,7 +599,6 @@ export const adminCuratorController = {
   },
 
   async postEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const mediaId = req.params.id;
       const adminMemberId = req.user!.userId;
@@ -712,7 +699,6 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries — create FH-owned gallery. */
   async postGalleryCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const actorMemberId = req.user!.userId;
       const slug = String(req.body?.idSlug ?? '').trim();
@@ -767,10 +753,7 @@ export const adminCuratorController = {
       const svc = buildSvc();
       try {
         const g = svc.getGalleryForEdit(galleryId);
-        const currentItems = g.currentItems.map((item) => ({
-          ...item,
-          editHref: `/admin/curator/media/${item.mediaId}/edit`,
-        }));
+        const currentItems = g.currentItems;
         res.render('admin/curator/galleries/edit', {
           seo: { title: 'Edit Curator Gallery' },
           page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
@@ -809,7 +792,6 @@ export const adminCuratorController = {
    * along; uploaded files are routed through `uploadPhoto` (FH-owned) and
    * receive `#curated` automatically plus user-supplied `uploadTags`. */
   async postGalleryEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     if (req.is('multipart/form-data')) {
       handleCuratorGalleryEditMultipart(req, res, next);
       return;
@@ -867,7 +849,6 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/galleries/:id/delete — hard-delete FH gallery + sidecar. */
   async postGalleryDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     if (req.body?.confirmed !== '1') {
       res.redirect(303, `/admin/curator/galleries?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
@@ -904,7 +885,6 @@ export const adminCuratorController = {
 
   /** POST /admin/curator/media/:id/delete — hard delete + S3 cleanup. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     if (req.body?.confirmed !== '1') {
       res.redirect(303, `/admin/curator/media?confirmDelete=${encodeURIComponent(req.params.id)}`);
       return;
@@ -946,7 +926,6 @@ export const adminCuratorController = {
    * object size at HEAD time before transcoding.
    */
   async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!enforceCuratorWriteLimit(req, res)) return;
     try {
       const adminMemberId = req.user!.userId;
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -1172,7 +1151,9 @@ export const adminCuratorController = {
 
     res.set({
       'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
+      // 'private' keeps the app-level privacy scope this overwrite would
+      // otherwise drop from an authenticated admin response.
+      'Cache-Control': 'private, no-cache, no-transform',
       Connection: 'keep-alive',
       // Hint to nginx (when present) to flush each chunk; the nginx config
       // for this route also sets `proxy_buffering off`, but the header is
@@ -1241,13 +1222,9 @@ function renderCuratorGalleryEditError(
   errorMessage: string,
   ctx: CuratorGalleryEditErrorContext,
 ): void {
-  let currentItems: Array<{ mediaId: string; thumbnailUrl: string; caption: string | null; sourceFilename: string; mediaType: 'photo' | 'video'; editHref: string }> = [];
+  let currentItems: CuratorGalleryEditView['currentItems'] = [];
   try {
-    const reread = buildSvc().getGalleryForEdit(ctx.galleryId);
-    currentItems = reread.currentItems.map((item) => ({
-      ...item,
-      editHref: `/admin/curator/media/${item.mediaId}/edit`,
-    }));
+    currentItems = buildSvc().getGalleryForEdit(ctx.galleryId).currentItems;
   } catch {
     /* gallery may have been deleted concurrently; render with empty items */
   }

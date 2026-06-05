@@ -98,6 +98,36 @@ describe('member intake', () => {
     expect(openItems(memberId)).toHaveLength(1);
   });
 
+  it('keeps the claimed legacy identifiers out of the append-only audit ledger', async () => {
+    // The audit ledger is trigger-protected append-only and exempt from PII
+    // purge, so the raw claimed email/username must live only in the mutable
+    // work-queue row; the audit row carries linkage and the dispute flag.
+    const memberId = seedRequester();
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/help-request')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        statement: 'These tournament results are mine.',
+        claimed_legacy_username: 'oldhandle',
+        claimed_legacy_email: 'oldhandle@old.example.com',
+      });
+    expect(res.status).toBe(303);
+
+    const item = openItems(memberId)[0];
+    const payload = JSON.parse(String(item.reason_text)) as Record<string, unknown>;
+    expect(payload.claimed_legacy_email).toBe('oldhandle@old.example.com');
+
+    const submitted = audits(memberId, 'support.help_request_submitted');
+    expect(submitted).toHaveLength(1);
+    const metadata = JSON.parse(String(submitted[0].metadata_json)) as Record<string, unknown>;
+    expect(metadata.work_queue_item_id).toBe(item.id);
+    expect(metadata.is_dispute).toBe(false);
+    expect(metadata).not.toHaveProperty('claimed_legacy_email');
+    expect(metadata).not.toHaveProperty('claimed_legacy_username');
+    expect(String(submitted[0].metadata_json)).not.toContain('oldhandle');
+  });
+
   it('rejects an empty statement with an inline 422', async () => {
     const memberId = seedRequester();
     const res = await request(createApp())

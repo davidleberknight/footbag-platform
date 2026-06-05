@@ -16,7 +16,8 @@
  * the immediate return on the absent-email branch would drop absent-email
  * timing to <5 ms (no argon2 work), failing both assertions.
  *
- * Anti-enumeration contract per DD §3.3.
+ * Anti-enumeration contract: existing and non-existing accounts must be
+ * indistinguishable from the outside.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

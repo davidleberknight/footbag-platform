@@ -65,6 +65,16 @@ describe('GET /admin/club-cleanup', () => {
     expect(res.text).toContain('Dirty Club');
     expect(res.text).toContain('Club Cleanup Queue');
   });
+
+  it('names the members whose latest answer was negative on the queue item', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    // Negative votes are rare and admins judge them by who cast them, so
+    // the crowdsource item carries the reporter names (admin-only surface).
+    expect(res.text).toContain('inactive per: Cleanup Admin, Cleanup Member');
+  });
 });
 
 describe('POST /admin/club-cleanup/:clubId/resolve', () => {
