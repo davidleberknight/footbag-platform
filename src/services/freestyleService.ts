@@ -3709,6 +3709,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'redwetter',                       // shooting on eggbeater(3) = 6; FM lists 7
   'big-papa-smurf',                  // surfing on blender(4) = 7 (clean, no divergence)
   'liquifier',                       // splicing on blender(4) = 6; FM lists 7
+  // FootbagMoves railing cohort, published at structural value with the
+  // FM-7 over-count recorded as a railing-cohort divergence (railing = rooted + sailing = 2).
+  'dorshanatrix',                    // railing + symposium on mirage(2) = 5; FM lists 7
+  'flying-fish',                     // railing + ducking on mirage(2) = 5; FM lists 7
+  'rail-warrior',                    // railing + ducking on butterfly(3) = 6; FM lists 7
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.

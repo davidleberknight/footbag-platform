@@ -162,7 +162,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
-// Canonical set entries (43)
+// Canonical set entries (44)
 // ─────────────────────────────────────────────────────────────────────
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
@@ -396,7 +396,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     equivalenceNotes: [
       { reading: 'Pixie Illusion', citation: 'Holden parenthetical' },
     ],
-    derivedSystems: [],
+    derivedSystems: [
+      { slug: 'railing', label: 'Railing (rooted sailing)' },
+    ],
     relatedSystems: [
       { slug: 'pixie', label: 'Pixie (single-dex base)' },
     ],
@@ -983,6 +985,28 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
+    auditStatus: 'holden-only',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'railing', hashtag: '#railing-set', displayName: 'Railing', subtype: 'rooted-antisymposium',
+    formula: 'TOE > SAME IN [DEX] > OP OUT [DEX] (rooted) >',
+    movementExplanation:
+      'Rooted Sailing: the Sailing set (a Pixie Illusion, a toe set then a same-side inward ' +
+      'dex and an outward illusion dex) carried out under the rooted antisymposium ' +
+      'discipline, with the setting foot staying on the ground. Rooted adds no ADD and ' +
+      'Sailing carries two, so Railing contributes 2. Railing-family trick cards reference ' +
+      'this entry by the (railing set) shorthand instead of repeating the expansion.',
+    equivalenceNotes: [
+      { reading: 'Rooted Sailing', citation: 'Holden-derived (rooted + sailing)' },
+    ],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'sailing', label: 'Sailing (the +2 dex spine)' },
+      { slug: 'rooting', label: 'Rooting / Rooted (the +0 antisymposium discipline)' },
+    ],
+    source: 'holden-only',
+    sourceCitation: 'Holden compilation (2003); Rooted Sailing composition, documented to back the railing trick cohort.',
     auditStatus: 'holden-only',
     tier: 'compositional-system',
   },

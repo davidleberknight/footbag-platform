@@ -1795,8 +1795,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    6,
     derivation:  'shooting(3) + eggbeater(3) = 6 ADD',
-    operationalNotation: '(shooting set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; shooting +3 set prefix shown as a marker, its tokenization pending the Shooting-Star derivation; not curator-confirmed.
-    provenance:  'FootbagMoves promotion (folk name redwetter; technical reading Shooting Eggbeater). Structural ADD 6 (shooting +3 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 6 with the FM-7 over-count recorded as a single-source divergence (big-apple-sauce precedent). eggbeater family. FootbagMoves is the only source; structure uncorroborated. The shooting prefix JOB tokenization awaits the Shooting-Star derivation; not curator-confirmed.',
+    operationalNotation: '(shooting set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; the (shooting set) shorthand resolves to the documented Shooting Set Encyclopedia entry (stepping paradox illusion, +3).
+    provenance:  'FootbagMoves promotion (folk name redwetter; technical reading Shooting Eggbeater). Structural ADD 6 (shooting +3 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 6 with the FM-7 over-count recorded as a single-source divergence (big-apple-sauce precedent). eggbeater family. FootbagMoves is the only source for the redwetter name. The shooting set prefix resolves to the documented Shooting Set Encyclopedia entry (stepping paradox illusion).',
   },
 
   // ── FootbagMoves operator-cleared promotions. big-papa-smurf closes cleanly
@@ -1868,8 +1868,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    5,
     derivation:  'railing(2) + symposium(1) + mirage(2) = 5 ADD',
-    operationalNotation: '(railing set) >> SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // mirage chassis with a no-plant symposium dex; railing (rooted + sailing) +2 set prefix marker, tokenization pending; not curator-confirmed.
-    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + symposium on a 2-ADD mirage). railing = rooted(0) + sailing(2). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence (the railing twin of the furious operator-weight divergence). mirage family. Railing set-prefix JOB pending; not curator-confirmed.',
+    operationalNotation: '(railing set) >> SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // mirage chassis with a no-plant symposium dex; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + symposium on a 2-ADD mirage). railing = rooted(0) + sailing(2). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence (the railing twin of the furious operator-weight divergence). mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
     slug:        'flying-fish',
@@ -1879,8 +1879,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    5,
     derivation:  'railing(2) + ducking(1) + mirage(2) = 5 ADD',
-    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // mirage chassis with a ducking body; railing +2 set prefix marker, tokenization pending; not curator-confirmed.
-    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + ducking on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence. mirage family. Railing set-prefix JOB pending; not curator-confirmed.',
+    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // mirage chassis with a ducking body; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + ducking on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence. mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
     slug:        'rail-warrior',
@@ -1890,8 +1890,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    6,
     derivation:  'railing(2) + ducking(1) + butterfly(3) = 6 ADD',
-    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // butterfly chassis with a ducking body; railing +2 set prefix marker, tokenization pending; not curator-confirmed.
-    provenance:  'FootbagMoves promotion at structural ADD 6 (railing +2 set + ducking on a 3-ADD butterfly). FootbagMoves lists 7; published at 6 with FM-7 as a documented railing-cohort divergence. butterfly family. Railing set-prefix JOB pending; not curator-confirmed.',
+    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // butterfly chassis with a ducking body; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    provenance:  'FootbagMoves promotion at structural ADD 6 (railing +2 set + ducking on a 3-ADD butterfly). FootbagMoves lists 7; published at 6 with FM-7 as a documented railing-cohort divergence. butterfly family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
 
   // ── FootbagMoves recheck-cleared promotions. liquifier is a clean +1
