@@ -160,3 +160,85 @@ export function hasPublicScoringNote(slug: string): boolean {
     && entry.status === 'published'
     && (entry.noteVisibility === 'public' || entry.noteVisibility === 'advanced');
 }
+
+/**
+ * Cohort-level (operator-keyed) source-divergence policy.
+ *
+ * Where the per-slug DOCTRINE_DIVERGENCE_REGISTRY documents one trick's
+ * disagreement with an external source, this documents a SYSTEMATIC
+ * over-count attached to a set operator: FootbagMoves scores every trick
+ * built on the operator higher than the platform's structurally-anchored
+ * weight, consistently across the whole cohort. A single trick can be a
+ * miscount; an entire cohort moving together in one direction is a
+ * convention. The platform publishes the structural value and records the
+ * source convention as a divergence, rather than adopting a weight the
+ * platform grammar does not support.
+ *
+ * Documentation/registry only: this construct is NOT consulted by the
+ * per-trick scoring-note render path. Cohort members publish their
+ * structural value with no per-trick scoring note; the divergence lives in
+ * each row's provenance, as with the single-trick Big Apple Sauce and
+ * redwetter cases. Because the structural weight is independently anchored
+ * and the over-counting source is the non-authoritative single source, no
+ * expert adjudication is required to publish under this policy.
+ */
+export interface OperatorWeightDivergencePolicy {
+  /** Set operator the policy governs (e.g. 'furious', 'railing'). */
+  operator: string;
+
+  /** Platform structural ADD weight for the operator. */
+  structuralWeight: number;
+
+  /** How the structural weight is anchored, in plain words. */
+  structuralAnchor: string;
+
+  /** External source that over-counts the operator. */
+  sourceSystem: string;
+
+  /** Inclusive ADD over-count range the source applies across the cohort. */
+  sourceOverCountRange: readonly [number, number];
+
+  /** Canonical slugs published under this policy. */
+  affectedSlugs: readonly string[];
+
+  /** Factual, source-attributed publication policy. Neutral tone. */
+  policyNote: string;
+
+  /** Curator-internal reasoning; never rendered. */
+  internalNote: string;
+
+  /** Publication lifecycle status. */
+  status: DoctrineEntryStatus;
+}
+
+export const OPERATOR_WEIGHT_DIVERGENCE_POLICY: ReadonlyMap<string, OperatorWeightDivergencePolicy> = new Map([
+  ['furious', {
+    operator:             'furious',
+    structuralWeight:     2,
+    structuralAnchor:     'Fury (Furious Paradox Mirage) is a settled 5 ADD, so furious = 5 minus paradox(1) minus mirage(2) = 2.',
+    sourceSystem:         'FootbagMoves',
+    sourceOverCountRange: [1, 2],
+    affectedSlugs:        ['clown-face', 'genesis', 'rage', 'nebula'],
+    policyNote:           'Furious tricks publish at the platform structural value, with furious weighted at 2. FootbagMoves scores the cohort one to two ADD higher; that figure is recorded as a single-source divergence in each row provenance. The structural weight is anchored independently by Fury and FootbagMoves is the non-authoritative single source, so no expert adjudication is required.',
+    internalNote:         'FootbagMoves scores every furious trick about two ADD high (Furious Whirl 7 vs structural 5, Furious Eggbeater 7 vs 5, and so on across the family). The systematic cohort-wide direction marks a source convention, not a per-trick miscount. Promoted cohort at structural 5: clown-face, genesis, rage, nebula. Single-trick precedent: Big Apple Sauce (source 9 / structural 8).',
+    status:               'published',
+  }],
+  ['railing', {
+    operator:             'railing',
+    structuralWeight:     2,
+    structuralAnchor:     'railing = rooted(0) + sailing(2) = 2; rooted is a 0-ADD set, like pogo.',
+    sourceSystem:         'FootbagMoves',
+    sourceOverCountRange: [1, 2],
+    affectedSlugs:        ['dorshanatrix', 'flying-fish', 'rail-warrior'],
+    policyNote:           'Railing tricks publish at the platform structural value, with railing weighted at 2. FootbagMoves scores the cohort one to two ADD higher; that figure is recorded as a single-source divergence in each row provenance. The structural weight is anchored independently by rooted(0) plus sailing(2) and FootbagMoves is the non-authoritative single source, so no expert adjudication is required.',
+    internalNote:         'Independent second instance of the furious pattern: FootbagMoves scores railing tricks about two ADD high across the cohort (Railing Symposium Mirage 7 vs structural 5, Railing Ducking Mirage 7 vs 5, Railing Ducking Butterfly 7 vs 6). Promoted cohort: dorshanatrix (5), flying-fish (5), rail-warrior (6).',
+    status:               'published',
+  }],
+]);
+
+/** Cohort-level operator-weight divergence policy lookup. Returns null
+ *  when the operator carries no registered divergence policy (the default
+ *  for nearly every operator). */
+export function getOperatorWeightDivergence(operator: string): OperatorWeightDivergencePolicy | null {
+  return OPERATOR_WEIGHT_DIVERGENCE_POLICY.get(operator) ?? null;
+}
