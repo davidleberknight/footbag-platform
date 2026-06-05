@@ -41,6 +41,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'ducking', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'shooting', add_bonus: 3, add_bonus_rotational: 3, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'floating', add_bonus: 3, add_bonus_rotational: 3, modifier_type: 'set' });
+  insertFreestyleTrickModifier(db, { slug: 'warping', add_bonus: 3, add_bonus_rotational: 3, modifier_type: 'set' });
 
   // Bases.
   insertFreestyleTrick(db, { slug: 'mirage', canonical_name: 'mirage', base_trick: 'mirage', adds: '2', notation: 'MIRAGE', category: 'compound', is_active: 1 });
@@ -69,6 +70,10 @@ beforeAll(async () => {
   // floatation — the floating-set (quantum symposium quantum) sibling.
   insertFreestyleTrick(db, { slug: 'floatation', canonical_name: 'floating butterfly', base_trick: 'butterfly', adds: '6', notation: 'FLOATING BUTTERFLY', category: 'compound', is_active: 1 });
   insertFreestyleTrickModifierLink(db, 'floatation', 'floating', 1);
+
+  // warp — the warping-set (two-dex, second symposium) sibling (Red-unlocked).
+  insertFreestyleTrick(db, { slug: 'warp', canonical_name: 'warping mirage', base_trick: 'mirage', adds: '5', notation: 'WARPING MIRAGE', category: 'compound', is_active: 1 });
+  insertFreestyleTrickModifierLink(db, 'warp', 'warping', 1);
 
   db.close();
   createApp = await importApp();
@@ -114,6 +119,12 @@ describe('railing cohort — genuine first-class rendering', () => {
     const html = await trick('floatation');
     expect(html).toContain('Notation summary');
     expect(html).toContain('(floating set)');
+  });
+
+  it('warp (warping set) renders first-class with the shorthand', async () => {
+    const html = await trick('warp');
+    expect(html).toContain('Notation summary');
+    expect(html).toContain('(warping set)');
   });
 
   it('a base trick with no set shorthand renders no EXPANDED row', async () => {

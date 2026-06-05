@@ -1550,11 +1550,12 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     }
   });
 
-  it('§11 spyro→inspin row carries the active-slug clarification', async () => {
+  it('§11 spyro is documented as a distinct gyro move, not an inspin synonym', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // The annotation makes the directionality of the historical mapping explicit.
-    expect(res.text).toMatch(/spyro<\/em>\s+is the active dictionary slug/);
-    expect(res.text).toMatch(/inspin<\/em>\s+is a folk synonym/);
+    // Spyro is its own move (the dexing foot plants before the dex); it is
+    // explicitly NOT equated to inspin.
+    expect(res.text).toMatch(/dexing foot plants before the dex/);
+    expect(res.text).toMatch(/not<\/strong> a synonym for inspin/);
   });
 
   it('category view renders the soft-retirement notice pointing to canonical replacements', async () => {

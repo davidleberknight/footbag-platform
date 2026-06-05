@@ -3719,6 +3719,34 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'flying-fish',                     // railing + ducking on mirage(2) = 5; FM lists 7
   'rail-warrior',                    // railing + ducking on butterfly(3) = 6; FM lists 7
   'floatation',                      // floating(3 = quantum+symposium+quantum) + butterfly(3) = 6; FM lists 7
+  'warp',                            // warping(3 = two-dex set, 2nd dex symposium) + mirage(2) = 5; FM lists 7
+  // Stepping + base batch (leading-[DEX] chassis; stepping=+1; all bases canonical).
+  'stepping-mirage',
+  'stepping-illusion',
+  'stepping-legover',
+  'stepping-butterfly',
+  'stepping-blender',
+  'stepping-reaper',
+  'stepping-rev-whirl',
+  'stepping-paradox-torque',
+  'stepping-diving-mirage',
+  'stepping-diving-butterfly',
+  'stepping-ducking-drifter',
+  'stepping-ducking-paradox-illusion',
+  'stepping-ducking-symposium-eggbeater',
+  // Spinning + base batch (back-spin chassis; spinning=+1; all bases canonical).
+  'spinning-eggbeater',
+  'spinning-rev-whirl',
+  'spinning-tomahawk',
+  'spinning-symposium-torque',
+  'spinning-whirling-swirl',
+  'spinning-ducking-drifter',
+  'spinning-diving-symposium-whirl',
+  'spinning-ducking-symposium-whirl',
+  'spinning-ducking-superfly',
+  'spinning-symposium-flux',
+  'spinning-symposium-whirling-swirl',
+  'spinning-miraging-symposium-torque',
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.

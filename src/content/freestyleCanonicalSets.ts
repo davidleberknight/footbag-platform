@@ -162,7 +162,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
-// Canonical set entries (45)
+// Canonical set entries (46)
 // ─────────────────────────────────────────────────────────────────────
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
@@ -1029,6 +1029,25 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     source: 'platform-tracked',
     sourceCitation: 'Composite set (Quantum Symposium Quantum); curator-ruled at 3 ADD.',
+    auditStatus: 'aligned',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'warping', hashtag: '#warping-set', displayName: 'Warping', subtype: 'composite-derived',
+    formula: 'TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX]',
+    movementExplanation:
+      'Warping is a two-dex set contributing 3 ADD: a first dex, then a second dex carried as a ' +
+      'no-plant symposium event. Warping-family trick cards reference this entry by the ' +
+      '(warping set) shorthand instead of repeating the expansion.',
+    equivalenceNotes: [
+      { reading: 'two dexes, the second is symposium', citation: 'curator-ruled' },
+    ],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'sailing', label: 'Sailing (sibling composite set)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Composite set (two dexes, second symposium); curator-ruled at 3 ADD.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
