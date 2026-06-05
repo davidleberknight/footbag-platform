@@ -38,6 +38,13 @@ REPO = Path(__file__).resolve().parents[2]
 PACKET = REPO / "exploration/phase-e-promotion-packet-2026-05-28"
 IMPL = REPO / "exploration/phase-e-implementation-2026-05-28"
 OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
+# Canonical CSVs (loader 17 + loader 19). Any slug present here is
+# canonical-published; the observational layer must never also carry it (layer
+# separation forbids one slug in both). Mirrors the dual-gate in
+# build_tracked_names_content.py so a promoted slug leaves this surface on the
+# next regen even when the upstream packet CSVs still list it.
+TRICKS_CSV = REPO / "legacy_data/inputs/noise/tricks.csv"
+RED_ADD_CSV = REPO / "legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv"
 
 DOCTRINE_CLUSTERS = {"blurry/furious", "weaving", "pogo", "shooting"}
 # Doctrine clusters whose STRUCTURE is known (blocked only on an ADD / classification
@@ -147,6 +154,24 @@ def main() -> None:
             intake = "unresolved_candidate" if corroborated(r["slug"]) else "low_confidence"
         rows.append(row(r["name"], r["slug"], r["source_corpus"], eco, "",
                         section, cluster, "", r["doctrine_confidence"], "", "", "", fc, intake))
+
+    # ── canonical dual-gate ── drop any row whose slug is now canonical-
+    # published (loader 17 tricks.csv `trick_canon` or loader 19 red_additions
+    # `canonical_name`). A promoted slug leaves the observational surface here
+    # even when the upstream packet CSVs still carry it, so the layer never
+    # shows a slug that is also a published canonical trick.
+    canonical_slugs: set[str] = set()
+    if TRICKS_CSV.exists():
+        for c in read(TRICKS_CSV):
+            s = (c.get("trick_canon", "") or "").strip()
+            if s:
+                canonical_slugs.add(s)
+    if RED_ADD_CSV.exists():
+        for c in read(RED_ADD_CSV):
+            s = (c.get("canonical_name", "") or "").strip()
+            if s:
+                canonical_slugs.add(s)
+    rows = [r for r in rows if r["slug"] not in canonical_slugs]
 
     # ── lexical-duplicate collapse (Phase 1) ──
     # Same canonical slug across rows is wording/source drift, not distinct
