@@ -3707,6 +3707,8 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'swirlwind',                       // spinning + paradox + symposium + whirling on swirl(3) = 7
   'genuphobia',                      // fairy + spyro + symposium on torque(4) = 7
   'redwetter',                       // shooting on eggbeater(3) = 6; FM lists 7
+  'big-papa-smurf',                  // surfing on blender(4) = 7 (clean, no divergence)
+  'liquifier',                       // splicing on blender(4) = 6; FM lists 7
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.

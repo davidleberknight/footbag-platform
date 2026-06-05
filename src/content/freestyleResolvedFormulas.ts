@@ -1798,4 +1798,137 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: '(shooting set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; shooting +3 set prefix shown as a marker, its tokenization pending the Shooting-Star derivation; not curator-confirmed.
     provenance:  'FootbagMoves promotion (folk name redwetter; technical reading Shooting Eggbeater). Structural ADD 6 (shooting +3 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 6 with the FM-7 over-count recorded as a single-source divergence (big-apple-sauce precedent). eggbeater family. FootbagMoves is the only source; structure uncorroborated. The shooting prefix JOB tokenization awaits the Shooting-Star derivation; not curator-confirmed.',
   },
+
+  // ── FootbagMoves operator-cleared promotions. big-papa-smurf closes cleanly
+  //    at 7. The furious and railing cohorts publish at STRUCTURAL value with
+  //    the FM over-count recorded as a documented divergence (the furious/
+  //    railing publish-at-structural policy; platform furious=2, railing=2).
+  //    Set-prefix JOB tokenization (surfing/furious/railing) is pending; the
+  //    structural decomposition and ADD are confirmed.
+  {
+    slug:        'big-papa-smurf',
+    name:        'big papa smurf',
+    operator:    'surfing',
+    base:        'blender',
+    baseAdd:     4,
+    totalAdd:    7,
+    derivation:  'surfing(3) + blender(4) = 7 ADD',
+    operationalNotation: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // surfing set (fairy entry + no-plant symposium + swirling dex) on the blender chassis; bracket count 7 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves single-source 7-ADD promotion. surfing resolves to fairy + symposium + swirling (a +3 set); blender is a 4-ADD canonical. ADD closes at 7, blender family, no divergence. FootbagMoves is the only source; notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'clown-face',
+    name:        'clown face',
+    operator:    'furious',
+    base:        'eggbeater',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'furious(2) + eggbeater(3) = 5 ADD',
+    operationalNotation: '(furious set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; furious +2 set prefix shown as a marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (furious +2 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 5 with the FM-7 over-count recorded as a documented divergence (the furious-cohort operator-weight divergence; platform furious=2 is anchored by Fury=5). eggbeater family. The furious set-prefix JOB tokenization is pending; not curator-confirmed.',
+  },
+  {
+    slug:        'genesis',
+    name:        'genesis',
+    operator:    'furious',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'furious(2) + whirl(3) = 5 ADD',
+    operationalNotation: '(furious set) >> SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',  // whirl chassis from DB; furious +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (furious +2 set on a 3-ADD whirl). FootbagMoves lists 7; published at 5 with FM-7 as a documented furious-cohort divergence. whirl family. Furious set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'rage',
+    name:        'rage',
+    operator:    'furious + symposium',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    5,
+    derivation:  'furious(2) + symposium(1) + mirage(2) = 5 ADD',
+    operationalNotation: '(furious set) >> SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // mirage chassis with a no-plant symposium dex; furious +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (furious +2 set + symposium on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented furious-cohort divergence. mirage family. Furious set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'nebula',
+    name:        'nebula',
+    operator:    'furious',
+    base:        'double-leg-over',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'furious(2) + double-leg-over(3) = 5 ADD',
+    operationalNotation: '(furious set) >> SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // double-leg-over chassis from DB; furious +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (furious +2 set on a 3-ADD double-leg-over). FootbagMoves lists 7; published at 5 with FM-7 as a documented furious-cohort divergence. double-leg-over family. Furious set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'dorshanatrix',
+    name:        'dorshanatrix',
+    operator:    'railing + symposium',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    5,
+    derivation:  'railing(2) + symposium(1) + mirage(2) = 5 ADD',
+    operationalNotation: '(railing set) >> SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // mirage chassis with a no-plant symposium dex; railing (rooted + sailing) +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + symposium on a 2-ADD mirage). railing = rooted(0) + sailing(2). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence (the railing twin of the furious operator-weight divergence). mirage family. Railing set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'flying-fish',
+    name:        'flying fish',
+    operator:    'railing + ducking',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    5,
+    derivation:  'railing(2) + ducking(1) + mirage(2) = 5 ADD',
+    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // mirage chassis with a ducking body; railing +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + ducking on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence. mirage family. Railing set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'rail-warrior',
+    name:        'rail warrior',
+    operator:    'railing + ducking',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    6,
+    derivation:  'railing(2) + ducking(1) + butterfly(3) = 6 ADD',
+    operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // butterfly chassis with a ducking body; railing +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 6 (railing +2 set + ducking on a 3-ADD butterfly). FootbagMoves lists 7; published at 6 with FM-7 as a documented railing-cohort divergence. butterfly family. Railing set-prefix JOB pending; not curator-confirmed.',
+  },
+
+  // ── FootbagMoves recheck-cleared promotions. liquifier is a clean +1
+  //    divergence (splicing = gyro + reving). bill-ted dedupes a redundant
+  //    symposium (flailing already contains it). oh-wheely takes nuclear at its
+  //    base weight because the X-Dex does not fire on a legover base.
+  {
+    slug:        'liquifier',
+    name:        'liquifier',
+    operator:    'splicing',
+    base:        'blender',
+    baseAdd:     4,
+    totalAdd:    6,
+    derivation:  'splicing(2) + blender(4) = 6 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // splicing = gyro spin + reving reverse dex on the blender chassis; bracket count 6 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 6. splicing resolves to gyro + reving (= reverse whirling), a +2 set; blender is a 4-ADD canonical. FootbagMoves lists 7; published at 6 with the +1 over-count as a documented single-source divergence (redwetter precedent). blender family. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'bill-ted-s-excellent-adventure',
+    name:        'bill ted s excellent adventure',
+    operator:    'flailing',
+    base:        'eggbeater',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'flailing(2) + eggbeater(3) = 5 ADD',
+    operationalNotation: '(flailing set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; flailing (symposium illusioning) +2 set prefix marker, tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 5. flailing = symposium illusioning (+2); the explicit Symposium in the FootbagMoves name is the same symposium (redundant, deduped to a single symposium). flailing(2) + eggbeater(3) = 5. FootbagMoves lists 7; published at 5 with FM-7 as a documented operator-weight divergence. eggbeater family. Flailing set-prefix JOB pending; not curator-confirmed.',
+  },
+  {
+    slug:        'oh-wheely',
+    name:        'oh wheely',
+    operator:    'nuclear',
+    base:        'nova',
+    baseAdd:     4,
+    totalAdd:    6,
+    derivation:  'nuclear(2) + nova(4) = 6 ADD',
+    operationalNotation: '(nuclear set) >> TOE >> (no plant while) OP IN [DEX] [BOD] > OP OUT [DEX] > SAME TOE [DEL]',  // nova chassis from DB; nuclear +2 paradox-illusion prefix marker (X-Dex does not fire on the legover base), tokenization pending; not curator-confirmed.
+    provenance:  'FootbagMoves promotion at structural ADD 6. nova = symposium double-leg-over (4 ADD, legover family). The nuclear X-Dex triggers only on far miraging or illusioning moves, so on the nova base it does not fire and nuclear contributes its paradox-illusion base weight (+2). nuclear(2) + nova(4) = 6. FootbagMoves lists 7; published at 6 with the +1 over-count as a documented single-source divergence. family corrected to legover (nova terminal-identity). Nuclear set-prefix JOB pending; not curator-confirmed.',
+  },
 ];
