@@ -1281,6 +1281,10 @@ export interface ComparativeNotationRow {
    *  upper-case chain form for singleton atoms; 'absent' = no lineage
    *  notation available (last-resort empty state). */
   jobLineageSource:   'curator' | 'derived' | 'atomic' | 'absent';
+  /** Fully spelled-out operational chain when jobLineage uses a named-set
+   *  shorthand (e.g. '(railing set) >>'); empty string when the lineage is
+   *  already fully expanded. Renders as the EXPANDED summary row. */
+  expandedNotation:   string;
   /** ADD-breakdown derivation string (e.g. 'paradox(+1) + mirage(2) = 3 ADD'). */
   addBreakdown:       string;
   /** 'curator' = curator-published RESOLVED_FORMULAS_SPRINT_1 row;
@@ -3714,6 +3718,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'dorshanatrix',                    // railing + symposium on mirage(2) = 5; FM lists 7
   'flying-fish',                     // railing + ducking on mirage(2) = 5; FM lists 7
   'rail-warrior',                    // railing + ducking on butterfly(3) = 6; FM lists 7
+  'floatation',                      // floating(3 = quantum+symposium+quantum) + butterfly(3) = 6; FM lists 7
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
@@ -4542,6 +4547,11 @@ function shapeComparativeNotation(
   // back to atomic flag-component decomposition from the curator-
   // published registry. No trivial-identity fallback.
   const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  // EXPANDED row — full operational chain for entries whose jobLineage uses a
+  // named-set shorthand. The detail page carries both forms; compact cards
+  // keep the shorthand. Suppressed when it would echo the JOB row verbatim.
+  let expandedNotation = (published?.expandedNotation ?? '').trim();
+  if (expandedNotation && expandedNotation === jobLineage.trim()) expandedNotation = '';
   const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
   let addBreakdown: string;
   let addBreakdownSource: ComparativeNotationRow['addBreakdownSource'];
@@ -4591,6 +4601,7 @@ function shapeComparativeNotation(
     compactNotation,
     jobLineage,
     jobLineageSource,
+    expandedNotation,
     addBreakdown,
     addBreakdownSource,
     officialAdd,

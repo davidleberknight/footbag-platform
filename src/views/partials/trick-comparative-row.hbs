@@ -8,6 +8,10 @@
     - JOB           — content.comparativeNotation.jobLineage
                       (curator-authored operational notation or atomic
                       flag-decomposition chain). Hidden when absent.
+    - EXPANDED      — content.comparativeNotation.expandedNotation
+                      (full spelled-out chain when JOB uses a named-set
+                      shorthand, e.g. '(railing set)'). Hidden when absent
+                      or identical to JOB.
     - ADD           — content.comparativeNotation.addBreakdown
                       (curator-published derivation, or atomic flag-
                       decomposition string). Always rendered when the
@@ -34,6 +38,11 @@
     {{#if content.comparativeNotation.jobLineage}}
     <dt>JOB</dt>
     <dd><code class="trick-notation-summary-chain">{{content.comparativeNotation.jobLineage}}</code></dd>
+    {{/if}}
+
+    {{#if content.comparativeNotation.expandedNotation}}
+    <dt>EXPANDED</dt>
+    <dd><code class="trick-notation-summary-chain">{{content.comparativeNotation.expandedNotation}}</code></dd>
     {{/if}}
 
     <dt>ADD</dt>

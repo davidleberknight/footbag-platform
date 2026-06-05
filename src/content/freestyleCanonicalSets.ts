@@ -162,7 +162,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
-// Canonical set entries (44)
+// Canonical set entries (45)
 // ─────────────────────────────────────────────────────────────────────
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
@@ -955,13 +955,15 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
   // ── Rooted / antisymposium systems (2) ─────────────────────────────
   {
     slug: 'rooting', hashtag: '#rooting-set', displayName: 'Rooting / Rooted', subtype: 'rooted-antisymposium',
-    formula: 'Discipline modifier: the setting foot stays on the ground (antisymposium)',
+    formula: 'Support-foot set, then dex (antisymposium); 0 ADD',
     movementExplanation:
-      'Antisymposium discipline. The setting foot stays on the ground throughout — the ' +
-      'inverse of symposium\'s no-plant constraint. Discipline-level rather than a literal ' +
-      'grammar string.',
+      'Rooted is a set in its own right and an antisymposium discipline: the footbag is set ' +
+      'from the support foot, which then dexes the footbag. The setting foot stays on the ' +
+      'ground throughout, the inverse of symposium\'s no-plant constraint. It carries one ' +
+      'attached dexterity but contributes no ADD. Railing-family tricks carry this as their ' +
+      '(rooted) annotation.',
     equivalenceNotes: [
-      { reading: 'antisymposium discipline', citation: 'Holden framing' },
+      { reading: 'support-foot set with attached dex (antisymposium)', citation: 'curator-ruled' },
     ],
     derivedSystems: [
       { slug: 'zoid', label: 'Zoid (rooted toe-clipper set)' },
@@ -1008,6 +1010,26 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); Rooted Sailing composition, documented to back the railing trick cohort.',
     auditStatus: 'holden-only',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'floating', hashtag: '#floating-set', displayName: 'Floating', subtype: 'composite-derived',
+    formula: 'Quantum Symposium Quantum',
+    movementExplanation:
+      'Floating is a composite set reading Quantum Symposium Quantum: a quantum entry, a ' +
+      'no-plant symposium event, and a second quantum, contributing 3 ADD. Floating-family ' +
+      'trick cards reference this entry by the (floating set) shorthand instead of repeating ' +
+      'the expansion.',
+    equivalenceNotes: [
+      { reading: 'Quantum Symposium Quantum', citation: 'curator-ruled' },
+    ],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'sailing', label: 'Sailing (sibling composite set)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Composite set (Quantum Symposium Quantum); curator-ruled at 3 ADD.',
+    auditStatus: 'aligned',
     tier: 'compositional-system',
   },
 

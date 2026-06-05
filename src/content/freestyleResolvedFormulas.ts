@@ -100,6 +100,13 @@ export interface ResolvedFormula {
    *  operational form is curator-settled. Leave null/undefined when no
    *  JOB notation has been authored — the DB column stays authoritative. */
   operationalNotation?: string | null;
+  /** Fully spelled-out operational chain for entries whose
+   *  operationalNotation uses a named-set shorthand (e.g. '(railing set) >>').
+   *  Surfaces as an extra EXPANDED row on the first-class detail notation
+   *  summary so the detail page carries both the compact shorthand and the
+   *  full form; compact browse cards keep the shorthand. Leave undefined when
+   *  operationalNotation is already fully spelled out. */
+  expandedNotation?: string | null;
 }
 
 export const RESOLVED_FORMULAS_FRAMING_PROSE =
@@ -1796,6 +1803,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    6,
     derivation:  'shooting(3) + eggbeater(3) = 6 ADD',
     operationalNotation: '(shooting set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; the (shooting set) shorthand resolves to the documented Shooting Set Encyclopedia entry (stepping paradox illusion, +3).
+    expandedNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // shooting set spelled out (stepping paradox illusion) merged into the eggbeater chassis; bracket count 6 matches ADD.
     provenance:  'FootbagMoves promotion (folk name redwetter; technical reading Shooting Eggbeater). Structural ADD 6 (shooting +3 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 6 with the FM-7 over-count recorded as a single-source divergence (big-apple-sauce precedent). eggbeater family. FootbagMoves is the only source for the redwetter name. The shooting set prefix resolves to the documented Shooting Set Encyclopedia entry (stepping paradox illusion).',
   },
 
@@ -1869,6 +1877,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'railing(2) + symposium(1) + mirage(2) = 5 ADD',
     operationalNotation: '(railing set) >> SET > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // mirage chassis with a no-plant symposium dex; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    expandedNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] (rooted) > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // railing set spelled out (rooted sailing) merged into the symposium-mirage chassis; bracket count 5 matches ADD.
     provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + symposium on a 2-ADD mirage). railing = rooted(0) + sailing(2). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence (the railing twin of the furious operator-weight divergence). mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
@@ -1880,6 +1889,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'railing(2) + ducking(1) + mirage(2) = 5 ADD',
     operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // mirage chassis with a ducking body; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    expandedNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] (rooted) > DUCK [BOD] > OP IN [DEX] > OP TOE [DEL]',  // railing set spelled out (rooted sailing) merged into the ducking-mirage chassis; bracket count 5 matches ADD.
     provenance:  'FootbagMoves promotion at structural ADD 5 (railing +2 set + ducking on a 2-ADD mirage). FootbagMoves lists 7; published at 5 with FM-7 as a documented railing-cohort divergence. mirage family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
   {
@@ -1891,6 +1901,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    6,
     derivation:  'railing(2) + ducking(1) + butterfly(3) = 6 ADD',
     operationalNotation: '(railing set) >> CLIP > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // butterfly chassis with a ducking body; the (railing set) shorthand resolves to the documented Railing Set Encyclopedia entry (rooted + sailing, +2).
+    expandedNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] (rooted) > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // railing set spelled out (rooted sailing) merged into the ducking-butterfly chassis; bracket count 6 matches ADD.
     provenance:  'FootbagMoves promotion at structural ADD 6 (railing +2 set + ducking on a 3-ADD butterfly). FootbagMoves lists 7; published at 6 with FM-7 as a documented railing-cohort divergence. butterfly family. The railing set prefix resolves to the documented Railing Set Encyclopedia entry (rooted + sailing).',
   },
 
@@ -1908,6 +1919,17 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'splicing(2) + blender(4) = 6 ADD',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // splicing = gyro spin + reving reverse dex on the blender chassis; bracket count 6 matches ADD; not curator-confirmed.
     provenance:  'FootbagMoves promotion at structural ADD 6. splicing resolves to gyro + reving (= reverse whirling), a +2 set; blender is a 4-ADD canonical. FootbagMoves lists 7; published at 6 with the +1 over-count as a documented single-source divergence (redwetter precedent). blender family. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'floatation',
+    name:        'floatation',
+    operator:    'floating',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    6,
+    derivation:  'floating(3) + butterfly(3) = 6 ADD',
+    operationalNotation: '(floating set) >> SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // butterfly chassis; the (floating set) shorthand resolves to the documented Floating Set Encyclopedia entry (quantum symposium quantum, +3).
+    provenance:  'FootbagMoves promotion at structural ADD 6 (floating +3 set on a 3-ADD butterfly). floating resolves to quantum + symposium + quantum, curator-ruled at 3 ADD. FootbagMoves lists 7; published at 6 with the FM-7 over-count recorded as a single-source divergence. butterfly family. Notation sibling-composed; not curator-confirmed.',
   },
   {
     slug:        'bill-ted-s-excellent-adventure',
