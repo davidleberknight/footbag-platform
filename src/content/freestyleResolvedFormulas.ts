@@ -1748,4 +1748,54 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed from spinning-ducking-paradox-symposium-whirl (paradox + symposium on a no-plant dex) + torque terminal; bracket count 8 matches ADD; not curator-confirmed.
     provenance:  'FootbagMoves promotion. Folk name big-apple-sauce; technical reading Spinning Paradox Miraging Symposium Torque. Structural ADD 8 (spinning + paradox + miraging + symposium on torque). FootbagMoves lists 9; published at the structural 8 with the FM-9 over-count recorded as a single-source divergence, consistent with the frequency-is-not-authority and outlier precedent. All operators defined; torque family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
   },
+
+  // ── FootbagMoves single-source 7-ADD promotions (ready-now batch). Operators
+  //    all defined, math closes, base atoms canonical; FM is the sole source so
+  //    structure is uncorroborated and notation sibling-composed (not
+  //    curator-confirmed). redwetter publishes at structural 6 with FM-7 as a
+  //    documented divergence (big-apple-sauce precedent).
+  {
+    slug:        'margaritaville',
+    name:        'margaritaville',
+    operator:    'surging + paradox',
+    base:        'blender',
+    baseAdd:     4,
+    totalAdd:    7,
+    derivation:  'surging(2) + paradox(1) + blender(4) = 7 ADD ([BOD] + [DEX] + [PDX] + [DEX] + [BOD] + [XBD] + [DEL])',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // sibling-composed from spinning-ducking-paradox-blender (ducking -> stepping); bracket count 7 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves single-source 7-ADD promotion (folk name margaritaville; technical reading Surging Paradox Blender). surging decomposes to spinning + stepping; paradox is a settled +1; blender is a 4-ADD canonical (whirling osis). All operators defined, ADD closes at 7, blender family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'swirlwind',
+    name:        'swirlwind',
+    operator:    'spinning + paradox + symposium + whirling',
+    base:        'swirl',
+    baseAdd:     3,
+    totalAdd:    7,
+    derivation:  'spinning(1) + paradox(1) + symposium(1) + whirling(1) + swirl(3) = 7 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // sibling-composed from whirling-swirl + the spinning-ducking-paradox-symposium-whirl no-plant-dex pattern; bracket count 7 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves single-source 7-ADD promotion (folk name swirlwind; technical reading Spinning Paradox Symposium Whirling Swirl). All operators defined (spinning, paradox, symposium, whirling on a 3-ADD swirl atom), ADD closes at 7, swirl family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'genuphobia',
+    name:        'genuphobia',
+    operator:    'fairy + spyro + symposium',
+    base:        'torque',
+    baseAdd:     4,
+    totalAdd:    7,
+    derivation:  'fairy(1) + spyro(1) + symposium(1) + torque(4) = 7 ADD',
+    operationalNotation: 'TOE > SAME OUT [DEX] > (front) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // sibling-composed: fairy entry dex + spyro spin + symposium no-plant dex on a torque chassis; bracket count 7 matches ADD; not curator-confirmed.
+    provenance:  'FootbagMoves single-source 7-ADD promotion (folk name genuphobia; technical reading Fairy Spyro Symposium Torque). fairy is a +1 entry-side set; spyro is a 1-ADD body spin; symposium is a +1 no-plant modifier; torque is a 4-ADD canonical. ADD closes at 7, torque family. FootbagMoves is the only source; structure uncorroborated. Notation sibling-composed; not curator-confirmed.',
+  },
+  {
+    slug:        'redwetter',
+    name:        'redwetter',
+    operator:    'shooting',
+    base:        'eggbeater',
+    baseAdd:     3,
+    totalAdd:    6,
+    derivation:  'shooting(3) + eggbeater(3) = 6 ADD',
+    operationalNotation: '(shooting set) >> TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // eggbeater chassis from DB; shooting +3 set prefix shown as a marker, its tokenization pending the Shooting-Star derivation; not curator-confirmed.
+    provenance:  'FootbagMoves promotion (folk name redwetter; technical reading Shooting Eggbeater). Structural ADD 6 (shooting +3 set on a 3-ADD eggbeater). FootbagMoves lists 7; published at the structural 6 with the FM-7 over-count recorded as a single-source divergence (big-apple-sauce precedent). eggbeater family. FootbagMoves is the only source; structure uncorroborated. The shooting prefix JOB tokenization awaits the Shooting-Star derivation; not curator-confirmed.',
+  },
 ];

@@ -3702,6 +3702,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // policy with honest single-source provenance.
   'surging-ducking-paradox-torque', // surging + ducking + paradox on torque(4) = 8
   'big-apple-sauce',                 // spinning + paradox + miraging + symposium on torque(4) = 8; FM lists 9
+  // FootbagMoves single-source 7-ADD ready-now batch (same provenance posture).
+  'margaritaville',                  // surging + paradox on blender(4) = 7
+  'swirlwind',                       // spinning + paradox + symposium + whirling on swirl(3) = 7
+  'genuphobia',                      // fairy + spyro + symposium on torque(4) = 7
+  'redwetter',                       // shooting on eggbeater(3) = 6; FM lists 7
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
