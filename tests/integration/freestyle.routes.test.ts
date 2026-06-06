@@ -390,6 +390,14 @@ describe('GET /freestyle/about', () => {
     expect(res.text).toContain('30 Second Shred');
     expect(res.text).toContain('Sick 3');
   });
+
+  it('links onward to the trick dictionary, glossary, and learn pages', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/about');
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/learn"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -772,20 +780,14 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).not.toMatch(/—\s*ADD/);
   });
 
-  // The "merged Bladerunner entry" test was retired in Slice 7-OBS-A
-  // (2026-05-23): bladerunner was promoted from Emerging Vocabulary to a
-  // canonical row under the FM dex-count convention. Its proposed-readings
-  // pair lives in resolved-formulas provenance metadata, not on the
-  // observational page. The multi-reading merge invariant is still
-  // covered by other entries (e.g. goliath was similar before promotion;
-  // big-orange / king-koopa / super-mario remain observational with
-  // multi-reading arrays).
-  it('a multi-reading observational entry still renders all readings', async () => {
+  it('a folk-layer entry is documented by name in the Folk / Unresolved archive', async () => {
+    // The page is driven by the generated observational universe: folk
+    // entries whose structure is not yet understood (Big Orange) render
+    // by name in the Folk / Unresolved full list. Proposed readings are
+    // not rendered on this surface; they stay curator-internal until a
+    // structural reading is adjudicated.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Big Orange has two proposed readings: 'Spinning near Symp. Flux'
-    // and 'Rev. Big Apple'.
-    expect(res.text).toContain('Spinning near Symp. Flux');
-    expect(res.text).toContain('Rev. Big Apple');
+    expect(res.text).toContain('Big Orange');
   });
 });
 

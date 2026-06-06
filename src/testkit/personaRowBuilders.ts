@@ -819,6 +819,11 @@ export interface LegacyClubCandidateOverrides {
   id?: string;
   legacy_club_key?: string;
   display_name?: string;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  description?: string | null;
+  external_url?: string | null;
   mapped_club_id?: string | null;
   classification?: LegacyClubCandidateClassification;
   confidence_score?: number | null;
@@ -849,7 +854,8 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
   const id = o.id ?? `lcc-test-${uid()}`;
   db.prepare(`
     INSERT INTO legacy_club_candidates (
-      id, legacy_club_key, display_name, mapped_club_id, classification,
+      id, legacy_club_key, display_name, city, region, country,
+      description, external_url, mapped_club_id, classification,
       confidence_score, bootstrap_eligible,
       r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
       contact_signal_substitute_applied,
@@ -858,7 +864,8 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
       ever_hosted,
       created_at, created_by, updated_at, updated_by, version
     ) VALUES (
-      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?,
       ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?,
@@ -871,6 +878,11 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     id,
     o.legacy_club_key ?? `legacy_club_${uid()}`,
     o.display_name    ?? 'Test Club',
+    o.city            !== undefined ? o.city : null,
+    o.region          !== undefined ? o.region : null,
+    o.country         !== undefined ? o.country : null,
+    o.description     !== undefined ? o.description : null,
+    o.external_url    !== undefined ? o.external_url : null,
     o.mapped_club_id  !== undefined ? o.mapped_club_id : null,
     o.classification  ?? 'junk',
     o.confidence_score !== undefined ? o.confidence_score : null,

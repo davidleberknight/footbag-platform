@@ -47,3 +47,28 @@ exclusions are self-tightening: companion tests in the same file fail the
 moment an excluded surface becomes compliant, naming the exclusion to prune,
 and the final pruning extends the font gate to the whole file. Closure rides
 the freestyle-pages-fixes list in `legacy_data/IMPLEMENTATION_PLAN.md`.
+
+### Wizard Stage 2 club cards deviate from the US card contract
+
+The Stage 2A/2B cards render name and location only; the US contract has
+each card surface the club's or candidate's description and external URL,
+and gives Stage 2A cards an "I'd like to join" link to the club's join page.
+Stage 2 matching also falls back country-wide when the registrant's region
+yields nothing, where the US specifies region-level matching; and the
+wrap-up tier-gate is a static notice where the US specifies a two-path
+advisory with an upgrade route. Closes with the wizard card remediation
+alongside the candidate-promotion work.
+
+### Stage 2 viability signals on unpromoted candidates are dropped
+
+`club_viability_signals.club_id` is NOT NULL referencing `clubs`, so the
+wizard silently discards every activity signal submitted against a candidate
+that has no live club row, including "Not sure" and "Never heard of it"
+answers the US says are stored. "Still active" / "Not active anymore"
+resolve via candidate promotion (the signal lands post-promotion); the
+remaining two need either a candidate-capable signals schema or a ratified
+decision that they are recorded only for live clubs. Cleanup hygiene riding
+this entry: the orphaned `legacy_auto_link_notification` email-template seed
+(superseded model, zero code references), the unused `'stage3a'` value in
+the `source_stage` CHECK, and a missing junk-classification guard in
+`listPendingForLegacyMember` (latent until promotion lands).

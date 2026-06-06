@@ -453,7 +453,7 @@ The following surfaces are designed against the dump's production-shaped fields.
 
 1. **Optional mailbox-control link click.** Member declares an old email; the platform offers a confirmation-link round-trip; clicking the link while signed in to the same account upgrades the audit tier from `declared_anchor_only` to `mailbox_control_via_link_click`. Token storage uses `account_tokens` with `token_type = 'mailbox_link'` bound to the anchor via `target_anchor_id` (SHA-256 hash only); rate-limited per requesting member, per target anchor, and per IP. Data-side gate: the dump must populate `legacy_email` on enough rows that the round-trip is reachable as an opt-in upgrade. Gate ID: G22.
 2. **Multi-anchor candidate classification** (classifier and declared-anchor surfaces built). Auto-link queries the verified-modern-email anchor, the declared-old-email anchors, and the declared-former-surname anchor against the `legacy_members` set, and against `historical_persons` via the back-link. Data-side gate: the dump payload must populate at least one anchor per identity and the `name_variants` seed must be in place to drive same-name variant resolution. Gate IDs: G23 (anchor coverage) and G11 (variants seeded).
-3. **Batch auto-link candidate staging at cutover** (rework in flight: the built batch job implements the superseded silent-and-notified model; the stage-and-confirm rework is tracked in `IMPLEMENTATION_PLAN.md`). A one-time system job stages candidates without mutating live tables, wrapped by the standard `system_job_runs` lifecycle for observability. Idempotent: rerun produces no duplicate staged candidates. Data-side gate: must run after the dump load and before §24 State 3 → State 4 transition. Gate ID: G24.
+3. **Batch auto-link candidate staging at cutover.** A one-time system job stages candidates without mutating live tables, wrapped by the standard `system_job_runs` lifecycle for observability. Idempotent: rerun produces no duplicate staged candidates. Data-side gate: must run after the dump load and before §24 State 3 → State 4 transition. Gate ID: G24.
 4. **Direct historical-record claim affordance** (built). The `/history/:personId/claim` confirm page handles the surname-match check (current or declared former) and the first-name-variant warning inline; on success it writes an `audit_entries` row carrying the evidence tier and any name variant used. Data-side gate: full value depends on `name_variants` being seeded. Gate IDs: G25 (affordance) and G11 (variants seeded).
 
 ---
@@ -754,7 +754,7 @@ Admin's user-facing entry point is `A_Periodic_Club_Cleanup` in USER_STORIES.
 
 #### Member flag mechanism
 
-Members flag clubs through one surface: the onboarding wizard. Negative wizard answers (membership rejections, never-heard-of-it reports, not-active activity signals) are recorded as `club_viability_signals` rows per `M_Complete_Onboarding_Wizard`, carrying the club id, the member id, the signal value, the wizard stage, and a timestamp. The cleanup queue counts them one vote per member (latest signal wins) and names negative voters to the admin; authorship never renders publicly.
+Members flag clubs through one surface: the onboarding wizard. Negative activity answers (never-heard-of-it reports, not-active signals) are recorded as `club_viability_signals` rows per `M_Complete_Onboarding_Wizard`, carrying the club id, the member id, the signal value, the wizard stage, and a timestamp; membership rejections persist as affiliation status transitions and surface to admin through the residue counts. The cleanup queue counts them one vote per member (latest signal wins) and names negative voters to the admin; authorship never renders publicly.
 
 #### On-demand cleanup evaluation
 
@@ -767,7 +767,6 @@ Unconfirmed `legacy_person_club_affiliations` residue (`'pending'` rows) is reti
 When an admin opens the queue, it aggregates the items requiring human judgment:
 
 - Wizard-generated flags grouped by candidate or live club.
-- Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
 - Junk-flagged candidates (per §10.1 junk rules) and any admin force-keep or force-junk requests.
 - Non-junk candidates not yet promoted to live `clubs` rows.
 - `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club with each club's pending count and oldest-row age.
@@ -1922,7 +1921,7 @@ Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transit
 - Controllers: `src/internal-qc/controllers/netQcController.ts`, `src/internal-qc/controllers/personsQcController.ts`.
 - Services: `src/internal-qc/services/netQcService.ts`, `src/internal-qc/services/personsQcChecks.ts`, `src/internal-qc/services/personsQcService.ts`.
 - Views: every `.hbs` file under `src/views/internal-qc/`.
-- `src/db/db.ts`: every prepared-statement group banner-marked `// ---- QC-only (delete with pipeline-qc subsystem) ----` (currently around lines 2122, 2249, 2333, 2801, 2988, 3183, 3276, 5698).
+- `src/db/db.ts`: every prepared-statement group banner-marked `// ---- QC-only (delete with pipeline-qc subsystem) ----`.
 - Schema tables in `database/schema.sql`: `net_review_queue` (and any future QC-only tables added under the same banner).
 - Tests: `tests/integration/persons.qc.routes.test.ts`, `tests/integration/clubs-qc-panel.routes.test.ts`, plus any tests that exercise the deleted routes.
 - Route mounting in `src/app.ts` for the `/internal/*` router (and the router file itself if it serves only QC).

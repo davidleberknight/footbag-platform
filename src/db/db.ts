@@ -912,6 +912,8 @@ export interface LegacyClubCandidateRow {
   city: string | null;
   region: string | null;
   country: string | null;
+  description: string | null;
+  external_url: string | null;
   classification: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
   mapped_club_id: string | null;
 }
@@ -919,9 +921,29 @@ export interface LegacyClubCandidateRow {
 export const legacyClubCandidates = {
   get findById() { return db.prepare(`
     SELECT id, legacy_club_key, display_name, city, region, country,
-           classification, mapped_club_id
+           description, external_url, classification, mapped_club_id
       FROM legacy_club_candidates
      WHERE id = ?
+  `); },
+
+  // Candidates an admin can promote to a live clubs row. Junk is never
+  // promotable; pre_populate rows are stamped by the pipeline at cutover,
+  // so an unmapped candidate here is exactly the onboarding_visible /
+  // dormant residue the cleanup queue offers a promote action for.
+  get listPromotableForQueue() { return db.prepare(`
+    SELECT id, display_name, city, region, country, classification
+      FROM legacy_club_candidates
+     WHERE classification IN ('onboarding_visible', 'dormant')
+       AND mapped_club_id IS NULL
+     ORDER BY country COLLATE NOCASE ASC, display_name COLLATE NOCASE ASC
+  `); },
+
+  // Records a promotion. The mapped_club_id IS NULL guard makes the loser
+  // of a concurrent promotion a zero-row no-op instead of an overwrite.
+  get setMappedClubId() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET mapped_club_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND mapped_club_id IS NULL
   `); },
 
   // Create-club duplicate check: same-country candidates the member could
@@ -1105,6 +1127,23 @@ export const legacyPersonClubAffiliations = {
       AND lcc.mapped_club_id IS NOT NULL
     GROUP BY lcc.mapped_club_id, c.name, c.city, c.country, c.status
     ORDER BY oldest_pending_at ASC
+  `); },
+
+  // Candidate promotion carry-forward: when a candidate becomes a live club,
+  // its imported 'pending' affiliations transition to 'promoted' with the new
+  // club id stamped, so they render on the club roster without each member
+  // walking the wizard. Guarded by resolution_status='pending' so rows a
+  // member already resolved (confirmed, rejected, former-only) keep their
+  // member-given answer.
+  get setAllPromotedByCandidate() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'promoted',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE legacy_club_candidate_id = ?
+       AND resolution_status = 'pending'
   `); },
 
   // Admin de-list: terminalize a live club's unconfirmed residue. Flips every

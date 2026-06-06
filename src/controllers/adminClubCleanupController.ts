@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubCleanupService } from '../services/clubCleanupService';
-import { ValidationError } from '../services/serviceErrors';
+import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
 export const adminClubCleanupController = {
   index(req: Request, res: Response, next: NextFunction): void {
@@ -35,6 +35,34 @@ export const adminClubCleanupController = {
         res.status(422).render('errors/not-found', {
           seo:  { title: 'Invalid Request' },
           page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
+        });
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async promote(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const candidateId = req.params.candidateId;
+    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
+      ? req.body.reasonText.trim()
+      : null;
+
+    try {
+      await clubCleanupService.promoteCandidate(req.user!.userId, candidateId, reasonText);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('errors/not-found', {
+          seo:  { title: 'Invalid Request' },
+          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
+        });
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('errors/not-found', {
+          seo:  { title: 'Page Not Found' },
+          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
         });
         return;
       }

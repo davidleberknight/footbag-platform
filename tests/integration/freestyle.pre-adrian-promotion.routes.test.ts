@@ -230,15 +230,8 @@ describe('Pre-Adrian promotion — provenance is visible, not silently curator-a
 // that the JOB row is present on the card.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view=add) renders the 3 new trick rows', () => {
-  // clipper is INTENTIONALLY excluded from the ADD browse — the curator
-  // discriminator at src/content/freestyleTrickKindOverrides.ts classifies
-  // clipper as kind='surface' (the body-kick position, not a terminating
-  // trick). The clipper row itself still receives the operationalNotation
-  // overlay (verified separately by the trick-detail tests above).
-  const ADD_BROWSE_VISIBLE = PROMOTION_COHORT.filter(r => r.slug !== 'clipper');
-
-  it.each(ADD_BROWSE_VISIBLE.map(r => [r.slug] as const))(
+describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view=add) renders the 4 new trick rows', () => {
+  it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '%s appears as an article card on the ADD browse view',
     async (slug) => {
       const res = await request(await createApp()).get('/freestyle/tricks?view=add');
@@ -268,14 +261,14 @@ describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view
     expect(threeAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="double-around-the-world-heel"');
   });
 
-  it('clipper is INTENTIONALLY excluded from the ADD browse (kind=surface per discriminator); concept represented via its own row + overlay', async () => {
+  it('clipper appears under the 1 ADD section (Clipper Kick is a legitimate body-kick trick)', async () => {
+    // Surfaces are distinguished by the DB `category` field, not hidden at
+    // the kind layer: the Clipper Kick ends in bag contact and renders in
+    // the ADD ladder like every stall.
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    // The 1-ADD section does NOT render clipper as an article card
-    // (because kind='surface' filters it out). This is by design.
     const oneAddSectionMatch = res.text.match(/<section[^>]*id="add-1"[\s\S]*?<\/section>/);
-    expect(oneAddSectionMatch?.[0] ?? '').not.toContain('data-trick-slug="clipper"');
-    // But the trick-detail page still renders (verified above) and the
-    // RESOLVED_FORMULAS overlay carries OP CLIP [XBD] (verified above).
+    expect(oneAddSectionMatch).toBeTruthy();
+    expect(oneAddSectionMatch?.[0] ?? '').toContain('data-trick-slug="clipper"');
   });
 });
 

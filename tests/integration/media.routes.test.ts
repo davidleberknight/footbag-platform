@@ -246,19 +246,19 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders the FH-owned named gallery with the prose summary line', async () => {
+  it('renders the FH-owned aggregate gallery as a More-ways-to-browse card', async () => {
+    // The aggregate Curated Freestyle Tricks gallery duplicates the
+    // per-source galleries grouped under the intent cards, so it renders
+    // below them in the More-ways-to-browse section: name, description,
+    // and a link to the gallery page (which carries the tag-summary line).
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Media Galleries');
+    expect(res.text).toContain('More ways to browse');
     expect(res.text).toContain('Curated Freestyle Tricks');
     expect(res.text).toContain('Reference videos for freestyle footbag tricks');
     expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
-    expect(res.text).toContain('class="hub-card-summary"');
-    // Prose summary mirrors the gallery hero copy: "Showing N items
-    // tagged: #a #b #c - Excluding tag(s): #x".
-    expect(res.text).toMatch(/Showing 0 items tagged:\s*#curated\s+#freestyle\s+#trick/);
-    expect(res.text).toMatch(/-\s*Excluding tag:\s*#unranked/);
   });
 
   it('lists member-owned galleries on the public hub', async () => {

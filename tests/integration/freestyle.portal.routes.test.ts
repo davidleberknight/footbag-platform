@@ -203,6 +203,12 @@ describe('GET /freestyle/competition', () => {
     const res = await request(app).get('/freestyle/competition');
     expect(res.text).toContain('/freestyle');
   });
+
+  it('lede links unfamiliar terms to the glossary', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -572,5 +578,12 @@ describe('GET /freestyle/partnerships', () => {
     const res = await request(app).get('/freestyle/partnerships');
     expect(res.text).toMatch(/class="breadcrumb"/);
     expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
+  });
+
+  it('opens with a lede that links unfamiliar terms to the glossary', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/partnerships');
+    expect(res.text).toContain('Doubles freestyle pairs two players');
+    expect(res.text).toContain('href="/freestyle/glossary"');
   });
 });

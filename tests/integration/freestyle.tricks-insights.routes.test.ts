@@ -1155,6 +1155,12 @@ describe('GET /freestyle/insights', () => {
     expect(res.text).toContain('Freestyle Insights');
   });
 
+  it('lede links unfamiliar terms to the glossary', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/insights');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+  });
+
   it('shows most-used tricks section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');

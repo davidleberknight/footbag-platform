@@ -102,6 +102,7 @@ beforeAll(async () => {
     'gallery_passback_tutorials',
     'gallery_anz_trikz',
     'gallery_footbag_finland',
+    'gallery_footbag_org',
   ]) {
     db.prepare(`
       INSERT INTO member_galleries (

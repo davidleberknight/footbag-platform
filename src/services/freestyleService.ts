@@ -1344,7 +1344,7 @@ export interface TrickPathwaySummary {
   count: number;                 // pre-formatted into pre-shaped strings; raw count for tests
   primaryText: string;           // pre-shaped main-line text; e.g. "3 tutorials available"
   secondaryText: string | null;  // optional second line; e.g. "Top: Jim Penske (47 kicks)"
-  href: string | null;           // jump-link target ('#reference-media', '#passback-records', or family filter)
+  href: string | null;           // jump-link target ('#media', '#passback-records', or family filter)
   hrefLabel: string | null;      // pre-shaped CTA text; e.g. "Jump to Reference Media"
 }
 

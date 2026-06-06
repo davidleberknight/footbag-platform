@@ -21,22 +21,16 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   6. Run oEmbed `verifyExternalVideoUrl` over `curated/freestyle_tricks/` sidecars before deleting `media_assets.csv`.
   TT canonical-sidecar invariant: see `legacy_data/CLAUDE.md`.
 
+- **Candidate live-content columns need loader coverage (James-track).** `legacy_club_candidates` now carries nullable `description` and `external_url` columns (platform-side schema add; the promotion path publishes them onto the live club, URL only after validation). The enrichment loader does not yet populate them from the mirror extraction, so platform-promoted clubs currently land with an empty description and no URL. Extend the candidate loader to carry both fields from `seed/clubs.csv` and re-run the load.
+
 - **Cross-track: relocate `freestyle-dictionary-surface` from `.claude/skills/` to `exploration/`.** It self-identifies as exploration-derived but sits in the production skill tree where it auto-loads on freestyle-dictionary-UI prompts. Plan: (1) `mv .claude/skills/freestyle-dictionary-surface/SKILL.md exploration/freestyle-dictionary-surface.md` and `rmdir` the empty dir (touches `.claude/skills/`; coordinate with Dave); (2) update `exploration/freestyle-notation-grammar/PROPOSAL.md:579` to the new path; (3) update `legacy_data/scripts/build_structural_alias_adjudication.py` lines 5 and 522 to drop "skill" from the citations.
 
 - **Freestyle pages fixes (mixed Dave-track: app/template/route/docs; and James-track: curator content).**
-  1. BUG (route): `/freestyle/moves → /freestyle/sets/reference` 301 at `publicRoutes.ts:79` violates DD §5.2 (redirects limited to auth gates, PRG, canonical-identity). Delete the redirect, remove `moves.hbs`, drop the `VIEW_CATALOG.md` row.
-  2. UX: `/freestyle` renders 3 "Coming soon" Get Started tiles; hide until populated.
-  3. UX: `/freestyle/tricks` modifier rows show ADD as `—` with no gloss; add a pending-entry footnote.
-  4. UX: `/freestyle/learn` triple-hedges "observational"; trim and hide unshipped entries.
-  5. UX: `/freestyle/tricks` ADD/family/category views lack a per-view lede.
-  6. UX: `/freestyle/about` has 2 outbound links; add glossary, tricks index, learn.
-  7. UX: `/freestyle/insights`, `/competition`, `/partnerships` are bare tables; add a scaffolding lede + glossary link.
-  8. UX: `/freestyle/glossary` §10 and §11 are stubs after run-quality moved to combo-analysis; rewrite or merge into §8.
-  9. Content (curator): `about.hbs:27` uses "moves" not canonical "tricks".
-  10. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
-  11. Content (curator): glossary §12 names community contributors; other freestyle pages don't. Decide public-attribution policy.
-  12. Docs: fix the `trick.hbs`/`trick-ux2.hbs` reference in `VIEW_CATALOG.md` to the unified `trick-shell.hbs`.
-  13. UI standard (mixed-track: CSS is Dave-track per the comment-hygiene item; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant and two gates enforce it with freestyle excluded. Scope, per surface:
+  1. BUG (route): `/freestyle/moves → /freestyle/sets/reference` 301 at `publicRoutes.ts:82` violates DD §5.2 (redirects limited to auth gates, PRG, canonical-identity). Delete the redirect and its pinning test; `moves.hbs` stays (it is the live template for `/freestyle/sets/reference`); update the `VIEW_CATALOG.md` parenthetical.
+  2. Content (curator): `about.hbs:27` uses "moves" not canonical "tricks".
+  3. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
+  4. Content (curator): glossary §12 names community contributors; other freestyle pages don't. Decide public-attribution policy.
+  5. UI standard (mixed-track: CSS is Dave-track per the comment-hygiene item; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant and two gates enforce it with freestyle excluded. Scope, per surface:
       - Replace Georgia / Apple-system / raw mono `font-family` stacks (freestyle region of `src/public/css/style.css`, ~60 rules) with `var(--font-body)` / `var(--font-mono)`.
       - Tokenize ~1,060 hex literals plus raw radii/shadows; new values enter `:root` as named tokens (the existing neutral/status/family token groups are the pattern).
       - Consolidate breakpoints 520/600/640/680/720/1024 onto canonical 480/768.
@@ -77,12 +71,8 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - **Freestyle rules content (IFPA).** Wording for Routine, Circle, Sick 3, Shred 30. Re-enables the Rules buttons dropped from `/freestyle` competition-format cards.
 - **Red Husted Wave 2 reply.** Six grammar-level questions: blurry transitivity, barraging operator class, atomic family X-dex scope, operator-vs-trick boundary + Fairy weight, compression intent, hidden-vs-flat preservation. Freestyle trick-dictionary expansion + PassBack intake promotion both gated. See `project_red_consultation_state`.
 - **Data review sign-off (G20).** Confirmation that legacy data is complete and member-list presentation is reviewed, recorded as the `legacy_pipeline.data_review_signoff` audit row (historical-pipeline maintainer as actor). The cutover checklist's `G20-SIGNOFF` gate asserts the row; legacy-data surfaces must not ship to production without it. No runtime flag and no auth-gate removal are involved.
-- **Onboarding-visible candidate promotion path (Dave-owned).** The wizard club-affiliations task exists and transitions affiliations out of `'pending'` via `ClubService.confirmAffiliation`, but only candidates with `mapped_club_id` already stamped (pipeline-pre-populated clubs) are confirmable; the wizard never creates a `clubs` row by design (MIGRATION_PLAN §10.3). No code path yet promotes an `onboarding_visible` candidate to a live club on member confirmation (the §10.1 promotion path), and the admin cleanup queue offers demote/archive/dismiss/defer but no promote action. Until a promotion path exists, onboarding-visible candidates cannot reach live status.
-- **Admin cleanup queue residue (Dave-owned).** `A_Periodic_Club_Cleanup` exists (`clubCleanupService`: on-demand viability and leadership-staleness evaluation, demote/archive/dismiss/defer, per-club residue de-list). Residue not yet covered: a promote action for unpromoted `onboarding_visible` candidates (see the promotion-path entry above).
-
-### Known deviations
-
-- **Loosened read filter on `legacy_person_club_affiliations.resolution_status`.** `db.ts` `listMembersByClubId` and `listMemberCountsForAllClubs` accept `'pending'` so loader-imported affiliations render on `/clubs/:key`. Substitutes for the wizard's `pending → confirmed_current` transition. Reverts to `IN ('confirmed_current','promoted')` when the wizard ships.
+- **Onboarding-visible candidate promotion path (Dave-owned).** The wizard club-affiliations task exists and transitions affiliations out of `'pending'` via `ClubService.confirmAffiliation`, but only candidates with `mapped_club_id` already stamped (pipeline-pre-populated clubs) are confirmable; the wizard never creates a `clubs` row by design (MIGRATION_PLAN §10.3). The admin-override promotion path is live (`ClubService.promoteCandidate` + the cleanup-queue promote action), so candidates can reach live status by admin action. The member-confirmation triggers (Stage 1 confirm, Stage 2B existence confirm) do not yet call it; until they do, wizard confirmations cannot promote.
+- **Admin cleanup queue residue (Dave-owned).** `A_Periodic_Club_Cleanup` exists (`clubCleanupService`: on-demand viability and leadership-staleness evaluation, demote/archive/dismiss/defer, per-club residue de-list). Not yet covered from the US contract: candidate-level queue items and actions (promote to live, demote to dormant, archive, defer on unpromoted candidates; junk-flagged candidate handling; force-keep / force-junk requests), wizard-flag grouping by candidate, the admin-home backlog badge, concurrent-admin claim markers, and queue sort / filter. The promote action is live; the rest of the candidate contract is open (see the promotion-path entry above).
 
 ---
 

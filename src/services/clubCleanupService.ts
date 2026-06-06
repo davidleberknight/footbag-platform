@@ -10,11 +10,15 @@
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping
  *   - Admin club cleanup resolution (demote, archive, dismiss, defer)
+ *   - Admin override entry point for candidate promotion (the queue lists
+ *     unpromoted non-junk candidates with a promote action)
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
  *
  * Does not own:
  *   - Club lifecycle (ClubService)
+ *   - The promotion transaction itself (ClubService.promoteCandidate;
+ *     this service only delegates the admin trigger)
  *   - Signal collection during onboarding (MemberOnboardingService writes signals)
  *
  * Persistence:
@@ -41,6 +45,7 @@ import {
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { ValidationError } from './serviceErrors';
+import { clubService } from './clubService';
 import { PageViewModel } from '../types/page';
 
 // ---------------------------------------------------------------------------
@@ -216,10 +221,23 @@ interface ResidueRow {
   oldest_pending_at: string;
 }
 
+// Unpromoted non-junk candidates: onboarding_visible / dormant rows with no
+// live clubs row yet. Listed so the admin can exercise the override
+// promotion path; member-confirmation promotion happens in the wizard.
+export interface PromotableCandidateItem {
+  candidateId: string;
+  displayName: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  classificationLabel: string;
+}
+
 interface CleanupQueueContent {
   items: CleanupQueueItem[];
   totalItems: number;
   residue: ResidueItem[];
+  candidates: PromotableCandidateItem[];
 }
 
 function residueAgeLabel(oldestPendingAt: string): string {
@@ -336,6 +354,23 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
     oldestPendingAgeLabel: residueAgeLabel(r.oldest_pending_at),
   }));
 
+  const candidateRows = legacyClubCandidates.listPromotableForQueue.all() as Array<{
+    id: string;
+    display_name: string;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    classification: 'onboarding_visible' | 'dormant';
+  }>;
+  const candidates: PromotableCandidateItem[] = candidateRows.map((r) => ({
+    candidateId: r.id,
+    displayName: r.display_name,
+    city: r.city,
+    region: r.region,
+    country: r.country,
+    classificationLabel: r.classification === 'dormant' ? 'Dormant' : 'Onboarding-visible',
+  }));
+
   return {
     seo: { title: 'Club Cleanup Queue' },
     page: { sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue' },
@@ -343,6 +378,7 @@ function getCleanupQueuePage(): PageViewModel<CleanupQueueContent> {
       items,
       totalItems: items.length,
       residue,
+      candidates,
     },
   };
 }
@@ -463,9 +499,29 @@ function delistUnconfirmedResidue(
   return { delistedCount };
 }
 
+// ---------------------------------------------------------------------------
+// Admin override promotion (candidate -> live club)
+// ---------------------------------------------------------------------------
+
+// The cleanup queue owns the admin entry point; the promotion transaction
+// itself (deterministic id, hashtag derivation, carry-forward, audit) lives
+// in ClubService so the wizard's member-confirmation triggers share it.
+async function promoteCandidate(
+  adminMemberId: string,
+  candidateId: string,
+  reasonText: string | null,
+): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
+  return clubService.promoteCandidate(candidateId, adminMemberId, {
+    actorType: 'admin',
+    reasonText,
+    trigger: 'admin_queue',
+  });
+}
+
 export const clubCleanupService = {
   evaluateClubViability,
   getCleanupQueuePage,
   resolveClub,
   delistUnconfirmedResidue,
+  promoteCandidate,
 };

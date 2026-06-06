@@ -9,12 +9,14 @@
  *   (ADD / family / category / component / topology) must render
  *   ONLY rows whose `resolveTrickKind(slug)` returns 'trick'.
  *
- * Why this matters: surfaces like `pixie`, `atomic`, `paradox`,
- * `clipper` exist as rows in freestyle_tricks but are structurally
- * primitives (set operators / body modifiers / catch surfaces), not
- * compound tricks. Mixing them into the difficulty ladder distorts
- * the trick browse and breaks the operator/trick semantic separation
- * the glossary §6 / SEMANTIC_COMPRESSION_DOCTRINE rests on.
+ * Why this matters: rows like `pixie`, `atomic`, `paradox` exist in
+ * freestyle_tricks but are structurally primitives (set operators /
+ * body modifiers), not compound tricks. Mixing them into the
+ * difficulty ladder distorts the trick browse and breaks the
+ * operator/trick semantic separation the glossary §6 /
+ * SEMANTIC_COMPRESSION_DOCTRINE rests on. Surfaces are distinguished
+ * by the DB `category` field, not by kind: tricks that end in bag
+ * contact (every stall, the Clipper Kick) stay in the ADD ladder.
  *
  * Tests verify:
  *   1. Each known modifier / operator / surface / pending-review slug
@@ -46,7 +48,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // module as the source of truth.
 const MODIFIER_SAMPLE   = 'paradox';
 const OPERATOR_SAMPLE   = 'pixie';
-const SURFACE_SAMPLE    = 'clipper';        // bare surface NAME, not a stall
+const BODY_KICK_SAMPLE  = 'clipper';        // Clipper Kick: 1-ADD body kick, NOT filtered
 const PENDING_SAMPLE    = 'surging';
 const TRICK_SAMPLE      = 'ripwalk';        // canonical compound trick (control)
 const STALL_TRICK_SAMPLE = 'clipper-stall'; // legitimate 1-ADD stall trick (NOT filtered)
@@ -54,7 +56,6 @@ const STALL_TRICK_SAMPLE = 'clipper-stall'; // legitimate 1-ADD stall trick (NOT
 const ALL_FILTERED_SAMPLES = [
   MODIFIER_SAMPLE,
   OPERATOR_SAMPLE,
-  SURFACE_SAMPLE,
   PENDING_SAMPLE,
 ];
 
@@ -80,7 +81,7 @@ beforeAll(async () => {
     is_active:      1,
   });
   insertFreestyleTrick(db, {
-    slug:           SURFACE_SAMPLE,
+    slug:           BODY_KICK_SAMPLE,
     canonical_name: 'Clipper Kick',
     category:       'body',
     adds:           '1',
@@ -164,10 +165,11 @@ describe('resolveTrickKind() — content module discriminator', () => {
     expect(resolveTrickKind('rooted')).toBe('operator');
   });
 
-  it('classifies a bare surface name as kind=surface (curator override)', () => {
-    // `clipper` (the standalone body-category row in freestyle_tricks) is
-    // a surface NAME, not a stall trick. Filtered from trick browse views.
-    expect(resolveTrickKind('clipper')).toBe('surface');
+  it('hides nothing at the kind layer as a bare surface name', () => {
+    // Surfaces are distinguished by the DB `category` field, not by kind.
+    // `clipper` (the Clipper Kick: category='body', 1 ADD) ends in bag
+    // contact and is a legitimate trick that renders in the ADD ladder.
+    expect(resolveTrickKind('clipper')).toBe('trick');
   });
 
   it('classifies legitimate stall primitives as kind=trick (NOT surface)', () => {
@@ -243,5 +245,12 @@ describe('Trick-browse view filter — true tricks preserved', () => {
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${STALL_TRICK_SAMPLE}"`);
+  });
+
+  it('renders the Clipper Kick in the ADD view (body kick, ends in bag contact)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?view=add');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`data-trick-slug="${BODY_KICK_SAMPLE}"`);
   });
 });

@@ -31,6 +31,9 @@ adminRouter.post('/clubs/:clubId/leadership/contact', adminClubLeadershipControl
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
 adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupController.delistResidue);
+// Promote keys on the candidate id: an unpromoted candidate has no clubs row
+// yet, so the clubId-keyed resolve route cannot address it.
+adminRouter.post('/club-cleanup/candidates/:candidateId/promote', adminClubCleanupController.promote);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

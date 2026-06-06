@@ -3460,6 +3460,12 @@ CREATE TABLE legacy_club_candidates (
   city             TEXT,
   region           TEXT,
   country          TEXT,
+  -- Live-content carry-forward: published onto the clubs row when the
+  -- candidate is promoted (description as-is; external_url only after it
+  -- passes URL verification). NULL until the enrichment loader supplies
+  -- them from the mirror extraction.
+  description      TEXT,
+  external_url     TEXT,
   confidence_score REAL,
   mapped_club_id   TEXT REFERENCES clubs(id),
   bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1)),

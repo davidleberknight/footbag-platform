@@ -55,20 +55,18 @@
         </div>
       </div>
 
-      <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
+      {{#if content.totalTricks}}
+      <div class="card">
         <div class="card-title">Trick Dictionary</div>
         <p>
           Every freestyle trick has a name. Browse them, see how they fit
           together, and find the moves to learn next.
         </p>
-        {{#if content.totalTricks}}
         <div class="card-actions">
           <a href="/freestyle/tricks" class="btn btn-outline">Browse the trick dictionary &rarr;</a>
         </div>
-        {{else}}
-        <span class="badge badge-coming-soon">Coming soon</span>
-        {{/if}}
       </div>
+      {{/if}}
 
       <div class="card">
         <div class="card-title">Glossary</div>
@@ -103,21 +101,19 @@
     </div>
     <div class="card-grid card-grid-2col">
 
-      <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
+      {{#if content.totalRecords}}
+      <div class="card">
         <div class="card-title">Trick Records</div>
         <p>
           Documented freestyle trick achievements and consecutive-completion
           records &mdash; how many times in a row a trick has been landed.
         </p>
-        {{#if content.totalRecords}}
         <div class="card-actions">
           <a href="/freestyle/records" class="btn btn-outline">Trick records &rarr;</a>
           <a href="/freestyle/leaders" class="btn btn-outline">Record leaders &rarr;</a>
         </div>
-        {{else}}
-        <span class="badge badge-coming-soon">Coming soon</span>
-        {{/if}}
       </div>
+      {{/if}}
 
       <div class="card">
         <div class="card-title">Competition</div>

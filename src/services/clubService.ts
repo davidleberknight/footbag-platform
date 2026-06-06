@@ -4,6 +4,9 @@
  * Owns:
  *   - Club lifecycle: create (with standard hashtag reservation), edit,
  *     activate/deactivate, archive
+ *   - Candidate promotion: a legacy club candidate becomes a live clubs row
+ *     (admin override or wizard confirmation; ClubCleanupService and
+ *     MemberOnboardingService delegate here)
  *   - Leader and co-leader management (including step-down)
  *   - Roster management (self-service join, leave, swap primary)
  *   - Operability enforcement at creation (contact email required)
@@ -21,7 +24,12 @@
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier.
  *   - Contact email is required at creation: every new club starts operable.
- *     WhatsApp is optional and never substitutes for the email.
+ *     WhatsApp is optional and never substitutes for the email. Promoted
+ *     candidates are the exception: contact fields start empty and the
+ *     hashtag derives from the pipeline-parity city-first cascade, with the
+ *     club id derived deterministically from the legacy key so promotion is
+ *     idempotent and concurrency-safe (PK collision resolves as
+ *     already-promoted).
  *   - A successful leadership claim returns a club of any status to 'active'
  *     (revival); a new current affiliation revives an inactive club.
  *   - News items emitted via `NewsService.emitNewsItem` only.
@@ -85,11 +93,20 @@ import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode } from './countryUtils';
 import { slugifyForTag } from './slugify';
+import { deriveClubTag, stableClubId } from './clubTag';
 import { randomUUID } from 'crypto';
 
 function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string };
   return e?.code === 'SQLITE_CONSTRAINT_UNIQUE';
+}
+
+// Candidate promotion can collide on the clubs TEXT primary key (extended
+// code PRIMARYKEY) or on the tag uniqueness index (extended code UNIQUE);
+// both mean another writer got there first.
+function isConstraintViolation(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === 'SQLITE_CONSTRAINT_UNIQUE' || e?.code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
 }
 
 const PUBLIC_CLUB_KEY_PATTERN = /^club_[a-z0-9_]+$/;
@@ -1626,6 +1643,124 @@ export class ClubService {
       throw new NotFoundError('Club not found.');
     }
     return row.club_id;
+  }
+
+  // ── Candidate promotion ─────────────────────────────────────────────────────
+
+  /**
+   * Promote a legacy club candidate to a live `clubs` row.
+   *
+   * Idempotent by construction: the club id derives deterministically from
+   * the candidate's legacy key, the candidate's `mapped_club_id` records the
+   * promotion, and a concurrent promotion of the same candidate loses on the
+   * clubs primary key and resolves as `already_promoted` against the winner's
+   * row. Junk candidates are never promotable. The candidate's external URL
+   * is published only when it passes validation (run before the transaction;
+   * a failing or absent URL leaves the column NULL and the original value
+   * stays on the candidate row). Imported 'pending' affiliations on the
+   * candidate carry forward to 'promoted' with the new club id stamped.
+   */
+  async promoteCandidate(
+    candidateId: string,
+    actorId: string,
+    opts: {
+      actorType: 'member' | 'admin';
+      reasonText?: string | null;
+      trigger?: 'stage1' | 'stage2b' | 'admin_queue';
+    },
+  ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
+    const candidate = legacyClubCandidates.findById.get(candidateId) as
+      | LegacyClubCandidateRow | undefined;
+    if (!candidate) {
+      throw new NotFoundError('Candidate not found.');
+    }
+    if (candidate.classification === 'junk') {
+      throw new ValidationError('Junk candidates cannot be promoted.');
+    }
+    if (candidate.mapped_club_id) {
+      return { branch: 'already_promoted', clubId: candidate.mapped_club_id };
+    }
+
+    const clubId = stableClubId(candidate.legacy_club_key);
+
+    // External I/O stays outside the transaction: validate the candidate's
+    // URL (DNS, Safe Browsing, reachability) before any write begins.
+    let externalUrl: string | null = null;
+    if (candidate.external_url) {
+      const validated = await validateExternalUrl(candidate.external_url);
+      if (validated.valid && validated.normalizedUrl) {
+        externalUrl = validated.normalizedUrl;
+      }
+    }
+
+    const tagNormalized = deriveClubTag(
+      candidate.display_name,
+      candidate.country ?? '',
+      candidate.city ?? '',
+      (tag) => mediaTags.findTagByNormalized.get(tag) !== undefined,
+    );
+
+    const now = new Date().toISOString();
+    const tagId = `tag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+
+    try {
+      transaction(() => {
+        mediaTags.insertStandardTag.run(
+          tagId, now, 'club_service', now, 'club_service',
+          tagNormalized, tagNormalized, 'club',
+        );
+        clubs.insertClub.run(
+          clubId, now, 'club_service', now, 'club_service',
+          candidate.display_name, candidate.description ?? '',
+          candidate.city ?? '', candidate.region, candidate.country ?? '',
+          null, null, tagId,
+        );
+        if (externalUrl) {
+          clubContent.updateClubExternalUrl.run(externalUrl, now, now, 'club_service', clubId);
+        }
+        legacyClubCandidates.setMappedClubId.run(clubId, now, 'club_service', candidateId);
+        legacyPersonClubAffiliations.setAllPromotedByCandidate.run(clubId, 'club_service', candidateId);
+        appendAuditEntry({
+          actionType: opts.actorType === 'admin'
+            ? 'admin.club_cleanup.promote'
+            : 'club.promoted_from_candidate',
+          category: opts.actorType === 'admin' ? 'admin' : 'club_lifecycle',
+          actorType: opts.actorType,
+          actorMemberId: actorId,
+          entityType: 'club',
+          entityId: clubId,
+          reasonText: opts.reasonText ?? null,
+          metadata: {
+            candidate_id: candidateId,
+            legacy_club_key: candidate.legacy_club_key,
+            tag_normalized: tagNormalized,
+            classification: candidate.classification,
+            trigger: opts.trigger ?? null,
+          },
+        });
+      });
+    } catch (err) {
+      if (isConstraintViolation(err)) {
+        // The deterministic id makes a concurrent promotion of the same
+        // candidate collide here; the winner's row is the promotion.
+        const reread = legacyClubCandidates.findById.get(candidateId) as
+          | LegacyClubCandidateRow | undefined;
+        if (reread?.mapped_club_id) {
+          return { branch: 'already_promoted', clubId: reread.mapped_club_id };
+        }
+        // The clubs row exists but the candidate was never stamped (a prior
+        // out-of-band creation for the same legacy key). Converge by
+        // stamping instead of failing.
+        const existing = clubs.findById.get(clubId) as { club_id: string } | undefined;
+        if (existing) {
+          legacyClubCandidates.setMappedClubId.run(clubId, now, 'club_service', candidateId);
+          return { branch: 'already_promoted', clubId };
+        }
+      }
+      throw err;
+    }
+
+    return { branch: 'promoted', clubId };
   }
 
   // ── Club creation ───────────────────────────────────────────────────────────

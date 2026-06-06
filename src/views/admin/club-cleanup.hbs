@@ -49,7 +49,7 @@
         </tbody>
       </table>
     {{else}}
-      <p>No clubs require attention. Signals are collected during member onboarding and from club detail pages.</p>
+      <p>No clubs require attention. Signals are collected during member onboarding.</p>
     {{/if}}
   </section>
 
@@ -80,6 +80,38 @@
               <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/delist-residue" class="cleanup-action-form">
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                 <button type="submit" class="btn btn-outline btn-sm">De-list unconfirmed</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+  {{/if}}
+
+  {{#if content.candidates.length}}
+  <section class="mt-8">
+    <h2>Promotable candidates</h2>
+    <p class="text-muted fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding.</p>
+    <table class="cleanup-queue-table mt-2">
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Location</th>
+          <th>Classification</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.candidates}}
+          <tr>
+            <td class="fw-600">{{this.displayName}}</td>
+            <td class="text-muted">{{this.city}}{{#if this.country}}, {{this.country}}{{/if}}</td>
+            <td><span class="badge">{{this.classificationLabel}}</span></td>
+            <td>
+              <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/promote" class="cleanup-action-form">
+                <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                <button type="submit" class="btn btn-outline btn-sm">Promote to live club</button>
               </form>
             </td>
           </tr>
