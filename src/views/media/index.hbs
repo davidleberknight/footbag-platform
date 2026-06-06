@@ -7,39 +7,53 @@
 
 <div class="wrapper">
 
-  <section>
-    <ul class="gallery-grid">
-      <li class="hub-card hub-card-browse">
-        <a href="/media/browse" class="hub-card-link">
-          <div class="hub-card-body">
-            <h2 class="hub-card-name">Browse by hashtag</h2>
-            <p class="hub-card-description">Find every photo and video matching a set of hashtags.</p>
+  {{#each content.groups}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>{{name}}</h2>
+    </div>
+    <div class="card-grid card-grid-2col">
+      {{#each destinations}}
+      <div class="card{{#if comingSoon}} card-coming-soon{{/if}}">
+        <div class="card-title">{{title}}</div>
+        <p>{{description}}</p>
+        {{#if comingSoon}}
+          <span class="badge badge-coming-soon">Coming soon</span>
+        {{else}}
+          <div class="card-actions">
+            {{#each galleries}}
+            <a href="{{href}}" class="btn btn-outline">{{name}} &rarr;</a>
+            {{/each}}
           </div>
-          <div class="hub-card-foot hub-card-foot-browse">
-            <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
-          </div>
-        </a>
-      </li>
-      {{#each content.galleries}}
-        <li class="hub-card">
-          <a href="{{href}}" class="hub-card-link">
-            <div class="hub-card-accent" aria-hidden="true"></div>
-            <div class="hub-card-body">
-              <h2 class="hub-card-name">{{name}}</h2>
-              {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
-            </div>
-            {{#if (or byMember criteriaTags.length)}}
-              <div class="hub-card-foot">
-                <p class="hub-card-summary">
-                  Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}}{{#if byMember}} by {{byMember.display}}{{#if criteriaTags.length}},{{/if}}{{/if}}{{#if criteriaTags.length}} tagged: {{#each criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
-                </p>
-                <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
-              </div>
-            {{/if}}
-          </a>
-        </li>
+        {{/if}}
+      </div>
       {{/each}}
-    </ul>
+    </div>
+  </section>
+  {{/each}}
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>More ways to browse</h2>
+    </div>
+    <div class="card-grid card-grid-2col">
+      <div class="card">
+        <div class="card-title">Browse by hashtag</div>
+        <p>Find every photo and video matching a set of hashtags.</p>
+        <div class="card-actions">
+          <a href="/media/browse" class="btn btn-outline">Browse by hashtag &rarr;</a>
+        </div>
+      </div>
+      {{#each content.advancedGalleries}}
+      <div class="card">
+        <div class="card-title">{{name}}</div>
+        {{#if description}}<p>{{description}}</p>{{/if}}
+        <div class="card-actions">
+          <a href="{{href}}" class="btn btn-outline">Browse all &rarr;</a>
+        </div>
+      </div>
+      {{/each}}
+    </div>
   </section>
 
 </div>
