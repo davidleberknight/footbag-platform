@@ -24,21 +24,19 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - **Cross-track: relocate `freestyle-dictionary-surface` from `.claude/skills/` to `exploration/`.** It self-identifies as exploration-derived but sits in the production skill tree where it auto-loads on freestyle-dictionary-UI prompts. Plan: (1) `mv .claude/skills/freestyle-dictionary-surface/SKILL.md exploration/freestyle-dictionary-surface.md` and `rmdir` the empty dir (touches `.claude/skills/`; coordinate with Dave); (2) update `exploration/freestyle-notation-grammar/PROPOSAL.md:579` to the new path; (3) update `legacy_data/scripts/build_structural_alias_adjudication.py` lines 5 and 522 to drop "skill" from the citations.
 
 - **Freestyle pages fixes (mixed Dave-track: app/template/route/docs; and James-track: curator content).**
-  1. BUG (app): `freestyleService.ts:709` emits `href:'#reference-media'`; target is `id="media"` in `trick-shell.hbs:66`. Rename href to `#media`.
-  2. BUG (route): `/freestyle/moves → /freestyle/sets/reference` 301 at `publicRoutes.ts:79` violates DD §5.2 (redirects limited to auth gates, PRG, canonical-identity). Delete the redirect, remove `moves.hbs`, drop the `VIEW_CATALOG.md` row.
-  3. BUG (app): upgrade the remaining HTTP external link in `glossary.hbs:1117` to HTTPS.
-  4. UX: `/freestyle` renders 3 "Coming soon" Get Started tiles; hide until populated.
-  5. UX: `/freestyle/tricks` modifier rows show ADD as `—` with no gloss; add a pending-entry footnote.
-  6. UX: `/freestyle/learn` triple-hedges "observational"; trim and hide unshipped entries.
-  7. UX: `/freestyle/tricks` ADD/family/category views lack a per-view lede.
-  8. UX: `/freestyle/about` has 2 outbound links; add glossary, tricks index, learn.
-  9. UX: `/freestyle/insights`, `/competition`, `/partnerships` are bare tables; add a scaffolding lede + glossary link.
-  10. UX: `/freestyle/glossary` §10 and §11 are stubs after run-quality moved to combo-analysis; rewrite or merge into §8.
-  11. Content (curator): `about.hbs:27` uses "moves" not canonical "tricks".
-  12. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
-  13. Content (curator): glossary §12 names community contributors; other freestyle pages don't. Decide public-attribution policy.
-  14. Docs: fix the `trick.hbs`/`trick-ux2.hbs` reference in `VIEW_CATALOG.md` to the unified `trick-shell.hbs`.
-  15. UI standard (mixed-track: CSS is Dave-track per the comment-hygiene item; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant and two gates enforce it with freestyle excluded. Scope, per surface:
+  1. BUG (route): `/freestyle/moves → /freestyle/sets/reference` 301 at `publicRoutes.ts:79` violates DD §5.2 (redirects limited to auth gates, PRG, canonical-identity). Delete the redirect, remove `moves.hbs`, drop the `VIEW_CATALOG.md` row.
+  2. UX: `/freestyle` renders 3 "Coming soon" Get Started tiles; hide until populated.
+  3. UX: `/freestyle/tricks` modifier rows show ADD as `—` with no gloss; add a pending-entry footnote.
+  4. UX: `/freestyle/learn` triple-hedges "observational"; trim and hide unshipped entries.
+  5. UX: `/freestyle/tricks` ADD/family/category views lack a per-view lede.
+  6. UX: `/freestyle/about` has 2 outbound links; add glossary, tricks index, learn.
+  7. UX: `/freestyle/insights`, `/competition`, `/partnerships` are bare tables; add a scaffolding lede + glossary link.
+  8. UX: `/freestyle/glossary` §10 and §11 are stubs after run-quality moved to combo-analysis; rewrite or merge into §8.
+  9. Content (curator): `about.hbs:27` uses "moves" not canonical "tricks".
+  10. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
+  11. Content (curator): glossary §12 names community contributors; other freestyle pages don't. Decide public-attribution policy.
+  12. Docs: fix the `trick.hbs`/`trick-ux2.hbs` reference in `VIEW_CATALOG.md` to the unified `trick-shell.hbs`.
+  13. UI standard (mixed-track: CSS is Dave-track per the comment-hygiene item; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant and two gates enforce it with freestyle excluded. Scope, per surface:
       - Replace Georgia / Apple-system / raw mono `font-family` stacks (freestyle region of `src/public/css/style.css`, ~60 rules) with `var(--font-body)` / `var(--font-mono)`.
       - Tokenize ~1,060 hex literals plus raw radii/shadows; new values enter `:root` as named tokens (the existing neutral/status/family token groups are the pattern).
       - Consolidate breakpoints 520/600/640/680/720/1024 onto canonical 480/768.
