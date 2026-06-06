@@ -1363,3 +1363,96 @@ spinning-symposium-whirling-swirl,notation,,SPINNING SYMPOSIUM WHIRLING SWIRL,JO
 spinning-symposium-whirling-swirl,trick_family,whirling-swirl,swirl,terminal-identity family override: whirling-swirl resolves to the swirl family (loader-19 default would mis-set family=whirling-swirl).
 spinning-miraging-symposium-torque,notation,,SPINNING MIRAGING SYMPOSIUM TORQUE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the spinning batch.
 spinning-miraging-symposium-torque,trick_family,symposium-torque,osis,terminal-identity family override: symposium-torque resolves to the osis family (loader-19 default would mis-set family=symposium-torque).
+diving-mirage,notation,,DIVING MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-illusion,notation,,DIVING ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-legover,notation,,DIVING LEGOVER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-pickup,notation,,DIVING PICKUP,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-butterfly,notation,,DIVING BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-whirl,notation,,DIVING WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-drifter,notation,,DIVING DRIFTER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-drifter,trick_family,drifter,clipper-stall,terminal-identity family override: drifter resolves to the clipper-stall family (loader-19 default would mis-set family=drifter).
+diving-osis,notation,,DIVING OSIS,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-swirl,notation,,DIVING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-eclipse,notation,,DIVING ECLIPSE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-smudge,notation,,DIVING SMUDGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-smudge,trick_family,smudge,illusion,terminal-identity family override: smudge resolves to the illusion family (loader-19 default would mis-set family=smudge).
+diving-symposium-mirage,notation,,DIVING SYMPOSIUM MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the diving batch.
+diving-symposium-mirage,trick_family,symposium-mirage,mirage,terminal-identity family override: symposium-mirage resolves to the mirage family (loader-19 default would mis-set family=symposium-mirage).
+fairy-butterfly,notation,,FAIRY BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-drifter,notation,,FAIRY DRIFTER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-drifter,trick_family,drifter,clipper-stall,terminal-identity family override: drifter resolves to the clipper-stall family (loader-19 default would mis-set family=drifter).
+fairy-gyro-drifter,notation,,FAIRY GYRO DRIFTER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-gyro-drifter,trick_family,gyro-drifter,drifter,terminal-identity family override: gyro-drifter resolves to the drifter family (loader-19 default would mis-set family=gyro-drifter).
+fairy-gyro-torque,notation,,FAIRY GYRO TORQUE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-gyro-torque,trick_family,torque,osis,terminal-identity family override: torque resolves to the osis family (loader-19 default would mis-set family=torque).
+fairy-illusion,notation,,FAIRY ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-merkon,notation,,FAIRY MERKON,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-merkon,trick_family,merkon,legover,terminal-identity family override: merkon resolves to the legover family (loader-19 default would mis-set family=merkon).
+fairy-rev-whirl,notation,,FAIRY REV WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-rev-whirl,trick_family,rev-whirl,whirl,terminal-identity family override: rev-whirl resolves to the whirl family (loader-19 default would mis-set family=rev-whirl).
+fairy-ripstein,notation,,FAIRY RIPSTEIN,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-spinning-ducking-osis,notation,,FAIRY SPINNING DUCKING OSIS,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-spinning-ducking-osis,trick_family,spinning-ducking-osis,osis,terminal-identity family override: spinning-ducking-osis resolves to the osis family (loader-19 default would mis-set family=spinning-ducking-osis).
+fairy-swirling-swirl,notation,,FAIRY SWIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-whirl,notation,,FAIRY WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+barraging-barfly,notation,,BARRAGING BARFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-barfly,trick_family,barfly,infinity,terminal-identity family override: barfly resolves to the infinity family (loader-19 default would mis-set family=barfly).
+barraging-butterfly,notation,,BARRAGING BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-eggbeater,notation,,BARRAGING EGGBEATER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-eggbeater,trick_family,eggbeater,legover,terminal-identity family override: eggbeater resolves to the legover family (loader-19 default would mis-set family=eggbeater).
+barraging-illusion,notation,,BARRAGING ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-legover,notation,,BARRAGING LEGOVER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-mirage,notation,,BARRAGING MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-pickup,notation,,BARRAGING PICKUP,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+barraging-whirl,notation,,BARRAGING WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
+symposium-atomic-butterfly,notation,,SYMPOSIUM ATOMIC BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-atomic-butterfly,trick_family,atomic-butterfly,butterfly,terminal-identity family override: atomic-butterfly resolves to the butterfly family (loader-19 default would mis-set family=atomic-butterfly).
+symposium-blur,notation,,SYMPOSIUM BLUR,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-blur,trick_family,blur,mirage,terminal-identity family override: blur resolves to the mirage family (loader-19 default would mis-set family=blur).
+symposium-bubba,notation,,SYMPOSIUM BUBBA,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-bubba,trick_family,bubba,illusion,terminal-identity family override: bubba resolves to the illusion family (loader-19 default would mis-set family=bubba).
+symposium-mobius,notation,,SYMPOSIUM MOBIUS,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-mobius,trick_family,mobius,torque,terminal-identity family override: mobius resolves to the torque family (loader-19 default would mis-set family=mobius).
+symposium-swirl,notation,,SYMPOSIUM SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-tomahawk,notation,,SYMPOSIUM TOMAHAWK,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-tomahawk,trick_family,tomahawk,whirl,terminal-identity family override: tomahawk resolves to the whirl family (loader-19 default would mis-set family=tomahawk).
+symposium-whirling-swirl,notation,,SYMPOSIUM WHIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+symposium-whirling-swirl,trick_family,whirling-swirl,swirl,terminal-identity family override: whirling-swirl resolves to the swirl family (loader-19 default would mis-set family=whirling-swirl).
+symposium-miraging-mirage,notation,,SYMPOSIUM MIRAGING MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the symposium batch.
+swirling-butterfly,notation,,SWIRLING BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-mirage,notation,,SWIRLING MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-paradox-mirage,notation,,SWIRLING PARADOX MIRAGE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-paradox-mirage,trick_family,paradox-mirage,mirage,terminal-identity family override: paradox-mirage resolves to the mirage family (loader-19 default would mis-set family=paradox-mirage).
+swirling-swirl,notation,,SWIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-symposium-whirl,notation,,SWIRLING SYMPOSIUM WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-symposium-whirl,trick_family,symposium-whirl,whirl,terminal-identity family override: symposium-whirl resolves to the whirl family (loader-19 default would mis-set family=symposium-whirl).
+swirling-whirl,notation,,SWIRLING WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-whirling-swirl,notation,,SWIRLING WHIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the swirling batch.
+swirling-whirling-swirl,trick_family,whirling-swirl,swirl,terminal-identity family override: whirling-swirl resolves to the swirl family (loader-19 default would mis-set family=whirling-swirl).
+pixie-dolomite,notation,,PIXIE DOLOMITE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-dolomite,trick_family,dolomite,paradon,terminal-identity family override: dolomite resolves to the paradon family (loader-19 default would mis-set family=dolomite).
+pixie-rev-whirl,notation,,PIXIE REV WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-rev-whirl,trick_family,rev-whirl,whirl,terminal-identity family override: rev-whirl resolves to the whirl family (loader-19 default would mis-set family=rev-whirl).
+pixie-spinning-paradox-blender,notation,,PIXIE SPINNING PARADOX BLENDER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-spinning-paradox-blender,trick_family,spinning-paradox-blender,blender,terminal-identity family override: spinning-paradox-blender resolves to the blender family (loader-19 default would mis-set family=spinning-paradox-blender).
+pixie-spinning-paradox-symposium-whirl,notation,,PIXIE SPINNING PARADOX SYMPOSIUM WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-spinning-paradox-symposium-whirl,trick_family,spinning-paradox-symposium-whirl,whirl,terminal-identity family override: spinning-paradox-symposium-whirl resolves to the whirl family (loader-19 default would mis-set family=spinning-paradox-symposium-whirl).
+pixie-spinning-paradox-whirl,notation,,PIXIE SPINNING PARADOX WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-spinning-paradox-whirl,trick_family,spinning-paradox-whirl,whirl,terminal-identity family override: spinning-paradox-whirl resolves to the whirl family (loader-19 default would mis-set family=spinning-paradox-whirl).
+pixie-symposium-rev-whirl,notation,,PIXIE SYMPOSIUM REV WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-symposium-rev-whirl,trick_family,rev-whirl,whirl,terminal-identity family override: rev-whirl resolves to the whirl family (loader-19 default would mis-set family=rev-whirl).
+pixie-symposium-whirling-swirl,notation,,PIXIE SYMPOSIUM WHIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the pixie batch.
+pixie-symposium-whirling-swirl,trick_family,whirling-swirl,swirl,terminal-identity family override: whirling-swirl resolves to the swirl family (loader-19 default would mis-set family=whirling-swirl).
+tapping-legover,notation,,TAPPING LEGOVER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the small-remnant batch.
+miraging-symposium-butterfly,notation,,MIRAGING SYMPOSIUM BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the small-remnant batch.
+miraging-symposium-butterfly,trick_family,symposium-butterfly,butterfly,terminal-identity family override: symposium-butterfly resolves to the butterfly family (loader-19 default would mis-set family=symposium-butterfly).
+miraging-symposium-whirl,notation,,MIRAGING SYMPOSIUM WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the small-remnant batch.
+miraging-symposium-whirl,trick_family,symposium-whirl,whirl,terminal-identity family override: symposium-whirl resolves to the whirl family (loader-19 default would mis-set family=symposium-whirl).
+paradox-fusion,notation,,PARADOX FUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the small-remnant batch.
+paradox-fusion,trick_family,fusion,dod,terminal-identity family override: fusion resolves to the dod family (loader-19 default would mis-set family=fusion).
+paradox-symposium-illusion,notation,,PARADOX SYMPOSIUM ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the small-remnant batch.
+paradox-symposium-illusion,trick_family,symposium-illusion,illusion,terminal-identity family override: symposium-illusion resolves to the illusion family (loader-19 default would mis-set family=symposium-illusion).
+guay,operational_notation,[set] > leggy in dex > ss inside,SET > OP IN [DEX] > SAME INSIDE [DEL],Bracket form of the pickup-chassis inside-stall terminator matching the pickup sibling and the guay compounds.
+rake,base_trick,,rake,Self-base so the convergence isAtomic gate fires; rake is a foundational swing primitive.
+rake,notation,,RAKE,JOB per mechanical uppercase rule.
+rake,operational_notation,,SET > SWING TOE [DEL],Reverse-element swing primitive (swing then toe) mirroring pendulum's toe-then-swing; two ADD via swing-element accounting.

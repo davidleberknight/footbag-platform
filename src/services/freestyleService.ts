@@ -3747,6 +3747,71 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'spinning-symposium-flux',
   'spinning-symposium-whirling-swirl',
   'spinning-miraging-symposium-torque',
+  // Diving + base batch (DIVE [BOD] chassis; diving=+1; all bases canonical).
+  'diving-mirage',
+  'diving-illusion',
+  'diving-legover',
+  'diving-pickup',
+  'diving-butterfly',
+  'diving-whirl',
+  'diving-drifter',
+  'diving-osis',
+  'diving-swirl',
+  'diving-eclipse',
+  'diving-smudge',
+  'diving-symposium-mirage',
+  // Fairy + base batch (TOE > SAME OUT [DEX] entry set; fairy=+1; all bases canonical).
+  'fairy-butterfly',
+  'fairy-drifter',
+  'fairy-gyro-drifter',
+  'fairy-gyro-torque',
+  'fairy-illusion',
+  'fairy-merkon',
+  'fairy-rev-whirl',
+  'fairy-ripstein',
+  'fairy-spinning-ducking-osis',
+  'fairy-swirling-swirl',
+  'fairy-whirl',
+  // Barraging + base batch (two-dex +2 chassis; barraging=+2; all bases canonical).
+  'barraging-barfly',
+  'barraging-butterfly',
+  'barraging-eggbeater',
+  'barraging-illusion',
+  'barraging-legover',
+  'barraging-mirage',
+  'barraging-pickup',
+  'barraging-whirl',
+  // Symposium + base batch (no-plant first-dex chassis; symposium=+1; all bases canonical).
+  'symposium-atomic-butterfly',
+  'symposium-blur',
+  'symposium-bubba',
+  'symposium-mobius',
+  'symposium-swirl',
+  'symposium-tomahawk',
+  'symposium-whirling-swirl',
+  'symposium-miraging-mirage',
+  // Swirling + base batch (OP BACK SWIRL [DEX] prefix chassis; swirling=+1; all bases canonical).
+  'swirling-butterfly',
+  'swirling-mirage',
+  'swirling-paradox-mirage',
+  'swirling-swirl',
+  'swirling-symposium-whirl',
+  'swirling-whirl',
+  'swirling-whirling-swirl',
+  // Pixie + base batch (TOE > SAME IN [DEX] entry set; pixie=+1; all bases canonical; alias-scrubbed).
+  'pixie-dolomite',
+  'pixie-rev-whirl',
+  'pixie-spinning-paradox-blender',
+  'pixie-spinning-paradox-symposium-whirl',
+  'pixie-spinning-paradox-whirl',
+  'pixie-symposium-rev-whirl',
+  'pixie-symposium-whirling-swirl',
+  // Small remnants (tapping / miraging / paradox; each +1; all bases canonical).
+  'tapping-legover',
+  'miraging-symposium-butterfly',
+  'miraging-symposium-whirl',
+  'paradox-fusion',
+  'paradox-symposium-illusion',
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
@@ -4240,6 +4305,14 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
     operationalChain: '[set] > leggy in dex > ss inside',
+  }],
+  // ── rake: swing primitive (scoop then toe-stall); the reverse of
+  //    pendulum (pendulum is toe-then-swing). Swing element counts an
+  //    ADD unbracketed, as with pendulum.
+  ['rake', {
+    decomposition:    'swing(1) + stall(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: '[set] > swing toe',
   }],
   // ── ATAM bracket-flag derivations. Each
   //    decomposition translates the operational_notation's ATAM
