@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sqlite3
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -45,6 +46,8 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # next regen even when the upstream packet CSVs still list it.
 TRICKS_CSV = REPO / "legacy_data/inputs/noise/tricks.csv"
 RED_ADD_CSV = REPO / "legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv"
+# Live platform DB: authoritative canonical/alias gate (see build_tracked_names_content.py).
+DB = REPO / "database/footbag.db"
 
 DOCTRINE_CLUSTERS = {"blurry/furious", "weaving", "pogo", "shooting"}
 # Doctrine clusters whose STRUCTURE is known (blocked only on an ADD / classification
@@ -171,6 +174,18 @@ def main() -> None:
             s = (c.get("canonical_name", "") or "").strip()
             if s:
                 canonical_slugs.add(s)
+    # ── live-DB gate (authoritative) ── exclude active canonical tricks + aliases.
+    if DB.exists():
+        con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        try:
+            for (s,) in con.execute("SELECT slug FROM freestyle_tricks WHERE is_active = 1"):
+                if s:
+                    canonical_slugs.add(s.strip())
+            for (s,) in con.execute("SELECT alias_slug FROM freestyle_trick_aliases"):
+                if s:
+                    canonical_slugs.add(s.strip())
+        finally:
+            con.close()
     rows = [r for r in rows if r["slug"] not in canonical_slugs]
 
     # ── lexical-duplicate collapse (Phase 1) ──

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import csv
 import re
+import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
@@ -36,6 +37,10 @@ REPO = Path(__file__).resolve().parents[2]
 RECON = REPO / 'exploration/vocabulary-reconciliation-audit-2026-05-21/RECONCILIATION.csv'
 MASTER = REPO / 'exploration/footbagmoves-federation/SYMBOLIC_GRAMMAR_MASTER.csv'
 OUT = REPO / 'src/content/freestyleTrackedNames.ts'
+# Live platform DB. The authoritative canonical/alias gate: a slug active in
+# freestyle_tricks, or registered in freestyle_trick_aliases, must never appear
+# on the tracked surface. The static CSVs above drift; the DB does not.
+DB = REPO / 'database/footbag.db'
 
 # Canonical CSVs read by loader 17. Slugs present in any of these are
 # canonical-published, regardless of the reconciliation CSV's recorded
@@ -108,6 +113,21 @@ def main() -> None:
                 slug = (r.get('canonical_name') or '').strip()
                 if slug:
                     canonical_slugs.add(slug)
+
+    # ── live-DB gate (authoritative) ── exclude every slug that is an active
+    # canonical trick or a registered alias. Read-only; closes the drift the
+    # static CSVs leave open.
+    if DB.exists():
+        con = sqlite3.connect(f'file:{DB}?mode=ro', uri=True)
+        try:
+            for (s,) in con.execute('SELECT slug FROM freestyle_tricks WHERE is_active = 1'):
+                if s:
+                    canonical_slugs.add(s.strip())
+            for (s,) in con.execute('SELECT alias_slug FROM freestyle_trick_aliases'):
+                if s:
+                    canonical_slugs.add(s.strip())
+        finally:
+            con.close()
 
     # ── reconciliation audit: the unpublished name set ──────────────
     with RECON.open(newline='') as f:

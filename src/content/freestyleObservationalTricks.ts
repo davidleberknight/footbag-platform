@@ -164,19 +164,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // created confusion in rendered dictionary surfaces, so the curator
   // reverted it and keeps this row in Emerging Vocabulary until a
   // canonical-bracket reading is authored.
-  // 'bling-blang' is likewise kept observational.
-  {
-    folkSlug:           'bling-blang',
-    displayName:        'Bling Blang',
-    proposedReadings:   ['(uptime) Whirling near Whip'],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'bling-blang' is omitted: now canonical in freestyle_tricks.
   // 'blurrage' is omitted: promoted to canonical via the
   // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
   // the PB-source claim of 3 is documented as historical-divergence in
@@ -209,18 +197,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'darkwalk',
-    displayName:        'Darkwalk',
-    proposedReadings:   ['Pixie Diving near Butterfly'],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'darkwalk' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'dimmier',
     displayName:        'Dimmier',
@@ -258,18 +235,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     unresolvedBlockers: [],
   },
   // 'flurricane' is kept observational pending a canonical-bracket reading.
-  {
-    folkSlug:           'flurricane',
-    displayName:        'Flurricane',
-    proposedReadings:   ['Gyro Flurry'],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'flurricane' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'gdlo',
     displayName:        'GDLO',
@@ -307,21 +273,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'goliath',
-    displayName:        'Goliath',
-    proposedReadings:   [
-      'Pixie Ducking far DLO',
-      'Alpine Smog',
-    ],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'goliath' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'green-eggs-and-ham',
     displayName:        'Green Eggs and Ham',
@@ -470,22 +422,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'maelstrom',
-    displayName:        'Maelstrom',
-    proposedReadings:   [
-      'Spinning Ducking far Whirl',
-      'Alpine Spinning Whirl',
-      'Spinning Tomahawk',
-    ],
-    proposedAddFormula: null,
-    proposedAddTotal:   1,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'maelstrom' is omitted: now canonical in freestyle_tricks.
   // 'mantis' is omitted: already canonical in freestyle_tricks (adds=4,
   // base_trick='eggbeater', trick_family='legover'). Source PB reading
   // 'Spinning near Eggbeater' is cited in the canonical row.
@@ -573,18 +510,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // PB-source claim of 3 is documented as historical-divergence (strongest
   // single-row evidence for Q7 hypothesis B: pt10 implicit paradox-atomic
   // framing).
-  {
-    folkSlug:           'reactor',
-    displayName:        'Reactor',
-    proposedReadings:   ['Atomic far Whirl'],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'reactor' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'ripcurl',
     displayName:        'Ripcurl',
@@ -600,21 +526,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'ripped-warrior',
-    displayName:        'Ripped Warrior',
-    proposedReadings:   [
-      'Stepping Ducking Butterfly',
-      'Alpine Ripwalk',
-    ],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'ripped-warrior' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'riptide',
     displayName:        'Riptide',
@@ -777,21 +689,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'swirlwind',
-    displayName:        'Swirlwind',
-    proposedReadings:   [
-      'Spinning far Symp. Whirling Swirl',
-      'Whirlwind Swirl',
-    ],
-    proposedAddFormula: null,
-    proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'swirlwind' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'tobius',
     displayName:        'Tobius',
@@ -822,21 +720,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  {
-    folkSlug:           'trixie',
-    displayName:        'Trixie',
-    proposedReadings:   [
-      '(midtime) Toe near Triage',
-      'triple-dex "Pixie"',
-    ],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
+  // 'trixie' is omitted: now canonical in freestyle_tricks.
   {
     folkSlug:           'wauxspin',
     displayName:        'Wauxspin',
@@ -903,30 +787,8 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv) +
   // remove this observational entry.
   // ─────────────────────────────────────────────────────────────────────
-  {
-    folkSlug:           'inspinning-paradox-mirage',
-    displayName:        'Inspinning Paradox Mirage',
-    proposedReadings:   ['inspinning paradox mirage'],
-    proposedAddFormula: 'inspinning(+1) + paradox(+1) + mirage(2) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Inspinning is direction-distinct from Spinning per pt3; clean structural compound.',
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'inspinning-paradox-illusion',
-    displayName:        'Inspinning Paradox Illusion',
-    proposedReadings:   ['inspinning paradox illusion'],
-    proposedAddFormula: 'inspinning(+1) + paradox(+1) + illusion(2) = 4 ADD (proposed)',
-    proposedAddTotal:   4,
-    sourceLabel:        'fborg',
-    sourceCitation:     'footbag.org /newmoves — Paradox Moves listing (2003)',
-    status:             'pending-review',
-    curatorNote:        'Sibling of inspinning-paradox-mirage; mirror dex direction.',
-    unresolvedBlockers: [],
-  },
+  // 'inspinning-paradox-mirage' is omitted: now canonical in freestyle_tricks.
+  // 'inspinning-paradox-illusion' is omitted: now canonical in freestyle_tricks.
   // Ten FB.org entries (spinning-paradox-mirage / spinning-paradox-illusion /
   // spinning-paradox-whirl / paradox-double-leg-over / paradox-barrage /
   // paradox-blizzard / paradox-symposium-mirage / paradox-high-plains-

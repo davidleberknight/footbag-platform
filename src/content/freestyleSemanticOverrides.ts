@@ -40,8 +40,9 @@
 // replaces the description on the trick-detail "About" section.
 //
 // Entry criteria: the trick is a compositional structure (multi-dex,
-// chained primitives, or a folk name with a clear structural reading)
-// AND the curator has authored a one-line compositional prose. New
+// chained primitives, or a folk name with a clear structural reading),
+// or a foundational atom/operator whose terse DB description benefits
+// from a curator-authored identity or relationship reading. New
 // entries land as the curator surfaces them; no automatic generation.
 // ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,15 @@ export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new M
   ['atom-smasher',   'atomic mirage composition — atomic set primitive followed by a mirage-class terminal.'],
   // Alternate canonical slug for atom smasher (some seeds use atomsmasher); both render the same description.
   ['atomsmasher',    'atomic mirage composition — atomic set primitive followed by a mirage-class terminal.'],
+  // Foundational atoms and operators: identity plus the uptime/delay relationship pairs
+  // (Around the World / Pixie and Orbit / Fairy). Worded as "an uptime X", never "X equals Y".
+  ['around-the-world', 'Circle the bag with the foot, the leg tracing a full loop around the hanging bag before a toe stall. Around the World completes the dexterity around a delayed bag; its reverse-direction version is Orbit. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Around the World completes the dexterity around a delayed bag, while Pixie performs the circling motion as part of the set itself, before the bag reaches its peak.'],
+  ['pixie', 'A set primitive that circles the leg around the bag during the set, acting as a +1 set modifier. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Pixie performs the circling motion as part of the set itself, before the bag reaches its peak, while Around the World completes that dexterity around a delayed bag.'],
+  ['orbit', 'The reverse-direction full orbit: the leg circles the bag the opposite way around a delayed bag before the catch, making Orbit the reverse-direction counterpart of Around the World. Fairy can be understood as an uptime Orbit: Orbit performs the reverse-direction circling motion around a delayed bag, while Fairy performs that same reverse-direction dexterity during the set.'],
+  ['fairy', 'A set primitive, the opposite-direction counterpart of pixie, acting as a +1 set modifier. Fairy can be understood as an uptime Orbit: it performs the reverse-direction circling dexterity during the set, before the bag reaches its peak, while Orbit completes that same reverse-direction dexterity around a delayed bag.'],
+  ['around-the-world-kick', 'Circle the bag with the foot, then kick it instead of stalling it. Around the World Kick is the only documented 1-ADD dex trick: every other single-ADD trick is a stall or a body primitive, so this is the one case where a full dex loop scores a single ADD because no terminal stall is added. The same pattern could in principle be derived from other dex loops by dropping their stall, giving an orbit kick, mirage kick, or illusion kick, but none of these are documented tricks; they are noted only to show the pattern, not as canonical entries.'],
+  ['2-bag-juggling', 'Controlling two bags with a single foot, keeping both in play through alternating delays on the same surface. The foundational multi-bag primitive: where standard freestyle works one bag, two-bag juggling adds a second object the foot must track and re-stall without dropping either.'],
+  ['3-bag-juggling', 'Controlling three bags with two feet, keeping all three in play through coordinated delays across both feet. A higher-order multi-bag primitive: where two-bag juggling works two bags on a single foot, three-bag juggling distributes three bags across both feet, each foot tracking and re-stalling its share without dropping any.'],
 ]);
 
 /** Lookup helper. Returns null when no curator override is authored. */
