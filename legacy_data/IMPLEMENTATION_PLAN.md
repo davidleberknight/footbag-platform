@@ -42,7 +42,6 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
       - Consolidate breakpoints 520/600/640/680/720/1024 onto canonical 480/768.
       - Define or replace ~120 undefined class tokens across `src/views/freestyle/**` and the 17 freestyle-owned partials; bespoke families (`dict-card`, `compositional-set-*`, ...) keep their vocabulary but inherit shared tokens per VC §4.5.
       - Gate updates are mandatory per surface, enforced mechanically: when a template becomes compliant, prune it from `EXCLUDED_FILES` / `EXCLUDED_DIRS` in `tests/unit/template-class-vocabulary.test.ts` (a companion test in that file fails while a compliant surface stays excluded, naming the entry to remove); when the last raw font stack is tokenized, remove the "Freestyle records" early-exit from the font-family check in `scripts/ci/assert_conventions.sh` (also enforced by a companion test).
-  14. BUG/hygiene (app): `glossary.hbs` keeps an `http://` Stanford-shorthand link (the last http external link on the freestyle surface). A plain https swap is NOT viable: `https://www-cs-students.stanford.edu/...` serves the page but presents a cert for `xenon.stanford.edu` (CN mismatch, `ssl_verify=1`, so browsers block it); http returns 200. Resolve by pointing at a valid-cert mirror or dropping the link, not by swapping the scheme.
 
 ### BACKLOG (lower-priority active)
 
