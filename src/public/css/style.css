@@ -7537,6 +7537,20 @@ section.home-media { padding-top: 0; }
   margin: 4px 0 12px 0;
   max-width: 70ch;
 }
+.observed-disclosure {
+  margin: 14px 0;
+  border-top: 1px solid #e6e0cf;
+  padding-top: 10px;
+}
+.observed-disclosure-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #5a5340;
+}
+.observed-disclosure[open] > .observed-disclosure-summary {
+  margin-bottom: 10px;
+}
 .observed-eco-group {
   margin: 12px 0;
 }

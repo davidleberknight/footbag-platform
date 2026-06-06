@@ -1,17 +1,13 @@
 {{!--
-  /freestyle/observational — Emerging Vocabulary governance surface (v2).
+  /freestyle/observational — Emerging Vocabulary frontier map (EV2/EV3 hybrid).
 
-  Derived mechanically from the generated observational universe
-  (freestyleObservationalUniverse, overlap-safe: in_db=false,
-  governance_state∉{1,2}). Observational layer ONLY:
-
-    - provisional ADD / decomposition are observationally extrapolated,
-      NEVER canonical;
-    - cards carry a tracked tag (not a canonical hashtag), no detail-page
-      link, no media;
-    - the page reads as a governance / control surface: stats first, then
-      actionable promotion candidates, then doctrine bottlenecks, then
-      summarized folk / parser material with full lists behind disclosure.
+  Status-first, ADD-ordered. Observational layer ONLY: provisional ADD /
+  decomposition are observationally extrapolated, NEVER canonical; cards carry
+  a tracked tag (not a canonical hashtag), no detail-page link, no media. The
+  page reads as a curator work queue: Promotion Ready first (lowest derived ADD
+  first), then frontier-health metrics, then Needs Authoring, then Doctrine
+  Blocked clusters, then the long-tail folk / alias / ecosystem material behind
+  disclosure.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -37,39 +33,16 @@
     </p>
     {{else}}
 
-    {{! ── Statistics banner ── }}
-    <div class="observed-stats" aria-label="Observational universe statistics">
-      {{#each content.stats}}
-      <div class="observed-stat">
-        <span class="observed-stat-value">{{value}}</span>
-        <span class="observed-stat-label">{{label}}</span>
-        <span class="observed-stat-hint">{{hint}}</span>
-      </div>
-      {{/each}}
-    </div>
-    <p class="observed-stats-note text-muted">{{content.statsNote}}</p>
-
-    {{#if content.sources.length}}
-    <p class="observed-source-strip" aria-label="Sources represented on this page">
-      Sources:
-      {{#each content.sources}}
-        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{badge}}">{{label}}</span>
-      {{/each}}
-    </p>
-    {{/if}}
-
-    <p class="observational-layer-note">{{content.layerNote}}</p>
-
-    {{! ── Section A — Ready for Promotion (grouped by ecosystem) ── }}
+    {{! ── Section A — Promotion Ready (FIRST; grouped by derived ADD) ── }}
     {{#if content.readyTotal}}
-    <section class="observed-section" id="ready-for-promotion" aria-label="Ready for promotion">
+    <section class="observed-section" id="promotion-ready" aria-label="Promotion ready">
       <div class="section-heading">
-        <h2>Ready for promotion</h2>
+        <h2>Promotion Ready</h2>
         <span class="section-count">{{content.readyTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        High-confidence, mechanically derivable structures with a clean ADD reading —
-        awaiting curator review only. Grouped by ecosystem.
+        Structurally understood, with a clean derived ADD and no doctrine blocker,
+        awaiting curator review only. Promote lowest-ADD first.
       </p>
       {{#each content.readyGroups}}
       <div class="observed-eco-group">
@@ -82,35 +55,37 @@
     </section>
     {{/if}}
 
-    {{! ── Section B — Ecosystem Frontiers (matrix + confirm cards) ── }}
-    {{#if content.ecosystemMatrix.length}}
-    <section class="observed-section" id="ecosystem-frontiers" aria-label="Ecosystem frontiers">
+    {{! ── Frontier-health metrics (under the ready list, not above it) ── }}
+    <div class="observed-stats" aria-label="Frontier health">
+      {{#each content.stats}}
+      <div class="observed-stat">
+        <span class="observed-stat-value">{{value}}</span>
+        <span class="observed-stat-label">{{label}}</span>
+        <span class="observed-stat-hint">{{hint}}</span>
+      </div>
+      {{/each}}
+    </div>
+    <p class="observed-stats-note text-muted">{{content.statsNote}}</p>
+    {{#if content.sources.length}}
+    <p class="observed-source-strip" aria-label="Sources represented on this page">
+      Sources:
+      {{#each content.sources}}
+        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{badge}}">{{label}}</span>
+      {{/each}}
+    </p>
+    {{/if}}
+    <p class="observational-layer-note">{{content.layerNote}}</p>
+
+    {{! ── Section B — Needs Authoring (grouped by derived ADD) ── }}
+    {{#if content.frontierTotal}}
+    <section class="observed-section" id="needs-authoring" aria-label="Needs authoring">
       <div class="section-heading">
-        <h2>Ecosystem frontiers</h2>
+        <h2>Needs Authoring</h2>
+        <span class="section-count">{{content.frontierTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        The observational universe by ecosystem — how much of each is promotion-ready,
-        on the curator-confirm frontier, doctrine-blocked, or still unresolved.
-      </p>
-      <div class="observed-matrix-wrap">
-        <table class="observed-matrix">
-          <thead>
-            <tr><th>Ecosystem</th><th>Ready</th><th>Frontier</th><th>Doctrine</th><th>Unresolved</th><th>Total</th></tr>
-          </thead>
-          <tbody>
-            {{#each content.ecosystemMatrix}}
-            <tr>
-              <td class="observed-matrix-eco">{{label}}</td>
-              <td>{{ready}}</td><td>{{frontier}}</td><td>{{doctrine}}</td><td>{{unresolved}}</td>
-              <td class="fw-600">{{total}}</td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
-      {{#if content.frontierTotal}}
-      <p class="observed-section-intro">
-        Curator-confirm candidates ({{content.frontierTotal}}) — one small judgment from promotion-ready:
+        Structure is understood, but the notation or decomposition is not yet authored,
+        one small judgment from promotion-ready. Grouped by derived ADD.
       </p>
       {{#each content.frontierGroups}}
       <div class="observed-eco-group">
@@ -120,15 +95,14 @@
         </div>
       </div>
       {{/each}}
-      {{/if}}
     </section>
     {{/if}}
 
-    {{! ── Section C — Doctrine Bottlenecks (clusters) ── }}
+    {{! ── Section C — Doctrine Blocked (clusters; preserved) ── }}
     {{#if content.doctrineTotal}}
-    <section class="observed-section" id="doctrine-bottlenecks" aria-label="Doctrine bottlenecks">
+    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine blocked">
       <div class="section-heading">
-        <h2>Doctrine bottlenecks</h2>
+        <h2>Doctrine Blocked</h2>
         <span class="section-count">{{content.doctrineTotal}}</span>
       </div>
       <p class="observed-section-intro">
@@ -153,11 +127,39 @@
     </section>
     {{/if}}
 
-    {{! ── Section D — Folk-name / historical unresolved ── }}
-    {{> observed-summary-section section=content.folk title="Folk-name & historical unresolved" anchor="folk-unresolved"}}
+    {{! ── Long tail (collapsed by default) ── }}
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">Folk names &amp; unresolved structures <span class="text-muted">({{content.folk.total}} + {{content.parser.total}})</span></summary>
+      {{> observed-summary-section section=content.folk title="Folk-name & historical unresolved" anchor="folk-unresolved"}}
+      {{> observed-summary-section section=content.parser title="Parser uncertainty" anchor="parser-uncertainty"}}
+    </details>
 
-    {{! ── Section E — Parser uncertainty / unresolved syntax ── }}
-    {{> observed-summary-section section=content.parser title="Parser uncertainty" anchor="parser-uncertainty"}}
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">Alias / duplicate archive <span class="text-muted">({{content.aliasArchive.total}})</span></summary>
+      {{> observed-summary-section section=content.aliasArchive title="Resolves to an existing trick" anchor="alias-archive"}}
+    </details>
+
+    {{#if content.ecosystemMatrix.length}}
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">Frontier by ecosystem</summary>
+      <div class="observed-matrix-wrap">
+        <table class="observed-matrix">
+          <thead>
+            <tr><th>Ecosystem</th><th>Ready</th><th>Frontier</th><th>Doctrine</th><th>Unresolved</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            {{#each content.ecosystemMatrix}}
+            <tr>
+              <td class="observed-matrix-eco">{{label}}</td>
+              <td>{{ready}}</td><td>{{frontier}}</td><td>{{doctrine}}</td><td>{{unresolved}}</td>
+              <td class="fw-600">{{total}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {{/if}}
 
     {{/if}}
 

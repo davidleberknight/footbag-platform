@@ -51,74 +51,68 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the three-layer ontology banner (canonical / frontier / archive)', async () => {
+  it('renders the six frontier-health metrics (status-first; no ecosystem stats)', async () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    expect(html).toContain('Canonical tricks');
-    expect(html).toContain('Promotion frontier');
-    expect(html).toContain('Lexical archive');
-    // The three layer values come straight from the generated stats.
-    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.canonicalOntology));
-    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.promotionFrontier));
-    expect(html).toContain(String(OBSERVATIONAL_UNIVERSE_STATS.lexicalArchive));
+    for (const label of ['Promotion Ready', 'Needs Authoring', 'Doctrine Blocked',
+                         'Folk / Unresolved', 'Alias / Duplicate', 'Structurally Understood']) {
+      expect(html).toContain(label);
+    }
+    // The prior ecosystem-centric stat labels are gone.
+    expect(html).not.toContain('Lexical archive');
+    expect(html).not.toContain('Canonical tricks');
+    // % structurally understood is shown.
+    expect(html).toMatch(/\d+%/);
   });
 
-  it('frames the promotion frontier as a substantial governed expansion program', async () => {
+  it('makes Promotion Ready the first content section, above the metric strip', async () => {
     const html = await page();
-    expect(html).toMatch(/mature canonical ontology with a substantial, governed expansion frontier/);
-    expect(html).toMatch(/mechanically coherent candidate structures/);
-    expect(html).toMatch(/governed expansion\s+program, not a cleanup queue/);
-    // Frontier = promotion_ready + doctrine_pending + unresolved_candidate (distinct).
+    const readyIdx = html.indexOf('id="promotion-ready"');
+    const metricsIdx = html.indexOf('observed-stats');
+    expect(readyIdx).toBeGreaterThan(-1);
+    expect(readyIdx).toBeLessThan(metricsIdx);
+  });
+
+  it('keeps the count framing honest and the intake buckets reconciled', async () => {
+    const html = await page();
+    expect(html).toMatch(/duplicates a published canonical trick/);
+    expect(html).not.toMatch(/observational tricks/i);
     const ib = OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets;
-    const frontierDistinct = ib.promotion_ready.distinctStructures
-      + ib.doctrine_pending.distinctStructures
-      + ib.unresolved_candidate.distinctStructures;
-    expect(frontierDistinct).toBe(OBSERVATIONAL_UNIVERSE_STATS.promotionFrontier);
-    // The 8 intake buckets reconcile (by names) to the intake total.
     const sum = Object.values(ib).reduce((a, b) => a + b.names, 0);
     expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
-  it('frames counts honestly: the archive is documented vocabulary, never unique tricks', async () => {
+  it('groups Promotion Ready + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
     const html = await page();
-    // The archive is explicitly not unique tricks.
-    expect(html).toMatch(/documented vocabulary, not unique tricks|not unique tricks/);
-    // Aliases, duplicates, single-source noise stay OUT of the frontier.
-    expect(html).toMatch(/collapse\s+to an existing trick/);
-    expect(html).toMatch(/single-source uncorroborated names/);
-    // Never present a lexical total as "tricks".
-    expect(html).not.toMatch(/observational tricks/i);
-    expect(html).not.toMatch(/\b1701\s+tricks/i);
-  });
-
-  it('renders Ready-for-Promotion grouped by ecosystem with confidence cards', async () => {
-    const html = await page();
-    expect(html).toContain('id="ready-for-promotion"');
+    expect(html).toContain('id="promotion-ready"');
+    expect(html).toContain('id="needs-authoring"');
     expect(html).toContain('observed-eco-group');
-    expect(html).toContain('observed-eco-heading');
-    expect(html).toContain('observed-card');
-    // Confidence is surfaced, parser and doctrine kept separate.
-    expect(html).toContain('observed-conf');
-    expect(html).toMatch(/parser:\s*(high|medium|low)/);
-    // Provisional ADD is labelled extrapolated, never as canonical ADD.
-    expect(html).toContain('(extrapolated, not canonical)');
+    // ADD-group headings replace ecosystem headings.
+    expect(html).toMatch(/observed-eco-heading">\d+ ADD/);
+    // Provisional ADD stays labelled extrapolated, never canonical.
     expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
+    // Lowest ADD precedes higher ADD inside Promotion Ready.
+    const block = html.slice(html.indexOf('id="promotion-ready"'), html.indexOf('observed-stats'));
+    const nums = [...block.matchAll(/observed-eco-heading">(\d+) ADD/g)].map(m => Number(m[1]));
+    expect(nums.length).toBeGreaterThan(0);
+    expect(nums).toEqual([...nums].sort((a, b) => a - b));
   });
 
-  it('renders the ecosystem frontier matrix', async () => {
+  it('preserves Doctrine Blocked as clusters with a blocking question', async () => {
     const html = await page();
-    expect(html).toContain('id="ecosystem-frontiers"');
-    expect(html).toContain('observed-matrix');
-    expect(html).toContain('Ecosystem');
-  });
-
-  it('renders Doctrine Bottlenecks as clusters with a blocking question', async () => {
-    const html = await page();
-    expect(html).toContain('id="doctrine-bottlenecks"');
+    expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
     expect(html).toContain('Blurry / Furious');
-    expect(html).toContain('rotational bases');
+  });
+
+  it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {
+    const html = await page();
+    expect(html).toContain('Alias / duplicate archive');
+    expect(html).toContain('id="alias-archive"');
+    expect(html).toContain('observed-disclosure');
+    // The ecosystem matrix is now a collapsible, not a primary section.
+    expect(html).toContain('observed-matrix');
   });
 
   it('renders folk + parser summary sections with full lists behind disclosure', async () => {

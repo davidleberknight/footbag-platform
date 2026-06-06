@@ -3230,6 +3230,8 @@ export interface FreestyleObservationalContent {
   folk:                ObservationalSummarySection;
   /** Section E — parser uncertainty / unresolved syntax. */
   parser:              ObservationalSummarySection;
+  /** Alias / Duplicate archive — names that resolve to an existing trick. */
+  aliasArchive:        ObservationalSummarySection;
   sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
   generatedOn:         string;
@@ -3279,28 +3281,6 @@ function shapeObservationalCard(
     curatorNote:        note,
     hasDetails:         Boolean(decomposition) || Boolean(note),
   };
-}
-
-function groupObservationalCardsByEcosystem(
-  cards: readonly ObservationalCard[],
-): ObservationalEcosystemGroup[] {
-  const byEco = new Map<string, ObservationalCard[]>();
-  for (const c of cards) {
-    const key = c.ecosystem || '(unclassified)';
-    const arr = byEco.get(key);
-    if (arr) arr.push(c);
-    else byEco.set(key, [c]);
-  }
-  const addOf = (c: ObservationalCard): number =>
-    c.addLabel ? parseInt(c.addLabel.replace(/[^0-9]/g, ''), 10) || 99 : 99;
-  return [...byEco.entries()]
-    .map(([ecosystem, list]) => ({
-      ecosystem,
-      label: observedEcosystemLabel(ecosystem),
-      count: list.length,
-      cards: [...list].sort((a, b) => (addOf(a) - addOf(b)) || a.name.localeCompare(b.name)),
-    }))
-    .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
 }
 
 // ── Observational view-model shaping helpers ─────────────────────────────
@@ -8130,10 +8110,36 @@ export const freestyleService = {
     }
     const shape = (r: ObservationalUniverseRow) => shapeObservationalCard(r, curatorNotes);
     const inSection = (s: string) => universe.filter(r => r.section === s);
+    const isAliasArchive = (r: ObservationalUniverseRow) =>
+      r.intakeBucket === 'alias' || r.intakeBucket === 'duplicate_variant';
 
-    // Section A — clean mechanical promotions, grouped by ecosystem.
+    // ADD-first grouping for the Promotion-Ready and Needs-Authoring sections.
+    // Groups by the provisional (derived) ADD already carried on each row — the
+    // curator-blessed value that encodes the atomic +1 / X-dex-on-far-dex rules.
+    // This never re-derives ADD. Numeric ascending; ADD Unknown last.
+    const groupByAdd = (rows: ObservationalUniverseRow[]): ObservationalEcosystemGroup[] => {
+      const byAdd = new Map<string, ObservationalUniverseRow[]>();
+      for (const r of rows) {
+        const key = /^[0-9]+$/.test(r.provisionalAdd) ? r.provisionalAdd : 'unknown';
+        const list = byAdd.get(key);
+        if (list) list.push(r); else byAdd.set(key, [r]);
+      }
+      return [...byAdd.keys()]
+        .sort((a, b) => (a === 'unknown' ? 1 : b === 'unknown' ? -1 : Number(a) - Number(b)))
+        .map(k => {
+          const list = byAdd.get(k)!;
+          return {
+            ecosystem: k,
+            label:     k === 'unknown' ? 'ADD Unknown' : `${k} ADD`,
+            count:     list.length,
+            cards:     list.map(shape),
+          };
+        });
+    };
+
+    // Section A — Promotion Ready, grouped by derived ADD (lowest first).
     const readyCards = inSection('ready').map(shape);
-    const readyGroups = groupObservationalCardsByEcosystem(readyCards);
+    const readyGroups = groupByAdd(inSection('ready'));
 
     // Section B — per-ecosystem frontier matrix (intelligibility lens) + the
     // curator-confirm cards.
@@ -8153,7 +8159,7 @@ export const freestyleService = {
       };
     }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
     const frontierCards = inSection('frontier').map(shape);
-    const frontierGroups = groupObservationalCardsByEcosystem(frontierCards);
+    const frontierGroups = groupByAdd(inSection('frontier'));
 
     // Section C — doctrine bottleneck clusters.
     const doctrineRows = inSection('doctrine');
@@ -8172,32 +8178,44 @@ export const freestyleService = {
         .filter(c => c.count > 0);
 
     // Sections D + E — summarized: sample cards + a full list behind disclosure.
-    const summarize = (section: string, intro: string): ObservationalSummarySection => {
-      const rows = inSection(section);
-      return {
-        total:       rows.length,
-        intro,
-        sampleCards: rows.slice(0, 6).map(shape),
-        fullList:    rows.map(r => ({ name: r.name, source: r.source })),
-      };
-    };
-    const folk = summarize('folk',
+    const summarizeRows = (rows: ObservationalUniverseRow[], intro: string): ObservationalSummarySection => ({
+      total:       rows.length,
+      intro,
+      sampleCards: rows.slice(0, 6).map(shape),
+      fullList:    rows.map(r => ({ name: r.name, source: r.source })),
+    });
+    // Folk / Unresolved excludes alias-bucket rows; those surface in the
+    // Alias / Duplicate archive instead, so nothing is double-counted.
+    const folk = summarizeRows(inSection('folk').filter(r => !isAliasArchive(r)),
       'Names whose canonical equivalence is uncertain: folk shorthand, historical ' +
       'vocabulary, legacy source names, and compression labels. Documented, not yet resolved.');
-    const parser = summarize('parser',
+    const parser = summarizeRows(inSection('parser').filter(r => !isAliasArchive(r)),
       'Names the parser cannot yet fully read: unknown modifier tokens, ambiguous ' +
       'terminal mechanics, or unresolved syntax. Honest coverage gaps, not failures.');
+    const aliasArchive = summarizeRows(universe.filter(isAliasArchive),
+      'Documented names that resolve to an existing canonical trick, folded as aliases ' +
+      'or wording / source duplicates. Kept for lookup; not part of the promotion frontier.');
 
     // Three-layer ontology (publication-integrity doctrine): a mature canonical
     // ontology, a substantial governed expansion frontier, and a broader lexical
     // archive. The frontier counts distinct mechanically-coherent candidate
     // structures; the archive (aliases, duplicates, single-source noise, unresolved
     // doctrine) is documented vocabulary, never counted as candidate tricks.
-    const bn = (k: string): number => stats.intakeBuckets[k]?.names ?? 0;
+    // Frontier-health metrics (replace the prior ecosystem-centric stats).
+    const readyN    = readyCards.length;
+    const needsN    = frontierCards.length;
+    const doctrineN = doctrineRows.length;
+    const folkN     = folk.total + parser.total;
+    const aliasN    = aliasArchive.total;
+    const frontierSize  = readyN + needsN + doctrineN + folkN; // excludes the alias archive
+    const pctUnderstood = frontierSize ? Math.round(((readyN + needsN) / frontierSize) * 100) : 0;
     const statBlocks: ObservationalStat[] = [
-      { label: 'Canonical tricks',   value: String(stats.canonicalOntology),  hint: 'fully reviewed and published' },
-      { label: 'Promotion frontier', value: String(stats.promotionFrontier),  hint: `mechanically coherent candidate structures (${bn('promotion_ready')} promotable now, ${bn('doctrine_pending')} awaiting a doctrine ruling, ${bn('unresolved_candidate')} corroborated multi-source)` },
-      { label: 'Lexical archive',    value: String(stats.lexicalArchive),     hint: 'aliases, variants, folk names, single-source observations (documented vocabulary, not unique tricks)' },
+      { label: 'Promotion Ready',         value: String(readyN),      hint: 'structurally understood, clean ADD, no blocker' },
+      { label: 'Needs Authoring',         value: String(needsN),      hint: 'structure understood, awaiting notation or decomposition' },
+      { label: 'Doctrine Blocked',        value: String(doctrineN),   hint: 'awaiting a curator or Red ruling' },
+      { label: 'Folk / Unresolved',       value: String(folkN),       hint: 'documented names whose structure is not yet understood' },
+      { label: 'Alias / Duplicate',       value: String(aliasN),      hint: 'resolve to an existing trick; archive, not frontier' },
+      { label: 'Structurally Understood', value: `${pctUnderstood}%`, hint: 'promotion-ready + needs-authoring share of the non-alias frontier' },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
@@ -8226,18 +8244,11 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          `A mature canonical ontology with a substantial, governed expansion frontier, ` +
-          `derived from a reconciliation of every documented trick name (overlap-safe: ` +
-          `nothing here duplicates a published canonical trick). The ${stats.canonicalOntology} ` +
-          `published canonical structures sit above a promotion frontier of ${stats.promotionFrontier} ` +
-          `mechanically coherent candidate structures (${bn('promotion_ready')} promotable now, ` +
-          `${bn('doctrine_pending')} awaiting a doctrine ruling, ${bn('unresolved_candidate')} ` +
-          `corroborated multi-source candidates) and a lexical archive of ${stats.lexicalArchive} ` +
-          `documented names that are not unique tricks: ${bn('alias') + bn('equivalence')} collapse ` +
-          `to an existing trick, ${bn('duplicate_variant')} are wording or source duplicates, ` +
-          `${bn('low_confidence')} are single-source uncorroborated names, and ${bn('doctrine_unresolved')} ` +
-          `are structurally-unresolved doctrine terminology. The frontier is a governed expansion ` +
-          `program, not a cleanup queue.`,
+          `The promotion frontier, ordered by status. ${readyN} names are ready to promote, ` +
+          `${needsN} need authoring, ${doctrineN} are doctrine-blocked, and ${folkN} remain folk ` +
+          `or unresolved; a further ${aliasN} resolve to existing tricks (archived). ` +
+          `${pctUnderstood}% of the non-alias frontier is structurally understood. Nothing here ` +
+          `duplicates a published canonical trick.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated — they ' +
@@ -8252,6 +8263,7 @@ export const freestyleService = {
         doctrineClusters,
         folk,
         parser,
+        aliasArchive,
         sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
