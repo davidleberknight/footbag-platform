@@ -1,7 +1,7 @@
 {
   "id": "gallery_passback_tutorials",
   "name": "PassBack Tutorials",
-  "description": "High-quality conceptual freestyle footbag tutorials by PassBack: set anatomy, learning methodology, and trick identification. Complements the Tricks of the Trade canonical tutorial series with movement-language and onboarding-focused material.",
+  "description": "Freestyle footbag tutorials and named-trick demonstrations by PassBack: set anatomy, learning methodology, and trick identification, alongside per-trick demo clips. Complements the Tricks of the Trade canonical tutorial series with movement-language and onboarding-focused material.",
   "sortOrder": "caption_asc",
   "criteriaTags": [
     "#curated",

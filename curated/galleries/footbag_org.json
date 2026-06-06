@@ -1,0 +1,12 @@
+{
+  "id": "gallery_footbag_org",
+  "name": "footbag.org",
+  "description": "Curated freestyle footbag clips sourced from footbag.org.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#footbag_org"
+  ],
+  "excludeTags": [],
+  "externalLinks": []
+}
