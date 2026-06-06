@@ -961,8 +961,8 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
-    // whirling, double, high — 3 pending entries (atomic + furious now confirmed)
-    expect(pendingFlags.length).toBe(3);
+    // double, high — 2 pending entries; whirling now carries a curator-defined meaning
+    expect(pendingFlags.length).toBe(2);
   });
 
   it('surfaces a curator-adjudicated lineage line on the nuclear entry', async () => {
@@ -1550,11 +1550,11 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     }
   });
 
-  it('§11 spyro is documented as a distinct gyro move, not an inspin synonym', async () => {
+  it('§11 spyro is documented as a modifier-only descriptor, not an inspin synonym', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Spyro is its own move (the dexing foot plants before the dex); it is
-    // explicitly NOT equated to inspin.
-    expect(res.text).toMatch(/dexing foot plants before the dex/);
+    // Spyro is a modifier-only folk descriptor (not a standalone dictionary
+    // trick); it is explicitly NOT equated to inspin.
+    expect(res.text).toMatch(/modifier-only folk descriptor/);
     expect(res.text).toMatch(/not<\/strong> a synonym for inspin/);
   });
 
@@ -2401,10 +2401,16 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                cohort convention (publish structural, document the
     //                source divergence). Curator-requested publication-policy
     //                pedagogy, not prose drift.
+    //   255K → 270K  authority and comprehension layer: the source-authority
+    //                hierarchy in Sources, the publication-contract summary and
+    //                the emerging-vocabulary state table in Tracking is not
+    //                canonization, the ADD-provenance subsection, and the
+    //                cohort-test naming. Curator-approved reference pedagogy,
+    //                not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again.
-    expect(res.text.length).toBeLessThan(255_000);
+    expect(res.text.length).toBeLessThan(270_000);
   });
 });
 

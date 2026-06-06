@@ -75,7 +75,7 @@
     <p class="detail-muted">Every trick renders as the same two-line row in every browse view; only the grouping above it changes.</p>
     <div class="glossary-row-contract">
       <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 1</span> canonical trick name &middot; <code>#hashtag</code> &middot; optional <strong>&equiv;</strong> interpretation / decomposition reading &middot; optional <a href="#section-media-claim-scope">media badge</a> (<em>Tutorial / Demo available</em>)</p>
-      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 2</span> <strong>JOB</strong> operational notation &middot; <strong>ADD</strong> difficulty accounting</p>
+      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 2</span> <strong>JOB</strong> operational notation &middot; <strong>ADD</strong> difficulty accounting (its additive difficulty score)</p>
     </div>
     <p class="detail-muted">
       There is no separate per-row ADD chip: the ADD magnitude is carried by the
@@ -106,7 +106,7 @@
           <tr><td><a href="/freestyle/tricks?view=sets">By modifier</a></td><td>the set / body modifier used</td><td>what transforms the base</td></tr>
           <tr><td><a href="/freestyle/tricks?view=movement-system">By movement system</a></td><td>four conceptual axes (+ alternative surfaces)</td><td>the compositional system</td></tr>
           <tr><td><a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a></td><td>&ldquo;feels mechanically similar&rdquo;</td><td>exploratory similarity, not a canonical taxonomy</td></tr>
-          <tr><td><a href="/freestyle/tricks?view=dex-count">By dex count</a></td><td>number of dex events</td><td>mechanical complexity</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=dex-count">By dex count</a></td><td>number of <a href="#section-dexterities">dex</a> events</td><td>mechanical complexity</td></tr>
         </tbody>
       </table>
     </div>
@@ -530,7 +530,8 @@
       &ldquo;any trick that has spin-offs.&rdquo; Its terminal mechanic is
       <em>inherited</em> &mdash; every descendant still ends the family&rsquo;s way
       (paradox-whirl is still a whirl). Modifier and topology systems
-      (paradox, symposium, spinning, ducking) are entry layers that are
+      (paradox, symposium, spinning, ducking; all defined under
+      <a href="#section-modifiers">Modifiers</a>) are entry layers that are
       <em>used</em>, not inherited as identity &mdash; not families.
     </p>
 
@@ -1139,7 +1140,7 @@
       <dt id="op-prestate-no-plant"><code>(no plant while)</code></dt>
       <dd>The support leg does not plant during this segment. Common in dense compounds where the body is mid-air during the move.</dd>
       <dt id="op-prestate-rooted"><code>(rooted)</code></dt>
-      <dd>Held / rooted position; no plant. Corresponds to the <code>rooted</code> set primitive in the modifier table.</dd>
+      <dd>Held / rooted position; no plant. Corresponds to the <code>rooted</code> set primitive (see the <a href="/freestyle/sets/reference">Set notation reference</a>).</dd>
     </dl>
 
     <h4 id="op-surfaces">Surfaces &amp; body actions (reference)</h4>
@@ -1175,6 +1176,29 @@
       above the base trick value. The same logic lets the dictionary read
       <em><a href="/freestyle/tricks/mobius">mobius</a></em> as &ldquo;gyro torque&rdquo; and arrive at the same
       ADD math either way.
+    </p>
+
+    <h3 id="add-provenance">Where do ADD values come from?</h3>
+    <p>
+      A trick's ADD can come from three places, and they do not always match.
+      The <strong>source-stated</strong> value is the number an external
+      catalogue recorded. The <strong>derived</strong> value is what the platform
+      computes from the trick's structure, summing each scoring element. The
+      <strong>structural-derivation</strong> value is the sum of a named
+      compound's parts (eggbeater = atomic + legover + stall = 3). When the
+      stated and derived numbers disagree, the derived value is canonical and the
+      source number is recorded as a divergence.
+    </p>
+    <p>
+      This happens for two reasons. Sometimes a source counts a different thing:
+      PassBack records dexes, while the platform counts ADD, so a mirage is one
+      dex but two ADD (dex plus stall) and a butterfly is one dex but three ADD.
+      Neither is wrong; they measure different things. Other times a catalogue
+      carries a convention that diverges from structure, as with Big Apple Sauce
+      and the furious and railing families (see <a href="#source-divergence">Source
+      divergence</a>, and the source hierarchy under <a href="#section-sources">Sources</a>).
+      Ontology can override a catalogue number because the catalogue records what
+      was observed, while the structural ADD states what the move is made of.
     </p>
 
     <h3>Base trick weights</h3>
@@ -1965,6 +1989,24 @@
 
     <h3 class="section-heading" id="tracking-vs-canonization">Tracking is not canonization</h3>
     <p>
+      Not every name in the dictionary is at the same stage. Here is what each
+      label means, what you see, and why it is there:
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>State</th><th>In plain words</th><th>What you see</th><th>Why it is here</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Canonical</td><td>A settled trick the community agrees on</td><td>Normal name, no badge</td><td>Its name and its structure are both resolved</td></tr>
+          <tr><td>Tracked</td><td>A name people really use, written down but not yet ruled on</td><td>Listed, flagged not-yet-canonical</td><td>A complete record kept before the case is settled (for example &ldquo;Big Applesauce&rdquo;, &ldquo;Alpine Big Apple&rdquo;)</td></tr>
+          <tr><td>Under review</td><td>A real trick whose breakdown is not confirmed</td><td>A &ldquo;decomposition under review&rdquo; pill, or an <em>advanced</em> badge</td><td>The move exists; its structure is still open</td></tr>
+          <tr><td>Observational</td><td>A &ldquo;feels-similar&rdquo; grouping or alternate reading, offered as a hint</td><td>An <em>observational</em> badge</td><td>It helps you see connections; it is not an official ruling</td></tr>
+          <tr><td>Alias / duplicate</td><td>A second name for a trick that already has one</td><td>Resolves to the main trick</td><td>Two names that decompose to the same move; one is displayed, the other kept so either still finds it</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
       The platform records more names than it endorses, on purpose.
       <strong>Documentation is not canonization.</strong> A name can be seen in
       the corpus and <strong>tracked</strong> for completeness, surfaced as an
@@ -1974,6 +2016,27 @@
       being <strong>promoted</strong> after a ruling. Recording a name is
       evidence it exists in the culture, not a claim that it is settled
       structure.
+    </p>
+    <p>
+      <strong>When does a trick get published?</strong> A name becomes a
+      canonical, published trick only when it can be written in the symbolic
+      notation; when its structure (which operators, which base) is reconciled,
+      not just its number; when it is discoverable across the browse views with
+      its aliases governed; and when nothing about its structure is invented
+      (missing pieces are shown honestly, not guessed). A settled difficulty
+      number is never enough on its own: a trick whose ADD everyone agrees on
+      but whose structure is still contested is held, not published. That is the
+      contract working as designed, not a gap.
+    </p>
+    <p class="detail-muted">
+      In full, six requirements gate promotion: (1) symbolic representation;
+      (2) structural composition, with the operator and base decomposition
+      reconciled; (3) discoverability across the browse views; (4) alias and
+      equivalence governance; (5) honest incompleteness, marking unknown
+      structure as unknown rather than filling it in; and (6) no fabricated
+      structure. Arithmetic validity and structural certainty are independent
+      gates: a clean ADD never licenses asserting a decomposition the sources do
+      not agree on.
     </p>
 
     <h3 class="section-heading" id="source-divergence">Source divergence: a number versus a grammar</h3>
@@ -1990,14 +2053,18 @@
       FootbagMoves, however, scores every furious trick about two points
       higher: Furious Whirl at 7 where the structure gives 5, Furious Eggbeater
       the same, and so on across the whole family. The same pattern appears
-      independently on <code>railing</code> (rooted plus sailing, structurally
-      2), which FootbagMoves also scores about two points high.
+      independently on <code>railing</code> (<a href="/freestyle/sets/reference">rooted
+      plus sailing</a>, structurally 2), which FootbagMoves also scores about two
+      points high.
     </p>
     <p>
-      A single trick could be an error. An entire cohort moving together in one
-      direction is a convention. The platform publishes the structural value
-      and records the source convention as a divergence, rather than adopting a
-      weight the platform grammar does not support. This is the difference
+      <strong>The cohort test.</strong> A single trick whose number differs from
+      its catalogue value could be an error; an entire cohort moving together in
+      one direction is a convention. Big Apple Sauce above is the single-trick
+      case: publish the structural value, note the one-off. The furious and
+      railing families are the cohort case: publish the structural value, and
+      record the shared convention as a named divergence. The platform never
+      adopts a weight its grammar does not support. This is the difference
       between cataloguing a number and understanding a grammar.
     </p>
   </section>
@@ -2063,7 +2130,7 @@
           <tr><th>Folk name</th><th>Canonical equivalent</th></tr>
         </thead>
         <tbody>
-          <tr><td>Spyro</td><td>A distinct gyro move where the dexing foot plants before the dex <span class="detail-muted">(its own dictionary entry; <strong>not</strong> a synonym for inspin)</span></td></tr>
+          <tr><td>Spyro</td><td>A modifier-only folk descriptor for a spinning-class rotation; treated as a body modifier (+1) <span class="detail-muted">(not a standalone dictionary trick, and <strong>not</strong> a synonym for inspin)</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -2109,6 +2176,20 @@
       <li><strong>AnzTrikz</strong> &mdash; Australian / New Zealand demonstration series; canonical references for many compound rotational variants.</li>
       <li><strong>Footbag Finland</strong> &mdash; Finnish freestyle demonstration footage; visual references for several dictionary entries.</li>
     </ul>
+    <p class="glossary-about-framing">
+      <strong>Where authority comes from.</strong> These sources do not carry
+      equal weight. When they conflict, the platform resolves in a fixed order:
+      a curator ruling first; then the structural grammar, where a trick's
+      difficulty is what its movement composition adds up to; then community
+      usage, which decides the displayed name; and last an external catalogue's
+      recorded number. An external source is strong evidence that a trick exists
+      and is performed, but it does not override how a trick decomposes or what
+      its structural ADD is. That is why FootbagMoves listing Big Apple Sauce at
+      9 while the structure derives 8 publishes as 8 with the 9 noted, and why
+      the furious and railing families publish at their structural values (see
+      <a href="#source-divergence">Source divergence</a>). A source number is
+      evidence, not authority.
+    </p>
     <p class="glossary-about-framing">
       The vocabulary documented here rests on decades of foundational work
       by many people. The project owes particular thanks to Ben Job, Steve

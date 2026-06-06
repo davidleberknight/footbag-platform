@@ -50,8 +50,9 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors); atomic / quantum / nuclear
-    // (atomic family, pt10 relationships); stepping / surging (set-foot relocations).
-    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging'],
+    // (atomic family, pt10 relationships); stepping / surging (set-foot relocations);
+    // whirling (the whirl dex performed during uptime, before the bag peaks).
+    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging', 'whirling'],
   },
   {
     axisKey:        'entry-topology',
@@ -65,12 +66,12 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'midtime-body',
     axisName:       'Midtime Body Modifiers',
     axisDefinition:
-      'What the body does during the dex moment: rotation by tempo (spinning / gyro / ' +
-      'whirling) or head dip / body arc (ducking / diving / weaving). Modifiers ' +
+      'What the body does during the dex moment: rotation by tempo (spinning / ' +
+      'gyro) or head dip / body arc (ducking / diving / weaving). Modifiers ' +
       'carried through the trick rather than applied at its boundaries.',
-    // Order: spinning (full 360°), gyro (half 180°), whirling (distinct beat),
+    // Order: spinning (full 360°), gyro (half 180°),
     // ducking / diving / weaving (head dip + body arc family).
-    modifierSlugs:  ['spinning', 'gyro', 'whirling', 'ducking', 'diving', 'weaving'],
+    modifierSlugs:  ['spinning', 'gyro', 'ducking', 'diving', 'weaving'],
   },
   {
     axisKey:        'no-plant-suspension',

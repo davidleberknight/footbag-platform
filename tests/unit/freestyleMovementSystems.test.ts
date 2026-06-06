@@ -37,7 +37,7 @@ describe('freestyleMovementSystems content module', () => {
   it('curator-confirmed modifiers are classified per STABILIZATION_PLAN + 2026-05-18 Phase B inheritance', () => {
     // Original pilot scope (Slice L1, 2026-05-16): 11 modifiers.
     // Phase B inheritance (2026-05-18): added quantum / nuclear to
-    // set-uptime + gyro / whirling to midtime-body per the
+    // set-uptime + gyro to midtime-body per the
     // consolidation plan. Total now 15. Still pending: barraging /
     // blurry (Wave 2), tapping / furious (curator placement).
     const expected: Record<string, string> = {
@@ -48,10 +48,10 @@ describe('freestyleMovementSystems content module', () => {
       nuclear:   'set-uptime',
       stepping:  'set-uptime',
       surging:   'set-uptime',
+      whirling:  'set-uptime',
       paradox:   'entry-topology',
       spinning:  'midtime-body',
       gyro:      'midtime-body',
-      whirling:  'midtime-body',
       ducking:   'midtime-body',
       diving:    'midtime-body',
       weaving:   'midtime-body',
