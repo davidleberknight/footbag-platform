@@ -5,7 +5,9 @@ description: Use when adding, modifying, validating, or troubleshooting curated 
 
 # Footbag Curated Media Skill
 
-Use this skill when the task is **curated freestyle media intake**: staging, validating, promoting, tagging, or backfilling reference media that links to a freestyle trick, record, or category. Do **not** use this skill for member-uploaded media, the gallery editor / admin UI, or the named-gallery JSON sidecar files in `curated/galleries/` (all Dave-owned).
+Use this skill when the task is **curated freestyle media intake**: staging, validating, promoting, tagging, or backfilling reference media that links to a freestyle trick, record, or category.
+
+> **Boundary update (2026-06-06): the gallery boundary is lifted for James.** James now directs gallery / curated-media work directly — creating and editing `curated/galleries/*.json` sidecars, running `seed_fh_curator.py` (standalone + idempotent; lands sidecar changes without a full `reset-local-db.sh`), and editing the emerging-vocab generators. The "Dave-owned" notes on gallery JSON, gallery creation, and `seed_fh_curator.py` below are **superseded for James's work**. Only the admin gallery-edit-**tool UI** code (`adminCuratorController.ts`, `curatorMediaService.ts`, `src/views/admin/curator/**`) and the gallery schema remain Dave's. A named gallery is a tag-AND `member_galleries` row; a catch-all gallery's `excludeTags` MUST list every source-gallery tag or it double-lists. See memory `feedback_gallery_dave_track`.
 
 ## 1. Core pipeline
 
@@ -147,14 +149,14 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 
 1. **Every intended sidecar must carry the source tag.** If you introduce `#<new_source>`, ensure both new emissions AND any pre-existing sidecars from that source carry the tag. Backfill is one-shot, idempotent, and limited to the `tags` array: never modify other sidecar fields.
 2. **Whitelist the source tag** in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` before introducing it. Otherwise the validator rejects sidecar emissions and post-load QC fails.
-3. **Admin UI gallery creation is operator-driven, not code.** James (or any operator with admin) creates the named gallery in the admin UI, sets its criteria tag(s), and the data prep is finished from this skill's perspective. Do not attempt to create `curated/galleries/<name>.json` from this skill: that is Dave's surface.
+3. **Gallery creation is now James-track (2026-06-06 boundary lift).** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
 
 ## 9. Safety boundaries
 
 | Boundary | Rule |
 |---|---|
-| `scripts/seed_fh_curator.py` | Dave-owned. Do not modify unless explicitly approved. |
-| `curated/galleries/*.json` | Dave-owned. Do not create or modify. Gallery rows are created via admin UI. |
+| `scripts/seed_fh_curator.py` | James may RUN it (standalone/idempotent) per the 2026-06-06 boundary lift; coordinate with Dave before MODIFYING the script body. |
+| `curated/galleries/*.json` | James-track since the 2026-06-06 boundary lift — create/edit gallery sidecars directly (catch-all `excludeTags` must list every source tag). |
 | `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Dave-owned (gallery editor + member upload). |
 | `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes need Dave coordination. |
 | `legacy_data/tools/trick_video_discovery/snippet_candidates.csv` | James-track. Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
