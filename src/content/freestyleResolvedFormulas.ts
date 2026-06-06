@@ -3197,6 +3197,17 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. tapping on canonical double-over-down; bracket count 5 matches ADD. Observational (FM).',
   },
   {
+    slug:        'gyro-diving-clipper',
+    name:        'gyro diving clipper',
+    operator:    'gyro',
+    base:        'diving-clipper',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'gyro(+1) + diving-clipper(2) = 3 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > DIVE [BOD] > SAME CLIP [DEL]',  // gyro chassis on canonical diving-clipper; bracket count 3 matches ADD.
+    provenance:  'Clean Tier-1 sweep. gyro on canonical diving-clipper; bracket count 3 matches ADD. Observational (SG).',
+  },
+  {
     slug:        'bill-ted-s-excellent-adventure',
     name:        'bill ted s excellent adventure',
     operator:    'flailing',

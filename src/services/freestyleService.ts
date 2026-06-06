@@ -3845,6 +3845,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'barraging-barfly-swirl',
   'ducking-symposium-reverse-whirl',
   'tapping-double-over-down',
+  'gyro-diving-clipper',
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
