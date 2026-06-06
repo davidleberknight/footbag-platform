@@ -3812,6 +3812,12 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'miraging-symposium-whirl',
   'paradox-fusion',
   'paradox-symposium-illusion',
+  // Whirling-X (uptime-whirl operator; OP IN [DEX] prefix + leading-dex flip).
+  'whirling-mirage',
+  'whirling-pickup',
+  'whirling-whirl',
+  'whirling-butterfly',
+  'whirling-rake',
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.

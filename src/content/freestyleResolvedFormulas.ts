@@ -2856,6 +2856,61 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'Paradox-chassis promotion. paradox(+1); bracket count 4 matches ADD. Observational (FM).',
   },
   {
+    slug:        'whirling-mirage',
+    name:        'whirling mirage',
+    operator:    'whirling',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'whirling(+1) + mirage(2) = 3 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',  // whirling OP IN [DEX] prefix with leading-dex parity flip (whirling-swirl precedent); bracket count 3 matches ADD.
+    provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 3 matches ADD. Observational (PB).',
+  },
+  {
+    slug:        'whirling-pickup',
+    name:        'whirling pickup',
+    operator:    'whirling',
+    base:        'pickup',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'whirling(+1) + pickup(2) = 3 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',  // whirling OP IN [DEX] prefix with leading-dex parity flip (whirling-swirl precedent); bracket count 3 matches ADD.
+    provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 3 matches ADD. Observational (SG).',
+  },
+  {
+    slug:        'whirling-whirl',
+    name:        'whirling whirl',
+    operator:    'whirling',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'whirling(+1) + whirl(3) = 4 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL]',  // whirling OP IN [DEX] prefix with leading-dex parity flip (whirling-swirl precedent); bracket count 4 matches ADD.
+    provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 4 matches ADD. Observational (PB).',
+  },
+  {
+    slug:        'whirling-butterfly',
+    name:        'whirling butterfly',
+    operator:    'whirling',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'whirling(+1) + butterfly(3) = 4 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // whirling OP IN [DEX] prefix; butterfly leading dex is symmetric; bracket count 4 matches ADD.
+    provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; bracket count 4 matches ADD. Observational (FM).',
+  },
+  {
+    slug:        'whirling-rake',
+    name:        'whirling rake',
+    operator:    'whirling',
+    base:        'rake',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'whirling(+1) + rake(2) = 3 ADD',
+    operationalNotation: 'SET > OP IN [DEX] > SWING TOE [DEL]',  // whirling OP IN [DEX] prefix on the rake swing primitive (no base dex to flip); two brackets plus the unbracketed swing element equal 3 ADD.
+    provenance:  'Whirling-chassis promotion. whirling(+1) OP IN [DEX] prefix; two brackets plus the unbracketed swing element equal 3 ADD. Observational (FM).',
+  },
+  {
     slug:        'bill-ted-s-excellent-adventure',
     name:        'bill ted s excellent adventure',
     operator:    'flailing',
