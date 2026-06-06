@@ -1461,3 +1461,40 @@ whirling-pickup,notation,,WHIRLING PICKUP,JOB per mechanical uppercase rule.
 whirling-whirl,notation,,WHIRLING WHIRL,JOB per mechanical uppercase rule.
 whirling-butterfly,notation,,WHIRLING BUTTERFLY,JOB per mechanical uppercase rule.
 whirling-rake,notation,,WHIRLING RAKE,JOB per mechanical uppercase rule.
+stepping-guay,notation,,STEPPING GUAY,JOB per mechanical uppercase rule.
+diving-guay,notation,,DIVING GUAY,JOB per mechanical uppercase rule.
+tapping-guay,notation,,TAPPING GUAY,JOB per mechanical uppercase rule.
+fairy-guay,notation,,FAIRY GUAY,JOB per mechanical uppercase rule.
+inspinning-guay,notation,,INSPINNING GUAY,JOB per mechanical uppercase rule.
+pixie-guay,notation,,PIXIE GUAY,JOB per mechanical uppercase rule.
+pixie-mirage,notation,,PIXIE MIRAGE,JOB per mechanical uppercase rule.
+pixie-clipper,notation,,PIXIE CLIPPER,JOB per mechanical uppercase rule.
+pixie-double-pickup,notation,,PIXIE DOUBLE PICKUP,JOB per mechanical uppercase rule.
+pixie-double-pickup,trick_family,double-pickup,pickup,"Family follows the base trick family, not the compound base slug."
+pixie-diving-butterfly,notation,,PIXIE DIVING BUTTERFLY,JOB per mechanical uppercase rule.
+pixie-diving-butterfly,trick_family,diving-butterfly,butterfly,"Family follows the base trick family, not the compound base slug."
+pixie-ducking-butterfly,notation,,PIXIE DUCKING BUTTERFLY,JOB per mechanical uppercase rule.
+pixie-ducking-butterfly,trick_family,ducking-butterfly,butterfly,"Family follows the base trick family, not the compound base slug."
+pixie-ducking-mirage,notation,,PIXIE DUCKING MIRAGE,JOB per mechanical uppercase rule.
+pixie-ducking-mirage,trick_family,ducking-mirage,mirage,"Family follows the base trick family, not the compound base slug."
+pixie-symposium-reverse-whirl,notation,,PIXIE SYMPOSIUM REVERSE WHIRL,JOB per mechanical uppercase rule.
+pixie-symposium-reverse-whirl,trick_family,symposium-reverse-whirl,whirl,"Family follows the base trick family, not the compound base slug."
+fairy-ducking-mirage,notation,,FAIRY DUCKING MIRAGE,JOB per mechanical uppercase rule.
+fairy-ducking-mirage,trick_family,ducking-mirage,mirage,"Family follows the base trick family, not the compound base slug."
+fairy-torque,notation,,FAIRY TORQUE,JOB per mechanical uppercase rule.
+fairy-torque,trick_family,torque,osis,"Family follows the base trick family, not the compound base slug."
+diving-clipper,notation,,DIVING CLIPPER,JOB per mechanical uppercase rule.
+diving-toe-stall,notation,,DIVING TOE STALL,JOB per mechanical uppercase rule.
+stepping-barrage,notation,,STEPPING BARRAGE,JOB per mechanical uppercase rule.
+stepping-clipper,notation,,STEPPING CLIPPER,JOB per mechanical uppercase rule.
+gyro-clipper,notation,,GYRO CLIPPER,JOB per mechanical uppercase rule.
+gyro-diving-butterfly,notation,,GYRO DIVING BUTTERFLY,JOB per mechanical uppercase rule.
+gyro-diving-butterfly,trick_family,diving-butterfly,butterfly,"Family follows the base trick family, not the compound base slug."
+symposium-whirling-mirage,notation,,SYMPOSIUM WHIRLING MIRAGE,JOB per mechanical uppercase rule.
+symposium-whirling-mirage,trick_family,whirling-mirage,mirage,"Family follows the base trick family, not the compound base slug."
+spinning-butterfly-kick,notation,,SPINNING BUTTERFLY KICK,JOB per mechanical uppercase rule.
+barraging-barfly-swirl,notation,,BARRAGING BARFLY SWIRL,JOB per mechanical uppercase rule.
+barraging-barfly-swirl,trick_family,barfly-swirl,swirl,"Family follows the base trick family, not the compound base slug."
+ducking-symposium-reverse-whirl,notation,,DUCKING SYMPOSIUM REVERSE WHIRL,JOB per mechanical uppercase rule.
+ducking-symposium-reverse-whirl,trick_family,symposium-reverse-whirl,whirl,"Family follows the base trick family, not the compound base slug."
+tapping-double-over-down,notation,,TAPPING DOUBLE OVER DOWN,JOB per mechanical uppercase rule.
