@@ -6,11 +6,11 @@
  * compound trick. Curator-edited; not generated.
  *
  * Layer-2 source for the trick-page semantic-notation ladder:
- *   Layer 1 — curator notation (parser-tokenized; existing)
- *   Layer 2 — THIS FILE — curated equivalence chain (this file)
- *   Layer 3 — base-lineage phrase (generated from row.base_trick)
- *   Layer 4 — core atom silence
- *   Layer 5b — non-core curation-gap cue
+ *   Layer 1: curator notation (parser-tokenized; existing)
+ *   Layer 2: THIS FILE, curated equivalence chain (this file)
+ *   Layer 3: base-lineage phrase (generated from row.base_trick)
+ *   Layer 4: core atom silence
+ *   Layer 5b: non-core curation-gap cue
  *
  * Forever-rules:
  *   - Each reading is a flat curator-authored string. No recursive expansion
@@ -24,7 +24,7 @@
  *         nuclear / barraging / furious / double / whirling / high). Those
  *         operators decompose, but the decomposition lives in the glossary.
  *       * Deeper depth only when curator-authored.
- *   - ATOM-LEVEL PREFERENCE RULE (2026-05-26 governance migration):
+ *   - ATOM-LEVEL PREFERENCE RULE:
  *     The primary reading (readings[0]) should expand to stable
  *     primitive/operator vocabulary, NOT stop at a compressed
  *     intermediary nickname. Prefer: primitive set/operator + base
@@ -35,8 +35,8 @@
  *     (PEDAGOGICAL_COMPRESSION_EXEMPLARS below) may include intermediate-
  *     compression depths above the atom-level reading (e.g. mobius
  *     shows gyro torque → spinning ss torque → atom-level osis-base).
- *   - S3/S5 SEPARATION RULE (2026-05-26 governance migration):
- *     S5 chains own structural compressions only — the compositional
+ *   - S3/S5 SEPARATION RULE:
+ *     S5 chains own structural compressions only: the compositional
  *     readings the canonical name compresses. They never overlap with
  *     S3 (aliases_json, pure spelling/historical aliases) or S9
  *     (equivalence-topology, alternate derivation paths). If a reading
@@ -54,8 +54,7 @@
  *     illusion") will render today from its row.base_trick=illusion.
  *
  * Slug verification: every slug below was verified against the dictionary
- * inputs and Red corrections before locking (2026-05-13). Per
- * CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), `orbit` is now a canonical
+ * inputs and Red corrections before locking. `orbit` is the canonical
  * dictionary slug; `reverse-around-the-world` and `reverse-atw` are aliases
  * pointing at it. The seed below uses dictionary-canonical slugs only.
  */
@@ -72,10 +71,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro torque', 'spinning ss torque', 'spinning ss miraging op osis'],
     curatorConfirmPending: false,   // curator-authored verbatim
   },
-  // toe-blur entry removed 2026-05-26 (S3/S5 governance migration): toe-blur
-  // is a pure alias of quantum-mirage (Red pt2), not a canonical trick — its
-  // SE chain entry never reached the detail-page render path. Dead data
-  // cleanup. Alias relationship preserved in S3 (freestyle_trick_aliases).
+  // toe-blur has no chain entry: it is a pure alias of quantum-mirage
+  // (Red pt2), not a canonical trick, so its SE chain never reached the
+  // detail-page render path. Alias relationship preserved in S3
+  // (freestyle_trick_aliases).
   {
     slug:     'ripwalk',
     readings: ['stepping butterfly'],
@@ -131,10 +130,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro butterfly swirl'],
     curatorConfirmPending: true,    // Red pt2 (pending; treated as flat compositional reading per curator direction)
   },
-  // ── Canon-locked compound chains (CANONICAL-SURFACE-REALIGNMENT-1 S2) ──
+  // ── Canon-locked compound chains ──────────────────────────────────────
   // All pt11 / pt1+pt2 / pt2+followup-2026-04 / pt4 locked readings; each
   // entry is one canon-uncontested compositional decomposition. Fury is
-  // intentionally absent — its non-rotational reading is Wave-1 Q1c pending.
+  // intentionally absent: its non-rotational reading is pending Red
+  // question Q1c.
   {
     slug:     'torque',
     readings: ['miraging osis'],
@@ -165,11 +165,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic illusion'],
     curatorConfirmPending: false,   // pt2 + followup-2026-04 locked
   },
-  // ── Canon-locked compound chains (CANONICAL-SURFACE-REALIGNMENT-2 NR-1) ──
-  // 17 maintainer-approved (2026-05-14) canon-locked readings appended.
-  // Each entry's Red source cited; all set curatorConfirmPending=false per
-  // maintainer direction. ADD-arithmetic discrepancies (e.g., venom, nemesis
-  // surfacing furious-rotational behavior pending Wave-1 Q1c) are tracked
+  // ── Canon-locked compound chains ──────────────────────────────────────
+  // Maintainer-approved canon-locked readings. Each entry's Red source
+  // cited; all set curatorConfirmPending=false per maintainer direction.
+  // ADD-arithmetic discrepancies (e.g., venom, nemesis
+  // surfacing furious-rotational behavior pending Red question Q1c) are tracked
   // separately in the ADD conflict audit; the registry flag is for
   // reader-uncertainty about the reading itself, not for math uncertainty.
   {
@@ -197,9 +197,9 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['paradox reverse drifter'],
     curatorConfirmPending: false,   // pt5-locked (= paradox grifter)
   },
-  // flurry entry removed 2026-05-26 (S3/S5 governance migration): flurry
-  // is an equivalent-derivation case (two valid structural paths converging
-  // on 4 ADD: barraging legover vs paradox paradox-legover). S9
+  // flurry has no chain entry: it is an equivalent-derivation case (two
+  // valid structural paths converging on 4 ADD: barraging legover vs
+  // paradox paradox-legover). S9
   // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
   // S5 would duplicate one path and obscure the other.
   {
@@ -257,7 +257,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic torque'],
     curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
   },
-  // ── Butterfly-family trivially-named compounds (Slice A3 of 2026-05) ──
+  // ── Butterfly-family trivially-named compounds ──
   // Curator-authored chains for butterfly-family pilots whose canonical
   // name carries the compositional structure. tripwalk's reading is
   // sourced from the modifier-feel-cards content (quantum entry:
@@ -265,7 +265,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // is curator doctrine surfaced via the user-spec example list. All
   // tokens are registered in semanticNotationRendering.ts (paradox /
   // ducking / spinning as MODIFIERS; near as SIDE_POSITIONAL; butterfly
-  // as BASE_ANCHOR). parkwalk deferred — folk-name compound whose
+  // as BASE_ANCHOR). parkwalk deferred: folk-name compound whose
   // structural decomposition is not yet curator-locked.
   {
     slug:     'atomic-butterfly',
@@ -293,11 +293,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // user-spec example; 'near' in SIDE_POSITIONAL
   },
 
-  // ── Mirage-family trivially-named compounds (Slice A3 of 2026-05) ─────
+  // ── Mirage-family trivially-named compounds ─────
   // Curator-authored chains. smear / tap / sumo from user-spec example
   // list (each cites already-established compositional readings; "near"
   // is a registered SIDE_POSITIONAL token). blur / witchdoctor / fury
-  // deliberately deferred — blur and witchdoctor are folk-name compounds
+  // deliberately deferred: blur and witchdoctor are folk-name compounds
   // whose decomposition is not curator-locked; fury was deliberately
   // omitted earlier (pt1 vs pt6 conflict unresolved).
   {
@@ -326,10 +326,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // user-spec example
   },
 
-  // ── Osis-family trivially-named compounds (Slice A3 of 2026-05) ───────
+  // ── Osis-family trivially-named compounds ───────
   // Single-modifier-stacked-on-osis decompositions. All tokens already
   // in MODIFIERS + BASE_ANCHORS registries. barraging-osis already
-  // pending Red Wave-2 (operator class question); deferred.
+  // pending the operator-class question; deferred.
   {
     slug:     'ducking-osis',
     readings: ['ducking osis'],
@@ -346,7 +346,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,
   },
 
-  // ── Torque-family trivially-named compounds (Slice A3 of 2026-05) ─────
+  // ── Torque-family trivially-named compounds ─────
   // Torque is itself the named compound for miraging osis (existing
   // chain); these stack one modifier onto torque. blurry-torque's
   // alternative "stepping paradox torque" reading was retired per the
@@ -354,7 +354,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // not imply paradox anymore"). The canonical ADD remains at 6 pending
   // curator clarification on whether the value derives from stepping+
   // torque + a hidden component or whether the row should re-rank.
-  // spinal-tap deferred — folk-name compound whose structural
+  // spinal-tap deferred: folk-name compound whose structural
   // decomposition is not yet curator-locked.
   {
     slug:     'paradox-torque',
@@ -372,7 +372,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,   // Red 2026-05-20: blurry no longer implies paradox; structural decomposition under review
   },
 
-  // ── Dada-curve (Slice A3 of 2026-05) ──────────────────────────────────
+  // ── Dada-curve ──────────────────────────────────
   // Per user-spec doctrine: "dada-curve = miraging far symposium butterfly".
   // dada-curve has its own singleton trick_family bucket; the chain
   // surfaces on the trick's individual detail page + ADD view. All
@@ -384,10 +384,10 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // user-spec doctrine
   },
 
-  // ── Whirl-family trivially-named compounds (Slice A2 of 2026-05) ──────
+  // ── Whirl-family trivially-named compounds ──────
   // These compounds are named by their compositional structure: the name
   // IS the formula. Authoring single-reading chains here gives Family
-  // View the same formula visibility ADD View provides — closing the
+  // View the same formula visibility ADD View provides, closing the
   // "Notation pending" placeholder gap on cards whose structure is
   // already self-evident from the canonical name. curatorConfirmPending
   // is false because each reading is an identity transformation of the
@@ -436,27 +436,27 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['spinning symposium whirl'],
     curatorConfirmPending: false,
   },
-  // ── High-ADD flagship chain (CANONICAL-SURFACE-REALIGNMENT-2 NR-1C) ──
+  // ── High-ADD flagship chain ──
   // Gauntlet is the dictionary's flagship 7-ADD compound. Surfacing two
   // stopping depths on its compact-symbolic-object card demonstrates
   // Blurry-compression pedagogically: the shorter reading
   // ("blurry ducking torque") and the unfolded reading
   // ("stepping ducking paradox torque") are equivalent per pt11's
   // Blurry = Stepping Paradox definition. Same trick, two readings.
-  // Sourced from FBORG-AUDIT-1 cross-source agreement (FBORG, FM sample,
+  // Sourced from cross-source agreement (FBORG, FM sample,
   // and DB notation column).
   {
     slug:     'gauntlet',
     readings: ['blurry ducking torque', 'stepping ducking paradox torque'],
     curatorConfirmPending: false,   // pt11-locked via Blurry-compression
   },
-  // ── Slice N (2026-05-16) — branch-family chain coverage ────────────────
+  // ── Branch-family chain coverage ──────────────────────────────────────
   // Closes high-confidence chain gaps in the blender + drifter branch
   // families. Each entry's reading is grounded in a Red ruling or
-  // curator-prose statement that predates Slice N. Borderline/uncertain
-  // rows (mind-bender, spinal-tap, tombstone, etc.) explicitly held back
-  // for follow-up curator authoring. Folk-derived rows (tomahawk,
-  // witchdoctor, fury) carry the Slice M unresolved-pill instead.
+  // curator-prose statement. Borderline/uncertain rows (mind-bender,
+  // spinal-tap, tombstone, etc.) explicitly held back for follow-up
+  // curator authoring. Folk-derived rows (tomahawk, witchdoctor, fury)
+  // carry the unresolved-pill instead.
   {
     slug:     'paradox-blender',
     readings: ['paradox blender', 'paradox whirling op osis'],
@@ -465,7 +465,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'food-processor',
     readings: ['blurry blender', 'stepping paradox blender'],
-    curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (memory: project_freestyle_state RED rulings 2026-05-15)
+    curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (Red 2026-05-15)
   },
   {
     slug:     'spender',
@@ -477,12 +477,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['paradox drifter', 'paradox miraging clipper'],
     curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends drifter's pt11-locked 'miraging clipper'
   },
-  // ── Pre-Red Completion Sweep (2026-05-16) — externally-supported chains ──
-  // 7 chains grounded by Slice P cross-source audit: each entry has FM+PB
+  // ── Externally-supported chains ───────────────────────────────────────
+  // Chains grounded by a cross-source audit: each entry has FM+PB
   // agreement (or FM-only with curator-confirm-pending). All readings are
-  // structurally clean — they decompose through curator-known operators
-  // onto a canonical base trick. No Wave 2 dependencies; no Red-blocked
-  // doctrine. Per Slice P findings + RECONCILIATION_AUDIT_PLAN §6.
+  // structurally clean: they decompose through curator-known operators
+  // onto a canonical base trick. No unresolved-doctrine dependencies; no
+  // Red-blocked doctrine.
   //
   // Discipline: each entry is a known-external reading that does not
   // contest any IFPA decomposition. Adding here does NOT promote external
@@ -491,7 +491,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'merkon',
     readings: ['spinning legover'],
-    curatorConfirmPending: false,   // FM 'Spinning Legover' + PB 'Spinning Legover' agree (Slice P identical)
+    curatorConfirmPending: false,   // FM 'Spinning Legover' + PB 'Spinning Legover' agree (identical)
   },
   {
     slug:     'magellan',
@@ -501,7 +501,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'parkwalk',
     readings: ['pixie butterfly'],
-    curatorConfirmPending: true,   // FM 'Pixie Butterfly (same side)' + PB 'Pixie near Butterfly' agree; parkwalk reads identically to dimwalk — curator verifies whether they are distinct rows or name variants
+    curatorConfirmPending: true,   // FM 'Pixie Butterfly (same side)' + PB 'Pixie near Butterfly' agree; parkwalk reads identically to dimwalk; curator verifies whether they are distinct rows or name variants
   },
   {
     slug:     'pigbeater',
@@ -518,17 +518,16 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['ducking paradox whirl'],
     curatorConfirmPending: false,   // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' agree; row removed from UNRESOLVED_COMPOUNDS in this sweep
   },
-  // witchdoctor entry removed 2026-05-26 (S3/S5 governance migration):
-  // "atomic symposium mirage" is a historical reading preserved in S9
-  // (EQUIVALENCE_TOPOLOGY) with role='historical'. S5 would compete with
-  // S9 for the same reading and confuse the canonical-primary
-  // ("atom-smasher + symposium") vs historical-context relationship.
-  // ── Path A — Slice X follow-on (2026-05-17) ────────────────────────────
-  // 5 additional chain entries for existing IFPA rows lacking chains. All
-  // structurally clean (operators in IFPA registry; bases in IFPA core
-  // ontology; math verified). Multi-source cases use curatorConfirmPending=
-  // false; FM-only cases use curatorConfirmPending=true per the witchdoctor
-  // precedent.
+  // witchdoctor has no chain entry: "atomic symposium mirage" is a
+  // historical reading preserved in S9 (EQUIVALENCE_TOPOLOGY) with
+  // role='historical'. S5 would compete with S9 for the same reading and
+  // confuse the canonical-primary ("atom-smasher + symposium") vs
+  // historical-context relationship.
+  // ── Additional chain entries ──────────────────────────────────────────
+  // Chain entries for existing IFPA rows lacking chains. All structurally
+  // clean (operators in IFPA registry; bases in IFPA core ontology; math
+  // verified). Multi-source cases use curatorConfirmPending=false; FM-only
+  // cases use curatorConfirmPending=true per the witchdoctor precedent.
   {
     slug:     'tombstone',
     readings: ['stepping drifter'],
@@ -554,11 +553,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['tapping torque'],
     curatorConfirmPending: true,   // FM 'Tapping Torque' only (PB silent); math tapping(+1)+torque(4)=5 matches DB asserted_adds
   },
-  // ── Path B — Slice X pilot canonical promotions (2026-05-17) ─────────────
-  // 5 new canonical trick rows promoted via red_additions_2026_04_20.csv on
-  // the same day. Each entry pairs with the loader-19 insertion; chain
-  // readings authored alongside the row so the trick lands publishable
-  // (CTPC Principle 1: symbolic representation present from day one).
+  // ── Pilot canonical promotions ────────────────────────────────────────
+  // New canonical trick rows promoted via red_additions_2026_04_20.csv.
+  // Each entry pairs with the loader-19 insertion; chain readings authored
+  // alongside the row so the trick lands publishable (CTPC Principle 1:
+  // symbolic representation present from day one).
   {
     slug:     'assassin',
     readings: ['pixie ducking mirage'],
@@ -584,16 +583,14 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro symposium torque'],
     curatorConfirmPending: false,   // FM 'Gyro Symposium Torque' + PB 'Symp. Mobius' agree (mobius unfolds to gyro torque); math gyro(+1)+symposium(+1)+torque(4)=6
   },
-  // 'rev-whirl' chain reading removed 2026-05-24 per curator rendered-
-  // output audit: 'reverse whirl' was just the canonical-name
-  // abbreviation expansion (rev → reverse) and added no information to
-  // the browse card. The trick's JOB notation, ADD breakdown, and ALT
-  // (reverse-pair) row carry the structural info. The 'whip' alias
-  // remains on the DB row.
-  // 'rev-up' chain entry removed 2026-05-24 per curator rendered-
-  // output QC: rev-up is structurally distinct from rev-whirl; the
-  // prior "reverse whirl" chain reading was misleading. rev-up is
-  // demoted to is_active=0 via red_corrections.
+  // 'rev-whirl' has no chain reading: 'reverse whirl' is just the
+  // canonical-name abbreviation expansion (rev → reverse) and adds no
+  // information to the browse card. The trick's JOB notation, ADD
+  // breakdown, and ALT (reverse-pair) row carry the structural info. The
+  // 'whip' alias remains on the DB row.
+  // 'rev-up' has no chain entry: rev-up is structurally distinct from
+  // rev-whirl; the "reverse whirl" chain reading was misleading. rev-up
+  // is demoted to is_active=0 via red_corrections.
   {
     slug:     'fury',
     readings: ['furious paradox mirage'],
@@ -604,35 +601,33 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['stepping paradox double leg over', 'blurry dlo'],
     curatorConfirmPending: false,   // Red pt6 2026-05-04: Fog = Stepping Paradox Double Legover. Math: stepping(+1)+paradox(+1)+dlo(3)=5. Folk alias 'blurry dlo' preserved
   },
-  // 'pendulum' chain reading removed 2026-05-24 per curator rendered-
-  // output audit: "toe swing" was just the JOB-form lowercase echo and
-  // added no information to the browse card (the JOB row carries the
-  // canonical form SET > TOE SWING [DEL]). Removed alongside rake's
-  // analogous "swing toe" reading.
-  // 'rake' chain reading removed 2026-05-24 per curator rendered-output
-  // audit: "swing toe" was just the JOB-form lowercase echo of the
-  // canonical SET > SWING TOE [DEL] notation and added no information
-  // to the browse card. Removed alongside pendulum's analogous
-  // "toe swing" reading.
+  // 'pendulum' has no chain reading: "toe swing" is just the JOB-form
+  // lowercase echo and adds no information to the browse card (the JOB
+  // row carries the canonical form SET > TOE SWING [DEL]). Omitted
+  // alongside rake's analogous "swing toe" reading.
+  // 'rake' has no chain reading: "swing toe" is just the JOB-form
+  // lowercase echo of the canonical SET > SWING TOE [DEL] notation and
+  // adds no information to the browse card. Omitted alongside pendulum's
+  // analogous "toe swing" reading.
   {
     slug:     'flying-clipper',
     readings: ['flying clipper'],
-    curatorConfirmPending: false,   // Sprint 5 resolved: flying(+1) + clipper(1 body kick) = 2 ADD. Folk alias 'jester' preserved on DB row. flying is body-modifier +1; clipper here is the 1-ADD body kick, not clipper-stall surface
+    curatorConfirmPending: false,   // Resolved: flying(+1) + clipper(1 body kick) = 2 ADD. Folk alias 'jester' preserved on DB row. flying is body-modifier +1; clipper here is the 1-ADD body kick, not clipper-stall surface
   },
   {
     slug:     'ducking-clipper',
     readings: ['ducking clipper'],
-    curatorConfirmPending: false,   // Sprint 2 resolved: ducking(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading (operator + base atom)
+    curatorConfirmPending: false,   // Resolved: ducking(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading (operator + base atom)
   },
   {
     slug:     'spinning-clipper',
     readings: ['spinning clipper'],
-    curatorConfirmPending: false,   // Sprint 2 resolved: spinning(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading
+    curatorConfirmPending: false,   // Resolved: spinning(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading
   },
   {
     slug:     'whirling-swirl',
     readings: ['whirling swirl'],
-    curatorConfirmPending: false,   // Sprint 1 resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
+    curatorConfirmPending: false,   // Resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
   },
   {
     slug:     'barraging-osis',
@@ -647,13 +642,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'double-around-the-world',
     readings: ['double around the world'],
-    curatorConfirmPending: true,    // Canonical row at 3 ADD; doctrinally double(+1)+ATW(2)=3 per multiplier audit framework but 'double' operator not in modifier table — Red Wave 2 question on double-as-multiplier doctrine. Per CANONICALIZATION_POLICY.md §10 Productive Multiplicity Red pt3, double-around-the-world is stabilized canonical
+    curatorConfirmPending: true,    // Canonical row at 3 ADD; doctrinally double(+1)+ATW(2)=3 per multiplier audit framework but 'double' operator not in modifier table; open Red question on double-as-multiplier doctrine. Per Red pt3 (Productive Multiplicity), double-around-the-world is stabilized canonical
   },
 
-  // ─── S3/S5 governance migration 2026-05-26 (atom-level rule) ──────────
-  // Three new chain entries that previously lived (wrongly) in
-  // aliases_json as structural compressions. Migrated to S5 per the
-  // S3/S5 separation rule, with atom-level expansion preferred over
+  // ─── Atom-level rule (S3/S5 separation) ───────────────────────────────
+  // Three chain entries that belong in S5 (not aliases_json) as
+  // structural compressions, with atom-level expansion preferred over
   // compressed-intermediary forms (e.g. blur's "blurry mirage" expands
   // to "stepping paradox mirage" because "blurry" itself compresses
   // "stepping + paradox").
@@ -719,7 +713,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
 ];
 
 /**
- * PEDAGOGICAL_COMPRESSION_EXEMPLARS — slugs eligible for multi-depth
+ * PEDAGOGICAL_COMPRESSION_EXEMPLARS: slugs eligible for multi-depth
  * S5 ladder treatment + new SE chain authoring. Membership is
  * curator-locked; additions one-at-a-time by explicit curator decision.
  *
@@ -736,7 +730,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
  *     ladder authoring permission
  * Some slugs are in both (mobius, ripwalk, atom-smasher); some only
  * in this set (blur, barrage, paradox-mirage); some only in FAMOUS
- * (smear, eggbeater — they don't need ladder depth beyond a single
+ * (smear, eggbeater: they don't need ladder depth beyond a single
  * compositional reading).
  *
  * Curator-locked: do NOT expand this set for ontology-completeness

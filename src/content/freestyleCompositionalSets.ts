@@ -2,7 +2,7 @@
  * Compositional Sets content for /freestyle/compositional-sets.
  *
  * A systematic exploration of how named sets compose from a small
- * grammar — the dictionary-hub companion to the flat reference table
+ * grammar: the dictionary-hub companion to the flat reference table
  * at /freestyle/sets (Chris Holden compilation).
  *
  * Design principles (locked):
@@ -15,8 +15,8 @@
  *   "this set IS this trick performed uptime" relationships as
  *   compositional ladders, not paragraphs.
  * - **Holden attribution preserved.** Operational notation strings
- *   are quoted verbatim from chrisHoldenSets.txt (community
- *   compilation circa 2003).
+ *   are quoted verbatim from Chris Holden's community compilation
+ *   (circa 2003).
  * - **No forced canonicalization.** Holden-only entries (slapping,
  *   tapping, bubba, sailing, shooting, flailing, infracting) are
  *   marked status='holden-only'; never promoted to canonical without
@@ -28,15 +28,15 @@
  *
  * Status field semantics:
  *
- * - 'canonical'        — the set name resolves to a current
+ * - 'canonical'        : the set name resolves to a current
  *                        freestyle_tricks dictionary entry; card
  *                        renders a /freestyle/tricks/<slug> link.
- * - 'platform-tracked' — the set appears in platform content modules
+ * - 'platform-tracked' : the set appears in platform content modules
  *                        (operatorReference, symbolicEquivalences,
  *                        resolvedFormulas) but is not a standalone
  *                        dictionary entry; card renders without a
  *                        trick link.
- * - 'holden-only'      — Holden's compilation lists this name; the
+ * - 'holden-only'      : Holden's compilation lists this name; the
  *                        platform has no separate canonical or
  *                        tracked treatment. Surfaced honestly as
  *                        community-cited; never promoted.
@@ -109,12 +109,12 @@ export interface CompositionalAuditEntry {
   /** Holden's display name (matches an entry in COMPOSITIONAL_SET_FAMILIES). */
   holdenName: string;
   /**
-   * Holden's reading — either the parenthetical structural folk-name
+   * Holden's reading, either the parenthetical structural folk-name
    * ("Stepping Paradox") or a brief summary of the notation pattern.
    */
   holdenReading: string;
   /**
-   * Platform reading — the equivalent decomposition or framing from
+   * Platform reading, the equivalent decomposition or framing from
    * platform content modules. Null when no platform entry exists
    * (status: holden-only).
    */
@@ -153,7 +153,7 @@ export interface UptimeReinterpretationLadder {
   /**
    * Optional honest-conflict note. Non-null when this reading is
    * NOT the only published reading and the disagreement is worth
-   * surfacing inline. Used sparingly — full audit lives in Phase 2c.
+   * surfacing inline. Used sparingly; the full audit lives in §4.
    */
   conflictNote: string | null;
 }
@@ -347,11 +347,10 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
 ];
 
 // ─────────────────────────────────────────────────────────────────────
-// §4  Consistency audit — Holden ⇄ platform
+// §4  Consistency audit: Holden ⇄ platform
 //
-// Single source of truth for the audit table rendered on /freestyle/
-// compositional-sets §4. Full row-by-row evidence trail lives at
-// exploration/compositional-sets-audit-2026-05-23.md.
+// Single source of truth for the audit table rendered on
+// /freestyle/compositional-sets §4.
 //
 // Categorization discipline (locked):
 //   - Notation match + decomposition match           → 'aligned'
@@ -481,7 +480,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   { holdenName: 'Fairy Atomic',     holdenReading: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >.',                                    platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Shooting',         holdenReading: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >; Holden: Stepping Paradox Illusion.', platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Infracting',       holdenReading: 'opposite of a Refraction, done as a set.',                                  platformReading: null, status: 'holden-only', note: 'Inverse pattern, not a literal grammar string.' },
-  // Spinning family — all Holden-only
+  // Spinning family, all Holden-only
   { holdenName: 'Sonic',            holdenReading: 'CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >; Holden: double spinning.',  platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Peeking',          holdenReading: 'SET > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >; Holden: double spinning (SET-led).', platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Leaning',          holdenReading: 'CLIP > OP IN [DEX] > (front) SPIN [BOD] >; Holden: stepping inspinning.',   platformReading: null, status: 'holden-only', note: null },
@@ -490,18 +489,18 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   { holdenName: 'Neutron',          holdenReading: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side); Holden: Atomic spin.',  platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Fairy Spinning',   holdenReading: 'TOE > SAME OUT [DEX] > (BACK) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Pixie Inspinning', holdenReading: 'TOE > SAME IN [DEX] > (FRONT) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
-  // Whirl/swirl variants — Holden-only naming distinctions
+  // Whirl/swirl variants, Holden-only naming distinctions
   { holdenName: 'Blazing',          holdenReading: 'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',       platformReading: null, status: 'holden-only', note: 'Holden distinguishes blazing from whirling by terminal-component side; the platform does not separate them.' },
   { holdenName: 'Scattered',        holdenReading: 'CLIP > OP OUT [DEX] > (same side); Holden: Reverse Whirling (same side).',  platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Shattered',        holdenReading: 'CLIP > OP OUT [DEX] > (op side); Holden: Reverse Whirling (op side).',      platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Broken',           holdenReading: 'CLIP > OP OUT [DEX] > (SAME); Holden: clipper reverse whirl.',              platformReading: 'Platform tracks rev-whirl as canonical; "Broken" itself is the Holden folk synonym.', status: 'holden-only', note: 'Asterisk in Holden\'s source. Name is folk; the underlying reverse-whirl shape is canonical.' },
-  // UNS sets — all Holden-only
+  // UNS sets, all Holden-only
   { holdenName: 'Finchy',           holdenReading: 'PINCH > SAME OUT [DEX] >; Holden: Pinching Fairy set.',                     platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Pixie Pinching',   holdenReading: 'PINCH > SAME IN [DEX] >.',                                                  platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Twisted',          holdenReading: 'DRAGON > SAME FRONT SWIRL [DEX] > SAME IN/OUT [PDX][DEX] >; Holden: Dragon set Swirling Paradox.', platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Snapping',         holdenReading: 'DRAGON > SAME FRONT SWIRL [DEX] >; Holden: Dragon set Swirling.',           platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Arctic',           holdenReading: 'FRIGIDOSIS > SAME IN [DEX] >; Holden: frigidosis Pixie.',                   platformReading: null, status: 'holden-only', note: null },
-  // Antisymposium — Holden-only conceptual notes
+  // Antisymposium, Holden-only conceptual notes
   { holdenName: 'Rooting / Rooted', holdenReading: 'Movement constraint: the setting foot stays on the ground.',                platformReading: null, status: 'holden-only', note: 'Discipline-level note rather than a literal set notation.' },
   { holdenName: 'Zoid',             holdenReading: 'rooted toe clipper set.',                                                   platformReading: null, status: 'holden-only', note: null },
 ];

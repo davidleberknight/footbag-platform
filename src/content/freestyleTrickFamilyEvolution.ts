@@ -2,7 +2,7 @@
  * freestyleTrickFamilyEvolution.ts
  * =================================
  *
- * Phase A + B of the trick-detail ontology doctrine (2026-05-25). L5 —
+ * L5,
  * "family evolution" narrative layer. Where the dictionary stops being
  * static taxonomy and becomes movement-language history.
  *
@@ -94,10 +94,10 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
     ],
   },
 
-  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
-  // blur authored here (L5 narrative steps). fury and sumo suppress L5 —
+  // ── C1 mirage-descendant batch ─────────────────
+  // blur authored here (L5 narrative steps). fury and sumo suppress L5:
   // both are leaf-class compounds at the end of their extension axes; per
-  // the Phase B lock §2 rule 7, suppression > filler.
+  // the doctrine lock §2 rule 7, suppression > filler.
 
   {
     slug: 'blur',
@@ -183,10 +183,10 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
     ],
   },
 
-  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // ── C2 whirl-descendant batch ──────────────────
   // blender authored here (L5 narrative steps). surreal and phoenix
-  // suppress L5 — both are leaf compounds at the top of their extension
-  // axes; per the Phase B lock §2 rule 7, suppression > filler.
+  // suppress L5: both are leaf compounds at the top of their extension
+  // axes; per the doctrine lock §2 rule 7, suppression > filler.
 
   {
     slug: 'blender',
@@ -218,10 +218,10 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
     ],
   },
 
-  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // ── C3 independent-anchor batch ────────────────
   // osis / butterfly / torque authored here (deep family-evolution
-  // narratives). mobius, ripwalk, food-processor suppress L5 — leaf
-  // compounds per the Phase B lock §2 rule 7.
+  // narratives). mobius, ripwalk, food-processor suppress L5: leaf
+  // compounds per the doctrine lock §2 rule 7.
 
   {
     slug: 'osis',

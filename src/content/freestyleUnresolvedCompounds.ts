@@ -4,14 +4,13 @@
  *
  * Curator-authored allow-list of trick slugs whose structural
  * decomposition is folk-derived, mechanically ambiguous, or otherwise
- * pending refinement. Slice M of the 2026-05 dictionary/glossary
- * normalization plan.
+ * pending refinement.
  *
  * Why this layer exists
  * ---------------------
  * Several rows sit awkwardly in families because they are folk-named,
  * lack operational notation, or have hybrid mechanics. The dictionary
- * should acknowledge this honestly — without:
+ * should acknowledge this honestly, without:
  *   - deleting the rows
  *   - inventing a separate "Unresolved" browse view
  *   - over-hardening taxonomy
@@ -24,9 +23,8 @@
  *
  * Reversibility
  * -------------
- * Pure TypeScript content per [[feedback_reversible_content_
- * governance]]. Removing an entry → the pill disappears from that
- * card on the next request. No DB column, no migration.
+ * Pure TypeScript content. Removing an entry → the pill disappears
+ * from that card on the next request. No DB column, no migration.
  *
  * Authoring rule
  * --------------
@@ -37,32 +35,31 @@
 
 export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   // Folk-named direction-variant whose canonical structural role is
-  // unconfirmed (no op-notation; explicitly deferred from Slice J).
+  // unconfirmed (no op-notation; explicitly deferred).
   'rev-up',
   // Folk-derived; no modifier links; the orphan after the
-  // clipper-stall family retirement (Slice M).
+  // clipper-stall family retirement.
   'reaper',
   // Hybrid: chain reading places it in whirl-family lineage, but
-  // op-notation uses front-whirl dex. Explicitly deferred from Slice J.
+  // op-notation uses front-whirl dex. Explicitly deferred.
   'surreal',
-  // Same hybrid pattern as surreal. Explicitly deferred from Slice J.
+  // Same hybrid pattern as surreal. Explicitly deferred.
   'montage',
-  // witchdoctor removed 2026-05-20: Red ruling published a composite-
-  // base reading (atom-smasher(4) + symposium(+1) = 5) that now
-  // mechanically converges through the convergence-rule extension.
-  // Structural identity is no longer single-sourced and the pill would
-  // misrepresent the row's resolution state.
-  // Folk name; curator-flagged per Slice M directive.
+  // witchdoctor is not flagged: Red published a composite-base reading
+  // (atom-smasher(4) + symposium(+1) = 5) that mechanically converges
+  // through the convergence-rule extension. Its structural identity is
+  // no longer single-sourced, so the pill would misrepresent the row's
+  // resolution state.
+  // Folk name; curator-flagged.
   'fury',
   // Mechanically resembles rev-whirl/hatchet but no curator
-  // confirmation yet (kept in rev-whirl family from Slice J).
+  // confirmation yet (kept in rev-whirl family).
   'surgery',
-  // 2026-05-16 Pre-Red completion sweep removed 'tomahawk' from this
-  // allow-list. Slice P confirmed strong external consensus:
-  // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' both
-  // decompose to ducking+paradox+whirl (far = paradox per Red 2026-05-15).
-  // The new chain reading is authored in freestyleSymbolicEquivalences.ts
-  // with curatorConfirmPending=false.
+  // 'tomahawk' is not flagged: strong external consensus
+  // (FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl')
+  // decomposes it to ducking+paradox+whirl (far = paradox per Red
+  // 2026-05-15). The chain reading is authored in
+  // freestyleSymbolicEquivalences.ts with curatorConfirmPending=false.
 ]);
 
 /**

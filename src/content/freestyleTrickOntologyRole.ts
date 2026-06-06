@@ -2,7 +2,7 @@
  * freestyleTrickOntologyRole.ts
  * ==============================
  *
- * Phase A + B of the trick-detail ontology doctrine (2026-05-25). L3 —
+ * L3,
  * "ontology role" layer. Names what broader ontology concept this trick
  * exemplifies.
  *
@@ -48,7 +48,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
       "Whirl is the family anchor for cross-body rotational dexes terminating on a clipper stall. The conserved terminal mechanic — clipper-anchored cross-body rotation — defines a family branch that includes blender (whirl-osis compound), pogo (whirl with a no-plant constraint), blistering (whirl with gyro back-spin), and a wider set of rotational siblings. The whirl family is one of the dictionary's most branchy trees, expanding across all five movement-language axes.",
   },
 
-  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
+  // ── C1 mirage-descendant batch ─────────────────
 
   {
     slug: 'blur',
@@ -99,7 +99,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
       "Blurriest is the canonical superlative of the blurry-naming tradition. Where blur is the cultural-canonical mid-range entry (stepping-paradox-mirage at 4 ADD), blurriest is the deepest blurry-character compound — a 5-ADD blurry-barfly that stacks maximal blurry character on a non-mirage chassis. The blurry-naming tradition operates as a category label spanning multiple chassis: blur on mirage, blurriest on barfly, blurrage on barrage. Blurriest demonstrates how a naming family can extend across structurally distinct anchors while preserving recognizable lineage.",
   },
 
-  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // ── C2 whirl-descendant batch ──────────────────
 
   {
     slug: 'blender',
@@ -122,7 +122,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
       "Phoenix is the canonical exemplar for multi-modifier compounds on the butterfly chassis. Where most named butterfly compounds carry a single modifier (ripwalk = stepping butterfly; dimwalk = pixie butterfly; parkwalk = stepping-paradox butterfly), phoenix stacks two distinct modifiers from different axes — a set treatment (pixie) and a body-posture modifier (ducking). The compound's named status reflects the structural cleanness of two-axis modifier stacking: each modifier operates on its own axis without overlapping or competing, demonstrating that the butterfly chassis tolerates multi-axis layering.",
   },
 
-  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // ── C3 independent-anchor batch ────────────────
 
   {
     slug: 'osis',
@@ -166,7 +166,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
       "Food-processor is the canonical exemplar for blurry-naming extension into compound-of-canonicals territory. Where blur (mirage chassis), blurriest (barfly chassis), and blurrage (barrage chassis) demonstrate blurry-naming on single-anchor chassis, food-processor demonstrates the same naming tradition reaching into compound territory — blurry on a whirl-osis compound. The folk name 'food-processor' is among the dictionary's more visually distinctive names: it does not resemble either parent canonical (whirl or osis) or the chassis name (blender), instead inheriting culturally-promoted identity rather than structural-grammar resemblance.",
   },
 
-  // ── C4 folk-name rescue exemplar (Phase C, 2026-05-25) ───────────────
+  // ── C4 folk-name rescue exemplar ───────────────
 
   {
     slug: 'ripstein',

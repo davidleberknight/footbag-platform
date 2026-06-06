@@ -21,15 +21,11 @@
  * Same trick name, two different measurements → numeric "disagreement"
  * that is structurally reconcilable, not a true canonical conflict.
  *
- * Per Batch C of the PassBack-first ingestion sequence (see
- * exploration/freestyle-public-coherence-wave-2026-05-18/
- * PASSBACK_INGESTION_AUDIT.md): observational notes surface the
- * framing explicitly rather than silently absorbing or contradicting
- * PB's numbers.
+ * Observational notes surface the framing explicitly rather than
+ * silently absorbing or contradicting PB's numbers.
  *
- * Reversibility: TypeScript content module per
- * [[feedback_reversible_content_governance]]. Source rows pulled from
- * exploration/freestyle-public-coherence-wave-2026-05-18/
+ * Reversibility: TypeScript content module, so the layer can be revised
+ * without mutating canonical trick data. Source rows pulled from
  * passback_formula_disagreements.csv (disagreement_type =
  * add_value_diverges). To refresh: re-run the audit script + replace
  * this array.
@@ -59,7 +55,7 @@ export const PASSBACK_ADD_FRAMING_PROSE =
   "something real, just different things.";
 
 // Full 68 rows: rendered as a compact table on /freestyle/add-analysis.
-// Sourced from passback_formula_disagreements.csv (2026-05-18 audit).
+// Sourced from passback_formula_disagreements.csv.
 export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'barfly',                    ifpaName: 'barfly',                    ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'barrage',                   ifpaName: 'barrage',                   ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },

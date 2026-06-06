@@ -3,9 +3,7 @@
  * ===============================
  *
  * Curator-authored discriminator for the `kind` field on every
- * `DictionaryTrickCard`. Slice A of the 2026-05 dictionary/glossary
- * normalization plan (see exploration/dictionary-glossary-normalization-
- * audit-2026-05/AUDIT.md §3.1).
+ * `DictionaryTrickCard`.
  *
  * Why this layer exists
  * ---------------------
@@ -18,14 +16,14 @@
  * glossary §2 surfaces).
  *
  * This module supplies the discriminator. Each slug maps to one of:
- *   - 'trick'           — true trick; ends in bag contact and has structural
+ *   - 'trick'           : true trick; ends in bag contact and has structural
  *                         depth (compound, dex, named structure)
- *   - 'modifier'        — body or set modifier; transforms a base trick
- *   - 'operator'        — set primitive that initiates a trick (pixie, atomic, ...)
- *   - 'surface'         — catch surface; structural primitive (toe-stall, ...)
- *   - 'pending-review'  — curator-flagged ambiguity; never on public surfaces
+ *   - 'modifier'        : body or set modifier; transforms a base trick
+ *   - 'operator'        : set primitive that initiates a trick (pixie, atomic, ...)
+ *   - 'surface'         : catch surface; structural primitive (toe-stall, ...)
+ *   - 'pending-review'  : curator-flagged ambiguity; never on public surfaces
  *
- * Ontology-layer constraint (per user 2026-05-16): this module classifies
+ * Ontology-layer constraint (per user): this module classifies
  * STRUCTURAL ROLE only. It does not collapse any of the four ontology
  * layers (canonical nomenclature / descriptive movement shorthand /
  * symbolic decomposition / embodied movement analogy) into a single
@@ -33,16 +31,16 @@
  *
  * Reversibility
  * -------------
- * Per [[feedback_reversible_content_governance]], this lives as TypeScript
- * content rather than a SQL column while the Red ontology consultation is
- * still in flight. Promotion to a `freestyle_tricks.kind` column waits
- * until Red Wave 2 (operator-vs-trick boundary) is answered.
+ * This lives as TypeScript content rather than a SQL column while the
+ * Red ontology consultation is still in flight. Promotion to a
+ * `freestyle_tricks.kind` column waits until the operator-vs-trick
+ * boundary is answered.
  *
  * Authoring rule
  * --------------
  * Lists are explicit. If a slug is not in any of the four override sets
  * below, the resolver returns 'trick'. Curator-confirmed at audit time
- * against ground-truth queries on freestyle_tricks (2026-05-16). When new
+ * against ground-truth queries on freestyle_tricks. When new
  * trick rows land, the default ('trick') applies; curators add to the
  * appropriate set only when the discriminator should differ.
  */
@@ -59,7 +57,7 @@ export type FreestyleTrickKind =
 // operator board; the DB category column places them here, and the modifier
 // classification is preserved per the DB.
 //
-// Kick-doctrine exception — dual-role vocabulary. The bare-name spinning
+// Kick-doctrine exception: dual-role vocabulary. The bare-name spinning
 // kicks `spin` (#spin) and `double-spin` (#double-spin) are deliberately NOT
 // in this set. They are canonical first-class tricks: historically-recognized
 // bare-name kicks whose kick terminator is implied, members of the kick
@@ -92,7 +90,7 @@ const MODIFIER_SLUGS = new Set<string>([
   'spyro',
 ]);
 
-// All 9 slugs with category='set' in freestyle_tricks as of 2026-05-16.
+// All 9 slugs with category='set' in freestyle_tricks.
 // Includes pogo + rooted at adds=0 (curator-flagged: they are stationary
 // set primitives, not 0-ADD tricks).
 const OPERATOR_SLUGS = new Set<string>([
@@ -109,7 +107,7 @@ const OPERATOR_SLUGS = new Set<string>([
 
 // Catch surfaces that should NOT appear as tricks in the difficulty
 // ladder. Reserved for the narrow case where the row is a bare surface
-// NAME masquerading as a trick — not for legitimate stall primitives.
+// NAME masquerading as a trick, not for legitimate stall primitives.
 //
 // `clipper` (category='body' in the DB, ADD=1) is the load-bearing
 // example: it's the surface name, not the stall trick. The actual
@@ -117,10 +115,10 @@ const OPERATOR_SLUGS = new Set<string>([
 //
 // Curator note: every stall in `freestyle_tricks` with category='surface'
 // (toe-stall, clipper-stall, cloud-stall, sole-stall, head-stall, etc.)
-// DOES end in bag contact — passes the user's discriminating criterion
-// "all tricks must end with bag contact" — and is legitimately a 1-2 ADD
+// DOES end in bag contact, passes the user's discriminating criterion
+// "all tricks must end with bag contact", and is legitimately a 1-2 ADD
 // trick. Those rows are NOT in this set. They surface in the ADD ladder
-// as the simplest tricks. The future "isSurface" facet (Slice E/F) will
+// as the simplest tricks. The future "isSurface" facet will
 // add the glossary §2 cross-link without conflating it with kind.
 const SURFACE_SLUGS = new Set<string>([
   'clipper',
@@ -129,7 +127,7 @@ const SURFACE_SLUGS = new Set<string>([
 // Curator-flagged ambiguities. Each carries an inline note that surfaces
 // in the QC panel; never on public browse views.
 const PENDING_REVIEW_SLUGS = new Set<string>([
-  // 2026-05-16 user-flagged: should this be a set/modifier or a true
+  // User-flagged: should this be a set/modifier or a true
   // trick? Compound rows with `base_trick='surging'` exist; the trick's
   // own structural role is unresolved.
   'surging',

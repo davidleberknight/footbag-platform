@@ -2,7 +2,7 @@
  * freestyleTrickMechanicalDelta.ts
  * =================================
  *
- * Phase A + B of the trick-detail ontology doctrine (2026-05-25). L2 —
+ * L2,
  * the "mechanical delta" layer. Per the doctrine, L2 is the deepest
  * ontology-work locus: where paradox / x-dex / nuclear / blurry /
  * furious / rotational escalation / hidden topology changes become
@@ -87,7 +87,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     topologyKind: 'rotational',
   },
 
-  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
+  // ── C1 mirage-descendant batch ─────────────────
 
   {
     slug:        'blur',
@@ -153,7 +153,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     topologyKind: 'compound',
   },
 
-  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // ── C2 whirl-descendant batch ──────────────────
 
   {
     slug:        'blender',
@@ -182,7 +182,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     topologyKind: 'compound',
   },
 
-  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // ── C3 independent-anchor batch ────────────────
 
   {
     slug:        'osis',
@@ -238,7 +238,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     topologyKind: 'compound',
   },
 
-  // ── C4 folk-name rescue exemplar (Phase C, 2026-05-25) ───────────────
+  // ── C4 folk-name rescue exemplar ───────────────
 
   {
     slug:        'ripstein',

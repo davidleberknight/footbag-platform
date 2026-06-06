@@ -23,7 +23,7 @@
  *
  * Inclusion principle. HARD RULE: a public family root must have MORE THAN 2 active member tricks
  * (>= 3); a 2-or-fewer-member grouping is never a first-class public family root. Beyond that count
- * gate, entries are terminal-identity TOPOLOGY families — a structure the trick
+ * gate, entries are terminal-identity TOPOLOGY families: a structure the trick
  * lands into, whose recognizable downside signature descendants preserve even as modifiers stack
  * on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators are
  * surfaced via the movement-system / glossary-fundamentals layer, NOT as family roots here. ATW
@@ -35,7 +35,7 @@
  *
  * Order is curator-meaningful (roughly: parent anchors first, then named
  * descendant lineages / notable families). Counts are derived at render time
- * from active trick membership — never hard-coded here.
+ * from active trick membership, never hard-coded here.
  */
 
 export interface PublicDisplayFamily {

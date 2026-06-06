@@ -2,17 +2,17 @@
  * Alternative-surfaces content module for the Movement System view
  * (rendered as a compact subsection AFTER the 4 movement-system axes).
  *
- * Per the 2026-05-24 follow-up decision after the nonstandard-topology
- * audit: alternative surfaces become a compact subsection of
+ * Per the follow-up decision after the nonstandard-topology audit,
+ * alternative surfaces become a compact subsection of
  * /freestyle/tricks?view=movement-system rather than a standalone
  * `?view=alternative-surfaces` browse toggle. The data is sparse-
  * categorical (~18 rows across 5 sub-groups); a full browse mode would
  * waste the toggle-bar slot. A compact educational subsection is the
- * right surface — it preserves browse simplicity while making the
+ * right surface: it preserves browse simplicity while making the
  * non-standard topology legible.
  *
  * Doctrine framing: NOT "weird tricks" or "miscellaneous". The
- * alternative-surface tricks are alternative *control systems* —
+ * alternative-surface tricks are alternative *control systems*,
  * different balance and movement-topology choices than the toe/clipper-
  * dominant freestyle default. The subsection emphasises movement
  * topology and balance/control mechanics, not rarity or novelty.
@@ -21,7 +21,7 @@
  * in `freestyle_tricks` for their detail-page links to resolve. The
  * service-layer shaping filters out missing slugs gracefully.
  *
- * Curator-paced content module — edit here when adding new
+ * Curator-paced content module: edit here when adding new
  * alternative-surface canonical rows. Order within groups is
  * pedagogical (foundational stall first, kicks and compounds after).
  */

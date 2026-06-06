@@ -2,9 +2,9 @@
  * freestyleParentFamilies.ts
  * ==========================
  *
- * Parent-family skeleton from the SHORT Family ruling pass
- * (exploration/family-ruling-pass-short-2026-05-28/RULINGS.md). Reversible
- * TS content map; NO `freestyle_tricks.trick_family` data is overwritten.
+ * Parent-family skeleton from the curator's short family ruling pass.
+ * Reversible TS content map; NO `freestyle_tricks.trick_family` data is
+ * overwritten.
  *
  * What this module does
  * ---------------------

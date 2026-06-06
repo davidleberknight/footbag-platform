@@ -1,6 +1,5 @@
 /**
- * Doctrine-divergence registry — operationalizes the 5-category taxonomy
- * documented at exploration/doctrine_divergence_framework_2026-05-23.md.
+ * Doctrine-divergence registry: operationalizes the 5-category taxonomy.
  *
  * Distinguishes the executable IFPA-grammar derivation (parser-canonical;
  * what `freestyle_tricks.adds` carries) from external-source claims (PB,
@@ -15,15 +14,14 @@
  * potentially multi-system (PB / IFPA / Red-adjudicated). The registry
  * names that separability.
  *
- * Public-facing rendering: trick-detail pages only (per
- * feedback_landing_vs_reference_boundary). Browse cards stay clean.
+ * Public-facing rendering: trick-detail pages only. Browse cards stay
+ * clean.
  *
- * Reversible TS content module per
- * [[feedback_reversible_content_governance]]; add or revise an entry
- * by editing the map below.
+ * Reversible TS content module; add or revise an entry by editing the
+ * map below.
  */
 
-/** Five-category taxonomy from §2 of the framework doc. The
+/** Five-category taxonomy. The
  *  `folk-compressed` axis is orthogonal and tracked separately via
  *  SUI_GENERIS_SELF_TOKEN_SLUGS + freestyleSymbolicEquivalences chains;
  *  doctrine category here is the primary classification. */
@@ -96,15 +94,14 @@ export interface DoctrineDivergenceEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Wave 7 pilot batch (2026-05-23): three gap=1 PassBack rows promoted from
-// observational → canonical via the doctrine-divergence framework. Each
-// row's IFPA-derived ADD differs by +1 from the PassBack-source claim;
-// the divergence is documented as historical-divergence.
+// Pilot batch: three gap=1 PassBack rows promoted from observational →
+// canonical via the doctrine-divergence framework. Each row's
+// IFPA-derived ADD differs by +1 from the PassBack-source claim; the
+// divergence is documented as historical-divergence.
 //
-// Selection rationale (from exploration/doctrine_divergence_framework_
-// 2026-05-23.md §5): gap=1 is the lowest-risk publication batch. If Red
-// later rules differently via Q7 (implicit-operator hypothesis), the
-// 1-ADD revision is small and reversible.
+// Selection rationale: gap=1 is the lowest-risk publication batch. If
+// Red later rules differently via Q7 (implicit-operator hypothesis),
+// the 1-ADD revision is small and reversible.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const DOCTRINE_DIVERGENCE_REGISTRY: ReadonlyMap<string, DoctrineDivergenceEntry> = new Map([

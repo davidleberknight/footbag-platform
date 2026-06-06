@@ -2,26 +2,26 @@
  * freestyleLandingContent.ts
  *
  * Static content for the freestyle landing page's "The Language of Freestyle
- * Footbag" structure (Batch 2 of the IA realignment).
+ * Footbag" structure.
  *
  * Three exports:
- *   - BASIC_COMPONENTS — six conceptual primitives per the PassBack glossary
+ *   - BASIC_COMPONENTS: six conceptual primitives per the PassBack glossary
  *     (Contact / Set / Dex / Spin / Duck / Delay). Dex carries sub-fields.
- *   - CORE_TRICK_SPEC — twelve irreducible base-trick slugs with their
+ *   - CORE_TRICK_SPEC: twelve irreducible base-trick slugs with their
  *     canonical `≡` equivalence readings. ADD values are joined from
  *     `freestyle_tricks` at service-shape time; this file does not encode
  *     ADD values to prevent drift.
- *   - (Demonstrations content lives in the service shaping directly post-
- *     2026-05-14; see freestyleService.getLandingPage for the array.)
+ *   - (Demonstrations content lives in the service shaping directly;
+ *     see freestyleService.getLandingPage for the array.)
  *
  * Forever-rules:
  *   - Definitions adapted from `passback-glossary.txt` carry a `source` field
  *     citing the line number. Verbatim wordings are flagged.
  *   - Core-trick `equivalences` are limited to canonical-uncontested readings.
- *     Wave-1-pending and folk-equivalence readings stay OUT of the compact
- *     browse surface (see project_red_consultation_state).
- *   - The compact-object rule (PART H-pre of FREESTYLE_IA_REALIGNMENT_PLAN.md)
- *     governs how these entries render — no educational prose on compact cards.
+ *     Pending and folk-equivalence readings stay OUT of the compact
+ *     browse surface.
+ *   - The compact-object rule governs how these entries render: no
+ *     educational prose on compact cards.
  */
 
 export interface BasicComponentSubfield {
@@ -37,10 +37,10 @@ export interface BasicComponentSpec {
   source:      string;   // attribution; rendered as a small lineage line if exposed
 }
 
-// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / A: descriptions compressed
-// to ≤10 words; the heading + sub-field chips (for Dex) carry the rest of
-// the teaching. Source attribution preserved as a vestigial field for
-// future re-exposure; not rendered on the public surface.
+// Descriptions compressed to ≤10 words; the heading + sub-field chips
+// (for Dex) carry the rest of the teaching. Source attribution preserved
+// as a vestigial field for future re-exposure; not rendered on the
+// public surface.
 export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
   {
     key:         'contact',
@@ -100,47 +100,42 @@ export interface CoreTrickSpec {
   equivalences:  readonly string[];   // empty for atoms with no canonical reading
   // Curator-authoritative operational notation per atom. Sourced into the
   // landing's core-tricks grid via shapeCoreTricks (the previous DB-column
-  // path is bypassed for atoms). Authored verbatim from the Notation
-  // Normalization Wave brief (NCR-1 / 2026-05-18). Reversible TS content;
-  // not DB-coupled.
+  // path is bypassed for atoms). Authored verbatim from the notation
+  // normalization brief. Reversible TS content; not DB-coupled.
   operationalNotation: string;
 }
 
-// Twelve irreducible core tricks per the curator-authoritative atom registry
-// (project_freestyle_core_atoms) and FREESTYLE_IA_REALIGNMENT_PLAN.md C-2.
+// Twelve irreducible core tricks per the curator-authoritative atom registry.
 //
-// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): all
-// equivalence arrays empty. The earlier `≡ ATW`, `≡ outside-in mirage`,
-// `≡ reverse around-the-world` lines were synonym trivia, not symbolic
-// content; their removal lets each card read as a pure foundational
-// atom (#slug + ADD), matching the "foundational atom feel" the surface
-// promises. Alias resolution still lives in `freestyle_trick_aliases`
-// and the glossary; the landing compact-symbolic surface stays silent.
-// CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15): the foundational atom for
-// "Clipper" is the `clipper-stall` row (ADD 2), not the `clipper` slug
-// (ADD 1, "Clipper Kick"). The displaySlug override preserves the
-// community-shorthand `#clipper` tag while the underlying slug + anchor
-// + click-through resolve to clipper-stall.
-// Formula Accountability Slice (2026-05-17): each foundational atom carries
-// a short observational reading drawn from the glossary §2/§3 entries.
-// Readings are editorially safe (no Wave-2 doctrine commitment, no
-// fabricated operational notation). Where the structural form is settled
-// per Red rulings, the reading reflects it; where the form remains under
-// discussion, a neutral "core atom" label appears so no foundational card
-// renders blank against the rich compound cards on the same surface.
+// Equivalence arrays are empty: synonym trivia like `≡ ATW`,
+// `≡ outside-in mirage`, `≡ reverse around-the-world` is not symbolic
+// content, so each card reads as a pure foundational atom (#slug + ADD),
+// matching the "foundational atom feel" the surface promises. Alias
+// resolution lives in `freestyle_trick_aliases` and the glossary; the
+// landing compact-symbolic surface stays silent.
+// The foundational atom for "Clipper" is the `clipper-stall` row (ADD 2),
+// not the `clipper` slug (ADD 1, "Clipper Kick"). The displaySlug override
+// preserves the community-shorthand `#clipper` tag while the underlying
+// slug + anchor + click-through resolve to clipper-stall.
+// Each foundational atom carries a short observational reading drawn from
+// the glossary §2/§3 entries. Readings are editorially safe (no
+// unresolved-doctrine commitment, no fabricated operational notation).
+// Where the structural form is settled per Red rulings, the reading
+// reflects it; where the form remains under discussion, a neutral "core
+// atom" label appears so no foundational card renders blank against the
+// rich compound cards on the same surface.
 //
-// Per user 2026-05-17: "if any are doctrine-sensitive, show a neutral
+// Per user direction: "if any are doctrine-sensitive, show a neutral
 // 'core atom' reading instead of leaving blank."
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // Second equivalence is the foundational ADD-accounting formula (where
-  // each ADD comes from). Educational accounting per the foundational-
-  // formula slice 2026-05-18 — treated as a teaching abstraction, not
-  // parser-truth doctrine. See /freestyle/add-analysis for the full
-  // derivation table. Orbit is the curator-confirmed alias for reverse
-  // around-the-world (pending DB canonicalization, not Wave-2 blocked);
-  // its numeric ADD value displays as em-dash via the addPending path
-  // until the canonical row lands, while the formula provides the
-  // structural reading.
+  // each ADD comes from). Educational accounting treated as a teaching
+  // abstraction, not parser-truth doctrine. See /freestyle/add-analysis
+  // for the full derivation table. Orbit is the curator-confirmed alias
+  // for reverse around-the-world (pending DB canonicalization, not
+  // blocked on unresolved doctrine); its numeric ADD value displays as
+  // em-dash via the addPending path until the canonical row lands, while
+  // the formula provides the structural reading.
   { slug: 'toe-stall',        equivalences: ['core atom — foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: '[set] > toe' },
   { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > clipper' },
   { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > hippy in dex > op toe' },
@@ -155,12 +150,6 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   { slug: 'orbit',            equivalences: ['core atom — alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'toe > ss(midtime) out dex > ss toe' },
 ];
 
-// Note: the prior DEMONSTRATION_SLOTS scaffolding (five pre-named conceptual
-// slots: Sam Conlon / Classic Circle / Artistic Routine / Modern Technical
-// Shred / Educationally Readable Run) was retired in LANDING-AND-TRICKS-QA-
-// REALIGNMENT-1 F3 (2026-05-14). The original Batch 2 design misread the
-// "Sam Conlon footage" line in the IA-realignment spec as a request for a
-// pre-named slot; the maintainer clarified it meant "include Sam Conlon
-// footage among the curated demonstrations." The new shape is a plain
-// FreestyleDemonstration[] hardcoded in `freestyleService.getLandingPage`
-// with curator-authoritative tags; empty array hides the section content.
+// Demonstrations are a plain FreestyleDemonstration[] hardcoded in
+// `freestyleService.getLandingPage` with curator-authoritative tags; an
+// empty array hides the section content.

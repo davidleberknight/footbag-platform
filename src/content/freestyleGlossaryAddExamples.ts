@@ -9,18 +9,17 @@
  *
  * Layer contract:
  *   - Canonical decomposition fields are visible by default.
- *   - Provenance / curator-internal language never renders publicly
- *     (per [[feedback_public_facing_prose]]); pt## / Red / Wave-N
- *     references stay in the .reason field only when surfaced as
- *     short observational notes.
+ *   - Provenance / curator-internal language never renders publicly;
+ *     pt## / Red / Wave-N references stay in the .reason field only
+ *     when surfaced as short observational notes.
  *   - Status enum encodes resolution state:
- *       'canonical'         — three-way ADD convergence; doctrine settled
- *       'pending-doctrine'  — Red ruling or curator decision still open
- *       'doctrine-locked'   — disagreement exists but is curator-locked
+ *       'canonical'         : three-way ADD convergence; doctrine settled
+ *       'pending-doctrine'  : Red ruling or curator decision still open
+ *       'doctrine-locked'   : disagreement exists but is curator-locked
  *
  * Reversibility: TypeScript content module. Five worked examples; the
  * exhaustive coverage lives at /freestyle/add-analysis (Resolved
- * Formulas) and in the workbook governance gate (legacy_data/reports/).
+ * Formulas) and in the workbook governance gate.
  */
 
 export type GlossaryAddExampleStatus =

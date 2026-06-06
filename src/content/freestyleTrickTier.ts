@@ -2,19 +2,17 @@
  * freestyleTrickTier.ts
  * ======================
  *
- * Phase A of the trick-detail ontology doctrine (2026-05-25). Tier
+ * Tier
  * registration for the L1-L6 flagship rendering pipeline.
  *
- * Per exploration/trick-detail-ontology-doctrine-2026-05-25/PROPOSAL.md:
- *
- * - Tier A — flagship ontology exemplars. Render L1-L6 (intuition,
+ * - Tier A: flagship ontology exemplars. Render L1-L6 (intuition,
  *   mechanical delta, ontology role, productivity, family evolution,
  *   progressive readings). Default-deny: only listed slugs are Tier A.
  *
- * - Tier B — structurally important secondary. Render L1 + L5 only when
+ * - Tier B: structurally important secondary. Render L1 + L5 only when
  *   authored. Default-deny.
  *
- * - Tier C — implicit default. Pages render the universal shell exactly
+ * - Tier C: implicit default. Pages render the universal shell exactly
  *   as today; no L1-L6 fields. No code change required for Tier C pages.
  *
  * Tier promotion is a single-line edit. Tier demotion is a single-line
@@ -22,17 +20,17 @@
  */
 
 /**
- * Tier A slugs — 20 foundational ontology exemplars from the doctrine
+ * Tier A slugs: 20 foundational ontology exemplars from the doctrine
  * §5 roster. Editorial exemplars `mirage`, `paradox-mirage`, `whirl`
- * carry the locked editorial template (Phase B); the remaining 17 land
- * in Phase C following the exemplar pattern.
+ * carry the locked editorial template; the remaining 17 follow the
+ * exemplar pattern.
  */
 export const TIER_A_SLUGS: ReadonlySet<string> = new Set([
-  // Editorial exemplars (Phase B — set the template)
+  // Editorial exemplars (set the template)
   'mirage',
   'paradox-mirage',
   'whirl',
-  // Rest of Tier A roster (Phase C — follow the exemplar template)
+  // Rest of Tier A roster (follow the exemplar template)
   'blur',
   'osis',
   'butterfly',
@@ -53,7 +51,7 @@ export const TIER_A_SLUGS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Tier B slugs — curator-paced expansion. Empty in Phase A.
+ * Tier B slugs: curator-paced expansion; currently empty.
  */
 export const TIER_B_SLUGS: ReadonlySet<string> = new Set<string>([
   // curator-paced expansion

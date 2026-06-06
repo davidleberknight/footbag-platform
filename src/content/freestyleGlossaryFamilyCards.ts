@@ -20,8 +20,7 @@
  * from the trick dictionary, history page, and external surfaces
  * (anchor-preservation forever-rule).
  *
- * Reversibility: TypeScript content module per
- * [[feedback_reversible_content_governance]]. No DB schema change.
+ * Reversibility: TypeScript content module. No DB schema change.
  *
  * Layer contract:
  *   - Canonical fields (formula / anchor / descendants) are doctrine.
@@ -55,7 +54,7 @@ export interface GlossaryFamilyCard {
   commonDescendants:  readonly string[];
   /** Sibling families (peer ontology anchors). */
   siblingFamilies:    readonly string[];
-  /** Notable compounds — named tricks that compose from this family. */
+  /** Notable compounds: named tricks that compose from this family. */
   notableCompounds:   readonly string[];
   /** Optional [observational] panels surfacing network or topology notes. */
   observationalNotes: readonly GlossaryFamilyCardObservationalNote[];

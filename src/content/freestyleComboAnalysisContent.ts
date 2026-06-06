@@ -5,11 +5,10 @@
  * Curator content for the public `/freestyle/combo-analysis` page.
  *
  * Mirrors the `freestyleAddAnalysisContent.ts` pattern: pure editorial
- * content modules under [[feedback_reversible_content_governance]];
- * no DB access; no parser-derived data; no fabricated formulas.
+ * content modules; no DB access; no parser-derived data; no fabricated
+ * formulas.
  *
- * Page architecture per `exploration/combo-analysis-2026-05-17/
- * proposed_combo_analysis_page_structure.md`:
+ * Page architecture:
  *   §1 Philosophy (~150 words)
  *   §2 Run-quality terminology
  *   §3 Sequence architecture
@@ -18,11 +17,6 @@
  *   §6 Transition topology
  *   §7 Honesty + uncertainty (caveats)
  *   §8 Cross-references
- *
- * Pedagogical sources (all in the same exploration directory):
- *   COMBO_ANALYSIS_EXTRACTION.md         — concept → v6-report-line map
- *   RUN_ARCHITECTURE_GLOSSARY_PLAN.md    — taxonomy definitions
- *   combo_examples.md                    — 5 worked walkthroughs
  *
  * No code edits, no DB writes, no parser exposure. This page operates at
  * the SEQUENCE level above the trick dictionary, parallel to ADD Analysis

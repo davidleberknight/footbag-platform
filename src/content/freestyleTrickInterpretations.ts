@@ -2,7 +2,7 @@
  * Curated naming-and-interpretation overlays for trick-detail pages.
  *
  * Renders a "Naming & interpretation" section on the trick-detail page
- * for tricks where multiple valid readings exist — a canonical reading
+ * for tricks where multiple valid readings exist: a canonical reading
  * (the published structural decomposition) AND one or more historical
  * readings (community naming traditions that describe the same movement
  * from a different vantage). The section explains how the readings
@@ -12,7 +12,7 @@
  * was named or first decomposed; it does NOT automatically establish a
  * productive modifier family. Eggbeater is the seed case: the canonical
  * reading is "atomic legover" and the historical reading is
- * "illusion + legover" — both describe the same movement, but the
+ * "illusion + legover": both describe the same movement, but the
  * historical reading does not make "illusioning" a productive modifier
  * system across the dictionary.
  *
@@ -46,7 +46,7 @@ export interface TrickInterpretationEntry {
   /** Canonical trick slug. */
   slug: string;
   /**
-   * The published canonical reading — the structural decomposition the
+   * The published canonical reading: the structural decomposition the
    * rest of the site renders (notation, ADD math, family link).
    * Free-form text; typically a short compositional phrase such as
    * "atomic legover".
@@ -62,8 +62,8 @@ export interface TrickInterpretationEntry {
   /**
    * Structural notes that frame the layer separation. Renders as a
    * short bulleted list below the readings. Each note is one sentence.
-   * The canonical framing — "both readings describe the same trick" +
-   * "historical reading does not imply a productive modifier family" —
+   * The canonical framing ("both readings describe the same trick" +
+   * "historical reading does not imply a productive modifier family")
    * is curator-locked here, not in the template, so the doctrine stays
    * consistent across all entries.
    */

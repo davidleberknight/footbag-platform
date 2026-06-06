@@ -7,8 +7,7 @@
  * applies to a base trick's operational notation, as observed from
  * resolved sibling pairs in the dictionary.
  *
- * Companion to the audit at:
- *   exploration/derivation-audit-2026-05-25/DERIVATION_AUDIT.md
+ * Companion to the derivation audit.
  *
  * The audit classifies unresolved tricks against the rules captured
  * here, surfaces candidate JOB rows, and isolates true doctrine
@@ -25,10 +24,10 @@
  *     derivation and is out of scope for the pre-Red governance pass.
  *
  * CONFIDENCE LADDER (mirrors audit §4):
- *   high        — 3+ resolved sibling precedents on different bases
- *   medium-high — 2 sibling precedents; one variation noted
- *   medium      — 1 sibling precedent; structurally clean
- *   low         — observed inconsistently; folk-name path only
+ *   high        : 3+ resolved sibling precedents on different bases
+ *   medium-high : 2 sibling precedents; one variation noted
+ *   medium      : 1 sibling precedent; structurally clean
+ *   low         : observed inconsistently; folk-name path only
  *
  * FOREVER-RULES:
  *   - Each entry names the operator's slug, observed signature, ADD
@@ -42,9 +41,9 @@
  *   - No individual names per the public-prose depersonalization rule.
  *   - When a rule has known base-specific variations (e.g., paradox
  *     direction-flip on whirl/illusion/dlo vs OP-IN retention on
- *     mirage), the variation is named — never silently averaged away.
+ *     mirage), the variation is named, never silently averaged away.
  *
- * STATUS: First-draft observational registry, 2026-05-25. Curator
+ * STATUS: First-draft observational registry. Curator
  * review required before any candidate JOB row sourced from this
  * grammar is applied to the dictionary.
  */

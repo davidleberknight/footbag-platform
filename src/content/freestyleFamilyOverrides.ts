@@ -2,80 +2,73 @@
  * freestyleFamilyOverrides.ts
  *
  * Curator-authored re-mapping of `trick_family` at service-shape time.
- * Reversible TypeScript content per [[feedback_reversible_content_
- * governance]]. NO `freestyle_tricks.trick_family` column UPDATEs;
- * NO SQL migrations. Delete an entry → the row reverts to its DB
- * trick_family value.
+ * Reversible TypeScript content module. NO `freestyle_tricks.trick_family`
+ * column UPDATEs; NO SQL migrations. Delete an entry → the row reverts
+ * to its DB trick_family value.
  *
- * Slice J of 2026-05 normalization (Stage A): promote three rows out
- * of the Whirl family into the new Rev-Whirl sibling terminal family.
+ * Promote three rows out of the Whirl family into the new Rev-Whirl
+ * sibling terminal family.
  *
  * ── Context ────────────────────────────────────────────────────────
  *
- * Slice I added the Whirl family-level invariant `leggy in dex >
- * ss clipper`. Op-notation evidence then showed three rows in the
- * Whirl family that DO NOT preserve that invariant — they share a
- * different conserved terminal mechanic (front whirl dex > op
- * clipper [XBD]). They are siblings of Whirl, not descendants.
+ * The Whirl family-level invariant is `leggy in dex > ss clipper`.
+ * Op-notation evidence shows three rows in the Whirl family that DO
+ * NOT preserve that invariant; they share a different conserved
+ * terminal mechanic (front whirl dex > op clipper [XBD]). They are
+ * siblings of Whirl, not descendants.
  *
- * See exploration/dictionary-glossary-normalization-audit-2026-05/
- * REV_WHIRL_SIBLING_FAMILY.md for the full op-notation forensic +
- * three-cohort framing.
+ * Per the curator's terminal-vs-entry-topology distinction: Rev-Whirl
+ * IS a true terminal family with its own conserved ending mechanic,
+ * not a topology / modifier / entry system.
  *
- * Per the curator's terminal-vs-entry-topology distinction (Slice I
- * addendum): Rev-Whirl IS a true terminal family with its own
- * conserved ending mechanic. Same governance as Slice I — not a
- * topology / modifier / entry system.
- *
- * ── Stage A scope (this slice) ─────────────────────────────────────
+ * ── Promotions ─────────────────────────────────────────────────────
  *
  * Three rows move from whirl-family → rev-whirl-family:
- *   - rev-whirl (3 ADD, dex) — the canonical direction-variant anchor
- *   - hatchet (4 ADD, compound) — mechanics-confirmed FRONT WHIRL dex
- *   - mullet (6 ADD, compound) — mechanics-confirmed FRONT WHIRL dex
+ *   - rev-whirl (3 ADD, dex): the canonical direction-variant anchor
+ *   - hatchet (4 ADD, compound): mechanics-confirmed FRONT WHIRL dex
+ *   - mullet (6 ADD, compound): mechanics-confirmed FRONT WHIRL dex
  *
  * EXPLICITLY DEFERRED (stay in whirl-family pending curator decision):
- *   - rev-up — folk name; no op-notation; canonical direction-variant
+ *   - rev-up: folk name; no op-notation; canonical direction-variant
  *     status unconfirmed
- *   - tomahawk — folk name; no op-notation; structural decomposition
+ *   - tomahawk: folk name; no op-notation; structural decomposition
  *     uncertain
- *   - surreal — hybrid: chain reading `surging paradox whirl` places
+ *   - surreal: hybrid. Chain reading `surging paradox whirl` places it
  *     in whirl-family lineage, but op-notation uses FRONT WHIRL dex.
  *     Stays whirl-family by chain identity; detail page can surface
  *     the front-whirl execution as a contextual note (future work).
- *   - montage — same hybrid pattern as surreal.
+ *   - montage: same hybrid pattern as surreal.
  *
  * ── Restraint ──────────────────────────────────────────────────────
  *
  *   - No auto-derivation from operational_notation patterns. The
- *     three Stage A entries are curator-confirmed only.
+ *     three entries are curator-confirmed only.
  *   - No DB column UPDATE. The override map is read at service-shape
  *     time.
  *   - One-way redirection: row slug → target family slug. No
- *     multi-family memberships in this slice.
+ *     multi-family memberships here.
  *   - Adding an entry here does NOT change `freestyle_tricks.trick_family`
  *     semantics or affect any other canonical surface.
- *   - Slice scoped to a single sibling-family promotion. Future
+ *   - This map is scoped to a single sibling-family promotion. Future
  *     promotions (butterfly / mirage / osis / swirl sibling families
  *     if discovered) require their own audit + approval.
  */
 
 export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
-  // Rev-Whirl sibling family — 3 row promotions (Stage A, 2026-05-16).
-  // Each row's DB trick_family is 'whirl'; the service re-buckets via
-  // this override into the new 'rev-whirl' family.
+  // Rev-Whirl sibling family: 3 row promotions. Each row's DB
+  // trick_family is 'whirl'; the service re-buckets via this override
+  // into the new 'rev-whirl' family.
   ['rev-whirl', 'rev-whirl'],   // canonical direction-variant anchor
   ['hatchet',   'rev-whirl'],   // mechanics-confirmed
   ['mullet',    'rev-whirl'],   // mechanics-confirmed
 
-  // Slice M (2026-05-16) — high-plains-drifter follows drifter into the
-  // drifter branch family after the clipper-stall family retirement
-  // (see RETIRED_FAMILIES below). One-way redirect: row no longer
-  // bucketed under clipper-stall.
+  // high-plains-drifter follows drifter into the drifter branch family
+  // after the clipper-stall family retirement (see RETIRED_FAMILIES
+  // below). One-way redirect: row no longer bucketed under clipper-stall.
   ['high-plains-drifter', 'drifter'],
 
-  // Emergency public-readiness slice 2026-05-19 — curator ruling: lose
-  // rev-up from the Whirl family until its decomposition is resolved.
+  // Curator ruling: lose rev-up from the Whirl family until its
+  // decomposition is resolved.
   // Override target is the row's own slug, producing a singleton
   // 'rev-up' family. The family-view bucketing's `length > 1` filter
   // then suppresses it from family browse. rev-up still surfaces on
@@ -96,12 +89,12 @@ export function resolveFamilyOverride(slug: string): string | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Slice M (2026-05-16) — branch-family dual-membership.
+// Branch-family dual-membership.
 //
 // A branch-family anchor (e.g., `torque`, `blender`, `drifter`) lives in
 // its lineage family per the DB (osis-family / clipper-stall-family) AND
 // should ALSO appear as the anchor of its own branch family. This is
-// ADDITIVE — the row stays in its primary family per FAMILY_OVERRIDES /
+// ADDITIVE: the row stays in its primary family per FAMILY_OVERRIDES /
 // trick_family, and gains membership in the listed extra families.
 //
 // Different from FAMILY_OVERRIDES (one-way redirect; removes from
@@ -114,7 +107,7 @@ export function resolveFamilyOverride(slug: string): string | null {
 // ─────────────────────────────────────────────────────────────────────────
 
 export const FAMILY_DUAL_MEMBERSHIPS: ReadonlyMap<string, readonly string[]> = new Map([
-  // Branch-family anchors — also appear in their own branch family
+  // Branch-family anchors, also appearing in their own branch family
   // alongside their lineage family.
   ['torque',  ['torque']],    // primary: osis-family;       also: torque-family (own anchor)
   ['blender', ['blender']],   // primary: osis-family;       also: blender-family (own anchor)
@@ -131,7 +124,7 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Slice M (2026-05-16) — retired Family-View family slugs.
+// Retired Family-View family slugs.
 //
 // Families listed here are hidden from the Family-View browse surface.
 // The rows themselves remain in the DB and surface on every other
@@ -155,7 +148,7 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
 // family-view surface.
 // ─────────────────────────────────────────────────────────────────────────
 
-// Family ruling pass (2026-05-28) — route-outs. These family labels are NOT
+// Route-outs. These family labels are NOT
 // productive movement lineages and are removed from the Family-view browse
 // surface so the view shows only the 8 canonical parent families plus
 // still-deferred labels. The rows, their trick_family data, notation,

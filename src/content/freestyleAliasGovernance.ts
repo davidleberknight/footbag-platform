@@ -7,9 +7,7 @@
  * folk-name and equivalence relationship; only the entries explicitly
  * approved here are rendered as `≡ reading` lines on browse surfaces.
  *
- * Why an allow-list module (not an SQL taxonomy column) — see
- * CANONICAL_SURFACE_REALIGNMENT_PLAN.md PART 10 S3 (maintainer
- * decision 2026-05-14). Key reasons:
+ * Why an allow-list module, not an SQL taxonomy column. Key reasons:
  *   - Semantic-equivalence philosophy is still being refined; locking
  *     a taxonomy into SQL now risks premature ontology commitment.
  *   - Allow-list module is auditable, reversible, and explicit per
@@ -19,13 +17,13 @@
  *
  * Restraint-first default: an alias NOT listed here is NOT surfaced
  * on browse. Browse surfaces show only meaningful semantic
- * compression — never every textual relationship.
+ * compression, never every textual relationship.
  *
  * Forever-rules:
  *   - Each entry carries a curator reason (rendered nowhere; serves
  *     as institutional memory for why a decision was made).
  *   - `surfaceOnBrowse: true` requires the alias to be:
- *       1. canonically locked (no Wave-1 / Wave-2 pending),
+ *       1. canonically locked (no pending doctrine resolution),
  *       2. semantically meaningful (compositional equivalence or
  *          a widely-used canonical shorthand),
  *       3. not a different trick wearing the same surface name.
@@ -36,9 +34,8 @@
  *     `freestyleSymbolicEquivalences.ts`, NOT here. This module is
  *     for single-string aliases drawn from `freestyle_trick_aliases`.
  *
- * Audit basis: CANONICAL_SURFACE_REALIGNMENT_PLAN.md PART 2B
- * surveyed the 5 atom-level aliases in `freestyle_trick_aliases`
- * as of 2026-05-14. Each appears below with the curator decision.
+ * Audit basis: the 5 atom-level aliases in `freestyle_trick_aliases`,
+ * each appearing below with the curator decision.
  */
 
 export interface AliasGovernanceEntry {
@@ -50,7 +47,7 @@ export interface AliasGovernanceEntry {
 }
 
 export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
-  // ── Atom-level aliases (PART 2B audit; 5 entries) ─────────────────────
+  // ── Atom-level aliases (5 entries) ─────────────────────
   {
     trickSlug:       'around-the-world',
     aliasText:       'atw',
@@ -111,7 +108,7 @@ export function getAliasGovernanceEntry(
  * only those approved for compact-object browse surfaces in their
  * display form (respecting `displayAs` overrides).
  *
- * Aliases not in the allow-list are dropped — restraint-first default.
+ * Aliases not in the allow-list are dropped, restraint-first default.
  */
 export function filterAliasesForBrowse(
   trickSlug: string,

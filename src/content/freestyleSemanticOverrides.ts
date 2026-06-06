@@ -4,21 +4,21 @@
  * Two related but distinct maps, both consumed at the service layer
  * (freestyleService.shapeDictEntry + getTrickPage):
  *
- * 1. COMPOUND_SEMANTIC_DESCRIPTIONS — curator-authored semantic
+ * 1. COMPOUND_SEMANTIC_DESCRIPTIONS: curator-authored semantic
  *    decompositions that replace the DB-column description when the
  *    DB description merely echoes the operational notation. Upgrades
  *    the "About this trick" prose from notational redundancy to
  *    compositional explanation. Applied to compound tricks; primitive
  *    tricks fall through to the redundancy-suppression rule below.
  *
- * 2. REVERSE_PAIR_TRANSFORMS — a SMALL educational overlay surfacing
+ * 2. REVERSE_PAIR_TRANSFORMS: a SMALL educational overlay surfacing
  *    structural symmetry between reverse-direction pairs. Renders as
  *    a compact "Transform" line below the canonical JOB notation on
  *    five specific trick pages. NOT a general algebra system;
  *    deliberately scoped to these five pedagogically clear examples.
  *
  *    The rev(0) operator transforms in↔out dex direction. Hippy /
- *    leggy notation supplements are stylistic, not material — the
+ *    leggy notation supplements are stylistic, not material; the
  *    five pairs differ only in dex direction once stylistic tokens
  *    are normalized.
  *
@@ -33,7 +33,7 @@
  */
 
 // ─────────────────────────────────────────────────────────────────────
-// Part 1 — compound semantic descriptions
+// Part 1: compound semantic descriptions
 //
 // Curator-authored compositional readings for compound tricks where
 // the DB description is a literal notation echo. The override
@@ -46,7 +46,7 @@
 // ─────────────────────────────────────────────────────────────────────
 
 export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new Map([
-  // Curator-locked initial set (post-Wave-7 semantic-notation slice).
+  // Curator-locked initial set.
   // Wording is plain compositional prose; not notation, not ADD math.
   ['double-legover', 'mirage + legover chain — two consecutive in-direction dex steps from a single set.'],
   ['blurry',         'stepping paradox-whirl structure — two-dex set with a paradox second component.'],
@@ -67,9 +67,9 @@ export function getCompoundSemanticDescription(slug: string): string | null {
  * suppress the description rendering on primitive trick pages where
  * the DB description merely repeats the JOB notation.
  *
- * Non-redundant descriptions — including descriptions that contain
+ * Non-redundant descriptions (including descriptions that contain
  * the notation as a substring but add prose, or descriptions that
- * differ substantively — fall through and render normally.
+ * differ substantively) fall through and render normally.
  */
 export function isDescriptionRedundantWithNotation(
   description: string | null,
@@ -81,7 +81,7 @@ export function isDescriptionRedundantWithNotation(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Part 2 — reverse-pair transforms (educational overlay)
+// Part 2: reverse-pair transforms (educational overlay)
 //
 // Five curator-locked entries surfacing the structural symmetry
 // between reverse-direction core-atom pairs. Each entry renders a
@@ -95,12 +95,12 @@ export function isDescriptionRedundantWithNotation(
 // context.
 //
 // FOREVER-RULE (locked at the editorial layer):
-//   - rev(0) is used SPARINGLY — only for the five entries below.
+//   - rev(0) is used SPARINGLY, only for the five entries below.
 //   - Do NOT mechanically apply to every reverse-direction trick.
 //   - Do NOT introduce additional transform operators without an
 //     explicit curator decision to extend this layer.
 //   - This module is the floor of the transform system. Future
-//     extensions must keep the educational-overlay framing — NOT a
+//     extensions must keep the educational-overlay framing, NOT a
 //     general symbolic algebra layer.
 // ─────────────────────────────────────────────────────────────────────
 

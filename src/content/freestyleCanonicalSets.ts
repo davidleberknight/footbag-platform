@@ -2,19 +2,17 @@
  * freestyleCanonicalSets.ts
  * ==========================
  *
- * Phase A of the set-system refactor (2026-05-25). Canonical-set ontology
- * objects for the Set Hub at /freestyle/tricks?view=sets.
+ * Canonical-set ontology objects for the Set Hub at
+ * /freestyle/tricks?view=sets.
  *
- * Each entry is a first-class ontology object — set systems are
- * compositional vocabulary, not browse filters. See:
- *
- *   exploration/set-system-refactor-2026-05-25/PROPOSAL.md
+ * Each entry is a first-class ontology object: set systems are
+ * compositional vocabulary, not browse filters.
  *
  * Curator authority:
  *
  * - Formulas are quoted verbatim from Chris Holden's compilation where
- *   present (exploration/fborg/chrisHoldenSets.txt) and from
- *   freestyleCompositionalSets.ts; this module does not invent notation.
+ *   present and from freestyleCompositionalSets.ts; this module does
+ *   not invent notation.
  * - `source` field preserves provenance: canonical (active dictionary
  *   row) / platform-tracked (in content modules, not a standalone
  *   dictionary entry) / holden-only (compilation-cited only).
@@ -66,7 +64,7 @@ export interface SlugReference {
 export interface CanonicalSet {
   /** Stable kebab-case slug; matches the modifier registry slug where applicable. */
   slug: string;
-  /** Set ontology hashtag — pattern `#<slug>-set`. */
+  /** Set ontology hashtag, pattern `#<slug>-set`. */
   hashtag: string;
   /** Display name (Title Case). */
   displayName: string;
@@ -79,8 +77,7 @@ export interface CanonicalSet {
   formula: string;
   /**
    * 1–2 sentence movement-language explanation. Coach-tone prose, no
-   * jargon dump. Phase B detail pages will expand this; Phase A is a
-   * seed.
+   * jargon dump. Later detail pages will expand this; this is a seed.
    */
   movementExplanation: string;
   /** Equivalence notes (Holden parentheticals, folk-name readings). */
@@ -96,8 +93,8 @@ export interface CanonicalSet {
   /** Audit status when in the Compositional Sets audit table. */
   auditStatus?: CanonicalSetAuditStatus;
   /**
-   * Future tier hook (Refinement #2 in proposal): literal-primitive vs
-   * compositional-system distinction. Not yet populated in Phase A.
+   * Future tier hook: literal-primitive vs compositional-system
+   * distinction. Not yet populated.
    */
   tier?: 'literal-primitive' | 'compositional-system';
 }

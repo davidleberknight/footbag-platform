@@ -14,10 +14,8 @@
  *     that reach the same canonical trick by different operator
  *     topology.
  *
- * Phase 1 (2026-05-21): schema + one pilot entry (flurry). No public-
- * rendering surface; module is curator-internal until ratification.
- * Design doc:
- *   exploration/equivalence-topology-phase-1-2026-05-21/DESIGN.md
+ * Schema plus one pilot entry (flurry). No public-rendering surface;
+ * module is curator-internal until ratification.
  *
  * Forever-rules:
  *   - Index 0 of every entry's derivations[] is the canonical-primary
@@ -30,16 +28,14 @@
  *     surface publicly until curator flips the flag.
  *   - Reversible by deletion. No SQL hardening, no schema migration,
  *     no auto-derivation of entries.
- *   - Per feedback_no_individual_names_freestyle_views: source labels
- *     in publishedIn cite modules, rulings (e.g. "Red 2026-05-20"), or
- *     archival sources; never name individuals beyond codified
- *     ruling-attribution exceptions.
+ *   - Source labels in publishedIn cite modules, rulings (e.g.
+ *     "Red 2026-05-20"), or archival sources; never name individuals
+ *     beyond codified ruling-attribution exceptions.
  */
 
 /**
- * Five-pattern classification from DESIGN.md §3. Phase 1 ships only
- * the first two active; the others are typed so future curator entries
- * can tag consistently.
+ * Five-pattern classification. The first two are active; the others
+ * are typed so future curator entries can tag consistently.
  */
 export type EquivalencePattern =
   | 'modifier-stack-vs-paradox-stack'
@@ -71,8 +67,8 @@ export type DerivationSource =
   | 'structural';
 
 /**
- * Resolution state. 'pending-curator' is the default for Phase 1
- * authored entries; ratification flips to 'confirmed'.
+ * Resolution state. 'pending-curator' is the default for authored
+ * entries; ratification flips to 'confirmed'.
  */
 export type DerivationStatus =
   | 'pending-curator'
@@ -90,7 +86,7 @@ export interface DerivationPath {
    *  present, MUST agree arithmetically with the canonical ADD. */
   readonly addBreakdown?:  string;
   /** Optional provenance citation: which module / source / ruling
-   *  publishes this path. Surfaced to curator only in Phase 1. */
+   *  publishes this path. Surfaced to curator only. */
   readonly publishedIn?:   string;
 }
 
@@ -99,7 +95,7 @@ export interface EquivalenceTopologyEntry {
   readonly slug:                  string;
   /** Display name (canonical compressed form). */
   readonly displayName:           string;
-  /** Pattern classification per DESIGN.md §3. */
+  /** Pattern classification. */
   readonly pattern:               EquivalencePattern;
   /** One-line context note. */
   readonly summary:               string;
@@ -114,9 +110,9 @@ export interface EquivalenceTopologyEntry {
 // ─────────────────────────────────────────────────────────────────────────
 // Ratified entries
 //
-// Phase 2 (2026-05-21): flurry ratified; witchdoctor authored. Both
-// entries are eligible for public render through the service-layer
-// gate (curatorConfirmPending: false).
+// flurry ratified; witchdoctor authored. Both entries are eligible for
+// public render through the service-layer gate
+// (curatorConfirmPending: false).
 // ─────────────────────────────────────────────────────────────────────────
 
 export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
@@ -211,8 +207,8 @@ export function getEquivalenceTopologyFor(
 
 /**
  * Returns only entries that are NOT curatorConfirmPending. The intended
- * consumer is a future public-render surface (Phase 2+); Phase 1 has
- * no callers because no public surface ships.
+ * consumer is a future public-render surface; there are no callers yet
+ * because no public surface ships.
  */
 export function getRatifiedEquivalenceTopology(): readonly EquivalenceTopologyEntry[] {
   return EQUIVALENCE_TOPOLOGY.filter(e => !e.curatorConfirmPending);

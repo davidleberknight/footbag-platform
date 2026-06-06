@@ -3,34 +3,32 @@
  * ===============================
  *
  * Curator-authored content for the ADD Analysis page (/freestyle/add-analysis).
- * Per Slice X plan + draft prose (exploration/comparative-reconciliation-2026-05/
- * ADD_ANALYSIS_SECTION_PLAN.md + ADD_ANALYSIS_PROSE_DRAFT.md), this module
- * supplies:
+ * This module supplies:
  *
- *   §1 How ADD is built — component contribution table
+ *   §1 How ADD is built: component contribution table
  *   §2 Worked examples (8 tricks)
  *   §3 ADD Discrepancies & Why They Happen (10 ship-now-safe cases +
  *       2 edge-case brief mentions)
  *   §4 Interpretation notes (3 closing paragraphs)
  *
- * Plus: philosophy intro paragraph (per Slice Z §8) and cross-link inventory.
+ * Plus: philosophy intro paragraph and cross-link inventory.
  *
  * Reversibility
  * -------------
- * All content is curator-authored TypeScript per
- * [[feedback_reversible_content_governance]]. No database persistence;
- * no SQL; no schema. Editing this file changes the page immediately on
- * next request.
+ * All content is curator-authored TypeScript: no database persistence,
+ * no SQL, no schema. Editing this file changes the page immediately on
+ * next request, and the layer can be revised without mutating canonical
+ * trick data.
  *
- * Discipline (per Slice X §10 + Slice Z §10)
- * ------------------------------------------
+ * Discipline
+ * ----------
  *   - No ADD value changes to any canonical row
- *   - No Wave 2 resolutions
+ *   - No resolutions of still-open doctrinal questions
  *   - No fabricated formulas
  *   - All 10 discrepancy cases are Red-settled (citations below)
  *   - 5 controversial cases (eggbeater / nemesis / witchdoctor / surreal /
- *     fairy cohort) excluded from this initial pilot
- *   - Wording follows the Slice X §4 lexicon: "differs from", "decomposes
+ *     fairy cohort) excluded from this initial cohort
+ *   - Wording uses the settled lexicon: "differs from", "decomposes
  *     differently", never "wrong"
  */
 
@@ -65,10 +63,10 @@ export interface AddAnalysisWorkedExample {
   /** Pre-shaped components string. */
   components:   string;
   /**
-   * Pre-shaped ADD derivation string. Formula Accountability Slice
-   * (2026-05-17): a single explicit additive line showing operator
-   * weights → total. Distinct from `components` (free-form attribution
-   * prose); derivation is the additive math, components is the structure.
+   * Pre-shaped ADD derivation string: a single explicit additive line
+   * showing operator weights → total. Distinct from `components`
+   * (free-form attribution prose); derivation is the additive math,
+   * components is the structure.
    * Example: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD'.
    */
   derivation:   string;
@@ -122,7 +120,7 @@ export interface AddAnalysisContent {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// §0 Philosophy intro (per Slice Z public-philosophy-statement draft)
+// §0 Philosophy intro
 // ─────────────────────────────────────────────────────────────────────────
 
 const PHILOSOPHY_PARAGRAPH =
@@ -140,16 +138,16 @@ const PHILOSOPHY_PARAGRAPH =
   "made of, and when we're unsure, we say that too.";
 
 // ─────────────────────────────────────────────────────────────────────────
-// §1 How ADD is built — component contribution table
+// §1 How ADD is built: component contribution table
 // ─────────────────────────────────────────────────────────────────────────
 
 const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
-  // Foundational atomic-flag primitives — the building blocks a
+  // Foundational atomic-flag primitives, the building blocks a
   // foundational trick decomposes into when its operational chain is
   // walked flag-by-flag. Each contributes 1 ADD. Treated as
-  // educational accounting (per [[feedback_reversible_content_governance]]),
-  // not parser-truth doctrine — the goal is for readers to see where
-  // the ADDs come from when reading a foundational trick's name.
+  // educational accounting, not parser-truth doctrine; the goal is for
+  // readers to see where the ADDs come from when reading a foundational
+  // trick's name.
   {
     componentClass: 'Stall — a catch on a recognized surface',
     contribution:   '1 ADD',
@@ -175,12 +173,12 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     contribution:   '1 ADD',
     example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall',
   },
-  // Operator / modifier contributions — applied on top of a base
+  // Operator / modifier contributions, applied on top of a base
   // trick. Organized below by the four-axis operator-board grouping
   // used on /freestyle/tricks?view=movement-system and in the
   // glossary §6 modifier reference. The axis grouping is a
-  // pedagogical / organizational convention — NOT a canonical
-  // single-valued taxonomy. Wave-2-gated weightings are marked TBD.
+  // pedagogical / organizational convention, NOT a canonical
+  // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
     componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
     contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + illusion; Red 2026-06-02: prior paradox-atomic reading retired); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
@@ -215,21 +213,21 @@ const INCOMPLETENESS_NOTE =
   'They count as full tricks; their structural reading is what’s pending.';
 
 // ─────────────────────────────────────────────────────────────────────────
-// §2 Worked examples — 8 tricks, low to high
+// §2 Worked examples: 8 tricks, low to high
 // ─────────────────────────────────────────────────────────────────────────
 
-// Worked examples — ordered by ascending ADD, showing the additive
+// Worked examples, ordered by ascending ADD, showing the additive
 // arithmetic explicitly. Foundational atoms (1-3 ADD) decompose into
 // the four primitives (stall / dex / xbody / spin); compounds (4-5+)
 // stack operators on top of those bases.
 //
-// Treated as educational accounting (per the philosophy paragraph and
-// [[feedback_reversible_content_governance]]) — not parser-truth doctrine.
-// The goal is for readers to see WHERE THE ADDS COME FROM when reading
-// a trick's name. Where a foundational atom's structural decomposition
-// is still under Wave 2 doctrinal discussion, the example shows the
-// canonical ADD value and a safe additive reading; the deeper parser
-// grammar can refine later without changing the public number.
+// Treated as educational accounting (per the philosophy paragraph),
+// not parser-truth doctrine. The goal is for readers to see WHERE THE
+// ADDS COME FROM when reading a trick's name. Where a foundational
+// atom's structural decomposition is still under doctrinal discussion,
+// the example shows the canonical ADD value and a safe additive
+// reading; the deeper parser grammar can refine later without changing
+// the public number.
 const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
   // ── 1 ADD foundational atoms ──────────────────────────────────────────
   {
@@ -333,7 +331,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     whyNote:    'A spin flag built into the atom — distinct from the spinning body operator (a +1 modifier applied atop a base) and from the rotational-character property that triggers atomic +2-rotational. Three concepts share the word "spin"; osis owns the atomic-flag one. Two major branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
   },
 
-  // ── Operator visibility — paradox stacked on a base ───────────────────
+  // ── Operator visibility: paradox stacked on a base ───────────────────
   {
     trickName:  'Paradox Mirage',
     trickSlug:  'paradox-mirage',
@@ -379,7 +377,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
-// §3 ADD Discrepancies & Why They Happen — 10 ship-now-safe cases
+// §3 ADD Discrepancies & Why They Happen: 10 ship-now-safe cases
 // ─────────────────────────────────────────────────────────────────────────
 
 const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
@@ -506,7 +504,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
-// §3b Edge cases — brief mentions
+// §3b Edge cases: brief mentions
 // ─────────────────────────────────────────────────────────────────────────
 
 const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
@@ -525,11 +523,11 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
-// §4 Interpretation notes — 3 closing paragraphs
+// §4 Interpretation notes: 3 closing paragraphs
 // ─────────────────────────────────────────────────────────────────────────
 
 const CLOSING_PARAGRAPHS: readonly string[] = [
-  // Why disagreements exist — 3 recurring reasons
+  // Why disagreements exist: 3 recurring reasons
   'Three recurring reasons disagreements exist:',
   'Positional vs additive — same-side, far, near, and reverse are positional cues in IFPA’s framing (Red 2026-05-11). Some external sources count them as ADD-additive.',
   'Compression vs expansion — many tricks have multiple legitimate stopping depths. Players use the shortest folk name; analysts may unfold to deeper structural readings. Both arrive at the same ADD.',
@@ -552,8 +550,7 @@ const CROSS_LINKS: readonly AddAnalysisCrossLink[] = [
 // ─────────────────────────────────────────────────────────────────────────
 
 // External-source ADD framing surfaces as a §3c subsection on
-// /freestyle/add-analysis (PassBack-vs-IFPA counting reconciliation
-// per Batch C of the PassBack-first ingestion sequence).
+// /freestyle/add-analysis (PassBack-vs-IFPA counting reconciliation).
 export const FREESTYLE_ADD_ANALYSIS_CONTENT: AddAnalysisContent = {
   philosophyParagraph:    PHILOSOPHY_PARAGRAPH,
   editorialTruthRule:     EDITORIAL_TRUTH_RULE,

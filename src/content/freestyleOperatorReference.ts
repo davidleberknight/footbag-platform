@@ -1,7 +1,7 @@
 /**
  * freestyleOperatorReference.ts
  *
- * Reference entries for intermediate freestyle operators — the
+ * Reference entries for intermediate freestyle operators: the
  * compound/quantifier operators that sit between Tier-1 board primitives
  * (PIX, AT, SPIN, etc.) and the curator-authored equivalence-chain layer.
  *
@@ -28,7 +28,7 @@
 
 export type OperatorReferenceCategory =
   | 'set'              // a complete set treatment (atomic, blurry, etc.)
-  | 'body'             // a body modifier (currently none in this file — Tier-1
+  | 'body'             // a body modifier (currently none in this file; Tier-1
                        //  body operators live on the operator board)
   | 'compound-set'     // a set treatment that decomposes into other operators
   | 'compound-body'    // a body operator that decomposes into other operators
@@ -51,7 +51,7 @@ export interface OperatorReferenceEntry {
   // Curator-curated worked examples (folk-name = compositional reading).
   // Each string is rendered as-is; no recursive expansion at render time.
   workedExamples:        readonly string[];
-  // Provenance for the curated content — which legacy reference or community
+  // Provenance for the curated content: which legacy reference or community
   // ruling grounds this entry. Renders as a small lineage line.
   lineageNote:           string;
   // True when any field in the entry is still pending curator confirmation
@@ -60,7 +60,7 @@ export interface OperatorReferenceEntry {
 }
 
 // Order matters: rendered top-to-bottom in glossary §3. The order below is
-// pedagogical — set-tier operators first, body-tier next, quantifiers last.
+// pedagogical: set-tier operators first, body-tier next, quantifiers last.
 export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
   {
     slug:           'atomic',

@@ -3,26 +3,23 @@
  * ============================
  *
  * Curator-authored axis classification for the Movement System browse view.
- * Slice L1 of the 2026-05 dictionary/glossary normalization plan
- * (see exploration/dictionary-glossary-normalization-audit-2026-05/
- * STABILIZATION_PLAN.md §1).
  *
  * Why this layer exists
  * ---------------------
  * The dictionary's legacy browse views (Family / Category / Component /
  * Movement Neighborhoods) each speak a different cut of the same data.
- * Per Slice L0 curator decisions (BROWSE_ARCHITECTURE_AUDIT Q1–Q7), the
+ * Per curator decisions, the
  * canonical four-axis Movement System is the ontologically load-bearing
- * browse path — a small, pedagogically-readable ladder that learners can
+ * browse path: a small, pedagogically-readable ladder that learners can
  * traverse in axis order before encountering full ontology depth.
  *
- * Four axes (curator-confirmed in STABILIZATION_PLAN.md §1, 2026-05-16):
- *   1. Set / Uptime Systems     — set primitives that initiate a trick
- *   2. Entry Topologies         — how the body enters the trick
- *   3. Midtime Body Modifiers   — what the body does during the dex moment
- *   4. No-Plant & Suspension    — discipline modifiers around plant/landing
+ * Four axes (curator-confirmed):
+ *   1. Set / Uptime Systems     : set primitives that initiate a trick
+ *   2. Entry Topologies         : how the body enters the trick
+ *   3. Midtime Body Modifiers   : what the body does during the dex moment
+ *   4. No-Plant & Suspension    : discipline modifiers around plant/landing
  *
- * Ontology-layer constraint (per user 2026-05-15): this module classifies
+ * Ontology-layer constraint (per user): this module classifies
  * MODIFIER ROLE under one of four pedagogical axes; it does not collapse
  * any of the four ontology layers (canonical nomenclature / symbolic
  * decomposition / glossary pedagogy / embodied movement analogy). The
@@ -31,10 +28,9 @@
  *
  * Reversibility
  * -------------
- * Per [[feedback_reversible_content_governance]], this lives as TypeScript
- * content while Red Wave 2 (operator-vs-trick boundary) is still in
- * flight. Re-bucketing a modifier is a one-line edit; adding a new axis
- * is one entry; no database/schema change is required for L1–L6.
+ * This lives as TypeScript content while the operator-vs-trick boundary
+ * is still in flight. Re-bucketing a modifier is a one-line edit; adding
+ * a new axis is one entry; no database/schema change is required.
  */
 
 export interface MovementSystemAxis {
@@ -53,8 +49,8 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'begins. Pre-base uptime treatments, compressed-set families, and Red-settled ' +
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
-    // Order: pixie / fairy (pre-base uptime compressors) — atomic / quantum / nuclear
-    // (atomic family, pt10 relationships) — stepping / surging (set-foot relocations).
+    // Order: pixie / fairy (pre-base uptime compressors); atomic / quantum / nuclear
+    // (atomic family, pt10 relationships); stepping / surging (set-foot relocations).
     modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging'],
   },
   {
@@ -72,7 +68,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
       'What the body does during the dex moment: rotation by tempo (spinning / gyro / ' +
       'whirling) or head dip / body arc (ducking / diving / weaving). Modifiers ' +
       'carried through the trick rather than applied at its boundaries.',
-    // Order: spinning (full 360°) — gyro (half 180°) — whirling (distinct beat) —
+    // Order: spinning (full 360°), gyro (half 180°), whirling (distinct beat),
     // ducking / diving / weaving (head dip + body arc family).
     modifierSlugs:  ['spinning', 'gyro', 'whirling', 'ducking', 'diving', 'weaving'],
   },
@@ -90,12 +86,9 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
  * Resolve the Movement System axis a modifier belongs to.
  * Returns null when the modifier is not classified under any axis.
  *
- * Post-2026-05-18 Phase B inheritance: gyro / whirling / nuclear /
- * quantum are now classified (see movement_system_consolidation_plan.md
- * in exploration/freestyle-public-coherence-wave-2026-05-18/). Still
- * pending curator classification: barraging (Wave-2 operator class),
- * blurry (Wave-2 transitivity), tapping, furious, blazing, illusioning,
- * terraging.
+ * gyro / whirling / nuclear / quantum are classified. Still pending
+ * curator classification: barraging (operator class), blurry
+ * (transitivity), tapping, furious, blazing, illusioning, terraging.
  */
 export function resolveAxisForModifier(slug: string): MovementSystemAxis | null {
   for (const axis of MOVEMENT_SYSTEM_AXES) {
@@ -110,7 +103,7 @@ export function allMovementSystemModifierSlugs(): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Slice M (2026-05-16) — modifier-level educational composition glosses.
+// Modifier-level educational composition glosses.
 //
 // A single italic line that surfaces the conserved compositional reading
 // of a modifier on the Movement System view, between the modifier-name
@@ -137,9 +130,8 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Entry shape: clip > op-in dex. ' +
     'Compounds: PDX + WHIRL, PDX + TORQUE, PDX + BLENDER.',
   ],
-  // Slice N (2026-05-16) — 5 additional pilot glosses. Each line stays
-  // ≤200 chars per the restraint discipline. No parser tokens; no
-  // multi-line essays.
+  // 5 additional pilot glosses. Each line stays ≤200 chars per the
+  // restraint discipline. No parser tokens; no multi-line essays.
   ['spinning',
     'SPIN + base — a full-body 360° rotation carried through the dex moment. ' +
     'Compounds: SPIN + WHIRL, SPIN + TORQUE, SPIN + OSIS.',

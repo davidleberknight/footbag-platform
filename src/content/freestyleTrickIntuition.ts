@@ -15,8 +15,8 @@
  *   - All prose is curator-curated, never auto-generated.
  *   - When the source is a published reference (fb.org /newmoves,
  *     Holden compilation, PassBack), the attribution names it
- *     explicitly. Per the NR-1B precedent (pendulum/squeeze
- *     descriptions cited verbatim from fb.org), short verbatim
+ *     explicitly. Following the pendulum/squeeze precedent (descriptions
+ *     cited verbatim from fb.org), short verbatim
  *     citation is acceptable when the source's language is the
  *     pedagogically best framing.
  *   - When the prose is adapted or compressed, the attribution says
@@ -35,12 +35,6 @@
  *     - any compositional decomposition
  *   It is an additional pedagogical layer rendered between the
  *   compositional reading and the symbolic notation.
- *
- * Cross-references:
- *   - reference_fborg_newmoves_list (project memory) — the precedent
- *     for verbatim fb.org citation.
- *   - exploration/trick-detail-enrichment-audit-2026-05-23.md — the
- *     audit that motivated this module.
  */
 
 export interface TrickIntuitionEntry {

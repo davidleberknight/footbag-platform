@@ -1,7 +1,7 @@
 /**
  * freestyleDerivationPilot.ts
  *
- * P4 pilot content for the derivation-first compositional atlas refactor.
+ * Pilot content for the derivation-first compositional atlas refactor.
  * Five entries (mobius, blur, paradox, whirl, flurry) demonstrating the
  * five presentation primitives:
  *   - derivation panel (compressed / semantic / expanded / deep / operational
@@ -70,7 +70,7 @@ export interface DoctrineNote {
   readingB: string;
   /** Mechanism: what differs between the two readings (one line). */
   mechanism: string;
-  /** Status — pre-shaped curator-decision constraint:
+  /** Status, pre-shaped curator-decision constraint:
    *  only resolved / policy-dependent / historical-disagreement /
    *  multiple-readings surface on educational surfaces. */
   status:   DoctrineStatus;
@@ -108,8 +108,7 @@ export interface DerivationPanelEntry {
   /** Pre-shaped boolean indicating whether the ladder carries any
    *  'expanded' or 'deep' rungs. Computed at module load by
    *  `withDerivationPanelDerivedFields`. Drives the collapsible
-   *  "deeper readings" affordance on the derivation panel partial
-   *  (Phase 6 collapse tuning). */
+   *  "deeper readings" affordance on the derivation panel partial. */
   hasDeepRungs:        boolean;
 
   /** Operational (Jobs-notation) formula. Curator-authored verbatim. */

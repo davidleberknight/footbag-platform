@@ -2,9 +2,9 @@
  * freestyleTrickProductivity.ts
  * ==============================
  *
- * Phase A + B of the trick-detail ontology doctrine (2026-05-25). L4 —
+ * L4,
  * "productivity narrative" layer. Explains why this trick became
- * generative — what composes naturally with it, why it anchors a family
+ * generative: what composes naturally with it, why it anchors a family
  * or topology or shorthand tradition.
  *
  * Per §2.4 of the doctrine: L3 and L4 may overlap on a given slug;
@@ -61,10 +61,10 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
     ],
   },
 
-  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
+  // ── C1 mirage-descendant batch ─────────────────
   // blur authored here (L4 prose + descendants). fury and sumo intentionally
-  // suppress L4 — both are leaf-class compounds without deep productive trees;
-  // per the Phase B lock §2 rule 7, suppression > filler.
+  // suppress L4: both are leaf-class compounds without deep productive trees;
+  // per the doctrine lock §2 rule 7, suppression > filler.
 
   {
     slug: 'blur',
@@ -100,10 +100,10 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
     ],
   },
 
-  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // ── C2 whirl-descendant batch ──────────────────
   // blender authored here (L4 prose + descendants). surreal and phoenix
-  // intentionally suppress L4 — both are leaf compounds at the top of
-  // their extension axes; per the Phase B lock §2 rule 7, suppression
+  // intentionally suppress L4: both are leaf compounds at the top of
+  // their extension axes; per the doctrine lock §2 rule 7, suppression
   // > filler.
 
   {
@@ -120,10 +120,10 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
     ],
   },
 
-  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // ── C3 independent-anchor batch ────────────────
   // osis / butterfly / torque authored here (deep productive families).
-  // mobius, ripwalk, food-processor suppress L4 — all are leaf compounds
-  // per the Phase B lock §2 rule 7.
+  // mobius, ripwalk, food-processor suppress L4: all are leaf compounds
+  // per the doctrine lock §2 rule 7.
 
   {
     slug: 'osis',

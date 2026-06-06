@@ -3,26 +3,26 @@
  * core trick atoms. Surfaces in the glossary §1 "Language of Freestyle"
  * onboarding band as a beginner-facing pedagogical layer.
  *
- * Authoring principle (curator 2026-05-22): movement intuition + cultural /
+ * Authoring principle (curator decision): movement intuition + cultural /
  * foundational significance lead. Compositional / ontology-productivity
- * notes are explicitly secondary — they live in a small support line
+ * notes are explicitly secondary; they live in a small support line
  * below the lead, never above it. The atom cards must NOT read as
  * "X is the anchor of Y mirage tricks" first; they must read as "X is
  * physically Z."
  *
  * Two movement layers (kept distinct): `lead` describes what the movement
  * physically IS (descriptive); `movementIntuition` is the embodied
- * coaching cue — what the movement FEELS like to perform / the single
+ * coaching cue, what the movement FEELS like to perform / the single
  * sensation that makes it work. The intuition layer bridges symbolic
  * notation and embodied understanding; it carries NO formula, ADD value,
  * or notation (those live in CORE_TRICK_SPEC + §8/§10).
  *
  * Existing reference data lives in:
- *   - CORE_TRICK_SPEC (src/content/freestyleLandingContent.ts) —
+ *   - CORE_TRICK_SPEC (src/content/freestyleLandingContent.ts):
  *     curator-locked atom registry with operationalNotation strings.
- *   - freestyle_tricks.description (DB) — brief curator descriptions
+ *   - freestyle_tricks.description (DB): brief curator descriptions
  *     used as starting material for several cards below.
- *   - ATOMIC_FLAG_DECOMPOSITIONS (src/services/freestyleService.ts) —
+ *   - ATOMIC_FLAG_DECOMPOSITIONS (src/services/freestyleService.ts):
  *     curator-locked ADD decomposition strings.
  *
  * Cards consume this data via getGlossaryPage; the slug list mirrors
@@ -30,8 +30,7 @@
  * compound dex atoms) rather than CORE_TRICK_SPEC's structural
  * ordering. The pedagogical ordering reads simple-to-complex.
  *
- * To revise: edit a record below. Reversible TS content per
- * [[feedback_reversible_content_governance]].
+ * To revise: edit a record below. Reversible TS content module.
  */
 
 export interface CoreAtomEducationalCard {
@@ -191,7 +190,7 @@ export const CORE_ATOM_EDUCATIONAL_BY_SLUG: ReadonlyMap<string, CoreAtomEducatio
 })();
 
 /**
- * Canonical core-atom slug set — single source of truth derived from
+ * Canonical core-atom slug set: single source of truth derived from
  * CORE_ATOM_EDUCATIONAL. Service-layer rendering uses this set to
  * suppress compound-shaped trick-detail partials (addAnalysis,
  * equivalenceTopology) on atom pages. Atoms are the floor of

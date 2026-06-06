@@ -2,7 +2,7 @@
  * freestyleTrickProgressiveReadings.ts
  * =====================================
  *
- * Phase A + B of the trick-detail ontology doctrine (2026-05-25). L6 —
+ * L6,
  * "progressive equivalence unfolding" layer.
  *
  * A staircase of readings: simple parent → topology transformation →
@@ -112,7 +112,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     ],
   },
 
-  // ── C1 mirage-descendant batch (Phase C, 2026-05-25) ─────────────────
+  // ── C1 mirage-descendant batch ─────────────────
 
   {
     slug: 'blur',
@@ -296,7 +296,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     ],
   },
 
-  // ── C2 whirl-descendant batch (Phase C, 2026-05-25) ──────────────────
+  // ── C2 whirl-descendant batch ──────────────────
 
   {
     slug: 'blender',
@@ -376,7 +376,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     ],
   },
 
-  // ── C3 independent-anchor batch (Phase C, 2026-05-25) ────────────────
+  // ── C3 independent-anchor batch ────────────────
 
   {
     slug: 'osis',
@@ -534,7 +534,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     ],
   },
 
-  // ── C4 folk-name rescue exemplar (Phase C, 2026-05-25) ───────────────
+  // ── C4 folk-name rescue exemplar ───────────────
 
   {
     slug: 'ripstein',

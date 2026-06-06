@@ -2,19 +2,17 @@
  * freestyleObservationalTricks.ts
  * ================================
  *
- * Curator-authored observational-layer trick entries — tricks that exist
+ * Curator-authored observational-layer trick entries: tricks that exist
  * in external corpora (PassBack / FootbagMoves / Shred Global / Footbag
  * Finland) but have NOT been promoted to canonical curated status.
  *
- * Layer separation contract (per
- * exploration/freestyle-public-coherence-wave-2026-05-18/
- * curated_vs_observational_boundary.md):
+ * Layer separation contract:
  *
  *   - Observational entries NEVER appear on canonical surfaces
  *     (landing core-tricks grid, ADD analysis, glossary terms,
  *     trick-detail pages, family/movement-system/topology views).
  *   - Observational entries carry a visually distinct "tracked tag"
- *     (#folk-slug, dashed style) for discoverability — NOT a canonical
+ *     (#folk-slug, dashed style) for discoverability, NOT a canonical
  *     hashtag chip. The distinct style must never imply official status.
  *   - Observational entries NEVER get media attachments (curator-gated).
  *   - Observational entries NEVER get a /freestyle/tricks/{slug} route
@@ -22,23 +20,19 @@
  *   - Observational entries surface ONLY on the
  *     /freestyle/observational route.
  *
- * Reversibility: TypeScript content module per
- * [[feedback_reversible_content_governance]]. No DB schema, no
+ * Reversibility: TypeScript content module. No DB schema, no
  * migrations. Promotion to canonical (per V1+V2 publication contract
  * gate) is a separate curator action: move the row to
  * inputs/curated/tricks/<slug>.txt + re-run loader + remove the
  * observational entry.
  *
- * Provenance: PASSBACK_INGESTION_AUDIT.md Batch B pilot. Initially
- * seeded with 5 conservative curator-authored entries (clean operator-
- * stack formulas; no Wave 2 dependency; no atomic-family X-dex scope;
- * no barraging / blurry / fairy operator-class questions). Expanded
- * 2026-05-18 with 65 additional observational-safe entries drawn from
- * observational_candidate_queue.csv (observational_safe=y rows; Wave-2-
- * blocker rows excluded). The 65 expansion entries carry null
- * proposedAddFormula (curator-pending per-component decomposition) and
- * proposedAddTotal from PassBack's claim column. Curator may enrich
- * proposedAddFormula + curatorNote per row as part of Phase A.4
+ * Provenance: external folk-name corpora (PassBack and similar). Entries
+ * are observational-safe: clean operator-stack formulas, no
+ * unresolved-doctrine dependency (no atomic-family X-dex scope; no
+ * barraging / blurry / fairy operator-class questions). Expansion entries
+ * carry null proposedAddFormula (curator-pending per-component
+ * decomposition) and proposedAddTotal from PassBack's claim column.
+ * Curator may enrich proposedAddFormula + curatorNote per row as part of
  * selective promotion to canonical.
  */
 
@@ -56,20 +50,20 @@ export type ObservationalStatus =
   | 'rejected';
 
 /**
- * Explicit governance lane for an observational entry (2026-05-24 slice).
+ * Explicit governance lane for an observational entry.
  * The lane is curator-authored, NOT keyword-heuristic-derived. Default
  * lane for new entries is 'source-only'. Curator hand-promotes entries
  * by editing this field.
  *
  * Lanes:
- *   - 'source-only'      — known name from a documented corpus without
+ *   - 'source-only'      : known name from a documented corpus without
  *                          enough verified structure for promotion review
- *   - 'formula-review'   — has a proposed decomposition but the ADD /
+ *   - 'formula-review'   : has a proposed decomposition but the ADD /
  *                          formula reading is inconsistent or unresolved
- *   - 'promotion-queue'  — source-backed name with plausible JOB notation
+ *   - 'promotion-queue'  : source-backed name with plausible JOB notation
  *                          + ADD accounting; near-ready after final
  *                          curator review
- *   - 'doctrine-blocked' — blocked by an unresolved doctrine issue
+ *   - 'doctrine-blocked' : blocked by an unresolved doctrine issue
  *                          (paradox, x-dex, nuclear/atomic, inspinning,
  *                          shooting, backside, fairy/orbit reading, etc.)
  */
@@ -81,7 +75,7 @@ export type ObservationalGovernanceLane =
 
 export interface ObservationalTrick {
   /** Lowercase URL-safe slug derived from the folk name. NEVER reuses a
-   *  canonical freestyle_tricks slug — collision check enforced at
+   *  canonical freestyle_tricks slug; collision check enforced at
    *  shaping time. */
   folkSlug: string;
   /** Display name (folk / external-source form). */
@@ -104,48 +98,37 @@ export interface ObservationalTrick {
   status: ObservationalStatus;
   /** Optional curator-authored note. */
   curatorNote: string | null;
-  /** Wave 2 / curator blockers preventing canonicalization. */
+  /** Doctrine / curator blockers preventing canonicalization. */
   unresolvedBlockers: readonly string[];
   /** Explicit governance lane (curator-authored; see ObservationalGovernanceLane).
    *  Optional in the type for backwards-compatibility with rows authored
-   *  before the 2026-05-24 slice; shaping layer defaults missing values
-   *  to 'source-only'. */
+   *  before the governance-lane field existed; shaping layer defaults
+   *  missing values to 'source-only'. */
   governanceLane?: ObservationalGovernanceLane;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Batch B pilot seed (2026-05-18). Five conservative entries from
-// exploration/freestyle-public-coherence-wave-2026-05-18/
-// observational_candidate_queue.csv. All formulas use IFPA-canonical
-// operators (stepping / whirling / pixie / ducking + positional far);
-// none touch Wave 2 questions (barraging / blurry / atomic-family X-dex /
+// Conservative seed entries. All formulas use IFPA-canonical operators
+// (stepping / whirling / pixie / ducking + positional far); none touch
+// unresolved-doctrine questions (barraging / blurry / atomic-family X-dex /
 // fairy weight / compression intent / hidden-vs-flat).
 // ─────────────────────────────────────────────────────────────────────────
 
 export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
-  // 'assassin' removed 2026-05-18 — promoted to canonical via FM Slice X
-  // Path B pilot canonical 2026-05-17 (slug='assassin' in freestyle_tricks
-  // with adds=4, base_trick='mirage'). The observational entry was stale
-  // because the promotion process did not include the documented
-  // observational-removal step.
-  //
-  // Wave 5 observational→canonical promotions 2026-05-22: blizzard, blaze,
-  // bedwetter, sole-survivor (PassBack folk-name resolutions) moved to
-  // canonical freestyle_tricks rows with curator-locked RESOLVED_FORMULAS
-  // derivations and FIRST_CLASS_TIER_2 membership. Per
-  // feedback_observational_canonical_promotion_cleanup the observational
-  // entries are removed in the same change-set.
+  // Some PassBack folk names are absent here because they are promoted to
+  // canonical freestyle_tricks rows (e.g. assassin, blizzard, blaze,
+  // bedwetter, sole-survivor) with curator-locked RESOLVED_FORMULAS
+  // derivations. When an observational entry is promoted, it is removed
+  // here in the same change-set.
   // ─────────────────────────────────────────────────────────────────────────
-  // Batch B observational-safe expansion (2026-05-18). 65 entries from
-  // exploration/freestyle-public-coherence-wave-2026-05-18/
-  // observational_candidate_queue.csv (observational_safe=y rows; Bladerunner
-  // duplicate merged into one entry with two readings). All entries:
+  // Observational-safe expansion entries (Bladerunner duplicate merged into
+  // one entry with two readings). All entries:
   //   - proposedAddFormula=null (curator-pending per-component decomposition)
   //   - proposedAddTotal from PassBack 'PB ADD claim' column (null where empty)
   //   - status='pending-review' (curator-confirmation gate)
-  //   - unresolvedBlockers=[] (these are the post-Wave-2-safe cohort)
+  //   - unresolvedBlockers=[] (the unresolved-doctrine-safe cohort)
   // Curator may enrich proposedAddFormula + curatorNote per row as part of
-  // Phase A.4 selective promotion to canonical.
+  // selective promotion to canonical.
   // ─────────────────────────────────────────────────────────────────────────
   {
     folkSlug:           'anonymous',
@@ -159,9 +142,8 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'big-apple' skipped 2026-05-18 — already canonical via FM Slice X
-  // Path B pilot 2026-05-17 (slug='big-apple' in freestyle_tricks with
-  // adds=6, base_trick='torque'). Source PB readings cited in the
+  // 'big-apple' is omitted: already canonical in freestyle_tricks
+  // (adds=6, base_trick='torque'). Source PB readings are cited in the
   // canonical row's red_additions entry.
   {
     folkSlug:           'big-orange',
@@ -178,12 +160,11 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'bladerunner' restored 2026-05-24 — Slice 7-OBS-A revert. The FM
-  // dex-count canonical publication created confusion in rendered
-  // dictionary surfaces; curator instructed to revert and keep this
-  // row in Emerging Vocabulary until a canonical-bracket reading is
-  // authored.
-  // 'bling-blang' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'bladerunner' is kept observational: a dex-count canonical publication
+  // created confusion in rendered dictionary surfaces, so the curator
+  // reverted it and keeps this row in Emerging Vocabulary until a
+  // canonical-bracket reading is authored.
+  // 'bling-blang' is likewise kept observational.
   {
     folkSlug:           'bling-blang',
     displayName:        'Bling Blang',
@@ -196,9 +177,9 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'blurrage' removed 2026-05-23 — promoted to canonical via Wave 7
+  // 'blurrage' is omitted: promoted to canonical via the
   // doctrine-divergence pilot. IFPA-derived ADD 4 (stepping + barrage);
-  // PB-source claim 3 documented as historical-divergence in
+  // the PB-source claim of 3 is documented as historical-divergence in
   // DOCTRINE_DIVERGENCE_REGISTRY (linked to Red Q7).
   {
     folkSlug:           'blurrier',
@@ -212,7 +193,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'cold-fusion' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'cold-fusion' is kept observational pending a canonical-bracket reading.
   {
     folkSlug:           'cold-fusion',
     displayName:        'Cold Fusion',
@@ -276,7 +257,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'flurricane' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'flurricane' is kept observational pending a canonical-bracket reading.
   {
     folkSlug:           'flurricane',
     displayName:        'Flurricane',
@@ -313,7 +294,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'golden-shower' + 'goliath' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'golden-shower' + 'goliath' are kept observational pending a canonical-bracket reading.
   {
     folkSlug:           'golden-shower',
     displayName:        'Golden Shower',
@@ -353,7 +334,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'gybas' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'gybas' is kept observational pending a canonical-bracket reading.
   {
     folkSlug:           'gybas',
     displayName:        'GYBAS',
@@ -505,10 +486,9 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'mantis' skipped 2026-05-18 — already canonical via FM Slice X
-  // Path B pilot 2026-05-17 (slug='mantis' in freestyle_tricks with
-  // adds=4, base_trick='eggbeater', trick_family='legover'). Source PB
-  // reading 'Spinning near Eggbeater' cited in the canonical row.
+  // 'mantis' is omitted: already canonical in freestyle_tricks (adds=4,
+  // base_trick='eggbeater', trick_family='legover'). Source PB reading
+  // 'Spinning near Eggbeater' is cited in the canonical row.
   {
     folkSlug:           'moby-dick',
     displayName:        'Moby Dick',
@@ -548,7 +528,7 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'motion-sickness' + 'pandemonium' restored 2026-05-24 — Slice 7-OBS-A revert.
+  // 'motion-sickness' + 'pandemonium' are kept observational pending a canonical-bracket reading.
   {
     folkSlug:           'motion-sickness',
     displayName:        'Motion Sickness',
@@ -588,11 +568,11 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'predator' removed 2026-05-23 — promoted to canonical via Wave 7
-  // doctrine-divergence pilot. IFPA-derived ADD 4 (atomic + dlo);
-  // PB-source claim 3 documented as historical-divergence (strongest
-  // single-row evidence for Q7 hypothesis B: pt10 implicit paradox-
-  // atomic framing).
+  // 'predator' is omitted: promoted to canonical via the
+  // doctrine-divergence pilot. IFPA-derived ADD 4 (atomic + dlo); the
+  // PB-source claim of 3 is documented as historical-divergence (strongest
+  // single-row evidence for Q7 hypothesis B: pt10 implicit paradox-atomic
+  // framing).
   {
     folkSlug:           'reactor',
     displayName:        'Reactor',
@@ -662,9 +642,9 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        null,
     unresolvedBlockers: [],
   },
-  // 'schmoe' removed 2026-05-23 — promoted to canonical via Wave 7
-  // doctrine-divergence pilot. IFPA-derived ADD 3 (stepping + legover);
-  // PB-source claim 2 documented as historical-divergence.
+  // 'schmoe' is omitted: promoted to canonical via the doctrine-divergence
+  // pilot. IFPA-derived ADD 3 (stepping + legover); the PB-source claim of
+  // 2 is documented as historical-divergence.
   {
     folkSlug:           'scorpion-s-tail',
     displayName:        'Scorpion\'s Tail',
@@ -910,21 +890,18 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────
-  // footbag.org /newmoves batch (2026-05-20). Twelve high-confidence
-  // structural compounds verbatim from the FB.org Paradox Moves listing,
-  // proposed for canonical promotion pending curator review. Each row
-  // uses Red-settled operators (paradox / spinning / inspinning /
-  // stepping / ducking / symposium) on Red-settled bases (mirage /
-  // illusion / whirl / legover / drifter / blender). ADD math agrees
-  // with FB.org per pure +1-stack arithmetic; no Wave 2 doctrine
-  // dependency.
+  // footbag.org /newmoves batch. Twelve high-confidence structural
+  // compounds verbatim from the FB.org Paradox Moves listing, proposed for
+  // canonical promotion pending curator review. Each row uses Red-settled
+  // operators (paradox / spinning / inspinning / stepping / ducking /
+  // symposium) on Red-settled bases (mirage / illusion / whirl / legover /
+  // drifter / blender). ADD math agrees with FB.org per pure +1-stack
+  // arithmetic; no unresolved-doctrine dependency.
   //
-  // Source: exploration/fborg/paradoxMoves.txt + fundamentalmoves.txt.
-  // Provenance: FB.org /newmoves/list/{4..7} pages, 2003 corpus.
-  // Curator action on each: promote to canonical (move to
+  // Provenance: FB.org /newmoves/list/{4..7} pages, 2003 corpus. Curator
+  // action on each: promote to canonical (move to
   // legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv) +
-  // remove this observational entry. Follow
-  // [[feedback_observational_canonical_promotion_cleanup]].
+  // remove this observational entry.
   // ─────────────────────────────────────────────────────────────────────
   {
     folkSlug:           'inspinning-paradox-mirage',
@@ -950,19 +927,18 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     curatorNote:        'Sibling of inspinning-paradox-mirage; mirror dex direction.',
     unresolvedBlockers: [],
   },
-  // Wave 5 observational→canonical promotions 2026-05-22: 10 FB.org
-  // entries (spinning-paradox-mirage / spinning-paradox-illusion /
+  // Ten FB.org entries (spinning-paradox-mirage / spinning-paradox-illusion /
   // spinning-paradox-whirl / paradox-double-leg-over / paradox-barrage /
   // paradox-blizzard / paradox-symposium-mirage / paradox-high-plains-
   // drifter / spinning-paradox-blender / stepping-ducking-paradox-blender)
-  // moved to canonical freestyle_tricks rows with curator-locked
-  // RESOLVED_FORMULAS derivations and FIRST_CLASS_TIER_2 membership.
-  // paradox-blizzard's stepwise dependency (blizzard) is also promoted
-  // same slice. Per feedback_observational_canonical_promotion_cleanup
-  // the observational entries are removed in the same change-set.
+  // are omitted: promoted to canonical freestyle_tricks rows with
+  // curator-locked RESOLVED_FORMULAS derivations. paradox-blizzard's
+  // stepwise dependency (blizzard) is promoted alongside them. When an
+  // observational entry is promoted, it is removed here in the same
+  // change-set.
   //
   // The 2 inspinning-paradox-* entries remain observational pending the
-  // `inspinning` modifier-vocabulary decision (composite-framework slice).
+  // `inspinning` modifier-vocabulary decision.
 ];
 
 /**
