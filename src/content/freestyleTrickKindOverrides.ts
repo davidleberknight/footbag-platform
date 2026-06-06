@@ -105,24 +105,13 @@ const OPERATOR_SLUGS = new Set<string>([
   'shooting',
 ]);
 
-// Catch surfaces that should NOT appear as tricks in the difficulty
-// ladder. Reserved for the narrow case where the row is a bare surface
-// NAME masquerading as a trick, not for legitimate stall primitives.
-//
-// `clipper` (category='body' in the DB, ADD=1) is the load-bearing
-// example: it's the surface name, not the stall trick. The actual
-// 1-ADD trick is `clipper-stall`, which stays `kind='trick'`.
-//
-// Curator note: every stall in `freestyle_tricks` with category='surface'
-// (toe-stall, clipper-stall, cloud-stall, sole-stall, head-stall, etc.)
-// DOES end in bag contact, passes the user's discriminating criterion
-// "all tricks must end with bag contact", and is legitimately a 1-2 ADD
-// trick. Those rows are NOT in this set. They surface in the ADD ladder
-// as the simplest tricks. The future "isSurface" facet will
-// add the glossary §2 cross-link without conflating it with kind.
-const SURFACE_SLUGS = new Set<string>([
-  'clipper',
-]);
+// Slugs forced to kind='surface' (hidden from the trick browse).
+// Currently empty: surfaces are distinguished by the DB `category` field,
+// not by kind. Every stall (toe-stall, head-stall, etc.) and the `clipper`
+// Clipper Kick (category='body', ADD 1) is a legitimate 1-2 ADD trick that
+// ends in bag contact and renders in the ADD ladder; nothing is hidden as
+// a bare surface name at the kind layer.
+const SURFACE_SLUGS = new Set<string>([]);
 
 // Curator-flagged ambiguities. Each carries an inline note that surfaces
 // in the QC panel; never on public browse views.
