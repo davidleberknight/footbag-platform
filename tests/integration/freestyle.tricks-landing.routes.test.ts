@@ -200,9 +200,9 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(res.text).toContain('dict-landing-card-chip-count');
   });
 
-  it('By family lists the curated 18 public families as ?family= jump-links', async () => {
+  it('By family lists the 24 public families as ?family= jump-links', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">18<\/span> families/);
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">24<\/span> families/);
     for (const slug of ['mirage', 'osis', 'eclipse', 'drifter']) {
       expect(res.text, `family link ${slug}`).toMatch(new RegExp(`href="/freestyle/tricks\\?family[^"]*${slug}"`));
     }

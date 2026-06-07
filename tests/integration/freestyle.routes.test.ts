@@ -2409,8 +2409,9 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                not prose drift.
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
-    // again.
-    expect(res.text.length).toBeLessThan(270_000);
+    // again. The empirical family-parent roster (24 families, each carded)
+    // raised the floor, so the ceiling moves with it.
+    expect(res.text.length).toBeLessThan(285_000);
   });
 });
 

@@ -3087,7 +3087,7 @@ export interface FreestyleGlossaryContent {
   // the dictionary's "By family" browse (PUBLIC_DISPLAY_FAMILIES) so the
   // glossary roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
-  firstClassFamilyRoster: readonly { slug: string; label: string }[];
+  firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
   // §8 ADD Accounting worked-example cards. Five compact
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
@@ -8097,9 +8097,12 @@ export const freestyleService = {
           ]);
           return !familySlugs.has(t.slug);
         }),
-        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES.map(f => ({
-          slug:  f.slug,
-          label: f.label,
+        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES.filter(f => !f.parent).map(root => ({
+          slug:  root.slug,
+          label: root.label,
+          branches: PUBLIC_DISPLAY_FAMILIES
+            .filter(b => b.parent === root.slug)
+            .map(b => ({ slug: b.slug, label: b.label })),
         })),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,

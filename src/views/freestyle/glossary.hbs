@@ -563,8 +563,9 @@
         are examples.</dd>
       <dt>Sub-family</dt>
       <dd>Has a conserved terminal but inherits a parent&rsquo;s identity, so it
-        folds under it (swirl and rev-whirl under whirl; torque and blender under
-        osis).</dd>
+        folds under it. When such a branch clears the admission threshold it is
+        promoted as a first-class derived branch (torque and blender under osis);
+        smaller folds stay plain sub-families (rev-whirl under whirl).</dd>
       <dt>Atom / primitive</dt>
       <dd>A foundational building block performed <em>within</em> tricks &mdash; an
         entry, orbit, or swing move &mdash; never a terminal lineage.
@@ -618,19 +619,21 @@
 
     <h3 class="section-heading">First-class families</h3>
     <p class="detail-muted">
-      The dictionary&rsquo;s ratified first-class families &mdash; a deliberate,
-      curator-selected balance between completeness and usability. The goal is to
-      expose the major structural lineages players actually use to organize the
-      vocabulary, while leaving out categories that are too broad (surfaces like
-      toe-stall and clipper-stall), too narrow (small historical or derivative
-      clusters), or not true lineages at all (modifier ecosystems like pixie and
-      fairy; entry primitives like around-the-world and orbit). This is the same
-      set the dictionary&rsquo;s
+      The dictionary&rsquo;s first-class families, admitted by one empirical rule
+      applied uniformly: a family is a terminal lineage that both conserves a
+      recognizable terminal identity (descendants keep the signature even as
+      modifiers stack) and has at least three recursive descendant tricks.
+      Families emerge from the vocabulary rather than being hand-picked. The rule
+      excludes what isn&rsquo;t a terminal lineage of its own: the two dominant
+      catch surfaces that fan out into many families (toe-stall, clipper-stall),
+      modifier ecosystems (pixie, fairy), and entry primitives (around-the-world,
+      orbit). A family that inherits a parent&rsquo;s terminal identity is shown
+      as a branch in parentheses. This is the same set the dictionary&rsquo;s
       <a href="/freestyle/tricks?view=family">By family</a> browse uses, so the
       glossary roster and the dictionary roster always match:
     </p>
     <p class="detail-muted glossary-family-roster">
-      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
+      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
     </p>
     <p class="detail-muted">
       Every first-class family now has an educational card — the terminal-anchor
@@ -645,7 +648,7 @@
     </div>
 
     <h3 class="section-heading">Descendant lineages &amp; sub-families</h3>
-    <p class="detail-muted">Cards grouped by structure, not by tier. Some are child sub-families that fold under a parent (swirl and rev-whirl under whirl; torque and blender under osis); others are productive descendant lineages that earned first-class status in their own right (drifter, barrage, eclipse, dyno, and the rest of the roster above). A card's first-class status is set by the roster above, not by which grid it appears in.</p>
+    <p class="detail-muted">Cards grouped by structure, not by tier. Some are derived branches that inherit a parent&rsquo;s terminal identity (torque and blender under osis; double-leg-over and eggbeater under legover); others are productive descendant lineages that earned first-class status in their own right (drifter, barrage, eclipse, dyno, and the rest of the roster above). A card&rsquo;s first-class status is set by the roster above, not by which grid it appears in.</p>
     <div class="glossary-family-card-grid" aria-label="Descendant lineages and sub-families">
       {{#each content.branchFamilies}}
       {{> glossary-family-card}}

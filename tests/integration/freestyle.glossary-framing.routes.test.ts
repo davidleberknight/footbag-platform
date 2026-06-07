@@ -306,6 +306,26 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/Card coverage is complete/);
   });
 
+  it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
+    const html = await glossary();
+    for (const slug of ['swirl', 'inside-stall', 'torque', 'blender', 'double-leg-over', 'eggbeater']) {
+      expect(html, `promoted family ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
+    }
+    // Derived branches render nested in parentheses after their root.
+    expect(html).toMatch(/Osis<\/a> \([^)]*family=torque[^)]*family=blender[^)]*\)/);
+    expect(html).toMatch(/Legover<\/a> \([^)]*family=double-leg-over[^)]*family=eggbeater[^)]*\)/);
+    // The empirical admission rule replaces the curator-selected framing.
+    expect(html).toMatch(/at least three recursive descendant tricks/);
+    expect(html).not.toMatch(/curator-selected balance/);
+    // The stale "swirl under whirl" sub-family caption is corrected.
+    expect(html).not.toMatch(/swirl and rev-whirl under whirl/);
+    expect(html).toMatch(/double-leg-over and eggbeater under legover/);
+    // The three newly-carded families carry educational cards.
+    for (const id of ['term-double-leg-over', 'term-eggbeater', 'term-inside-stall']) {
+      expect(html, `card ${id}`).toContain(`id="${id}"`);
+    }
+  });
+
   it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {
     const html = await glossary();
     expect(html).toMatch(/leggy super-family is ever[\s\S]{0,20}recognized, it belongs on the/);
