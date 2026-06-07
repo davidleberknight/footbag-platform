@@ -2,16 +2,16 @@
 
 Tricks whose `trick_family` disagrees with the terminal their own formula resolves to. **Curator review list — nothing changed.** Derived by the method in `METHODOLOGY.md`.
 
-## 1. CLEAR — the `infinity` "family" is three misfiled barfly tricks
-There is no real `infinity` terminal lineage. All three members are barfly tricks, including the **barfly anchor itself**, which is why the actual `barfly` family (10) renders without its own root.
+## 1. RESOLVED — family-lineage consolidation (doctrine correction, not a data fix)
+Investigation showed the `infinity` assignment was **deliberate**, not a typo: a prior curator ruling set `barfly`'s base/family to `infinity` ("barfly ≡ double infinity"), with `red_corrections` overrides on `ducking-barfly` and `barraging-barfly` to match. But the ruling was **half-applied** (3 of 13) and conflicts with the canonical name — `barfly` is the public first-class family; `infinity` is a public family nowhere. All 13 tricks are one barfly lineage (`base_trick = barfly`, double-out-dex clipper terminal `CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP`).
 
-| slug | current `trick_family` | `base_trick` | formula terminal | should be |
-|---|---|---|---|---|
-| `barfly` | infinity | infinity | clipper-stall (`CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]`) | **barfly** |
-| `ducking-barfly` | infinity | barfly | clipper-stall | **barfly** |
-| `barraging-barfly` | infinity | barfly | (no notation) | **barfly** |
+| slug | was `trick_family` | now | terminal |
+|---|---|---|---|
+| `barfly` (anchor) | infinity | **barfly** | clipper-stall |
+| `ducking-barfly` | infinity | **barfly** | clipper-stall |
+| `barraging-barfly` | infinity | **barfly** | clipper-stall |
 
-**Fix:** set `trick_family = 'barfly'` on all three (and `base_trick = 'barfly'` on `barfly` itself). Effect: the phantom `infinity` lineage disappears; the barfly family is completed (10 → 13) and gains its anchor. Confidence: **high** (names + base_trick + clipper terminal all agree on barfly).
+**Applied** as a consolidation under `barfly` per curator ruling: `barfly` base/family `infinity → barfly` in `tricks.csv` (and the unused `trick_dictionary.csv`); the two redundant `red_corrections` overrides removed. The phantom `infinity` lineage is gone; barfly is one 13-member family including its anchor. The no-transitive-inheritance forever-rule still holds — `barfly` is now its own family, so the default (`family = base = barfly`) is correct and needs no override. This reversed the documented `infinity` naming choice, so it is a family-lineage consolidation / doctrine correction, not a data fix.
 
 ## 2. REVIEW — terminal surface disagrees with family (mis-assignment or genuine variant)
 
@@ -31,6 +31,6 @@ These need a curator call (correct family vs. accept as a cross-surface variant)
 **Action:** none on the data. This is a known extractor limitation (mid-formula `[DEL]` + `(land)` terminals) noted in `METHODOLOGY.md`; the robust extractor fix belongs in the audit script, not the trick data.
 
 ## Summary
-- **1 high-confidence data fix** (3 rows): `infinity` → `barfly`.
+- **1 family-lineage consolidation (applied):** `infinity` → `barfly` (3 rows + root) — reversed the prior `infinity` naming; one 13-member barfly family with its anchor.
 - **2 review cases:** `reaper`, `pixie-paradon` (cross-surface — curator decides).
 - **1 false positive:** `eclipse` (fix the extractor, not the trick).

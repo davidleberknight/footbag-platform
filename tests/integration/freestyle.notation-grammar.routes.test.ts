@@ -295,9 +295,8 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'trick-ed-sumo', 'trick-ed-mod', 1);
 
   // 12) Broken-upstream-link fixture — base_trick references a slug that does
-  //     NOT exist in the dictionary (mirrors barfly→infinity). Editorial
-  //     decomposition should render with baseStatus='broken_link', no
-  //     modifiers, and no composed math.
+  //     NOT exist in the dictionary. Editorial decomposition should render
+  //     with baseStatus='broken_link', no modifiers, and no composed math.
   insertFreestyleTrick(db, {
     slug:           'trick-ed-broken',
     canonical_name: 'trick ed broken',
