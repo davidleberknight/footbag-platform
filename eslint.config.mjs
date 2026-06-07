@@ -39,13 +39,4 @@ export default [
     files: ['src/dev-bootstrap/**/*.ts', 'src/testkit/**/*.ts', 'src/config/logger.ts'],
     rules: { 'no-console': 'off' },
   },
-  {
-    // The freestyle surface is excluded from this gate for now, mirroring the
-    // freestyle exclusions in the template-class-vocabulary test and the
-    // font check in scripts/ci/assert_conventions.sh; its dead-code cleanup
-    // rides the freestyle-pages-fixes list. Prune this exclusion when that
-    // surface is cleaned.
-    files: ['src/services/freestyleService.ts'],
-    rules: { '@typescript-eslint/no-unused-vars': 'off' },
-  },
 ];

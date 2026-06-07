@@ -34,15 +34,10 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **Cross-track: relocate `freestyle-dictionary-surface` from `.claude/skills/` to `exploration/`.** It self-identifies as exploration-derived but sits in the production skill tree where it auto-loads on freestyle-dictionary-UI prompts. Plan: (1) `mv .claude/skills/freestyle-dictionary-surface/SKILL.md exploration/freestyle-dictionary-surface.md` and `rmdir` the empty dir (touches `.claude/skills/`; coordinate with Dave); (2) update `exploration/freestyle-notation-grammar/PROPOSAL.md:579` to the new path; (3) update `legacy_data/scripts/build_structural_alias_adjudication.py` lines 5 and 522 to drop "skill" from the citations.
 
-- **Freestyle pages fixes (mixed Dave-track: app/template/route/docs; and James-track: curator content).**
+- **Freestyle pages fixes (James-track: curator content).**
   1. Content (curator): `about.hbs` uses "moves"/"move" where canonical is "tricks"/"trick" (the Shred 30 paragraph's "adds per move", the Sick 3 paragraph's "substitute easier moves").
   2. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
   3. Content (curator): the glossary's closing about-framing passage names nine community contributors by name; other freestyle pages don't. Decide public-attribution policy.
-  4. UI standard (mixed-track: CSS is Dave-track; templates span both): bring the freestyle surfaces onto the VC §4.5 token standard. The non-freestyle site is already compliant; fonts are now tokenized site-wide and the `assert_conventions.sh` font gate scans the whole stylesheet. Remaining scope, per surface:
-      - Tokenize the ~360 remaining long-tail hex literals plus raw radii/shadows (the recurring palette is tokenized into the parchment/earth/fern/steel and extended slate/gray groups); low-frequency one-offs need consolidate-or-name calls; new values enter `:root` as named tokens (the existing neutral/status/family token groups are the pattern).
-      - Consolidate breakpoints 520/600/640/680/720/1023/1024 onto canonical 480/768.
-      - Define the ~40 remaining undefined class tokens (dead tokens are removed; what remains are test-anchored contract classes needing real styling decisions) across `src/views/freestyle/**` and the 8 still-excluded freestyle partials; bespoke families (`dict-card`, `compositional-set-*`, ...) keep their vocabulary but inherit shared tokens per VC §4.5.
-      - Gate updates are mandatory per surface, enforced mechanically: when a template becomes compliant, prune it from `EXCLUDED_FILES` / `EXCLUDED_DIRS` in `tests/unit/template-class-vocabulary.test.ts` (a companion test in that file fails while a compliant surface stays excluded, naming the entry to remove).
 
 ### BACKLOG (lower-priority active)
 

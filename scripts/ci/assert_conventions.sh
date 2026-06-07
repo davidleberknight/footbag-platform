@@ -220,6 +220,57 @@ if [ -n "$font_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: colors come from the :root design tokens; no raw hex in rule bodies.
+# Reason: a hex literal in a rule is an untracked one-off that drifts from the
+# shared palette; a new color enters as a named :root token first.
+echo "[conventions] check: raw hex color outside :root in style.css"
+hex_hits=$(awk '
+  /:root/ { inroot = 1 }
+  inroot { if (/}/) inroot = 0; next }
+  { line = $0; gsub(/\/\*.*\*\//, "", line) }
+  line ~ /#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?/ { print FILENAME ":" NR ": " $0 }
+' src/public/css/style.css || true)
+if [ -n "$hex_hits" ]; then
+  echo "$hex_hits" >&2
+  echo "  FAIL: colors must use :root tokens; raw hex belongs only in the :root token block" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: border-radius uses the --radius* tokens, never a raw px value.
+# Reason: corner radii are part of the token system; a raw px is an untracked one-off.
+echo "[conventions] check: raw px border-radius in style.css"
+radius_hits=$(awk '
+  /border-radius:/ {
+    line = $0; gsub(/\/\*.*\*\//, "", line)
+    if (line ~ /border-radius:[^;]*[0-9]+px/) print FILENAME ":" NR ": " $0
+  }
+' src/public/css/style.css || true)
+if [ -n "$radius_hits" ]; then
+  echo "$radius_hits" >&2
+  echo "  FAIL: border-radius must use var(--radius*) tokens, not raw px" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: media queries use only the canonical breakpoints 480/768/1024 (1024 = tablet).
+# Reason: a consistent breakpoint set keeps responsive behavior coherent; ad-hoc
+# breakpoints fragment the reflow story across surfaces.
+echo "[conventions] check: non-canonical @media breakpoints in style.css"
+bp_hits=$(awk '
+  /@media/ {
+    line = $0
+    while (match(line, /[0-9]+px/)) {
+      v = substr(line, RSTART, RLENGTH)
+      if (v != "480px" && v != "768px" && v != "1024px") { print FILENAME ":" NR ": " $0; break }
+      line = substr(line, RSTART + RLENGTH)
+    }
+  }
+' src/public/css/style.css || true)
+if [ -n "$bp_hits" ]; then
+  echo "$bp_hits" >&2
+  echo "  FAIL: @media must use canonical breakpoints 480px / 768px / 1024px only" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: no committed skipped tests (.skip / .todo / xit).
 # Reason: a silently skipped test is a coverage regression nothing reports;
 # if a test cannot land, the feature cannot either. Conditional gating via

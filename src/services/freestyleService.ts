@@ -169,9 +169,6 @@ import {
 } from '../content/freestyleComboAnalysisContent';
 import {
   OBSERVATIONAL_TRICKS,
-  type ObservationalTrick,
-  type ObservationalSourceLabel,
-  type ObservationalStatus,
   type ObservationalGovernanceLane,
 } from '../content/freestyleObservationalTricks';
 import {
@@ -961,41 +958,6 @@ function shapeTrickPathways(args: {
       };
 
   return { learn, watch, family };
-}
-
-/** Returns the canonical trick slug (or null if no row exists). Walks aliases once. */
-function resolveTrickSlug(slug: string): string | null {
-  const direct = freestyleTricks.getAnyStatusBySlug.get(slug) as
-    | { slug: string }
-    | undefined;
-  if (direct) return direct.slug;
-  const aliasRow = freestyleTrickAliases.getCanonicalForAlias.get(slug) as
-    | { trick_slug: string }
-    | undefined;
-  if (aliasRow) {
-    const target = freestyleTricks.getAnyStatusBySlug.get(aliasRow.trick_slug) as
-      | { slug: string }
-      | undefined;
-    return target ? target.slug : null;
-  }
-  return null;
-}
-
-/** 'active' | 'pending' | 'unknown' for status taxonomy decisions. */
-function lookupDictStatus(slug: string): 'active' | 'pending' | 'unknown' {
-  const direct = freestyleTricks.getAnyStatusBySlug.get(slug) as
-    | { is_active: number }
-    | undefined;
-  if (direct) return direct.is_active === 1 ? 'active' : 'pending';
-  const aliasRow = freestyleTrickAliases.getCanonicalForAlias.get(slug) as
-    | { trick_slug: string }
-    | undefined;
-  if (!aliasRow) return 'unknown';
-  const target = freestyleTricks.getAnyStatusBySlug.get(aliasRow.trick_slug) as
-    | { is_active: number }
-    | undefined;
-  if (!target) return 'unknown';
-  return target.is_active === 1 ? 'active' : 'pending';
 }
 
 export interface FreestyleTrickContent {
@@ -3350,86 +3312,6 @@ function shapeObservationalCard(
     curatorNote:        note,
     hasDetails:         Boolean(decomposition) || Boolean(note),
   };
-}
-
-// ── Observational view-model shaping helpers ─────────────────────────────
-
-const OBSERVED_SOURCE_BADGE: Record<ObservationalSourceLabel, ObservedSourceBadge> = {
-  'passback':         'PB',
-  'footbagmoves':     'FM',
-  'shred-global':     'SG',
-  'footbag-finland':  'FF',
-  'fborg':            'FB',
-  'other':            'OTHER',
-};
-
-const OBSERVED_STATUS_CHIP: Record<ObservationalStatus, ObservedStatusChip> = {
-  'pending-review':           { label: 'Pending review',           tone: 'neutral' },
-  'pending-canonicalization': { label: 'Pending canonicalization', tone: 'accent'  },
-  'rejected':                 { label: 'Rejected',                 tone: 'muted'   },
-};
-
-function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
-  const sourceBadge = OBSERVED_SOURCE_BADGE[t.sourceLabel];
-  const [first, ...rest] = t.proposedReadings;
-  const additionalReadings = rest;
-  const hasDetails =
-    additionalReadings.length > 0
-    || t.proposedAddFormula !== null
-    || t.curatorNote !== null
-    || t.unresolvedBlockers.length > 0;
-  // External-claim framing: NEVER as canonical ADD (observed tricks
-  // are not canonical resolved tricks). The numeric value is the raw
-  // claim from the source; the source-badge prefix makes attribution
-  // explicit and the absence of " ADD" suffix avoids canonical implication.
-  const externalClaimLabel = t.proposedAddTotal !== null
-    ? `${sourceBadge} claim: ${t.proposedAddTotal}`
-    : null;
-  return {
-    folkSlug:         t.folkSlug,
-    displayName:      t.displayName,
-    // Default lane to 'source-only' when the curator hasn't explicitly
-    // promoted the entry (governance contract: explicit manual field,
-    // NOT keyword heuristic).
-    governanceLane:   t.governanceLane ?? 'source-only',
-    sourceBadge,
-    sourceTooltip:    t.sourceCitation,
-    statusChip:       OBSERVED_STATUS_CHIP[t.status],
-    shortReading:     first ?? null,
-    externalClaimLabel,
-    claimNumeric:     t.proposedAddTotal,
-    hasDetails,
-    detailExpansion: {
-      additionalReadings,
-      formula:        t.proposedAddFormula,
-      curatorNote:    t.curatorNote,
-      blockers:       t.unresolvedBlockers,
-      sourceCitation: t.sourceCitation,
-    },
-  };
-}
-
-function sortObservedCardsByClaim(cards: readonly ObservedTrickCard[]): readonly ObservedTrickCard[] {
-  return [...cards].sort((a, b) => {
-    const aNum = a.claimNumeric;
-    const bNum = b.claimNumeric;
-    if (aNum !== null && bNum !== null) {
-      if (aNum !== bNum) return aNum - bNum;
-    } else if (aNum !== null) {
-      return -1;
-    } else if (bNum !== null) {
-      return 1;
-    }
-    return a.displayName.localeCompare(b.displayName);
-  });
-}
-
-function collectObservedSourceBadges(cards: readonly ObservedTrickCard[]): readonly ObservedSourceBadge[] {
-  const seen = new Set<ObservedSourceBadge>();
-  for (const c of cards) seen.add(c.sourceBadge);
-  // Stable order matching OBSERVED_SOURCE_BADGE iteration.
-  const order: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'FB', 'OTHER'];
-  return order.filter(b => seen.has(b));
 }
 
 // /freestyle/operators view-model. Pure URL promotion of the modifier-
@@ -7530,12 +7412,6 @@ export const freestyleService = {
     // Tracking & Expansion. Count governance:
     // each card's count = buckets / groups, NOT trick rows (since the same
     // trick appears in multiple axes — would mislead).
-    // Family-view landing count = the number of top-level family groups
-    // actually rendered (8 canonical parents + still-deferred labels), not
-    // the count of raw trick_family labels. Children fold into parents and
-    // route-outs are hidden, so the rendered grouping count is the honest
-    // figure for the card.
-    const renderedFamilyCount = familyGroups.length;
     const dexChipLabel = (dexCount: number | null): string =>
       dexCount === null ? 'Unknown'
       : dexCount === 0  ? '0 dex'

@@ -14,17 +14,8 @@
  *     style.css (compound selectors count). CSS comments are stripped first
  *     so a name mentioned only in prose does not count as defined.
  *
- * Current: freestyle views and the freestyle-owned partials below are
- * excluded because those surfaces still predate the shared class vocabulary.
- * Target: the exclusion list shrinks to empty as the freestyle surfaces are
- * brought onto the shared vocabulary; do not add non-freestyle entries.
- *
- * The exclusions are self-tightening: a companion test fails as soon as an
- * excluded file (or the freestyle views directory, or the freestyle region of
- * style.css) becomes compliant, naming the exclusion that must be removed.
- * Cleaning a freestyle surface therefore forces the matching exclusion to be
- * pruned in the same change, and the last pruning extends the font-family
- * gate in scripts/ci/assert_conventions.sh to scan the whole stylesheet.
+ * Every template under src/views is in scope, including every freestyle
+ * surface: the whole site shares one class vocabulary.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -33,18 +24,6 @@ import * as path from 'node:path';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const VIEWS_DIR = path.join(REPO_ROOT, 'src', 'views');
 const STYLESHEET = path.join(REPO_ROOT, 'src', 'public', 'css', 'style.css');
-
-const EXCLUDED_DIRS = ['src/views/freestyle'];
-const EXCLUDED_FILES = new Set([
-  'src/views/partials/derivation-panel.hbs',
-  'src/views/partials/freestyle-modifier-reference.hbs',
-  'src/views/partials/trick-add-analysis.hbs',
-  'src/views/partials/trick-equivalence-topology.hbs',
-  'src/views/partials/trick-media-grid.hbs',
-  'src/views/partials/trick-parallels.hbs',
-  'src/views/partials/trick-pathways.hbs',
-  'src/views/partials/trick-structural.hbs',
-]);
 
 function walkHbs(dir: string): string[] {
   const out: string[] = [];
@@ -88,15 +67,12 @@ function literalClassTokens(template: string): string[] {
 }
 
 describe('template class vocabulary', () => {
-  it('every literal class token in a non-excluded template has a rule in style.css', () => {
+  it('every literal class token in a template has a rule in style.css', () => {
     const defined = definedClassNames();
     const violations: string[] = [];
 
     for (const file of walkHbs(VIEWS_DIR)) {
       const rel = relPath(file);
-      if (EXCLUDED_DIRS.some((d) => rel.startsWith(`${d}/`))) continue;
-      if (EXCLUDED_FILES.has(rel)) continue;
-
       const undefinedTokens = new Set(
         literalClassTokens(readFileSync(file, 'utf8')).filter((t) => !defined.has(t)),
       );
@@ -107,42 +83,4 @@ describe('template class vocabulary', () => {
 
     expect(violations, violations.join('\n')).toEqual([]);
   });
-
-  it('every EXCLUDED_FILES entry still needs its exclusion (prune entries as files become compliant)', () => {
-    const defined = definedClassNames();
-    const stale: string[] = [];
-
-    for (const rel of EXCLUDED_FILES) {
-      const full = path.join(REPO_ROOT, ...rel.split('/'));
-      let undefinedTokens: string[];
-      try {
-        undefinedTokens = literalClassTokens(readFileSync(full, 'utf8')).filter(
-          (t) => !defined.has(t),
-        );
-      } catch {
-        stale.push(`${rel}: listed in EXCLUDED_FILES but the file no longer exists`);
-        continue;
-      }
-      if (undefinedTokens.length === 0) {
-        stale.push(
-          `${rel}: every class token now has a style.css rule; remove it from EXCLUDED_FILES`,
-        );
-      }
-    }
-
-    expect(stale, stale.join('\n')).toEqual([]);
-  });
-
-  it('the freestyle views directory still needs its exclusion (drop EXCLUDED_DIRS when compliant)', () => {
-    const defined = definedClassNames();
-    const dir = path.join(REPO_ROOT, 'src', 'views', 'freestyle');
-    const stillGhosted = walkHbs(dir).some((file) =>
-      literalClassTokens(readFileSync(file, 'utf8')).some((t) => !defined.has(t)),
-    );
-    expect(
-      stillGhosted,
-      'src/views/freestyle is fully on the shared vocabulary; remove it from EXCLUDED_DIRS',
-    ).toBe(true);
-  });
-
 });

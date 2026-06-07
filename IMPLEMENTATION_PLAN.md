@@ -35,27 +35,34 @@ go-live, when pipeline reloads have stopped and the production DB owns club
 truth. Until then the queue's existing junk actions (confirm junk, promote
 to dormant) cover rescue needs.
 
-### Freestyle surfaces deviate from the VC §4.5 token standard
+### Freestyle-unification follow-ups
 
-The non-freestyle site is on the VC §4.4-§4.5 standard: `--font-body` /
-`--font-mono` tokens behind every `font-family`, token-only
-colors/radii/shadows, canonical 480/768 breakpoints, three button variants,
-no undefined template classes. Fonts are now tokenized site-wide (the
-`assert_conventions.sh` font gate scans the whole stylesheet). The
-freestyle sections of `src/public/css/style.css` (below the "Freestyle
-records" banner) still predate the rest of the standard:
-~360 long-tail hex literals (the recurring palette is tokenized; what
-remains is low-frequency one-offs needing consolidate-or-name calls),
-breakpoints 520/600/640/680/720/1023/1024, and ~40 undefined
-class tokens (every dead token is removed; the remainder are
-test-anchored contract classes that need real styling decisions) across
-`src/views/freestyle/**` plus 8 still-excluded freestyle partials, and
-bespoke card families that do not inherit the shared tokens.
-One gate enforces the standard but excludes freestyle for now: the
-template-class-vocabulary test (`tests/unit/template-class-vocabulary.test.ts`,
-explicit `EXCLUDED_DIRS` / `EXCLUDED_FILES`). The
-exclusions are self-tightening: companion tests in the same file fail the
-moment an excluded surface becomes compliant, naming the exclusion to prune.
-Closure rides
-the freestyle-pages-fixes list in `legacy_data/IMPLEMENTATION_PLAN.md`.
+The freestyle CSS unification shipped; three cleanups remain (all Dave-track,
+non-blocking).
+
+1. **Dead observational-lanes code.** `src/services/freestyleService.ts` carries a
+   fully-unreferenced cluster eslint cannot flag (exported types plus an object
+   method): `buildObservationalLanes` plus `ObservedSourceBadge` / `ObservedStatusChip`
+   / `ObservationalLanesView` / `ObservedTrickCardDetail` / `ObservedTrickCard`. It was
+   orphaned when the producer functions were deleted. Re-verify zero refs, delete,
+   then build + lint + test.
+2. **Minted palette token names.** The 22 freestyle palette tokens added to `:root`
+   (`--gold-*`, `--umber-*`, `--azure-*`, `--brick-*`, `--plum-*`, `--moss-*`,
+   `--stone-*`, `--mauve-*`) are named by hue and lightness only. Rename so each name
+   conveys semantic role AND hue; the alias tokens (`--text-*`, `--accent`, `--link`,
+   ...) are already semantic and stay. Grep each token's `style.css` usages for its
+   role, rename in `:root` plus usages; the hex gate plus build plus tests verify no
+   orphan.
+3. **Propagate standards to skills/rules/docs.** `.claude/skills/add-public-page/SKILL.md`:
+   add the 1024 tablet breakpoint, the hex/radius/breakpoint gates in
+   `assert_conventions.sh`, and notation typography (body font plus chip, not mono) to
+   its guidance; fix the button-variant count (it says two, VC §4.5 says three including
+   `.btn-inverse`). Same button drift in `.claude/rules/template-conventions.md`.
+   Optionally document the extended palette in VC §4.3 and add rationale entries to
+   DESIGN_DECISIONS (notation to body font, the three-breakpoint system, the CSS gates).
+   No test changes required (the gates already enforce the standards); optionally add an
+   alias-token resolution unit test. The `bug-hunt` skill needs no standards edit (it
+   cites the updated VIEW_CATALOG and already scopes freestyle in), but the last sweep
+   excluded the freestyle surface (BUGS.md scope note); run a freestyle bug sweep now
+   that it is unified.
 
