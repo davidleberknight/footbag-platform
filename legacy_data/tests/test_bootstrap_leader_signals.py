@@ -108,46 +108,107 @@ def test_affiliation_counts_multiple_rows():
     assert payload["affiliation_rows"] == 3
 
 
-# ─── unit tests: hosting ────────────────────────────────────────────────────
+# ─── unit tests: hosting (person-level: club hosting year ∈ person window) ──
 
 
-def test_hosting_present_when_ever_hosted_one():
-    club = {"ever_hosted": "1", "hosted_event_count": "3"}
-    is_present, payload = mod.compute_hosting(club)
+def test_hosting_present_when_hosting_year_in_person_window():
+    club = {"name": "Club A"}
+    person = {"first_year": "2018", "last_year": "2024"}
+    hosting_years = {"club a": {2021}}
+    is_present, payload = mod.compute_hosting(club, person, hosting_years)
     assert is_present == 1
-    assert payload["scope"] == "club_level"
-    assert payload["hosted_event_count"] == 3
+    assert payload["scope"] == "person_level"
+    assert payload["matched_years"] == [2021]
 
 
-def test_hosting_absent_when_ever_hosted_zero():
-    club = {"ever_hosted": "0", "hosted_event_count": "0"}
-    is_present, _ = mod.compute_hosting(club)
+def test_hosting_absent_when_hosting_year_outside_person_window():
+    club = {"name": "Club A"}
+    person = {"first_year": "2008", "last_year": "2015"}
+    hosting_years = {"club a": {2021}}
+    is_present, _ = mod.compute_hosting(club, person, hosting_years)
     assert is_present == 0
 
 
-def test_hosting_absent_on_blank_input():
-    club = {}
-    is_present, payload = mod.compute_hosting(club)
+def test_hosting_absent_when_club_never_hosted():
+    club = {"name": "Club A"}
+    person = {"first_year": "2010", "last_year": "2024"}
+    is_present, payload = mod.compute_hosting(club, person, {})
     assert is_present == 0
-    assert payload["hosted_event_count"] == 0
+    assert payload["club_hosted_years"] == 0
 
 
-# ─── unit tests: roster ─────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize("linkable,expected", [
-    ("0", 0), ("1", 0), ("4", 0), ("5", 1), ("6", 1), ("100", 1),
-])
-def test_roster_threshold(linkable, expected):
-    is_present, payload = mod.compute_roster({"linkable_member_count": linkable})
-    assert is_present == expected
-    assert payload["threshold"] == 5
-
-
-def test_roster_handles_blank():
-    is_present, payload = mod.compute_roster({})
+def test_hosting_absent_when_person_window_missing():
+    club = {"name": "Club A"}
+    is_present, _ = mod.compute_hosting(club, None, {"club a": {2021}})
     assert is_present == 0
-    assert payload["linkable_member_count"] == 0
+
+
+def test_hosting_window_boundaries_inclusive():
+    club = {"name": "Club A"}
+    person = {"first_year": "2018", "last_year": "2024"}
+    # Both endpoints count; a year between also counts.
+    assert mod.compute_hosting(club, person, {"club a": {2018}})[0] == 1
+    assert mod.compute_hosting(club, person, {"club a": {2024}})[0] == 1
+    assert mod.compute_hosting(club, person, {"club a": {2017}})[0] == 0
+    assert mod.compute_hosting(club, person, {"club a": {2025}})[0] == 0
+
+
+# ─── unit tests: roster (person-level: leader on the club's member roster) ──
+
+
+def test_roster_present_when_leader_on_roster():
+    leader = {"club_key": "club-a", "mirror_member_id": "100"}
+    roster = {"club-a": {"100", "200"}}
+    is_present, payload = mod.compute_roster(leader, roster)
+    assert is_present == 1
+    assert payload["on_roster"] is True
+    assert payload["scope"] == "person_level"
+    assert payload["roster_size"] == 2
+
+
+def test_roster_absent_when_leader_not_on_roster():
+    leader = {"club_key": "club-a", "mirror_member_id": "999"}
+    roster = {"club-a": {"100", "200"}}
+    assert mod.compute_roster(leader, roster)[0] == 0
+
+
+def test_roster_absent_when_club_has_no_roster():
+    leader = {"club_key": "club-z", "mirror_member_id": "100"}
+    assert mod.compute_roster(leader, {})[0] == 0
+
+
+def test_roster_absent_when_leader_mid_blank():
+    leader = {"club_key": "club-a", "mirror_member_id": ""}
+    assert mod.compute_roster(leader, {"club-a": {"100"}})[0] == 0
+
+
+# ─── unit tests: roster/hosting map builders ────────────────────────────────
+
+
+def test_build_roster_by_club_groups_member_ids():
+    members = [
+        {"legacy_club_key": "club-a", "mirror_member_id": "100"},
+        {"legacy_club_key": "club-a", "mirror_member_id": "200"},
+        {"legacy_club_key": "club-b", "mirror_member_id": "300"},
+        {"legacy_club_key": "", "mirror_member_id": "x"},   # skipped (no key)
+    ]
+    roster = mod.build_roster_by_club(members)
+    assert roster["club-a"] == {"100", "200"}
+    assert roster["club-b"] == {"300"}
+    assert "" not in roster
+
+
+def test_build_hosting_years_applies_alias_and_groups_years():
+    events = [
+        {"host_club": "Club A", "year": "2019"},
+        {"host_club": "Club A", "year": "2021"},
+        {"host_club": "Sole Purpose Footbag Club", "year": "2015"},
+    ]
+    aliases = {"sole purpose footbag club": "sole purpose"}
+    years = mod.build_hosting_years_by_name(events, aliases)
+    assert years["club a"] == {2019, 2021}
+    # Aliased host_club is remapped to the club's normalized name.
+    assert years["sole purpose"] == {2015}
 
 
 # ─── unit tests: mirror_text (regex word-boundary against normalized desc) ──
@@ -301,8 +362,9 @@ def test_compute_signals_emits_exactly_seven_signals_in_order():
         "last_updated_year": "2024",
         "max_affiliated_member_last_year": "2022",
     }
-    person = {"person_id": "p-1", "country": "Canada", "last_year": "2024"}
-    rows = mod.compute_signals_for_leader(leader, club, person, Counter())
+    person = {"person_id": "p-1", "country": "Canada",
+              "first_year": "2010", "last_year": "2024"}
+    rows = mod.compute_signals_for_leader(leader, club, person, Counter(), {}, {})
 
     assert [r["signal_type"] for r in rows] == [
         "listed_contact", "affiliation", "hosting", "roster",
@@ -325,12 +387,12 @@ def test_compute_signals_payload_json_is_valid_and_deterministic():
         "ever_hosted": "0", "last_hosted_year": "", "last_updated_year": "",
         "max_affiliated_member_last_year": "",
     }
-    rows = mod.compute_signals_for_leader(leader, club, None, Counter())
+    rows = mod.compute_signals_for_leader(leader, club, None, Counter(), {}, {})
     for r in rows:
         parsed = json.loads(r["signal_payload_json"])
         assert isinstance(parsed, dict)
     # Run twice; bytes must be identical (sort_keys=True invariant).
-    rows2 = mod.compute_signals_for_leader(leader, club, None, Counter())
+    rows2 = mod.compute_signals_for_leader(leader, club, None, Counter(), {}, {})
     assert [r["signal_payload_json"] for r in rows] == \
            [r["signal_payload_json"] for r in rows2]
 
@@ -456,10 +518,28 @@ def fixture_dir(tmp_path: Path) -> Path:
             w.writeheader()
             w.writerows(rows)
 
+    club_members = [
+        # Alpha is on club-a's roster → roster signal = 1 for Leader-A.
+        {"legacy_club_key": "club-a", "mirror_member_id": "100",
+         "display_name": "Alpha Person", "alias": ""},
+        {"legacy_club_key": "club-a", "mirror_member_id": "150",
+         "display_name": "Someone Else", "alias": ""},
+        # club-b's roster does NOT list Beta (200) → roster signal = 0.
+        {"legacy_club_key": "club-b", "mirror_member_id": "201",
+         "display_name": "Not Beta", "alias": ""},
+    ]
+    events = [
+        # Club A hosted in 2021, inside Alpha's [2010, 2024] → hosting = 1.
+        # Club B never hosted → hosting = 0 for Leader-B.
+        {"host_club": "Club A", "year": "2021"},
+    ]
+
     write("club_bootstrap_leaders.csv", leaders)
     write("legacy_club_candidates.csv", candidates)
     write("legacy_person_club_affiliations.csv", affiliations)
     write("persons_enriched_for_clubs.csv", persons)
+    write("club_members.csv", club_members)
+    write("events.csv", events)
     return tmp_path
 
 
@@ -471,6 +551,8 @@ def _run_script(fixture_dir: Path, out_path: Path) -> subprocess.CompletedProces
             "--candidates-csv",   str(fixture_dir / "legacy_club_candidates.csv"),
             "--affiliations-csv", str(fixture_dir / "legacy_person_club_affiliations.csv"),
             "--persons-csv",      str(fixture_dir / "persons_enriched_for_clubs.csv"),
+            "--club-members-csv", str(fixture_dir / "club_members.csv"),
+            "--events-csv",       str(fixture_dir / "events.csv"),
             "--out-csv",          str(out_path),
         ],
         capture_output=True, text=True, check=False,

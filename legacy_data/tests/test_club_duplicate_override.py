@@ -195,14 +195,13 @@ def _seed_les_pieds_candidates(db_path: Path) -> None:
 def test_phase_h_06_creates_only_one_club_when_override_suppresses_duplicate(
     fresh_db: Path,
 ) -> None:
-    """End-to-end contract: after the override flips one duplicate's
-    bootstrap_eligible to 0, Phase H 06 promotes only the keep row to
-    a live club. The dropped candidate stays in staging with
-    mapped_club_id=NULL.
+    """End-to-end contract: a confirmed duplicate pair promotes to exactly
+    one live club (the keep), and the dropped candidate's mapped_club_id is
+    merged onto that same club so any reference to the drop resolves to the
+    canonical club. The drop never creates its own `clubs` row.
 
-    Pre-override behavior would have been: both rows pre_populate +
-    bootstrap_eligible=1 → Phase H 06 inserts two `clubs` rows → user
-    sees "Les Pieds à Gilles" twice in production.
+    Without the duplicate adjudication both rows would promote and the user
+    would see "Les Pieds à Gilles" twice in production.
     """
     _seed_les_pieds_candidates(fresh_db)
 
@@ -226,15 +225,15 @@ def test_phase_h_06_creates_only_one_club_when_override_suppresses_duplicate(
     conn.close()
 
     assert club_count == 1, (
-        f"Override failed: expected 1 live club (only keep row promotes), "
-        f"got {club_count}.\nstdout: {result.stdout}"
+        f"Duplicate adjudication failed: expected 1 live club (only the keep "
+        f"promotes), got {club_count}.\nstdout: {result.stdout}"
     )
     assert mapped[LES_PIEDS_KEEP_KEY] is not None, (
         "Keep row should have mapped_club_id set after cutover."
     )
-    assert mapped[LES_PIEDS_DROP_KEY] is None, (
-        "Dropped duplicate must NOT have a mapped_club_id (bootstrap_eligible "
-        "= 0 → not promoted to clubs by Phase H 06)."
+    assert mapped[LES_PIEDS_DROP_KEY] == mapped[LES_PIEDS_KEEP_KEY], (
+        "Dropped duplicate must merge onto the keep's club (its mapped_club_id "
+        "points at the same clubs.id), not create or orphan a second club."
     )
 
 

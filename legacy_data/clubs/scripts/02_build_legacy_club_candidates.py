@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import re
 from pathlib import Path
 import pandas as pd
@@ -13,17 +14,21 @@ PERSON_UNIVERSE_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "persons_enr
 AFFILIATIONS_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_person_club_affiliations.csv"
 EVENTS_CSV = REPO_ROOT / "legacy_data" / "out" / "canonical" / "events.csv"
 DUPLICATE_OVERRIDES_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_duplicates.csv"
+CLASSIFICATION_OVERRIDES_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_classification_overrides.csv"
 
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
 OUT_CSV = OUT_DIR / "legacy_club_candidates.csv"
 
-# §10.1 classification thresholds. Kept as named constants so the rules
-# read the same way they do in MIGRATION_PLAN §10.1.
-ACTIVE_PLAYER_YEAR = 2020      # R1, R3, R4, R5, R8
-RECENT_EDIT_YEAR = 2016        # R7
-NEW_CLUB_YEAR = 2022           # R9
-LARGE_MEMBER_COUNT = 10        # R10
-KNOWN_PLAYER_COUNT = 3         # R10
+# §10.1 classification thresholds. These are the default values; each is
+# overridable on the command line (see parse_args) so the anchor year and
+# rule thresholds can be swept without editing the script. main() reassigns
+# these globals from the parsed args before classification, so classify_row
+# and score_club read whichever value is in effect for the run.
+ACTIVE_PLAYER_YEAR = 2020      # R1, R3, R4, R5, R8  (--anchor-year)
+RECENT_EDIT_YEAR = 2016        # R7                  (--recent-edit-year)
+NEW_CLUB_YEAR = 2022           # R9                  (--new-club-year)
+LARGE_MEMBER_COUNT = 10        # R10                 (--large-member-count)
+KNOWN_PLAYER_COUNT = 3         # R10                 (--known-player-count)
 
 # Small alias table for host_club text on events.csv that doesn't
 # normalize-equal a clubs.csv name. Keys/values are already-normalized
@@ -105,6 +110,71 @@ def apply_club_duplicate_overrides(
     mask = df[key_col].isin(drop_keys)
     df.loc[mask, "bootstrap_eligible"] = 0
     return int(mask.sum())
+
+
+def load_classification_overrides(path: Path = CLASSIFICATION_OVERRIDES_CSV) -> dict[str, str]:
+    """Curator-authoritative category overrides (force-keep / force-junk).
+
+    Reads ``legacy_data/overrides/club_classification_overrides.csv`` (schema:
+    ``club_key,name,force_category,reason``) and returns a mapping of
+    ``club_key`` to the forced ``category``. ``name`` and ``reason`` document
+    the target and the WHY for curator audit; only ``club_key`` and
+    ``force_category`` drive behaviour. Missing file → empty mapping.
+
+    A force-keep entry (``force_category=pre_populate``) locks a club into
+    pre_populate regardless of the R1-R10 outcome; a force-junk entry
+    (``force_category=junk``) excludes a club the rules would otherwise keep.
+    The override is the curator's final say above the rule output, matched on
+    ``club_key`` because club names are not unique (several mirror rows share a
+    name). force_category is validated against the four §10.1 categories.
+    """
+    valid = {"pre_populate", "onboarding_visible", "dormant", "junk"}
+    if not path.exists():
+        return {}
+    overrides_df = pd.read_csv(path, dtype=str).fillna("")
+    out: dict[str, str] = {}
+    for key, cat in zip(
+        overrides_df.get("club_key", pd.Series([], dtype=str)),
+        overrides_df.get("force_category", pd.Series([], dtype=str)),
+    ):
+        key, cat = key.strip(), cat.strip()
+        if not key:
+            continue
+        if cat not in valid:
+            raise ValueError(
+                f"club_classification_overrides.csv: club_key={key!r} has "
+                f"force_category={cat!r}; must be one of {sorted(valid)}."
+            )
+        out[key] = cat
+    return out
+
+
+def apply_classification_overrides(
+    df: pd.DataFrame,
+    overrides: dict[str, str],
+    key_col: str = "_club_key",
+) -> int:
+    """Force ``category`` to the curator value for rows whose key is in the
+    override map. Mutates ``df`` in place; returns the count of override keys
+    applied. The caller recomputes ``bootstrap_eligible`` from the overridden
+    category.
+
+    Fail-fast: every override key must match exactly one row. An override key
+    absent from the candidate set raises, so a stale or mistyped key surfaces
+    immediately rather than silently doing nothing.
+    """
+    if not overrides:
+        return 0
+    present = set(df[key_col])
+    missing = sorted(k for k in overrides if k not in present)
+    if missing:
+        raise KeyError(
+            "club_classification_overrides.csv references club_key(s) absent "
+            f"from the candidate set: {missing}. Remove the stale row(s) or fix the key."
+        )
+    for key, cat in overrides.items():
+        df.loc[df[key_col] == key, "category"] = cat
+    return len(overrides)
 
 
 def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
@@ -482,7 +552,12 @@ def classify_row(row: pd.Series) -> dict:
     # Pre-populate rules (any match → pre_populate).
     R1 = hosted_2020_plus
     R2 = page_updated_2020_plus and ever_hosted
-    R3 = page_updated_2020_plus and contact_competed_2020_plus
+    # R3 also requires the page was edited after creation: "page updated 2020+"
+    # is trivially true for a club created in 2020+ that was never touched
+    # again, so the bare signal over-promotes brand-new untended pages.
+    # Demanding a real post-creation edit keeps R3 an activity signal; clubs
+    # that lose pre_populate this way are recoverable via a force-keep override.
+    R3 = page_updated_2020_plus and contact_competed_2020_plus and edited_after_creation
     R4 = contact_competed_2020_plus and ever_hosted
 
     # Onboarding-visible rules (any match → onboarding_visible, unless
@@ -518,8 +593,42 @@ def classify_row(row: pd.Series) -> dict:
     }
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Build legacy_club_candidates.csv via the §10.1 R1-R10 classifier."
+    )
+    p.add_argument("--anchor-year", type=int, default=ACTIVE_PLAYER_YEAR,
+                   help="Active-player anchor year for R1/R3/R4/R5/R8 (default: %(default)s).")
+    p.add_argument("--recent-edit-year", type=int, default=RECENT_EDIT_YEAR,
+                   help="Recent-edit year for R7 (default: %(default)s).")
+    p.add_argument("--new-club-year", type=int, default=NEW_CLUB_YEAR,
+                   help="New-club creation year for R9 (default: %(default)s).")
+    p.add_argument("--large-member-count", type=int, default=LARGE_MEMBER_COUNT,
+                   help="Large-membership threshold for R10 (default: %(default)s).")
+    p.add_argument("--known-player-count", type=int, default=KNOWN_PLAYER_COUNT,
+                   help="Linkable-known-player threshold for R10 (default: %(default)s).")
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    global ACTIVE_PLAYER_YEAR, RECENT_EDIT_YEAR, NEW_CLUB_YEAR
+    global LARGE_MEMBER_COUNT, KNOWN_PLAYER_COUNT
+    ACTIVE_PLAYER_YEAR = args.anchor_year
+    RECENT_EDIT_YEAR = args.recent_edit_year
+    NEW_CLUB_YEAR = args.new_club_year
+    LARGE_MEMBER_COUNT = args.large_member_count
+    KNOWN_PLAYER_COUNT = args.known_player_count
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Snapshot the previous run's per-club categories before it is overwritten,
+    # so the summary can report which clubs this run moved.
+    prev_categories: dict[str, str] | None = None
+    if OUT_CSV.exists():
+        prev_df = pd.read_csv(OUT_CSV, dtype=str).fillna("")
+        if "club_key" in prev_df.columns and "category" in prev_df.columns:
+            prev_categories = dict(zip(prev_df["club_key"], prev_df["category"]))
 
     if not CLUBS_CSV.exists():
         raise FileNotFoundError(f"Missing clubs.csv: {CLUBS_CSV}")
@@ -594,6 +703,18 @@ def main() -> None:
 
     df["bootstrap_eligible"] = (df["category"] == "pre_populate").astype(int)
 
+    # Curator-authoritative classification overrides (force-keep / force-junk).
+    # Applied above the R1-R10 output: force-keep locks genuinely-active clubs
+    # into pre_populate (e.g. brand-new clubs the rules under-credit), force-junk
+    # excludes clubs the rules over-credit. bootstrap_eligible is re-derived from
+    # the forced category. See load_classification_overrides().
+    forced = load_classification_overrides()
+    n_forced = apply_classification_overrides(df, forced, key_col="_club_key")
+    if n_forced:
+        df["bootstrap_eligible"] = (df["category"] == "pre_populate").astype(int)
+        print(f"  Override: {n_forced} club(s) force-classified via "
+              f"overrides/{CLASSIFICATION_OVERRIDES_CSV.name}")
+
     # Curator-authoritative duplicate adjudication. Targets only
     # mirror-derived legacy_club_keys where seed/clubs.csv carries two
     # rows for the same real-world club. See load_club_duplicate_overrides().
@@ -663,6 +784,31 @@ def main() -> None:
     print(f"ever_hosted:                             {int(out['ever_hosted'].sum()):,}")
     print()
     print(f"Club key source: {key_source}")
+
+    # Diff vs the previous run (per-category counts + per-club moves). Helps
+    # isolate the effect of a threshold sweep or a rule change.
+    if prev_categories is not None:
+        cur_categories = dict(zip(out["club_key"], out["category"]))
+        prev_keys, cur_keys = set(prev_categories), set(cur_categories)
+        added, removed = cur_keys - prev_keys, prev_keys - cur_keys
+        changed = sorted(
+            (k, prev_categories[k], cur_categories[k])
+            for k in (prev_keys & cur_keys)
+            if prev_categories[k] != cur_categories[k]
+        )
+        print()
+        print("Diff vs previous run:")
+        print(f"  rows: {len(prev_categories):,} -> {len(cur_categories):,} "
+              f"(+{len(added)} / -{len(removed)})")
+        for cat in ["pre_populate", "onboarding_visible", "dormant", "junk"]:
+            prev_n = sum(1 for v in prev_categories.values() if v == cat)
+            cur_n = cat_counts.get(cat, 0)
+            print(f"  {cat:<20} {prev_n:>5} -> {cur_n:>5}  ({cur_n - prev_n:+d})")
+        print(f"  category changes: {len(changed)}")
+        for k, a, b in changed[:20]:
+            print(f"    {k}: {a} -> {b}")
+        if len(changed) > 20:
+            print(f"    ... and {len(changed) - 20:,} more")
 
 
 if __name__ == "__main__":

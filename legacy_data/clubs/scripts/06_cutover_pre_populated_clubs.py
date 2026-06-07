@@ -49,14 +49,28 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
 SEED_CSV = LEGACY_DATA_ROOT / "seed" / "clubs.csv"
+DUPLICATE_OVERRIDES_CSV = LEGACY_DATA_ROOT / "overrides" / "club_duplicates.csv"
 
-# Confirmed duplicate pairs: entry B -> entry A (keep A, merge B into A).
-KNOWN_DUPLICATES: dict[str, str] = {
-    '1488489195': '1042652245',   # Les Pieds a Gilles, Lausanne
-    'zion-fr':    '944090321',    # RNH Footbag, Paris
-    '1422386831': 'memphis',      # Memphis Footworks
-    '1320083231': '1379698765',   # Penn State Footbag Club
-}
+
+def load_duplicate_canonical_map(path: Path = DUPLICATE_OVERRIDES_CSV) -> dict[str, str]:
+    """Confirmed duplicate pairs as drop_legacy_key -> keep_legacy_key (merge
+    the duplicate into the canonical row). Single curator-authoritative source:
+    overrides/club_duplicates.csv (schema: keep_legacy_key,drop_legacy_key,
+    reason), the same file the §10.1 classifier reads to suppress
+    bootstrap_eligible on the dropped key. Missing file -> empty map (no
+    merges). Declaring a duplicate once here means both the classifier and this
+    cutover honour the same source rather than a second hardcoded list.
+    """
+    if not path.exists():
+        return {}
+    out: dict[str, str] = {}
+    with path.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            drop = (row.get("drop_legacy_key") or "").strip()
+            keep = (row.get("keep_legacy_key") or "").strip()
+            if drop and keep:
+                out[drop] = keep
+    return out
 
 _CLASSIFICATION_ORDER = {
     'pre_populate': 0, 'onboarding_visible': 1, 'dormant': 2, 'junk': 3,
@@ -326,10 +340,12 @@ def main() -> int:
         duplicates_merged = 0
         missing_seed: list[str] = []
 
+        dup_map = load_duplicate_canonical_map()
+
         for legacy_key, display_name, city, country, bootstrap_eligible, _classification in all_candidates:
             # Dedup: if this is a known duplicate (entry B), point at
             # entry A's club row instead. No tag/club INSERT for B.
-            canonical_key = KNOWN_DUPLICATES.get(legacy_key)
+            canonical_key = dup_map.get(legacy_key)
             if canonical_key is not None:
                 canonical_club_id = stable_id("club", canonical_key)
                 cur = con.execute(

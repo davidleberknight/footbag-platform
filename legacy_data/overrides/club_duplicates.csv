@@ -1,2 +1,5 @@
 keep_legacy_key,drop_legacy_key,reason
 1042652245,1488489195,"Les Pieds à Gilles 2003 canonical (has URL piedsagilles.ch + 12 events 2006-2025); 2017 row is empty duplicate from mirror re-listing. Drop suppresses bootstrap_eligible so Phase H promotes only the keep_legacy_key."
+944090321,zion-fr,"RNH Footbag (Rien N'est Hacky), Paris: confirmed duplicate; Phase H merges zion-fr into the canonical 944090321 row."
+memphis,1422386831,"Memphis Footworks: confirmed duplicate; Phase H merges 1422386831 into the canonical 'memphis' row."
+1379698765,1320083231,"Penn State Footbag Club: confirmed duplicate; Phase H merges 1320083231 into the canonical 1379698765 row."

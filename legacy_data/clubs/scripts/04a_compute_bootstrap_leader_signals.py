@@ -50,6 +50,8 @@ DEFAULT_LEADERS_CSV       = DEFAULT_OUT_DIR / "club_bootstrap_leaders.csv"
 DEFAULT_CANDIDATES_CSV    = DEFAULT_OUT_DIR / "legacy_club_candidates.csv"
 DEFAULT_AFFILIATIONS_CSV  = DEFAULT_OUT_DIR / "legacy_person_club_affiliations.csv"
 DEFAULT_PERSONS_CSV       = DEFAULT_OUT_DIR / "persons_enriched_for_clubs.csv"
+DEFAULT_CLUB_MEMBERS_CSV  = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
+DEFAULT_EVENTS_CSV        = REPO_ROOT / "legacy_data" / "out" / "canonical" / "events.csv"
 DEFAULT_OUT_CSV           = DEFAULT_OUT_DIR / "club_bootstrap_leader_signals.csv"
 
 # Provenance label written to `source` for every emitted row.
@@ -115,6 +117,52 @@ def to_bool_int(x) -> int:
     return 1 if n == 1 else 0
 
 
+def load_host_club_aliases() -> dict[str, str]:
+    """Host-club alias table owned by script 02 (the club/events hosting
+    attribution authority): event-host normalized name -> club normalized
+    name, for host_club text that does not normalize-equal a club name.
+    Imported so the person-level hosting signal credits the same clubs 02
+    does; if 02 is not importable, returns no aliases (a few alias-only clubs
+    then miss hosting-year credit, never a crash).
+    """
+    try:
+        import importlib
+        mod = importlib.import_module("02_build_legacy_club_candidates")
+        return dict(getattr(mod, "HOST_CLUB_ALIASES", {}))
+    except Exception:
+        return {}
+
+
+def build_roster_by_club(club_members: list[dict]) -> dict[str, set[str]]:
+    """Map legacy_club_key -> set of mirror_member_id on that club's legacy
+    member roster (club_members.csv). Backs the person-level roster signal."""
+    roster: dict[str, set[str]] = {}
+    for r in club_members:
+        ck = norm_text(r.get("legacy_club_key", ""))
+        mid = norm_text(r.get("mirror_member_id", ""))
+        if ck and mid:
+            roster.setdefault(ck, set()).add(mid)
+    return roster
+
+
+def build_hosting_years_by_name(
+    events: list[dict], aliases: dict[str, str]
+) -> dict[str, set[int]]:
+    """Map club normalized-name -> set of years the club hosted IFPA events,
+    from canonical events.csv (host_club joined on normalized name, with the
+    script-02 alias remap applied). Backs the person-level hosting signal."""
+    years: dict[str, set[int]] = {}
+    for e in events:
+        key = norm_name(e.get("host_club", ""))
+        if not key:
+            continue
+        key = aliases.get(key, key)
+        y = safe_int(e.get("year", ""))
+        if y is not None:
+            years.setdefault(key, set()).add(y)
+    return years
+
+
 # ─── signal computations (each returns (is_present, payload_dict)) ──────────
 
 
@@ -142,25 +190,49 @@ def compute_affiliation(
     )
 
 
-def compute_hosting(club: dict) -> tuple[int, dict]:
-    ever = to_bool_int(club.get("ever_hosted", ""))
-    hosted_count = safe_int(club.get("hosted_event_count", "")) or 0
+def compute_hosting(
+    club: dict,
+    person: dict | None,
+    hosting_years_by_name: dict[str, set[int]],
+) -> tuple[int, dict]:
+    """Person-level: the club hosted an IFPA event in a year that falls within
+    this person's active competitive window [first_year, last_year]. The bare
+    club-level ever_hosted is not enough; the hosting must overlap the person's
+    years for the signal to credit this specific leader."""
+    host_years = hosting_years_by_name.get(norm_name(club.get("name", "")), set())
+    first_year = safe_int((person or {}).get("first_year", ""))
+    last_year = safe_int((person or {}).get("last_year", ""))
+    if first_year is not None and last_year is not None:
+        matched = sorted(y for y in host_years if first_year <= y <= last_year)
+    else:
+        matched = []
     return (
-        ever,
+        int(bool(matched)),
         {
-            "hosted_event_count": hosted_count,
-            "scope": "club_level",
+            "matched_years": matched,
+            "person_window": [first_year, last_year],
+            "club_hosted_years": len(host_years),
+            "scope": "person_level",
         },
     )
 
 
-def compute_roster(club: dict) -> tuple[int, dict]:
-    linkable = safe_int(club.get("linkable_member_count", "")) or 0
+def compute_roster(
+    leader: dict, roster_by_club: dict[str, set[str]]
+) -> tuple[int, dict]:
+    """Person-level: the club's legacy member roster (club_members.csv) lists
+    this leader as a member. The bare club-level "club has >= N members" is not
+    enough; the leader must be on the roster for the signal to credit them."""
+    club_key = norm_text(leader.get("club_key", ""))
+    leader_mid = norm_text(leader.get("mirror_member_id", ""))
+    roster = roster_by_club.get(club_key, set())
+    on_roster = bool(leader_mid) and leader_mid in roster
     return (
-        int(linkable >= ROSTER_THRESHOLD),
+        int(on_roster),
         {
-            "linkable_member_count": linkable,
-            "threshold": ROSTER_THRESHOLD,
+            "on_roster": on_roster,
+            "roster_size": len(roster),
+            "scope": "person_level",
         },
     )
 
@@ -244,6 +316,8 @@ def compute_signals_for_leader(
     club: dict,
     person: dict | None,
     affiliation_counts: Counter,
+    roster_by_club: dict[str, set[str]],
+    hosting_years_by_name: dict[str, set[int]],
 ) -> list[dict]:
     """Emit one dict per signal_type for the given leader. Pure function;
     no I/O. Used both by main() and by unit tests."""
@@ -254,8 +328,8 @@ def compute_signals_for_leader(
     computed = {
         "listed_contact":       compute_listed_contact(leader, club),
         "affiliation":          compute_affiliation(leader, affiliation_counts),
-        "hosting":              compute_hosting(club),
-        "roster":               compute_roster(club),
+        "hosting":              compute_hosting(club, person, hosting_years_by_name),
+        "roster":               compute_roster(leader, roster_by_club),
         "mirror_text":          compute_mirror_text(leader, club),
         "recent_activity":      compute_recent_activity(club, person),
         "geographic_alignment": compute_geographic_alignment(club, person),
@@ -284,6 +358,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--candidates-csv",   type=Path, default=DEFAULT_CANDIDATES_CSV)
     ap.add_argument("--affiliations-csv", type=Path, default=DEFAULT_AFFILIATIONS_CSV)
     ap.add_argument("--persons-csv",      type=Path, default=DEFAULT_PERSONS_CSV)
+    ap.add_argument("--club-members-csv", type=Path, default=DEFAULT_CLUB_MEMBERS_CSV)
+    ap.add_argument("--events-csv",       type=Path, default=DEFAULT_EVENTS_CSV)
     ap.add_argument("--out-csv",          type=Path, default=DEFAULT_OUT_CSV)
     args = ap.parse_args(argv)
 
@@ -296,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         args.candidates_csv,
         "legacy_club_candidates.csv",
         {
-            "club_key", "country", "description", "contact_member_id",
+            "club_key", "name", "country", "description", "contact_member_id",
             "linkable_member_count", "hosted_event_count", "ever_hosted",
             "last_hosted_year", "last_updated_year",
             "max_affiliated_member_last_year",
@@ -310,11 +386,23 @@ def main(argv: list[str] | None = None) -> int:
     persons = _read_csv(
         args.persons_csv,
         "persons_enriched_for_clubs.csv",
-        {"person_id", "country", "last_year"},
+        {"person_id", "country", "first_year", "last_year"},
+    )
+    club_members = _read_csv(
+        args.club_members_csv,
+        "club_members.csv",
+        {"legacy_club_key", "mirror_member_id"},
+    )
+    events = _read_csv(
+        args.events_csv,
+        "events.csv",
+        {"host_club", "year"},
     )
 
     clubs_by_key = {norm_text(r["club_key"]): r for r in candidates}
     persons_by_id = {norm_text(r["person_id"]): r for r in persons}
+    roster_by_club = build_roster_by_club(club_members)
+    hosting_years_by_name = build_hosting_years_by_name(events, load_host_club_aliases())
 
     affiliation_counts: Counter = Counter()
     for r in affiliations:
@@ -342,7 +430,10 @@ def main(argv: list[str] | None = None) -> int:
             missing_persons.append(pid)
 
         out_rows.extend(
-            compute_signals_for_leader(leader, club, person, affiliation_counts)
+            compute_signals_for_leader(
+                leader, club, person, affiliation_counts,
+                roster_by_club, hosting_years_by_name,
+            )
         )
 
     out_rows.sort(key=lambda r: (
