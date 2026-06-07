@@ -30,6 +30,8 @@ adminRouter.post('/clubs/:clubId/leadership/demote',  adminClubLeadershipControl
 adminRouter.post('/clubs/:clubId/leadership/contact', adminClubLeadershipController.contact);
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/claim',       adminClubCleanupController.claim);
+adminRouter.post('/club-cleanup/bulk-resolve', adminClubCleanupController.bulkResolve);
+adminRouter.post('/club-cleanup/bulk-delist-residue', adminClubCleanupController.bulkDelistResidue);
 adminRouter.post('/club-cleanup/:clubId/resolve', adminClubCleanupController.resolve);
 adminRouter.post('/club-cleanup/:clubId/delist-residue', adminClubCleanupController.delistResidue);
 // Promote and resolve key on the candidate id: an unpromoted candidate has

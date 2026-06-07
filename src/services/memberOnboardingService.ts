@@ -49,9 +49,13 @@ const VALID_ACTIVITY_SIGNALS: ReadonlySet<string> = new Set([
   'active', 'not_active', 'not_sure', 'never_heard_of_it',
 ]);
 
+// clubId is null for candidate-keyed flags: activity answers about a club
+// candidate that has no live clubs row yet. Those rows must carry the
+// candidate id in sourceEntityId (schema CHECK); promotion later stamps the
+// club id onto them.
 function writeViabilitySignal(
   memberId: string,
-  clubId: string,
+  clubId: string | null,
   sourceStage: string,
   activitySignal: ActivitySignal,
   sourceEntityType: string,
@@ -776,15 +780,37 @@ function submitMembershipResponse(
     treatAsDecline ? 'decline' : 'confirm',
   );
 
-  if (activitySignal && result.resolvedClubId) {
-    writeViabilitySignal(
-      memberId,
-      result.resolvedClubId,
-      'stage1b_affiliated',
-      activitySignal,
-      'legacy_person_club_affiliation',
-      candidateId,
-    );
+  // The activity answer feeds the viability predicate independently of the
+  // membership answer, so it is recorded on every branch: a confirm resolves
+  // to a live club; a decline/correct on an already-promoted candidate still
+  // targets that candidate's live club; a decline/correct on an unpromoted
+  // candidate has no live club to target, so the answer is stored as a
+  // candidate-keyed flag (club_id NULL, keyed by the candidate id) and
+  // surfaces on the admin cleanup queue's candidate-flag group.
+  if (activitySignal) {
+    const flagCandidate = legacyClubCandidates.findById.get(
+      affiliation.legacy_club_candidate_id,
+    ) as { id: string; mapped_club_id: string | null } | undefined;
+    const liveClubId = result.resolvedClubId ?? flagCandidate?.mapped_club_id ?? null;
+    if (liveClubId) {
+      writeViabilitySignal(
+        memberId,
+        liveClubId,
+        'stage1b_affiliated',
+        activitySignal,
+        'legacy_person_club_affiliation',
+        candidateId,
+      );
+    } else if (flagCandidate) {
+      writeViabilitySignal(
+        memberId,
+        null,
+        'stage1b_affiliated',
+        activitySignal,
+        'legacy_club_candidate',
+        flagCandidate.id,
+      );
+    }
   }
 
   const actionType =

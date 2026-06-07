@@ -28,17 +28,23 @@ procedure in `src/dev-bootstrap/README.md` deletes them at production
 go-live. Until then, production safety rests on the env-config fail-fast
 guards plus the production image build stripping `dist/dev-bootstrap/`.
 
-### Cleanup-queue contract: two US items unbuilt
+### Force-keep / force-junk requests blocked on a cross-track export contract
 
-`A_Periodic_Club_Cleanup` is implemented except for two platform-side items:
-wizard-flag grouping by candidate (needs a grounding re-read of the
-`club_viability_signals.source_entity_*` emission path so raw wizard flags
-grouped by unpromoted candidate never double-surface signals the viability
-gates already cover) and group-level bulk actions (no ratified bulk
-semantics yet). Merge-two-live-clubs is a deliberate exclusion: pre-cutover
-duplicates are handled by the curator pipeline merge. The cross-track
-force-keep / force-junk request item is tracked in
-`legacy_data/IMPLEMENTATION_PLAN.md`.
+The last unbuilt piece of `A_Periodic_Club_Cleanup`: admin force-keep /
+force-junk requests (add to force-keep from a junk queue item; apply /
+modify / reject a request from the queue). Unbuilt because the state these
+requests control lives in James's classifier pipeline, not the platform DB:
+the classifier reads force-keep / force-junk CSVs in
+`legacy_data/overrides/` and its output reloads `legacy_club_candidates`
+via DELETE+INSERT, so any platform-local classification decision is
+clobbered on the next pipeline run. A request only sticks by round-tripping
+into the overrides CSVs. Build nothing until (a) the classifier work set's
+overrides item (James's track) has stabilized the CSV format, and (b) an
+export contract with James exists: the request format the platform exports,
+the apply procedure, and the outcome round-trip so the queue can render
+applied / rejected. Until then admins use the existing in-queue junk
+actions (confirm junk, promote to dormant), and decisions that must survive
+a classifier re-run are coordinated out of band.
 
 ### Freestyle surfaces deviate from the VC §4.5 token standard
 

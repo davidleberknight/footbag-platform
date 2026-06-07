@@ -33,6 +33,16 @@
       {{#each content.itemGroups}}
         <details class="cleanup-group">
           <summary>{{this.label}} ({{this.count}})</summary>
+          <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
+            <input type="hidden" name="group" value="{{this.predicate}}" />
+            <select name="action" class="cleanup-action-select">
+              <option value="defer_30">Defer all 30d</option>
+              <option value="defer_90">Defer all 90d</option>
+              <option value="defer_180">Defer all 180d</option>
+            </select>
+            <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
+            <button type="submit" class="btn btn-outline btn-sm">Bulk defer group</button>
+          </form>
           <table class="cleanup-queue-table mt-2">
             <thead>
               <tr>
@@ -86,11 +96,76 @@
     {{/if}}
   </section>
 
+  {{#if content.candidateFlags.length}}
+  <section class="mt-8">
+    <details class="cleanup-group">
+    <summary>Wizard flags by candidate ({{content.candidateFlags.length}})</summary>
+    <p class="text-muted fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; deferred flags re-surface after the window with a deferred-by annotation. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
+    <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
+      <input type="hidden" name="group" value="candidate_flag" />
+      <select name="action" class="cleanup-action-select">
+        <option value="defer_30">Defer all 30d</option>
+        <option value="defer_90">Defer all 90d</option>
+        <option value="defer_180">Defer all 180d</option>
+      </select>
+      <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
+      <button type="submit" class="btn btn-outline btn-sm">Bulk defer group</button>
+    </form>
+    <table class="cleanup-queue-table mt-2">
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Location</th>
+          <th>Classification</th>
+          <th>Signals</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.candidateFlags}}
+          <tr>
+            <td class="fw-600">{{this.displayName}}{{#if this.deferAnnotation}}<br /><span class="text-muted fs-sm">{{this.deferAnnotation}}</span>{{/if}}
+              {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
+              <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
+                <input type="hidden" name="itemType" value="candidate" />
+                <input type="hidden" name="itemId" value="{{this.candidateId}}" />
+                <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+              </form>
+              {{/if}}
+            </td>
+            <td class="text-muted">{{this.city}}{{#if this.country}}, {{this.country}}{{/if}}</td>
+            <td><span class="badge">{{this.classificationLabel}}</span></td>
+            <td class="text-muted fs-sm">{{this.detail}}</td>
+            <td>
+              <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/resolve" class="cleanup-action-form">
+                <input type="hidden" name="predicate" value="candidate_flags" />
+                <select name="action" class="cleanup-action-select">
+                  <option value="dismiss">Dismiss</option>
+                  <option value="defer_30">Defer 30d</option>
+                  <option value="defer_90">Defer 90d</option>
+                  <option value="defer_180">Defer 180d</option>
+                </select>
+                <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    </details>
+  </section>
+  {{/if}}
+
   {{#if content.residue.length}}
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Unconfirmed legacy residue ({{content.residue.length}})</summary>
     <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
+    <form method="POST" action="/admin/club-cleanup/bulk-delist-residue" class="cleanup-action-form mt-2">
+      <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
+      <button type="submit" class="btn btn-outline btn-sm">De-list all unconfirmed</button>
+    </form>
     <table class="cleanup-queue-table mt-2">
       <thead>
         <tr>

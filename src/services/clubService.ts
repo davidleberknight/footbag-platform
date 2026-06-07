@@ -53,8 +53,9 @@
  * Persistence:
  *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,
  *   legacy_club_candidates, legacy_person_club_affiliations,
- *   member_club_affiliations, members, tags, news_items,
- *   audit_entries, outbox_emails.
+ *   member_club_affiliations, club_viability_signals (promotion stamps the
+ *   new club id onto the candidate's wizard flags), members, tags,
+ *   news_items, audit_entries, outbox_emails.
  *
  * Side effects:
  *   - audit_entries append
@@ -71,6 +72,7 @@ import {
   clubs,
   clubBootstrapLeaders,
   clubLeaders,
+  clubViabilitySignals,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
   mediaTags,
@@ -1660,7 +1662,10 @@ export class ClubService {
    * is published only when it passes validation (run before the transaction;
    * a failing or absent URL leaves the column NULL and the original value
    * stays on the candidate row). Imported 'pending' affiliations on the
-   * candidate carry forward to 'promoted' with the new club id stamped.
+   * candidate carry forward to 'promoted' with the new club id stamped, and
+   * the candidate's wizard activity flags get the new club id stamped so
+   * those votes feed the viability gates instead of the candidate-flag
+   * cleanup group.
    */
   async promoteCandidate(
     candidateId: string,
@@ -1735,6 +1740,12 @@ export class ClubService {
         } else {
           legacyPersonClubAffiliations.setAllPromotedByCandidate.run(clubId, 'club_service', candidateId);
         }
+        // Carry-forward: wizard activity answers left while the candidate
+        // had no live clubs row get the new club id stamped, so those votes
+        // start feeding the viability gates and stop surfacing on the
+        // cleanup queue's candidate-flag group.
+        const flagsStamped = clubViabilitySignals.stampClubIdForCandidateFlags
+          .run(clubId, candidateId).changes;
         appendAuditEntry({
           actionType: opts.actorType === 'admin'
             ? 'admin.club_cleanup.promote'
@@ -1751,6 +1762,7 @@ export class ClubService {
             tag_normalized: tagNormalized,
             classification: candidate.classification,
             trigger: opts.trigger ?? null,
+            viability_flags_stamped: flagsStamped,
           },
         });
       });
@@ -1769,6 +1781,9 @@ export class ClubService {
         const existing = clubs.findById.get(clubId) as { club_id: string } | undefined;
         if (existing) {
           legacyClubCandidates.setMappedClubId.run(clubId, now, 'club_service', candidateId);
+          // Converging on an out-of-band clubs row still carries the
+          // candidate's wizard flags forward to that club.
+          clubViabilitySignals.stampClubIdForCandidateFlags.run(clubId, candidateId);
           return { branch: 'already_promoted', clubId };
         }
       }

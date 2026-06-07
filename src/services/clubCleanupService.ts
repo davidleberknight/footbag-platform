@@ -13,6 +13,12 @@
  *   - Admin-home backlog badge (open-item count plus oldest-item age,
  *     computed from the same queue assembly so badge and queue agree)
  *   - Admin club cleanup resolution (demote, archive, dismiss, defer)
+ *   - Candidate-flag queue group: wizard activity answers about unpromoted
+ *     candidates (candidate-keyed signal rows, club_id NULL), grouped per
+ *     candidate with one vote per member and admin-only negative-reporter
+ *     names; resolved by terminal dismiss or defer. Club-keyed signals stay
+ *     the exclusive territory of the viability gates, so a vote never
+ *     surfaces on both
  *   - Admin override entry point for candidate promotion (the queue lists
  *     unpromoted non-junk candidates with a promote action)
  *   - Candidate cleanup actions: demote (onboarding-visible to dormant),
@@ -21,9 +27,17 @@
  *     concurrent admin's repeat action into an audited no-op
  *   - Candidate defer: an unpromoted candidate leaves the queue for 30/90/180
  *     days and re-surfaces with a deferred-by annotation when the window
- *     expires; there is no unbounded defer
+ *     expires; there is no unbounded defer. The promotable item and the
+ *     candidate-flag item carry separate resolutions, so deferring one never
+ *     hides the other
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
+ *   - Group-level bulk actions: bulk defer across a predicate group or the
+ *     candidate-flag group (one shared reason, one audit row per item), and
+ *     bulk de-list across all residue clubs (each club in its own
+ *     transaction, idempotent). Bulk covers the items currently in the
+ *     group; promotable and junk candidates have no bulk action because
+ *     their resolutions are per-item judgment calls
  *   - Concurrent-admin claim markers: a non-blocking "claimed by Admin X at
  *     time T" coordination hint per queue item, auto-released by any resolve
  *     action and stale after 30 minutes; deliberately un-audited (a claim is
@@ -36,7 +50,8 @@
  *   - Signal collection during onboarding (MemberOnboardingService writes signals)
  *
  * Persistence:
- *   club_viability_signals (read),
+ *   club_viability_signals (read: club-keyed rows feed the gates,
+ *   candidate-keyed rows feed the candidate-flag group),
  *   club_cleanup_resolutions (read + write),
  *   candidate_cleanup_resolutions (read + write),
  *   club_cleanup_claims (read + write),
@@ -189,9 +204,22 @@ function getActiveResolutions(): Map<string, ResolutionRow> {
   return map;
 }
 
-// The candidate's one queue item type today. Junk-flagged candidates will
-// carry their own predicate name so a defer on one item never hides the other.
+// Candidate queue items carry one predicate name per item type so a defer
+// on one item never hides the other: the promotable listing and the
+// wizard-flag group resolve independently for the same candidate.
 const PROMOTABLE_PREDICATE = 'promotable_candidate';
+const CANDIDATE_FLAG_PREDICATE = 'candidate_flags';
+
+// Candidate-flag items can carry any unpromoted classification (the wizard
+// shows a card whenever an affiliation suggests the candidate), so the
+// label map covers the full enum, unlike the promotable listing which only
+// ever holds onboarding-visible and dormant rows.
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  pre_populate: 'Pre-populate',
+  onboarding_visible: 'Onboarding-visible',
+  dormant: 'Dormant',
+  junk: 'Junk-flagged',
+};
 
 interface CandidateResolutionRow {
   candidate_id: string;
@@ -210,6 +238,19 @@ function isResolved(resolutions: Map<string, ResolutionRow>, clubId: string, pre
     return new Date(r.deferred_until) > new Date();
   }
   return true;
+}
+
+// A defer hides the item only while its window is open; an expired defer
+// re-surfaces the item carrying the deferred-by annotation.
+function isStillDeferred(res: CandidateResolutionRow | undefined): boolean {
+  return res?.resolution === 'deferred' && !!res.deferred_until
+    && new Date(res.deferred_until) > new Date();
+}
+
+function deferAnnotationFrom(res: CandidateResolutionRow | undefined): string | null {
+  return res?.resolution === 'deferred'
+    ? `previously deferred by ${res.deferred_by_name ?? 'an admin'}${res.reason_text ? `, reason: ${res.reason_text}` : ''}`
+    : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +324,26 @@ export interface PromotableCandidateItem {
   claimLabel: string | null;
 }
 
+// Wizard activity flags about unpromoted candidates, grouped per candidate.
+// These are the activity answers a member leaves while declining or
+// correcting a card whose club candidate has no live clubs row yet; they
+// cannot feed the viability gates (no club to evaluate), so the queue
+// surfaces them for human judgment. Counting matches the gates: one vote
+// per member, latest answer wins. Negative-reporter names are admin-only.
+export interface CandidateFlagItem {
+  candidateId: string;
+  displayName: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  classificationLabel: string;
+  detail: string;
+  flagCount: number;
+  oldestFlagAt: string;
+  deferAnnotation: string | null;
+  claimLabel: string | null;
+}
+
 // Junk-flagged candidates awaiting an admin verdict. Junk never renders on
 // any public surface; the queue is where an admin confirms the verdict or
 // rescues the candidate back to dormant.
@@ -318,9 +379,11 @@ interface CleanupQueueFilters {
 }
 
 // Predicate items render grouped by category, collapsed by default; the
-// admin expands a group to its per-row table.
+// admin expands a group to its per-row table. The predicate key lets the
+// group header carry its bulk-defer form.
 interface CleanupQueueItemGroup {
   label: string;
+  predicate: PredicateSource;
   count: number;
   items: CleanupQueueItem[];
 }
@@ -331,6 +394,7 @@ interface CleanupQueueContent {
   residue: ResidueItem[];
   candidates: PromotableCandidateItem[];
   junkCandidates: JunkCandidateItem[];
+  candidateFlags: CandidateFlagItem[];
   filters: CleanupQueueFilters;
 }
 
@@ -370,6 +434,21 @@ interface AssembledQueue {
   residue: ResidueItem[];
   candidates: PromotableCandidateItem[];
   junkCandidates: JunkCandidateItem[];
+  candidateFlags: CandidateFlagItem[];
+}
+
+// Negative votes are rare and admins judge them by who cast them, so queue
+// items name the members whose latest answer was negative. Admin queue
+// only: signal authorship is never exposed on public surfaces.
+function negativeReporterSuffix(
+  reporters: Array<{ display_name: string; activity_signal: string }>,
+): string {
+  const saidInactive = reporters.filter((r) => r.activity_signal === 'not_active').map((r) => r.display_name);
+  const saidNeverHeard = reporters.filter((r) => r.activity_signal === 'never_heard_of_it').map((r) => r.display_name);
+  const reporterParts: string[] = [];
+  if (saidInactive.length) reporterParts.push(`inactive per: ${saidInactive.join(', ')}`);
+  if (saidNeverHeard.length) reporterParts.push(`never heard of it per: ${saidNeverHeard.join(', ')}`);
+  return reporterParts.length ? ` (${reporterParts.join('; ')})` : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -425,17 +504,9 @@ function assembleQueue(): AssembledQueue {
       case 'G4_needs_review': recommendedAction = 'Review: strong legacy contradicts negative signal'; break;
       default: recommendedAction = 'Review'; break;
     }
-    // Negative votes are rare and admins judge them by who cast them, so
-    // the item names the members whose latest answer was negative. Admin
-    // queue only: signal authorship is never exposed on public surfaces.
     const reporters = clubViabilitySignals.listNegativeWizardReportersByClub.all(row.club_id) as
       Array<{ display_name: string; activity_signal: string }>;
-    const saidInactive = reporters.filter((r) => r.activity_signal === 'not_active').map((r) => r.display_name);
-    const saidNeverHeard = reporters.filter((r) => r.activity_signal === 'never_heard_of_it').map((r) => r.display_name);
-    const reporterParts: string[] = [];
-    if (saidInactive.length) reporterParts.push(`inactive per: ${saidInactive.join(', ')}`);
-    if (saidNeverHeard.length) reporterParts.push(`never heard of it per: ${saidNeverHeard.join(', ')}`);
-    const reporterSuffix = reporterParts.length ? ` (${reporterParts.join('; ')})` : '';
+    const reporterSuffix = negativeReporterSuffix(reporters);
 
     items.push({
       clubId: row.club_id,
@@ -531,9 +602,7 @@ function assembleQueue(): AssembledQueue {
   const candidates: PromotableCandidateItem[] = [];
   for (const r of candidateRows) {
     const res = candidateResolutions.get(`${r.id}:${PROMOTABLE_PREDICATE}`);
-    const stillDeferred = res?.resolution === 'deferred' && res.deferred_until
-      && new Date(res.deferred_until) > new Date();
-    if (stillDeferred) continue;
+    if (isStillDeferred(res)) continue;
     candidates.push({
       candidateId: r.id,
       displayName: r.display_name,
@@ -542,10 +611,48 @@ function assembleQueue(): AssembledQueue {
       country: r.country,
       classificationLabel: r.classification === 'dormant' ? 'Dormant' : 'Onboarding-visible',
       createdAt: r.created_at,
-      deferAnnotation: res?.resolution === 'deferred'
-        ? `previously deferred by ${res.deferred_by_name ?? 'an admin'}${res.reason_text ? `, reason: ${res.reason_text}` : ''}`
-        : null,
+      deferAnnotation: deferAnnotationFrom(res),
       claimLabel: claimLabelFrom(claims, 'candidate', r.id),
+    });
+  }
+
+  // Wizard flags about unpromoted candidates, grouped per candidate. Rows
+  // here are candidate-keyed signals only; club-keyed signals stay with the
+  // viability gates above, so a vote never surfaces twice. Dismiss is
+  // terminal; an expired defer re-surfaces with the deferred-by annotation.
+  const flagRows = clubViabilitySignals.listCandidatesWithFlags.all() as Array<{
+    candidate_id: string;
+    display_name: string;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    classification: string;
+    oldest_flag_at: string;
+    active_count: number;
+    not_active_count: number;
+    never_heard_count: number;
+    not_sure_count: number;
+    total_count: number;
+  }>;
+  const candidateFlags: CandidateFlagItem[] = [];
+  for (const r of flagRows) {
+    const res = candidateResolutions.get(`${r.candidate_id}:${CANDIDATE_FLAG_PREDICATE}`);
+    if (res?.resolution === 'dismissed') continue;
+    if (isStillDeferred(res)) continue;
+    const reporters = clubViabilitySignals.listNegativeCandidateReporters.all(r.candidate_id) as
+      Array<{ display_name: string; activity_signal: string }>;
+    candidateFlags.push({
+      candidateId: r.candidate_id,
+      displayName: r.display_name,
+      city: r.city,
+      region: r.region,
+      country: r.country,
+      classificationLabel: CLASSIFICATION_LABELS[r.classification] ?? r.classification,
+      detail: `${r.active_count} active, ${r.not_active_count} inactive, ${r.never_heard_count} never heard${negativeReporterSuffix(reporters)}`,
+      flagCount: r.not_active_count + r.never_heard_count,
+      oldestFlagAt: r.oldest_flag_at,
+      deferAnnotation: deferAnnotationFrom(res),
+      claimLabel: claimLabelFrom(claims, 'candidate', r.candidate_id),
     });
   }
 
@@ -567,7 +674,7 @@ function assembleQueue(): AssembledQueue {
     claimLabel: claimLabelFrom(claims, 'candidate', r.id),
   }));
 
-  return { items, residue, candidates, junkCandidates };
+  return { items, residue, candidates, junkCandidates, candidateFlags };
 }
 
 // ---------------------------------------------------------------------------
@@ -578,6 +685,7 @@ const CATEGORY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'crowdsource_viability', label: 'Crowdsource viability' },
   { value: 'leaderless_active', label: 'Leaderless active club' },
   { value: 'stale_provisional', label: 'Stale provisional leader' },
+  { value: 'candidate_flag', label: 'Wizard flags by candidate' },
   { value: 'residue', label: 'Unconfirmed residue' },
   { value: 'candidate', label: 'Promotable candidates' },
   { value: 'junk_candidate', label: 'Junk-flagged candidates' },
@@ -641,15 +749,20 @@ function applyFilterAndSort(
   let junkCandidates = (category === null || category === 'junk_candidate')
     ? queue.junkCandidates.filter((c) => matchesRegion(region, c.region, c.country))
     : [];
+  let candidateFlags = (category === null || category === 'candidate_flag')
+    ? queue.candidateFlags.filter((c) => matchesRegion(region, c.region, c.country))
+    : [];
 
   if (sort === 'age') {
     items = [...items].sort((a, b) => a.openSince.localeCompare(b.openSince));
     residue = [...residue].sort((a, b) => a.oldestPendingAt.localeCompare(b.oldestPendingAt));
     candidates = [...candidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     junkCandidates = [...junkCandidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    candidateFlags = [...candidateFlags].sort((a, b) => a.oldestFlagAt.localeCompare(b.oldestFlagAt));
   } else if (sort === 'flag_count') {
     items = [...items].sort((a, b) => b.flagCount - a.flagCount);
     residue = [...residue].sort((a, b) => b.pendingCount - a.pendingCount);
+    candidateFlags = [...candidateFlags].sort((a, b) => b.flagCount - a.flagCount);
   } else if (sort === 'region') {
     items = [...items].sort((a, b) =>
       compareNullableStrings(a.clubRegion ?? a.clubCountry, b.clubRegion ?? b.clubCountry));
@@ -658,6 +771,8 @@ function applyFilterAndSort(
     candidates = [...candidates].sort((a, b) =>
       compareNullableStrings(a.region ?? a.country, b.region ?? b.country));
     junkCandidates = [...junkCandidates].sort((a, b) =>
+      compareNullableStrings(a.region ?? a.country, b.region ?? b.country));
+    candidateFlags = [...candidateFlags].sort((a, b) =>
       compareNullableStrings(a.region ?? a.country, b.region ?? b.country));
   } else if (sort === 'category' || sort === 'source') {
     // Category and source surface coincide on this queue: each item's
@@ -668,7 +783,7 @@ function applyFilterAndSort(
     items = [...items].sort((a, b) => a.predicateLabel.localeCompare(b.predicateLabel));
   }
 
-  return { items, residue, candidates, junkCandidates };
+  return { items, residue, candidates, junkCandidates, candidateFlags };
 }
 
 // ---------------------------------------------------------------------------
@@ -677,7 +792,8 @@ function applyFilterAndSort(
 
 function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<CleanupQueueContent> {
   const normalized = normalizeFilter(filter);
-  const { items, residue, candidates, junkCandidates } = applyFilterAndSort(assembleQueue(), normalized);
+  const { items, residue, candidates, junkCandidates, candidateFlags } =
+    applyFilterAndSort(assembleQueue(), normalized);
 
   // Group predicate items by category for the collapsed-by-default
   // presentation; group order follows the items' (possibly sorted) order.
@@ -686,7 +802,7 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
   for (const item of items) {
     let group = groupsByLabel.get(item.predicateLabel);
     if (!group) {
-      group = { label: item.predicateLabel, count: 0, items: [] };
+      group = { label: item.predicateLabel, predicate: item.predicate, count: 0, items: [] };
       groupsByLabel.set(item.predicateLabel, group);
       itemGroups.push(group);
     }
@@ -712,6 +828,7 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
       residue,
       candidates,
       junkCandidates,
+      candidateFlags,
       filters,
     },
   };
@@ -721,14 +838,16 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
 // how long the oldest item has waited, visible without opening the queue.
 // Evaluated fresh on each admin-home load; there is no background process.
 function getBacklogBadge(): BacklogBadge {
-  const { items, residue, candidates, junkCandidates } = assembleQueue();
-  const openCount = items.length + residue.length + candidates.length + junkCandidates.length;
+  const { items, residue, candidates, junkCandidates, candidateFlags } = assembleQueue();
+  const openCount = items.length + residue.length + candidates.length
+    + junkCandidates.length + candidateFlags.length;
 
   const timestamps = [
     ...items.map((i) => i.openSince),
     ...residue.map((r) => r.oldestPendingAt),
     ...candidates.map((c) => c.createdAt),
     ...junkCandidates.map((c) => c.createdAt),
+    ...candidateFlags.map((c) => c.oldestFlagAt),
   ].filter((t) => typeof t === 'string' && t.length > 0);
   const oldestOpenAt = timestamps.length ? timestamps.reduce((a, b) => (a < b ? a : b)) : null;
 
@@ -751,6 +870,13 @@ const DEFER_DAYS: Record<string, number> = {
   defer_90: 90,
   defer_180: 180,
 };
+
+function deferredUntilFor(action: string): string {
+  const days = DEFER_DAYS[action] ?? 30;
+  const until = new Date();
+  until.setDate(until.getDate() + days);
+  return until.toISOString();
+}
 
 function resolveClub(
   adminMemberId: string,
@@ -785,10 +911,7 @@ function resolveClub(
     let deferredUntil: string | null = null;
     if (action.startsWith('defer_')) {
       resolution = 'deferred';
-      const days = DEFER_DAYS[action] ?? 30;
-      const until = new Date();
-      until.setDate(until.getDate() + days);
-      deferredUntil = until.toISOString();
+      deferredUntil = deferredUntilFor(action);
     } else if (action === 'demote_inactive') {
       resolution = 'demoted';
     } else if (action === 'archive') {
@@ -853,34 +976,50 @@ function claimItem(
 // ---------------------------------------------------------------------------
 
 type CandidateResolveAction =
-  | 'defer_30' | 'defer_90' | 'defer_180'
+  | 'defer_30' | 'defer_90' | 'defer_180' | 'dismiss'
   | 'demote' | 'archive' | 'confirm_junk' | 'promote_dormant';
 
 export type CandidateResolveResult =
   | { status: 'applied'; action: CandidateResolveAction }
   | { status: 'noop'; action: CandidateResolveAction };
 
-// Resolve an unpromoted candidate. Defer is the only flag-style action: the
-// candidate leaves the queue until the window expires, then re-surfaces
-// carrying the deferred-by annotation. Every other action moves the
-// candidate's own state: demote (onboarding-visible to dormant), archive
-// (terminal), confirm_junk (terminal verdict on a junk-flagged candidate),
-// promote_dormant (junk back to dormant for further evaluation). State
-// actions use guarded writes; when the precondition no longer holds (a
-// concurrent admin acted first) the result is a no-op, reported but not
-// audited, never a double transition.
+// Resolve a candidate queue item. The predicate names which of the
+// candidate's queue items is being resolved: the promotable listing (the
+// default) or the wizard-flag group; each carries its own resolution row,
+// so resolving one never hides the other. Defer and dismiss are flag-style
+// actions: defer parks any item until the window expires (it re-surfaces
+// carrying the deferred-by annotation); dismiss is the terminal flag
+// resolution and applies only to the wizard-flag item, since the promotable
+// item's terminal states move the candidate itself. Every other action
+// moves the candidate's own state: demote (onboarding-visible to dormant),
+// archive (terminal), confirm_junk (terminal verdict on a junk-flagged
+// candidate), promote_dormant (junk back to dormant for further
+// evaluation). State actions use guarded writes; when the precondition no
+// longer holds (a concurrent admin acted first) the result is a no-op,
+// reported but not audited, never a double transition.
 function resolveCandidate(
   adminMemberId: string,
   candidateId: string,
   action: CandidateResolveAction,
   reasonText: string | null,
+  predicate: string = PROMOTABLE_PREDICATE,
 ): CandidateResolveResult {
   const validActions: ReadonlySet<string> = new Set([
-    'defer_30', 'defer_90', 'defer_180',
+    'defer_30', 'defer_90', 'defer_180', 'dismiss',
     'demote', 'archive', 'confirm_junk', 'promote_dormant',
   ]);
   if (!validActions.has(action)) {
     throw new ValidationError(`Invalid action: ${action}`);
+  }
+  if (predicate !== PROMOTABLE_PREDICATE && predicate !== CANDIDATE_FLAG_PREDICATE) {
+    throw new ValidationError(`Invalid predicate: ${predicate}`);
+  }
+  const isFlagStyle = action.startsWith('defer_') || action === 'dismiss';
+  if (action === 'dismiss' && predicate !== CANDIDATE_FLAG_PREDICATE) {
+    throw new ValidationError('Dismiss applies only to wizard-flag items.');
+  }
+  if (predicate === CANDIDATE_FLAG_PREDICATE && !isFlagStyle) {
+    throw new ValidationError(`Invalid action for wizard-flag items: ${action}`);
   }
   const candidate = legacyClubCandidates.findById.get(candidateId);
   if (!candidate) {
@@ -891,22 +1030,21 @@ function resolveCandidate(
   transaction(() => {
     const now = new Date().toISOString();
 
-    if (action.startsWith('defer_')) {
-      const days = DEFER_DAYS[action] ?? 30;
-      const until = new Date();
-      until.setDate(until.getDate() + days);
-      const deferredUntil = until.toISOString();
-
+    if (isFlagStyle) {
+      const deferredUntil = action === 'dismiss' ? null : deferredUntilFor(action);
       const resId = `cdr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       candidateCleanupResolutions.upsert.run(
         resId, now, adminMemberId,
-        candidateId, PROMOTABLE_PREDICATE,
-        'deferred', deferredUntil, adminMemberId, reasonText,
+        candidateId, predicate,
+        action === 'dismiss' ? 'dismissed' : 'deferred',
+        deferredUntil, adminMemberId, reasonText,
       );
       clubCleanupClaims.releaseClaim.run('candidate', candidateId);
 
       appendAuditEntry({
-        actionType: 'admin.club_cleanup.candidate_defer',
+        actionType: action === 'dismiss'
+          ? 'admin.club_cleanup.candidate_dismiss'
+          : 'admin.club_cleanup.candidate_defer',
         category: 'admin',
         actorType: 'admin',
         actorMemberId: adminMemberId,
@@ -915,6 +1053,7 @@ function resolveCandidate(
         reasonText,
         metadata: {
           action,
+          predicate,
           deferred_until: deferredUntil,
         },
       });
@@ -988,6 +1127,117 @@ function delistUnconfirmedResidue(
 }
 
 // ---------------------------------------------------------------------------
+// Group-level bulk actions
+// ---------------------------------------------------------------------------
+
+// Bulk defer a whole queue group: every item currently in the group gets
+// its own deferred resolution, claim release, and audit row, under one
+// shared reason. Defer is the only bulk-safe flag action because a bulk
+// mistake self-heals: the items re-surface when the window expires,
+// carrying the deferred-by annotation. Items already resolved or deferred
+// are not in the assembled group, so re-running is a natural no-op.
+// Promotable and junk candidates have no bulk action; their resolutions
+// are per-item judgment calls.
+function bulkDeferGroup(
+  adminMemberId: string,
+  group: string,
+  action: string,
+  reasonText: string | null,
+): { deferredCount: number } {
+  const validGroups: ReadonlySet<string> = new Set([
+    'crowdsource_viability', 'leaderless_active', 'stale_provisional', 'candidate_flag',
+  ]);
+  if (!validGroups.has(group)) {
+    throw new ValidationError(`Invalid bulk group: ${group}`);
+  }
+  if (!(action in DEFER_DAYS)) {
+    throw new ValidationError(`Invalid bulk action: ${action}`);
+  }
+
+  const queue = assembleQueue();
+  const deferredUntil = deferredUntilFor(action);
+  let deferredCount = 0;
+
+  transaction(() => {
+    const now = new Date().toISOString();
+
+    if (group === 'candidate_flag') {
+      for (const item of queue.candidateFlags) {
+        const resId = `cdr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        candidateCleanupResolutions.upsert.run(
+          resId, now, adminMemberId,
+          item.candidateId, CANDIDATE_FLAG_PREDICATE,
+          'deferred', deferredUntil, adminMemberId, reasonText,
+        );
+        clubCleanupClaims.releaseClaim.run('candidate', item.candidateId);
+        appendAuditEntry({
+          actionType: 'admin.club_cleanup.candidate_defer',
+          category: 'admin',
+          actorType: 'admin',
+          actorMemberId: adminMemberId,
+          entityType: 'legacy_club_candidate',
+          entityId: item.candidateId,
+          reasonText,
+          metadata: {
+            action,
+            predicate: CANDIDATE_FLAG_PREDICATE,
+            deferred_until: deferredUntil,
+            bulk: true,
+          },
+        });
+        deferredCount += 1;
+      }
+      return;
+    }
+
+    for (const item of queue.items) {
+      if (item.predicate !== group) continue;
+      const resId = `ccr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      clubCleanupResolutions.upsert.run(
+        resId, now, adminMemberId,
+        item.clubId, item.predicate,
+        'deferred', deferredUntil, reasonText,
+      );
+      clubCleanupClaims.releaseClaim.run('club', item.clubId);
+      appendAuditEntry({
+        actionType: `admin.club_cleanup.${action}`,
+        category: 'admin',
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
+        entityType: 'club',
+        entityId: item.clubId,
+        reasonText,
+        metadata: {
+          action,
+          predicate: item.predicate,
+          deferred_until: deferredUntil,
+          bulk: true,
+        },
+      });
+      deferredCount += 1;
+    }
+  });
+
+  return { deferredCount };
+}
+
+// Bulk de-list across every club currently carrying unconfirmed residue.
+// Each club runs through the existing per-club de-list in its own
+// transaction, so the action stays idempotent and a mid-run failure leaves
+// completed clubs cleanly de-listed rather than rolling everything back.
+function bulkDelistResidue(
+  adminMemberId: string,
+  reasonText: string | null,
+): { clubsProcessed: number; totalDelisted: number } {
+  const { residue } = assembleQueue();
+  let totalDelisted = 0;
+  for (const item of residue) {
+    totalDelisted += delistUnconfirmedResidue(adminMemberId, item.clubId, reasonText).delistedCount;
+  }
+  return { clubsProcessed: residue.length, totalDelisted };
+}
+
+// ---------------------------------------------------------------------------
 // Admin override promotion (candidate -> live club)
 // ---------------------------------------------------------------------------
 
@@ -1019,5 +1269,7 @@ export const clubCleanupService = {
   resolveClub,
   resolveCandidate,
   delistUnconfirmedResidue,
+  bulkDeferGroup,
+  bulkDelistResidue,
   promoteCandidate,
 };

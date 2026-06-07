@@ -1671,6 +1671,109 @@ export const clubViabilitySignals = {
     ORDER BY l.activity_signal, m.display_name COLLATE NOCASE
   `); },
 
+  // Candidate-keyed rows: activity answers about club candidates that have
+  // no live clubs row yet (club_id is NULL; the candidate id lives in
+  // source_entity_id). These rows are invisible to the club gates above,
+  // which filter on club_id. Counting mirrors the gates: one vote per
+  // member, latest signal wins.
+  get countCandidateFlags() { return db.prepare(`
+    WITH latest AS (
+      SELECT member_id, activity_signal,
+             ROW_NUMBER() OVER (
+               PARTITION BY member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE club_id IS NULL
+        AND source_entity_type = 'legacy_club_candidate'
+        AND source_entity_id = ?
+    )
+    SELECT
+      SUM(CASE WHEN activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
+      SUM(CASE WHEN activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
+      SUM(CASE WHEN activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
+      SUM(CASE WHEN activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
+      COUNT(*) AS total_count
+    FROM latest
+    WHERE rn = 1
+  `); },
+
+  // Unpromoted, non-terminal candidates that carry wizard activity flags,
+  // with per-candidate signal counts (one vote per member, latest wins).
+  // Promoted candidates are excluded here AND their flag rows are stamped
+  // with the club id at promotion time, so a vote never surfaces on both
+  // the candidate-flag group and the club gates. Candidates whose only
+  // latest votes are "not sure" stay hidden: not-sure records no activity
+  // evidence, so there is nothing for an admin to judge.
+  get listCandidatesWithFlags() { return db.prepare(`
+    WITH latest AS (
+      SELECT source_entity_id AS candidate_id, member_id, activity_signal,
+             created_at,
+             ROW_NUMBER() OVER (
+               PARTITION BY source_entity_id, member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE club_id IS NULL
+        AND source_entity_type = 'legacy_club_candidate'
+    )
+    SELECT
+      l.candidate_id,
+      lcc.display_name,
+      lcc.city,
+      lcc.region,
+      lcc.country,
+      lcc.classification,
+      MIN(l.created_at) AS oldest_flag_at,
+      SUM(CASE WHEN l.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
+      SUM(CASE WHEN l.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
+      SUM(CASE WHEN l.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
+      SUM(CASE WHEN l.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
+      COUNT(*) AS total_count
+    FROM latest AS l
+    INNER JOIN legacy_club_candidates AS lcc ON lcc.id = l.candidate_id
+    WHERE l.rn = 1
+      AND lcc.mapped_club_id IS NULL
+      AND lcc.lifecycle_state IS NULL
+    GROUP BY l.candidate_id
+    HAVING SUM(CASE WHEN l.activity_signal != 'not_sure' THEN 1 ELSE 0 END) > 0
+    ORDER BY not_active_count DESC, never_heard_count DESC
+  `); },
+
+  // Negative reporters for one candidate's flags, one vote per member
+  // (latest signal wins). Admin-queue use only: signal authorship is never
+  // exposed outside admin surfaces.
+  get listNegativeCandidateReporters() { return db.prepare(`
+    WITH latest AS (
+      SELECT member_id, activity_signal,
+             ROW_NUMBER() OVER (
+               PARTITION BY member_id
+               ORDER BY created_at DESC, id DESC
+             ) AS rn
+      FROM club_viability_signals
+      WHERE club_id IS NULL
+        AND source_entity_type = 'legacy_club_candidate'
+        AND source_entity_id = ?
+    )
+    SELECT m.display_name, l.activity_signal
+    FROM latest AS l
+    INNER JOIN members AS m ON m.id = l.member_id
+    WHERE l.rn = 1 AND l.activity_signal IN ('not_active', 'never_heard_of_it')
+    ORDER BY l.activity_signal, m.display_name COLLATE NOCASE
+  `); },
+
+  // Promotion carry-forward: stamp the new live club id onto the
+  // candidate's flag rows so those votes start feeding the club gates and
+  // stop surfacing on the candidate-flag group. One-time stamp; the table
+  // is otherwise append-only.
+  get stampClubIdForCandidateFlags() { return db.prepare(`
+    UPDATE club_viability_signals
+       SET club_id = ?
+     WHERE club_id IS NULL
+       AND source_entity_type = 'legacy_club_candidate'
+       AND source_entity_id = ?
+  `); },
+
 };
 
 // ---------------------------------------------------------------------------

@@ -513,3 +513,198 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
     expect(readTaskState(MEMBER_NOPROMOTE)).toBe('skipped');
   });
 });
+
+describe('POST /register/wizard/club_affiliations/submit — activity-signal emission on every membership branch', () => {
+  const SIG_DECLINE  = 'wiz-sig-decline';
+  const SIG_CORRECT  = 'wiz-sig-correct';
+  const SIG_CONFIRM  = 'wiz-sig-confirm';
+
+  let declineCandId = '';
+  let declineAffId  = '';
+  let correctClubId = '';
+  let correctAffId  = '';
+  let confirmClubId = '';
+  let confirmAffId  = '';
+
+  interface SignalRow {
+    club_id: string | null;
+    source_stage: string;
+    activity_signal: string;
+    source_entity_type: string | null;
+    source_entity_id: string | null;
+  }
+
+  function readSignals(memberId: string): SignalRow[] {
+    return testDb
+      .prepare(`SELECT club_id, source_stage, activity_signal, source_entity_type, source_entity_id
+                  FROM club_viability_signals WHERE member_id = ? ORDER BY rowid`)
+      .all(memberId) as SignalRow[];
+  }
+
+  beforeAll(() => {
+    insertMember(testDb, {
+      id: SIG_DECLINE,
+      slug: 'wiz_sig_decline',
+      login_email: 'wiz-sig-decline@example.com',
+      legacy_member_id: 'lm-wiz-sig-decline',
+    });
+    declineCandId = insertLegacyClubCandidate(testDb, {
+      classification: 'onboarding_visible',
+      display_name:   'Signal Decline Club',
+    });
+    declineAffId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id:         'lm-wiz-sig-decline',
+      legacy_club_candidate_id: declineCandId,
+    });
+
+    insertMember(testDb, {
+      id: SIG_CORRECT,
+      slug: 'wiz_sig_correct',
+      login_email: 'wiz-sig-correct@example.com',
+      legacy_member_id: 'lm-wiz-sig-correct',
+    });
+    correctClubId = insertClub(testDb, { name: 'Signal Correct Club' });
+    const correctCandId = insertLegacyClubCandidate(testDb, {
+      classification: 'pre_populate',
+      mapped_club_id: correctClubId,
+      display_name:   'Signal Correct Club',
+    });
+    correctAffId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id:         'lm-wiz-sig-correct',
+      legacy_club_candidate_id: correctCandId,
+    });
+
+    insertMember(testDb, {
+      id: SIG_CONFIRM,
+      slug: 'wiz_sig_confirm',
+      login_email: 'wiz-sig-confirm@example.com',
+      legacy_member_id: 'lm-wiz-sig-confirm',
+    });
+    confirmClubId = insertClub(testDb, { name: 'Signal Confirm Club' });
+    const confirmCandId = insertLegacyClubCandidate(testDb, {
+      classification: 'pre_populate',
+      mapped_club_id: confirmClubId,
+      display_name:   'Signal Confirm Club',
+    });
+    confirmAffId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id:         'lm-wiz-sig-confirm',
+      legacy_club_candidate_id: confirmCandId,
+    });
+  });
+
+  it('decline on an unpromoted candidate records a candidate-keyed flag, keyed by the candidate id', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(SIG_DECLINE))
+      .type('form')
+      .send({ kind: 'membership', candidateId: declineAffId, userDecision: 'decline', activitySignal: 'not_active' });
+    expect(res.status).toBe(303);
+
+    const signals = readSignals(SIG_DECLINE);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toEqual({
+      club_id: null,
+      source_stage: 'stage1b_affiliated',
+      activity_signal: 'not_active',
+      source_entity_type: 'legacy_club_candidate',
+      source_entity_id: declineCandId,
+    });
+  });
+
+  it('correct on a promoted candidate records the signal against the mapped live club', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(SIG_CORRECT))
+      .type('form')
+      .send({ kind: 'membership', candidateId: correctAffId, userDecision: 'correct', activitySignal: 'not_active' });
+    expect(res.status).toBe(303);
+
+    const signals = readSignals(SIG_CORRECT);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toEqual({
+      club_id: correctClubId,
+      source_stage: 'stage1b_affiliated',
+      activity_signal: 'not_active',
+      source_entity_type: 'legacy_person_club_affiliation',
+      source_entity_id: correctAffId,
+    });
+  });
+
+  it('confirm still records the signal against the resolved club', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(SIG_CONFIRM))
+      .type('form')
+      .send({ kind: 'membership', candidateId: confirmAffId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(res.status).toBe(303);
+
+    const signals = readSignals(SIG_CONFIRM);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toEqual({
+      club_id: confirmClubId,
+      source_stage: 'stage1b_affiliated',
+      activity_signal: 'active',
+      source_entity_type: 'legacy_person_club_affiliation',
+      source_entity_id: confirmAffId,
+    });
+  });
+
+  it('a member-confirm promotion stamps an earlier decliner’s candidate-keyed flag onto the new club', async () => {
+    const SIG_EARLY = 'wiz-sig-early-decliner';
+    const SIG_LATE  = 'wiz-sig-late-confirmer';
+    insertMember(testDb, {
+      id: SIG_EARLY,
+      slug: 'wiz_sig_early',
+      login_email: 'wiz-sig-early@example.com',
+      legacy_member_id: 'lm-wiz-sig-early',
+    });
+    insertMember(testDb, {
+      id: SIG_LATE,
+      slug: 'wiz_sig_late',
+      login_email: 'wiz-sig-late@example.com',
+      legacy_member_id: 'lm-wiz-sig-late',
+    });
+    const sharedCandId = insertLegacyClubCandidate(testDb, {
+      classification: 'onboarding_visible',
+      display_name:   'Shared Carry-Forward Club',
+    });
+    const earlyAffId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id:         'lm-wiz-sig-early',
+      legacy_club_candidate_id: sharedCandId,
+    });
+    const lateAffId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id:         'lm-wiz-sig-late',
+      legacy_club_candidate_id: sharedCandId,
+    });
+
+    // The early member declines while the candidate is unpromoted: their
+    // activity answer lands as a candidate-keyed flag.
+    const decline = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(SIG_EARLY))
+      .type('form')
+      .send({ kind: 'membership', candidateId: earlyAffId, userDecision: 'decline', activitySignal: 'not_active' });
+    expect(decline.status).toBe(303);
+    expect(readSignals(SIG_EARLY)[0].club_id).toBeNull();
+
+    // A later member confirms, which promotes the candidate; the earlier
+    // flag gets the new club id stamped so both votes feed the same gate.
+    const confirm = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(SIG_LATE))
+      .type('form')
+      .send({ kind: 'membership', candidateId: lateAffId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(confirm.status).toBe(303);
+
+    const mappedClubId = (testDb
+      .prepare(`SELECT mapped_club_id FROM legacy_club_candidates WHERE id = ?`)
+      .get(sharedCandId) as { mapped_club_id: string | null }).mapped_club_id;
+    expect(mappedClubId).not.toBeNull();
+
+    const earlySignals = readSignals(SIG_EARLY);
+    expect(earlySignals).toHaveLength(1);
+    expect(earlySignals[0].club_id).toBe(mappedClubId);
+    expect(earlySignals[0].source_entity_type).toBe('legacy_club_candidate');
+    expect(readSignals(SIG_LATE)[0].club_id).toBe(mappedClubId);
+  });
+});

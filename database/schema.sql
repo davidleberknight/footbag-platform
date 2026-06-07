@@ -3202,13 +3202,19 @@ CREATE UNIQUE INDEX ux_member_club_affiliations_one_primary
 -- crowdsource_club_viability predicate (A_Periodic_Club_Cleanup) aggregates
 -- these rows at evaluation time; "not_sure" responses contribute no signal
 -- to any gate.
+-- A row is either club-keyed (club_id set; feeds the viability gates) or
+-- candidate-keyed (club_id NULL; an activity answer about a club candidate
+-- that has no live clubs row yet, surfaced on the admin cleanup queue's
+-- candidate-flag group). Promoting the candidate stamps club_id onto its
+-- candidate-keyed rows, moving them from the second class to the first, so
+-- a vote is never counted on both surfaces.
 CREATE TABLE club_viability_signals (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
 
   member_id TEXT NOT NULL REFERENCES members(id),
-  club_id   TEXT NOT NULL REFERENCES clubs(id),
+  club_id   TEXT REFERENCES clubs(id),
 
   source_stage TEXT NOT NULL
     CHECK (source_stage IN (
@@ -3220,7 +3226,12 @@ CREATE TABLE club_viability_signals (
     CHECK (activity_signal IN ('active','not_active','not_sure','never_heard_of_it')),
 
   source_entity_type TEXT,
-  source_entity_id   TEXT
+  source_entity_id   TEXT,
+
+  CHECK (
+    club_id IS NOT NULL
+    OR (source_entity_type = 'legacy_club_candidate' AND source_entity_id IS NOT NULL)
+  )
 );
 
 CREATE INDEX idx_club_viability_signals_club   ON club_viability_signals(club_id);
@@ -3246,11 +3257,14 @@ CREATE TABLE club_cleanup_resolutions (
 
 CREATE INDEX idx_club_cleanup_resolutions_club ON club_cleanup_resolutions(club_id);
 
--- Candidate-keyed cleanup resolutions: defer windows for unpromoted
--- legacy_club_candidates in the admin cleanup queue. Mirrors
--- club_cleanup_resolutions (which is keyed to live clubs and cannot hold
--- candidate rows). deferred_by_member_id powers the "previously deferred by
--- Admin X" annotation when an expired defer re-surfaces.
+-- Candidate-keyed cleanup resolutions: defer windows and terminal flag
+-- dismissals for unpromoted legacy_club_candidates in the admin cleanup
+-- queue. Mirrors club_cleanup_resolutions (which is keyed to live clubs and
+-- cannot hold candidate rows). One row per candidate per queue-item type
+-- (predicate_name), so a defer on a candidate's wizard-flag item never
+-- hides its promotable item, and vice versa. deferred_by_member_id powers
+-- the "previously deferred by Admin X" annotation when an expired defer
+-- re-surfaces.
 CREATE TABLE candidate_cleanup_resolutions (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3259,7 +3273,7 @@ CREATE TABLE candidate_cleanup_resolutions (
   candidate_id   TEXT NOT NULL REFERENCES legacy_club_candidates(id),
   predicate_name TEXT NOT NULL,
   resolution     TEXT NOT NULL
-    CHECK (resolution IN ('deferred')),
+    CHECK (resolution IN ('deferred','dismissed')),
   deferred_until TEXT,
   deferred_by_member_id TEXT REFERENCES members(id),
   reason_text    TEXT,

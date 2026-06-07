@@ -1193,7 +1193,9 @@ export interface ClubViabilitySignalOverrides {
   id?: string;
   created_at?: string;
   member_id?: string;
-  club_id?: string;
+  // Pass null explicitly to insert a candidate-keyed flag row (an activity
+  // answer about an unpromoted candidate); omit for the club-keyed default.
+  club_id?: string | null;
   source_stage?: string;
   activity_signal?: string;
   source_entity_type?: string | null;
@@ -1210,7 +1212,7 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
   `).run(
     id, o.created_at ?? TS, SYS,
     o.member_id ?? `mem_${uid()}`,
-    o.club_id ?? `club_${uid()}`,
+    'club_id' in o ? o.club_id : `club_${uid()}`,
     o.source_stage ?? 'stage1b_affiliated',
     o.activity_signal ?? 'active',
     o.source_entity_type ?? null,

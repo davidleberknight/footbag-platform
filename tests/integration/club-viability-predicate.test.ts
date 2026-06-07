@@ -25,6 +25,28 @@ const CLUB_DETAIL_POS  = 'viab-club-detail-pos';
 const CLUB_DUP_MEMBER  = 'viab-club-dup-member';
 const CLUB_CHANGED     = 'viab-club-changed';
 const CLUB_DETAIL_ONLY = 'viab-club-detail-only';
+const CLUB_OF_PROMOTED = 'viab-club-of-promoted';
+
+const CAND_FLAGGED  = 'viab-cand-flagged';
+const CAND_PROMOTED = 'viab-cand-promoted';
+const CAND_ARCHIVED = 'viab-cand-archived';
+
+function insertCandidateFlag(
+  db: Parameters<typeof insertClubViabilitySignal>[0],
+  memberId: string,
+  candidateId: string,
+  activitySignal: string,
+  createdAt?: string,
+): void {
+  insertClubViabilitySignal(db, {
+    member_id: memberId,
+    club_id: null,
+    activity_signal: activitySignal,
+    source_entity_type: 'legacy_club_candidate',
+    source_entity_id: candidateId,
+    ...(createdAt ? { created_at: createdAt } : {}),
+  });
+}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -83,6 +105,25 @@ beforeAll(async () => {
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'not_active', created_at: '2026-01-02T00:00:00.000Z' });
   insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'never_heard_of_it' });
   insertClubViabilitySignal(db, { member_id: MEMBER_C, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'active' });
+
+  // Candidate-keyed flags: activity answers about unpromoted candidates.
+  // One member re-posts (one vote), one says never-heard, one says not-sure.
+  insertLegacyClubCandidate(db, { id: CAND_FLAGGED, display_name: 'Flagged Candidate', classification: 'onboarding_visible' });
+  insertCandidateFlag(db, MEMBER_A, CAND_FLAGGED, 'not_active', '2026-01-01T00:00:00.000Z');
+  insertCandidateFlag(db, MEMBER_A, CAND_FLAGGED, 'not_active', '2026-01-02T00:00:00.000Z');
+  insertCandidateFlag(db, MEMBER_B, CAND_FLAGGED, 'never_heard_of_it');
+  insertCandidateFlag(db, MEMBER_C, CAND_FLAGGED, 'not_sure');
+
+  // A promoted candidate's un-stamped flag rows surface nowhere: not in the
+  // candidate-flag group (the candidate is promoted) and not in its live
+  // club's gates (the rows carry no club id).
+  insertClub(db, { id: CLUB_OF_PROMOTED, name: 'Promoted Candidate Club' });
+  insertLegacyClubCandidate(db, { id: CAND_PROMOTED, display_name: 'Promoted Candidate', mapped_club_id: CLUB_OF_PROMOTED });
+  insertCandidateFlag(db, MEMBER_A, CAND_PROMOTED, 'not_active');
+
+  // Terminal candidates leave the flag group with them.
+  insertLegacyClubCandidate(db, { id: CAND_ARCHIVED, display_name: 'Archived Flagged Candidate', classification: 'dormant', lifecycle_state: 'archived' });
+  insertCandidateFlag(db, MEMBER_A, CAND_ARCHIVED, 'not_active');
 
   db.close();
   await importApp();
@@ -204,5 +245,49 @@ describe('getCleanupQueuePage', () => {
     );
     expect(item).toBeTruthy();
     expect(item!.detail).toContain('inactive per: Viab A');
+  });
+});
+
+describe('candidate-flag group', () => {
+  it('groups flags per unpromoted candidate, one vote per member, naming negative reporters', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+    const item = vm.content.candidateFlags.find(f => f.candidateId === CAND_FLAGGED);
+    expect(item).toBeTruthy();
+    // Member A's re-post is one vote; not-sure contributes no flag weight.
+    expect(item!.flagCount).toBe(2);
+    expect(item!.detail).toContain('0 active, 1 inactive, 1 never heard');
+    expect(item!.detail).toContain('inactive per: Viab A');
+    expect(item!.detail).toContain('never heard of it per: Viab B');
+    expect(item!.classificationLabel).toBe('Onboarding-visible');
+  });
+
+  it('excludes promoted and terminal candidates from the flag group', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+    const ids = vm.content.candidateFlags.map(f => f.candidateId);
+    expect(ids).not.toContain(CAND_PROMOTED);
+    expect(ids).not.toContain(CAND_ARCHIVED);
+  });
+
+  it('candidate-keyed rows never feed a club gate', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    // The promoted candidate's un-stamped flag row carries no club id, so
+    // its live club still evaluates as having no signals at all.
+    const result = clubCleanupService.evaluateClubViability(CLUB_OF_PROMOTED);
+    expect(result.gate).toBe('no_signals');
+  });
+
+  it('counts flag items in the backlog badge', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const badge = clubCleanupService.getBacklogBadge();
+    const vm = clubCleanupService.getCleanupQueuePage();
+    const visibleCount = vm.content.itemGroups.flatMap(g => g.items).length
+      + vm.content.residue.length
+      + vm.content.candidates.length
+      + vm.content.junkCandidates.length
+      + vm.content.candidateFlags.length;
+    expect(badge.openCount).toBe(visibleCount);
+    expect(vm.content.candidateFlags.length).toBeGreaterThan(0);
   });
 });

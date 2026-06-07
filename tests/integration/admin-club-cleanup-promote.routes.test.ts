@@ -9,6 +9,7 @@ import {
   insertMember,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertClubViabilitySignal,
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { stableClubId } from '../../src/services/clubTag';
@@ -274,5 +275,86 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
     } finally {
       db.close();
     }
+  });
+});
+
+describe('promotion carry-forward of candidate-keyed wizard flags', () => {
+  const FLAGGED_CAND = 'lcc-promote-flagged';
+  const FLAGGED_KEY  = 'promote-test-flagged';
+  const VOTER_ONE    = 'promote-voter-001';
+  const VOTER_TWO    = 'promote-voter-002';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: VOTER_ONE, slug: 'promote_voter_one', display_name: 'Promote Voter One', login_email: 'promote-voter-1@example.com' });
+    insertMember(db, { id: VOTER_TWO, slug: 'promote_voter_two', display_name: 'Promote Voter Two', login_email: 'promote-voter-2@example.com' });
+    insertLegacyClubCandidate(db, {
+      id: FLAGGED_CAND,
+      legacy_club_key: FLAGGED_KEY,
+      display_name: 'Flagged Promotion Club',
+      city: 'Boulder',
+      country: 'USA',
+      classification: 'onboarding_visible',
+    });
+    for (const voter of [VOTER_ONE, VOTER_TWO]) {
+      insertClubViabilitySignal(db, {
+        member_id: voter,
+        club_id: null,
+        activity_signal: 'not_active',
+        source_entity_type: 'legacy_club_candidate',
+        source_entity_id: FLAGGED_CAND,
+      });
+    }
+    db.close();
+  });
+
+  it('shows the candidate in the flag group before promotion', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?category=candidate_flag')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Wizard flags by candidate');
+    expect(res.text).toContain('Flagged Promotion Club');
+    expect(res.text).toContain('inactive per: Promote Voter One, Promote Voter Two');
+  });
+
+  it('admin promotion stamps the club id onto the flags, empties the flag group, and feeds the gates', async () => {
+    const expectedClubId = stableClubId(FLAGGED_KEY);
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/candidates/${FLAGGED_CAND}/promote`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reasonText: 'Real club; flags carry forward' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const rows = db.prepare(
+        "SELECT club_id FROM club_viability_signals WHERE source_entity_id = ? AND source_entity_type = 'legacy_club_candidate'",
+      ).all(FLAGGED_CAND) as Array<{ club_id: string | null }>;
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.club_id).toBe(expectedClubId);
+      }
+
+      const audit = db.prepare(
+        "SELECT metadata_json FROM audit_entries WHERE action_type = 'admin.club_cleanup.promote' AND entity_id = ?",
+      ).get(expectedClubId) as { metadata_json: string };
+      expect(JSON.parse(audit.metadata_json).viability_flags_stamped).toBe(2);
+    } finally {
+      db.close();
+    }
+
+    // The candidate-flag group no longer carries the item; the same two
+    // votes now drive the live club's gate (two inactive, no operational
+    // life -> concordant inactive).
+    const queue = await request(createApp())
+      .get('/admin/club-cleanup?category=candidate_flag')
+      .set('Cookie', adminCookie());
+    expect(queue.text).not.toContain('Flagged Promotion Club');
+
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const result = clubCleanupService.evaluateClubViability(expectedClubId);
+    expect(result.gate).toBe('G2_concordant_inactive');
   });
 });

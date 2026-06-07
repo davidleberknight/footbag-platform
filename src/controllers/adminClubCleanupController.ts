@@ -107,6 +107,9 @@ export const adminClubCleanupController = {
   resolveCandidate(req: Request, res: Response, next: NextFunction): void {
     const candidateId = req.params.candidateId;
     const action = String(req.body.action ?? '');
+    const predicate = typeof req.body.predicate === 'string' && req.body.predicate
+      ? req.body.predicate
+      : undefined;
     const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
       ? req.body.reasonText.trim()
       : null;
@@ -117,8 +120,9 @@ export const adminClubCleanupController = {
     try {
       clubCleanupService.resolveCandidate(
         req.user!.userId, candidateId,
-        action as 'defer_30' | 'defer_90' | 'defer_180' | 'demote' | 'archive' | 'confirm_junk' | 'promote_dormant',
+        action as 'defer_30' | 'defer_90' | 'defer_180' | 'dismiss' | 'demote' | 'archive' | 'confirm_junk' | 'promote_dormant',
         reasonText,
+        predicate,
       );
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
@@ -148,6 +152,51 @@ export const adminClubCleanupController = {
 
     try {
       clubCleanupService.delistUnconfirmedResidue(req.user!.userId, clubId, reasonText);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('errors/not-found', {
+          seo:  { title: 'Invalid Request' },
+          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
+        });
+        return;
+      }
+      next(err);
+    }
+  },
+
+  bulkResolve(req: Request, res: Response, next: NextFunction): void {
+    const group = String(req.body.group ?? '');
+    const action = String(req.body.action ?? '');
+    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
+      ? req.body.reasonText.trim()
+      : null;
+
+    // The service owns the valid group and action sets and throws
+    // ValidationError for unknown values; the catch below maps that to the
+    // same 422 render.
+    try {
+      clubCleanupService.bulkDeferGroup(req.user!.userId, group, action, reasonText);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('errors/not-found', {
+          seo:  { title: 'Invalid Request' },
+          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
+        });
+        return;
+      }
+      next(err);
+    }
+  },
+
+  bulkDelistResidue(req: Request, res: Response, next: NextFunction): void {
+    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
+      ? req.body.reasonText.trim()
+      : null;
+
+    try {
+      clubCleanupService.bulkDelistResidue(req.user!.userId, reasonText);
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {

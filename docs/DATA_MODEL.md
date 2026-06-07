@@ -1155,12 +1155,13 @@ Permanent operational table recording live club membership for members. Written 
 
 **Table:** `club_viability_signals`
 
-Append-only table recording crowdsourced activity signals for clubs. Written only during the onboarding wizard (stages 1A and 1B). One row per member per club per submission.
+Append-only table recording crowdsourced activity signals for clubs and club candidates. Written only during the onboarding wizard (stages 1A and 1B). One row per member per target per submission.
 
+- `club_id` is nullable. A row is either club-keyed (`club_id` set; feeds the `crowdsource_club_viability` gates) or candidate-keyed (`club_id` NULL; an activity answer about an unpromoted `legacy_club_candidates` row, surfaced on the admin cleanup queue's candidate-flag group). A table CHECK requires candidate-keyed rows to carry `source_entity_type = 'legacy_club_candidate'` with the candidate id in `source_entity_id`. Promoting the candidate stamps the new club id onto its candidate-keyed rows, moving those votes to the live club's gates so a vote never counts on both surfaces.
 - `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `club_detail`, `dashboard`. Tracks which surface produced the signal; `club_detail` and `dashboard` are reserved values with no writing surface.
-- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and stores `never_heard_of_it` without feeding the gates.
-- `source_entity_type` and `source_entity_id`: traceability to the wizard card (`legacy_person_club_affiliation`, `club_bootstrap_leader`, or `legacy_club_candidate`).
-- No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per club.
+- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and stores `never_heard_of_it` without feeding the gates. A candidate whose only latest votes are `not_sure` surfaces no flag item: not-sure records no activity evidence.
+- `source_entity_type` and `source_entity_id`: traceability to the wizard card. Club-keyed rows carry `legacy_person_club_affiliation` or `club_bootstrap_leader`; candidate-keyed rows carry `legacy_club_candidate` with the candidate id.
+- No `updated_at`/`version`: append-only, except for the promotion stamp on `club_id`. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per target.
 
 ### 4.26 Club Cleanup Resolutions
 
@@ -1175,10 +1176,10 @@ Admin resolution tracking for the club cleanup queue. One row per club per predi
 
 **Table:** `candidate_cleanup_resolutions`
 
-Admin defer tracking for unpromoted `legacy_club_candidates` in the cleanup queue. One row per candidate per queue-item type (`UNIQUE` on `candidate_id, predicate_name`); mirrors `club_cleanup_resolutions`, which is keyed to live clubs and cannot hold candidate rows.
+Admin defer and flag-dismissal tracking for unpromoted `legacy_club_candidates` in the cleanup queue. One row per candidate per queue-item type (`UNIQUE` on `candidate_id, predicate_name`); mirrors `club_cleanup_resolutions`, which is keyed to live clubs and cannot hold candidate rows.
 
-- `predicate_name`: the candidate queue-item type that was deferred (e.g., `promotable_candidate`).
-- `resolution` enum: `deferred`. Defer is the only flag-style action a candidate takes; the other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
+- `predicate_name`: the candidate queue-item type that was resolved (`promotable_candidate`, `candidate_flags`). A candidate's promotable item and its wizard-flag item resolve independently; parking one never hides the other.
+- `resolution` enum: `deferred`, `dismissed`. Defer parks either item type; dismiss is the terminal resolution of a wizard-flag item only. The other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
 - `deferred_until`: ISO timestamp; the queue re-surfaces the candidate after it passes.
 - `deferred_by_member_id`: the deferring admin; powers the "previously deferred by Admin X, reason ..." annotation on re-surface.
 - UPSERT semantics: re-deferring the same candidate overwrites the prior window.
