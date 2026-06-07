@@ -28,7 +28,10 @@ So: identity = the mechanic-family when the surface is shared; identity = the su
 ## Step 3 — Exclusions (never terminal families)
 1. **Entry / set / uptime systems** — pixie, fairy, atomic, quantum, nuclear, stepping, rooted, furious, shooting, sailing, surging, spin, pogo (and the modifier table). They describe how a trick *begins*; they resolve to the trick's actual landing surface. (`pixie mirage` → mirage → toe.)
 2. **Entry / orbit / swing atoms** — around-the-world, orbit, rake. A mechanic appearing *inside* a trick does not create membership; these resolve to their landing surface. (`around-the-world` → toe; `double-around-the-world-heel` → heel.)
-3. **Surface labels** — clipper, clipper-stall, toe-stall, … . These *are* the surface, not a lineage above it.
+3. **Surface labels** — clipper-stall, toe-stall, inside-stall, … . These *are* the surface, not a lineage above it. (`clipper` is **not** in this class — see the note below.)
+
+### Note — `clipper` (kick) is not `clipper-stall` (surface)
+`clipper` and `clipper-stall` are separate identities and are never collapsed into one string. `clipper` is a 1-ADD clipper-**kick** trick identity; `clipper-stall` is the terminal **surface** (kick vs stall). The seven `clipper`-named rows do **not** form a promotable "clipper" terminal family: `clipper` and `flying-clipper` are clipper-kick tricks, while the modifier variants (`diving-`, `gyro-`, `gyro-diving-`, `pixie-`, `stepping-clipper`) resolve to `clipper-stall`, the prefix treated as entry/modifier. So `clipper` is documented as a kick identity but is **not admitted** as a family parent from these rows.
 
 ## Step 4 — Conserved-identity folds (recursive parent links)
 A descendant joins a parent lineage **only when it inherits the parent's terminal identity**, never on mechanic similarity alone. Confirmed identity-preserving folds: torque → osis, blender → osis, mobius → osis, double-leg-over → legover, eggbeater → legover.
