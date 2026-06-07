@@ -233,7 +233,7 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
     expect(readAffiliationStatus(f1AffId)).toBe('pending');
   });
 
-  it('task completes when all cards are resolved', async () => {
+  it('resolving every card without a confirmed club leaves the task open for the find-or-create wrap-up', async () => {
     // Resolve Denver solo card for MEMBER_MIXED (Portland already resolved above).
     const app = createApp();
     await request(app)
@@ -247,6 +247,14 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
         activitySignal: 'not_sure',
       });
 
-    expect(readTaskState(MEMBER_MIXED)).toBe('completed');
+    // All cards resolved, no club confirmed: the wrap-up guidance screen
+    // (clubs browse + create-club path) renders instead of auto-completing.
+    expect(readTaskState(MEMBER_MIXED)).not.toBe('completed');
+    const wrapUp = await request(app)
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_MIXED));
+    expect(wrapUp.status).toBe(200);
+    expect(wrapUp.text).toContain('Find or create your club');
+    expect(wrapUp.text).toContain('Skip for now');
   });
 });

@@ -83,7 +83,7 @@
 
   {{!-- §2 — Family branching --}}
   {{#each content.families}}
-    <section class="content-section compositional-set-family" id="family-{{this.key}}" aria-label="{{this.name}}">
+    <section class="content-section" id="family-{{this.key}}" aria-label="{{this.name}}">
       <h2 class="section-heading">{{this.name}}</h2>
       <p class="compositional-set-family-intro">{{this.intro}}</p>
       <div class="compositional-set-grid">
@@ -103,12 +103,9 @@
             {{#if this.structuralNote}}
               <p class="compositional-set-card-note">{{this.structuralNote}}</p>
             {{/if}}
-            {{#unless (eq this.status 'canonical')}}
-              <p class="compositional-set-card-status compositional-set-card-status--{{this.status}}">
-                {{#if (eq this.status 'platform-tracked')}}platform-tracked{{/if}}
-                {{#if (eq this.status 'holden-only')}}Holden-only{{/if}}
-              </p>
-            {{/unless}}
+            {{#if this.showStatusBadge}}
+              <p class="compositional-set-card-status compositional-set-card-status--{{this.status}}">{{this.statusLabel}}</p>
+            {{/if}}
           </article>
         {{/each}}
       </div>
@@ -116,7 +113,7 @@
   {{/each}}
 
   {{!-- §3 — Uptime reinterpretation ladders --}}
-  <section class="content-section compositional-sets-ladders" id="uptime-reinterpretation" aria-label="Uptime reinterpretation ladders">
+  <section class="content-section" id="uptime-reinterpretation" aria-label="Uptime reinterpretation ladders">
     <h2 class="section-heading">Uptime reinterpretation</h2>
     <p class="compositional-sets-ladders-intro">
       Several named sets read as trick structures performed uptime. The
@@ -198,7 +195,7 @@
   </section>
 
   {{!-- §5 — Sources & cross-links --}}
-  <section class="content-section compositional-sets-sources" aria-label="Sources and cross-links">
+  <section class="content-section" aria-label="Sources and cross-links">
     <h2 class="section-heading">Sources &amp; attribution</h2>
     <p>
       Notation grammar originates with Ben Job's 1995 proposal to the

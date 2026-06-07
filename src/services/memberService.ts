@@ -188,6 +188,7 @@ export interface MyClubsView {
   browseClubsHref: string;
   createClubHref: string | null;
   swapPrimaryHref: string | null;
+  showCreateTierNote: boolean;
   nearbySuggestions: NearbyClubSuggestion[];
 }
 
@@ -1136,6 +1137,9 @@ function buildMyClubsView(memberId: string): MyClubsView {
     browseClubsHref: '/clubs',
     createClubHref: hasTier1Benefits && !isLeaderAnywhere ? '/clubs/create' : null,
     swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
+    // A club-less member below Tier 1 cannot create a club; surface the
+    // requirement instead of hiding the create path entirely.
+    showCreateTierNote: rows.length === 0 && !hasTier1Benefits,
     nearbySuggestions,
   };
 }

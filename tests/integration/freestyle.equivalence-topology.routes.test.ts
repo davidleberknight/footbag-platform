@@ -169,3 +169,20 @@ describe('equivalence-topology — curator-internal language never leaks', () =>
     expect(canonicalRow).not.toMatch(/trick-equivalence-topology-role-badge/);
   });
 });
+
+describe('equivalence-topology — chips and badges render human labels, never raw codes', () => {
+  it('source chips render the human label; the raw source code stays class-only', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    // flurry's alternate path is curator-derived: visible chip text is the
+    // human form; the hyphenated code appears only inside class attributes.
+    expect(res.text).toMatch(/source-chip--curator-derived[^>]*>curator derived</);
+    expect(res.text).not.toMatch(/>curator-derived</);
+  });
+
+  it('role badges render the human label; the raw role code stays class-only', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/flurry');
+    expect(res.text).toMatch(/role-badge--alternate-equivalent[^>]*>alternate equivalent</);
+    expect(res.text).not.toMatch(/>alternate-equivalent</);
+    expect(res.text).not.toMatch(/>canonical-primary</);
+  });
+});

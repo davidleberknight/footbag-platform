@@ -13,9 +13,7 @@
  *     Movement Systems set axis, flat reference, operators page when
  *     applicable)
  *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200; promoted from 301 in 2026-05-25 polish)
- *   - /freestyle/sets/reference renders the flat Holden reference (200,
- *     not the redirect)
- *   - /freestyle/moves 301-redirects to /freestyle/sets/reference
+ *   - /freestyle/sets/reference renders the flat Holden reference (200)
  *   - Set Hub now shows "View set details →" link (no Phase A placeholder)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -229,8 +227,8 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
   });
 });
 
-describe('routing migration — /freestyle/sets and /freestyle/moves', () => {
-  it('/freestyle/sets renders the Set Encyclopedia directly (promoted from 301 redirect 2026-05-25)', async () => {
+describe('/freestyle/sets routes render directly', () => {
+  it('/freestyle/sets renders the Set Encyclopedia', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Set Encyclopedia');
@@ -242,12 +240,6 @@ describe('routing migration — /freestyle/sets and /freestyle/moves', () => {
     expect(res.status).toBe(200);
     // The flat-reference table content lives in freestyle/moves.hbs
     expect(res.text).toContain('Set Notation');   // page heading region
-  });
-
-  it('/freestyle/moves still 301-redirects (now → /freestyle/sets/reference)', async () => {
-    const res = await request(await createApp()).get('/freestyle/moves');
-    expect(res.status).toBe(301);
-    expect(res.header.location).toBe('/freestyle/sets/reference');
   });
 });
 

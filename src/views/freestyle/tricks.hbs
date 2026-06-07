@@ -22,7 +22,7 @@
     <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the words? Open the glossary &rarr;</a></p>
   {{/if}}
 
-  {{! ── DL-1+2+5 landing grid (2026-05-26): 3-band conceptual map of the
+  {{! ── Landing grid: 3-band conceptual map of the
       dictionary's browse axes. Renders ONLY on the default landing view
       (?view=add, the default) to orient first-time readers. On secondary
       views (?view=family, ?view=sets, etc.) the inline view-toggle below
@@ -149,13 +149,13 @@
   <p class="trick-view-toggle-aside">For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   {{/unless}}
 
-  {{! ── Default ADD-grouped view — two-line row contract (2026-05-27).
+  {{! ── Default ADD-grouped view — two-line row contract.
        Every row: line 1 = name/hashtag/≡interpretation/media; line 2 =
        JOB: + ADD:. No green ADD chip (the value is in the section header
        + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
-  <section class="content-section trick-add-group trick-group--trick-rows" id="{{anchorId}}">
+  <section class="content-section trick-add-group" id="{{anchorId}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
@@ -169,7 +169,7 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Dex Count view — two-line row contract (2026-05-27 migration).
+  {{! ── Dex Count view — two-line row contract.
       Buckets active tricks by the number of [DEX] tokens in their operational
       notation. Same generalized dictionary-trick-row partial as the ADD and
       Family views; only the bucketing axis differs. }}
@@ -177,7 +177,7 @@
   <p class="browse-view-intro">Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.</p>
   {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
   {{#each content.dexCountGroups}}
-  <section class="content-section trick-dex-count-group trick-group--trick-rows" id="{{bucketId}}">
+  <section class="content-section trick-dex-count-group" id="{{bucketId}}">
     <div class="section-heading">
       <h2>{{dexLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
@@ -194,12 +194,12 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Set Hub view (Phase A of the set-system refactor, 2026-05-25).
+  {{! ── Set Hub view.
       Sets are first-class ontology objects, not trick-grouped browse
       filters. Six subtype sections; each card carries hashtag, formula,
       movement explanation, equivalence readings, derived / related
-      systems, and provenance. Phase B will add /freestyle/sets/<slug>
-      detail pages. }}
+      systems, and provenance. Per-set detail pages live at
+      /freestyle/sets/<slug>. }}
   {{! ── By Set view — modifier-grouped trick lists (answers "which tricks
        use this set?"). Distinct from the Set Encyclopedia at /freestyle/sets
        which answers "what is this set system?" — that surface remains
@@ -219,19 +219,19 @@
   </nav>
 
   {{#each content.setsClusterView}}
-  <section class="content-section sets-cluster" id="cluster-{{key}}" data-anchor-style="solid">
+  <section class="content-section" id="cluster-{{key}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2>{{label}}</h2>
       <span class="section-count">{{groups.length}}</span>
     </div>
     <p class="sets-cluster-blurb detail-muted">{{blurb}}</p>
     {{#each groups}}
-    <section class="trick-set-group trick-group--trick-rows" id="set-{{modifierSlug}}" data-anchor-style="dotted">
+    <section class="trick-set-group" id="set-{{modifierSlug}}" data-anchor-style="dotted">
       <div class="section-heading">
         <h3><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h3>
         <span class="section-count">{{trickCount}}</span>
       </div>
-      <p class="trick-set-group-meta detail-muted">
+      <p class="detail-muted">
         {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
       </p>
       <div class="dict-trick-row-stack">
@@ -250,7 +250,7 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Family view — two-line row contract (2026-05-27 migration).
+  {{! ── Family view — two-line row contract.
       Same generalized dictionary-trick-row partial as the ADD view; only the
       grouping (family sections + family-anchor sublabel) differs. }}
   {{#if (eq content.activeView "family")}}
@@ -261,12 +261,12 @@
   {{#if content.familyScale}}<p class="browse-view-scale">{{content.familyScale}}</p>{{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
-  <section class="content-section trick-family-group trick-group--trick-rows" id="family-{{familySlug}}" data-anchor-style="solid">
+  <section class="content-section trick-family-group" id="family-{{familySlug}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    {{! Family-anchor sub-label (Dictionary Pedagogy Phase 2). Names
+    {{! Family-anchor sub-label. Names
         the canonical family-anchor trick so readers connect the
         glossary's "family-anchor trick" vocabulary to the dictionary
         surface. Links to the anchor's trick-detail page. }}
@@ -290,11 +290,10 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Component view — symbolic trick cards (DSC-2 slice 3A) ─────────────
-       Soft-retired 2026-05-18 per the component_view_retirement_audit
-       in exploration/freestyle-public-coherence-wave-2026-05-18/. The
-       toggle entry was removed from the view-toggle row above, so the
-       only paths reaching this view are bookmarked or external links.
+  {{! ── Component view — symbolic trick cards ──────────────────────────────
+       Soft-retired: the toggle entry is absent from the view-toggle row
+       above, so the only paths reaching this view are bookmarked or
+       external links, which must keep resolving.
        Movement System (?view=movement-system) is the canonical
        modifier-grouped browse surface. }}
   {{#if (eq content.activeView "component")}}
@@ -330,7 +329,7 @@
         <span class="section-count">{{groups.length}}</span>
       </div>
       {{#each groups}}
-      <section class="trick-component-group trick-group--registry" id="{{anchorId}}" data-anchor-style="solid">
+      <section class="trick-component-group" id="{{anchorId}}" data-anchor-style="solid">
         <div class="component-group-heading">
           <h3><a href="/freestyle/tricks?view=component#{{anchorId}}">{{componentName}}</a></h3>
           <span class="section-count">{{memberCount}}</span>
@@ -363,11 +362,10 @@
   {{/if}}
 
   {{! ── Category view — registry density (dense tag-based scan) ────────────
-       Soft-retired per the category_view_retirement_review audit in
-       exploration/dictionary-coherence-2026-05-18/. Toggle entry removed
-       from the view-toggle row above; the route still resolves so
-       bookmarks and external links keep working. Family + Movement System
-       are the canonical replacements. }}
+       Soft-retired: the toggle entry is absent from the view-toggle row
+       above; the route still resolves so bookmarks and external links
+       keep working. Family + Movement System are the canonical
+       replacements. }}
   {{#if (eq content.activeView "category")}}
   <div class="category-view-retirement-notice" role="status" aria-live="polite">
     <p>
@@ -386,7 +384,7 @@
     </p>
   </div>
   {{#each content.groups}}
-  <section class="content-section trick-category-group trick-group--registry" id="{{anchorId}}">
+  <section class="content-section trick-category-group" id="{{anchorId}}">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=category#{{anchorId}}">{{label}}</a></h2>
       <span class="section-count">{{cards.length}}</span>
@@ -400,9 +398,9 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Movement Neighborhoods view (CR-6 of dictionary-coherence-2026-05-18;
-       public label renamed from "Topology"). The backend slug + URL
-       parameter `?view=topology` are preserved for URL stability. ── }}
+  {{! ── Movement Neighborhoods view. The public label is "Movement
+       Neighborhoods" while the backend slug + URL parameter
+       `?view=topology` are preserved for URL stability. ── }}
   {{#if (eq content.activeView "topology")}}
   <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
   <p class="topology-view-note">
@@ -417,7 +415,7 @@
     {{/each}}
   </nav>
   {{#each content.topologyView.groups}}
-  <section class="content-section trick-topology-group trick-group--trick-rows" id="{{anchorId}}" data-anchor-style="dotted">
+  <section class="content-section trick-topology-group" id="{{anchorId}}" data-anchor-style="dotted">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
       <span class="section-count">{{memberCount}}</span>
@@ -470,7 +468,7 @@
     </div>
     <p class="movement-axis-definition">{{axisDefinition}}</p>
     {{#each groups}}
-    <section class="trick-movement-group trick-group--trick-rows" id="{{anchorId}}" data-anchor-style="solid">
+    <section class="trick-movement-group" id="{{anchorId}}" data-anchor-style="solid">
       <div class="movement-group-heading">
         <h3><a href="/freestyle/tricks?view=movement-system#{{anchorId}}">{{modifierName}}</a></h3>
         <span class="section-count">{{memberCount}}</span>
@@ -500,11 +498,11 @@
   </section>
   {{/if}}
 
-  {{! ── Alternative surfaces (compact educational subsection, 2026-05-24).
+  {{! ── Alternative surfaces (compact educational subsection).
       Rendered after the 4 movement-system axes. Compact-list density
       (NOT registry density / NOT dictionary-trick-card). Each group
-      shows trick name + ADD + raw op_notation as an inline list. Per
-      the topology audit, this is the right surface for sparse-
+      shows trick name + ADD + raw op_notation as an inline list.
+      This is the right surface for sparse-
       categorical exception data; a separate ?view= would waste the
       toggle slot. }}
   {{#if content.movementSystemView.alternativeSurfaces.groups.length}}

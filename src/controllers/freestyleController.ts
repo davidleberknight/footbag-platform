@@ -110,8 +110,7 @@ export const freestyleController = {
   /**
    * GET /freestyle/tricks
    *
-   * Renders the dictionary landing surface (CR-1 of
-   * dictionary-coherence-2026-05-18) when no ?view= and no ?family=
+   * Renders the dictionary landing surface when no ?view= and no ?family=
    * parameter is supplied. Otherwise renders the browse-view chain
    * (preserves all existing bookmarks + external links to ?view=add,
    * ?view=family, ?view=movement-system, etc).
@@ -159,10 +158,9 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets/reference — flat Holden set-notation reference table
-   * (formerly /freestyle/sets, formerly /freestyle/moves). Phase B of the
-   * set-system refactor moved this content out of /freestyle/sets so the Set
-   * Hub can claim the canonical /freestyle/sets/<slug> namespace.
+   * GET /freestyle/sets/reference — flat Holden set-notation reference
+   * table. Lives under /sets/reference so the Set Encyclopedia can hold
+   * the canonical /freestyle/sets/<slug> namespace.
    */
   moves(_req: Request, res: Response, next: NextFunction): void {
     try {
@@ -174,7 +172,7 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets — Set Encyclopedia (2026-05-25). Standalone
+   * GET /freestyle/sets — Set Encyclopedia. Standalone
    * minimalist index of canonical sets as first-class ontology objects.
    * Distinct from the dictionary's /freestyle/tricks?view=sets surface
    * and from the /freestyle/compositional-sets exploration hub.
@@ -189,8 +187,8 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets/:slug — Set detail page (Phase B of the set-system
-   * refactor, 2026-05-25). Anti-enumeration: unknown slug → 404.
+   * GET /freestyle/sets/:slug — Set detail page. Anti-enumeration:
+   * unknown slug → 404.
    */
   setDetail(req: Request, res: Response, next: NextFunction): void {
     try {

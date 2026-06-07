@@ -29,13 +29,13 @@
         <li class="trick-equivalence-topology-row trick-equivalence-topology-row--{{this.role}}">
           <span class="trick-equivalence-topology-glyph" aria-hidden="true">&equiv;</span>
           <span class="trick-equivalence-topology-reading">{{this.reading}}</span>
-          <span class="trick-equivalence-topology-source-chip trick-equivalence-topology-source-chip--{{this.source}}">{{this.source}}</span>
+          <span class="trick-equivalence-topology-source-chip trick-equivalence-topology-source-chip--{{this.source}}">{{this.sourceLabel}}</span>
           {{#if this.addBreakdown}}
             <code class="trick-equivalence-topology-breakdown">{{this.addBreakdown}}</code>
           {{/if}}
-          {{#unless (eq this.role 'canonical-primary')}}
-            <span class="trick-equivalence-topology-role-badge trick-equivalence-topology-role-badge--{{this.role}}">{{this.role}}</span>
-          {{/unless}}
+          {{#if this.showRoleBadge}}
+            <span class="trick-equivalence-topology-role-badge trick-equivalence-topology-role-badge--{{this.role}}">{{this.roleLabel}}</span>
+          {{/if}}
         </li>
       {{/each}}
     </ul>

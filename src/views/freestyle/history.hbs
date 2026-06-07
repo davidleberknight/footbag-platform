@@ -66,7 +66,7 @@
       </p>
     </div>
     {{#each content.eras}}
-    <div class="history-era">
+    <div>
       <h3>{{period}} — {{label}}</h3>
       <p>{{summary}}</p>
       {{#if keyFigures.length}}
@@ -152,7 +152,7 @@
     </p>
 
     {{#if content.pioneersMedia}}
-    <div class="history-media history-media--pioneers">
+    <div class="history-media">
       {{#if content.pioneersMedia.media}}
       <div class="video-embed">
         {{> video-facade media=content.pioneersMedia.media}}
@@ -234,7 +234,7 @@
     <p>{{content.modernEra}}</p>
 
     {{#if content.modernEraMedia}}
-    <div class="history-media history-media--modern">
+    <div class="history-media">
       {{#if content.modernEraMedia.media}}
       <div class="video-embed">
         {{> video-facade media=content.modernEraMedia.media}}
@@ -246,7 +246,7 @@
     {{/if}}
   </section>
 
-  {{! ── Movement Language as the Modern Vocabulary (closing framing, 2026-05-17) ──
+  {{! ── Movement Language as the Modern Vocabulary (closing framing) ──────
       Frames the platform's recent formal-language work as the natural
       modern phase of the same vocabulary the early players built. }}
   <section class="content-section">

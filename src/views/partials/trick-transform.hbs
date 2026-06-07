@@ -1,5 +1,5 @@
 {{!--
-  Reverse-pair transform overlay (semantic-notation slice, 2026-05-23).
+  Reverse-pair transform overlay.
   Renders only when content.transform is non-null — five curator-locked
   entries (illusion, pickup, rev-whirl, rev-swirl, orbit). Compact
   pedagogical line surfacing structural symmetry with the reverse-pair
@@ -13,14 +13,14 @@
 --}}
 {{!--
   Reverse-pair transform (ALT formula) for the 5 curator-locked rev(0)
-  entries (illusion / pickup / rev-whirl / rev-swirl / orbit). 2026-05-23
-  curator-rendered-output audit: rev(0) belongs in an ALT row, NOT in
+  entries (illusion / pickup / rev-whirl / rev-swirl / orbit). Curator
+  ruling: rev(0) belongs in an ALT row, NOT in
   the ADD calculation; the ADD calc shows structural accounting only.
   This partial carries the ALT-labeled row + the shared explainer.
 --}}
 {{#if content.transform}}
 <section class="content-section trick-transform" aria-label="ALT formula (reverse-pair interpretation)">
-  <dl class="trick-transform-fields">
+  <dl>
     <dt>ALT</dt>
     <dd><code class="trick-transform-expression">{{content.transform.expression}}({{content.transform.baseAdd}}) = {{content.transform.totalAdd}} ADD</code></dd>
   </dl>

@@ -45,6 +45,7 @@ SEED_DIR="legacy_data/event_results/seed/mvfp_full"
 RECORDS_MASTER_CSV="legacy_data/inputs/curated/records/records_master.csv"
 CLUBS_SEED_CSV="legacy_data/seed/clubs.csv"
 CLUB_MEMBERS_SEED_CSV="legacy_data/seed/club_members.csv"
+SCRAPED_MOVES_CSV="legacy_data/out/scraped_footbag_moves.csv"
 VENV="scripts/.venv"
 REQUIREMENTS="scripts/requirements.txt"
 
@@ -63,6 +64,7 @@ for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${RECORDS_MASTER_CSV}" \
           "${CLUBS_SEED_CSV}" \
           "${CLUB_MEMBERS_SEED_CSV}" \
+          "${SCRAPED_MOVES_CSV}" \
           "${SCHEMA}"; do
   [[ -f "${_f}" ]] || _missing+=("${_f}")
 done
@@ -71,6 +73,16 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
   echo "Recommendation: bash scripts/deploy-local-data.sh --from-csv   (or --soup-to-nuts if mirror is available and you want fresh CSVs)." >&2
+  exit 1
+fi
+
+# The footbag.org overlay (script 20) consumes the scrape output of script 18.
+# A header-only CSV means the scrape never ran; loading it would silently
+# skip the whole overlay, so fail fast and name the producer.
+if [[ $(wc -l < "${SCRAPED_MOVES_CSV}") -lt 2 ]]; then
+  echo "ERROR: ${SCRAPED_MOVES_CSV} has no data rows (header only)." >&2
+  echo "  Producer: legacy_data/event_results/scripts/18_scrape_footbag_org_moves.py" >&2
+  echo "  Run: bash legacy_data/run_pipeline.sh full   (populates it via script 18)" >&2
   exit 1
 fi
 

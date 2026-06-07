@@ -100,6 +100,10 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).toContain('View IFPA membership rules');
     // No Active Player badge for the no-AP case.
     expect(res.text).not.toMatch(/Active Player\s*—/);
+    // Club-less Tier 0: the My Clubs block states the create-club tier
+    // requirement instead of hiding the create path.
+    expect(res.text).toContain('You have no club affiliations yet.');
+    expect(res.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
   });
 
   it('tier0 with current AP: renders Tier 0 badge + Active Player line with formatted expiry', async () => {

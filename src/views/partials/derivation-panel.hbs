@@ -35,7 +35,7 @@
     {{/if}}
   </header>
 
-  <section class="derivation-panel-section derivation-panel-section--ladder" aria-label="Semantic-depth ladder">
+  <section class="derivation-panel-section" aria-label="Semantic-depth ladder">
     {{! Phase 6 collapse tuning: compressed + semantic rungs render
         visible; expanded + deep rungs collapse behind an [advanced]
         details. Empty details suppress when no deep rungs exist. }}
@@ -50,7 +50,7 @@
       {{/each}}
     </ol>
     {{#if entry.hasDeepRungs}}
-      <details class="derivation-panel-prose derivation-panel-prose--advanced">
+      <details class="derivation-panel-prose">
         <summary><span class="derivation-panel-prose-badge">advanced</span> deeper readings</summary>
         <ol class="semantic-depth-ladder semantic-depth-ladder--deep">
           {{#each entry.ladder}}
@@ -66,12 +66,12 @@
     {{/if}}
   </section>
 
-  <section class="derivation-panel-section derivation-panel-section--operational" aria-label="Operational formula">
+  <section class="derivation-panel-section" aria-label="Operational formula">
     <h4 class="derivation-panel-section-heading">Operational</h4>
     <code class="derivation-panel-operational">{{entry.operational}}</code>
   </section>
 
-  <section class="derivation-panel-section derivation-panel-section--add" aria-label="ADD ledger">
+  <section class="derivation-panel-section" aria-label="ADD ledger">
     <h4 class="derivation-panel-section-heading">ADD</h4>
     <dl class="derivation-panel-add">
       <dt>Official</dt>
@@ -87,7 +87,7 @@
     </dl>
   </section>
 
-  <section class="derivation-panel-section derivation-panel-section--lineage" aria-label="Family and lineage">
+  <section class="derivation-panel-section" aria-label="Family and lineage">
     <dl class="derivation-panel-lineage">
       <dt>Family</dt>
       <dd>{{entry.family}}</dd>
@@ -116,8 +116,8 @@
     {{! Phase 6 collapse tuning: equivalence chains are advanced
         material; collapse by default. The headline summary stays
         visible so readers know the section exists. }}
-    <section class="derivation-panel-section derivation-panel-section--equivalence" aria-label="Equivalence chains">
-      <details class="derivation-panel-prose derivation-panel-prose--advanced">
+    <section class="derivation-panel-section" aria-label="Equivalence chains">
+      <details class="derivation-panel-prose">
         <summary><span class="derivation-panel-prose-badge">advanced</span> equivalence chains</summary>
         {{> equivalence-chain chains=entry.equivalenceChains}}
       </details>
@@ -125,13 +125,13 @@
   {{/if}}
 
   {{#if entry.doctrine}}
-    <section class="derivation-panel-section derivation-panel-section--doctrine" aria-label="ADD doctrine note">
+    <section class="derivation-panel-section" aria-label="ADD doctrine note">
       {{> doctrine-note doctrine=entry.doctrine}}
     </section>
   {{/if}}
 
   {{#if entry.advancedProse}}
-    <details class="derivation-panel-prose derivation-panel-prose--advanced">
+    <details class="derivation-panel-prose">
       <summary><span class="derivation-panel-prose-badge">advanced</span> notes</summary>
       <p>{{entry.advancedProse}}</p>
     </details>

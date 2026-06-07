@@ -138,66 +138,19 @@
       </form>
       {{/unless}}
     {{else}}
-      {{#if content.isStage2a}}
-        <h2>Clubs in your area</h2>
-        <p class="text-muted fs-sm">We're updating our club listings. If you recognize any of these, let us know if they're still active.</p>
-        {{#if content.nearbyCandidates.length}}
-          <ul class="candidate-list">
-            {{#each content.nearbyCandidates}}
-              <li class="candidate-card">
-                <div class="candidate-card-name">{{this.display_name}}</div>
-                {{#if this.city}}<div class="candidate-card-meta">{{this.city}}, {{this.country}}</div>{{/if}}
-                <form method="POST" action="/register/wizard/club_affiliations/stage-signal" class="stage-signal-form mt-2">
-                  <input type="hidden" name="candidateId" value="{{this.id}}" />
-                  <input type="hidden" name="stage" value="stage2a" />
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
-                  <button type="submit" class="btn btn-outline btn-sm mt-1">Submit</button>
-                </form>
-              </li>
-            {{/each}}
-          </ul>
-        {{else}}
-          <p>No clubs found in your area.</p>
-        {{/if}}
-      {{else if content.isStage2b}}
-        <h2>More clubs in your area</h2>
-        <p class="text-muted fs-sm">Help us confirm whether these clubs are still around.</p>
-        {{#if content.nearbyCandidates.length}}
-          <ul class="candidate-list">
-            {{#each content.nearbyCandidates}}
-              <li class="candidate-card">
-                <div class="candidate-card-name">{{this.display_name}}</div>
-                {{#if this.city}}<div class="candidate-card-meta">{{this.city}}, {{this.country}}</div>{{/if}}
-                <form method="POST" action="/register/wizard/club_affiliations/stage-signal" class="stage-signal-form mt-2">
-                  <input type="hidden" name="candidateId" value="{{this.id}}" />
-                  <input type="hidden" name="stage" value="stage2b" />
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="active" /> Still active</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" /> Not active anymore</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="not_sure" /> Not sure</label>
-                  <label class="radio-label"><input type="radio" name="activitySignal" value="never_heard_of_it" /> Never heard of it</label>
-                  <button type="submit" class="btn btn-outline btn-sm mt-1">Submit</button>
-                </form>
-              </li>
-            {{/each}}
-          </ul>
-        {{else}}
-          <p>No additional clubs found in your area.</p>
-        {{/if}}
+      <h2>Find or create your club</h2>
+      <p>We didn't link a club to your account. You can find your local club on the clubs page and join it there, or create a new club if yours isn't listed.</p>
+      <p class="mt-4"><a href="/clubs" class="btn btn-outline">Browse clubs</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
+      {{#if content.canCreateClub}}
+        <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
       {{else}}
-        <h2>Find your club</h2>
-        <p>We didn't link a club to your account yet. You can browse the clubs map to find your local club, or create a new one if yours isn't listed.</p>
-        <p class="mt-4"><a href="/clubs" class="btn btn-outline">Clubs map</a> {{#if content.memberCountry}}<a href="{{content.clubsBrowseHref}}" class="btn btn-outline">Clubs in {{content.memberCountry}}</a>{{/if}}</p>
-        {{#if content.canCreateClub}}
-          <p class="mt-2"><a href="/clubs/create" class="btn btn-primary">Create a new club</a></p>
-        {{else}}
-          <div class="notice-card notice-card--warn mt-4">
-            <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club leader.</p>
-          </div>
-        {{/if}}
+        <div class="notice-card notice-card--warn mt-4">
+          <p class="m-0">Creating a club requires IFPA Membership (Tier 1) because you become the club leader. You can upgrade from your profile page and come back any time.</p>
+        </div>
       {{/if}}
+      <form method="POST" action="{{content.skipHref}}" class="mt-6">
+        <button type="submit" class="btn-link text-muted">Skip for now</button>
+      </form>
     {{/if}}
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>

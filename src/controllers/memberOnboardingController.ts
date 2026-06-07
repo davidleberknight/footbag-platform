@@ -57,11 +57,8 @@ interface ClubAffiliationsCardContent {
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline'; message: string } | null;
   formError:       string | null;
   leadershipOffers?: Array<{ clubId: string; clubName: string }>;
-  stage?:          string;
-  isStage2a?:      boolean;
-  isStage2b?:      boolean;
+  isWrapUp?:       boolean;
   canCreateClub?:  boolean;
-  nearbyCandidates?: Array<{ id: string; displayName: string; city: string | null; country: string | null }>;
   clubsBrowseHref?: string;
   memberCountry?:  string;
 }
@@ -229,15 +226,7 @@ function renderClubAffiliationsCard(
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
 
-  const stage = cards.length > 0 ? 'stage1' : memberOnboardingService.getClubAffiliationStage(memberId);
-  let nearbyCandidates: Array<{ id: string; displayName: string; city: string | null; country: string | null }> | undefined;
-
-  if (stage === 'stage2a') {
-    nearbyCandidates = memberOnboardingService.getStage2aCandidates(memberId);
-  } else if (stage === 'stage2b') {
-    nearbyCandidates = memberOnboardingService.getStage2bCandidates(memberId);
-  }
-
+  const stage = memberOnboardingService.getClubAffiliationStage(memberId);
   const leadershipOffers = memberOnboardingService.listPathTwoLeadershipOffers(memberId);
   const prefill = memberService.getPersonalDetailsPrefill(memberId);
   const memberCountry = prefill.country ?? null;
@@ -258,14 +247,11 @@ function renderClubAffiliationsCard(
       resolvedNotice,
       formError:      opts.formError ?? null,
       leadershipOffers,
-      stage,
-      isStage2a:      stage === 'stage2a',
-      isStage2b:      stage === 'stage2b',
+      isWrapUp:       stage === 'wrap_up',
       canCreateClub:  (() => {
         const tier = getTierStatus(memberId);
         return tier != null && tier.tier_status !== 'tier0';
       })(),
-      nearbyCandidates,
       clubsBrowseHref: countrySlug ? `/clubs/${countrySlug}` : '/clubs',
       memberCountry,
     },
@@ -695,34 +681,4 @@ export const memberOnboardingController = {
     }
   },
 
-  postStageSignal(req: Request, res: Response, next: NextFunction): void {
-    const candidateId = typeof req.body.candidateId === 'string' ? req.body.candidateId : '';
-    const activitySignal = typeof req.body.activitySignal === 'string' ? req.body.activitySignal : '';
-    const stage = typeof req.body.stage === 'string' ? req.body.stage : '';
-
-    if (!candidateId || !activitySignal) {
-      res.redirect(303, '/register/wizard/club_affiliations');
-      return;
-    }
-    if (stage !== 'stage2a' && stage !== 'stage2b') {
-      res.redirect(303, '/register/wizard/club_affiliations');
-      return;
-    }
-    const validSignals = new Set(['active', 'not_active', 'not_sure', 'never_heard_of_it']);
-    if (!validSignals.has(activitySignal)) {
-      res.redirect(303, '/register/wizard/club_affiliations');
-      return;
-    }
-    try {
-      memberOnboardingService.submitStageSignal(
-        req.user!.userId,
-        candidateId,
-        stage,
-        activitySignal as 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it',
-      );
-      res.redirect(303, '/register/wizard/club_affiliations');
-    } catch (err) {
-      next(err);
-    }
-  },
 };

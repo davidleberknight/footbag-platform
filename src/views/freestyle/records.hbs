@@ -42,8 +42,8 @@
           </thead>
           <tbody>
             {{#each records}}
-            <tr class="record-row">
-              <td class="col-trick">
+            <tr>
+              <td>
                 {{#if trickHref}}
                   <a href="{{trickHref}}" class="trick-name">{{trickName}}</a>
                 {{else}}
@@ -71,7 +71,7 @@
                   &mdash;
                 {{/if}}
               </td>
-              <td class="col-video">
+              <td>
                 {{#if videoUrl}}
                   <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
                      aria-label="Watch {{holderName}} {{trickName}} record video">

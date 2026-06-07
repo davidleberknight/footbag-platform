@@ -20,7 +20,7 @@
 
   <div class="glossary-main-column">
 
-  {{! ── Glossary intro card — Phase 1 onboarding orientation ─────────────
+  {{! ── Glossary intro card — onboarding orientation ─────────────────────
       A small one-pass orientation block above §1. Three short blocks:
       what this glossary is, the four reading arcs, and how the sidebar
       works. Zero new ontology; pure navigation lift. }}
@@ -56,11 +56,12 @@
     </p>
   </aside>
 
-  {{! ── Reading the dictionary — platform-ontology orientation (additive
-       framing, 2026-05-28). Explains the trick-row contract, the six browse
+  {{! ── Reading the dictionary — platform-ontology orientation.
+       Explains the trick-row contract, the six browse
        views, and the five kinds of object the platform deliberately keeps
-       separate. Foundational orientation; the §Families taxonomy rewrite is a
-       separate, post-ruling slice (do NOT harden hierarchy language here). }}
+       separate. Foundational orientation only; do NOT harden
+       family-hierarchy language here, the family taxonomy framing is
+       curator-owned. }}
   <section class="content-section" id="section-reading-the-dictionary">
     <h2 class="section-heading">Reading the dictionary</h2>
     <p>
@@ -185,7 +186,7 @@
     </p>
 
     {{!-- ── Core trick atoms — pedagogical onboarding cards ───────────────
-         Curator-authoritative twelve atoms (2026-05-22). Each card leads
+         Curator-authoritative twelve atoms. Each card leads
          with movement-physical intuition + foundational/cultural note;
          compositional / family-role pointers are explicitly secondary.
          Distinct from §10's compact symbolic-object grid (same atoms,
@@ -745,7 +746,7 @@
     <p class="glossary-operator-notation-framing">
       Operational notation is the compact symbolic shorthand for trick
       composition. A trick like <em>paradox</em> reads as
-      <code class="notation-display-tokens"><span class="notation-token notation-surface">CLIP</span> &gt; <span class="notation-token notation-positional">OP IN</span> <span class="notation-token notation-dex">[DEX]</span></code>
+      <code class="notation-display-tokens"><span class="notation-token">CLIP</span> &gt; <span class="notation-token">OP IN</span> <span class="notation-token">[DEX]</span></code>
       &mdash; "clipper set, then a far in-out dex." The notation lets
       readers reconstruct the body mechanics from the trick name without
       having to memorize each compound separately. For the full operational
@@ -802,11 +803,11 @@
 
     {{! ── Jobs notation (historical source) ────────────────────────────────
         Dedicated reference section for Job's original 1995 notation
-        proposal. The article is the gold-standard historical source for
-        the grammar lineage and is archived in this project at
-        exploration/fborg/JobsNotation.txt. Quoted material below is
-        verbatim from that archive. Per the codified notation-tradition
-        exception, naming Ben Job is permitted on this public surface. }}
+        proposal, the gold-standard historical source for the grammar
+        lineage. Quoted material below is verbatim from the project
+        archive of the article; the rendered paragraph cites the archive
+        location. Per the codified notation-tradition exception, naming
+        Ben Job is permitted on this public surface. }}
     <h3 class="section-heading" id="jobs-notation">Jobs notation</h3>
     <p>
       Jobs notation refers to the original compositional grammar for
@@ -820,7 +821,7 @@
     <p>
       Job's original proposal sets out the core grammar:
     </p>
-    <pre class="glossary-jobs-original-formula"><code>(toe | clip) &gt;
+    <pre><code>(toe | clip) &gt;
 [(same | op)(in | out) dexterity]* &gt;
 (same | op)(toe | clip)</code></pre>
     <p>
@@ -833,7 +834,7 @@
     <p>
       A selection of Job's original named examples:
     </p>
-    <dl class="glossary-jobs-original-examples">
+    <dl>
       <dt>Mirage</dt>           <dd><code>toe &gt; op in dex &gt; op toe</code></dd>
       <dt>Eggbeater</dt>        <dd><code>toe &gt; op out dex &gt; op out dex &gt; same toe</code></dd>
       <dt>Symposium Mirage</dt> <dd><code>toe &gt; (no plant while) &gt; op in dex &gt; op toe</code></dd>
@@ -862,9 +863,8 @@
     </p>
 
     {{! ── Generative Insight ───────────────────────────────────────────────
-        Phase 1 of the 2026-05-21 glossary architecture overhaul. Surfaces
-        the compositional-completeness framing that's implicit in the
-        notation but never stated explicitly. Two paragraphs + the
+        Surfaces the compositional-completeness framing that's implicit in
+        the notation but never stated explicitly. Two paragraphs + the
         canonical structural formula. Honors the notation tradition
         without biographical attribution. }}
     <h3 class="section-heading" id="generative-insight">Generative insight</h3>
@@ -884,7 +884,7 @@
       The canonical structural form of a footbag trick is:
     </p>
     <p class="glossary-generative-formula">
-      <code class="notation-display-tokens"><span class="notation-token notation-surface">(toe | clip)</span> &gt; [<span class="notation-token notation-positional">(same | op)</span> <span class="notation-token notation-positional">(in | out)</span> <span class="notation-token notation-dex">dexterity</span>]<sup>*</sup> &gt; <span class="notation-token notation-positional">(same | op)</span> <span class="notation-token notation-surface">(toe | clip)</span></code>
+      <code class="notation-display-tokens"><span class="notation-token">(toe | clip)</span> &gt; [<span class="notation-token">(same | op)</span> <span class="notation-token">(in | out)</span> <span class="notation-token">dexterity</span>]<sup>*</sup> &gt; <span class="notation-token">(same | op)</span> <span class="notation-token">(toe | clip)</span></code>
     </p>
     <p>
       A surface kick or stall opens the trick; zero or more dex events
@@ -1043,7 +1043,7 @@
 
     {{! ── Operational notation: advanced subsection ───────────────────────
         Reference for the bracket-flag operational notation token vocabulary.
-        Collapsed by default (Phase 1) so §7 reads primer-first; direct
+        Collapsed by default so §7 reads primer-first; direct
         navigation to #operational-notation or any #op-* child anchor
         auto-opens the details element. }}
     <details class="glossary-operational-details" id="operational-notation">
@@ -1290,11 +1290,7 @@
       <article class="glossary-add-example-card" id="add-example-{{slug}}">
         <header class="glossary-add-example-head">
           <h4 class="glossary-add-example-title">{{displayName}}</h4>
-          <span class="glossary-add-example-status glossary-add-example-status--{{status}}">
-            {{#if (eq status 'canonical')}}canonical{{/if}}
-            {{#if (eq status 'pending-doctrine')}}pending doctrine{{/if}}
-            {{#if (eq status 'doctrine-locked')}}doctrine-locked{{/if}}
-          </span>
+          <span class="glossary-add-example-status glossary-add-example-status--{{status}}">{{statusLabel}}</span>
         </header>
         <dl class="glossary-add-example-fields">
           <dt>Compact</dt>
@@ -1335,7 +1331,7 @@
       </p>
     </details>
 
-    <details class="glossary-details">
+    <details>
       <summary>
         <span class="glossary-layer-badge glossary-layer-badge--advanced">[advanced]</span>
         Multi-bag governing rule (boundary doctrine)
@@ -1359,7 +1355,7 @@
       </p>
     </details>
 
-    <details class="glossary-details">
+    <details>
       <summary>
         <span class="glossary-layer-badge glossary-layer-badge--advanced">[advanced]</span>
         ADD value can flatten execution difficulty
@@ -1387,7 +1383,7 @@
       </p>
     </details>
 
-    <p class="glossary-cross-link">
+    <p>
       For the full mechanical walkthrough with all resolved-formula sprints,
       see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
       For run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
@@ -1423,8 +1419,8 @@
       <li><strong>Shred Circle</strong>: a group format where players take turns performing runs.</li>
     </ul>
 
-    {{! ── Derivation atlas — five compositional examples. Relocated here
-        (Phase E) from the glossary opening: it belongs after the reader
+    {{! ── Derivation atlas — five compositional examples. Sits this late
+        in the page because it belongs after the reader
         knows families, modifiers, notation, and ADD. The `derivation-atlas`
         anchor is preserved for inbound deep-links. }}
     <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
@@ -1451,7 +1447,7 @@
         on the Structural compression h4) for inbound deep-links from
         external references.
 
-        Authored 2026-05-25 per curator proposal: four relationship types
+        Curator-authored: four relationship types
         (pure alias / structural compression / equivalent derivation /
         ontology relationship) explained with concrete movement-centered
         examples. Movement-language pedagogy, not academic ontology;
@@ -1754,7 +1750,7 @@
       <li><strong>Transition patterns</strong> &mdash; common connector-trick choices, e.g. whirl-family tricks acting as central attractors between disparate compounds.</li>
       <li><strong>Density</strong> &mdash; the average ADD per trick across a run; the run-level analogue of per-trick ADD.</li>
     </ul>
-    <p class="glossary-cross-link">
+    <p>
       Full run-architecture reference (per-tier definitions, format
       specifications, combo-flow analysis, dropless/dropful classification,
       sequence-architecture observations) lives at
@@ -1880,8 +1876,8 @@
     </p>
   </section>
 
-  {{! ── Advanced Reference Concepts — the publication-state vocabulary,
-      relocated here (Phase E) from the glossary opening. It is reference
+  {{! ── Advanced Reference Concepts — the publication-state vocabulary.
+      Sits this late in the page because it is reference
       machinery, not onboarding; the `how-to-read` anchor is preserved for
       inbound deep-links. }}
   <section class="content-section" id="section-advanced-reference">

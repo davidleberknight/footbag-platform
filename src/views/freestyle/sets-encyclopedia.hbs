@@ -1,5 +1,5 @@
 {{!--
-  /freestyle/sets — Set Encyclopedia (2026-05-25).
+  /freestyle/sets — Set Encyclopedia.
 
   Standalone minimalist index of canonical sets as first-class ontology
   objects. Distinct from /freestyle/tricks?view=sets (Trick Dictionary's
@@ -32,9 +32,8 @@
   </nav>
 
   {{#if content.subtypeMiniToc.length}}
-  {{! S4: mini-TOC pill row — one anchor per rendered subtype section, in
-      render order. Reuses the .glossary-mini-toc styling shipped in
-      Slice 2. }}
+  {{! Mini-TOC pill row — one anchor per rendered subtype section, in
+      render order. Reuses the shared .glossary-mini-toc styling. }}
   <nav class="glossary-mini-toc" aria-label="In this encyclopedia">
     <span class="glossary-mini-toc-label">In this encyclopedia:</span>
     <ol class="glossary-mini-toc-list">
@@ -85,9 +84,9 @@
       {{/each}}
     </div>
     {{#if nextSubtypeAnchor}}
-    {{! S4: Read-next footer — forward pointer to the next rendered
-        subtype. Suppresses on the last section. Reuses .glossary-section-next
-        from Slice 4. }}
+    {{! Read-next footer — forward pointer to the next rendered
+        subtype. Suppresses on the last section. Reuses the shared
+        .glossary-section-next styling. }}
     <p class="glossary-section-next">Next &mdash; <a href="#{{nextSubtypeAnchor}}">{{nextSubtypeLabel}}</a>: {{nextSubtypeTagline}}.</p>
     {{/if}}
   </section>

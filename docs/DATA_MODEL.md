@@ -1155,9 +1155,9 @@ Permanent operational table recording live club membership for members. Written 
 
 **Table:** `club_viability_signals`
 
-Append-only table recording crowdsourced activity signals for clubs. Written only during the onboarding wizard (stages 1A, 1B, 2A, 2B). One row per member per club per submission.
+Append-only table recording crowdsourced activity signals for clubs. Written only during the onboarding wizard (stages 1A and 1B). One row per member per club per submission.
 
-- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `stage2a`, `stage2b`, `stage3a`, `club_detail`, `dashboard`. Tracks which surface produced the signal; `stage3a`, `club_detail`, and `dashboard` are reserved values with no writing surface.
+- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `club_detail`, `dashboard`. Tracks which surface produced the signal; `club_detail` and `dashboard` are reserved values with no writing surface.
 - `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and stores `never_heard_of_it` without feeding the gates.
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card (`legacy_person_club_affiliation`, `club_bootstrap_leader`, or `legacy_club_candidate`).
 - No `updated_at`/`version`: append-only. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per club.
@@ -1208,7 +1208,7 @@ Mirror-derived scored person-to-club affiliation suggestions. Each row links a p
 `resolution_status` semantics:
 
 - `pending` (schema default): the affiliation is inferred from the mirror and has not been confirmed by anyone. All loader-imported rows from the mirror pipeline arrive in this state.
-- `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A path 1, Stage 1B path 1, Stage 2A path 1, Stage 2B paths 1 or 2 per `MIGRATION_PLAN.md` §10.3), or when an admin manually confirms.
+- `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A path 1, Stage 1B path 1 per `MIGRATION_PLAN.md` §10.3), or when an admin manually confirms.
 - `former_only`: the member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2).
 - `not_mine`: the member rejects the inferred affiliation (Stage 1B path 4; Stage 1A path 4 escalates to admin).
 - `needs_review`: admin has marked the row for further review.

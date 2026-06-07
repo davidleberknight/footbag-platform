@@ -28,6 +28,9 @@ const MEMBER_MEMBERSHIP = 'wiz-clubaff-membership';
 const MEMBER_LEADERSHIP = 'wiz-clubaff-leadership';
 const MEMBER_MULTI     = 'wiz-clubaff-multi';
 const MEMBER_F1_OTHER  = 'wiz-clubaff-other';
+const MEMBER_JUNK      = 'wiz-clubaff-junk';
+const MEMBER_PROMOTE   = 'wiz-clubaff-promote';
+const MEMBER_NOPROMOTE = 'wiz-clubaff-nopromote';
 
 let membershipClubId = '';
 let membershipAffId  = '';
@@ -38,6 +41,10 @@ let multiClubBeta    = '';
 let multiAffAlpha    = '';
 let multiCblBeta     = '';
 let otherMemberAffId = '';
+let promoteCandId    = '';
+let promoteAffId     = '';
+let nopromoteCandId  = '';
+let nopromoteAffId   = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -113,6 +120,64 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
+  // Junk-classified candidate: a pending affiliation against a junk candidate
+  // must never surface as a wizard card, even when the candidate has a
+  // mapped clubs row.
+  insertMember(db, {
+    id: MEMBER_JUNK,
+    slug: 'wiz_clubaff_junk',
+    login_email: 'wiz-junk@example.com',
+    legacy_member_id: 'lm-wiz-junk',
+  });
+  const junkClubId = insertClub(db, { name: 'Junk Wizard Club' });
+  const junkCand = insertLegacyClubCandidate(db, {
+    classification: 'junk',
+    mapped_club_id: junkClubId,
+    display_name:   'Junk Wizard Club',
+  });
+  insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-junk',
+    legacy_club_candidate_id: junkCand,
+    confidence_score:         0.9,
+  });
+
+  // Unpromoted candidates: pending affiliations against onboarding_visible
+  // candidates that have no clubs row yet. Confirm promotes; decline does not.
+  insertMember(db, {
+    id: MEMBER_PROMOTE,
+    slug: 'wiz_clubaff_promote',
+    login_email: 'wiz-promote@example.com',
+    legacy_member_id: 'lm-wiz-promote',
+  });
+  promoteCandId = insertLegacyClubCandidate(db, {
+    classification: 'onboarding_visible',
+    display_name:   'Unpromoted Confirm Club',
+    city:           'Springfield',
+    country:        'USA',
+    description:    'A club awaiting promotion.',
+  });
+  promoteAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-promote',
+    legacy_club_candidate_id: promoteCandId,
+    confidence_score:         0.9,
+  });
+  insertMember(db, {
+    id: MEMBER_NOPROMOTE,
+    slug: 'wiz_clubaff_nopromote',
+    login_email: 'wiz-nopromote@example.com',
+    legacy_member_id: 'lm-wiz-nopromote',
+  });
+  nopromoteCandId = insertLegacyClubCandidate(db, {
+    classification: 'onboarding_visible',
+    display_name:   'Unpromoted Decline Club',
+    country:        'USA',
+  });
+  nopromoteAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-nopromote',
+    legacy_club_candidate_id: nopromoteCandId,
+    confidence_score:         0.7,
+  });
+
   // F1 setup: a different member's candidate that the attacker tries to POST.
   insertMember(db, {
     id: MEMBER_F1_OTHER,
@@ -178,6 +243,17 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).not.toBe('/register/wizard/club_affiliations');
     expect(readTaskState(MEMBER_EMPTY)).toBe('not_applicable');
+  });
+
+  it('junk-classified candidate never surfaces as a card; member treated as having no cards', async () => {
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_JUNK));
+    expect(res.text).not.toContain('Junk Wizard Club');
+    // With the junk candidate filtered, the member has zero possible cards
+    // and follows the no-candidates path.
+    expect(res.status).toBe(303);
+    expect(readTaskState(MEMBER_JUNK)).toBe('not_applicable');
   });
 
   it('member with one membership candidate -> renders the membership card with the confidence band', async () => {
@@ -357,5 +433,83 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .send({ kind: 'membership', candidateId: 'some-id', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
+  });
+});
+
+describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidate promotion', () => {
+  function readCandidate(id: string): { mapped_club_id: string | null; classification: string } {
+    return testDb
+      .prepare(`SELECT mapped_club_id, classification FROM legacy_club_candidates WHERE id = ?`)
+      .get(id) as { mapped_club_id: string | null; classification: string };
+  }
+
+  it('card for an unpromoted candidate renders from the candidate fields', async () => {
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_PROMOTE));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Unpromoted Confirm Club');
+    expect(res.text).toContain('Were you a member of');
+  });
+
+  it('confirm promotes the candidate to a live club, confirms the affiliation, and completes the task', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_PROMOTE))
+      .type('form')
+      .send({ kind: 'membership', candidateId: promoteAffId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(res.status).toBe(303);
+
+    const candidate = readCandidate(promoteCandId);
+    expect(candidate.mapped_club_id).not.toBeNull();
+
+    const club = testDb
+      .prepare(`SELECT name FROM clubs WHERE id = ?`)
+      .get(candidate.mapped_club_id) as { name: string } | undefined;
+    expect(club?.name).toBe('Unpromoted Confirm Club');
+
+    const aff = testDb
+      .prepare(`SELECT resolution_status, resolved_club_id FROM legacy_person_club_affiliations WHERE id = ?`)
+      .get(promoteAffId) as { resolution_status: string; resolved_club_id: string | null };
+    expect(aff.resolution_status).toBe('confirmed_current');
+    expect(aff.resolved_club_id).toBe(candidate.mapped_club_id);
+
+    const mca = testDb
+      .prepare(`SELECT club_id, is_current FROM member_club_affiliations WHERE member_id = ?`)
+      .all(MEMBER_PROMOTE) as Array<{ club_id: string; is_current: number }>;
+    expect(mca).toHaveLength(1);
+    expect(mca[0].club_id).toBe(candidate.mapped_club_id);
+    expect(mca[0].is_current).toBe(1);
+
+    expect(readTaskState(MEMBER_PROMOTE)).toBe('completed');
+  });
+
+  it('decline rejects the suggestion without creating a club', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_NOPROMOTE))
+      .type('form')
+      .send({ kind: 'membership', candidateId: nopromoteAffId, userDecision: 'decline', activitySignal: 'not_sure' });
+    expect(res.status).toBe(303);
+
+    expect(readCandidate(nopromoteCandId).mapped_club_id).toBeNull();
+    expect(readAffiliationStatus(nopromoteAffId)).toBe('rejected');
+    expect(readTaskState(MEMBER_NOPROMOTE)).not.toBe('completed');
+  });
+
+  it('skip from the wrap-up guidance screen ends the task', async () => {
+    // The declined-everything member sees the wrap-up, then skips out.
+    const wrapUp = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
+    expect(wrapUp.status).toBe(200);
+    expect(wrapUp.text).toContain('Find or create your club');
+    expect(wrapUp.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+
+    const skip = await request(createApp())
+      .post('/register/wizard/club_affiliations/skip')
+      .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
+    expect(skip.status).toBe(303);
+    expect(readTaskState(MEMBER_NOPROMOTE)).toBe('skipped');
   });
 });

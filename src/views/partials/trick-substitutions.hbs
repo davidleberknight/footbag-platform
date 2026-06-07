@@ -14,9 +14,9 @@
     {{#each content.substitutions}}
     <li class="trick-substitutions-row">
       <div class="trick-substitutions-swap">
-        <span class="substitution-token substitution-from substitution-from-{{swapFromCssRole}}">{{swapFromName}}</span>
+        <span class="substitution-token substitution-from-{{swapFromCssRole}}">{{swapFromName}}</span>
         <span class="substitution-arrow" aria-label="swapped with">&rarr;</span>
-        <span class="substitution-token substitution-to substitution-to-{{swapToCssRole}}">{{swapToName}}</span>
+        <span class="substitution-token substitution-to-{{swapToCssRole}}">{{swapToName}}</span>
       </div>
       <div class="trick-substitutions-result">
         <a class="trick-substitutions-name" href="{{detailHref}}">{{canonicalName}}</a>

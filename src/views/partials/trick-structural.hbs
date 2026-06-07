@@ -20,12 +20,12 @@
   </div>
   {{/if}}
 
-  <dl class="detail-list">
+  <dl>
     <dt>Status</dt>
     <dd>
       <strong>{{content.notationGrammar.statusLabel}}</strong>
-      <span class="notation-grammar-status-key"> ({{content.notationGrammar.status}})</span>
-      <p class="notation-grammar-status-description">{{content.notationGrammar.statusDescription}}</p>
+      <span> ({{content.notationGrammar.status}})</span>
+      <p>{{content.notationGrammar.statusDescription}}</p>
     </dd>
 
     <dt>Asserted ADD</dt>
@@ -37,7 +37,7 @@
       {{#if content.notationGrammar.addsAgree}}
       <span class="notation-grammar-agree">(agrees with asserted)</span>
       {{else}}
-      <span class="notation-grammar-disagree">(disagrees with asserted; asserted value is editorial truth)</span>
+      <span>(disagrees with asserted; asserted value is editorial truth)</span>
       {{/if}}
     </dd>
 
@@ -48,10 +48,10 @@
   </dl>
 
   {{#if content.notationGrammar.descriptiveRoles.length}}
-  <div class="notation-grammar-layer">
+  <div>
     <h3>Descriptive roles</h3>
-    <p class="notation-grammar-layer-intro">Per-token classification before any self-canonical-atom collapse. Preserves what the parser saw at each position.</p>
-    <ul class="notation-grammar-role-list">
+    <p>Per-token classification before any self-canonical-atom collapse. Preserves what the parser saw at each position.</p>
+    <ul>
       {{#each content.notationGrammar.descriptiveRoles}}
       <li>
         <strong>{{label}}:</strong>
@@ -63,10 +63,10 @@
   {{/if}}
 
   {{#if content.notationGrammar.addContributingRoles.length}}
-  <div class="notation-grammar-layer">
+  <div>
     <h3>ADD-contributing roles</h3>
-    <p class="notation-grammar-layer-intro">Tokens whose weights feed the ADD math. May differ from the descriptive layer when a self-atom subsumes its components.</p>
-    <ul class="notation-grammar-role-list">
+    <p>Tokens whose weights feed the ADD math. May differ from the descriptive layer when a self-atom subsumes its components.</p>
+    <ul>
       {{#each content.notationGrammar.addContributingRoles}}
       <li>
         <strong>{{label}}:</strong>
@@ -78,36 +78,36 @@
   {{/if}}
 
   {{#if content.notationGrammar.editorialDecomposition}}
-  <div class="notation-grammar-editorial-decomposition" data-source="editorial">
+  <div data-source="editorial">
     <h3>Editorial decomposition</h3>
-    <p class="notation-grammar-layer-intro">Curator-asserted lineage from this row's <code>base_trick</code> and modifier links. Independent of the parser-derived structural decomposition above. Asserted ADD remains editorial truth.</p>
+    <p>Curator-asserted lineage from this row's <code>base_trick</code> and modifier links. Independent of the parser-derived structural decomposition above. Asserted ADD remains editorial truth.</p>
 
-    <dl class="detail-list">
+    <dl>
       <dt>Base</dt>
       <dd>
         {{#if content.notationGrammar.editorialDecomposition.baseSlug}}<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code>{{else}}&mdash;{{/if}}
         {{#if content.notationGrammar.editorialDecomposition.baseAdds}}({{content.notationGrammar.editorialDecomposition.baseAdds}}){{/if}}
         {{#unless (eq content.notationGrammar.editorialDecomposition.baseStatus 'resolved')}}
-        <span class="notation-grammar-editorial-flag">broken upstream link (<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code> is not in the dictionary)</span>
+        <span>broken upstream link (<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code> is not in the dictionary)</span>
         {{/unless}}
       </dd>
 
       {{#if content.notationGrammar.editorialDecomposition.modifiers.length}}
       <dt>Modifiers</dt>
       <dd>
-        <ul class="notation-grammar-role-list">
+        <ul>
           {{#each content.notationGrammar.editorialDecomposition.modifiers}}
           <li>
             <strong>{{name}}</strong>
-            <span class="notation-grammar-editorial-modifier-meta">({{modifierType}}; +{{effectiveBonus}}{{#if rotBonusApplied}} on rotational base{{/if}})</span>
-            {{#if notes}}<p class="notation-grammar-editorial-modifier-notes">{{notes}}</p>{{/if}}
+            <span>({{modifierType}}; +{{effectiveBonus}}{{#if rotBonusApplied}} on rotational base{{/if}})</span>
+            {{#if notes}}<p>{{notes}}</p>{{/if}}
           </li>
           {{/each}}
         </ul>
       </dd>
       {{else}}
       <dt>Modifiers</dt>
-      <dd><span class="notation-grammar-editorial-flag">modifier coverage absent</span></dd>
+      <dd><span>modifier coverage absent</span></dd>
       {{/if}}
 
       {{#if content.notationGrammar.editorialDecomposition.derivationText}}
@@ -117,7 +117,7 @@
         {{#if (eq content.notationGrammar.editorialDecomposition.matchesAsserted true)}}
         <span class="notation-grammar-agree">(matches asserted)</span>
         {{else if (eq content.notationGrammar.editorialDecomposition.matchesAsserted false)}}
-        <span class="notation-grammar-disagree">(differs from asserted; asserted is editorial truth)</span>
+        <span>(differs from asserted; asserted is editorial truth)</span>
         {{/if}}
       </dd>
       {{/if}}
@@ -133,10 +133,10 @@
   {{/if}}
 
   {{#if content.notationGrammar.policyTokens.length}}
-  <div class="notation-grammar-policy">
+  <div>
     <h3>Policy tokens</h3>
-    <p class="notation-grammar-layer-intro">Tokens whose ADD weight or ontology placement is contested and pending expert review.</p>
-    <ul class="notation-grammar-flat-list">
+    <p>Tokens whose ADD weight or ontology placement is contested and pending expert review.</p>
+    <ul>
       {{#each content.notationGrammar.policyTokens}}
       <li><code>{{this}}</code></li>
       {{/each}}
@@ -145,20 +145,20 @@
   {{/if}}
 
   {{#if content.notationGrammar.hasDiagnosticDetails}}
-  <details class="notation-grammar-diagnostics">
+  <details>
     <summary>Diagnostic details</summary>
 
     {{#if content.notationGrammar.jobsNotationRaw}}
-    <dl class="detail-list">
+    <dl>
       <dt>Jobs notation</dt>
       <dd><code>{{content.notationGrammar.jobsNotationRaw}}</code></dd>
     </dl>
     {{/if}}
 
     {{#if content.notationGrammar.parseWarnings.length}}
-    <div class="notation-grammar-warnings">
+    <div>
       <h3>Parse warnings</h3>
-      <ul class="notation-grammar-flat-list">
+      <ul>
         {{#each content.notationGrammar.parseWarnings}}
         <li><code>{{this}}</code></li>
         {{/each}}

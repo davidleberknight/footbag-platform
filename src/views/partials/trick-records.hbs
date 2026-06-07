@@ -18,7 +18,7 @@
     </thead>
     <tbody>
       {{#each content.records}}
-      <tr class="record-row">
+      <tr>
         <td class="col-rank">{{add @index 1}}</td>
         <td class="col-holder">
           {{#if holderHref}}
@@ -36,7 +36,7 @@
             &mdash;
           {{/if}}
         </td>
-        <td class="col-video">
+        <td>
           {{#if videoUrl}}
             <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
                aria-label="Watch {{holderName}} {{../page.title}} record video">

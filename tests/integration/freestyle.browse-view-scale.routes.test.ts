@@ -123,7 +123,7 @@ describe('Browse-view scale intros — counts match the rendered sections (not h
     ['family', 'family', 'class="content-section trick-family-group'],
     ['dex-count', 'dex', 'class="content-section trick-dex-count-group'],
     ['movement-system', 'movement axes', 'class="content-section trick-movement-axis'],
-    ['sets', 'sets', 'class="trick-set-group trick-group'],
+    ['sets', 'sets', 'class="trick-set-group"'],
     ['topology', 'neighborhoods', 'class="content-section trick-topology-group'],
   ];
 

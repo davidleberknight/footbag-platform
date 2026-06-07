@@ -957,30 +957,6 @@ export const legacyClubCandidates = {
        AND mapped_club_id IS NULL
   `); },
 
-  get findPrePopulatedByCountry() { return db.prepare(`
-    SELECT id, legacy_club_key, display_name, city, region, country,
-           mapped_club_id
-      FROM legacy_club_candidates
-     WHERE classification = 'pre_populate'
-       AND country = ?
-       AND mapped_club_id IS NOT NULL
-  `); },
-
-  get findOnboardingVisibleByCountry() { return db.prepare(`
-    SELECT id, legacy_club_key, display_name, city, region, country,
-           mapped_club_id
-      FROM legacy_club_candidates
-     WHERE classification = 'onboarding_visible'
-       AND country = ?
-  `); },
-
-  get searchDormantByName() { return db.prepare(`
-    SELECT id, legacy_club_key, display_name, city, region, country
-      FROM legacy_club_candidates
-     WHERE classification = 'dormant'
-       AND display_name LIKE ?
-  `); },
-
   get findByMappedClubId() { return db.prepare(`
     SELECT id, classification, r1, r2, r3, r4
       FROM legacy_club_candidates
@@ -988,22 +964,6 @@ export const legacyClubCandidates = {
      LIMIT 1
   `); },
 
-  get findPrePopulatedByRegion() { return db.prepare(`
-    SELECT id, legacy_club_key, display_name, city, region, country,
-           mapped_club_id
-      FROM legacy_club_candidates
-     WHERE classification = 'pre_populate'
-       AND region = ? AND country = ?
-       AND mapped_club_id IS NOT NULL
-  `); },
-
-  get findOnboardingVisibleByRegion() { return db.prepare(`
-    SELECT id, legacy_club_key, display_name, city, region, country,
-           mapped_club_id
-      FROM legacy_club_candidates
-     WHERE classification = 'onboarding_visible'
-       AND region = ? AND country = ?
-  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -1031,7 +991,7 @@ export interface LegacyPersonClubAffiliationRow {
 export interface WizardMembershipCardRow {
   candidate_id: string;
   affiliation_id: string;
-  club_id: string;
+  club_id: string | null;
   club_name: string;
   club_city: string;
   confidence_score: number | null;
@@ -1049,31 +1009,46 @@ export const legacyPersonClubAffiliations = {
   `); },
 
   // Pending affiliations for a legacy member, joined to the candidate row to
-  // surface club metadata for the wizard card. Only candidates that have a
-  // mapped_club_id (i.e. the loader has already promoted them to a real
-  // clubs row) are returned; the wizard does not create clubs (per
-  // M_Complete_Onboarding_Wizard). 'onboarding_visible' candidates without
-  // a mapped_club_id are silently filtered until a separate admin / member-
-  // initiated club-creation flow promotes them.
+  // surface club metadata for the wizard card. Candidates without a
+  // mapped_club_id surface from their own candidate fields; a member
+  // confirmation promotes the candidate to a live clubs row before the
+  // affiliation transition. The candidate's unvalidated external_url is
+  // never surfaced (URL validation runs at promotion). Junk-classified
+  // candidates never surface as wizard cards, mirroring the promotion-path
+  // guard.
   get listPendingForLegacyMember() { return db.prepare(`
     SELECT
       lcc.id              AS candidate_id,
       lpca.id             AS affiliation_id,
       lcc.mapped_club_id  AS club_id,
-      c.name              AS club_name,
-      c.city              AS club_city,
+      COALESCE(c.name, lcc.display_name)       AS club_name,
+      COALESCE(c.city, lcc.city)               AS club_city,
       lpca.confidence_score AS confidence_score,
-      c.description       AS club_description,
+      COALESCE(c.description, lcc.description) AS club_description,
       c.external_url      AS club_external_url
       FROM legacy_person_club_affiliations AS lpca
       INNER JOIN legacy_club_candidates AS lcc
          ON lcc.id = lpca.legacy_club_candidate_id
-      INNER JOIN clubs AS c
+      LEFT JOIN clubs AS c
          ON c.id = lcc.mapped_club_id
      WHERE lpca.legacy_member_id  = ?
        AND lpca.resolution_status = 'pending'
-       AND lcc.mapped_club_id IS NOT NULL
-     ORDER BY c.city COLLATE NOCASE ASC, c.name COLLATE NOCASE ASC
+       AND lcc.classification != 'junk'
+     ORDER BY COALESCE(c.city, lcc.city) COLLATE NOCASE ASC,
+              COALESCE(c.name, lcc.display_name) COLLATE NOCASE ASC
+  `); },
+
+  // Any-status count of suggestions the wizard could ever have asked about:
+  // distinguishes a member whose membership cards were all resolved (wrap-up
+  // guidance renders) from one who never had any. Junk-candidate rows never
+  // surface as cards, so they do not count as material.
+  get countByLegacyMember() { return db.prepare(`
+    SELECT COUNT(*) AS c
+      FROM legacy_person_club_affiliations AS lpca
+      INNER JOIN legacy_club_candidates AS lcc
+         ON lcc.id = lpca.legacy_club_candidate_id
+     WHERE lpca.legacy_member_id = ?
+       AND lcc.classification != 'junk'
   `); },
 
   // Pending -> rejected transition for the 'decline' wizard branch. Guarded
@@ -1144,6 +1119,22 @@ export const legacyPersonClubAffiliations = {
            version           = version + 1
      WHERE legacy_club_candidate_id = ?
        AND resolution_status = 'pending'
+  `); },
+
+  // Promotion triggered by a member confirming their own affiliation card:
+  // every other pending suggestion on the candidate carries forward to
+  // 'promoted', while the confirming member's own row stays 'pending' so the
+  // confirm transition that follows records the member's answer.
+  get setAllPromotedByCandidateExcept() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'promoted',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE legacy_club_candidate_id = ?
+       AND resolution_status = 'pending'
+       AND id != ?
   `); },
 
   // Admin de-list: terminalize a live club's unconfirmed residue. Flips every
@@ -1247,6 +1238,12 @@ export const clubBootstrapLeaders = {
      WHERE cbl.legacy_member_id = ?
        AND cbl.status           = 'provisional'
      ORDER BY c.name COLLATE NOCASE ASC
+  `); },
+
+  // Any-status count: distinguishes a member whose leadership suggestions
+  // were all resolved (wrap-up guidance renders) from one who never had any.
+  get countByLegacyMember() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM club_bootstrap_leaders WHERE legacy_member_id = ?
   `); },
 };
 

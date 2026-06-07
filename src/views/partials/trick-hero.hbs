@@ -17,7 +17,7 @@
     <h1>{{page.title}}</h1>
     <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
       {{#if content.trickTag}}
-      <span class="trick-hero-meta-chip trick-hero-meta-chip-tag">{{content.trickTag}}</span>
+      <span class="trick-hero-meta-chip">{{content.trickTag}}</span>
       {{/if}}
       {{#if content.familyChip}}
       <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}</a>
@@ -45,7 +45,7 @@
     {{/unless}}
     {{#if content.heroFormula}}
     <p class="trick-hero-formula" aria-label="ADD derivation">
-      {{#each content.heroFormula}}{{#if (eq kind "operator")}}<span class="hero-formula-op">{{text}}</span>{{else if (eq kind "result")}}<span class="hero-formula-result">{{text}}</span>{{else}}<span class="hero-formula-token hero-formula-{{cssRole}}">{{text}}</span>{{#if weight}}<span class="hero-formula-weight">{{weight}}</span>{{/if}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+      {{#each content.heroFormula}}{{#if isOperator}}<span class="hero-formula-op">{{text}}</span>{{else if isResult}}<span class="hero-formula-result">{{text}}</span>{{else}}<span class="hero-formula-token hero-formula-{{cssRole}}">{{text}}</span>{{#if weight}}<span class="hero-formula-weight">{{weight}}</span>{{/if}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}
     </p>
     {{/if}}
     {{#if summary}}

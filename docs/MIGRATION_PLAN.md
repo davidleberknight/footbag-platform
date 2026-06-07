@@ -707,8 +707,7 @@ Description and URL on the live page are edited directly by the listed contact a
 Pre-populated candidates exist as live `clubs` rows at go-live. All other non-junk candidates remain in `legacy_club_candidates` until promoted, archived, or admin-resolved. Promotion paths:
 
 - **Stage 1 confirmation**: when a registrant in Stage 1A or Stage 1B confirms a personal affiliation with an onboarding-visible or dormant candidate, the candidate is promoted to a live `clubs` row using the live-content rules above.
-- **Stage 2B confirmation**: when a registrant in Stage 2B confirms an onboarding-visible candidate exists, the candidate is promoted to a live `clubs` row.
-- **Admin override**: an admin can promote any non-junk candidate manually via the cleanup queue. Dormant candidates not covered by a registrant's Stage 1 personal card reach live status only through this path (or surface through the `M_Create_Club` duplicate-prevention check, which routes the creator to the existing entry).
+- **Admin override**: an admin can promote any non-junk candidate manually via the cleanup queue. Candidates not covered by a registrant's Stage 1 personal card reach live status only through this path (or surface through the `M_Create_Club` duplicate-prevention check, which routes the creator to the existing entry).
 
 The promotion transaction is idempotent. The club id is derived deterministically from the candidate's legacy key (`stable_id("club", legacy_club_key)`), and the candidate's `mapped_club_id` records the promotion. If two registrants confirm the same `legacy_club_candidates` row in concurrent transactions, both derive the same club id; the second transaction's INSERT is rejected by the `clubs` primary key, and the service treats the candidate as already promoted, completing the second registrant's affiliation against the existing `clubs` row.
 
@@ -733,14 +732,13 @@ The historical_persons table contains ~3,570 persons drawn from event results (c
 
 ### 10.3 Club onboarding flow during registration
 
-Registration is the primary cleanup mechanism for legacy club data. Every registrant passes through the club-affiliations wizard task after identity resolution (§6-§8). The flow follows the registrant's authority: personal (Stage 1: the registrant is named in the legacy data on a club as listed contact or rostered member), then local (Stage 2: candidates in the registrant's region), then a wrap-up landing that routes to the regular club browse, join, and create surfaces. There is no in-wizard club search, and the wizard never creates a `clubs` row.
+Registration is the primary cleanup mechanism for legacy club data. Every registrant passes through the club-affiliations wizard task after identity resolution (§6-§8). The wizard asks club questions only where the registrant has personal authority (Stage 1: the registrant is named in the legacy data on a club as listed contact or rostered member); a registrant with no suggested affiliation has no club to be asked about. After the cards, a wrap-up landing routes to the regular club browse, join, and create surfaces. There is no in-wizard club search, and the wizard never creates a `clubs` row except by promoting a confirmed candidate.
 
-`M_Complete_Onboarding_Wizard` (USER_STORIES) is the authoritative member-facing contract: card wording (two orthogonal questions per Stage 1 card, membership confirmation and activity signal), stage sequencing and resume, detour handling, the two-current-affiliations cap, leadership promotion and downgrade invariants, and viability-signal collection into `club_viability_signals` feeding `A_Periodic_Club_Cleanup`. The flow is implemented in `MemberOnboardingService` (stages 1, 2A, 2B, wrap-up).
+`M_Complete_Onboarding_Wizard` (USER_STORIES) is the authoritative member-facing contract: card wording (two orthogonal questions per Stage 1 card, membership confirmation and activity signal), card resume, detour handling, the two-current-affiliations cap, leadership promotion and downgrade invariants, and viability-signal collection into `club_viability_signals` feeding `A_Periodic_Club_Cleanup`. The flow is implemented in `MemberOnboardingService` (stage-1 cards plus wrap-up).
 
 System rules the wizard preserves:
 
 - Junk candidates are never shown on any surface. Onboarding-visible and dormant candidates promote to live `clubs` rows only via the §10.1 promotion paths on member confirmation, or via admin override.
-- Stage 2 candidate matching runs at region level against location fields normalized at pipeline time (NFKD, accent-fold, case-fold in the club extraction scripts); same-city candidates render first.
 
 #### Content editing
 
@@ -819,7 +817,7 @@ Every member has an ordered task list. Tasks at cutover:
 |---|---|---|
 | `personal_details` | Location, date of birth, first competition year, show competitive results | `MemberService` |
 | `legacy_claim` | §7 auto-link or §8 self-serve claim | `IdentityAccessService` |
-| `club_affiliations` | §10.3 club flow (stages 1, 2A, 2B, wrap-up) | clubs service |
+| `club_affiliations` | §10.3 club flow (stage-1 cards plus wrap-up) | clubs service |
 
 Task ordering is fixed: `personal_details`, then `legacy_claim`, then `club_affiliations`. Adding a new task type later is a service-internal change (register a handler in the catalog); the service interface does not change.
 

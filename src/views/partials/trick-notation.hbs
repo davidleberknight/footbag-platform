@@ -23,7 +23,7 @@
   from Layer 1's canonical treatment.
 --}}
 {{#if content.semanticNotation}}
-{{#if (eq content.semanticNotation.layer "equivalence")}}
+{{#if content.semanticNotation.isEquivalenceLayer}}
 <section class="content-section equivalent-readings" aria-label="Equivalent readings">
   <div class="section-heading">
     <h2>Equivalent readings</h2>
@@ -50,7 +50,7 @@
   base when the trick has a resolvable base_trick but no chain and no
   curator notation. Quiet, restrained.
 --}}
-{{#if (eq content.semanticNotation.layer "base-lineage")}}
+{{#if content.semanticNotation.isBaseLineageLayer}}
 <section class="content-section semantic-base-lineage" aria-label="Trick lineage">
   <p class="semantic-base-lineage-phrase">Built on <a href="/freestyle/tricks/{{content.semanticNotation.baseSlug}}">{{content.semanticNotation.baseName}}</a>.</p>
 </section>
@@ -61,7 +61,7 @@
   whose structural decomposition is not yet curator-authored. Pure prose;
   no compensatory navigation. Visually very quiet.
 --}}
-{{#if (eq content.semanticNotation.layer "curation-gap")}}
+{{#if content.semanticNotation.isCurationGapLayer}}
 <p class="semantic-notation-pending">Compositional reading pending curation.</p>
 {{/if}}
 {{/if}}

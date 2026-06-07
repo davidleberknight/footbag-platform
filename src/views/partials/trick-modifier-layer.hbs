@@ -8,11 +8,7 @@
 --}}
 <div class="modifier-layer modifier-layer-{{layer.cssRole}}" data-kind="{{layer.kind}}">
   <div class="modifier-layer-head">
-    {{#if (eq layer.kind "base")}}
-    <span class="modifier-layer-role-label">core</span>
-    {{else}}
-    <span class="modifier-layer-role-label">{{layer.cssRole}}</span>
-    {{/if}}
+    <span class="modifier-layer-role-label">{{layer.kindLabel}}</span>
     <span class="modifier-layer-name">{{layer.name}}</span>
     {{#if layer.weight}}<span class="modifier-layer-weight">{{layer.weight}}</span>{{/if}}
   </div>

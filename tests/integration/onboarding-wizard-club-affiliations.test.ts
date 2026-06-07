@@ -293,8 +293,15 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
       expect(result.classification).toBe(cell.classification);
 
       const task = readOnboardingTask(state.memberId, 'club_affiliations');
-      expect(task?.state).toBe('completed');
-      expect(task?.completed_at).toBeTruthy();
+      if (cell.expectedBranch === 'promoted_leader') {
+        // Confirm writes a club affiliation, so the task completes.
+        expect(task?.state).toBe('completed');
+        expect(task?.completed_at).toBeTruthy();
+      } else {
+        // Decline leaves the member club-less; the task stays open so the
+        // find-or-create-your-club guidance screen renders before it ends.
+        expect(task?.state).not.toBe('completed');
+      }
 
       const leader = readBootstrapLeader(state.candidateId);
       if (cell.expectedBranch === 'promoted_leader') {

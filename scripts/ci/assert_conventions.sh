@@ -204,12 +204,8 @@ fi
 # Reason: the site has one type system behind two tokens; a raw typeface
 # stack in a rule reintroduces a parallel type vocabulary that drifts from
 # the shared standard and ships a different font to one surface.
-# Current: the scan stops at the "Freestyle records" section banner because
-# the freestyle sections below it still predate the font tokens.
-# Target: scan the whole file once the freestyle surfaces are tokenized.
-echo "[conventions] check: raw font-family outside @font-face in style.css (core region)"
+echo "[conventions] check: raw font-family outside @font-face in style.css"
 font_hits=$(awk '
-  /^   Freestyle records$/ { exit }
   /@font-face/ { ff = 1 }
   ff { if (/}/) ff = 0; next }
   /font-family:/ {

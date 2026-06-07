@@ -8,6 +8,7 @@ import {
   clubViabilitySignals,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
+  memberClubAffiliations,
   memberOnboarding,
   transaction,
   type ClubBootstrapLeaderRow,
@@ -321,6 +322,26 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   // A pending path-2 leadership offer keeps the task renderable: the offer
   // surfaces on this task and would be lost if the task auto-resolved.
   if (listPathTwoLeadershipOffers(memberId).length > 0) return false;
+  // No cards left and a current club affiliation in hand: the task's goal
+  // is met regardless of how the affiliation arrived.
+  const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
+  if (current > 0) {
+    completeTask(memberId, 'club_affiliations');
+    return true;
+  }
+  // No affiliation: a member whose suggestion cards all resolved without a
+  // club stays on the task so the find-or-create-your-club guidance screen
+  // renders. A member who never had any suggestion material has no club to
+  // be asked about; the task is moot.
+  const memberRow = account.findLegacyMemberIdById.get(memberId) as
+    | { legacy_member_id: string | null }
+    | undefined;
+  const legacyMemberId = memberRow?.legacy_member_id ?? null;
+  if (legacyMemberId) {
+    const lpca = (legacyPersonClubAffiliations.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
+    const cbl  = (clubBootstrapLeaders.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
+    if (lpca > 0 || cbl > 0) return false;
+  }
   markTaskNotApplicable(memberId, 'club_affiliations');
   return true;
 }
@@ -473,7 +494,7 @@ export interface WizardMembershipCard {
   // Pre-shaped legend for the confirm/decline radio fieldset.
   questionLabel: string;
   candidateId: string;       // legacy_person_club_affiliations.id
-  clubId: string;
+  clubId: string | null;     // null until the candidate is promoted on confirm
   clubName: string;
   confidenceBand: MembershipConfidenceBand;
   confidenceBandLabel: string;
@@ -507,7 +528,7 @@ export interface WizardDisambiguationCard {
   city: string;
   clubs: Array<{
     candidateId: string;
-    clubId: string;
+    clubId: string | null;
     clubName: string;
     confidenceBand: MembershipConfidenceBand;
     confidenceBandLabel: string;
@@ -721,10 +742,14 @@ function readSignalsForCandidate(candidateId: string): {
 
 function maybeCompleteClubAffiliationsTask(memberId: string): 'in_progress' | 'completed' {
   // The task is multi-card: completion fires only when the member has no
-  // remaining unresolved cards. Single-card flows complete on first submit;
-  // multi-card flows stay 'in_progress' until the final card is resolved.
+  // remaining unresolved cards AND holds a current club affiliation. A
+  // member whose cards all resolved without a confirmed club stays
+  // 'in_progress' so the find-or-create-your-club guidance screen renders
+  // before the task ends (skip from that screen finishes it).
   const remaining = listWizardCardsForMember(memberId);
   if (remaining.length > 0) return 'in_progress';
+  const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
+  if (current === 0) return 'in_progress';
   completeTask(memberId, 'club_affiliations');
   return 'completed';
 }
@@ -1373,10 +1398,33 @@ function submitDisambiguationResponse(
   };
 }
 
-function processClubAffiliationsSubmit(
+// A member confirming their own suggestion card is the promotion trigger for
+// candidates that have no live clubs row yet. Promotion runs before the
+// confirm transition so confirmAffiliation sees a mapped candidate; the
+// confirming member's own affiliation row is excluded from the bulk
+// 'promoted' carry-forward so it records the member's answer. Junk
+// candidates are skipped here; the confirm path then 404s on them exactly
+// like a missing row.
+async function promoteCandidateIfUnmapped(memberId: string, affiliationId: string): Promise<void> {
+  const affiliation = legacyPersonClubAffiliations.findById.get(affiliationId) as
+    | LegacyPersonClubAffiliationRow
+    | undefined;
+  if (!affiliation || affiliation.resolution_status !== 'pending') return;
+  const candidate = legacyClubCandidates.findById.get(affiliation.legacy_club_candidate_id) as
+    | { id: string; mapped_club_id: string | null; classification: string }
+    | undefined;
+  if (!candidate || candidate.mapped_club_id || candidate.classification === 'junk') return;
+  await clubService.promoteCandidate(candidate.id, memberId, {
+    actorType: 'member',
+    trigger:   'stage1',
+    excludeAffiliationId: affiliationId,
+  });
+}
+
+async function processClubAffiliationsSubmit(
   memberId: string,
   body: Record<string, unknown>,
-): WizardActionResult<ClubAffiliationsFormState> {
+): Promise<WizardActionResult<ClubAffiliationsFormState>> {
   const kindRaw = typeof body.kind === 'string' ? body.kind : '';
 
   if (kindRaw === 'disambiguation') {
@@ -1384,6 +1432,12 @@ function processClubAffiliationsSubmit(
     const selectedIds = normalizeToArray(body.selectedCandidateIds);
     if (allIds.length === 0) {
       return { kind: 'validation_error', formState: null, message: 'allCandidateIds is required' };
+    }
+    for (const id of allIds) {
+      assertCandidateOwnership(memberId, id, 'membership');
+    }
+    for (const id of selectedIds) {
+      if (allIds.includes(id)) await promoteCandidateIfUnmapped(memberId, id);
     }
     const result = submitDisambiguationResponse(memberId, selectedIds, allIds);
     if (result.taskState === 'completed') {
@@ -1443,6 +1497,10 @@ function processClubAffiliationsSubmit(
 
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
+  if (kindRaw === 'membership' && userDecision === 'confirm') {
+    await promoteCandidateIfUnmapped(memberId, candidateId);
+  }
+
   const cardsBefore = listWizardCardsForMember(memberId);
   const resolvedCard = cardsBefore.find(
     (c): c is WizardMembershipCard | WizardLeadershipCard =>
@@ -1469,108 +1527,16 @@ function processClubAffiliationsSubmit(
 }
 
 // ---------------------------------------------------------------------------
-// Club affiliation stages 2A / 2B / 3A — geographic and dormant matching.
-// Stage 1 is the existing card-based flow above. Stages 2-3 extend it with
-// geographic matching against legacy_club_candidates.
+// Club affiliation wrap-up. The wizard asks club questions only about the
+// member's own mirror-suggested affiliations (the card flow above); a member
+// whose cards all resolve without a confirmed club lands on a guidance
+// screen pointing at the clubs browse and create-club surfaces.
 // ---------------------------------------------------------------------------
 
-export type ClubAffiliationStage = 'stage1' | 'stage2a' | 'stage2b' | 'wrap_up';
-
-interface NearbyClubCandidate {
-  id: string;
-  displayName: string;
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  mappedClubId: string | null;
-}
+export type ClubAffiliationStage = 'stage1' | 'wrap_up';
 
 function getClubAffiliationStage(memberId: string): ClubAffiliationStage {
-  const stage1Cards = listWizardCardsForMember(memberId);
-  if (stage1Cards.length > 0) return 'stage1';
-
-  const { region, country } = getMemberGeo(memberId);
-  if (!country) return 'wrap_up';
-
-  const prePopulated = region
-    ? legacyClubCandidates.findPrePopulatedByRegion.all(region, country) as NearbyClubCandidate[]
-    : [];
-  if (prePopulated.length > 0) return 'stage2a';
-  const prePopCountry = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
-  if (prePopCountry.length > 0) return 'stage2a';
-
-  const onboardingVisible = region
-    ? legacyClubCandidates.findOnboardingVisibleByRegion.all(region, country) as NearbyClubCandidate[]
-    : [];
-  if (onboardingVisible.length > 0) return 'stage2b';
-  const onboardCountry = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
-  if (onboardCountry.length > 0) return 'stage2b';
-
-  return 'wrap_up';
-}
-
-function getMemberGeo(memberId: string): { city: string | null; region: string | null; country: string | null } {
-  const row = account.findPersonalDetails.get(memberId) as
-    | { city: string | null; region: string | null; country: string | null }
-    | undefined;
-  return { city: row?.city ?? null, region: row?.region ?? null, country: row?.country ?? null };
-}
-
-function sortCityFirst(candidates: NearbyClubCandidate[], memberCity: string | null): NearbyClubCandidate[] {
-  if (!memberCity) return candidates;
-  const cityLower = memberCity.toLowerCase();
-  return candidates.sort((a, b) => {
-    const aMatch = a.city?.toLowerCase() === cityLower ? 0 : 1;
-    const bMatch = b.city?.toLowerCase() === cityLower ? 0 : 1;
-    return aMatch - bMatch;
-  });
-}
-
-function getStage2aCandidates(memberId: string): NearbyClubCandidate[] {
-  const { city, region, country } = getMemberGeo(memberId);
-  if (!country) return [];
-  let results: NearbyClubCandidate[];
-  if (region) {
-    results = legacyClubCandidates.findPrePopulatedByRegion.all(region, country) as NearbyClubCandidate[];
-  }
-  if (!region || results!.length === 0) {
-    results = legacyClubCandidates.findPrePopulatedByCountry.all(country) as NearbyClubCandidate[];
-  }
-  return sortCityFirst(results!, city);
-}
-
-function getStage2bCandidates(memberId: string): NearbyClubCandidate[] {
-  const { city, region, country } = getMemberGeo(memberId);
-  if (!country) return [];
-  let results: NearbyClubCandidate[];
-  if (region) {
-    results = legacyClubCandidates.findOnboardingVisibleByRegion.all(region, country) as NearbyClubCandidate[];
-  }
-  if (!region || results!.length === 0) {
-    results = legacyClubCandidates.findOnboardingVisibleByCountry.all(country) as NearbyClubCandidate[];
-  }
-  return sortCityFirst(results!, city);
-}
-
-function submitStageSignal(
-  memberId: string,
-  candidateId: string,
-  stage: 'stage2a' | 'stage2b',
-  activitySignal: ActivitySignal,
-): void {
-  const candidate = legacyClubCandidates.findById.get(candidateId) as
-    | { id: string; mapped_club_id: string | null } | undefined;
-  if (!candidate) return;
-  const clubId = candidate.mapped_club_id;
-  if (!clubId) return;
-  writeViabilitySignal(
-    memberId,
-    clubId,
-    stage,
-    activitySignal,
-    'legacy_club_candidate',
-    candidateId,
-  );
+  return listWizardCardsForMember(memberId).length > 0 ? 'stage1' : 'wrap_up';
 }
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
@@ -1697,7 +1663,4 @@ export const memberOnboardingService = {
   getTaskState,
   isOnboardingComplete,
   getClubAffiliationStage,
-  getStage2aCandidates,
-  getStage2bCandidates,
-  submitStageSignal,
 };

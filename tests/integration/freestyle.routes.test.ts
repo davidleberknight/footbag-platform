@@ -498,17 +498,6 @@ describe('GET /freestyle/sets/reference (flat Holden table, moved from /freestyl
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/moves — legacy URL redirects to /freestyle/sets/reference', () => {
-  it('301-redirects to /freestyle/sets/reference (Phase B routing migration)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/freestyle/sets/reference');
-  });
-});
-
-// ---------------------------------------------------------------------------
-
 describe('Set-notation reference cross-links', () => {
   it('glossary §3 intermediate-operators block links to /freestyle/sets/reference', async () => {
     const app = createApp();
@@ -1665,6 +1654,16 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     expect(res.text).toMatch(/additive structural accounting/);
     expect(res.text).toContain('id="add-example-mobius"');
     expect(res.text).toMatch(/gyro torque/);
+  });
+
+  it('glossary §8 worked-example status chips render the shaped label, never the raw code', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // Visible chip text is the pre-shaped statusLabel; the raw
+    // 'pending-doctrine' code never appears as element text (its label
+    // form is 'pending doctrine' whenever an example carries it).
+    expect(res.text).toMatch(/glossary-add-example-status--doctrine-locked[^>]*>doctrine-locked</);
+    expect(res.text).toMatch(/glossary-add-example-status--canonical[^>]*>canonical</);
+    expect(res.text).not.toMatch(/>pending-doctrine</);
   });
 
   it('combo-analysis page carries anchor IDs on each run-quality tier + format term (relocated from glossary §10 on 2026-05-17)', async () => {

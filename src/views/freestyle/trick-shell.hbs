@@ -1,5 +1,5 @@
 {{!--
-  /freestyle/tricks/:slug -- universal trick-detail shell (UX3c-a, 2026-05-11).
+  /freestyle/tricks/:slug -- universal trick-detail shell.
 
   Single canonical section flow. No pilot-vs-legacy branch. Each section
   partial gates internally on its own data; sparse rows skip silently.
@@ -24,7 +24,7 @@
   {{/if}}
 
   {{!--
-    Trick-detail ontology doctrine — Phase A/B (2026-05-25); §8 amendment.
+    Trick-detail ontology doctrine.
     One universal trick-detail architecture with variable depth: any
     trick with curated L1-L6 content renders the relevant sections,
     movement-language-first → structure-second. Tier is an authoring
@@ -118,7 +118,7 @@
           <p class="reference-media-caption">{{content.ux2Pilot.featuredMedia.caption}}</p>
           {{/if}}
           {{#if content.ux2Pilot.featuredMedia.sourceLabel}}
-          <p class="reference-media-source"><span class="reference-media-source-label">{{content.ux2Pilot.featuredMedia.sourceLabel}}</span></p>
+          <p class="reference-media-source"><span>{{content.ux2Pilot.featuredMedia.sourceLabel}}</span></p>
           {{/if}}
         </div>
       {{else}}

@@ -144,6 +144,16 @@ describe('GET /clubs/create', () => {
     expect(res.text).toContain('Create a Club');
     expect(res.text).toContain('#club_');
   });
+
+  it('form states the Tier 1 requirement and points at the clubs page', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/create')
+      .set('Cookie', authCookie(HAPPY_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+    expect(res.text).toContain('href="/clubs"');
+  });
 });
 
 describe('POST /clubs/create', () => {

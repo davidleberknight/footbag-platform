@@ -11,7 +11,7 @@
   {{#if content.dictEntry.description}}
     {{#if content.descriptionIsPlaceholder}}
     {{!--
-      Phase A placeholder-description suppressor (2026-05-25). The DB
+      Placeholder-description suppressor. The DB
       `description` matched a known placeholder pattern (X-modified Y /
       X-and-Y modified Z / "Popular freestyle trick."). The literal
       description is suppressed; the structured ADD-decomposition pill
@@ -34,11 +34,11 @@
   </p>
   {{/if}}
 
-  <dl class="detail-list">
+  <dl>
 
     {{#if content.dictEntry.addComposition}}
     <dt>How it's built</dt>
-    <dd class="add-composition">{{content.dictEntry.addComposition}}</dd>
+    <dd>{{content.dictEntry.addComposition}}</dd>
     {{else if content.dictEntry.baseTrick}}
       {{#unless content.modifierLayering}}
       <dt>Base trick</dt>
@@ -61,7 +61,7 @@
   </dl>
 
   {{#if content.dictEntry.familyNote}}
-  <div class="family-note">
+  <div>
     <p>{{content.dictEntry.familyNote}}</p>
   </div>
   {{/if}}

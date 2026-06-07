@@ -1,5 +1,5 @@
 {{!--
-  Set detail page. Phase B of the set-system refactor (2026-05-25).
+  Set detail page.
   One page per canonical set; structurally mirrors the trick-detail
   layout but expresses the set ontology object (hashtag, formula,
   movement explanation, equivalence readings, derived/related systems,
@@ -13,18 +13,18 @@
     <code class="set-detail-hashtag">{{content.hashtag}}</code>
   </header>
 
-  <section class="set-detail-section set-detail-formula-section" aria-label="Formula">
+  <section class="set-detail-section" aria-label="Formula">
     <h2>Formula</h2>
     <code class="set-detail-formula">{{content.formula}}</code>
   </section>
 
-  <section class="set-detail-section set-detail-movement-section" aria-label="Movement explanation">
+  <section class="set-detail-section" aria-label="Movement explanation">
     <h2>Movement</h2>
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
 
   {{#if content.equivalenceReadings.length}}
-  <section class="set-detail-section set-detail-equivalence-section" aria-label="Equivalence readings">
+  <section class="set-detail-section" aria-label="Equivalence readings">
     <h2>Equivalence readings</h2>
     <ul class="set-detail-equivalences">
       {{#each content.equivalenceReadings}}<li>{{this}}</li>{{/each}}
@@ -33,7 +33,7 @@
   {{/if}}
 
   {{#if content.derivedSystems.length}}
-  <section class="set-detail-section set-detail-derived-section" aria-label="Derived systems">
+  <section class="set-detail-section" aria-label="Derived systems">
     <h2>Derived systems</h2>
     <ul class="set-detail-link-list">
       {{#each content.derivedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
@@ -42,7 +42,7 @@
   {{/if}}
 
   {{#if content.relatedSystems.length}}
-  <section class="set-detail-section set-detail-related-section" aria-label="Related systems">
+  <section class="set-detail-section" aria-label="Related systems">
     <h2>Related systems</h2>
     <ul class="set-detail-link-list">
       {{#each content.relatedSystems}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
@@ -70,7 +70,7 @@
   </section>
   {{/if}}
 
-  <section class="set-detail-section set-detail-cross-links-section" aria-label="Cross-references">
+  <section class="set-detail-section" aria-label="Cross-references">
     <h2>Cross-references</h2>
     <ul class="set-detail-cross-links">
       <li><a href="{{content.crossLinks.setHubHref}}">Back to Set Hub</a></li>

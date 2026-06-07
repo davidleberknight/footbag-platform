@@ -1480,12 +1480,12 @@ export class ClubService {
    *   - non-pending row: idempotent no-op; returns the existing
    *     resolved_club_id if any.
    *
-   * Scope restriction: only candidates whose parent legacy_club_candidates
-   * row has mapped_club_id IS NOT NULL are confirmable. The wizard does NOT
-   * create clubs (M_Complete_Onboarding_Wizard). 'onboarding_visible'
-   * candidates without a mapped_club_id are filtered out at the wizard
-   * card-listing layer; if one reaches this method directly, it raises
-   * NotFoundError as an anti-enumeration safeguard.
+   * Scope restriction: confirmation requires the parent
+   * legacy_club_candidates row to carry mapped_club_id (the wizard promotes
+   * an unmapped candidate via promoteCandidate BEFORE invoking the confirm
+   * transition); a confirm that reaches this method against a still-unmapped
+   * candidate raises NotFoundError as an anti-enumeration safeguard.
+   * Decline needs no live club row and works on unmapped candidates.
    *
    * Multi-club safety: a member may hold at most two current club
    * affiliations (primary + secondary). The first current club is
@@ -1532,16 +1532,9 @@ export class ClubService {
         `Legacy club candidate not found for affiliation: ${affiliationRowId}`,
       );
     }
-    // Anti-enumeration safeguard: a candidate without mapped_club_id (i.e.,
-    // not yet promoted to a real clubs row by the loader) must not reach
-    // this method via the wizard. Surface as NotFoundError with identical
-    // shape to the "row missing" case.
-    if (!candidate.mapped_club_id) {
-      throw new NotFoundError(`Legacy affiliation row not confirmable: ${affiliationRowId}`);
-    }
-    const resolvedClubId = candidate.mapped_club_id;
-
     if (userDecision === 'decline') {
+      // Decline rejects the suggestion only; it needs no live club row, so
+      // unmapped candidates decline without promotion.
       const updated = legacyPersonClubAffiliations.setResolutionStatusRejected.run(
         'onboarding_service',
         affiliationRowId,
@@ -1565,6 +1558,15 @@ export class ClubService {
         newAffiliationId: null,
       };
     }
+
+    // Anti-enumeration safeguard: a confirm against a candidate without
+    // mapped_club_id (not yet promoted to a real clubs row) must not reach
+    // this method; the wizard promotes first. Surface as NotFoundError with
+    // identical shape to the "row missing" case.
+    if (!candidate.mapped_club_id) {
+      throw new NotFoundError(`Legacy affiliation row not confirmable: ${affiliationRowId}`);
+    }
+    const resolvedClubId = candidate.mapped_club_id;
 
     // 'confirm' or 'correct': transition status + stamp resolved_club_id +
     // insert member_club_affiliations atomically.
@@ -1666,7 +1668,14 @@ export class ClubService {
     opts: {
       actorType: 'member' | 'admin';
       reasonText?: string | null;
-      trigger?: 'stage1' | 'stage2b' | 'admin_queue';
+      trigger?: 'stage1' | 'admin_queue';
+      /**
+       * Set when promotion is triggered by a member confirming their own
+       * affiliation card: that row stays 'pending' through the bulk
+       * 'promoted' carry-forward so the confirm transition that follows
+       * records the member's answer.
+       */
+      excludeAffiliationId?: string;
     },
   ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
     const candidate = legacyClubCandidates.findById.get(candidateId) as
@@ -1719,7 +1728,13 @@ export class ClubService {
           clubContent.updateClubExternalUrl.run(externalUrl, now, now, 'club_service', clubId);
         }
         legacyClubCandidates.setMappedClubId.run(clubId, now, 'club_service', candidateId);
-        legacyPersonClubAffiliations.setAllPromotedByCandidate.run(clubId, 'club_service', candidateId);
+        if (opts.excludeAffiliationId) {
+          legacyPersonClubAffiliations.setAllPromotedByCandidateExcept.run(
+            clubId, 'club_service', candidateId, opts.excludeAffiliationId,
+          );
+        } else {
+          legacyPersonClubAffiliations.setAllPromotedByCandidate.run(clubId, 'club_service', candidateId);
+        }
         appendAuditEntry({
           actionType: opts.actorType === 'admin'
             ? 'admin.club_cleanup.promote'

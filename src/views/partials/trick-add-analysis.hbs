@@ -1,10 +1,9 @@
 {{!--
-  Tier-4 executable-accounting block. 2026-05-23 curator-rendered-output
-  audit: previously rendered inside a collapsed <details>; the ADD formula
-  is the primary structural-accounting cue for non-first-class trick pages
-  and the curator's audit flagged the collapse as hiding the most important
-  data. Now renders expand-by-default as an "ADD"-labeled row, mirroring
-  the Notation Summary card's ADD slot.
+  Tier-4 executable-accounting block. Renders expand-by-default as an
+  "ADD"-labeled row, mirroring the Notation Summary card's ADD slot: the
+  ADD formula is the primary structural-accounting cue for non-first-class
+  trick pages, so a collapsed disclosure would hide the most important
+  data on the page.
 
   Renders only when content.addAnalysis is non-null (= the trick has a
   curator-published resolved formula). Provenance is intentionally NOT
@@ -13,7 +12,7 @@
   Per the 4-tier rendering hierarchy contract: Tier-4 patterns
   (xbody(N), dex(N), stall(N), spin(N), BOD(N), UNS(N)) appear ONLY on
   trick-detail pages + /freestyle/add-analysis; browse cards + landing
-  forbid them via test-pinned absence. Slice D 2026-05-26: the trailing
+  forbid them via test-pinned absence. The trailing
   '= N ADD' terminator is stripped from trick-detail derivations (the
   hero ADD chip carries the total); the terminator is preserved on
   /freestyle/add-analysis worked-examples and glossary §formulas where

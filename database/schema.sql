@@ -703,11 +703,6 @@ CREATE VIEW email_templates_enabled AS
 -- ---------------------------------------------------------------------------
 -- Seed: built-in templates that need to exist before the first send.
 --
--- legacy_auto_link_notification
---   Sent to a member's verified email address when a silent batch auto-link
---   (high or medium confidence) writes a claim against their account. The
---   {{report_incorrect_url}} slot is bound to the tokened revert handler.
---
 -- hof_bap_admin_digest
 --   Daily digest to the admin-alerts mailing list summarizing silent claims
 --   that produced a member_tier_grants row with reason_code
@@ -718,25 +713,6 @@ INSERT OR IGNORE INTO email_templates
   (id, created_at, created_by, updated_at, updated_by, version,
    template_key, subject_template, body_template, is_enabled)
 VALUES
-  (
-    'tpl_legacy_auto_link_notification',
-    '2000-01-01T00:00:00.000Z', 'system',
-    '2000-01-01T00:00:00.000Z', 'system',
-    1,
-    'legacy_auto_link_notification',
-    'IFPA: We have linked your account to your competition history',
-    'Hello {{member_display_name}},
-
-We have linked your IFPA account to the legacy footbag.org record for {{legacy_member_display_name}}. This grants you attribution for the competition history attached to that record{{tier_grant_summary}}{{hof_flag_text}}{{bap_flag_text}}.
-
-If this link is not correct, please tell us:
-{{report_incorrect_url}}
-
-You can also review and manage linked legacy accounts from your profile settings.
-
--- IFPA',
-    1
-  ),
   (
     'tpl_hof_bap_admin_digest',
     '2000-01-01T00:00:00.000Z', 'system',
@@ -3220,11 +3196,12 @@ CREATE UNIQUE INDEX ux_member_club_affiliations_one_primary
   ON member_club_affiliations(member_id)
   WHERE is_primary = 1 AND is_current = 1;
 
--- Crowdsource club-viability signals collected during the onboarding wizard
--- and (future) from club-detail and dashboard surfaces. Append-only: one
--- row per member per club per source stage. The crowdsource_club_viability
--- predicate (A_Periodic_Club_Cleanup) aggregates these rows at evaluation
--- time; "not_sure" responses contribute no signal to any gate.
+-- Crowdsource club-viability signals collected on the onboarding wizard's
+-- own-affiliation cards and (future) from club-detail and dashboard
+-- surfaces. Append-only: one row per member per club per source stage. The
+-- crowdsource_club_viability predicate (A_Periodic_Club_Cleanup) aggregates
+-- these rows at evaluation time; "not_sure" responses contribute no signal
+-- to any gate.
 CREATE TABLE club_viability_signals (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3236,7 +3213,6 @@ CREATE TABLE club_viability_signals (
   source_stage TEXT NOT NULL
     CHECK (source_stage IN (
       'stage1a_contact','stage1b_affiliated',
-      'stage2a','stage2b','stage3a',
       'club_detail','dashboard'
     )),
 

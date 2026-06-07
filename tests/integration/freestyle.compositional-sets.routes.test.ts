@@ -132,6 +132,20 @@ describe('/freestyle/compositional-sets — six structural families', () => {
     expect(res.text).toMatch(/platform-tracked/);
   });
 
+  it('status badges render the shaped label; the raw status code stays class-only', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    // Visible badge text is the pre-shaped label ('Holden-only'); the
+    // lowercase raw code appears only inside class attributes.
+    expect(res.text).toMatch(/compositional-set-card-status[^>]*>Holden-only</);
+    expect(res.text).not.toMatch(/>holden-only</);
+    // Canonical cards carry no status badge at all.
+    const canonicalCard = res.text.slice(
+      res.text.indexOf('compositional-set-card compositional-set-card--canonical'),
+      res.text.indexOf('</article>', res.text.indexOf('compositional-set-card compositional-set-card--canonical')),
+    );
+    expect(canonicalCard).not.toMatch(/compositional-set-card-status/);
+  });
+
   it('Holden-only entries appear (not promoted to canonical)', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
     // Slapping, Tapping, Bubba — Holden-only, no platform canonical.

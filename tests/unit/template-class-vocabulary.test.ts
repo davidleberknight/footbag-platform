@@ -37,22 +37,13 @@ const STYLESHEET = path.join(REPO_ROOT, 'src', 'public', 'css', 'style.css');
 const EXCLUDED_DIRS = ['src/views/freestyle'];
 const EXCLUDED_FILES = new Set([
   'src/views/partials/derivation-panel.hbs',
-  'src/views/partials/dictionary-trick-card.hbs',
   'src/views/partials/freestyle-modifier-reference.hbs',
-  'src/views/partials/glossary-sidebar.hbs',
-  'src/views/partials/operator-board.hbs',
-  'src/views/partials/trick-about.hbs',
   'src/views/partials/trick-add-analysis.hbs',
-  'src/views/partials/trick-comparative-row.hbs',
   'src/views/partials/trick-equivalence-topology.hbs',
-  'src/views/partials/trick-hero.hbs',
   'src/views/partials/trick-media-grid.hbs',
   'src/views/partials/trick-parallels.hbs',
   'src/views/partials/trick-pathways.hbs',
-  'src/views/partials/trick-progression.hbs',
-  'src/views/partials/trick-records.hbs',
   'src/views/partials/trick-structural.hbs',
-  'src/views/partials/trick-transform.hbs',
 ]);
 
 function walkHbs(dir: string): string[] {
@@ -154,25 +145,4 @@ describe('template class vocabulary', () => {
     ).toBe(true);
   });
 
-  it('the stylesheet freestyle region still needs the font-gate cutoff (extend the gate when compliant)', () => {
-    const css = readFileSync(STYLESHEET, 'utf8');
-    const lines = css.split('\n');
-    const banner = lines.findIndex((l) => l === '   Freestyle records');
-    expect(banner, 'freestyle section banner not found in style.css').toBeGreaterThan(-1);
-
-    const rawFontFamily = lines
-      .slice(banner)
-      .some(
-        (l) =>
-          /font-family:/.test(l) &&
-          !/font-family:\s*var\(--font-(body|mono)\)/.test(l) &&
-          !/font-family:\s*inherit/.test(l),
-      );
-    expect(
-      rawFontFamily,
-      'the freestyle region of style.css no longer carries raw font-family stacks; ' +
-        'remove the "Freestyle records" early-exit from the font-family check in ' +
-        'scripts/ci/assert_conventions.sh so it scans the whole file',
-    ).toBe(true);
-  });
 });
