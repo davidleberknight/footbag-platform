@@ -4,9 +4,9 @@
  * Hosts three concerns in one Node process:
  *   1. Email-outbox polling loop: drains transactional emails. Polling is
  *      fine here because outbound email is not a foreground UX.
- *   2. SYS_Check_Active_Player_Expiry daily loop: scans Tier 0 members,
- *      enqueues reminder emails per configured offsets, and applies expiry
- *      ledger rows for lapsed grants. system_job_runs row per pass.
+ *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
+ *      expiry ledger rows), the staged-candidate expiry sweep, and the PII
+ *      purge-eligibility scan. One system_job_runs row per job per pass.
  *   3. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
  *      No polling; strictly event-driven.
@@ -70,6 +70,15 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runStagedCandidateExpiry();
     } catch (err) {
       logger.error('worker: staged-candidate expiry unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    // The PII purge-eligibility scan is daily by design and idempotent
+    // (erasure_log guards), so it rides the same tick.
+    try {
+      await operationsPlatformService.runPiiPurgeScan();
+    } catch (err) {
+      logger.error('worker: PII purge scan unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

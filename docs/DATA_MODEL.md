@@ -387,7 +387,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 
 ### 4.9 Admin Operations
 
-**Tables:** `work_queue_items`, `system_config`, `audit_entries`, `system_job_runs`, `system_alarm_events`  
+**Tables:** `work_queue_items`, `system_config`, `audit_entries`, `erasure_log`, `system_job_runs`, `system_alarm_events`  
 **Views:** `system_config_current`
 
 #### Work queue
@@ -419,13 +419,16 @@ Emitted values, grouped by namespace:
 - **`active_player.*`**: `grant`, `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
-- **`member.*`**: `profile_updated`.
+- **`member.*`**: `profile_updated`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
 - **`admin.club_cleanup.*`**: parameterized by the cleanup action taken.
 - **Grandfathered (no namespace)**: `onboarding_task_started`, `onboarding_task_skipped`, `onboarding_task_completed`, `onboarding_task_not_applicable`, `upload_member_media`, `upload_curated_media`, `edit_member_media`, `upload_curated_url_reference`, `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_dev_register_allowlist`, `dev_admin_invariant_repair`, `dev_persona_seed`, `dev_switch_persona`.
 
-Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `auth.account_purged`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`.
+Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`.
 
 This list is the authoritative inventory; new action_types must be added here as part of any code change that introduces a new event type, and the corresponding service entry in `SERVICE_CATALOG.md` must declare its audit emissions.
+
+#### Erasure log
+`erasure_log` is an append-only ledger of applied PII erasures (UPDATE and DELETE blocked by DB triggers). Each row records one erasure shape applied to one entity: `erasure_kind` is `account_pii_purge` (full anonymization of a deleted account) or `deceased_contact_scrub` (contact-only erasure of a deceased member's record). The ledger serves two purposes. First, any restore from backup re-applies it before restored data becomes reachable, so an erasure cannot be silently undone by routine recovery (DD §1.2). Second, it is the authority on which erasure shapes a member row has received, since both shapes must set `personal_data_purged_at` to satisfy the members credential CHECK; a contact-scrubbed row can still receive the full purge, and a fully purged row receives nothing further.
 
 #### Alarms
 `system_alarm_events` tracks infrastructure and operational alarms. `acknowledgment_note` is set alongside `acknowledged_at` when an admin acknowledges an alarm.
@@ -752,6 +755,8 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 **Anonymized-stub requirement (app-enforced):** When setting `personal_data_purged_at`, the application must produce a complete anonymized retained stub in the same transaction: clear all nullable contact fields (`phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`); clear both identity-linkage FK pointers (`legacy_member_id`, `historical_person_id`) so person-link dispatchers revert to archival URLs per DD §2.4 rule 5; and overwrite required non-null identity/location fields with anonymized placeholder values as needed to satisfy schema constraints. In the same transaction, clear the claim pointer on the member's `legacy_members` row (set `claimed_by_member_id` and `claimed_at` to NULL) so the legacy account becomes claimable again. Exception: for members with `is_hof = 1` or `is_bap = 1`, preserve `display_name` and `bio` per User Stories deletion policy; other required retained identity/location fields remain anonymized as needed. Schema nullability does not enforce the full anonymized-stub shape; this is application-enforced (see APP-022).
 
 `ifpa_join_date` and `legacy_is_admin` may be retained post-purge as non-identifying administrative metadata.
+
+Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires it once credentials are NULL). The anonymized-stub requirement above describes the full account purge (`erasure_log` kind `account_pii_purge`). The deceased contact scrub (`deceased_contact_scrub`) clears credentials, contact channels (`phone`, `whatsapp`, `legacy_email`), private address lines (`street_address`, `postal_code`), and demographics (`sex`, `birth_date`) and deletes the member's declared anchors, while preserving identity, locale, honors, and both identity-linkage FKs; the legacy claim is not released. The `erasure_log` kind, not `personal_data_purged_at`, is the authority on which shapes a row has received; a contact-scrubbed row can still receive the full purge.
 
 #### `avatar_media_id`
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.
@@ -1530,7 +1535,7 @@ SELECT config_key, value_json FROM system_config_current ORDER BY config_key;
 
 ### APP-022 — PII purge anonymized-stub workflow
 
-**When setting `personal_data_purged_at` on a `members` row, the application MUST produce a complete anonymized retained stub in the same transaction.** Specifically:
+**When applying the full account purge (`erasure_log` kind `account_pii_purge`) to a `members` row, the application MUST produce a complete anonymized retained stub in the same transaction.** The deceased contact scrub also sets `personal_data_purged_at` but preserves identity fields; its shape is defined in the §4.14 PII purge subsection. The full purge, specifically:
 
 1. Clear all nullable contact fields: set `phone = NULL`, `whatsapp = NULL`.
 2. For non-HoF/BAP members, overwrite retained non-null identity and location fields with anonymized placeholders as needed (`real_name`, `display_name`, `display_name_normalized`, `city`, `country`) so they do not retain identifiable values.
@@ -1562,9 +1567,9 @@ The application must reject any delete request targeting a `tags` row where `is_
 
 ## 7. Retained DB Triggers
 
-The following 24 triggers are intentionally kept in the database. All enforce integrity invariants that would be materially weakened by application-only enforcement (due to multiple write paths, tamper-resistance requirements, or financial-record immutability).
+The following 26 triggers are intentionally kept in the database. All enforce integrity invariants that would be materially weakened by application-only enforcement (due to multiple write paths, tamper-resistance requirements, or financial-record immutability).
 
-### Append-only / immutability triggers (20)
+### Append-only / immutability triggers (22)
 
 These prevent UPDATE and DELETE on tables that must be permanent historical records:
 
@@ -1573,6 +1578,7 @@ These prevent UPDATE and DELETE on tables that must be permanent historical reco
 | `trg_vote_eligibility_no_update` / `_no_delete` | `vote_eligibility_snapshot` | Election fairness: snapshot is frozen at vote-open time |
 | `trg_ballots_no_update` / `_no_delete` | `ballots` | Ballot tamper resistance |
 | `trg_audit_no_update` / `_no_delete` | `audit_entries` | Audit log integrity |
+| `trg_erasure_log_no_update` / `_no_delete` | `erasure_log` | Erasure ledger integrity: backup restores re-apply recorded erasures |
 | `trg_recurring_sub_transitions_no_update` / `_no_delete` | `recurring_donation_subscription_transitions` | Subscription lifecycle history |
 | `trg_payment_transitions_no_update` / `_no_delete` | `payment_status_transitions` | Payment history integrity |
 | `trg_tier_grants_no_update` / `_no_delete` | `member_tier_grants` | Membership tier ledger integrity |
@@ -1728,6 +1734,6 @@ The schema contains a few patterns that may look inconsistent at first glance bu
 
 - **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
 
-- **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. This includes `audit_entries`, `ballots`, `member_tier_grants`, `payment_status_transitions`, `recurring_donation_subscription_transitions`, `vote_eligibility_snapshot`, and `system_config`.
+- **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. This includes `audit_entries`, `erasure_log`, `ballots`, `member_tier_grants`, `payment_status_transitions`, `recurring_donation_subscription_transitions`, `vote_eligibility_snapshot`, and `system_config`.
 
 When evaluating schema consistency, these exceptions should be treated as design choices tied to domain semantics, compatibility, or operational needs rather than as accidental inconsistencies.

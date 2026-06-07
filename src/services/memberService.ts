@@ -7,21 +7,24 @@
  *     profile of any other member, with the HoF/BAP exception as the only
  *     anonymous-public render; profile edit including inline avatar upload)
  *   - Member search (`searchMembers`)
- *   - Row-level PII clearing logic (`purgeAccountPII`)
+ *   - Row-level PII clearing logic (`purgeAccountPII` full erasure;
+ *     `scrubDeceasedMemberPII` contact-only erasure that preserves identity,
+ *     honors, and historical links)
  *
  * Does not own:
  *   - Login / registration credential verification (IdentityAccessService)
  *   - Legacy-claim flow (IdentityAccessService)
  *   - Tier grants or ledger calculation (MembershipTieringService)
  *   - Purge eligibility orchestration (OperationsPlatformService decides which
- *     members qualify and calls into purgeAccountPII)
+ *     members qualify and calls into the row-level primitives)
  *
- * Current: the account lifecycle beyond the purge primitive is unbuilt. There
- *   is no soft-delete, no deceased handling, and no data export here.
- * Target: soft-delete and deceased are distinct lifecycle paths with distinct
- *   grace configs; deceased or deleted leaders' club_leaders rows end so their
- *   clubs surface for admin remediation; exports deliver via emailed
- *   time-limited links.
+ * Current: the lifecycle entry points are unbuilt: nothing sets deleted_at or
+ *   is_deceased yet (no self-service deletion, no admin deceased marking),
+ *   and there is no data export here.
+ * Target: member-facing deletion and admin deceased marking set the flags the
+ *   purge-eligibility scan consumes; deceased or deleted leaders' club_leaders
+ *   rows end so their clubs surface for admin remediation; exports deliver
+ *   via emailed time-limited links.
  *
  * Required patterns:
  *   - Member search uses the `members_searchable` view; never add WHERE clauses
@@ -30,6 +33,10 @@
  *     routes. Minimum 2-character query; substring match on display name; 20-result
  *     cap with `hasMore` flag; no browse-all pagination.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
+ *   - Every erasure writes an erasure_log row in the same transaction. The
+ *     ledger, not personal_data_purged_at, decides which erasure shapes a row
+ *     has received (both shapes must set that column to satisfy the members
+ *     credential CHECK), so a contact-scrubbed row can still be fully purged.
  *   - Own-profile routes are owner-only. Anonymous non-owner viewing is limited
  *     to the explicit HoF/BAP exception; authenticated members may view any
  *     member profile read-only. Contact fields never reach an anonymous page;
@@ -43,8 +50,9 @@
  *
  * Persistence:
  *   members, members_active, members_all, members_searchable, member_links,
- *   member_declared_anchors (deleted on PII purge),
+ *   member_declared_anchors (deleted on PII purge and deceased scrub),
  *   legacy_members (claim-state columns cleared on PII purge),
+ *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries.
  *
  * Side effects:
@@ -53,7 +61,8 @@
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
-import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, declaredAnchors, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { randomUUID } from 'crypto';
+import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
@@ -414,6 +423,34 @@ export type PurgeAccountPIIResult =
   | { status: 'already_purged' }
   | { status: 'not_found' };
 
+export type ScrubDeceasedMemberPIIResult =
+  | { status: 'scrubbed'; anchorsDeleted: number }
+  | { status: 'already_scrubbed' }
+  | { status: 'already_purged' }
+  | { status: 'not_deceased' }
+  | { status: 'not_found' };
+
+// The full member row shape both erasure primitives read before writing.
+// fully_purged / contact_scrubbed come from the erasure_log ledger, which is
+// the authority on applied erasure shapes; see the file-header pattern note.
+type ErasureReadRow = {
+  id: string;
+  slug: string;
+  is_hof: number;
+  is_bap: number;
+  is_deceased: number;
+  legacy_member_id: string | null;
+  historical_person_id: string | null;
+  personal_data_purged_at: string | null;
+  fully_purged: number;
+  contact_scrubbed: number;
+};
+
+// Erasure ids follow the audit-id convention: short, prefixed, collision-safe.
+function newErasureLogId(): string {
+  return `erasure_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
 /**
  * Row-level PII erasure for a member whose grace period elapsed. Eligibility
  * (which members qualify, grace windows) is OperationsPlatformService's
@@ -427,23 +464,17 @@ export type PurgeAccountPIIResult =
  *     claimed legacy_members row returns to the claimable pool
  *   - every declared identity anchor deleted
  *   - one member.pii_purged audit row recording what was cleared
+ *   - one erasure_log row (account_pii_purge) so backup restores re-apply
+ *     the erasure
  *
- * Idempotent: a purged row returns 'already_purged' without writes.
+ * Runs on never-erased rows and on deceased-contact-scrubbed rows (the full
+ * purge upgrades a scrub when a scrubbed account is later deleted).
+ * Idempotent: a fully purged row returns 'already_purged' without writes.
  */
 function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
-  const row = memberPurge.readForPurge.get(memberId) as
-    | {
-        id: string;
-        slug: string;
-        is_hof: number;
-        is_bap: number;
-        legacy_member_id: string | null;
-        historical_person_id: string | null;
-        personal_data_purged_at: string | null;
-      }
-    | undefined;
+  const row = memberPurge.readForPurge.get(memberId) as ErasureReadRow | undefined;
   if (!row) return { status: 'not_found' };
-  if (row.personal_data_purged_at !== null) return { status: 'already_purged' };
+  if (row.fully_purged) return { status: 'already_purged' };
 
   const honorsPreserved = Boolean(row.is_hof) || Boolean(row.is_bap);
   const preserveFlag = honorsPreserved ? 1 : 0;
@@ -469,6 +500,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       legacyMembers.clearClaim.run(row.legacy_member_id);
     }
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+    erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'account_pii_purge');
 
     appendAuditEntry({
       actionType:    'member.pii_purged',
@@ -495,8 +527,61 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
   });
 }
 
+/**
+ * Row-level contact erasure for a deceased member whose grace period elapsed.
+ * Narrower than the full purge: a deceased member's record keeps honoring
+ * their contributions, so identity (real name, display name, bio, slug),
+ * locale (city, region, country), honor flags, and the legacy and
+ * historical-person links all stay. In one transaction:
+ *
+ *   - credentials, phone, whatsapp, legacy contact email, street address and
+ *     postal code, sex, and birth date to NULL; personal_data_purged_at set
+ *     (the members credential CHECK requires it once credentials are NULL)
+ *   - every declared identity anchor deleted (member-asserted personal data,
+ *     including declared old emails)
+ *   - one member.deceased_pii_scrubbed audit row
+ *   - one erasure_log row (deceased_contact_scrub) so backup restores
+ *     re-apply the erasure
+ *
+ * Guarded to is_deceased rows. Idempotent: an already-scrubbed row returns
+ * 'already_scrubbed'; a fully purged row returns 'already_purged' because the
+ * full purge supersedes the scrub.
+ */
+function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult {
+  const row = memberPurge.readForPurge.get(memberId) as ErasureReadRow | undefined;
+  if (!row) return { status: 'not_found' };
+  if (row.fully_purged) return { status: 'already_purged' };
+  if (row.contact_scrubbed) return { status: 'already_scrubbed' };
+  if (!row.is_deceased) return { status: 'not_deceased' };
+
+  const now = new Date().toISOString();
+  return transaction(() => {
+    const res = memberPurge.scrubDeceasedRow.run(now, now, 'operations_purge', memberId);
+    if (res.changes === 0) return { status: 'already_scrubbed' as const };
+
+    const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+    erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'deceased_contact_scrub');
+
+    appendAuditEntry({
+      actionType:    'member.deceased_pii_scrubbed',
+      category:      'member',
+      actorType:     'system',
+      actorMemberId: null,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    null,
+      metadata: {
+        anchors_deleted: anchors.changes,
+      },
+    });
+
+    return { status: 'scrubbed' as const, anchorsDeleted: anchors.changes };
+  });
+}
+
 export const memberService = {
   purgeAccountPII,
+  scrubDeceasedMemberPII,
   getOwnProfile(
     slug: string,
     opts?: { query?: string; notice?: string },

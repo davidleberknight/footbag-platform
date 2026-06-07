@@ -866,6 +866,39 @@ BEGIN
   SELECT RAISE(ABORT, 'audit_entries is immutable; rows may not be deleted');
 END;
 
+-- Append-only ledger of PII erasures. Each row records that an erasure shape
+-- was applied to an entity, so a restore from backup can re-apply every
+-- erasure before the restored data becomes reachable; an erasure can never be
+-- silently undone by routine recovery. Also the authority on which erasure
+-- shapes a member row has received: a deceased contact scrub and a full
+-- account purge both set members.personal_data_purged_at (the credential
+-- CHECK requires it), so the kind discriminator lives here, and a scrubbed
+-- row can still be upgraded to a full purge later.
+CREATE TABLE erasure_log (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  entity_type  TEXT NOT NULL CHECK (entity_type = 'member'),
+  entity_id    TEXT NOT NULL,
+  erasure_kind TEXT NOT NULL
+    CHECK (erasure_kind IN ('account_pii_purge','deceased_contact_scrub')),
+
+  UNIQUE (entity_type, entity_id, erasure_kind)
+);
+
+CREATE TRIGGER trg_erasure_log_no_update
+BEFORE UPDATE ON erasure_log
+BEGIN
+  SELECT RAISE(ABORT, 'erasure_log is immutable; use append only');
+END;
+
+CREATE TRIGGER trg_erasure_log_no_delete
+BEFORE DELETE ON erasure_log
+BEGIN
+  SELECT RAISE(ABORT, 'erasure_log is immutable; rows may not be deleted');
+END;
+
 -- Execution history for background/scheduled system jobs.
 -- Each row records one job run: start time, finish time, outcome, and any
 -- error detail. Used for operational monitoring and alerting.

@@ -9,26 +9,28 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, Active Player expiry, HoF/BAP admin digest, staged-candidate
- *     expiry, batch auto-link
+ *     expiry, batch auto-link, PII purge scan
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
  *     admin alert
+ *   - PII purge eligibility: which members' grace windows have expired and
+ *     which erasure shape applies (full purge for soft-deleted accounts,
+ *     contact scrub for deceased ones)
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService,
  *     HofBapAdminDigestService, IdentityAccessService classification/staging,
  *     CommunicationService drain)
  *   - Outbox row mechanics (CommunicationService)
- *
- * Current: the designed purge-eligibility scan (grace-window eligibility +
- *   erasure_log) is unbuilt; PII purges are manual calls into
- *   memberService.purgeAccountPII.
- * Target: this service decides which members qualify for purge and calls the
- *   row-level primitive.
+ *   - Row-level PII erasure (MemberService primitives)
  *
  * Required patterns:
  *   - Every periodic job runs through `recordJobRun` so operators can see
  *     last-run status and failures in system_job_runs.
+ *   - The PII purge scan keeps separate soft-deleted vs deceased branches
+ *     with distinct grace configs (member_cleanup_grace_days,
+ *     deceased_cleanup_grace_days) read at runtime; the two grace rules are
+ *     never collapsed.
  *   - Batch auto-link is idempotent per member: already-linked, already-staged,
  *     and declined candidates are skipped on re-run; each low-confidence
  *     work-queue insert + admin-alert enqueue commits in one transaction.
@@ -37,12 +39,14 @@
  *
  * Persistence:
  *   system_job_runs, work_queue_items, outbox_emails (backlog read +
- *   mailing-list enqueue), health (read).
+ *   mailing-list enqueue), members (purge-eligibility read), health (read).
  *
  * Side effects:
  *   - system_job_runs insert/update
  *   - work_queue_items insert (auto_link_match, low confidence)
  *   - outbox_emails enqueue (admin-alerts fan-out)
+ *   - audit_entries append (pii_erasure_failed operational errors; the
+ *     per-row erasure audit rows belong to MemberService)
  *   - logger.error on job failure (drives the CloudWatch alarm)
  *
  * Service shape: class singleton (`operationsPlatformService`); adapters are
@@ -50,8 +54,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, workQueue, batchAutoLink, outbox, transaction } from '../db/db';
+import { health, systemJobRuns, workQueue, batchAutoLink, memberPurge, outbox, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
+import { memberService } from './memberService';
+import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
@@ -67,6 +73,22 @@ import {
   type HofBapDigestRunOpts,
 } from './hofBapAdminDigestService';
 import { identityAccessService } from './identityAccessService';
+
+export interface PiiPurgeScanResult {
+  deleted: {
+    eligible: number;
+    purged: number;
+    honorsPreserved: number;
+    skipped: number;
+    errors: { memberId: string; error: string }[];
+  };
+  deceased: {
+    eligible: number;
+    scrubbed: number;
+    skipped: number;
+    errors: { memberId: string; error: string }[];
+  };
+}
 
 export interface ReadinessStatus {
   isReady: boolean;
@@ -427,6 +449,88 @@ export class OperationsPlatformService {
     return this.recordJobRun('SYS_Staged_Candidate_Expiry', () =>
       identityAccessService.expireStagedCandidates(),
     );
+  }
+
+  /**
+   * SYS_Cleanup_Soft_Deleted_Records daily pass: the PII purge-eligibility
+   * scan. Two branches with distinct grace rules that must never be
+   * collapsed:
+   *
+   *   - soft-deleted accounts past `member_cleanup_grace_days` get the full
+   *     purge (`memberService.purgeAccountPII`)
+   *   - deceased accounts past `deceased_cleanup_grace_days` get the
+   *     contact-only scrub (`memberService.scrubDeceasedMemberPII`)
+   *
+   * A member both deceased and soft-deleted goes to the deleted branch (the
+   * full purge supersedes the scrub). Eligibility excludes system accounts
+   * and rows whose erasure_log entries show the shape already applied, so
+   * the pass is idempotent. One failing row never aborts the pass: the
+   * failure is recorded as a member.pii_erasure_failed operational error and
+   * counted, and the scan continues. Runs on the worker daily tick.
+   */
+  async runPiiPurgeScan(opts: { now?: Date } = {}): Promise<PiiPurgeScanResult> {
+    return this.recordJobRun('SYS_Cleanup_Soft_Deleted_Records', () => {
+      const now = opts.now ?? new Date();
+      const deletedGraceDays  = readIntConfig('member_cleanup_grace_days', 90);
+      const deceasedGraceDays = readIntConfig('deceased_cleanup_grace_days', 30);
+      const deletedCutoff  = new Date(now.getTime() - deletedGraceDays  * 86_400_000).toISOString();
+      const deceasedCutoff = new Date(now.getTime() - deceasedGraceDays * 86_400_000).toISOString();
+
+      const deleted: PiiPurgeScanResult['deleted'] = {
+        eligible: 0, purged: 0, honorsPreserved: 0, skipped: 0, errors: [],
+      };
+      const deletedRows = memberPurge.listDeletedEligible.all(deletedCutoff) as { id: string }[];
+      deleted.eligible = deletedRows.length;
+      for (const { id } of deletedRows) {
+        try {
+          const res = memberService.purgeAccountPII(id);
+          if (res.status === 'purged') {
+            deleted.purged += 1;
+            if (res.honorsPreserved) deleted.honorsPreserved += 1;
+          } else {
+            deleted.skipped += 1;
+          }
+        } catch (err) {
+          deleted.errors.push({ memberId: id, error: err instanceof Error ? err.message : String(err) });
+          recordOperationalError({
+            actionType: 'member.pii_erasure_failed',
+            category:   'member',
+            entityType: 'member',
+            entityId:   id,
+            reasonText: 'PII purge scan: full purge of a grace-expired soft-deleted account failed',
+            cause:      err,
+          });
+        }
+      }
+
+      const deceased: PiiPurgeScanResult['deceased'] = {
+        eligible: 0, scrubbed: 0, skipped: 0, errors: [],
+      };
+      const deceasedRows = memberPurge.listDeceasedEligible.all(deceasedCutoff) as { id: string }[];
+      deceased.eligible = deceasedRows.length;
+      for (const { id } of deceasedRows) {
+        try {
+          const res = memberService.scrubDeceasedMemberPII(id);
+          if (res.status === 'scrubbed') {
+            deceased.scrubbed += 1;
+          } else {
+            deceased.skipped += 1;
+          }
+        } catch (err) {
+          deceased.errors.push({ memberId: id, error: err instanceof Error ? err.message : String(err) });
+          recordOperationalError({
+            actionType: 'member.pii_erasure_failed',
+            category:   'member',
+            entityType: 'member',
+            entityId:   id,
+            reasonText: 'PII purge scan: contact scrub of a grace-expired deceased account failed',
+            cause:      err,
+          });
+        }
+      }
+
+      return { deleted, deceased };
+    }, opts.now);
   }
 
   checkReadiness(): ReadinessStatus {

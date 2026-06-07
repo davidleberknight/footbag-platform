@@ -6784,9 +6784,24 @@ export const declaredAnchors = {
 // record outlives the personal data); every other identity field clears the
 // same way. The IS NULL guard makes a re-run a no-op.
 export const memberPurge = {
+  // The two erasure-state flags come from erasure_log, not from
+  // personal_data_purged_at: both erasure shapes set that column (the
+  // credential CHECK requires it whenever credentials are NULL), so only the
+  // ledger can distinguish a contact-scrubbed row, which a full purge may
+  // still upgrade, from a fully purged one.
   get readForPurge() { return db.prepare(`
-    SELECT id, slug, is_hof, is_bap, legacy_member_id, historical_person_id,
-           personal_data_purged_at
+    SELECT id, slug, is_hof, is_bap, is_deceased, legacy_member_id,
+           historical_person_id, personal_data_purged_at,
+           EXISTS (
+             SELECT 1 FROM erasure_log el
+             WHERE el.entity_type = 'member' AND el.entity_id = members.id
+               AND el.erasure_kind = 'account_pii_purge'
+           ) AS fully_purged,
+           EXISTS (
+             SELECT 1 FROM erasure_log el
+             WHERE el.entity_type = 'member' AND el.entity_id = members.id
+               AND el.erasure_kind = 'deceased_contact_scrub'
+           ) AS contact_scrubbed
     FROM members
     WHERE id = ?
   `); },
@@ -6823,7 +6838,87 @@ export const memberPurge = {
       updated_at              = ?,
       updated_by              = ?,
       version                 = version + 1
-    WHERE id = ? AND personal_data_purged_at IS NULL
+    WHERE id = ? AND NOT EXISTS (
+      SELECT 1 FROM erasure_log el
+      WHERE el.entity_type = 'member' AND el.entity_id = members.id
+        AND el.erasure_kind = 'account_pii_purge'
+    )
+  `); },
+
+  // Deceased contact scrub: credentials, contact channels, private address
+  // lines, demographics, and the legacy contact email go; identity, locale,
+  // honors, and historical links stay so the record keeps honoring the
+  // member's contributions. Declared anchors are deleted by the service in
+  // the same transaction. Blocked once any erasure shape has been applied.
+  get scrubDeceasedRow() { return db.prepare(`
+    UPDATE members
+    SET
+      login_email             = NULL,
+      login_email_normalized  = NULL,
+      email_verified_at       = NULL,
+      password_hash           = NULL,
+      password_changed_at     = NULL,
+      phone                   = NULL,
+      whatsapp                = NULL,
+      sex                     = NULL,
+      birth_date              = NULL,
+      street_address          = NULL,
+      postal_code             = NULL,
+      legacy_email            = NULL,
+      personal_data_purged_at = ?,
+      updated_at              = ?,
+      updated_by              = ?,
+      version                 = version + 1
+    WHERE id = ? AND is_deceased = 1 AND NOT EXISTS (
+      SELECT 1 FROM erasure_log el
+      WHERE el.entity_type = 'member' AND el.entity_id = members.id
+    )
+  `); },
+
+  // Scan eligibility. A member who is both deceased and soft-deleted belongs
+  // to the deleted branch: a full purge supersedes the contact scrub.
+  get listDeletedEligible() { return db.prepare(`
+    SELECT id FROM members
+    WHERE deleted_at IS NOT NULL
+      AND is_system = 0
+      AND deleted_at <= ?
+      AND NOT EXISTS (
+        SELECT 1 FROM erasure_log el
+        WHERE el.entity_type = 'member' AND el.entity_id = members.id
+          AND el.erasure_kind = 'account_pii_purge'
+      )
+    ORDER BY deleted_at
+  `); },
+
+  get listDeceasedEligible() { return db.prepare(`
+    SELECT id FROM members
+    WHERE is_deceased = 1
+      AND deleted_at IS NULL
+      AND is_system = 0
+      AND deceased_at IS NOT NULL
+      AND deceased_at <= ?
+      AND NOT EXISTS (
+        SELECT 1 FROM erasure_log el
+        WHERE el.entity_type = 'member' AND el.entity_id = members.id
+      )
+    ORDER BY deceased_at
+  `); },
+};
+
+// Append-only ledger of applied PII erasures. Restores from backup re-apply
+// it before the restored data is reachable, and it is the authority on which
+// erasure shapes a row has received.
+export const erasureLog = {
+  get insert() { return db.prepare(`
+    INSERT INTO erasure_log (id, created_at, created_by, entity_type, entity_id, erasure_kind)
+    VALUES (?, ?, ?, 'member', ?, ?)
+  `); },
+
+  get listForEntity() { return db.prepare(`
+    SELECT id, created_at, created_by, entity_type, entity_id, erasure_kind
+    FROM erasure_log
+    WHERE entity_type = ? AND entity_id = ?
+    ORDER BY created_at
   `); },
 };
 

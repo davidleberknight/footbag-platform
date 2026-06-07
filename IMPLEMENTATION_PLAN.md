@@ -10,13 +10,6 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-### PII purge runs as a manual service call
-
-`memberService.purgeAccountPII` performs the row-level erasure, but the
-designed caller (OperationsPlatformService grace-window eligibility scan and
-the `erasure_log` table) is unbuilt. Until it lands, purges are manual
-service calls.
-
 ### Dev/staging admin bootstrap rides registration
 
 `identityAccessService.registerMember` calls `applyDevStagingBootstrapAdmin`
