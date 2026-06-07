@@ -245,10 +245,11 @@ describe('Item 4: glossary has Jobs notation section with archive reference', ()
     expect(res.text).toContain('Jobs notation');
   });
 
-  it('references the in-repo historical source archive', async () => {
+  it('cites Ben Job\'s article without leaking an internal repo path', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('exploration/fborg/JobsNotation.txt');
+    expect(res.text).not.toContain('exploration/fborg/JobsNotation.txt');
+    expect(res.text).toMatch(/Read Ben Job's original article/);
   });
 });
 

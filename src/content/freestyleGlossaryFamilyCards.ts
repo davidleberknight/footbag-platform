@@ -61,7 +61,8 @@ export interface GlossaryFamilyCard {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Root terminal families (6).
+// Root terminal-anchor family cards (the well-documented terminal families;
+// the full first-class roster derives from freestylePublicFamilies.ts).
 // ─────────────────────────────────────────────────────────────────────────
 
 export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
@@ -164,22 +165,6 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       {
         title: 'Upward-catching dex',
         body:  'Structurally distinct from mirage despite the same ADD: pickup scoops under the bag, introducing the upward-catching dex axis. It anchors paste, legeater, and the spinning / ducking pickup compounds.',
-      },
-    ],
-  },
-  {
-    slug:              'around-the-world',
-    displayName:       'Around-the-World',
-    kind:              'root-terminal',
-    canonicalFormula:  'TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]',
-    familyAnchorAdds:  2,
-    commonDescendants: ['double around the world', 'triple around the world', 'around-the-world kick'],
-    siblingFamilies:   ['orbit'],
-    notableCompounds:  ['double around the world (DATW)'],
-    observationalNotes: [
-      {
-        title: 'Orbit-class primitive',
-        body:  'One of the first compositional moves the sport recognized — proof that a leg circling the bag is a single primitive, not separate actions. Commonly abbreviated ATW; orbit is its reverse-direction counterpart.',
       },
     ],
   },

@@ -550,18 +550,34 @@
       <a href="#section-modifiers">modifiers</a>.
     </p>
     <p>
-      Structural objects sit in three tiers. A <strong>parent family</strong> is
-      a top-level lineage with its own terminal mechanic &mdash; the eight
-      recognized parents are mirage, illusion, butterfly, legover, pickup,
-      whirl / swirl, osis, and around-the-world. A <strong>child
-      sub-family</strong> folds into a parent (swirl and rev-whirl under whirl;
-      torque and blender under osis). Between the two sits the
-      <strong>productive descendant lineage</strong>: compositional in origin yet
-      productive in its own right &mdash; the drifter lineage (a
-      &ldquo;miraging clipper&rdquo; that spun off reverse-drifter and
-      high-plains-drifter), barrage, paradon, flurry. The browse shows these as
-      their own groups; a parent family they are not.
+      Several different kinds of object get loosely called &ldquo;families,&rdquo;
+      and keeping them apart is the key to reading the dictionary:
     </p>
+    <dl class="glossary-compositional-premise-examples">
+      <dt>First-class family</dt>
+      <dd>A major productive lineage the dictionary recognizes as top-level. A
+        lineage earns this when it has a <strong>conserved terminal identity</strong>
+        &mdash; a structure the trick lands into, whose signature descendants keep
+        even as modifiers stack (paradox-whirl still <em>is</em> a whirl) &mdash;
+        carrying a real body of descendants. Mirage, whirl, butterfly, and drifter
+        are examples.</dd>
+      <dt>Sub-family</dt>
+      <dd>Has a conserved terminal but inherits a parent&rsquo;s identity, so it
+        folds under it (swirl and rev-whirl under whirl; torque and blender under
+        osis).</dd>
+      <dt>Atom / primitive</dt>
+      <dd>A foundational building block performed <em>within</em> tricks &mdash; an
+        entry, orbit, or swing move &mdash; never a terminal lineage.
+        Around-the-world and orbit are the clearest cases.</dd>
+      <dt>Modifier ecosystem</dt>
+      <dd>Transforms many bases and has no terminal of its own
+        (<a href="#section-modifiers">pixie, fairy, ducking, spinning</a>).</dd>
+      <dt>Family anchor</dt>
+      <dd>A per-group jump-link in the
+        <a href="/freestyle/tricks?view=family">By family</a> browse. Every trick
+        needs a home there, so that list includes atoms and sub-families too; it is
+        a browsing convenience, not the family roster.</dd>
+    </dl>
 
     <p class="detail-muted">
       A <strong>family-anchor trick</strong> is a canonical trick that also acts
@@ -600,9 +616,29 @@
       labels still render as their own groups.
     </p>
 
-    <h3 class="section-heading">Parent families</h3>
-    <p class="detail-muted">Top-level lineages with their own terminal mechanic. All eight recognized parents are carded here: mirage, illusion, butterfly, legover, pickup, whirl / swirl, osis, and around-the-world &mdash; though around-the-world is kept here only for structural bucketing: it is an <strong>entry-side primitive</strong> (used within tricks, not inherited as a terminal identity), so it is the one parent absent from the <a href="/freestyle/tricks?view=family">terminal-identity family view</a>.</p>
-    <div class="glossary-family-card-grid" aria-label="Parent families">
+    <h3 class="section-heading">First-class families</h3>
+    <p class="detail-muted">
+      The dictionary&rsquo;s ratified first-class families &mdash; a deliberate,
+      curator-selected balance between completeness and usability. The goal is to
+      expose the major structural lineages players actually use to organize the
+      vocabulary, while leaving out categories that are too broad (surfaces like
+      toe-stall and clipper-stall), too narrow (small historical or derivative
+      clusters), or not true lineages at all (modifier ecosystems like pixie and
+      fairy; entry primitives like around-the-world and orbit). This is the same
+      set the dictionary&rsquo;s
+      <a href="/freestyle/tricks?view=family">By family</a> browse uses, so the
+      glossary roster and the dictionary roster always match:
+    </p>
+    <p class="detail-muted glossary-family-roster">
+      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
+    </p>
+    <p class="detail-muted">
+      Every first-class family should ultimately have a dedicated educational
+      family card. The cards below cover the well-documented families; the rest
+      remain uncarded only because their educational content has not yet been
+      authored.
+    </p>
+    <div class="glossary-family-card-grid" aria-label="Family cards">
       {{#each content.rootTerminalFamilies}}
       {{> glossary-family-card}}
       {{/each}}
@@ -618,9 +654,10 @@
 
     {{! Core atoms registry — preserved for #term-{slug} anchor stability
         on atom slugs that do not map 1:1 to a family card (clipper-stall /
-        orbit). The family cards above now carry every parent anchor
+        orbit / around-the-world; ATW is an entry primitive, not a family).
+        The family cards carry the terminal-family anchors
         (#term-whirl / -butterfly / -mirage / -osis / -illusion / -legover /
-        -pickup / -around-the-world) plus the descendant/sub-family anchors
+        -pickup) plus the descendant/sub-family anchors
         (#term-swirl / -rev-whirl / -torque / -blender / -drifter / -barrage /
         -blur / -phoenix); the service excludes family-card slugs from this
         grid, so each #term-{slug} renders exactly once. }}

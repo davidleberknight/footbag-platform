@@ -110,7 +110,7 @@ describe('Glossary framing — settled family-root test note', () => {
     expect(html).toMatch(/more\s+than two active members/);
     expect(html).toMatch(/derivative\s+micro-clusters \(minor &amp; derived\)/);
     expect(html).toContain('id="section-families"');
-    expect(html).toContain('Parent families');
+    expect(html).toContain('First-class families');
   });
 });
 
@@ -135,7 +135,7 @@ describe('Glossary framing — sidebar + non-regression', () => {
 
   it('§families uses the parent / descendant-lineage / sub-family model (root/branch retired)', async () => {
     const html = await glossary();
-    expect(html).toContain('Parent families');
+    expect(html).toContain('First-class families');
     expect(html).toContain('Descendant lineages &amp; sub-families');
     // The retired vocabulary no longer renders.
     expect(html).not.toContain('Root terminal families');
@@ -270,11 +270,15 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/Modifier ecosystems<\/strong> \(pixie, ducking, spinning\)/);
   });
 
-  it('teaches the three-tier structural-object model (parent / child sub-family / descendant lineage)', async () => {
+  it('teaches the five kinds of family-ish object (first-class / sub-family / atom / ecosystem / anchor)', async () => {
     const html = await glossary();
-    expect(html).toMatch(/<strong>parent family<\/strong>/);
-    expect(html).toMatch(/<strong>child\s+sub-family<\/strong>/);
-    expect(html).toMatch(/eight\s+recognized parents are mirage, illusion, butterfly, legover, pickup,\s+whirl \/ swirl, osis, and around-the-world/);
+    expect(html).toContain('<dt>First-class family</dt>');
+    expect(html).toContain('<dt>Sub-family</dt>');
+    expect(html).toContain('<dt>Atom / primitive</dt>');
+    expect(html).toContain('<dt>Modifier ecosystem</dt>');
+    expect(html).toContain('<dt>Family anchor</dt>');
+    // The retired eight-parent / three-tier framing no longer renders.
+    expect(html).not.toMatch(/eight\s+recognized parents/);
   });
 
   it('carries the fuzzy-boundary humility clause', async () => {
@@ -284,12 +288,22 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/a future ruling may move them/);
   });
 
-  it('cards all eight parent families, including the four formerly-uncarded parents', async () => {
+  it('renders the first-class roster from the dictionary source, ATW excluded as a primitive', async () => {
     const html = await glossary();
-    expect(html).toMatch(/All eight recognized parents are carded here/);
-    for (const id of ['term-illusion', 'term-legover', 'term-pickup', 'term-around-the-world']) {
-      expect(html, `parent card ${id}`).toContain(`id="${id}"`);
+    expect(html).toContain('First-class families');
+    // The ratified roster renders as ?family= links from the same source the
+    // dictionary "By family" browse uses (freestylePublicFamilies.ts).
+    for (const slug of ['mirage', 'whirl', 'drifter', 'butterfly-swirl']) {
+      expect(html, `roster link ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }
+    // The well-documented families keep their educational cards.
+    for (const id of ['term-illusion', 'term-legover', 'term-pickup']) {
+      expect(html, `family card ${id}`).toContain(`id="${id}"`);
+    }
+    // ATW is no longer a parent card; the retired framing is gone.
+    expect(html).not.toMatch(/All eight recognized parents/);
+    // Card-coverage is decoupled from first-class status.
+    expect(html).toMatch(/should ultimately have a dedicated educational/);
   });
 
   it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {

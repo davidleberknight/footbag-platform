@@ -3083,6 +3083,11 @@ export interface FreestyleGlossaryContent {
   // Preserves the #term-{slug} anchors for these atoms without
   // duplicating with the family-card anchors above.
   otherFoundationalAtoms: FreestyleCoreTrickCard[];
+  // The ratified first-class family roster, sourced from the same module as
+  // the dictionary's "By family" browse (PUBLIC_DISPLAY_FAMILIES) so the
+  // glossary roster always matches the dictionary's. Not every entry has a
+  // rich family card above; uncarded first-class families still appear here.
+  firstClassFamilyRoster: readonly { slug: string; label: string }[];
   // §8 ADD Accounting worked-example cards. Five compact
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
@@ -8092,6 +8097,10 @@ export const freestyleService = {
           ]);
           return !familySlugs.has(t.slug);
         }),
+        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES.map(f => ({
+          slug:  f.slug,
+          label: f.label,
+        })),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,
           statusLabel: ex.status === 'pending-doctrine' ? 'pending doctrine' : ex.status,
