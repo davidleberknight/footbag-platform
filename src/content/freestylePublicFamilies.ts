@@ -21,21 +21,23 @@
  * editing this list re-shapes the public menu with no schema or DB change. It
  * does NOT change canonical trick membership or family classification.
  *
- * Inclusion principle. HARD RULE: a public family root must have MORE THAN 2 active member tricks
- * (>= 3); a 2-or-fewer-member grouping is never a first-class public family root. Beyond that count
- * gate, entries are terminal-identity TOPOLOGY families: a structure the trick
- * lands into, whose recognizable downside signature descendants preserve even as modifiers stack
- * on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators are
- * surfaced via the movement-system / glossary-fundamentals layer, NOT as family roots here. ATW
- * (around-the-world) is the canonical example: foundational and heavily taught, but used within
- * tricks rather than inherited as a terminal topology, so it is intentionally absent below.
- * Sparse derivative micro-clusters (low-count direction-reverses or motifs of a parent family) are
- * likewise excluded as primary roots; they remain reachable via ?family= and would surface in a
- * future minor/derived band rather than as first-class family roots.
+ * Admission rule (empirical, applied uniformly). A family parent is a terminal lineage that BOTH
+ * conserves a terminal identity (descendants preserve a recognizable terminal signature even as
+ * modifiers stack on the entry, so paradox-whirl still "is" a whirl) AND has at least 3 recursive
+ * descendant tricks. Families are not hand-picked; they emerge from the observed vocabulary topology
+ * once that bar is met. Terminal identity is read from each trick's own notation, never from a set or
+ * entry label: entry/set systems (pixie, atomic, ...) and entry/orbit atoms are surfaced via the
+ * movement-system / glossary layer, not as roots. ATW (around-the-world) is the canonical excluded
+ * case: foundational and heavily taught, but used within tricks rather than inherited as a terminal
+ * topology. Clusters below 3 descendants stay reachable via ?family= but are not roots.
  *
- * Order is curator-meaningful (roughly: parent anchors first, then named
- * descendant lineages / notable families). Counts are derived at render time
- * from active trick membership, never hard-coded here.
+ * Hierarchy. A family is either a root (its own terminal identity, e.g. whirl, swirl, inside-stall)
+ * or a derived branch that inherits a root's identity (a parent set, e.g. torque/blender under osis,
+ * double-leg-over/eggbeater under legover). Both are first-class family parents; the `parent` field
+ * records the branch relationship for display. This branch hierarchy is distinct from the broader
+ * ?view=family fold in freestyleParentFamilies.ts.
+ *
+ * Counts are derived at render time from active trick membership, never hard-coded here.
  */
 
 export interface PublicDisplayFamily {
@@ -43,6 +45,8 @@ export interface PublicDisplayFamily {
   slug:  string;
   /** Display label shown on the card chip. */
   label: string;
+  /** Parent family slug when this is a derived branch (e.g. torque under osis); absent for a root. */
+  parent?: string;
 }
 
 export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
@@ -64,4 +68,14 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'flurry',            label: 'Flurry' },
   { slug: 'flail',             label: 'Flail' },
   { slug: 'butterfly-swirl',   label: 'Butterfly-Swirl' },
+  // Promoted family parents (empirical admission: conserved terminal identity plus at least three
+  // recursive descendant tricks). swirl and inside-stall are roots (swirl's movement differs from
+  // whirl; inside-stall is the surface identity the guay lineage lands into); the others are derived
+  // branches that inherit a root's terminal identity, recorded via the parent field.
+  { slug: 'swirl',             label: 'Swirl' },
+  { slug: 'inside-stall',      label: 'Inside Stall' },
+  { slug: 'torque',            label: 'Torque',          parent: 'osis' },
+  { slug: 'blender',           label: 'Blender',         parent: 'osis' },
+  { slug: 'double-leg-over',   label: 'Double Legover',  parent: 'legover' },
+  { slug: 'eggbeater',         label: 'Eggbeater',       parent: 'legover' },
 ];

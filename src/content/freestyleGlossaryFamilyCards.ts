@@ -389,4 +389,52 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  [],
     observationalNotes: [],
   },
+  {
+    slug:              'double-leg-over',
+    displayName:       'Double Legover',
+    kind:              'branch',
+    canonicalFormula:  'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
+    familyAnchorAdds:  3,
+    commonDescendants: ['paradox double-leg-over', 'pixie double-leg-over', 'fairy double-leg-over'],
+    siblingFamilies:   ['eggbeater', 'legover'],
+    notableCompounds:  ['smog', 'haze', 'predator'],
+    observationalNotes: [
+      {
+        title: 'Sub-family of legover',
+        body:  'A two-dex legover variant: the leg passes over twice before the toe catch. It folds under legover as a sub-family while remaining a productive lineage in its own right.',
+      },
+    ],
+  },
+  {
+    slug:              'eggbeater',
+    displayName:       'Eggbeater',
+    kind:              'branch',
+    canonicalFormula:  'TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]',
+    familyAnchorAdds:  3,
+    commonDescendants: ['paradox eggbeater', 'gyro eggbeater', 'quantum eggbeater'],
+    siblingFamilies:   ['double-leg-over', 'legover'],
+    notableCompounds:  ['bedwetter'],
+    observationalNotes: [
+      {
+        title: 'Sub-family of legover',
+        body:  'A double out-dex legover variant. Like double-leg-over it folds under legover as a sub-family while staying productive on its own.',
+      },
+    ],
+  },
+  {
+    slug:              'inside-stall',
+    displayName:       'Inside Stall',
+    kind:              'branch',
+    canonicalFormula:  'SET > OP IN [DEX] > SAME INSIDE [DEL]',
+    familyAnchorAdds:  2,
+    commonDescendants: ['spinning guay', 'gyro guay', 'ducking guay', 'stepping guay'],
+    siblingFamilies:   ['pickup'],
+    notableCompounds:  ['guay'],
+    observationalNotes: [
+      {
+        title: 'A terminal surface led by the guay lineage',
+        body:  'Inside-stall is a terminal surface identity, distinct from toe and clipper. Its productive lineage is guay, which mirrors pickup\'s pattern (leggy in dex) with the catch swapped to the inside of the foot. Guay and its variants are members of this surface family, not a family of their own.',
+      },
+    ],
+  },
 ];

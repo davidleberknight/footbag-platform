@@ -1498,3 +1498,13 @@ ducking-symposium-reverse-whirl,trick_family,symposium-reverse-whirl,whirl,"Fami
 tapping-double-over-down,notation,,TAPPING DOUBLE OVER DOWN,JOB per mechanical uppercase rule.
 gyro-diving-clipper,notation,,GYRO DIVING CLIPPER,JOB per mechanical uppercase rule.
 gyro-diving-clipper,trick_family,diving-clipper,clipper,"Family follows the base trick family, not the compound base slug."
+diving-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+ducking-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+fairy-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+gyro-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+inspinning-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+pixie-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+spinning-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+stepping-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
+tapping-guay,trick_family,guay,inside-stall,"terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member (guay is a member, not a parent)"
