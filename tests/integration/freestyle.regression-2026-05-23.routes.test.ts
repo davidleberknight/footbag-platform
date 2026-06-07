@@ -221,7 +221,7 @@ describe('Item 3: PassBack tutorial link active on both entry points', () => {
     const res = await request(app).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(
-      /<a[^>]+href="\/media\/gallery_passback_tutorials"[^>]*>[^<]*PassbackFootbag/,
+      /<a[^>]+href="\/media\/gallery_passback_tutorials"[^>]*>[^<]*PassBack/,
     );
   });
 

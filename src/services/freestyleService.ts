@@ -7662,7 +7662,7 @@ export const freestyleService = {
               countDisplay: fmtCount(OBSERVATIONAL_UNIVERSE_STATS.total),
               countSuffix:  'unconfirmed names',
               lensQuestion: 'Names the community is still confirming, not separate tricks yet.',
-              chips:        ['PassBackFootbag', 'Footbag.org', 'FootbagMoves'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
+              chips:        ['PassBack', 'Footbag.org', 'FootbagMoves', 'Stanford'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
             },
           ],
         },
@@ -8151,7 +8151,7 @@ export const freestyleService = {
       sourceOnly: {
         laneSlug:  'source-only',
         label:     'Source-only documented',
-        intro:     'Known names from FootbagMoves / PassBackFootbag / Footbag.org without enough verified structure yet. Default lane for new observational entries.',
+        intro:     'Known names from FootbagMoves / PassBack / Footbag.org without enough verified structure yet. Default lane for new observational entries.',
         cards:     sourceOnlyCards,
         cardCount: sourceOnlyCards.length,
       },
