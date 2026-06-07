@@ -10,13 +10,10 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **Mirror member extraction code lives outside the repo.** The production-shaping extraction code for the mirror member pipeline (the source of the ~1,600 club-only `historical_persons` rows) is currently reproducible only by the historical-pipeline maintainer. Commit it into `legacy_data/scripts/` before the MIGRATION_PLAN §24 State 3 → State 4 transition.
 
-- **Curator media unification residual cleanup (Phase E destructive cleanup).** Residual tasks:
-  1. Drop `freestyle_media_*` table definitions from `database/schema.sql`.
-  2. Delete the `freestyle_media_*` loaders 21 / 22 / 23 (not `21_load_footbag_org_pending_tricks.py` or `22_qc_trick_dictionary.py`).
-  3. Delete `legacy_data/inputs/curated/media/*.csv`.
-  4. Delete `scripts/migrate-freestyle-media-to-curated.py`.
-  5. Edit `scripts/reset-local-db.sh` (David-owned; needs approval).
-  6. Run oEmbed `verifyExternalVideoUrl` over `curated/freestyle_tricks/` sidecars before deleting `media_assets.csv`.
+- **Curator media unification — residual (dead `freestyle_media_*` path removed).** The loader chain is gone (loaders 21/22/23, the migrate script, the dead generator `build_freestyle_media_csvs.py`, `media_links.csv`, the `reset-local-db.sh` calls, and the 3 `ci/assert_loader_row_counts.py` expectations). Remaining:
+  1. **Schema half (David-owned platform schema).** Drop the `freestyle_media_sources/assets/links` tables from `database/schema.sql` AND `src/db/db.ts`, and repoint/retire `featured_media_id` (soft-refs `freestyle_media_assets`; live in `freestyleService.ts`). The platform still references these, so it is a coordinated change, not James-track.
+  2. **`media_assets.csv` not yet deletable.** Keep the sibling `media_sources.csv` (`seed_fh_curator` reads it as the live media_sources FK registry). The item-6 oEmbed/coverage gate found `media_assets.csv` holds 9 live items absent from `curated/freestyle_tricks/` sidecars: 3 un-migrated YouTube clips (`jy-Tjxfftqw`, `ft9SZPyXd54`, `2URvZFuxBls`); the 5 footbagspot pending-rehost rows (tracked in `footbagspot_pending_rehost.csv`, `reason=non_youtube_vimeo_url`); and the PassBack source video `u9S7zixV3Yw` (a source, not a trick clip). Migrate/resolve those, drop the 2 dead rows (`vimeo/25019188`, `youtube/YdYxsp6l400`), then delete `media_assets.csv` + `footbagspot_pending_rehost.csv`.
+  3. **Dead curated sidecars (media rot; separate from the dead-path removal).** 16 of 190 `curated/freestyle_tricks/` sidecars point to removed/private YouTube videos (oEmbed 4xx). Re-curate or remove. 12 reliably dead: `1sZy4gc5rr0 62v3c7NqynA DaDOV-7fIk0 Dmr7zj_c7cY E1xgRyOvHlA Ekdxe311ZE8 K35_mFAOXbs LR-IY5A44BI Sg4Ve56lhEc T1F7BXSMhKI eViFAkFFH6k qEjsigE0_FA`; re-confirm 4 youtu.be/timestamp forms via `verifyExternalVideoUrl`: `jogQ-qUrku0 VMIUPcyyAz0 aYV562tQDBM gZzHutLCa0o`.
   TT canonical-sidecar invariant: see `legacy_data/CLAUDE.md`.
 
 - **Candidate live-content columns need loader coverage (James-track).** `legacy_club_candidates` now carries nullable `description` and `external_url` columns (platform-side schema add; the promotion path publishes them onto the live club, URL only after validation). The enrichment loader does not yet populate them from the mirror extraction, so platform-promoted clubs currently land with an empty description and no URL. Extend the candidate loader to carry both fields from `seed/clubs.csv` and re-run the load.
