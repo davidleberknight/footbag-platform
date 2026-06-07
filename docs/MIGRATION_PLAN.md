@@ -225,13 +225,7 @@ A pre-populated club (under the `PP-hosting` and `PP-contact-corroborated` rules
 - `recent_activity` - last competitive year overlaps the club's activity window
 - `geographic_alignment` - legacy member city or country matches the club's city or country
 
-Per-`(member, club)` classification follows combination gates over the structural signals:
-
-| Classification | Rule |
-|---|---|
-| strong | `(listed_contact AND affiliation) OR (hosting AND roster) OR (listed_contact AND hosting)` |
-| weak | exactly one structural signal present (including `mirror_text` alone) |
-| none | zero structural signals present |
+Per-`(member, club)` classification follows the combination gates defined in `M_Complete_Onboarding_Wizard` (strong / weak / none over the structural signals).
 
 Modifiers display alongside signals in member-facing and admin surfaces but do not promote weak to strong or demote strong to weak. The `club_bootstrap_leaders.confidence_score` column persists as a sortable informational attribute and is not the classification gate. The gate rule set is rules-as-code; revisions follow observed false-positive data.
 

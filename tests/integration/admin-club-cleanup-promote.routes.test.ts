@@ -97,7 +97,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /admin/club-cleanup promotable candidates section', () => {
-  it('lists unpromoted non-junk candidates with a promote form; junk never renders', async () => {
+  it('lists unpromoted non-junk candidates with a promote form; junk gets no promote action', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/admin/club-cleanup')
@@ -107,7 +107,11 @@ describe('GET /admin/club-cleanup promotable candidates section', () => {
     expect(res.text).toContain('Austin Style');
     expect(res.text).toContain('Memphis Footworks');
     expect(res.text).toContain(`/admin/club-cleanup/candidates/${OV_CAND}/promote`);
-    expect(res.text).not.toContain('Junk Row');
+    // A junk-flagged candidate surfaces only in the junk section of this
+    // admin queue (confirm the verdict or return it to dormant); it is
+    // never offered the promote-to-live action.
+    expect(res.text).toContain('Junk Row');
+    expect(res.text).not.toContain(`/admin/club-cleanup/candidates/${JUNK_CAND}/promote`);
   });
 });
 

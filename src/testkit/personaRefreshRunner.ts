@@ -338,6 +338,17 @@ export function refreshAllPersonas(
     delIn2('club_viability_signals', 'member_id', memberIds, 'club_id', clubIds);
     delIn2('club_leaders', 'member_id', memberIds, 'club_id', clubIds);
     delIn('club_cleanup_resolutions', 'club_id', clubIds);
+    // Candidate-keyed defer rows must go before the candidate delete below;
+    // the deferred_by pass also removes a persona admin's defer on a REAL
+    // candidate (the member FK would block the member delete, and dropping
+    // the row just reverts that candidate to undeferred).
+    delIn2('candidate_cleanup_resolutions', 'candidate_id', candidateIds, 'deferred_by_member_id', memberIds);
+    // Claim markers are expiring coordination hints, safe to drop: the
+    // claimant pass unblocks the member delete, the item pass covers claims
+    // by anyone on a persona club or candidate (ids are unique across both
+    // tables, so a single item_id pass addresses both item types).
+    delIn('club_cleanup_claims', 'claimed_by_member_id', memberIds);
+    delIn('club_cleanup_claims', 'item_id', [...clubIds, ...candidateIds]);
     // A persona acting as admin can stamp grants on other members; those rows
     // would otherwise block the member delete, and removing them reverts the
     // affected member to pre-test state (latest-row-wins ledgers), so the

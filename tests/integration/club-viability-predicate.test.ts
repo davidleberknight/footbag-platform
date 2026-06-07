@@ -164,7 +164,7 @@ describe('getCleanupQueuePage', () => {
   it('returns actionable items from multiple predicates', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
-    const items = vm.content.items;
+    const items = vm.content.itemGroups.flatMap(g => g.items);
 
     const viabilityItems = items.filter(i => i.predicate === 'crowdsource_viability');
     expect(viabilityItems.length).toBeGreaterThan(0);
@@ -178,7 +178,7 @@ describe('getCleanupQueuePage', () => {
   it('excludes G1_confirmed_active clubs from viability items', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
-    const activeClub = vm.content.items.find(
+    const activeClub = vm.content.itemGroups.flatMap(g => g.items).find(
       i => i.clubId === CLUB_ACTIVE && i.predicate === 'crowdsource_viability',
     );
     expect(activeClub).toBeUndefined();
@@ -190,7 +190,7 @@ describe('getCleanupQueuePage', () => {
     // CLUB_DETAIL_ONLY carries only club_detail rows: no gate fires and no
     // crowdsource item appears (it may still surface as leaderless, which
     // is independent of signals).
-    const crowdsourceItem = vm.content.items.find(
+    const crowdsourceItem = vm.content.itemGroups.flatMap(g => g.items).find(
       i => i.clubId === CLUB_DETAIL_ONLY && i.predicate === 'crowdsource_viability',
     );
     expect(crowdsourceItem).toBeUndefined();
@@ -199,7 +199,7 @@ describe('getCleanupQueuePage', () => {
   it('names the negative wizard reporters on the crowdsource item', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
-    const item = vm.content.items.find(
+    const item = vm.content.itemGroups.flatMap(g => g.items).find(
       i => i.clubId === CLUB_WEAK && i.predicate === 'crowdsource_viability',
     );
     expect(item).toBeTruthy();

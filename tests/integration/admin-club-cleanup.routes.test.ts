@@ -196,6 +196,59 @@ describe('deferred resolutions re-surface after the window expires', () => {
   });
 });
 
+describe('queue filter and sort query params', () => {
+  // By this point in the file the queue holds predicate items for the stale
+  // provisional club and the re-surfaced deferred club, and no residue or
+  // candidates; the filters below pivot on that state.
+  it('category filter hides items from other categories', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?category=stale_provisional')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stale Provisional Club');
+    expect(res.text).not.toContain('Deferred Club');
+  });
+
+  it('category=residue empties the predicate table', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?category=residue')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Stale Provisional Club');
+  });
+
+  it('region filter matches region or country case-insensitively', async () => {
+    const match = await request(createApp())
+      .get('/admin/club-cleanup?region=usa')
+      .set('Cookie', adminCookie());
+    expect(match.status).toBe(200);
+    expect(match.text).toContain('Stale Provisional Club');
+
+    const noMatch = await request(createApp())
+      .get('/admin/club-cleanup?region=nowhere')
+      .set('Cookie', adminCookie());
+    expect(noMatch.status).toBe(200);
+    expect(noMatch.text).not.toContain('Stale Provisional Club');
+  });
+
+  it('sort=age renders the queue without error', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?sort=age')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stale Provisional Club');
+  });
+
+  it('unknown filter and sort values fall back to the unfiltered queue', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?category=bogus&sort=bogus&region=')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Stale Provisional Club');
+    expect(res.text).toContain('Deferred Club');
+  });
+});
+
 describe('demote cascade retires pending legacy residue', () => {
   it('demoting a club transitions its pending affiliations to former_only', async () => {
     const db = new BetterSqlite3(dbPath);

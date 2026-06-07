@@ -929,12 +929,15 @@ export const legacyClubCandidates = {
   // Candidates an admin can promote to a live clubs row. Junk is never
   // promotable; pre_populate rows are stamped by the pipeline at cutover,
   // so an unmapped candidate here is exactly the onboarding_visible /
-  // dormant residue the cleanup queue offers a promote action for.
+  // dormant residue the cleanup queue offers a promote action for. A
+  // non-NULL lifecycle_state is a terminal admin decision, so those rows
+  // leave the queue for good.
   get listPromotableForQueue() { return db.prepare(`
-    SELECT id, display_name, city, region, country, classification
+    SELECT id, display_name, city, region, country, classification, created_at
       FROM legacy_club_candidates
      WHERE classification IN ('onboarding_visible', 'dormant')
        AND mapped_club_id IS NULL
+       AND lifecycle_state IS NULL
      ORDER BY country COLLATE NOCASE ASC, display_name COLLATE NOCASE ASC
   `); },
 
@@ -944,6 +947,47 @@ export const legacyClubCandidates = {
     UPDATE legacy_club_candidates
        SET mapped_club_id = ?, updated_at = ?, updated_by = ?, version = version + 1
      WHERE id = ? AND mapped_club_id IS NULL
+  `); },
+
+  // Junk-flagged candidates awaiting an admin verdict (confirm junk or
+  // return to dormant for further evaluation). A confirmed row leaves the
+  // queue via its lifecycle_state, never by deletion.
+  get listJunkForQueue() { return db.prepare(`
+    SELECT id, display_name, city, region, country, created_at
+      FROM legacy_club_candidates
+     WHERE classification = 'junk'
+       AND mapped_club_id IS NULL
+       AND lifecycle_state IS NULL
+     ORDER BY country COLLATE NOCASE ASC, display_name COLLATE NOCASE ASC
+  `); },
+
+  // Candidate cleanup writes. Every guard re-checks the state the action
+  // assumes, so a concurrent admin's earlier action turns this into a
+  // zero-row no-op instead of a double transition.
+  get demoteToDormant() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET classification = 'dormant', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND classification = 'onboarding_visible'
+       AND mapped_club_id IS NULL AND lifecycle_state IS NULL
+  `); },
+
+  get junkToDormant() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET classification = 'dormant', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND classification = 'junk' AND lifecycle_state IS NULL
+  `); },
+
+  get archiveCandidate() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET lifecycle_state = 'archived', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND classification IN ('onboarding_visible', 'dormant')
+       AND mapped_club_id IS NULL AND lifecycle_state IS NULL
+  `); },
+
+  get confirmJunkCandidate() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET lifecycle_state = 'junk_confirmed', updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND classification = 'junk' AND lifecycle_state IS NULL
   `); },
 
   // Create-club duplicate check: same-country candidates the member could
@@ -1089,6 +1133,7 @@ export const legacyPersonClubAffiliations = {
       lcc.mapped_club_id   AS club_id,
       c.name               AS club_name,
       c.city               AS club_city,
+      c.region             AS club_region,
       c.country            AS club_country,
       c.status             AS club_status,
       COUNT(*)             AS pending_count,
@@ -1100,7 +1145,7 @@ export const legacyPersonClubAffiliations = {
       ON c.id = lcc.mapped_club_id
     WHERE lpca.resolution_status = 'pending'
       AND lcc.mapped_club_id IS NOT NULL
-    GROUP BY lcc.mapped_club_id, c.name, c.city, c.country, c.status
+    GROUP BY lcc.mapped_club_id, c.name, c.city, c.region, c.country, c.status
     ORDER BY oldest_pending_at ASC
   `); },
 
@@ -1589,8 +1634,10 @@ export const clubViabilitySignals = {
       l.club_id,
       c.name          AS club_name,
       c.city          AS club_city,
+      c.region        AS club_region,
       c.country       AS club_country,
       c.status        AS club_status,
+      c.updated_at    AS club_updated_at,
       SUM(CASE WHEN l.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN l.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
       SUM(CASE WHEN l.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
@@ -7273,10 +7320,67 @@ export const clubCleanupResolutions = {
   `); },
 };
 
+export const candidateCleanupResolutions = {
+  get upsert() { return db.prepare(`
+    INSERT INTO candidate_cleanup_resolutions
+      (id, created_at, created_by, candidate_id, predicate_name, resolution,
+       deferred_until, deferred_by_member_id, reason_text)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(candidate_id, predicate_name)
+    DO UPDATE SET resolution = excluded.resolution,
+                  deferred_until = excluded.deferred_until,
+                  deferred_by_member_id = excluded.deferred_by_member_id,
+                  reason_text = excluded.reason_text,
+                  created_at = excluded.created_at,
+                  created_by = excluded.created_by
+  `); },
+
+  // All candidate resolution rows, including still-deferred ones: the
+  // service owns the deferral-window check, so a future deferred_until
+  // suppresses the queue item and an expired one lets it re-surface with
+  // the deferred-by annotation (hence the admin display-name join).
+  get listAll() { return db.prepare(`
+    SELECT ccr.candidate_id, ccr.predicate_name, ccr.resolution,
+           ccr.deferred_until, ccr.reason_text,
+           m.display_name AS deferred_by_name
+    FROM candidate_cleanup_resolutions AS ccr
+    LEFT JOIN members AS m ON m.id = ccr.deferred_by_member_id
+  `); },
+};
+
+export const clubCleanupClaims = {
+  // A re-claim (same item, any admin) refreshes the marker rather than
+  // failing: the newest claimant is the one other admins should see.
+  get upsertClaim() { return db.prepare(`
+    INSERT INTO club_cleanup_claims
+      (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(item_type, item_id)
+    DO UPDATE SET claimed_by_member_id = excluded.claimed_by_member_id,
+                  claimed_at = excluded.claimed_at
+  `); },
+
+  get releaseClaim() { return db.prepare(`
+    DELETE FROM club_cleanup_claims
+    WHERE item_type = ? AND item_id = ?
+  `); },
+
+  // Active = claimed within the caller-supplied cutoff (30 minutes before
+  // now); older markers are stale and simply stop rendering. Stale rows are
+  // overwritten by the next claim, so no sweeper is needed.
+  get listActiveClaims() { return db.prepare(`
+    SELECT c.item_type, c.item_id, c.claimed_at,
+           m.display_name AS claimed_by_name
+    FROM club_cleanup_claims AS c
+    INNER JOIN members AS m ON m.id = c.claimed_by_member_id
+    WHERE c.claimed_at > ?
+  `); },
+};
+
 export const clubCleanupPredicates = {
   get leaderlessActiveClubs() { return db.prepare(`
     SELECT c.id AS club_id, c.name AS club_name,
-           c.city, c.country, c.status,
+           c.city, c.region, c.country, c.status,
            c.updated_at AS last_updated
     FROM clubs AS c
     WHERE c.status = 'active'
@@ -7288,7 +7392,7 @@ export const clubCleanupPredicates = {
   get staleProvisionalLeaders() { return db.prepare(`
     SELECT cbl.id AS bootstrap_leader_id,
            cbl.club_id, c.name AS club_name,
-           c.city, c.country,
+           c.city, c.region, c.country,
            cbl.role, cbl.created_at AS provisional_since
     FROM club_bootstrap_leaders AS cbl
     INNER JOIN clubs AS c ON c.id = cbl.club_id

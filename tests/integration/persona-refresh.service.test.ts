@@ -25,6 +25,7 @@ import {
   insertMemberTierGrant,
   insertAuditEntry,
   insertPayment,
+  insertLegacyClubCandidate,
 } from '../../src/testkit/personaRowBuilders';
 
 const { dbPath } = setTestEnv('3097');
@@ -275,6 +276,45 @@ describe('refreshAllPersonas', () => {
        VALUES ('gal-outsider-1', ?, ?, 'system')`,
     ).run(personaClub.hashtag_tag_id, TS);
 
+    // Cleanup-queue rows a tester session can mint: a persona admin's defer
+    // on a real candidate (its member FK would block the member delete), a
+    // defer on a persona-seeded candidate (its candidate FK would block the
+    // candidate delete), the persona's claim marker on the real club, and an
+    // outsider's claim on the persona club (that item is about to go).
+    insertLegacyClubCandidate(db, { id: 'cand-real-keep-1', display_name: 'Real Keep Candidate', classification: 'onboarding_visible' });
+    db.prepare(
+      `INSERT INTO candidate_cleanup_resolutions
+         (id, created_at, created_by, candidate_id, predicate_name, resolution, deferred_until, deferred_by_member_id, reason_text)
+       VALUES ('cdr-persona-1', ?, 'system', 'cand-real-keep-1', 'promotable_candidate', 'deferred', ?, ?, 'persona defer')`,
+    ).run(TS, TS, T1);
+    const personaCandidate = db
+      .prepare(
+        `SELECT legacy_club_candidate_id AS id FROM legacy_person_club_affiliations
+          WHERE legacy_club_candidate_id IS NOT NULL
+            AND (legacy_member_id LIKE 'legmem_persona_%'
+                 OR historical_person_id IN (
+                   SELECT person_id FROM historical_persons
+                    WHERE legacy_member_id LIKE 'legmem_persona_%'))
+          LIMIT 1`,
+      )
+      .get() as { id: string } | undefined;
+    expect(personaCandidate).toBeDefined();
+    db.prepare(
+      `INSERT INTO candidate_cleanup_resolutions
+         (id, created_at, created_by, candidate_id, predicate_name, resolution, deferred_until, deferred_by_member_id, reason_text)
+       VALUES ('cdr-personacand-1', ?, 'system', ?, 'promotable_candidate', 'deferred', ?, NULL, NULL)`,
+    ).run(TS, personaCandidate!.id, TS);
+    db.prepare(
+      `INSERT INTO club_cleanup_claims
+         (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)
+       VALUES ('ccl-persona-1', ?, 'system', 'club', 'club-real-keep-1', ?, ?)`,
+    ).run(TS, T1, TS);
+    db.prepare(
+      `INSERT INTO club_cleanup_claims
+         (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)
+       VALUES ('ccl-outsider-1', ?, 'system', 'club', ?, 'member-outsider-2', ?)`,
+    ).run(TS, personaClub.id, TS);
+
     expect(() => refreshAllPersonas(db, repoRoot)).not.toThrow();
 
     // The outsider and their gallery survive; only the rows referencing the
@@ -289,6 +329,10 @@ describe('refreshAllPersonas', () => {
     expect(count(`SELECT COUNT(*) AS n FROM clubs WHERE id = 'club-real-keep-1'`)).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM club_leaders WHERE id = 'cl-real-1'`)).toBe(0);
     expect(count(`SELECT COUNT(*) AS n FROM club_viability_signals WHERE id = 'cvs-persona-1'`)).toBe(0);
+
+    // The real candidate survives; the cleanup-queue rows minted around the
+    // persona session do not.
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_club_candidates WHERE id = 'cand-real-keep-1'`)).toBe(1);
 
     // The real-entity work item survives with only its resolver detached.
     const wqSurvivor = db
@@ -312,6 +356,10 @@ describe('refreshAllPersonas', () => {
       ['media_jobs', 'mj-persona-1'],
       ['active_player_reminder_sent', 'aprs-persona-1'],
       ['audit_entries', 'audit-switch-1'],
+      ['candidate_cleanup_resolutions', 'cdr-persona-1'],
+      ['candidate_cleanup_resolutions', 'cdr-personacand-1'],
+      ['club_cleanup_claims', 'ccl-persona-1'],
+      ['club_cleanup_claims', 'ccl-outsider-1'],
     ];
     for (const [table, id] of goneIds) {
       expect(count(`SELECT COUNT(*) AS n FROM ${table} WHERE id = ?`, id), table).toBe(0);

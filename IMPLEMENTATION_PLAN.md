@@ -28,6 +28,18 @@ procedure in `src/dev-bootstrap/README.md` deletes them at production
 go-live. Until then, production safety rests on the env-config fail-fast
 guards plus the production image build stripping `dist/dev-bootstrap/`.
 
+### Cleanup-queue contract: two US items unbuilt
+
+`A_Periodic_Club_Cleanup` is implemented except for two platform-side items:
+wizard-flag grouping by candidate (needs a grounding re-read of the
+`club_viability_signals.source_entity_*` emission path so raw wizard flags
+grouped by unpromoted candidate never double-surface signals the viability
+gates already cover) and group-level bulk actions (no ratified bulk
+semantics yet). Merge-two-live-clubs is a deliberate exclusion: pre-cutover
+duplicates are handled by the curator pipeline merge. The cross-track
+force-keep / force-junk request item is tracked in
+`legacy_data/IMPLEMENTATION_PLAN.md`.
+
 ### Freestyle surfaces deviate from the VC §4.5 token standard
 
 The non-freestyle site is on the VC §4.4-§4.5 standard: `--font-body` /

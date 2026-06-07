@@ -3246,6 +3246,49 @@ CREATE TABLE club_cleanup_resolutions (
 
 CREATE INDEX idx_club_cleanup_resolutions_club ON club_cleanup_resolutions(club_id);
 
+-- Candidate-keyed cleanup resolutions: defer windows for unpromoted
+-- legacy_club_candidates in the admin cleanup queue. Mirrors
+-- club_cleanup_resolutions (which is keyed to live clubs and cannot hold
+-- candidate rows). deferred_by_member_id powers the "previously deferred by
+-- Admin X" annotation when an expired defer re-surfaces.
+CREATE TABLE candidate_cleanup_resolutions (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  candidate_id   TEXT NOT NULL REFERENCES legacy_club_candidates(id),
+  predicate_name TEXT NOT NULL,
+  resolution     TEXT NOT NULL
+    CHECK (resolution IN ('deferred')),
+  deferred_until TEXT,
+  deferred_by_member_id TEXT REFERENCES members(id),
+  reason_text    TEXT,
+
+  UNIQUE(candidate_id, predicate_name)
+);
+
+CREATE INDEX idx_candidate_cleanup_resolutions_candidate
+  ON candidate_cleanup_resolutions(candidate_id);
+
+-- Concurrent-admin coordination markers for the cleanup queue. A claim is a
+-- visible "claimed by Admin X at time T" hint to other admins, never a lock:
+-- it does not block anyone, auto-releases when the item is resolved, and
+-- goes stale after 30 minutes (staleness is evaluated in the read query;
+-- there is no background process). One claim per item; a re-claim refreshes
+-- the marker.
+CREATE TABLE club_cleanup_claims (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  item_type  TEXT NOT NULL CHECK (item_type IN ('club','candidate')),
+  item_id    TEXT NOT NULL,
+  claimed_by_member_id TEXT NOT NULL REFERENCES members(id),
+  claimed_at TEXT NOT NULL,
+
+  UNIQUE(item_type, item_id)
+);
+
 -- Permanent operational table: per-member onboarding-wizard task state.
 -- One row per (member_id, task_type). Owned by MemberOnboardingService.
 -- Rows persist for the life of the member; completed tasks remain in place
@@ -3446,6 +3489,11 @@ CREATE TABLE legacy_club_candidates (
   mapped_club_id   TEXT REFERENCES clubs(id),
   bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1)),
   classification     TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk')),
+  -- Terminal cleanup lifecycle, carried on the candidate row itself so that
+  -- "every non-junk candidate has reached a terminal state" (the condition
+  -- for retiring this table) is checkable from the rows alone. NULL while
+  -- the candidate is still live in the admin cleanup queue.
+  lifecycle_state    TEXT CHECK (lifecycle_state IN ('archived','junk_confirmed')),
 
   -- Classification evidence: one 0/1 flag per named classifier rule
   -- (r1-r10), the substitute-contact marker, and the raw rule inputs

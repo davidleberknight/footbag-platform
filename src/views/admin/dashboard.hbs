@@ -21,8 +21,11 @@
         <p class="card-description">Open admin tasks across membership, events, media, payments, elections, and system. Member contact requests land here for review and resolution.</p>
       </div>
       <div class="card">
-        <div class="card-title"><a href="/admin/club-cleanup">Club cleanup</a></div>
+        <div class="card-title"><a href="/admin/club-cleanup">Club cleanup</a>{{#if content.backlog.hasBacklog}} <span class="badge">{{content.backlog.openCount}} open</span>{{/if}}</div>
         <p class="card-description">Review clubs with crowdsourced viability signals from onboarding. Demote inactive clubs, archive junk, or dismiss false positives.</p>
+        {{#if content.backlog.hasBacklog}}
+        <p class="card-meta">Oldest open item: {{content.backlog.oldestOpenAgeLabel}}</p>
+        {{/if}}
       </div>
     </div>
   </section>

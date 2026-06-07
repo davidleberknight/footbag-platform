@@ -730,7 +730,7 @@ Two FK-style columns carry person-identity / legacy-account linkage:
 - `historical_person_id` (`TEXT`, nullable, `REFERENCES historical_persons(person_id) ON DELETE NO ACTION`): direct FK to the archival historical-person identity this member claims. NULL = no HP claim. Set at claim time; either as a side effect of M_Claim_Legacy_Account (when the claimed legacy account has a matching HP) or as a direct HP claim (competitor with no legacy account claims their historical record). Partial UNIQUE index `ux_members_historical_person_id` enforces at most one live, non-purged member per HP.
 - `legacy_member_id` (`TEXT`, nullable, `REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION`): pointer into the old footbag.org user-account namespace; also the PK of `legacy_members` (§4.14b). Set at M_Claim_Legacy_Account time. Partial UNIQUE index `ux_members_legacy_id` enforces at most one member per legacy account.
 
-`legacy_user_id` and `legacy_email` also remain as TEXT columns for backward compatibility with fields migrated into `members` at claim time; the canonical source for these is `legacy_members`. Post-claim, the member's row holds its own editable copy per MIGRATION_PLAN §9 merge rules; the `legacy_members` row is preserved unchanged as the permanent archival record.
+`legacy_user_id` and `legacy_email` also remain as TEXT columns for backward compatibility with fields migrated into `members` at claim time; the canonical source for these is `legacy_members`. Post-claim, the member's row holds its own editable copy per `M_Claim_Legacy_Account` merge rules; the `legacy_members` row is preserved unchanged as the permanent archival record.
 
 - `legacy_is_admin`; flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
 - `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`; profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The active member can subsequently edit them; the `legacy_members` copy remains immutable.
@@ -773,13 +773,13 @@ Permanent archival table: one row per imported legacy account from the old footb
 
 - Rows are **never deleted**. A `legacy_members` row is the permanent archival record of a legacy account's fields at import time.
 - Rows are **never mutated post-import** for the legacy fields (real_name, display_name, bio, country, honor flags, etc.). Import sets these; nothing else writes them.
-- **Claim marks, does not remove.** When a current member completes M_Claim_Legacy_Account, the application sets `claimed_by_member_id` (FK to `members(id)`) and `claimed_at`. The `legacy_members` row persists. MIGRATION_PLAN §9 merge rules still govern what fields copy from `legacy_members` to `members` at claim time (COALESCE / OR-merge / fill-if-empty); the member then edits their own copy.
+- **Claim marks, does not remove.** When a current member completes M_Claim_Legacy_Account, the application sets `claimed_by_member_id` (FK to `members(id)`) and `claimed_at`. The `legacy_members` row persists. `M_Claim_Legacy_Account` merge rules still govern what fields copy from `legacy_members` to `members` at claim time (COALESCE / OR-merge / fill-if-empty); the member then edits their own copy.
 - **Unclaim on PII purge** (DD §2.4 rule 5): when a claiming member is purged, `claimed_by_member_id` and `claimed_at` are cleared (both NULL). The legacy account becomes claimable again.
 
 #### Columns
 
 - `legacy_member_id` (`TEXT`, PK): the old-site user-account id.
-- `legacy_user_id`, `legacy_email`: migration metadata from the mirror/dump. `legacy_email` is used to deliver the one-time claim link (MIGRATION_PLAN §8); never a login credential.
+- `legacy_user_id`, `legacy_email`: migration metadata from the mirror/dump. `legacy_email` is used to deliver the one-time claim link (per `M_Claim_Legacy_Account`); never a login credential.
 - Profile snapshot; `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
 - Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
 - `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
@@ -1173,6 +1173,25 @@ Admin resolution tracking for the club cleanup queue. One row per club per predi
 - `deferred_until`: ISO timestamp for deferred items. The admin queue re-surfaces deferred items after this timestamp passes.
 - UPSERT semantics: re-resolving the same club-plus-predicate overwrites the prior resolution.
 
+**Table:** `candidate_cleanup_resolutions`
+
+Admin defer tracking for unpromoted `legacy_club_candidates` in the cleanup queue. One row per candidate per queue-item type (`UNIQUE` on `candidate_id, predicate_name`); mirrors `club_cleanup_resolutions`, which is keyed to live clubs and cannot hold candidate rows.
+
+- `predicate_name`: the candidate queue-item type that was deferred (e.g., `promotable_candidate`).
+- `resolution` enum: `deferred`. Defer is the only flag-style action a candidate takes; the other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
+- `deferred_until`: ISO timestamp; the queue re-surfaces the candidate after it passes.
+- `deferred_by_member_id`: the deferring admin; powers the "previously deferred by Admin X, reason ..." annotation on re-surface.
+- UPSERT semantics: re-deferring the same candidate overwrites the prior window.
+
+**Table:** `club_cleanup_claims`
+
+Concurrent-admin coordination markers for the cleanup queue (one row per item, `UNIQUE` on `item_type, item_id`). A claim is a visible "claimed by Admin X at time T" hint, never a lock: it does not block another admin's actions.
+
+- `item_type` enum: `club`, `candidate`; with `item_id` it addresses any queue item.
+- `claimed_at`: refreshed on re-claim; markers older than 30 minutes are stale and stop rendering (staleness is evaluated in the read query; no background process; stale rows are overwritten by the next claim).
+- Auto-release: every resolve, defer, dismiss, de-list, and promote action deletes the item's claim row.
+- Claims are deliberately un-audited: a claim is a coordination hint, not a resolution.
+
 ---
 
 ### 4.27 Migration Staging and Bootstrap Tables
@@ -1181,7 +1200,7 @@ Three tables are introduced by the legacy data migration in addition to `member_
 
 | Table | Category | Drop condition |
 |---|---|---|
-| `legacy_club_candidates` | Migration-only staging | After every non-junk candidate has reached a terminal state per MIGRATION_PLAN §10.4 |
+| `legacy_club_candidates` | Migration-only staging | After every non-junk candidate has reached a terminal state per `A_Periodic_Club_Cleanup` |
 | `legacy_person_club_affiliations` | Migration-only staging | After all affiliation suggestions are resolved |
 | `club_bootstrap_leaders` | Operational, migration-origin | After all rows reach terminal state (`claimed`, `superseded`, or `rejected`) |
 
@@ -1193,13 +1212,14 @@ Columns of design interest:
 
 - `legacy_club_key`: the canonical mirror key for this candidate. When the curator confirms a duplicate pair (per MIGRATION_PLAN §10.1), the pipeline merges the pair into the keep-key candidate before load; merged-from keys are recorded in the pipeline's override file and outputs, not in a DB column.
 - `display_name`, `city`, `region`, `country`: best-of fields from the (possibly merged) candidate per the MIGRATION_PLAN §10.1 field-merge rules.
-- `classification`: enum (`pre_populate`, `onboarding_visible`, `dormant`, `junk`) assigned by the classifier per MIGRATION_PLAN §10.1 rules.
+- `classification`: enum (`pre_populate`, `onboarding_visible`, `dormant`, `junk`) assigned by the pre-cutover classifier; admin cleanup actions per `A_Periodic_Club_Cleanup` can demote an onboarding-visible candidate to dormant or return a junk candidate to dormant.
 - Classification evidence: one 0/1 flag column per named rule (`r1`–`r10`) records exactly which rules fired, alongside `contact_signal_substitute_applied` and the raw rule-input columns (`last_hosted_year`, `last_updated_year`, `contact_member_last_year`, `max_affiliated_member_last_year`, `created_year`, `unique_member_names`, `linkable_member_count`, `ever_hosted`). Persisted so admin can audit the classification rationale without re-running the classifier; there is no `rules_fired`/`evidence_snapshot` JSON column.
-- Force-keep / force-junk overrides live as curator-owned CSVs in `legacy_data/overrides/` consumed by the classifier (MIGRATION_PLAN §10.1 admin override lists), not as DB columns.
+- Force-keep / force-junk overrides live as curator-owned CSVs in `legacy_data/overrides/` consumed by the classifier, not as DB columns; admin force-keep / force-junk requests are ruled in `A_Periodic_Club_Cleanup`.
 - `bootstrap_eligible`: 0/1, set iff `classification = 'pre_populate'`. Leader candidacy is independent: a pre-populated club may carry zero `club_bootstrap_leaders` rows (leadership then defers to activation path 2).
 - `mapped_club_id`: FK to `clubs(id)`, populated once the candidate is promoted to a live row.
+- `lifecycle_state`: NULL while the candidate is live in the cleanup queue; `archived` or `junk_confirmed` records a terminal admin decision on the row itself, so the drop condition is checkable from the rows alone.
 
-May be dropped once every non-junk candidate has reached a terminal state per `MIGRATION_PLAN.md` §10.4.
+May be dropped once every non-junk candidate has reached a terminal state per `A_Periodic_Club_Cleanup`.
 
 #### `legacy_person_club_affiliations` — migration-only staging
 
@@ -1208,7 +1228,7 @@ Mirror-derived scored person-to-club affiliation suggestions. Each row links a p
 `resolution_status` semantics:
 
 - `pending` (schema default): the affiliation is inferred from the mirror and has not been confirmed by anyone. All loader-imported rows from the mirror pipeline arrive in this state.
-- `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A path 1, Stage 1B path 1 per `MIGRATION_PLAN.md` §10.3), or when an admin manually confirms.
+- `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A / Stage 1B membership confirmation per `M_Complete_Onboarding_Wizard`), or when an admin manually confirms.
 - `former_only`: the member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2).
 - `not_mine`: the member rejects the inferred affiliation (Stage 1B path 4; Stage 1A path 4 escalates to admin).
 - `needs_review`: admin has marked the row for further review.
@@ -1221,10 +1241,10 @@ Uniqueness is enforced via two partial unique indexes rather than a single UNIQU
 May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
-Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row; it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. Classification (strong, weak, or none) per `MIGRATION_PLAN.md` §2 combination gates is derived at read time from associated `club_bootstrap_leader_signals` rows. The `confidence_score` column is retained as a sortable informational attribute and does not drive classification. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row; it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. Classification (strong, weak, or none) per the `M_Complete_Onboarding_Wizard` combination gates is derived at read time from associated `club_bootstrap_leader_signals` rows. The `confidence_score` column is retained as a sortable informational attribute and does not drive classification. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
 
 #### `club_bootstrap_leader_signals` — operational, migration-origin
-Per-signal evidence for the combination-gate classification of bootstrap leader candidates (see `MIGRATION_PLAN.md` §2 Bootstrap rule). Each row records that a specific structural signal or modifier fired for a `(member, club)` candidate, captured at pipeline time. Services compute the strong / weak / none classification at read time by checking which structural signals are present on the parent bootstrap row.
+Per-signal evidence for the combination-gate classification of bootstrap leader candidates (gates per `M_Complete_Onboarding_Wizard`). Each row records that a specific structural signal or modifier fired for a `(member, club)` candidate, captured at pipeline time. Services compute the strong / weak / none classification at read time by checking which structural signals are present on the parent bootstrap row.
 
 `signal_type` values fall into two categories. Structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) drive classification per MP §2 gates. Modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification.
 
@@ -1238,7 +1258,7 @@ May be dropped together with `club_bootstrap_leaders` once all bootstrap rows re
 
 #### `name_variants` — permanent, not migration-only
 
-Name-equivalence pairs that support auto-link matching across `legacy_members`, `historical_persons`, and `members` (see `MIGRATION_PLAN.md` §6 auto-link and §7 self-serve claim flow). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
+Name-equivalence pairs that support auto-link matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account` auto-link candidate staging and declared-anchor flow). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
 
 - **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `datetime('now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
 - **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
@@ -1281,7 +1301,7 @@ Former surnames and old email addresses declared by members to broaden the ident
 
 **Table:** `auto_link_staged_candidates`
 
-The stage-and-confirm surface for auto-link (MIGRATION_PLAN §15.20): batch and post-claim passes stage candidate matches here; nothing mutates live tables and no mail is sent until the member confirms a wizard card. Migration-scope; droppable once all staged candidates resolve.
+The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): batch and post-claim passes stage candidate matches here; nothing mutates live tables and no mail is sent until the member confirms a wizard card. Migration-scope; droppable once all staged candidates resolve.
 
 - **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; nullable targets `legacy_member_id` (FK `legacy_members`) and `historical_person_id` (FK `historical_persons`); `confidence` CHECK in (`high`, `medium`); `matched_anchors_json`; `proposed_evidence_strength` CHECK over the four §15.19 tiers; `source_pass` CHECK in (`batch`, `sign_in`, `registration`, `cross_source`); `status` CHECK in (`staged`, `confirmed`, `declined`, `expired`); `expires_at`; `resolved_at`.
 - **CHECKs**: at least one target column is non-NULL; `(status = 'staged') = (resolved_at IS NULL)`.

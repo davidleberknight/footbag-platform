@@ -7,47 +7,80 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.items.length}}
-      <table class="cleanup-queue-table">
-        <thead>
-          <tr>
-            <th>Club</th>
-            <th>Location</th>
-            <th>Status</th>
-            <th>Predicate</th>
-            <th>Detail</th>
-            <th>Recommendation</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.items}}
-            <tr>
-              <td class="fw-600">{{this.clubName}}</td>
-              <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
-              <td><span class="badge">{{this.clubStatus}}</span></td>
-              <td class="fs-sm">{{this.predicateLabel}}</td>
-              <td class="text-muted fs-sm">{{this.detail}}</td>
-              <td class="fs-sm">{{this.recommendedAction}}</td>
-              <td>
-                <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
-                  <input type="hidden" name="predicate" value="{{this.predicate}}" />
-                  <select name="action" class="cleanup-action-select">
-                    <option value="demote_inactive">Demote</option>
-                    <option value="archive">Archive</option>
-                    <option value="dismiss">Dismiss</option>
-                    <option value="defer_30">Defer 30d</option>
-                    <option value="defer_90">Defer 90d</option>
-                    <option value="defer_180">Defer 180d</option>
-                  </select>
-                  <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
-                  <button type="submit" class="btn btn-outline btn-sm">Apply</button>
-                </form>
-              </td>
-            </tr>
-          {{/each}}
-        </tbody>
-      </table>
+    <form method="GET" action="/admin/club-cleanup" class="cleanup-filter-form">
+      <select name="category" class="cleanup-action-select">
+        <option value="">All categories</option>
+        {{#each content.filters.categoryOptions}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <input type="text" name="region" placeholder="Region or country" class="cleanup-reason-input" value="{{content.filters.region}}" />
+      <select name="sort" class="cleanup-action-select">
+        <option value="">Default order</option>
+        {{#each content.filters.sortOptions}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+      {{#if content.filters.isFiltered}}
+        <a href="/admin/club-cleanup" class="fs-sm">Clear</a>
+      {{/if}}
+    </form>
+  </section>
+
+  <section class="mt-4">
+    {{#if content.itemGroups.length}}
+      {{#each content.itemGroups}}
+        <details class="cleanup-group">
+          <summary>{{this.label}} ({{this.count}})</summary>
+          <table class="cleanup-queue-table mt-2">
+            <thead>
+              <tr>
+                <th>Club</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Detail</th>
+                <th>Recommendation</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each this.items}}
+                <tr>
+                  <td class="fw-600">{{this.clubName}}
+                    {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
+                    <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
+                      <input type="hidden" name="itemType" value="club" />
+                      <input type="hidden" name="itemId" value="{{this.clubId}}" />
+                      <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+                    </form>
+                    {{/if}}
+                  </td>
+                  <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
+                  <td><span class="badge">{{this.clubStatus}}</span></td>
+                  <td class="text-muted fs-sm">{{this.detail}}</td>
+                  <td class="fs-sm">{{this.recommendedAction}}</td>
+                  <td>
+                    <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
+                      <input type="hidden" name="predicate" value="{{this.predicate}}" />
+                      <select name="action" class="cleanup-action-select">
+                        <option value="demote_inactive">Demote</option>
+                        <option value="archive">Archive</option>
+                        <option value="dismiss">Dismiss</option>
+                        <option value="defer_30">Defer 30d</option>
+                        <option value="defer_90">Defer 90d</option>
+                        <option value="defer_180">Defer 180d</option>
+                      </select>
+                      <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                      <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+                    </form>
+                  </td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </details>
+      {{/each}}
     {{else}}
       <p>No clubs require attention. Signals are collected during member onboarding.</p>
     {{/if}}
@@ -55,7 +88,8 @@
 
   {{#if content.residue.length}}
   <section class="mt-8">
-    <h2>Unconfirmed legacy residue</h2>
+    <details class="cleanup-group">
+    <summary>Unconfirmed legacy residue ({{content.residue.length}})</summary>
     <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
     <table class="cleanup-queue-table mt-2">
       <thead>
@@ -71,7 +105,15 @@
       <tbody>
         {{#each content.residue}}
           <tr>
-            <td class="fw-600">{{this.clubName}}</td>
+            <td class="fw-600">{{this.clubName}}
+              {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
+              <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
+                <input type="hidden" name="itemType" value="club" />
+                <input type="hidden" name="itemId" value="{{this.clubId}}" />
+                <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+              </form>
+              {{/if}}
+            </td>
             <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
             <td><span class="badge">{{this.clubStatus}}</span></td>
             <td>{{this.pendingCount}}</td>
@@ -86,13 +128,15 @@
         {{/each}}
       </tbody>
     </table>
+    </details>
   </section>
   {{/if}}
 
   {{#if content.candidates.length}}
   <section class="mt-8">
-    <h2>Promotable candidates</h2>
-    <p class="text-muted fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding.</p>
+    <details class="cleanup-group">
+    <summary>Promotable candidates ({{content.candidates.length}})</summary>
+    <p class="text-muted fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding. Demote moves an onboarding-visible candidate to dormant; archive is terminal.</p>
     <table class="cleanup-queue-table mt-2">
       <thead>
         <tr>
@@ -105,7 +149,15 @@
       <tbody>
         {{#each content.candidates}}
           <tr>
-            <td class="fw-600">{{this.displayName}}</td>
+            <td class="fw-600">{{this.displayName}}{{#if this.deferAnnotation}}<br /><span class="text-muted fs-sm">{{this.deferAnnotation}}</span>{{/if}}
+              {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
+              <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
+                <input type="hidden" name="itemType" value="candidate" />
+                <input type="hidden" name="itemId" value="{{this.candidateId}}" />
+                <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+              </form>
+              {{/if}}
+            </td>
             <td class="text-muted">{{this.city}}{{#if this.country}}, {{this.country}}{{/if}}</td>
             <td><span class="badge">{{this.classificationLabel}}</span></td>
             <td>
@@ -113,11 +165,67 @@
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                 <button type="submit" class="btn btn-outline btn-sm">Promote to live club</button>
               </form>
+              <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/resolve" class="cleanup-action-form mt-1">
+                <select name="action" class="cleanup-action-select">
+                  <option value="demote">Demote to dormant</option>
+                  <option value="archive">Archive</option>
+                  <option value="defer_30">Defer 30d</option>
+                  <option value="defer_90">Defer 90d</option>
+                  <option value="defer_180">Defer 180d</option>
+                </select>
+                <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+              </form>
             </td>
           </tr>
         {{/each}}
       </tbody>
     </table>
+    </details>
+  </section>
+  {{/if}}
+
+  {{#if content.junkCandidates.length}}
+  <section class="mt-8">
+    <details class="cleanup-group">
+    <summary>Junk-flagged candidates ({{content.junkCandidates.length}})</summary>
+    <p class="text-muted fs-sm">Candidates the classifier marked junk. Junk never renders on any public surface. Confirm the verdict (terminal), or promote to dormant to return the candidate to normal evaluation.</p>
+    <table class="cleanup-queue-table mt-2">
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Location</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.junkCandidates}}
+          <tr>
+            <td class="fw-600">{{this.displayName}}
+              {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
+              <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
+                <input type="hidden" name="itemType" value="candidate" />
+                <input type="hidden" name="itemId" value="{{this.candidateId}}" />
+                <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+              </form>
+              {{/if}}
+            </td>
+            <td class="text-muted">{{this.city}}{{#if this.country}}, {{this.country}}{{/if}}</td>
+            <td>
+              <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/resolve" class="cleanup-action-form">
+                <select name="action" class="cleanup-action-select">
+                  <option value="confirm_junk">Confirm junk</option>
+                  <option value="promote_dormant">Promote to dormant</option>
+                </select>
+                <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
+                <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    </details>
   </section>
   {{/if}}
 

@@ -826,6 +826,7 @@ export interface LegacyClubCandidateOverrides {
   external_url?: string | null;
   mapped_club_id?: string | null;
   classification?: LegacyClubCandidateClassification;
+  lifecycle_state?: 'archived' | 'junk_confirmed' | null;
   confidence_score?: number | null;
   bootstrap_eligible?: 0 | 1;
   // TEMP-DEVIATION: club-classification QC panel evidence fields.
@@ -856,6 +857,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     INSERT INTO legacy_club_candidates (
       id, legacy_club_key, display_name, city, region, country,
       description, external_url, mapped_club_id, classification,
+      lifecycle_state,
       confidence_score, bootstrap_eligible,
       r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
       contact_signal_substitute_applied,
@@ -866,6 +868,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
+      ?,
       ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?,
@@ -885,6 +888,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     o.external_url    !== undefined ? o.external_url : null,
     o.mapped_club_id  !== undefined ? o.mapped_club_id : null,
     o.classification  ?? 'junk',
+    o.lifecycle_state !== undefined ? o.lifecycle_state : null,
     o.confidence_score !== undefined ? o.confidence_score : null,
     o.bootstrap_eligible ?? 0,
     o.r1 ?? 0, o.r2 ?? 0, o.r3 ?? 0, o.r4 ?? 0, o.r5 ?? 0,

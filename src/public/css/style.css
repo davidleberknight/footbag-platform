@@ -2299,6 +2299,20 @@ section.home-media { padding-top: 0; }
   gap: 4px;
   align-items: center;
 }
+.cleanup-filter-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cleanup-group {
+  margin-top: 12px;
+}
+.cleanup-group > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
 .cleanup-action-select {
   font-size: 0.8rem;
   padding: 2px 4px;
