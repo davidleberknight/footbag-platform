@@ -249,7 +249,8 @@ describe('Item 4: glossary has Jobs notation section with archive reference', ()
     const app = await createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).not.toContain('exploration/fborg/JobsNotation.txt');
-    expect(res.text).toMatch(/Read Ben Job's original article/);
+    expect(res.text).toContain('Source: Ben Job');
+    expect(res.text).toContain('href="/freestyle/notation-article"');
   });
 });
 

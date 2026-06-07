@@ -1,0 +1,104 @@
+/**
+ * jobsNotationArticle.ts
+ * ======================
+ *
+ * Verbatim historical reproduction of Ben Job's 1995 notation proposal, the
+ * gold-standard source for the freestyle compositional grammar. Reproduced as
+ * the article itself (the discussion-list message and the paper it carries),
+ * with the original spelling preserved. The footbag.org page chrome that
+ * surrounded the archived copy (site navigation, copyright, credits) is not
+ * part of the article and is intentionally excluded.
+ *
+ * Committed content so it deploys with the build and renders at runtime without
+ * reading any working-directory file. Rendered through Handlebars text
+ * interpolation (`{{ }}`), which HTML-escapes the `<`, `>`, and `|` tokens.
+ *
+ * Per the codified notation-tradition exception, naming Ben Job is permitted.
+ */
+
+export const JOBS_NOTATION_ARTICLE_TITLE = 'By the Way, Not the Name';
+
+export const JOBS_NOTATION_ARTICLE = `From: BJ <job@nag.cs.colorado.edu> (now invalid)
+Subject: By the Way, Not the Name
+To: footbag@footbag.org
+Date: Tue, 31 Oct 1995 02:16:38 -0700 (MST)
+
+Here's some food for thought... Feedback is welcome, particularly in regard to
+the names in the list.  Try the "complete" list...
+
+Benjamin Job
+
+
+                             A List By the Way
+
+    This paper presents a notation for describing footbag tricks and
+representing the relationships that exist between them.  Additionally, it
+presents the means for generating a comprehensive list of possible
+variations.
+    Break a trick down.  You get a series of movements preceeded by a set and
+followed by a catch (or kick).  The set and catch options are few and easily
+listable.  The series of movements, though allowing of more variation, are
+similarly listable.  Represented as a formula, this information provides us
+with the means to logically generate trick variations.  As the precision of
+the formula increases, that is, as more of the finite number of basic movements
+are incorperated into the formula, we approach the specification of every trick
+possible.  Consider the following:
+
+(toe | clip) >
+[(same | op)(in | out)dexterity]* >
+(same | op)(toe | clip)
+
+The notation is as follows:   "Same" and "op" are always relative to the leg
+previously refered to.  "In" and "out" mean "inside" and "outside", respec-
+tively.  "|" is equiv. to "choice" ("or").  "[ ]" means "enclosed dex is
+optional".  ">" is equiv. to "followed by".  "*" means the preceding term can
+occur/re-occur 0 or more times.
+    From this simple formula, most non-modified leg dexterities can be derived.
+Because of the structure of the formula, a "truth table" of moves can be gen-
+erated, leaving no move undiscovered (ex., see list).
+
+Some examples:
+
+    clip > op clip                                          Clipper to Clipper
+    toe > op in dex > op toe                                Mirage
+    clip > same in dex > op out dex > same toe              Paradox Dbl Legover
+    clip > op in dex > same in dex > op out dex > same toe  Flurry
+
+    How far can we go?  Only slight modifications are needed to account for
+other modifiers and their associated possibilities.  For example, Pogo,
+Symposium, Spinning, ang Gyro moves can be formed by adding "(no plant while)"
+and "(forward | backward)spin".  The formula,
+
+(toe | clip) >
+[(no plant while)]
+[(same | op)(in | out)dexterity | (for | back)spin]* >
+(same | op)(toe | clip)
+
+describes variations such as:
+
+clip > (no plant while) op in dex > op in dex >
+          (no plant while) op in dex > op toe      Pogo Paradox Symposium Blur
+
+The set and catch options can be filled in with all the choices: inside,
+outside, knee, the unsual surfaces.  What elements that may comprise a trick
+have yet to be accounted for?  Just a few: stomping ["(both legs plant)"],
+blind,  hop-over, carry (Wrap), duck, dive, jumping/flying, Swirl/Twirl cross-
+body dex, swing (Pendulum, Rake).  Not many other types of primitive movements
+exist.  Since the acceptable tricks are just combinations of these primitives;
+and since each primitive may be easily implemented within the formula; the
+the possibility of a master formula for all tricks becomes complete.
+
+Note: "same", "op" and "no plant" are relative to the leg previously refered
+      to.
+
+Examples:
+clip > op in dex > op out dex > op clip                 Ripwalk
+toe > same out dex > same out dex > op clip             Double Over Down
+toe > op out dex > op out dex > same toe                Eggbeater
+toe > (no plant while) > op in dex > op toe             Symposium Mirage
+toe > (no plant while) > op in dex > op clip            Symposium Whirl
+clip > same in dex > op in dex > op toe                 Pdx Blur
+clip > same out dex > same out dex > op clip            Barfly
+clip > op in dex > same in dex > same toe               Double Pickup
+clip > op in dex > (no plant while) op out dex > op clip  Dada Curve
+clip > (back)spin > same in dex > op out dex > op clip  Gyro Ripwalk`;

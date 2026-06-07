@@ -81,6 +81,7 @@ publicRouter.get('/freestyle/sets/:slug',     freestyleController.setDetail);
 publicRouter.get('/freestyle/sets',           freestyleController.setsEncyclopedia);
 publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSets);
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
+publicRouter.get('/freestyle/notation-article', freestyleController.notationArticle);
 publicRouter.get('/freestyle/operators',   freestyleController.operators);
 publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);

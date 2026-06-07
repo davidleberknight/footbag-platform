@@ -2850,6 +2850,22 @@ section.home-media { padding-top: 0; }
   line-height: 1.5;
 }
 
+/* Verbatim historical-article reproduction (Jobs notation): monospace,
+   preserves the original ASCII layout, scrolls horizontally on narrow screens. */
+.notation-article-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 18px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-sm, 6px);
+  margin: 16px 0;
+}
+
 /* ── Records group ─────────────────────────────────────────────────────── */
 .records-group {
   margin: 40px 0;

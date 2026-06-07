@@ -157,6 +157,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/notation-article */
+  notationArticle(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getJobsNotationArticlePage();
+      res.render('freestyle/jobs-notation-article', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /**
    * GET /freestyle/sets/reference — flat Holden set-notation reference
    * table. Lives under /sets/reference so the Set Encyclopedia can hold

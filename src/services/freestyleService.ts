@@ -110,6 +110,7 @@ import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
 import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
+import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { MODIFIER_CLUSTERS, clusterForModifier } from '../content/freestyleModifierClusters';
 import {
   CANONICAL_SETS,
@@ -7912,6 +7913,32 @@ export const freestyleService = {
         ],
       },
       content: {},
+    };
+  },
+
+  getJobsNotationArticlePage(): PageViewModel<{ articleTitle: string; articleText: string }> {
+    return {
+      seo: {
+        title:       'By the Way, Not the Name — Ben Job (1995)',
+        description: 'Ben Job\'s 1995 proposal of a compositional grammar for footbag freestyle tricks, the historical source for the dictionary notation.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_notation_article',
+        title:      'By the Way, Not the Name',
+        eyebrow:    'Ben Job, 1995',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Glossary', href: '/freestyle/glossary' },
+          { label: 'Notation article' },
+        ],
+      },
+      content: {
+        articleTitle: JOBS_NOTATION_ARTICLE_TITLE,
+        articleText:  JOBS_NOTATION_ARTICLE,
+      },
     };
   },
 
