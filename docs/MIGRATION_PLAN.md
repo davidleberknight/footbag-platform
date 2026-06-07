@@ -1033,9 +1033,6 @@ Location: `legacy_data/event_results/seed/mvfp_full/`
 ### Pipeline scripts
 
 Built and operational, owned by the historical-pipeline track (coordinate before touching): the event-results pipeline (`legacy_data/event_results/scripts/`, seed build / load / verify), the club and member scripts (`legacy_data/scripts/`, extraction and seed loading including `name_variants`), and the club classification and bootstrap builders (`legacy_data/clubs/scripts/`). Per-script detail lives in `legacy_data/CLAUDE.md` and the `legacy_data/runbooks/`.
-
-One known deviation: the mirror member extraction code lives outside the repository; tracked in `legacy_data/IMPLEMENTATION_PLAN.md` with its unblock condition (commit before §24 State 3 → State 4).
-
 ---
 
 ## 17. Migration vs operational table classification
