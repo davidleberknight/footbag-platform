@@ -303,7 +303,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     // ATW is no longer a parent card; the retired framing is gone.
     expect(html).not.toMatch(/All eight recognized parents/);
     // Card-coverage is decoupled from first-class status.
-    expect(html).toMatch(/should ultimately have a dedicated educational/);
+    expect(html).toMatch(/Card coverage is complete/);
   });
 
   it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {
