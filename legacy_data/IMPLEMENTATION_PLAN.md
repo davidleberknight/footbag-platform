@@ -14,6 +14,22 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   3. **Curated-sidecar media-rot SUSPECTED, not confirmed.** The oEmbed sweep over the 190 sidecars was rate-limited: two independent runs returned different dead sets (16 vs 11, only `Dmr7zj_c7cY` in common) and an orphan flipped, so the per-URL dead results are untrustworthy. There is probably some rot, but re-check with request backoff + retries (or `verifyExternalVideoUrl` in small batches with delay) before treating any specific sidecar as dead. Do not act on the earlier 16-ID list.
   TT canonical-sidecar invariant: see `legacy_data/CLAUDE.md`.
 
+- **Club classification force-overrides (operating procedure; force-keep / force-junk).**
+  Human classification overrides are hand-edited rows in
+  `overrides/club_classification_overrides.csv`, schema `club_key,name,force_category,reason`,
+  `force_category` one of pre_populate / onboarding_visible / dormant / junk. Force-keep = a row
+  with the non-junk target category; force-junk = a row with `force_category=junk`. Procedure:
+  (1) re-derive `club_key` from `seed/clubs.csv` by name, never guess; (2) fill `name` and
+  `reason` so the row is auditable on its own; (3) re-run
+  `clubs/scripts/02_build_legacy_club_candidates.py` and check its applied-override count and
+  diff-vs-previous-run output; (4) run QC. The loader fails loudly: unknown `force_category`
+  raises ValueError; a `club_key` absent from the candidate set raises KeyError (delete stale
+  rows). A key in `club_duplicates.csv`'s drop set keeps `bootstrap_eligible=0` regardless of a
+  force-keep. The platform queue is not part of this loop pre-go-live; the story's platform-side
+  request verbs are deferred to live operation (root IP entry).
+
+- **Mirror member extraction code lives outside the repo.** The production-shaping extraction code for the mirror member pipeline (the source of the ~1,600 club-only `historical_persons` rows) is currently reproducible only by the historical-pipeline maintainer. Commit it into `legacy_data/scripts/` before the MIGRATION_PLAN §24 State 3 → State 4 transition.
+
 - **Candidate live-content columns need loader coverage (James-track).** `legacy_club_candidates` now carries nullable `description` and `external_url` columns (platform-side schema add; the promotion path publishes them onto the live club, URL only after validation). The enrichment loader does not yet populate them from the mirror extraction, so platform-promoted clubs currently land with an empty description and no URL. Extend the candidate loader to carry both fields from `seed/clubs.csv` and re-run the load.
 
 - **Cross-track: relocate `freestyle-dictionary-surface` from `.claude/skills/` to `exploration/`.** It self-identifies as exploration-derived but sits in the production skill tree where it auto-loads on freestyle-dictionary-UI prompts. Plan: (1) `mv .claude/skills/freestyle-dictionary-surface/SKILL.md exploration/freestyle-dictionary-surface.md` and `rmdir` the empty dir (touches `.claude/skills/`; coordinate with Dave); (2) update `exploration/freestyle-notation-grammar/PROPOSAL.md:579` to the new path; (3) update `legacy_data/scripts/build_structural_alias_adjudication.py` lines 5 and 522 to drop "skill" from the citations.

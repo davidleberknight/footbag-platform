@@ -21,23 +21,19 @@ procedure in `src/dev-bootstrap/README.md` deletes them at production
 go-live. Until then, production safety rests on the env-config fail-fast
 guards plus the production image build stripping `dist/dev-bootstrap/`.
 
-### Force-keep / force-junk requests blocked on a cross-track export contract
+### Force-keep / force-junk requests deferred to live operation
 
-The last unbuilt piece of `A_Periodic_Club_Cleanup`: admin force-keep /
-force-junk requests (add to force-keep from a junk queue item; apply /
-modify / reject a request from the queue). Unbuilt because the state these
-requests control lives in James's classifier pipeline, not the platform DB:
-the classifier reads force-keep / force-junk CSVs in
-`legacy_data/overrides/` and its output reloads `legacy_club_candidates`
-via DELETE+INSERT, so any platform-local classification decision is
-clobbered on the next pipeline run. A request only sticks by round-tripping
-into the overrides CSVs. Build nothing until (a) the classifier work set's
-overrides item (James's track) has stabilized the CSV format, and (b) an
-export contract with James exists: the request format the platform exports,
-the apply procedure, and the outcome round-trip so the queue can render
-applied / rejected. Until then admins use the existing in-queue junk
-actions (confirm junk, promote to dormant), and decisions that must survive
-a classifier re-run are coordinated out of band.
+Classification overrides are hand-edited rows in
+`legacy_data/overrides/club_classification_overrides.csv`
+(`club_key,name,force_category,reason`; any of the four §10.1 categories),
+the same pattern as every other override CSV. Cases are few; the six
+curator-review clubs are seeded. The platform is not in the loop: no
+export, merge, or bridge tooling exists or should be built. The
+A_Periodic_Club_Cleanup story's "force-keep or force-junk request: apply,
+modify, or reject" queue item is live-operation work: build it only after
+go-live, when pipeline reloads have stopped and the production DB owns club
+truth. Until then the queue's existing junk actions (confirm junk, promote
+to dormant) cover rescue needs.
 
 ### Freestyle surfaces deviate from the VC §4.5 token standard
 

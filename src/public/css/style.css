@@ -2853,7 +2853,7 @@ section.home-media { padding-top: 0; }
 /* Verbatim historical-article reproduction (Jobs notation): monospace,
    preserves the original ASCII layout, scrolls horizontally on narrow screens. */
 .notation-article-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre;

@@ -129,7 +129,14 @@ assert_real_data_untouched() {
 # -----------------------------------------------------------------------------
 GATE_NAMES=()
 GATE_RESULTS=()
+FAIL_LOGS=()
 ANY_FAIL=0
+
+# Per-gate output is tee'd here so failed gates can be re-shown at the end of a
+# long run instead of forcing a scroll-back through thousands of lines. Lives in
+# the OS tmpdir (never a real-data tree) and is removed on exit.
+LOG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/footbag-run-all.XXXXXX")
+trap 'rm -rf "$LOG_DIR"' EXIT
 
 summarize() {
   echo ""
@@ -143,13 +150,42 @@ summarize() {
   echo "=============================================="
 }
 
+# Re-show the tail of every failed gate's captured output so the actual error
+# is at the end of the run, not buried thousands of lines up. The full output
+# already streamed live above; this is the recap.
+dump_failures() {
+  (( ${#FAIL_LOGS[@]} == 0 )) && return 0
+  echo ""
+  echo "=============================================="
+  echo " failure details (${#FAIL_LOGS[@]} gate(s); last 60 lines each)"
+  echo "=============================================="
+  local name log
+  for name in "${FAIL_LOGS[@]}"; do
+    log="${LOG_DIR}/${name}.log"
+    echo ""
+    echo "──── ${name} ────"
+    if [[ -s "$log" ]]; then
+      tail -n 60 "$log"
+    else
+      echo "  (no captured output)"
+    fi
+  done
+  echo "=============================================="
+}
+
 # run_gate NAME CMD...   — a gate may return 77 to signal SKIP.
 run_gate() {
   local name="$1"; shift
   echo ""
   echo "→ [${name}] running: $*"
-  local rc=0
-  "$@" || rc=$?
+  local rc=0 log="${LOG_DIR}/${name}.log"
+  # tee keeps the live output while capturing it; PIPESTATUS[0] is the gate's
+  # own exit code (not tee's). Toggle set -e so a failing gate does not abort
+  # the whole pipeline before we record its result.
+  set +e
+  "$@" 2>&1 | tee "$log"
+  rc=${PIPESTATUS[0]}
+  set -e
   GATE_NAMES+=("$name")
   if (( rc == 0 )); then
     GATE_RESULTS+=("PASS")
@@ -159,11 +195,13 @@ run_gate() {
     echo "→ [${name}] SKIP"
   else
     GATE_RESULTS+=("FAIL (exit ${rc})")
+    FAIL_LOGS+=("$name")
     ANY_FAIL=1
     echo "ERROR: [${name}] FAILED (exit ${rc})" >&2
     if (( FAIL_FAST == 1 )); then
       assert_real_data_untouched
       summarize
+      dump_failures
       exit 1
     fi
   fi
@@ -264,6 +302,7 @@ fi
 
 assert_real_data_untouched
 summarize
+dump_failures
 
 if (( ANY_FAIL == 1 )); then
   echo "→ run_all_tests.sh: one or more gates FAILED." >&2
