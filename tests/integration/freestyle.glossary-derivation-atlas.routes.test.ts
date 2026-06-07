@@ -80,16 +80,15 @@ describe('GET /freestyle/glossary — derivation atlas section', () => {
     // the escaped form.
     expect(res.text).toContain('xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD');
     expect(res.text).toContain('stepping(+1) + paradox(+1) + mirage(2) &#x3D; 4 ADD');
-    expect(res.text).toContain('gyro(+2 rotational) + torque(4) &#x3D; 6 ADD');
+    expect(res.text).toContain('gyro(+1) + torque(4) &#x3D; 5 ADD');
   });
 
-  it('renders the mobius doctrine note with policy-dependent status', async () => {
+  it('renders mobius as a plain additive entry, with no rotational-continuity doctrine note', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/glossary');
-    // Title uses em-dash separator in DERIVATION_PILOT_ENTRIES; assert via
-    // a substring that tolerates the em-dash → &mdash; HTML-entity escape.
-    expect(res.text).toMatch(/mobius[\s\S]{0,10}rotational-continuity reading/);
-    expect(res.text).toContain('doctrine-note--policy-dependent');
+    // Mobius is the settled additive reading gyro(+1) + torque(4) = 5; the
+    // retired rotational-continuity doctrine note no longer renders.
+    expect(res.text).not.toMatch(/rotational-continuity reading/);
   });
 
   it('renders source-chip vocabulary across the equivalence chains', async () => {

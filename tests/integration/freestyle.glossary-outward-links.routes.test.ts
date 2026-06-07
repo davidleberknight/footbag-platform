@@ -101,29 +101,24 @@ describe('GET /freestyle/glossary — standardized outward-link phrasings', () =
 });
 
 describe('GET /freestyle/glossary — §8 mobius doctrine-lighting cleanup', () => {
-  it('§8 mobius observationalNote no longer duplicates the rotational-continuity prose', async () => {
+  it('§8 mobius observationalNote carries no rotational-continuity framing', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // The full rotational-continuity exhibition lives in §1 derivation
-    // atlas's doctrine note. §8's observationalNote now carries only a
-    // brief reference + cross-link.
     const startIdx = res.text.indexOf('add-example-mobius');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</article>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    // The terse summary mentions the mechanism; the full prose lives in §1.
-    expect(region).toMatch(/rotational-frame continuity is the mechanism/i);
-    // The pre-Phase-6 long-form prose ("preserved as a teaching artifact"
-    // / "doctrine can be exhibited rather than narrated") no longer
-    // appears in §8's mobius card.
+    // The retired rotational-continuity framing no longer appears in §8's
+    // mobius card.
+    expect(region).not.toMatch(/rotational-frame continuity/i);
     expect(region).not.toMatch(/preserved as a teaching artifact/i);
     expect(region).not.toMatch(/exhibited rather than narrated/i);
   });
 
-  it('§8 mobius observationalNote points readers to §1 (Derivation atlas)', async () => {
+  it('§8 mobius observationalNote is self-contained (gyro layered on torque)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const startIdx = res.text.indexOf('add-example-mobius');
     const endIdx = res.text.indexOf('</article>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/Derivation atlas/i);
+    expect(region).toMatch(/gyro layered on torque/i);
   });
 });

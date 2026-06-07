@@ -1658,10 +1658,9 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
 
   it('glossary §8 worked-example status chips render the shaped label, never the raw code', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Visible chip text is the pre-shaped statusLabel; the raw
-    // 'pending-doctrine' code never appears as element text (its label
+    // Visible chip text is the pre-shaped statusLabel; the raw status
+    // code never appears as element text (the 'pending-doctrine' label
     // form is 'pending doctrine' whenever an example carries it).
-    expect(res.text).toMatch(/glossary-add-example-status--doctrine-locked[^>]*>doctrine-locked</);
     expect(res.text).toMatch(/glossary-add-example-status--canonical[^>]*>canonical</);
     expect(res.text).not.toMatch(/>pending-doctrine</);
   });

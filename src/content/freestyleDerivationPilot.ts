@@ -159,17 +159,8 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
     operational:    'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL]',
     add: {
       official:      5,
-      naiveComputed: 6,
-      derivation:    'official 5 — rotational continuity reduces the naïve 6 by one (gyro and torque share a single continuous rotational frame)',
-      breakdown:     'gyro(+2 rotational) + torque(4) = 6 ADD [naïve computed]',
-    },
-    doctrine: {
-      title:    'mobius — rotational-continuity reading',
-      readingA: 'rotational atoms count once per continuous rotation; spin + osis share a single rotational frame',
-      readingB: 'each ADD-bearing token contributes independently regardless of frame',
-      mechanism: 'rotational-frame continuity, not token count',
-      status:    'policy-dependent',
-      context:   'The mechanism-not-weight framework applies: when two atoms share an unbroken rotational frame, the frame counts once. The naïve computed value reads each atom independently. The official total is 5; the breakdown above shows the naïve 6 alongside so the reader sees the mechanism.',
+      derivation:    'gyro(+1) + torque(4) = 5 ADD',
+      breakdown:     'gyro(+1) + torque(4) = 5 ADD',
     },
     family:   'gyro family (branch: torque)',
     inherits: [
@@ -197,9 +188,9 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
       },
     ],
     advancedProse:
-      'Mobius is the canonical worked example for the rotational-doctrine ADD reading. The official 5 governs; the naïve 6 is preserved as a teaching artifact so the doctrine can be exhibited rather than narrated.',
+      'Mobius is gyro layered on torque: gyro(+1) + torque(4) = 5 ADD. It is the first named compound on the gyro branch off torque.',
     observationalProse:
-      'Mobius functions as a topology landmark: the gyro family branches off torque, and mobius is the first entry where the spin-frame continuity rule becomes load-bearing for the ADD breakdown.',
+      'Mobius functions as a topology landmark: the gyro family branches off torque, and mobius is its first named compound.',
   },
 
   // ─── blur ───────────────────────────────────────────────────────────

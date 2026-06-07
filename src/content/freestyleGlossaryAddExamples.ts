@@ -59,9 +59,9 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     displayName:       'Mobius',
     compactNotation:   'gyro torque',
     officialAdd:       5,
-    derivation:        'gyro(+2 rotational) + torque(4) = 6 ADD [naïve computed]',
-    status:            'doctrine-locked',
-    observationalNote: 'Naïve computed exceeds official by 1; rotational-frame continuity is the mechanism. See the mobius doctrine note in §1 (Derivation atlas) for the full Reading A vs Reading B exhibition.',
+    derivation:        'gyro(+1) + torque(4) = 5 ADD',
+    status:            'canonical',
+    observationalNote: 'Mobius is gyro layered on torque; the gyro body-modifier adds 1 to the 4-ADD torque base.',
   },
   {
     slug:              'nuclear',
