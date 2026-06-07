@@ -155,22 +155,6 @@ echo "  → Overlaying footbag.org trick provenance..."
 "${PYTHON}" legacy_data/event_results/scripts/20_link_footbag_org_sources.py \
   --db "${DB_FILE}"
 
-# Load freestyle media: sources → assets → links (FK-safe order).
-# Sources first (FK target for assets.source_id); assets next (FK target for
-# links.media_id); links last. Each loader cascade-deletes its dependents in
-# reverse FK order so re-running the chain rebuilds cleanly.
-echo "  → Loading freestyle media sources..."
-"${PYTHON}" legacy_data/event_results/scripts/21_load_freestyle_media_sources.py \
-  --db "${DB_FILE}"
-
-echo "  → Loading freestyle media assets..."
-"${PYTHON}" legacy_data/event_results/scripts/22_load_freestyle_media_assets.py \
-  --db "${DB_FILE}"
-
-echo "  → Loading freestyle media links..."
-"${PYTHON}" legacy_data/event_results/scripts/23_load_freestyle_media_links.py \
-  --db "${DB_FILE}"
-
 # Seed name_variants (HIGH-confidence only; MEDIUM rows are deferred to a
 # review artifact). Required for verify-time auto-link tier1/tier2 matching.
 echo "  → Loading name_variants seed..."

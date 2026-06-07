@@ -56,10 +56,6 @@ EXPECTATIONS: list[Expectation] = [
     Expectation("freestyle_trick_aliases", 5, "from committed inputs/noise/trick_aliases.csv"),
     # Step 7: 19_load_red_additions.py
     Expectation("freestyle_trick_modifier_links", 1, "Red expert-review modifier links"),
-    # Step 9-11: 21/22/23 freestyle media loaders
-    Expectation("freestyle_media_sources", 1, "from committed inputs/curated/media/media_sources.csv"),
-    Expectation("freestyle_media_assets", 1, "from committed inputs/curated/media/media_assets.csv"),
-    Expectation("freestyle_media_links", 1, "from committed inputs/curated/media/media_links.csv"),
     # Step 12: load_name_variants_seed.py
     Expectation("name_variants", 50, "from committed inputs/name_variants.csv (HIGH-confidence)"),
     # Step 12b: load_given_name_variants_to_sqlite.py
