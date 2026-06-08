@@ -149,7 +149,13 @@ echo "==> Building Docker images locally (workstation)..."
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
   export INCLUDE_DEV_SHORTCUTS=0
 fi
-( cd "$REPO_ROOT" && docker compose \
+# INTERNAL_EVENT_SECRET is a runtime-only value (worker<->web/image auth) that
+# the base compose hard-requires via ${VAR:?}. `docker compose build`
+# interpolates the whole file before building, so an unset value aborts the
+# build even though the secret is never baked into the image. Pass a throwaway
+# value scoped to this build only; the real secret lives in /srv/footbag/env on
+# the host and is injected at container start.
+( cd "$REPO_ROOT" && INTERNAL_EVENT_SECRET=build-time-placeholder-unused docker compose \
     -f docker/docker-compose.yml \
     build )
 
