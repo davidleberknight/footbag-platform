@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // notation string must survive verbatim in the curated source.
 const APPROVED = [
   { slug: 'diving-whirl',                    adds: 4, notation: 'SET > DIVE [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'fairy-whirl',                     adds: 4, notation: 'TOE > SAME OUT [DEX] >> OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'fairy-whirl',                     adds: 4, notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'spinning-rev-whirl',              adds: 4, notation: 'CLIP > (back) SPIN [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'ducking-symposium-reverse-whirl', adds: 5, notation: 'SET > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'spinning-diving-symposium-whirl', adds: 6, notation: 'SET > (back) SPIN [BOD] > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },

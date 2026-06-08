@@ -13,7 +13,7 @@ const APPROVED = [
   { slug: 'swirling-butterfly',           adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'whirling-butterfly',           adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-symposium-butterfly', adds: 5, notation: 'SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'fairy-butterfly',              adds: 4, notation: 'TOE > SAME OUT [DEX] >> SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'fairy-butterfly',              adds: 4, notation: 'TOE > SAME OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
