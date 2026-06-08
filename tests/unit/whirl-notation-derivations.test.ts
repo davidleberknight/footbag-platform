@@ -13,6 +13,11 @@ const APPROVED = [
   { slug: 'ducking-symposium-reverse-whirl', adds: 5, notation: 'SET > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'spinning-diving-symposium-whirl', adds: 6, notation: 'SET > (back) SPIN [BOD] > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'spinning-ducking-symposium-whirl', adds: 6, notation: 'SET > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'whirling-whirl',                   adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'miraging-symposium-whirl',         adds: 5, notation: 'SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'barraging-whirl',                  adds: 5, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'swirling-whirl',                   adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'swirling-symposium-whirl',         adds: 5, notation: 'SET > SAME BACK SWIRL [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
