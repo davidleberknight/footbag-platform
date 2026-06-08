@@ -7,11 +7,11 @@ Read-only. Topology coverage + promotion-notation-readiness. Pending = written t
 |---|---|
 | active tricks | 651 |
 | notation in DB | 473 (72.7%) |
-| written, reload-pending | 58 |
-| projected coverage after reload | **81.6%** |
-| notation-less remaining | 120 |
+| written, reload-pending | 65 |
+| projected coverage after reload | **82.6%** |
+| notation-less remaining | 113 |
 
-## Candidate families
+## Candidate families (all 8 worked)
 | family | members | DB | pending | missing | covered+pending % |
 |---|---|---|---|---|---|
 | whirl | 73 | 50 | 14 | 9 | 88% |
@@ -19,19 +19,17 @@ Read-only. Topology coverage + promotion-notation-readiness. Pending = written t
 | butterfly | 48 | 33 | 10 | 5 | 90% |
 | swirl | 24 | 13 | 6 | 5 | 79% |
 | legover | 42 | 32 | 6 | 4 | 90% |
-| illusion | 34 | 25 | 1 | 8 | 76% |
-| osis | 37 | 28 | 1 | 8 | 78% |
-| torque | 22 | 14 | 0 | 8 | 64% |
+| illusion | 34 | 25 | 4 | 5 | 85% |
+| osis | 37 | 28 | 3 | 6 | 84% |
+| torque | 22 | 14 | 2 | 6 | 73% |
 
-## Worked batches
-- whirl/mirage/butterfly: 26.
-- stepping+pixie unlock: 18.
-- swirl: 6. legover: 2.
-- grammar ruling pass (>>-base + tapping): 6 derived, 7 held (2 fairy/ruling-3, 2 tomahawk structural-scrutiny, 2 multi-modifier, 1 symposium-mobius malformed).
+## Worked total: 65 derivations across 8 families + 2 grammar unlocks (pixie/stepping, tapping/>>-base).
 
 
-## Open grammar items
-- fairy separator standardization (held, separate cleanup proposal).
-- tomahawk multi-`>>` composition (structural; the eggbeater collapse rule does not transfer).
-- multi-modifier composition pass (deferred).
+## The remaining tail (clusters into 4 deferred passes)
+- **multi-modifier composition** (largest): fairy/spinning/symposium/paradox chains where modifiers are not folded into the base.
+- fairy-separator cleanup proposal.
+- tomahawk/mobius multi-`>>` ruling.
+- un-ratified operators: blurry (doctrine), atomic, railing, furious, warping, floating.
+- plus ~39 named tricks with no decomposition (source-dependent).
 
