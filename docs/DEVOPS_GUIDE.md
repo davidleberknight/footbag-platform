@@ -984,9 +984,25 @@ CI must at minimum:
 
 - lint and type-check the codebase
 - run the test suite
+- run the convention gate (`scripts/ci/assert_conventions.sh`)
 - build the deployable artifacts or container images
 - publish versioned artifacts for approved branches/tags
 - fail fast on migration or config-shape problems that can be detected automatically
+
+#### Convention gate and pre-push verification
+
+The convention gate `scripts/ci/assert_conventions.sh` (with its delegated `scripts/ci/check_*.sh` checkers) statically enforces the mechanically-checkable layer rules and data invariants catalogued in DD §1.15 at merge, and runs locally. A failure prints the offending `file:line` and the canonical site to fix.
+
+Run the convention gate alone for fast local feedback; run the full suite before every push:
+
+```bash
+bash scripts/ci/assert_conventions.sh   # quick: convention gate only
+./run_all_tests.sh                       # full pre-push suite (includes the gate)
+```
+
+`./run_all_tests.sh` is the authoritative pre-push suite: it runs the convention gate plus build, lint, dependency audit, secret scan, and the unit, integration, and e2e tests. Push only after it passes.
+
+To add a rule: add the check to `scripts/ci/assert_conventions.sh`, or to a delegated `scripts/ci/check_*.sh` wired into it, paired with the layer rule or design decision it enforces. The check fails closed with an offending `file:line`, and scopes out false positives with explicit exclusions. Rules that need judgment, or that range over a growing set, are carried by the bug-hunt review, not the gate.
 
 ### 7.2 Promotion policy
 

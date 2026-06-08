@@ -698,6 +698,7 @@ This is a distinct sweep, not a subset of ordinary comment cleanup. Service JSDo
 
 For every `src/services/*.ts` file, inspect the file-header JSDoc and any exported service/factory/type JSDoc against the implementation and the canonical service-layer rule:
 
+- **Presence on write-path services:** a high-stakes write-path service (identity, membership, payments, voting, active-player, member, event, club, media, curator) with no file-header JSDoc block at all is a finding, not only one whose header has drifted. The header auto-loads with the file, so its absence leaves the service contract undocumented at the point of use. Services join this category by domain, so judge presence by what the service does, not by a hand-maintained list.
 - **Purpose and ownership boundary:** the JSDoc states what domain responsibility the service owns and what it must delegate to other services/adapters.
 - **Public contract:** exported methods, return shapes, discriminated unions, nullability, thrown `ServiceError` types, and normal error/status outcomes match the code.
 - **Side effects:** DB writes, audit rows, outbox/email enqueue, work-queue enqueue, media/storage calls, payment/webhook effects, token/session effects, and cache/config reads are accurately described where relevant.

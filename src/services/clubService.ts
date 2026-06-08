@@ -69,6 +69,7 @@ import {
   PublicClubRow,
   MemberCountRow,
   account,
+  declaredAnchors,
   clubs,
   clubBootstrapLeaders,
   clubLeaders,
@@ -933,6 +934,19 @@ export class ClubService {
       return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId) };
     }
     return { template: 'clubs/country', vm: this.getPublicCountryPage(key, isAuthenticated) };
+  }
+
+  /**
+   * Legacy-URL forwarding: an old /clubs/<key> link whose club did not survive
+   * normalization is a known legacy candidate with no mapped club. Returns the
+   * legacy club key for the archive-mirror redirect, or null when there is no
+   * such unmapped candidate.
+   */
+  findUnmappedLegacyClubKey(key: string): string | null {
+    const candidate = declaredAnchors.findLegacyClubCandidateByKey.get(key) as
+      | { legacy_club_key: string; mapped_club_id: string | null }
+      | undefined;
+    return candidate && !candidate.mapped_club_id ? candidate.legacy_club_key : null;
   }
 
   getPublicClubsIndexPage(): PageViewModel<ClubsIndexContent> {

@@ -34,3 +34,26 @@ modify, or reject" queue item is live-operation work: build it only after
 go-live, when pipeline reloads have stopped and the production DB owns club
 truth. Until then the queue's existing junk actions (confirm junk, promote
 to dormant) cover rescue needs.
+
+### Visitor-facing em dashes pending cleanup and gate
+
+Rendered template text and `src/content` editorial strings contain em dashes,
+contrary to the no-em-dash prose rule in `.claude/rules/comments.md` and
+`.claude/rules/doc-governance.md`. About 340 occurrences exist, some of which
+are legitimate data separators in notation and equivalence arrays. Canonical
+state is no em dashes in visitor-facing text. Close the gap with a dedicated
+pass that rewrites the prose occurrences (commas, parentheses, or restructure),
+exempts the genuine data-separator arrays, then adds an `assert_conventions.sh`
+rule scanning `.hbs` text nodes and `src/content` string literals so the
+cleaned state cannot regress.
+
+### Test-comment doc and finding-id references pending cleanup and gate
+
+`tests/` comments and `describe` / `it` names reference docs, section
+shorthands, and finding ids, contrary to the stricter test-comment rule in
+`.claude/rules/comments.md`. About 130 occurrences exist. Canonical state is
+plain-words long-term contract descriptions with no doc or finding-id
+reference. Close the gap with a pass that rewrites the offending comments and
+test names, then adds an `assert_conventions.sh` rule scanning `tests/`
+comments and `describe` / `it` string arguments so the cleaned state cannot
+regress.

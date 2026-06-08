@@ -1,0 +1,30 @@
+# Dependency update automation. Dependabot opens update PRs for the three
+# ecosystems this project ships: npm packages, GitHub Actions, and the Docker
+# base images (one entry per Dockerfile directory). Updates land via review; no
+# auto-merge is configured here.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/web"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/worker"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/image"
+    schedule:
+      interval: "weekly"

@@ -25,6 +25,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.12 Internal-only Subtrees](#112-internal-only-subtrees)
   - [1.13 Curator Content Source of Truth](#113-curator-content-source-of-truth)
   - [1.14 Test-data Harness](#114-test-data-harness)
+  - [1.15 Convention and Invariant Gates](#115-convention-and-invariant-gates)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -735,6 +736,44 @@ Impact:
   never enabled in production; its detection markers are
   grep-confirmable as zero-residue in any production database. It is
   not part of the cutover-removal surface.
+
+## 1.15 Convention and Invariant Gates
+
+Decision:
+
+Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
+
+Rationale:
+
+- These rules are easy to state and easy to violate by habit. A mechanical gate catches drift that review misses, because a raw-enum branch, a stray `datetime('now')`, or an inline `JSON.stringify` renders fine while quietly breaking authorization shaping, sort correctness, or island escaping.
+
+- Each gated rule maps to a written layer rule or data invariant with a concrete failure mode, so the gate encodes design intent, not style preference.
+
+- A gate keyed on a hand-maintained list of covered files gives false confidence: a new file that should be covered but is never added to the list passes silently. Such checks belong in the bug-hunt review, which reasons over the whole tree by category.
+
+- Enforcement at merge keeps the conventions authoritative without relying on every contributor remembering each rule.
+
+Requirements:
+
+- A new mechanically-checkable layer rule or data invariant enters the gate when it lands, paired with the rule or design decision it enforces.
+
+- A gate rule fails closed with an offending `file:line` and a message naming the canonical site to fix.
+
+- A rule that cannot be checked without judgment, or whose covered set grows unenumerably, is enforced by the bug-hunt review rather than added to the gate.
+
+- The local convention gate and `./run_all_tests.sh` pass before any push.
+
+Trade-offs:
+
+- The gate rejects expedient one-off violations, forcing the canonical pattern even for a single use.
+
+- Each gate rule carries a small false-positive risk that is scoped out with explicit exclusions when the rule is introduced.
+
+Impact:
+
+- Code that branches on a raw enum in a template, assembles a multi-variable URL in a view, executes SQL from a controller, emits a cookie outside the helpers, writes a non-canonical timestamp or a named SQL parameter, drops a documented append-only trigger, records a failure audit row without the operational-error helper, or references a GitHub Action by a mutable tag, fails CI and must be expressed through the canonical pattern.
+
+- Service-contract documentation correctness is owned by the bug-hunt review, which flags any write-path service missing or drifting from its file-header JSDoc.
 
 # 2. Data Model
 
@@ -3580,15 +3619,11 @@ Requirements:
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `packages: write` for the GHCR publish step). Default-write tokens are not used.
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
 - Dependabot is enabled for npm, GitHub Actions, and Docker base images. Security-only updates may auto-merge after CI; ecosystem updates land via review.
-- CodeQL (or equivalent SAST) runs on every PR and on a weekly schedule against `main`.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
-- A `CODEOWNERS` file routes review requirements for security-sensitive paths (`src/middleware/`, `src/adapters/`, `terraform/`, `.github/workflows/`, `docker/`).
 - Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
 - Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.
 - Test-only packages (e.g. `@playwright/test`) live under `devDependencies`, never `dependencies`. Production images do not install dev dependencies.
 - Repo git hooks live under `.githooks/` and are activated by `git config core.hooksPath .githooks`. The pre-commit hook runs `gitleaks --staged` so a secret cannot be committed without the operator explicitly overriding the hook.
-- A release workflow emits an SPDX or CycloneDX SBOM as a release artifact alongside the published images.
-- OpenSSF Scorecard runs in CI on a weekly schedule against `main`; the score and any regressions are surfaced to the maintainer.
 
 Trade-offs:
 

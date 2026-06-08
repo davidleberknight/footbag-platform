@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { declaredAnchors, legacyMembers } from '../db/db';
-import { LegacyMemberRow } from '../db/db';
+import { memberService } from '../services/memberService';
 import { PageViewModel } from '../types/page';
 
 /**
@@ -41,23 +40,16 @@ export const legacyRedirectController = {
   memberProfile(req: Request, res: Response, next: NextFunction): void {
     try {
       const legacyMemberId = req.params.legacyMemberId ?? '';
-
-      const live = declaredAnchors.findLiveMemberSlugByLegacyId.get(legacyMemberId) as
-        | { slug: string }
-        | undefined;
-      if (live) {
-        res.redirect(301, `/members/${live.slug}`);
+      const resolution = memberService.resolveLegacyMemberProfile(legacyMemberId);
+      if (resolution.status === 'live') {
+        res.redirect(301, `/members/${resolution.slug}`);
         return;
       }
-
-      const legacyRow = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as
-        | LegacyMemberRow
-        | undefined;
-      if (legacyRow && !legacyRow.claimed_by_member_id) {
+      if (resolution.status === 'claimable') {
         renderLegacyLink(res, {
           branch:      'claimable',
           isClaimable: true,
-          displayName: req.isAuthenticated ? (legacyRow.display_name ?? legacyRow.real_name) : null,
+          displayName: req.isAuthenticated ? resolution.displayName : null,
           claimHref:   req.isAuthenticated ? '/register/wizard/legacy_claim' : null,
           registerHref: req.isAuthenticated ? null : '/register',
         }, 200);

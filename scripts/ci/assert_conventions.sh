@@ -385,6 +385,235 @@ if [ -n "$doc_label_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: Handlebars comments carry no doc-path references or delivery-epoch labels.
+# Reason: the same self-contained-WHY rule that governs .ts comments applies to
+# {{! }} / {{!-- --}} template comments; a doc path or a phase/slice/wave label
+# inside one rots when the doc moves or the epoch passes. Only comment spans are
+# scanned, so rendered template text is never flagged. Same md/path/label
+# patterns as the .ts scan above.
+echo "[conventions] check: doc-path / epoch-label references in src/views/**/*.hbs comments"
+hbs_comment_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+md_re    = re.compile(r'[A-Za-z0-9_./-]+\.md\b')
+path_re  = re.compile(r'\b(?:exploration|docs)/')
+label_re = re.compile(
+    r'\b(?:[Pp]hase|[Ss]lice|[Ww]ave)[ -][0-9]'  # digit-only: excludes editorial "Two-Phase Story"
+    r'|-WAVE-[0-9]'
+    r'|\bUX-?SHIP'
+    r'|\bUX[0-9]'
+    r'|\bDSC-[0-9]'
+    r'|\bNCR-[0-9]'
+    r'|[A-Z]{3,}-REFACTOR'
+)
+comment_re = re.compile(r'\{\{!--.*?--\}\}|\{\{!(?!--).*?\}\}', re.S)
+for f in sorted(pathlib.Path('src/views').rglob('*.hbs')):
+    text = f.read_text()
+    for m in comment_re.finditer(text):
+        seg = m.group(0)
+        if md_re.search(seg) or path_re.search(seg) or label_re.search(seg):
+            line = text.count('\n', 0, m.start()) + 1
+            print(f"{f}:{line}: doc-path or delivery-epoch label in Handlebars comment")
+PYEOF
+)
+if [ -n "$hbs_comment_hits" ]; then
+  echo "$hbs_comment_hits" >&2
+  echo "  FAIL: Handlebars comments must state a self-contained WHY; drop doc paths (docs/, exploration/, *.md) and sprint/slice/phase/wave labels" >&2
+  violations=$((violations + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# Convention and invariant gates (DD §1.15): mechanically-checkable layer rules
+# and data invariants. Each fails closed with an offending file:line.
+# ---------------------------------------------------------------------------
+
+# Rule: templates never serialize JSON inline; data islands go through the
+# centralized escaping helper.
+# Reason: a JSON data island must escape a script-close substring in its payload
+# so embedded data cannot terminate the surrounding <script> block, and that
+# escaping is centralized. An inline JSON.stringify in a template bypasses it.
+# Handlebars registers no JSON/stringify helper, so any such token in a .hbs file
+# is an inline-serialization anomaly. Tests legitimately use JSON.stringify, so
+# the scan is scoped to src/views/.
+echo "[conventions] check: inline JSON serialization in src/views/**"
+json_hits=$(grep -rnE --include='*.hbs' 'JSON\.|stringify' src/views/ || true)
+if [ -n "$json_hits" ]; then
+  echo "$json_hits" >&2
+  echo "  FAIL: emit data islands via the centralized escaping helper; no inline JSON.stringify in templates" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: SQL writers use the canonical strftime UTC timestamp, never datetime('now').
+# Reason: views, triggers, and string comparisons sort timestamps lexically, so
+# every writer must emit strftime('%Y-%m-%dT%H:%M:%fZ','now'); the space-separated
+# datetime('now') output breaks lexical=chronological ordering. Scope is the
+# production SQL surfaces (db.ts + the schema); test-fixture and pipeline SQL are
+# outside this harm model.
+echo "[conventions] check: datetime('now') in src/db/db.ts + database/*.sql"
+datetime_hits=$(grep -nE "datetime\([[:space:]]*['\"]now['\"]" src/db/db.ts database/*.sql || true)
+if [ -n "$datetime_hits" ]; then
+  echo "$datetime_hits" >&2
+  echo "  FAIL: use strftime('%Y-%m-%dT%H:%M:%fZ','now'); datetime('now') breaks lexical ordering" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: templates do not assemble a URL from two or more variables.
+# Reason: a logic-light view renders a pre-shaped *Href field; assembling a URL
+# from multiple variables in the template moves URL shaping and its escaping out
+# of the service and risks a silently malformed link. A single variable (one
+# query param, one path segment) is fine. The -o tokenization isolates each
+# attribute value so two single-variable links on one line do not false-positive.
+echo "[conventions] check: multi-variable href/src URL assembly in src/views/**"
+url_hits=$(grep -rnoE --include='*.hbs' '(href|src)="[^"]*"' src/views/ \
+  | grep -E '(href|src)="[^"]*\{\{[^}]*\}\}[^"]*\{\{' || true)
+if [ -n "$url_hits" ]; then
+  echo "$url_hits" >&2
+  echo "  FAIL: build URLs from one variable or a pre-shaped *Href field; no multi-variable URL assembly in templates" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: templates do not branch on a raw domain enum.
+# Reason: the service supplies a pre-shaped boolean (isAdmin, isCompleted);
+# branching on a raw role/status/tier/level field in a logic-light view puts an
+# authorization or state decision in the template. The dot and the trailing
+# space/paren anchor the match to the exact field name, so pre-shaped fields such
+# as curatedStatus or statusLabel are not flagged.
+echo "[conventions] check: template branching on raw domain enums in src/views/**"
+enum_hits=$(grep -rnE --include='*.hbs' '\((eq|neq|gt|lt) [a-zA-Z0-9_.]*\.(role|status|tier|level)( |\))' src/views/ || true)
+if [ -n "$enum_hits" ]; then
+  echo "$enum_hits" >&2
+  echo "  FAIL: branch on a service-supplied boolean, not a raw .role/.status/.tier/.level field" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: cookies are set or cleared only through the cookie-helper libs.
+# Reason: a session or flash cookie carries HttpOnly/Secure/SameSite attributes
+# that must not vary; a direct res.cookie()/res.clearCookie()/Set-Cookie write can
+# silently drop one. src/lib/sessionCookie.ts and src/lib/flashCookie.ts are the
+# only allowed emission sites.
+echo "[conventions] check: direct cookie emission outside the cookie-helper libs"
+cookie_hits=$(grep -rnE --include='*.ts' "res\.cookie\(|res\.clearCookie\(|res\.(setHeader|append|header|set)\([[:space:]]*['\"][Ss]et-[Cc]ookie['\"]" src/ \
+  | grep -vE 'src/lib/sessionCookie\.ts:|src/lib/flashCookie\.ts:' || true)
+if [ -n "$cookie_hits" ]; then
+  echo "$cookie_hits" >&2
+  echo "  FAIL: set or clear cookies only via src/lib/sessionCookie.ts or src/lib/flashCookie.ts" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: SQL uses positional ? parameters, never named :param binds.
+# Reason: the codebase binds statements positionally; a named :param mixed into
+# the positional convention silently misbinds parameters. Scope is the SQL-
+# compiling surfaces (db.ts plus the .prepare-allowlisted dev-bootstrap/testkit).
+# ${...} interpolations are stripped first, and the lookbehind excludes :: casts
+# and time formats like %H:%M:%fZ.
+echo "[conventions] check: named :param SQL binds in SQL-compiling files"
+named_param_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+files = [pathlib.Path('src/db/db.ts')]
+for base in ('src/dev-bootstrap', 'src/testkit'):
+    p = pathlib.Path(base)
+    if p.exists():
+        files += sorted(p.rglob('*.ts'))
+sql_kw = re.compile(r'\b(SELECT|INSERT|UPDATE|DELETE)\b', re.I)
+param = re.compile(r'(?<![:A-Za-z0-9]):[A-Za-z_][A-Za-z0-9_]*')
+for f in files:
+    if not f.exists():
+        continue
+    text = f.read_text()
+    for m in re.finditer(r'`([^`]*)`', text, re.S):
+        body = m.group(1)
+        if not sql_kw.search(body):
+            continue
+        stripped = re.sub(r'\$\{[^}]*\}', ' ', body)
+        if param.search(stripped):
+            line = text.count('\n', 0, m.start()) + 1
+            print(f"{f}:{line}: named :param bind in SQL; use positional ?")
+PYEOF
+)
+if [ -n "$named_param_hits" ]; then
+  echo "$named_param_hits" >&2
+  echo "  FAIL: SQL parameters are positional ?; named :param binds are forbidden" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: controllers never execute a db statement directly; SQL stays in services.
+# Reason: a controller is HTTP glue (parse, call service, render); reaching into a
+# db/db statement group from a controller leaks the data layer past the service
+# boundary. Only value-imports from a db/db module are flagged, so adapter calls
+# (for example a payment controller's Stripe adapter) are not false-positives.
+echo "[conventions] check: controllers executing db statements directly"
+ctrl_db_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+root = pathlib.Path('src/controllers')
+imp = re.compile(r'import\s+(type\s+)?\{([^}]*)\}\s+from\s+[\'"][^\'"]*db/db[\'"]')
+files = sorted(root.rglob('*.ts')) if root.exists() else []
+for f in files:
+    text = f.read_text()
+    names = set()
+    for m in imp.finditer(text):
+        if m.group(1):
+            continue  # 'import type {...}' is types only
+        for spec in m.group(2).split(','):
+            spec = spec.strip()
+            if not spec or spec.startswith('type '):
+                continue
+            local = spec.split(' as ')[-1].strip()
+            if local:
+                names.add(local)
+    if not names:
+        continue
+    call = re.compile(r'\b(' + '|'.join(re.escape(n) for n in names) + r')\.[A-Za-z0-9_]+\.(get|run|all|iterate|pluck)\(')
+    for i, line in enumerate(text.splitlines(), 1):
+        if call.search(line):
+            print(f"{f}:{i}: controller executes a db statement directly; move SQL into a service")
+PYEOF
+)
+if [ -n "$ctrl_db_hits" ]; then
+  echo "$ctrl_db_hits" >&2
+  echo "  FAIL: controllers call services, not db statements; move the SQL into a service" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: a *_failed operational-error audit row is written via
+# recordOperationalError, not appendAuditEntry directly.
+# Reason: recordOperationalError pairs the audit row with a logger.error() that
+# drives the staging/prod alarm and the in-test guard; a direct appendAuditEntry
+# for a *_failed row writes the forensic row with no alarm. The '.failed'
+# business-event suffix and dynamic actionType values are excluded.
+echo "[conventions] check: appendAuditEntry for *_failed rows in src/services/**"
+op_error_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+root = pathlib.Path('src/services')
+files = sorted(root.rglob('*.ts')) if root.exists() else []
+for f in files:
+    text = f.read_text()
+    for m in re.finditer(r'appendAuditEntry\(', text):
+        start = text.find('{', m.end())
+        if start == -1:
+            continue
+        depth = 0
+        j = start
+        while j < len(text):
+            c = text[j]
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        obj = text[start:j + 1]
+        am = re.search(r'actionType\s*:\s*([\'"])(.*?)\1', obj)
+        if am and am.group(2).endswith('_failed'):
+            line = text.count('\n', 0, m.start()) + 1
+            print(f"{f}:{line}: appendAuditEntry writes a *_failed row; route via recordOperationalError()")
+PYEOF
+)
+if [ -n "$op_error_hits" ]; then
+  echo "$op_error_hits" >&2
+  echo "  FAIL: write *_failed operational-error rows via recordOperationalError(), not appendAuditEntry" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: synthetic-only identifiers in fixtures/content/scripts.
 # Rule: script credential-handling discipline.
 # Both delegated to dedicated checkers so their pattern sets stay readable.
@@ -394,6 +623,35 @@ if ! bash scripts/ci/check_synthetic_identifiers.sh; then
 fi
 echo "[conventions] check: script credential handling (delegated)"
 if ! bash scripts/ci/check_script_credentials.sh; then
+  violations=$((violations + 1))
+fi
+echo "[conventions] check: append-only triggers present (delegated)"
+if ! bash scripts/ci/check_append_only_triggers.sh; then
+  violations=$((violations + 1))
+fi
+echo "[conventions] check: GitHub Actions SHA-pinning (delegated)"
+if ! bash scripts/ci/check_action_pinning.sh; then
+  violations=$((violations + 1))
+fi
+
+# Rule: the Dependabot config exists and covers the three shipped ecosystems.
+# Reason: dependency currency for npm packages, GitHub Actions, and Docker base
+# images is automated by Dependabot; a missing or narrowed config silently
+# reopens the gap, so presence plus ecosystem coverage is asserted here.
+echo "[conventions] check: Dependabot config covers npm + github-actions + docker"
+dependabot_missing=""
+if [ ! -f .github/dependabot.yml ]; then
+  dependabot_missing=".github/dependabot.yml is absent"
+else
+  for eco in npm github-actions docker; do
+    if ! grep -qE "package-ecosystem:[[:space:]]*[\"']?${eco}[\"']?" .github/dependabot.yml; then
+      dependabot_missing="${dependabot_missing}${eco} "
+    fi
+  done
+fi
+if [ -n "$dependabot_missing" ]; then
+  echo "  missing ecosystem coverage: $dependabot_missing" >&2
+  echo "  FAIL: .github/dependabot.yml must cover npm, github-actions, and docker" >&2
   violations=$((violations + 1))
 fi
 

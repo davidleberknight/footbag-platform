@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
-import { declaredAnchors } from '../db/db';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
@@ -44,11 +43,9 @@ export const clubController = {
       // survive normalization (a known legacy candidate with no mapped
       // club) lands on the archive mirror instead of a dead 404.
       if (err instanceof NotFoundError) {
-        const candidate = declaredAnchors.findLegacyClubCandidateByKey.get(req.params.key ?? '') as
-          | { legacy_club_key: string; mapped_club_id: string | null }
-          | undefined;
-        if (candidate && !candidate.mapped_club_id) {
-          res.redirect(302, `https://archive.footbag.org/clubs/${encodeURIComponent(candidate.legacy_club_key)}`);
+        const legacyClubKey = clubService.findUnmappedLegacyClubKey(req.params.key ?? '');
+        if (legacyClubKey) {
+          res.redirect(302, `https://archive.footbag.org/clubs/${encodeURIComponent(legacyClubKey)}`);
           return;
         }
       }
