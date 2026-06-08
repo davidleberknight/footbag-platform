@@ -510,6 +510,25 @@
       <dt id="term-attack">Attack</dt>
       <dd>How quickly a player begins the next phase's component. A transition that has to fire aggressively &mdash; like attacking the mirage quickly after the stepping set in Blur &mdash; is said to need a fast attack.</dd>
     </dl>
+
+    {{! Entry histogram: measured set frequency }}
+    <h3 class="section-heading">How tricks begin</h3>
+    <dl class="gloss-histogram" aria-label="Set surfaces and set systems by number of documented tricks">
+      {{#each content.entryHistogram}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+    <p>
+      Two set surfaces dominate how tricks begin: toe (207) and clipper (197).
+      Beneath them a handful of set systems recur, the named ways a trick is
+      initiated: symposium and paradox (timing), pixie, fairy, and stepping
+      (set ecosystems). The set surface itself is too broad to be a system; the
+      systems are what players layer on top of it. Remember this shape, because
+      the ending mirrors it.
+    </p>
   </section>
 
   {{! ── Tier-break ruler #1 — Foundations → Families & Notation ───────── }}
@@ -631,6 +650,26 @@
       as a branch in parentheses. This is the same set the dictionary&rsquo;s
       <a href="/freestyle/tricks?view=family">By family</a> browse uses, so the
       glossary roster and the dictionary roster always match:
+    </p>
+
+    {{! Family histogram: measured terminal frequency }}
+    <dl class="gloss-histogram" aria-label="Terminal surfaces and family lineages by recursive descendant count">
+      {{#each content.familyHistogram}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+    <p>
+      Just as two surfaces dominate how tricks begin, two dominate how they end:
+      clipper stall (328) and toe stall (252) catch nearly every trick. The
+      families below are the largest distinct lineages that resolve onto those
+      two surfaces, which are themselves too broad to be families (that is why
+      they are not family cards). This roster is not curator-picked; it is what
+      the documented vocabulary measures. Sub-families such as Torque and
+      Blender are nested under a root family, so their tricks are counted within
+      the parent&rsquo;s bar as well.
     </p>
     <p class="detail-muted glossary-family-roster">
       {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}

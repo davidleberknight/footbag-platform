@@ -2912,6 +2912,28 @@ section.home-media { padding-top: 0; }
   margin: 16px 0;
 }
 
+/* ── Topology histograms (glossary family + entry charts) ──────────────── */
+.gloss-histogram { display: flex; flex-direction: column; gap: 3px; margin: 16px 0 20px; }
+.gloss-histogram-row { display: flex; align-items: center; gap: 10px; }
+.gloss-histogram-row dt { flex: 0 0 132px; margin: 0; text-align: right; font-size: 0.82rem; color: var(--gray-700); }
+.gloss-histogram-row dd { flex: 1; margin: 0; display: flex; align-items: center; gap: 8px; }
+.gloss-bar { flex: 1; height: 12px; background: var(--gray-150); border-radius: 3px; overflow: hidden; }
+.gloss-bar-fill { display: block; height: 100%; min-width: 3px; background: var(--gray-500); border-radius: 3px; }
+.gloss-bar-count { flex: 0 0 auto; min-width: 30px; font-size: 0.78rem; color: var(--gray-700); font-variant-numeric: tabular-nums; }
+.gloss-histogram-row--surface dt { font-weight: 600; color: var(--gray-900); }
+.gloss-histogram-row--surface .gloss-bar-fill { background: var(--gray-800); }
+.gloss-bar-fill--w5 { width: 5%; } .gloss-bar-fill--w10 { width: 10%; } .gloss-bar-fill--w15 { width: 15%; }
+.gloss-bar-fill--w20 { width: 20%; } .gloss-bar-fill--w25 { width: 25%; } .gloss-bar-fill--w30 { width: 30%; }
+.gloss-bar-fill--w35 { width: 35%; } .gloss-bar-fill--w40 { width: 40%; } .gloss-bar-fill--w45 { width: 45%; }
+.gloss-bar-fill--w50 { width: 50%; } .gloss-bar-fill--w55 { width: 55%; } .gloss-bar-fill--w60 { width: 60%; }
+.gloss-bar-fill--w65 { width: 65%; } .gloss-bar-fill--w70 { width: 70%; } .gloss-bar-fill--w75 { width: 75%; }
+.gloss-bar-fill--w80 { width: 80%; } .gloss-bar-fill--w85 { width: 85%; } .gloss-bar-fill--w90 { width: 90%; }
+.gloss-bar-fill--w95 { width: 95%; } .gloss-bar-fill--w100 { width: 100%; }
+@media (max-width: 480px) {
+  .gloss-histogram-row { flex-wrap: wrap; }
+  .gloss-histogram-row dt { flex: 1 0 100%; text-align: left; }
+}
+
 /* ── Records group ─────────────────────────────────────────────────────── */
 .records-group {
   margin: 40px 0;

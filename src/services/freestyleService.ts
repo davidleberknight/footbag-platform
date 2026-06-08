@@ -111,6 +111,7 @@ import {
 } from '../content/freestyleAlternativeSurfaces';
 import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
+import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, clusterForModifier } from '../content/freestyleModifierClusters';
 import {
   CANONICAL_SETS,
@@ -3049,6 +3050,10 @@ export interface FreestyleGlossaryContent {
   // glossary roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
   firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
+  // Measured topology histograms (how tricks end / begin); widthBucket is a
+  // quantized 5%-step width class so the bar carries no inline style.
+  familyHistogram: readonly { label: string; count: number; tier: string; widthBucket: number }[];
+  entryHistogram:  readonly { label: string; count: number; tier: string; widthBucket: number }[];
   // §8 ADD Accounting worked-example cards. Five compact
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
@@ -5564,6 +5569,23 @@ function classifyDensityTier(args: {
   return 'standard';
 }
 
+/**
+ * Shape a topology-histogram snapshot for rendering: quantize each row's count
+ * to a 5%-step width bucket (5..100) of the largest row, so the bar can take a
+ * `--w{bucket}` class instead of an inline width style (CSP-safe).
+ */
+function topologyHistogramRows(
+  rows: readonly TopologyHistogramRow[],
+): { label: string; count: number; tier: string; widthBucket: number }[] {
+  const max = Math.max(...rows.map(r => r.count));
+  return rows.map(r => ({
+    label:       r.label,
+    count:       r.count,
+    tier:        r.tier,
+    widthBucket: Math.min(100, Math.max(5, Math.round((r.count / max) * 20) * 5)),
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -7917,6 +7939,8 @@ export const freestyleService = {
             .filter(b => b.parent === root.slug)
             .map(b => ({ slug: b.slug, label: b.label })),
         })),
+        familyHistogram: topologyHistogramRows(FAMILY_HISTOGRAM),
+        entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,
           statusLabel: ex.status === 'pending-doctrine' ? 'pending doctrine' : ex.status,

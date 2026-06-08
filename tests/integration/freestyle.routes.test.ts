@@ -2410,8 +2410,9 @@ describe('Freestyle glossary — re-bloat guard', () => {
     // The prose-compression locked default still applies — future
     // drift back toward sprawling paragraphs would breach this ceiling
     // again. The empirical family-parent roster (24 families, each carded)
-    // raised the floor, so the ceiling moves with it.
-    expect(res.text.length).toBeLessThan(285_000);
+    // raised the floor, so the ceiling moves with it; the two measured
+    // topology histograms (family + entry) raised it once more.
+    expect(res.text.length).toBeLessThan(295_000);
   });
 });
 
