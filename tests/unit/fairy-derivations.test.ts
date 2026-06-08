@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Fairy-family derivations written into red_corrections under the ratified fairy
-// default separator (TOE > SAME OUT [DEX] > ...). Each is an additive fairy entry
-// composed with a base that folds its other modifiers. Must parse, open with the
-// fairy entry on a single >, close on its asserted family terminal, have ADD
-// equal to its token count, and survive verbatim in the source.
+// default separator (TOE > SAME OUT [DEX] > ...). Each set-swap case is an additive
+// fairy entry composed with a base that folds its other modifiers; genuphobia is
+// backfilled from the authoritative content layer (its spyro spin is absent from
+// the modifier-link table). Must parse, open with the fairy entry on a single >,
+// close on its asserted family terminal, have ADD equal to its token count, and
+// survive verbatim in the source.
 const APPROVED = [
   { slug: 'fairy-drifter',              adds: 4, terminal: 'SAME CLIP [XBD] [DEL]', notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'fairy-guay',                 adds: 3, terminal: 'SAME INSIDE [DEL]',     notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > SAME INSIDE [DEL]' },
@@ -16,6 +18,7 @@ const APPROVED = [
   { slug: 'fairy-torque',               adds: 5, terminal: 'OP CLIP [XBD] [DEL]',   notation: 'TOE > SAME OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
   { slug: 'fairy-spinning-ducking-osis', adds: 6, terminal: 'SAME CLIP [XBD] [DEL]', notation: 'TOE > SAME OUT [DEX] > (back) SPIN [BOD] > DUCK [BOD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'fairy-swirling-swirl',       adds: 5, terminal: 'SAME CLIP [XBD] [DEL]', notation: 'TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'genuphobia',                 adds: 7, terminal: 'OP CLIP [XBD] [DEL]',   notation: 'TOE > SAME OUT [DEX] > (front) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;
