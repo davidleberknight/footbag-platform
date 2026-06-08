@@ -1613,3 +1613,11 @@ spinning-reverse-guay,trick_family,,inside-stall,loader-19 override: base_trick 
 pixie-reverse-guay,trick_family,,inside-stall,loader-19 override: base_trick guay defaults trick_family to guay; guay is an inside-stall member.
 fairy-reverse-guay,trick_family,,inside-stall,loader-19 override: base_trick guay defaults trick_family to guay; guay is an inside-stall member.
 stepping-reverse-guay,trick_family,,inside-stall,loader-19 override: base_trick guay defaults trick_family to guay; guay is an inside-stall member.
+clipper-ducking-symposium-whirl,operational_notation,,CLIP > DUCK [BOD] > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+reverse-swirling-symposium-mirage,operational_notation,,SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > SAME TOE [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+reverse-swirling-paradox-torque,operational_notation,,SET > SAME SWIRL [DEX] > SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+symposium-reverse-swirling-pickup,operational_notation,,SET > SAME SWIRL [DEX] > SAME SYMP [DEX] > SAME IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+symposium-reverse-whirling-swirl,operational_notation,,CLIP > OP WHIRL [DEX] > SAME SYMP [DEX] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+whirling-gyro-mirage,operational_notation,,SET > GYRO [BOD] > OP WHIRL [DEX] > OP IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+whirling-paradox-mirage,operational_notation,,SET > OP WHIRL [DEX] > OP IN [DEX] [PDX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 2): depth-2 composition notation, parser-verified; bracket count = ADD."
+reverse-swirling-paradox-torque,trick_family,,osis,loader-19 override: base_trick torque defaults trick_family to torque; torque is an osis-family branch.
