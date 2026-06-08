@@ -1260,7 +1260,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'around-the-world',
     baseAdd:     2,
     totalAdd:    1,
-    derivation:  'dex(1) = 1 ADD; around-the-world without its terminal stall',
+    derivation:  'dex(1) = 1 ADD',
     operationalNotation: 'TOE > SAME IN [DEX]',  // fb.org-derived (fborg-1add.txt); kick-rule applied; not Red-confirmed.
     provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Kick-rule derivation: remove terminal [DEL] and stall(1) from around-the-world. fb.org-derived (fborg-1add.txt "Around the World Kick"); not Red-confirmed. Surfaces Red Q K-1..K-3 in CLEANUP_AUDIT.md (kick-family ADD reading + uniform [bod] vs structural [dex] interpretation).',
   },
@@ -1293,7 +1293,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'double-around-the-world',
     baseAdd:     3,
     totalAdd:    3,
-    derivation:  'dex(2) + heel-stall(1) = 3 ADD; terminal-surface variant of double-around-the-world',
+    derivation:  'dex(2) + heel-stall(1) = 3 ADD',
     operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Terminal-surface variant of double-around-the-world (toe→heel + [UNS] unusual-surface tag); fb.org-derived; not Red-confirmed.
     provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25 (optional in slice spec). Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
   },
@@ -1355,7 +1355,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'butterfly',
     baseAdd:     3,
     totalAdd:    2,
-    derivation:  'bod(1) + dex(1) = 2 ADD — jump + outward dex; kick with no terminal clipper-delay (historical name only, not butterfly-family structure)',
+    derivation:  'bod(1) + dex(1) = 2 ADD',
     operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]',  // Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod]; drops the terminal OP CLIP [XBD] that prior IFPA DB row carried. DB correction via red_corrections; overlay carries the resolved formula.
     provenance:  'Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
   },
