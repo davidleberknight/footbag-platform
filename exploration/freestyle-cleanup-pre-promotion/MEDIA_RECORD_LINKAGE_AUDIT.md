@@ -3,7 +3,7 @@
 Read-only. Checks that media and records resolve to canonical trick slugs or wired aliases, with the 2-bag-juggling mismatch as the worked case.
 
 ## Summary
-Curated `media_tags` are essentially clean. The real gap is `freestyle_records`, which links to tricks by `trick_name` through `trickNameToSlug` (`src/services/freestyleRecordShaping.ts:4`), a pure lowercase-slugify that neither strips side qualifiers nor maps aliases. 71 distinct record names do not resolve to an active slug or alias.
+Curated `media_tags` are clean (zero orphan tags). The real gap is `freestyle_records`, which links to tricks by `trick_name` through `trickNameToSlug` (`src/services/freestyleRecordShaping.ts:4`), a pure lowercase-slugify that neither strips side qualifiers nor maps aliases. 71 distinct record names do not resolve to an active slug or alias.
 
 ## Worked case: 2-bag-juggling (confirmed)
 - Trick exists and is active: `2-bag-juggling` (and `3-bag-juggling`).
@@ -26,20 +26,17 @@ Curated `media_tags` are essentially clean. The real gap is `freestyle_records`,
 
 **Genuine compounds (47), review (coverage, not linkage).** Record names for compound tricks that are not canonical dictionary entries: `Stepping Ducking Blurry Whirl`, `Atomic Pickup`, `Blazing Butterfly`, `Blurry Drifter`, `Double Dyno`, `Double Fairy`, `Frantic Legover`, `Gyro Symp Swirl`, `Infinity`, `Infinity Swirl`, `Locomotion`, and similar. These are not mis-wired; they are records for tricks the dictionary does not yet carry. They belong to the promotion sprint's coverage decisions, not this cleanup. (Note: `Infinity` / `Infinity Swirl` may resolve to barfly via the earlier infinity-to-barfly consolidation; flag for the review pass.)
 
-## Curated media tags: nearly clean
-Orphan scan over all `#`-prefixed `media_tags.tag_display` (excluding utility tags), checked against active slugs and aliases: only **2** unresolved.
+## Curated media tags: clean (no orphans)
+Orphan scan over all `#`-prefixed `media_tags.tag_display`, checked against active slugs, aliases, and the full `UTILITY_EXACT` whitelist in `scripts/_trick_tag_invariant.py`: **zero unresolved.**
 
-| tag | media count | note |
-|---|---|---|
-| `#curated` | many | a source/utility tag, not a trick; should be whitelisted in the tag-invariant utility set rather than treated as trick-shaped |
-| `#chinlone` | 1 | a stray non-trick term (a related sport), not a freestyle trick; review the single tagged item |
+A first pass flagged `#curated` and `#chinlone` as orphans, but that was a false positive from scanning against a subset of the utility whitelist. Both are already in `UTILITY_EXACT` (alongside `freestyle`, `trick`, the source tags, and `unavailable_embed`), so the tag-invariant QC already treats them as non-trick utility tags. There is nothing to fix and no orphan tags to review.
 
-No media tag points at an inactive trick. No trick-shaped media tag is unresolved beyond these two.
+No media tag points at an inactive trick.
 
 ## Other linkage surfaces
 - `freestyle_media_links` (media_id -> entity_type/entity_id): **empty**. The live media-to-trick linkage runs entirely through `media_tags` (`#slug`), not this table. No juggling rows, no orphans here; the table is currently unused.
 - Reciprocal direction: because the trick page resolves its records through the same `trickNameToSlug`, the qualifier and juggle misses are bidirectional - the record has no working trick link, and the trick page does not list the record. The resolver fix and the juggle alias close both directions at once.
 
 ## What is NOT broken
-- Media badges on the dictionary derive from resolved `media_tags`; with tags essentially clean, badge coverage is consistent with media presence (the 2 orphan tags above are the only exceptions).
-- Every media item resolves to an active trick except the 2 orphan tags. No media points at a deleted/inactive trick.
+- Media badges on the dictionary derive from resolved `media_tags`; with tags clean, badge coverage is consistent with media presence.
+- Every media item resolves to an active trick or a whitelisted utility tag. No media points at a deleted/inactive trick.

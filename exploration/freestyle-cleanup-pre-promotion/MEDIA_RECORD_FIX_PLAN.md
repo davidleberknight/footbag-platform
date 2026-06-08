@@ -29,9 +29,11 @@ The record name `2-Bag Juggle` slugifies to `2-bag-juggle`, which no qualifier s
 
 The today-added aliases used the spelled `two-bag` form; this adds the digit `2-bag` form the record actually uses. After reload, the record's `trickHref` resolves and the trick page lists the record, **provided the trick-page record query resolves through aliases** (see V1).
 
-### F3. Orphan media tags
-- `#curated`: add to the tag-invariant utility whitelist (`scripts/_trick_tag_invariant.py` `UTILITY_EXACT`); it is a source/utility tag, not a trick-shaped tag, and should not be scanned as one.
-- `#chinlone`: review the single tagged media item; it is not a freestyle trick. Retag or remove.
+### F3. Orphan media tags - NO-OP (already done)
+The audit's two "orphans" were a false positive. `#curated` and `#chinlone` are
+already in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT`, so the tag-invariant
+QC already treats them as non-trick utility tags. There are zero orphan media
+tags and nothing to fix here.
 
 ## Verification items (confirm before / during the fix)
 
@@ -53,6 +55,6 @@ The today-added aliases used the spelled `two-bag` form; this adds the digit `2-
 ## Smallest safe commit sequence (Part 2 portion)
 1. F1 (resolver) + T1 + T2, one commit. Pure code + tests, recovers 20.
 2. F2 (alias rows) + T4, one commit. Data + regression, recovers the juggle. Include V1's reciprocal fix if needed.
-3. F3 (tag whitelist) + T5, one commit. Closes the orphan guard.
+3. F3 is a no-op (tags already whitelisted); the existing `25_qc_media_tag_invariant.py` already serves as the T5 orphan guard.
 
 Part 1 (dictionary field hygiene) is a separate, earlier commit per `PLAN.md`; it touches `freestyleResolvedFormulas.ts` only and shares no files with Part 2.
