@@ -596,7 +596,13 @@ Impact:
 
 Decision:
 
-Curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_fh_curator.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. The DB schema carries no filesystem coupling; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
+Curator content has two source-of-truth phases tied to the platform lifecycle.
+
+Before go-live, curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_fh_curator.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. This is what lets curator content be authored, reviewed in git, and seeded before any persistent DB exists. The `/curated/` sidecars are themselves produced by an upstream pre-go-live data-prep layer (curator staging, discovery, and promotion inputs); that layer and the sidecars it emits are authoring inputs only.
+
+After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` remains the dev and pre-go-live authoring surface and ships as a build artifact, not a runtime-mutable tree.
+
+The DB schema carries no filesystem coupling in either phase; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
 
 Rationale:
 
@@ -604,9 +610,9 @@ Rationale:
 
 - Binary assets (photo bytes, video bytes) cannot live in git or in the DB. The sidecar holds metadata; S3 holds the bytes; the DB row is the index that joins them at render time. The seeder uploads bytes to S3 and writes the row.
 
-- Treating `/curated/` as the source of truth means curator changes are versioned, diffable, and reviewable in git. A bad edit is recoverable by `git revert`; a lost DB is recoverable by replay.
+- Before go-live, treating `/curated/` as the source of truth means curator changes are versioned, diffable, and reviewable in git: a bad edit is recoverable by `git revert`, and a lost DB is recoverable by replay. After go-live, curator content is durable through the same DB backup and restore path as all other persistent data.
 
-- Admin UI write paths (upload, edit, delete) operate on `/curated/` first. The DB is updated inline by the service so read paths reflect changes immediately, but the inline update is a UX optimization, not a contract: re-running the seeder against the new sidecar state produces the same result.
+- Admin UI write paths (upload, edit, delete) are self-sufficient against the current phase's source of truth. Before go-live they write the `/curated/` sidecar and the seeder reconstitutes the DB row. After go-live the DB write is the contract: the admin UI writes the `media_items` row directly, with no dependency on a subsequent seeder run.
 
 - Sidecar identity for URL-reference items is `(videoPlatform, videoUrl)`. The seeder's filename rule is `<primarySlug>_<sha1(videoUrl)[:8]>.meta.json`, which lets the service locate a sidecar from a row by globbing for the hash suffix and verifying the URL match. No schema column duplicates this filesystem layout.
 
@@ -614,7 +620,7 @@ Requirements:
 
 - `/curated/{category}/*.meta.json` is the canonical write target for URL-reference content. File-paired sidecars (`<source-stem>.meta.json` siblings of photo/video binaries) carry the same role for the file-paired curator items.
 
-- The seeder is idempotent. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run.
+- The seeder is idempotent and runs only against a disposable DB (dev, CI, or a pre-go-live staging rebuild), never against the persistent production DB. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run. Orphan cleanup is scoped to system-member-owned, sidecar-derived rows, so a run can never delete member-owned media.
 
 - Admin edit and delete on a sidecar-backed row resolve the sidecar at runtime; if the sidecar is missing on disk, edit fails (corruption guard) and delete proceeds best-effort with the DB row removal logged in audit.
 
@@ -630,7 +636,7 @@ Trade-offs:
 
 Impact:
 
-The admin UI, the seeder, and the gallery render paths share a single mental model: `/curated/` is authoritative; everything else is derived. New curator content types follow the same pattern (sidecar JSON in git, seeder writes the row, admin UI mutates the sidecar).
+Before go-live the admin UI, the seeder, and the gallery render paths share one mental model: `/curated/` is authoritative; everything else is derived. After go-live the persistent DB is authoritative and the admin UI is the curator lifecycle surface; `/curated/` is the pre-go-live authoring and seed source. New curator content types follow the phase-appropriate write path.
 
 ## 1.14 Test-data Harness
 

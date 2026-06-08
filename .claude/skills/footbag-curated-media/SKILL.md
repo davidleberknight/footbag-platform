@@ -7,6 +7,8 @@ description: Use when adding, modifying, validating, or troubleshooting curated 
 
 Use this skill when the task is **curated freestyle media intake**: staging, validating, promoting, tagging, or backfilling reference media that links to a freestyle trick, record, or category.
 
+> **Lifecycle scope: this skill governs PRE-GO-LIVE curated-media data prep.** The CSV → sidecar → seeder → DB pipeline below builds the database before go-live, when `/curated/` is the source of truth. After go-live the persistent production DB is the source of truth and curated media is managed through the admin UI, which writes the DB directly; the seeder is not run against production (DD §1.13). The rules below are the pre-go-live data-prep contract, not a claim that the seeder is the eternal only writer of `media_items`.
+
 > **Boundary update (2026-06-06): the gallery boundary is lifted for James.** James now directs gallery / curated-media work directly — creating and editing `curated/galleries/*.json` sidecars, running `seed_fh_curator.py` (standalone + idempotent; lands sidecar changes without a full `reset-local-db.sh`), and editing the emerging-vocab generators. The "Dave-owned" notes on gallery JSON, gallery creation, and `seed_fh_curator.py` below are **superseded for James's work**. Only the admin gallery-edit-**tool UI** code (`adminCuratorController.ts`, `curatorMediaService.ts`, `src/views/admin/curator/**`) and the gallery schema remain Dave's. A named gallery is a tag-AND `member_galleries` row; a catch-all gallery's `excludeTags` MUST list every source-gallery tag or it double-lists. See memory `feedback_gallery_dave_track`.
 
 ## 1. Core pipeline
@@ -38,7 +40,7 @@ For record-categories that have no canonical `freestyle_tricks.slug`, see §4: t
 
 ## 2. Hard rules
 
-1. **No direct DB writes for media intake.** All media must enter via `seed_fh_curator.py` reading sidecars. Manual `INSERT INTO media_items` is forbidden for curated content.
+1. **No direct DB writes for media intake during data prep.** In the data-prep workflow, curated media enters via `seed_fh_curator.py` reading sidecars; manual `INSERT INTO media_items` is forbidden. (The admin curator UI writes `media_items` directly — the sanctioned runtime path, not data prep — per DD §1.13.)
 2. **No fake trick slugs.** A sidecar's `trick_slug` (and the `#<slug>` tag) must reference a real row in `freestyle_tricks` (active or pending). If the source name has no canonical slug, route to RECORD_CATEGORY (§5): never invent a placeholder slug.
 3. **Do not drop legitimate source items silently.** Every source row gets classified into one of the 7 buckets in §5. REJECT is **not** a bucket; non-trick record categories are preserved in their own staging file.
 4. **Duplicate trick coverage is allowed.** The same `trick_slug` may have a TT tutorial sidecar AND a PassBack record sidecar AND an AnzTrikz tutorial sidecar. They are not duplicates of each other.

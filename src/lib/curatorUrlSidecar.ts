@@ -94,6 +94,18 @@ export function deriveUrlSidecarFilename(primarySlug: string, videoUrl: string):
   return `${primarySlug}_${hash}.meta.json`;
 }
 
+// Deterministic `media_items.id` for a URL-reference row, keyed on
+// (videoPlatform, videoUrl). MUST stay identical to the Python seeder's
+// `_url_ref_media_id` (scripts/seed_fh_curator.py): `media_<sha1("{platform}|{url}")[:24]>`.
+// This formula is the cross-tool idempotency contract: the admin upload path
+// and the pre-go-live seeder derive the same id from the same (platform, url),
+// so a standalone seeder run upserts the same row instead of creating a
+// duplicate. A unit test pins it against the seeder's output.
+export function urlRefMediaId(videoPlatform: string, videoUrl: string): string {
+  const hash = createHash('sha1').update(`${videoPlatform}|${videoUrl}`).digest('hex').slice(0, 24);
+  return `media_${hash}`;
+}
+
 // Two-space JSON with trailing newline, matching the existing sidecar
 // formatting so file diffs in git stay clean. Field order mirrors the
 // existing 94 sidecars: videoUrl, videoPlatform, title, creator,

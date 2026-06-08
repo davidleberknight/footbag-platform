@@ -176,7 +176,7 @@ Before scanning any source file, load these into context:
 1. This document (you are reading it). §1 is your scope filter, §3 is what NOT to re-flag, §4.4 is the bug-category framework.
 2. `/home/footbag/GITHUB/footbag-platform/CLAUDE.md` — project-wide rules + source-of-truth order.
 3. `/home/footbag/GITHUB/footbag-platform/docs/TESTING.md` §15.2 strategic anti-patterns.
-4. `/home/footbag/GITHUB/footbag-platform/IMPLEMENTATION_PLAN.md` — active-slice + accepted-deviation block. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging.
+4. `/home/footbag/GITHUB/footbag-platform/IMPLEMENTATION_PLAN.md` AND `/home/footbag/GITHUB/footbag-platform/legacy_data/IMPLEMENTATION_PLAN.md` — the accepted-deviation blocks of BOTH plans. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging. The legacy plan is mandatory even though the `legacy_data/` pipeline is out of scope, because its documented deviations can surface in deployed routes.
 5. `/home/footbag/GITHUB/footbag-platform/.claude/rules/testing.md`, `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, `db-layer.md`, `doc-governance.md` — the operational rules every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
 6. `/home/footbag/GITHUB/footbag-platform/docs/DATA_GOVERNANCE.md` (mandatory before any finding that touches members, historical persons, search, contact fields, exports, stats, or privacy boundaries).
 
@@ -836,7 +836,7 @@ Cross-cutting observations and static-analysis-cannot-verify limitations belong 
 
 Run these checks. Fix the report (or your scan) if any fail.
 
-1. **Scope filter held**: zero findings against the `legacy_data/` pipeline unless the kickoff prompt included it (migrated data surfacing in deployed routes is fine); any per-run exclusions from the kickoff prompt were honored and recorded in the `BUGS.md` scope note.
+1. **Scope filter held + both plans' deviations cross-checked**: zero findings against the `legacy_data/` pipeline unless the kickoff prompt included it (migrated data surfacing in deployed routes is fine); any per-run exclusions from the kickoff prompt were honored and recorded in the `BUGS.md` scope note. Every deployed-route finding was cross-checked against the accepted-deviation blocks of BOTH `IMPLEMENTATION_PLAN.md` and `legacy_data/IMPLEMENTATION_PLAN.md`; a behavior already recorded as a documented deviation in either plan is not flagged.
 2. **No CAPTCHA findings**: zero findings of the shape "this route lacks Turnstile" — that's `unimplemented (by design)`, not a bug.
 3. **Cross-check `src/` directly to confirm a finding has not already been remediated in code** before flagging. The §3 table lists only remaining actionable items; landed items are absent because done work is not tracked here.
 4. **Per-finding citations**: every file:line cited must still resolve to the claimed code today. Spot-check 3 random "catastrophic" or "high" findings by re-opening the file and confirming.

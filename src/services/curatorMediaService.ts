@@ -27,10 +27,14 @@
  *   - Storage keys follow `{systemMemberId}/detached/{mediaId}-...` so offline seed
  *     and admin upload produce identical row shape.
  *   - Auto-applies `#curated`; `#curated` rejected from input.
- *   - URL-reference uploads write a sidecar JSON at
+ *   - URL-reference uploads insert the `media_items` row directly (parallel to
+ *     photo/video, minus S3 since url-refs host no bytes), keyed on the
+ *     deterministic `(video_platform, video_url)` id (`urlRefMediaId`, matching
+ *     the seeder). The authoring sidecar at
  *     `/curated/{category}/<primarySlug>_<sha1(videoUrl)[:8]>.meta.json` (atomic
- *     temp + rename) and do NOT write a `media_items` row; the seeder regenerates
- *     rows from sidecars.
+ *     temp + rename) is written only when `config.allowCuratedSidecarWrites`
+ *     (dev only, the same gate as the FH gallery sidecar); in staging/prod the
+ *     `media_items` row is the only write (DD §1.13).
  *   - Photo/video uploads with a `category` additionally write the source binary
  *     plus a file-paired `<slug>.meta.json` sidecar under `/curated/{category}/`
  *     (video also writes `<slug>.poster.<ext>`); the inline `media_items` insert is
@@ -107,6 +111,7 @@ import {
 import {
   validateUrlSidecarData,
   deriveUrlSidecarFilename,
+  urlRefMediaId,
   formatUrlSidecarJson,
   writeUrlSidecarFile,
   readUrlSidecarFile,
@@ -301,8 +306,10 @@ export interface CuratorUrlReferenceInput {
 }
 
 export interface CuratorUrlReferenceResult {
-  filename: string;
-  filePath: string;
+  mediaId: string;
+  sidecarWritten: boolean;
+  filename: string | null;
+  filePath: string | null;
   overwritten: boolean;
   category: string;
 }
@@ -1491,53 +1498,96 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw err;
       }
 
-      let filename: string;
-      try {
-        filename = deriveUrlSidecarFilename(input.primarySlug, input.videoUrl);
-      } catch (err) {
-        if (err instanceof UrlSidecarValidationError) {
-          throw new ValidationError(err.message);
-        }
-        throw err;
+      const videoId =
+        input.videoPlatform === 'youtube'
+          ? parseYouTubeVideoId(input.videoUrl)
+          : parseVimeoVideoId(input.videoUrl);
+      if (!videoId) {
+        throw new ValidationError(
+          `Could not extract a ${input.videoPlatform} video id from the URL.`,
+        );
       }
 
-      const categoryDir = path.join(getCuratedRootDir(), input.category);
-      // Auto-create the category dir on first use. The admin form lets
-      // operators type a new category name; the directory is created at
-      // first upload to that name. Existing categories are no-op (recursive
-      // mkdir tolerates already-present dirs).
-      const fsp = await import('fs/promises');
-      await fsp.mkdir(categoryDir, { recursive: true });
-      const json = formatUrlSidecarJson(sidecarData);
-      const result: WriteUrlSidecarResult = await writeUrlSidecarFile(categoryDir, filename, json);
+      const systemMemberId = resolveSystemMemberIdOrThrow();
+      const mediaId = urlRefMediaId(input.videoPlatform, input.videoUrl);
+      const now = new Date().toISOString();
 
-      // Audit-only side effect (no DB row written here). The seeder is
-      // the only path that writes media_items; running the seeder after
-      // a sidecar write surfaces the new entry in the platform DB.
-      // The sidecar file write above and this audit append are intentionally
-      // not atomic: the sidecar is the source of truth and the seeder
-      // reconstitutes the DB row, so a failed audit append after the sidecar
-      // is written is tolerated (a transaction could not span the file write
-      // anyway, and a lone insert needs none).
-      appendAuditEntry({
-        actionType: 'upload_curated_url_reference',
-        category: 'media',
-        actorType: 'admin',
-        actorMemberId: input.adminMemberId,
-        entityType: 'curated_sidecar',
-        entityId: filename,
-        metadata: {
-          category: input.category,
-          videoPlatform: input.videoPlatform,
-          videoUrl: input.videoUrl,
-          overwritten: result.overwritten,
-        },
+      // Whether to write the /curated/ authoring sidecar is a service-layer
+      // policy decision gated on config.allowCuratedSidecarWrites (dev only),
+      // the same purpose-named flag the FH gallery sidecar uses: in dev curator
+      // content is committed to git and the seeder rebuilds the DB from it; in
+      // staging/prod the persistent DB is the source of truth (DD §1.13) and
+      // the media_items row is the only write. Filesystem I/O stays outside the
+      // DB transaction.
+      let sidecarResult: WriteUrlSidecarResult | null = null;
+      if (config.allowCuratedSidecarWrites) {
+        let filename: string;
+        try {
+          filename = deriveUrlSidecarFilename(input.primarySlug, input.videoUrl);
+        } catch (err) {
+          if (err instanceof UrlSidecarValidationError) {
+            throw new ValidationError(err.message);
+          }
+          throw err;
+        }
+        const categoryDir = path.join(getCuratedRootDir(), input.category);
+        const fsp = await import('fs/promises');
+        await fsp.mkdir(categoryDir, { recursive: true });
+        sidecarResult = await writeUrlSidecarFile(
+          categoryDir, filename, formatUrlSidecarJson(sidecarData),
+        );
+      }
+      const sidecarFilename = sidecarResult?.filename ?? null;
+
+      // URL-reference curator row, written directly the same way uploadPhoto /
+      // uploadVideo write theirs, minus the S3 step (url-refs host no bytes).
+      // #curated + tags via the shared applyTagsForCurator. The deterministic
+      // (platform, url) media_id matches the seeder's _url_ref_media_id, so a
+      // pre-go-live seeder run INSERT-OR-REPLACEs this same row rather than
+      // duplicating it; re-upload is likewise idempotent. Tags are cleared and
+      // re-applied (as in editMedia) so tag_stats stay accurate on re-upload.
+      const oldTagIds = (tagStats.listTagIdsByMediaId.all(mediaId) as { tag_id: string }[])
+        .map((r) => r.tag_id);
+      let newTagIds: string[] = [];
+      transaction(() => {
+        media.insertCuratorUrlReference.run(
+          mediaId, now, now,
+          systemMemberId, input.title, now,
+          input.videoPlatform, videoId, input.videoUrl, thumbnailUrl,
+          input.sourceId, input.startSeconds, input.endSeconds,
+        );
+        mediaTagsDb.deleteMediaTagsByMediaId.run(mediaId);
+        newTagIds = applyTagsForCurator(mediaId, input.tags, now);
+        if (normalizedExternalUrl !== null) {
+          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, systemMemberId);
+        }
+        appendAuditEntry({
+          actionType: 'upload_curated_url_reference',
+          category: 'media',
+          actorType: 'admin',
+          actorMemberId: input.adminMemberId,
+          entityType: sidecarFilename ? 'curated_sidecar' : 'media_item',
+          entityId: sidecarFilename ?? mediaId,
+          metadata: {
+            mediaId,
+            category: input.category,
+            videoPlatform: input.videoPlatform,
+            videoUrl: input.videoUrl,
+            sidecarWritten: sidecarResult !== null,
+            ...(sidecarResult && { overwritten: sidecarResult.overwritten }),
+            tags: input.tags,
+          },
+        });
       });
+      hashtagDiscoveryService.decrementTagStats(oldTagIds);
+      hashtagDiscoveryService.incrementTagStats(newTagIds);
 
       return {
-        filename: result.filename,
-        filePath: result.filePath,
-        overwritten: result.overwritten,
+        mediaId,
+        sidecarWritten: sidecarResult !== null,
+        filename: sidecarResult?.filename ?? null,
+        filePath: sidecarResult?.filePath ?? null,
+        overwritten: sidecarResult?.overwritten ?? false,
         category: input.category,
       };
     },

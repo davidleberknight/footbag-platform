@@ -31,6 +31,9 @@ process.env.NODE_ENV          = 'test';
 process.env.LOG_LEVEL         = 'error';
 process.env.PUBLIC_BASE_URL   = 'http://localhost:3099';
 process.env.SESSION_SECRET    = 'admin-curator-routes-test-secret';
+// Exercises the dev/local curator authoring flow, where the /curated/ sidecar
+// is written alongside the DB row (gated on this flag in the service).
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -701,7 +704,7 @@ describe('/admin/curator/upload — URL reference', () => {
     expect(res.text).toContain('name="newCategory"');
   });
 
-  it('happy path YouTube (existing freestyle_tricks): 303 redirect, sidecar written, NO DB row created', async () => {
+  it('happy path YouTube (existing freestyle_tricks): 303 redirect, sidecar written, media_items row created', async () => {
     await setVerifierToOk({ title: 'Clipper tutorial' });
     const app = createApp();
     const res = await request(app)
@@ -710,7 +713,7 @@ describe('/admin/curator/upload — URL reference', () => {
       .field('mediaType', 'url_reference')
       .field('category', 'freestyle_tricks')
       .field('videoPlatform', 'youtube')
-      .field('videoUrl', 'https://www.youtube.com/watch?v=CLIPPER12345')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=CLIPPER1234')
       .field('primarySlug', 'clipper')
       .field('title', 'Clipper tutorial')
       .field('tags', '#freestyle #trick #clipper');
@@ -724,14 +727,23 @@ describe('/admin/curator/upload — URL reference', () => {
       fs.readFileSync(path.join(curatedRoot, 'freestyle_tricks', matching!), 'utf-8'),
     );
     expect(sidecar.videoPlatform).toBe('youtube');
-    expect(sidecar.videoUrl).toBe('https://www.youtube.com/watch?v=CLIPPER12345');
+    expect(sidecar.videoUrl).toBe('https://www.youtube.com/watch?v=CLIPPER1234');
     expect(sidecar.thumbnailUrl).toBeUndefined();
 
+    // URL-ref upload now writes the media_items row directly (unified with
+    // photo/video, minus S3), in addition to the local-mode authoring sidecar.
     const db = openDb();
     const mediaRow = db.prepare(
-      `SELECT id FROM media_items WHERE video_url = ?`,
-    ).get('https://www.youtube.com/watch?v=CLIPPER12345');
-    expect(mediaRow).toBeUndefined();
+      `SELECT uploader_member_id, media_type, video_platform, video_id, caption, source_filename
+         FROM media_items WHERE video_url = ?`,
+    ).get('https://www.youtube.com/watch?v=CLIPPER1234') as Record<string, unknown> | undefined;
+    expect(mediaRow).toBeDefined();
+    expect(mediaRow!.media_type).toBe('video');
+    expect(mediaRow!.video_platform).toBe('youtube');
+    expect(mediaRow!.video_id).toBe('CLIPPER1234');
+    expect(mediaRow!.caption).toBe('Clipper tutorial');
+    expect(mediaRow!.uploader_member_id).toBeTruthy();
+    expect(mediaRow!.source_filename).toBeNull();
     db.close();
   });
 

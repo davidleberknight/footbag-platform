@@ -1461,6 +1461,8 @@ Run order in staging:
 
 For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption or tag on already-published content), use the admin UI at `/admin/curator/media` (see USER_STORIES `A_Upload_Curated_Media`, which covers the full curator lifecycle: upload, edit, delete, and category creation). Edit/delete via the admin UI mutate the live DB + S3 directly without a deploy cycle.
 
+**After go-live**, the production DB is persistent and is the source of truth for curator media. The curator seeder (`scripts/seed_fh_curator.py`) is **not** run against the production DB: its reconcile and orphan-cleanup model deletes rows that have no `/curated/` sidecar, which post-go-live includes admin- and member-created content. Curator lifecycle (upload, edit, delete, gallery management) is admin-UI -> DB directly, per USER_STORIES `A_Upload_Curated_Media` and `A_Manage_Curated_Gallery`. Data-preserving deploys against the persistent DB use the migration deploy path (`scripts/deploy-migrate.sh`), not the destructive rebuild path; curator content is recovered through the standard DB backup and restore path (§10), the same as all other persistent data. `/curated/` remains the dev and pre-go-live authoring and seed source.
+
 ### 10.5 Snapshot restore runbook
 
 Use this for corruption, bad deploy with data damage, or accidental destructive bug.

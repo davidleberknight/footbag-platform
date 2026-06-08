@@ -5052,6 +5052,27 @@ export const media = {
               'active', ?)
   `); },
 
+  // Curator URL-reference video (YouTube/Vimeo): no hosted bytes, so no
+  // s3_key/width/height; carries the platform video id, the URL, the
+  // (Vimeo-only) thumbnail, plus the curator provenance/clip-range columns
+  // the seeder also writes. id is the deterministic (platform, video_url) id
+  // (urlRefMediaId, identical to the Python seeder's _url_ref_media_id), so
+  // INSERT OR REPLACE upserts the same row a later seeder run would, with no
+  // duplicate. source_filename stays NULL (url-ref rows have no on-disk binary).
+  get insertCuratorUrlReference() { return db.prepare(`
+    INSERT OR REPLACE INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      source_id, start_seconds, end_seconds,
+      moderation_status, source_filename
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
+              ?, 'video', 0, ?, ?,
+              ?, ?, ?, ?,
+              ?, ?, ?,
+              'active', NULL)
+  `); },
+
   // Member-uploaded photo: uploader is the member themselves (not the
   // system member). Mirrors insertCuratorPhoto but stamps created_by/
   // updated_by = 'member' and leaves is_avatar = 0 (avatars use

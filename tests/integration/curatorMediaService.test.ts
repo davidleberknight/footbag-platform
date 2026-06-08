@@ -17,6 +17,7 @@ import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingA
 import type { VideoTranscodingAdapter } from '../../src/adapters/videoTranscodingAdapter';
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
 import { formatGallerySidecarJson } from '../../src/lib/curatorGallerySidecar';
+import { urlRefMediaId } from '../../src/lib/curatorUrlSidecar';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -30,6 +31,12 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'curator_admin', is_admin: 1 });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
+  // FK target for url-reference rows that carry a sourceId (media_items.source_id
+  // REFERENCES media_sources). In prod the seeder bootstraps these from CSV; the
+  // test seeds the one the url-ref happy path uses.
+  db.prepare(
+    `INSERT INTO media_sources (source_id, source_name, source_type, url, creator) VALUES (?, ?, ?, NULL, NULL)`,
+  ).run('tt_youtube', 'Tricks of the Trade', 'youtube');
   // Admin Tier 2 required so the assertTier1Benefits defense-in-depth
   // check in curatorMediaService does not block admin-actor service
   // calls in this suite.
@@ -990,12 +997,15 @@ describe('curatorMediaService.listMedia', () => {
   });
 });
 
-// ── uploadUrlReference: writes sidecar files to /curated/{category}/ ──────
+// ── uploadUrlReference: writes the media_items row + (dev) sidecar ────────
 //
-// URL-reference uploads are sidecar-first: no DB row written by the
-// service. The seeder regenerates DB rows from sidecars on each run.
-// Tests assert: oEmbed verification gating, sidecar file content,
-// idempotent re-uploads, dynamic category dir creation.
+// URL-reference uploads are unified with photo/video: the service inserts
+// the media_items row directly (minus S3, since url-refs host no bytes),
+// keyed on the deterministic (platform, url) id that matches the seeder, so
+// a pre-go-live seeder run upserts the same row rather than duplicating it.
+// Pre-go-live (ALLOW_CURATED_SIDECAR_WRITES=1 in the test env) it also writes
+// the authoring sidecar. Tests assert: oEmbed gating, DB row + tags, sidecar
+// content, idempotent re-upload (one row), dynamic category dir creation.
 
 import { mkdtempSync, rmSync, mkdirSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -1061,11 +1071,14 @@ describe('curatorMediaService.uploadUrlReference', () => {
 
     expect(verifier.callCount()).toBe(1);
     expect(result.category).toBe('freestyle_tricks');
+    expect(result.mediaId).toBe(urlRefMediaId('youtube', 'https://www.youtube.com/watch?v=Dmr7zj_c7cY'));
+    expect(result.sidecarWritten).toBe(true);
     expect(result.filename).toMatch(/^around-the-world_[0-9a-f]{8}\.meta\.json$/);
     expect(result.overwritten).toBe(false);
-    expect(existsSync(result.filePath)).toBe(true);
+    expect(result.filePath).not.toBeNull();
+    expect(existsSync(result.filePath!)).toBe(true);
 
-    const sidecar = JSON.parse(readFileSync(result.filePath, 'utf-8'));
+    const sidecar = JSON.parse(readFileSync(result.filePath!, 'utf-8'));
     expect(sidecar).toMatchObject({
       videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
       videoPlatform: 'youtube',
@@ -1078,6 +1091,27 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick']);
 
     const db = openDb();
+    // URL-ref now writes the media_items row directly (parallel to photo /
+    // video, minus S3). The deterministic (platform, url) id matches the
+    // seeder, so a later seeder run upserts this same row, not a duplicate.
+    const row = db.prepare(`SELECT * FROM media_items WHERE id = ?`)
+      .get(result.mediaId) as Record<string, unknown> | undefined;
+    expect(row).toBeDefined();
+    expect(row!.uploader_member_id).toBe(SYSTEM_ID);
+    expect(row!.media_type).toBe('video');
+    expect(row!.video_platform).toBe('youtube');
+    expect(row!.video_id).toBe('Dmr7zj_c7cY');
+    expect(row!.video_url).toBe('https://www.youtube.com/watch?v=Dmr7zj_c7cY');
+    expect(row!.thumbnail_url).toBeNull();
+    expect(row!.caption).toBe('Around the world tutorial');
+    expect(row!.source_id).toBe('tt_youtube');
+    expect(row!.moderation_status).toBe('active');
+    expect(row!.source_filename).toBeNull();
+    const tagDisplays = (db.prepare(
+      `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ?`,
+    ).all(result.mediaId) as { tag_display: string }[]).map((r) => r.tag_display);
+    expect(tagDisplays).toContain('#curated');
+    expect(tagDisplays).toContain('#around-the-world');
     const audit = db.prepare(
       `SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'upload_curated_url_reference'`,
     ).get(result.filename) as Record<string, unknown> | undefined;
@@ -1114,7 +1148,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
       tags: ['#freestyle', '#trick', '#blender'],
     });
 
-    const sidecar = JSON.parse(readFileSync(result.filePath, 'utf-8'));
+    const sidecar = JSON.parse(readFileSync(result.filePath!, 'utf-8'));
     expect(sidecar.thumbnailUrl).toBe('https://i.vimeocdn.com/video/abc_640.jpg');
     expect(sidecar.videoPlatform).toBe('vimeo');
   });
@@ -1176,8 +1210,23 @@ describe('curatorMediaService.uploadUrlReference', () => {
     const r2 = await svc.uploadUrlReference({ ...input, title: 'second title' });
     expect(r2.overwritten).toBe(true);
     expect(r2.filename).toBe(r1.filename);
-    const sidecar = JSON.parse(readFileSync(r2.filePath, 'utf-8'));
+    const sidecar = JSON.parse(readFileSync(r2.filePath!, 'utf-8'));
     expect(sidecar.title).toBe('second title');
+
+    // The DB row is upserted on the deterministic (platform, url) id, never
+    // duplicated: exactly one media_items row, carrying the second upload's
+    // caption, with the id both calls returned.
+    const expectedId = urlRefMediaId('youtube', 'https://www.youtube.com/watch?v=ZZZ12345678');
+    expect(r1.mediaId).toBe(expectedId);
+    expect(r2.mediaId).toBe(expectedId);
+    const db = openDb();
+    const rows = db.prepare(
+      `SELECT id, caption FROM media_items WHERE video_platform = 'youtube' AND video_url = ?`,
+    ).all('https://www.youtube.com/watch?v=ZZZ12345678') as { id: string; caption: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(expectedId);
+    expect(rows[0].caption).toBe('second title');
+    db.close();
   });
 
   it('New category (dir not yet exists): auto-mkdirs the dir and writes the sidecar', async () => {
@@ -1208,7 +1257,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
 
     expect(result.category).toBe('demos_2026');
     expect(existsSync(join(curatedRoot, 'demos_2026'))).toBe(true);
-    expect(existsSync(result.filePath)).toBe(true);
+    expect(existsSync(result.filePath!)).toBe(true);
   });
 
   it('Bad category name (slash, dot, uppercase): ValidationError, no fs write', async () => {

@@ -500,6 +500,121 @@ def test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars() -> None:
     print("OK: seeder orphan cleanup removes DB rows for deleted sidecars")
 
 
+def test_seeder_orphan_cleanup_spares_member_owned_url_ref() -> None:
+    """The URL-ref orphan cleanup is owner-scoped: it deletes only FH-owned
+    (system member) youtube/vimeo rows whose sidecar is gone. A member-
+    submitted youtube/vimeo video (uploader != FH) is never FH-owned and must
+    survive a curator seed run, even though it has no /curated/ sidecar. An
+    FH-owned row with no sidecar is the control: it must still be deleted.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = tmp_path / "curated"
+        sidecar_dir = source_dir / "freestyle_tricks"
+        source_dir.mkdir()
+        (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
+
+        subprocess.run(
+            ["sqlite3", str(db_path)],
+            input=SCHEMA.read_text(),
+            text=True,
+            check=True,
+        )
+
+        # Two FH curated sidecars become FH-owned url-ref rows (kept).
+        _write_youtube_sidecar(sidecar_dir, "trickone", "ytTrickOne")
+        _write_youtube_sidecar(sidecar_dir, "tricktwo", "ytTrickTwo")
+
+        rc1, stderr1 = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc1 == 0, f"first seed run failed: {stderr1}"
+
+        con = sqlite3.connect(db_path)
+        con.execute("PRAGMA foreign_keys = ON")
+        try:
+            (fh_id,) = con.execute(
+                "SELECT id FROM members WHERE is_system = 1"
+            ).fetchone()
+
+            ts = "2026-01-01T00:00:00.000Z"
+            # A live non-system member (credential CHECK branch 1 requires a
+            # full credential set), with a submitted youtube video and NO
+            # sidecar.
+            con.execute(
+                """INSERT INTO members
+                     (id, slug, login_email, login_email_normalized, password_hash,
+                      password_changed_at, real_name, display_name, display_name_normalized,
+                      created_at, created_by, updated_at, updated_by, version)
+                   VALUES ('member_test_owner', 'test_owner', 'owner@test.example',
+                      'owner@test.example', 'x', ?, 'Test Owner', 'Test Owner', 'test owner',
+                      ?, 'test', ?, 'test', 1)""",
+                (ts, ts, ts),
+            )
+            member_url = "https://www.youtube.com/watch?v=memberOwnedVid"
+            con.execute(
+                """INSERT INTO media_items
+                     (id, created_at, created_by, updated_at, updated_by, version,
+                      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+                      video_platform, video_id, video_url, moderation_status)
+                   VALUES ('media_member_owned_1', ?, 'member', ?, 'member', 1,
+                      'member_test_owner', 'video', 0, 'Member clip', ?,
+                      'youtube', 'memberOwnedVid', ?, 'active')""",
+                (ts, ts, ts, member_url),
+            )
+
+            # Control: an FH-owned youtube row with no sidecar must still be
+            # deleted as a genuine orphan.
+            fh_orphan_url = "https://www.youtube.com/watch?v=fhOrphanVid"
+            con.execute(
+                """INSERT INTO media_items
+                     (id, created_at, created_by, updated_at, updated_by, version,
+                      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+                      video_platform, video_id, video_url, moderation_status)
+                   VALUES ('media_fh_orphan_1', ?, 'seed', ?, 'seed', 1,
+                      ?, 'video', 0, 'FH orphan', ?,
+                      'youtube', 'fhOrphanVid', ?, 'active')""",
+                (ts, ts, fh_id, ts, fh_orphan_url),
+            )
+            con.commit()
+        finally:
+            con.close()
+
+        rc2, stderr2 = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc2 == 0, f"second seed run failed: {stderr2}"
+
+        con = sqlite3.connect(db_path)
+        try:
+            (member_kept,) = con.execute(
+                "SELECT COUNT(*) FROM media_items WHERE id = 'media_member_owned_1'"
+            ).fetchone()
+            assert member_kept == 1, (
+                "member-submitted youtube row must survive the owner-scoped "
+                f"curator seed cleanup; got {member_kept}"
+            )
+            (fh_orphan_gone,) = con.execute(
+                "SELECT COUNT(*) FROM media_items WHERE id = 'media_fh_orphan_1'"
+            ).fetchone()
+            assert fh_orphan_gone == 0, (
+                "FH-owned url-ref row with no sidecar must still be deleted; "
+                f"got {fh_orphan_gone}"
+            )
+            (kept_sidecars,) = con.execute(
+                "SELECT COUNT(*) FROM media_items "
+                "WHERE video_url LIKE '%ytTrickOne%' OR video_url LIKE '%ytTrickTwo%'"
+            ).fetchone()
+            assert kept_sidecars == 2, (
+                f"FH sidecar-backed rows must survive; got {kept_sidecars}"
+            )
+        finally:
+            con.close()
+
+    print("OK: url-ref orphan cleanup is owner-scoped (member videos survive; FH orphans deleted)")
+
+
 def test_seeder_rejects_vimeo_sidecar_without_thumbnail_url() -> None:
     """Per CURATED_MEDIA_PLAN.md and the seeder validation rule: Vimeo
     sidecars must include thumbnailUrl as an https:// URL because Vimeo
@@ -1001,6 +1116,7 @@ if __name__ == "__main__":
     test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags()
     print("OK: freestyle_tricks seeder creates FH-owned named gallery + tag-AND criteria; idempotent")
     test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars()
+    test_seeder_orphan_cleanup_spares_member_owned_url_ref()
     test_seeder_rejects_vimeo_sidecar_without_thumbnail_url()
     print("OK: seeder rejects vimeo sidecar without thumbnailUrl")
     test_seeder_rejects_youtube_sidecar_with_thumbnail_url()

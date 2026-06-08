@@ -1142,9 +1142,12 @@ def seed_freestyle_tricks_sidecars(
     subdir_label = " + ".join(f"/curated/{d}/" for d in URL_REF_SIDECAR_SUBDIRS)
     print(f"  → Seeded {n} URL-ref video sidecar(s) from {subdir_label}")
 
-    # Orphan cleanup: delete URL-ref rows whose sidecar is no longer on
-    # disk. /curated/ is the source of truth; this is what makes admin
+    # Orphan cleanup: delete FH-owned URL-ref rows whose sidecar is no longer
+    # on disk. /curated/ is the source of truth; this is what makes admin
     # deletes (which unlink the sidecar) survive the next seeder run.
+    # Scoped to uploader_member_id = fh_id, matching the file-paired and
+    # gallery cleanup passes: member-submitted youtube/vimeo videos are never
+    # FH-owned and must never be deleted by a curator seed run.
     # SQLite has no tuple-IN; concat (platform || '|' || url) is the
     # standard workaround. Identity matches _url_ref_media_id().
     placeholders = ",".join(["?"] * len(seen_pairs)) if seen_pairs else "''"
@@ -1152,10 +1155,11 @@ def seed_freestyle_tricks_sidecars(
     cur = con.execute(
         f"""
         DELETE FROM media_items
-        WHERE video_platform IN ('youtube','vimeo')
+        WHERE uploader_member_id = ?
+          AND video_platform IN ('youtube','vimeo')
           AND (video_platform || '|' || video_url) NOT IN ({placeholders})
         """,
-        seen_keys,
+        [fh_id, *seen_keys],
     )
     if cur.rowcount:
         print(f"  → Removed {cur.rowcount} orphaned URL-ref row(s) (sidecar deleted from /curated/)")

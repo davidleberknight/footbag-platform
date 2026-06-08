@@ -328,7 +328,7 @@ import re, pathlib
 md_re    = re.compile(r'[A-Za-z0-9_./-]+\.md\b')
 path_re  = re.compile(r'\b(?:exploration|docs)/')
 label_re = re.compile(
-    r'\b(?:[Pp]hase|[Ss]lice|[Ww]ave)[ -][0-9A-Z]'
+    r'\b(?:[Pp]hase|[Ss]lice|[Ww]ave)[ -][0-9]'  # digit-only: pipeline phases (Phase E/G/H) and editorial prose are not epoch labels
     r'|-WAVE-[0-9]'
     r'|\bUX-?SHIP'
     r'|\bUX[0-9]'

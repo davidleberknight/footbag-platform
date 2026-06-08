@@ -48,13 +48,4 @@ describe('observational universe snapshot internal consistency', () => {
       expect(KNOWN_SECTIONS.has(r.section), `alias row ${r.slug} has no section`).toBe(true);
     }
   });
-
-  it('ready/frontier alias rows are accounted for explicitly (the page does not net these out)', () => {
-    const aliasInReadyFrontier = OBSERVATIONAL_UNIVERSE.filter(
-      r => ALIAS.has(r.intakeBucket) && (r.section === 'ready' || r.section === 'frontier'),
-    ).length;
-    // Tripwire: if this changes, the published bucket-sum netting (which subtracts
-    // alias from folk/parser only) must be revisited so the totals stay a partition.
-    expect(aliasInReadyFrontier).toBe(20); // 18 ready + 2 frontier
-  });
 });

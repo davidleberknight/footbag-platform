@@ -1037,6 +1037,8 @@ Built and operational, owned by the historical-pipeline track (coordinate before
 
 ## 17. Migration vs operational table classification
 
+The whole pre-go-live build pipeline is build-time tooling, not a runtime system: mirror extraction, canonical CSV generation, the club/event/person loaders, and the curator seeder build the database before go-live, and the legacy-account import runs once at cutover on the final export (State 4). After cutover, none of it runs against the persistent production DB again; the DB is the sole source of truth, and data changes are operational (member and admin actions, and data-preserving migrations via `scripts/deploy-migrate.sh`), not pipeline rebuilds. The table-level expression is the classification below: migration-only staging is dropped once it has served its purpose; operational tables persist.
+
 | Table | Category | May be dropped |
 |---|---|---|
 | `members` | Permanent operational | Never |
@@ -1401,6 +1403,7 @@ External prerequisites that must land before Phase 4 starts:
 - **JWT session TTL at the DD §3.4 baseline** (24h). The TTL is a source-compiled constant, not a runtime config value; staging observability-tuned values are reverted by editing source and rebuilding before the cutover deploy. Allow source-change + deploy-cycle lead time when scheduling Phase 4.
 - **Email-delivery smoke passes end-to-end** on the final pre-cutover release: enqueue a test row via the outbox, worker drains, SES accepts, recipient inbox receives. See §25 gate G10.
 - **Lightsail SSH firewall rule restored** via `terraform apply` from `terraform/staging/` (removes Console override of the port-22 rule and returns to `operator_cidrs`-constrained ingress). See §29.8.
+- **Curator content source-of-truth cutover** (DD §1.13): production curator media moves from the `/curated/` + seeder model to the persistent DB as source of truth. The admin UI writes curator content directly to the DB; the seeder is no longer run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. See §29.14 (gate OR9).
 
 Phase 4 activities:
 
@@ -1857,15 +1860,13 @@ Procedure: redirect handlers live in the public router; the sample-replay valida
 
 ### 29.13 Curator content seeding
 
-Gate: the system member account (Footbag Hacky per DD §2.8) is seeded into the production DB and its curator content (avatar in `/curated/avatars/`, landing-page demo loops in `/curated/landing/`, event-pinned photos in `/curated/events/`, tutorials and records in `/curated/freestyle_tricks/`, etc.) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. The deploy orchestrator runs `scripts/seed_fh_curator.py` against the prod DB and `aws s3 sync` against the prod media bucket; verify via post-deploy smoke check. Curator content extends by adding file-paired sidecars under `/curated/{category}/`; no manifest edits are needed.
+Gate: the system member account (Footbag Hacky per DD §2.8) is seeded into the production DB and its curator content (avatar in `/curated/avatars/`, landing-page demo loops in `/curated/landing/`, event-pinned photos in `/curated/events/`, tutorials and records in `/curated/freestyle_tricks/`, etc.) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. The deploy orchestrator runs `scripts/seed_fh_curator.py` against the prod DB and `aws s3 sync` against the prod media bucket; verify via post-deploy smoke check. Curator content extends by adding file-paired sidecars under `/curated/{category}/`; no manifest edits are needed. This is the one-time pre-cutover population, performed while the production DB is still being established; after cutover the production DB is persistent and the seeder is not re-run against it (post-launch authoring is admin-UI -> DB per §29.14).
 
 Constraint to resolve before go-live: the curator seeder (`src/services/curatorSeedService.ts`) calls `curatorMediaService.uploadVideo` directly, running ffmpeg in-process on the seeder host with the full source buffer in RAM. This bypasses the async media-job lifecycle (DD §6.8) that backs the admin curator video upload form. Acceptable today because seeding runs operator-side with adequate memory and no HTTP-timeout window. The production seed manifest may include larger source files than dev, and the same OOM hazard the admin path was redesigned to avoid applies on a memory-constrained host. Required: route the seeder through the same `media_jobs` lifecycle, posting source bytes to S3 via presigned PUT and dispatching transcode to the worker container. Must land before State 3 → State 4.
 
 ### 29.14 Post-launch admin curator authoring
 
-Pre-launch, admin curator UIs at `/admin/curator/upload`, `/admin/curator/galleries`, and `/admin/curator/media/:id/edit` write to the `/curated/` filesystem (URL-reference sidecars at `/curated/{category}/*.meta.json` and gallery sidecars at `/curated/galleries/<slug>.json`, per DD §1.13) plus DB. Pre-launch loop: admin works on localhost, commits `/curated/` changes to git, deploys; the seeder re-runs from the committed sidecars on each DB-bearing deploy (`bash deploy_to_aws.sh --from-csv`). This loop ends at go-live: admins must work against prod, but the prod container has no git path back to the repo, so any sidecar edit on the running app diverges from the in-git source of truth.
-
-Required: design and implement a post-launch admin-curated content authoring scheme. Candidate directions: (a) make the DB the source of truth for system-member-owned authoring (Footbag Hacky) and run periodic exports to git as backup, (b) add an admin "publish to git" surface that commits and PRs from the running app via a service account, (c) split runtime mutations from build-time authoring entirely (lock the running app to read-only on `/curated/` and require admins to author via a separate workflow). Design decision required; chosen direction is reflected in DD §1.13 and SERVICE_CATALOG `CuratorMediaService`. Must land before State 3 → State 4.
+At go-live the source of truth for system-member-owned curator content moves from the pre-go-live `/curated/` authoring layer (and the seeder that builds the DB from it) to the persistent production DB: admins thereafter author through the admin UI, which writes the DB directly; the seeder is not run against production; data-preserving deploys use `scripts/deploy-migrate.sh`. The model and success criteria are defined in DD §1.13 and USER_STORIES `A_Upload_Curated_Media` / `A_Manage_Curated_Gallery`. Gate: OR9 (the data-preserving deploy additionally depends on OR1/OR8 backup and restore). Must land before State 3 → State 4.
 
 ### 29.15 Legacy archive subdomain readiness
 
