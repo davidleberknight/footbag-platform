@@ -2,7 +2,11 @@ import { FreestyleRecordRow } from '../db/db';
 import { personHref } from './personLink';
 
 export function trickNameToSlug(name: string): string {
+  // A trailing side qualifier (ss / op / near / far / same side) never changes
+  // the canonical slug, so a record named "Clipper Stall (ss)" must resolve to
+  // clipper-stall, not clipper-stall-ss. Strip it before slugifying.
   return name
+    .replace(/\s*\((?:ss|op|opp|opposite|near|far|same[ -]side)\)\s*$/i, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
