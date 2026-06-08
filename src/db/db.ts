@@ -2178,6 +2178,12 @@ export const freestyleTrickAliases = {
     FROM freestyle_trick_aliases
     ORDER BY trick_slug, alias_text COLLATE NOCASE
   `); },
+
+  // The alias slugs for one canonical trick. Used to fold records whose
+  // trick_name is spelled as an alias onto the canonical trick page.
+  get getAliasSlugsForTrick() { return db.prepare(`
+    SELECT alias_slug FROM freestyle_trick_aliases WHERE trick_slug = ?
+  `); },
 };
 
 export const freestyleMediaLinks = {

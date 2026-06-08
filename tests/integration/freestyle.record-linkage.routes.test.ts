@@ -1,0 +1,68 @@
+/**
+ * Record-to-trick linkage on the trick-detail page.
+ *
+ * Records link to tricks by trick_name. Two failure modes are pinned here:
+ *   - a record named with a lexical variant ("2-Bag Juggle") whose slug is an
+ *     alias of the canonical trick ("2-bag-juggling") must still list on the
+ *     canonical page, and the alias URL must render the canonical page;
+ *   - a record named with a side qualifier ("Clipper Stall (ss)") must list on
+ *     its base trick page.
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+
+import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleRecord } from '../fixtures/factories';
+
+const { dbPath } = setTestEnv('3175');
+let createApp: Awaited<ReturnType<typeof importApp>>;
+
+beforeAll(async () => {
+  const db = createTestDb(dbPath);
+
+  // Juggle case: canonical trick + the digit-juggle alias + a record spelled
+  // with that variant.
+  insertFreestyleTrick(db, { slug: '2-bag-juggling', canonical_name: '2-bag-juggling', category: 'multi-bag', adds: '2' });
+  insertFreestyleTrickAlias(db, '2-bag-juggle', '2-bag-juggling', '2 bag juggle');
+  insertFreestyleRecord(db, {
+    trick_name:   '2-Bag Juggle',
+    record_type:  'trick_consecutive_juggle',
+    display_name: 'Juggle Holder',
+    value_numeric: 25,
+    video_url:    'https://youtu.be/XeJHACfaU2Q?t=103',
+  });
+
+  // Qualifier case (resolver-only, no alias): the slugifier strips "(ss)".
+  insertFreestyleTrick(db, { slug: 'clipper-stall', canonical_name: 'clipper-stall', category: 'compound', adds: '1' });
+  insertFreestyleRecord(db, {
+    trick_name:   'Clipper Stall (ss)',
+    record_type:  'trick_consecutive',
+    display_name: 'Qualifier Holder',
+    value_numeric: 99,
+  });
+
+  db.close();
+  createApp = await importApp();
+});
+
+afterAll(() => cleanupTestDb(dbPath));
+
+describe('Record-to-trick linkage', () => {
+  it('the canonical 2-bag-juggling page lists its 2-Bag Juggle record', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggling');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Juggle Holder');
+  });
+
+  it('the alias URL 2-bag-juggle resolves to the canonical trick page', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/2-bag-juggle');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Juggle Holder');
+  });
+
+  it('a record named with an (ss) qualifier lists on its base trick page', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper-stall');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Qualifier Holder');
+  });
+});

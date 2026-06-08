@@ -5658,7 +5658,14 @@ export const freestyleService = {
     };
   },
 
-  getTrickDetailPage(slug: string): PageViewModel<FreestyleTrickContent> {
+  getTrickDetailPage(rawSlug: string): PageViewModel<FreestyleTrickContent> {
+    // A record or media link may address a trick by an alias slug; resolve it
+    // to the canonical trick so the alias URL renders the canonical page.
+    const aliasCanonical = runSqliteRead('freestyleTrickAliases.getCanonicalForAlias', () =>
+      freestyleTrickAliases.getCanonicalForAlias.get(rawSlug) as { trick_slug: string } | undefined,
+    );
+    const slug = aliasCanonical?.trick_slug ?? rawSlug;
+
     // Resolve slug → trick_name via public (non-superseded) records
     const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],
@@ -5672,7 +5679,14 @@ export const freestyleService = {
       freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
     );
 
-    const recordTrickName = publicRows.find(r => r.trick_name && trickNameToSlug(r.trick_name) === slug)?.trick_name;
+    // Match records to this trick by its canonical slug or any of its alias
+    // slugs, so a record whose trick_name is spelled as an alias (e.g.
+    // "2-Bag Juggle" for 2-bag-juggling) still lists on the canonical page.
+    const aliasSlugs = runSqliteRead('freestyleTrickAliases.getAliasSlugsForTrick', () =>
+      (freestyleTrickAliases.getAliasSlugsForTrick.all(slug) as { alias_slug: string }[]).map(a => a.alias_slug),
+    );
+    const matchSlugs = new Set<string>([slug, ...aliasSlugs]);
+    const recordTrickName = publicRows.find(r => r.trick_name && matchSlugs.has(trickNameToSlug(r.trick_name)))?.trick_name;
     const trickName = recordTrickName
       ?? (dictRow ? dictRow.canonical_name.replace(/\b\w/g, c => c.toUpperCase()) : null);
 
