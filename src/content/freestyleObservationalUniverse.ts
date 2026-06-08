@@ -78,9 +78,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Tapping Reverse Guay", "slug": "tapping-reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "tapping(+1) + guay(2) = 3", "semanticJob": "TAPPING REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blazing Butterfly", "slug": "blazing-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "blazing(+1) + butterfly(3) = 4", "semanticJob": "BLAZING BUTTERFLY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blazing Drifter", "slug": "blazing-drifter", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "blazing(+1) + drifter(3) = 4", "semanticJob": "BLAZING DRIFTER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging far Mirage", "slug": "surging-mirage", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "spinning(+1) + stepping(+1) + mirage(2) = 4", "semanticJob": "SURGING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging Legover", "slug": "surging-legover", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "spinning(+1) + stepping(+1) + legover(2) = 4", "semanticJob": "SURGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging ss Osis", "slug": "surging-osis", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "spinning(+1) + stepping(+1) + osis(3) = 5", "semanticJob": "SURGING OSIS", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Terraging Illusion", "slug": "terraging-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + illusion(2) = 5", "semanticJob": "TERRAGING ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging ss Illusion"], "layer": "frontier"},
   {"name": "Terraging Legover", "slug": "terraging-legover", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + legover(2) = 5", "semanticJob": "TERRAGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging ss Legover"], "layer": "frontier"},
   {"name": "Terraging ss Illusion", "slug": "terraging-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + illusion(2) = 5", "semanticJob": "TERRAGING ILLUSION", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
@@ -152,7 +149,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Blazing Torque", "slug": "blazing-torque", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "blazing(+1) + torque(4) = 5", "semanticJob": "BLAZING TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Reverse Swirling Blender", "slug": "reverse-swirling-blender", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "swirling(+1) + blender(4) = 5", "semanticJob": "REVERSE SWIRLING BLENDER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Reverse Whirling Twirl", "slug": "reverse-whirling-twirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "whirling(+1) + twirl(4) = 5", "semanticJob": "REVERSE WHIRLING TWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging far Whirl", "slug": "surging-whirl", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "spinning(+1) + stepping(+1) + whirl(3) = 5", "semanticJob": "SURGING WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Reverse Swirling PS Whirl", "slug": "reverse-swirling-paradox-symposium-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "swirling(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6", "semanticJob": "REVERSE SWIRLING PARADOX SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic Drifter", "slug": "atomic-drifter", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + drifter(3) = 4", "semanticJob": "ATOMIC DRIFTER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
@@ -1560,7 +1556,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1485,
+    "total": 1481,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1568,12 +1564,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 196,
+    "promotionFrontier": 192,
     "lexicalArchive": 1270,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 87,
-        "distinctStructures": 87
+        "names": 83,
+        "distinctStructures": 83
       },
       "doctrine_pending": {
         "names": 97,
@@ -1604,20 +1600,20 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 162
       }
     },
-    "ready": 83,
+    "ready": 79,
     "frontier": 22,
     "doctrineBlocked": 259,
     "folkUnresolved": 734,
     "parserUnresolved": 387,
     "promotionReadyPct": 7,
     "doctrineBlockedPct": 17,
-    "folkUnresolvedPct": 49,
+    "folkUnresolvedPct": 50,
     "parserUnresolvedPct": 26,
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 617,
-      "FM": 431,
-      "PB": 301,
+      "FM": 429,
+      "PB": 299,
       "FB": 117,
       "MULTI": 19
     },
