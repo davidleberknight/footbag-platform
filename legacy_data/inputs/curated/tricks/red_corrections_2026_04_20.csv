@@ -1635,3 +1635,37 @@ toe-flurry,trick_family,,legover,loader-19 override: base_trick flurry defaults 
 toe-ripwalk,trick_family,,butterfly,loader-19 override: base_trick ripwalk defaults trick_family to ripwalk; canonical family is butterfly.
 reverse-whirling-twirl,trick_family,,osis,loader-19 override: base_trick twirl defaults trick_family to twirl; canonical family is osis.
 backside-symposium-smear,trick_family,,mirage,loader-19 override: base_trick smear defaults trick_family to smear; canonical family is mirage.
+rev-swirl,operational_notation,,CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+diving-reverse-swirl,operational_notation,,CLIP > DIVE [BOD] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+fairy-reverse-swirl,operational_notation,,TOE > SAME OUT [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+pixie-reverse-swirl,operational_notation,,TOE > SAME IN [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+spinning-reverse-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+stepping-reverse-swirl,operational_notation,,CLIP > OP IN [DEX] >> OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+swirling-reverse-swirl,operational_notation,,CLIP > OP BACK SWIRL [DEX] > SAME SWIRL [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+toe-symposium-swirl,operational_notation,,TOE > SAME SYMP [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+toe-whirling-swirl,operational_notation,,TOE > OP WHIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+clipper-diving-whirl,operational_notation,,CLIP > DIVE [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+clipper-ducking-whirl,operational_notation,,CLIP > DUCK [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+clipper-symposium-whirl,operational_notation,,CLIP > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+fairy-reverse-whirl,operational_notation,,TOE > SAME OUT [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+pixie-reverse-whirl,operational_notation,,TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+spinning-reverse-whirl,operational_notation,,SET > (back) SPIN [BOD] > SAME IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+stepping-reverse-whirl,operational_notation,,CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+whirling-reverse-whirl,operational_notation,,SET > SAME IN [DEX] > OP WHIRL [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-blender,operational_notation,,SET > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+clipper-ducking-blender,operational_notation,,CLIP > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-swirling-blender,operational_notation,,SET > SAME SWIRL [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-torque,operational_notation,,SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+toe-spinning-torque,operational_notation,,TOE > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-swirling-osis,operational_notation,,SET > OP SWIRL [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+clipper-ducking-drifter,operational_notation,,CLIP > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+toe-gyro-mirage,operational_notation,,TOE > GYRO [BOD] > OP IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+toe-ducking-legover,operational_notation,,TOE > DUCK [BOD] > OP OUT [DEX] > SAME TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-swirling-pickup,operational_notation,,SET > SAME SWIRL [DEX] > SAME IN [DEX] > OP TOE [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+butterfly-gyro-toe,operational_notation,,TOE > GYRO [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],"Promoted 2026-06-08 (slice 5): depth-<=1 single-modifier notation, parser-verified; bracket count = ADD."
+reverse-blender,trick_family,,osis,loader-19 override: base_trick blender defaults trick_family to blender; canonical family is osis.
+clipper-ducking-blender,trick_family,,osis,loader-19 override: base_trick blender defaults trick_family to blender; canonical family is osis.
+reverse-swirling-blender,trick_family,,osis,loader-19 override: base_trick blender defaults trick_family to blender; canonical family is osis.
+reverse-torque,trick_family,,osis,loader-19 override: base_trick torque defaults trick_family to torque; canonical family is osis.
+toe-spinning-torque,trick_family,,osis,loader-19 override: base_trick torque defaults trick_family to torque; canonical family is osis.
+clipper-ducking-drifter,trick_family,,clipper-stall,loader-19 override: base_trick drifter defaults trick_family to drifter; canonical family is clipper-stall.
