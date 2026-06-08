@@ -23,11 +23,12 @@ Named-set tokenization cohort; lands together under one verification model.
 |---|---|---|---|
 | railing | 3 | named-set `+2` not bracket-tokenized | cohort JOB-tokenization + shared verification |
 | surfing | 1 | same class | same |
-| furious | 1 | same class | same |
+| furious | 6 (clown-face, furious, fury, genesis, nebula, rage) | same class; 5 of 6 also miss the `furious` modifier link (see DATA_FIX_modifier_link_gaps.md) | same cohort tokenization + link fix |
 
 
 ## Data gaps / notes
-- **genuphobia modifier-link gap** (filed: DATA_FIX_modifier_link_gaps.md): notation backfilled from the authoritative content layer (7 ADD: fairy + gyro + symposium + torque). The `modifier_links` table records only `[fairy, symposium]`; the gyro spin is missing (the source spells it "spyro"; `gyro` is the canonical token, 38 links, `spyro` 0), so link-based ADD recomposition under-counts by 1. Fix: the additions modifier-link field `fairy|symposium` -> `fairy|gyro|symposium`, reload-gated; notation and `adds` unchanged. Possible sibling `rage` flagged for separate review.
+- **genuphobia modifier-link gap** (filed: DATA_FIX_modifier_link_gaps.md): notation backfilled from the authoritative content layer (7 ADD: fairy + gyro + symposium + torque). The `modifier_links` table records only `[fairy, symposium]`; the gyro spin is missing (the source spells it "spyro"; `gyro` is the canonical token, 38 links, `spyro` 0), so link-based ADD recomposition under-counts by 1. Fix: the additions modifier-link field `fairy|symposium` -> `fairy|gyro|symposium`, reload-gated; notation and `adds` unchanged.
+- **Systemic furious modifier-link gap** (filed: DATA_FIX_modifier_link_gaps.md, Fix 2): 5 of the 6 furious-cohort tricks (clown-face, furious, genesis, nebula, rage) carry "furious" in name/aliases but no `furious` modifier link. Add `furious` to those additions rows; reload-gated; `adds` and notation unchanged. Notation stays deferred with the furious named-set cohort. This is why the deferred-class furious count is 6, not 1.
 
 
 ## Remaining held multi-modifier

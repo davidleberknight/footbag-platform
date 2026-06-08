@@ -17,8 +17,18 @@ genuphobia,7,torque,compound,fairy spyro symposium torque,fairy|symposium,"A sym
 
 **Scope / safety:** this is a trick-definition change to source data, reload-gated. It does not change `adds` or the notation (already backfilled and correct); it only aligns the link table with the name, aliases, description, and content-layer reading. Apply in a data pass, not silently from this document.
 
-## Possible sibling (needs separate review, not part of Fix 1)
-- `rage`: stated `adds=5`, links `[symposium]`, base `mirage` -> recomposes to 3 (a 2-ADD gap). May have two missing links or be a named compound; review before any change.
+## Fix 2 - systemic furious modifier-link gap (5 tricks)
+Investigating the `rage` mismatch surfaced a cohort-wide gap. `rage` is Furious Symposium Mirage (`furious(2) + symposium(1) + mirage(2) = 5`); its links record only `[symposium]`, omitting `furious`. Recounting the furious cohort by name/aliases shows this is systemic:
+
+**Furious cohort (notation-missing) = 6: clown-face, furious, fury, genesis, nebula, rage.** Only `fury` carries the `furious` link. The other **five (clown-face, furious, genesis, nebula, rage)** have "furious" in the name/aliases but no `furious` modifier link.
+
+**Correction:** add `furious` to the modifier-link field of those five additions rows (e.g. rage `symposium` -> `furious|symposium`). `furious` is a recognized token (`fury`, `nemesis` carry it). `adds` is unchanged.
+
+**Distinction from Fix 1:** `gyro` is a +1 bracket modifier, so genuphobia's notation was cleanly backfillable. `furious` is a **deferred named-set operator** (`(furious set) >>`, +2), so these five stay notation-deferred with the furious cohort even after the link fix - the fix only corrects cohort membership and modifier-based queries, not notation. railing and surfing have no such link gap (their cohorts link cleanly).
+
+**Dashboard impact:** the deferred-class furious count is **6, not 1** - the earlier link-based count undercounted it by exactly this gap.
 
 ## Not gaps (recorded so they are not re-flagged)
-The recomposition scan flagged ~26 tricks where stated `adds` exceeds a +1-per-link estimate. All but genuphobia (and possibly rage) are **named-set or multi-ADD operators** whose ADD comes from the operator definition, not +1 per link: surfing (+3), railing (+2), shooting (+3), nuclear (+2), furious (+2), warping (+3), floating (+3), splicing (+2), blurry, illusioning, and the atomic/quantum X-Dex doctrine. These are expected, not data gaps; the +1-per-link estimator simply does not model them.
+The recomposition scan flagged ~26 tricks where stated `adds` exceeds a +1-per-link estimate. Two distinct things are in play, and only one is a gap:
+- **ADD is operator-defined, not +1 (expected, not a gap):** surfing (+3), railing (+2), shooting (+3), nuclear (+2), furious (+2), warping (+3), floating (+3), splicing (+2), blurry, illusioning, and the atomic/quantum X-Dex doctrine. The +1-per-link estimator simply does not model these.
+- **Missing link (a real gap):** genuphobia (Fix 1) and the five furious-cohort rows (Fix 2). Here the modifier is absent from the link table entirely, independent of how its ADD is counted.
