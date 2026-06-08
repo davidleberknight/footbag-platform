@@ -424,12 +424,16 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
   },
   {
     slug: 'furious', hashtag: '#furious-set', displayName: 'Furious', subtype: 'composite-derived',
-    formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >',
+    formula: 'Structural +2 set primitive (Red pt6, parallel to atomic); no live bracket decomposition',
     movementExplanation:
-      'Barraging Paradox Miraging. Barraging\'s two-dex open extended with a third dex ' +
-      '— the longest named chain in Holden\'s compilation.',
+      'Furious is a +2 structural set primitive, ruled by Red (pt6) as a set distinct from the ' +
+      'Fury move and anchored by Fury = furious + paradox + mirage = 5. Its +2 is a structural ' +
+      'assignment (parallel to atomic), not a counted bracket motion, so it has no live bracket ' +
+      'decomposition. The earlier Barraging Paradox Miraging reading (the longest named chain in ' +
+      'Holden\'s compilation) is superseded lineage, kept below as a historical equivalence note ' +
+      'rather than a current expansion.',
     equivalenceNotes: [
-      { reading: 'Barraging Paradox Miraging', citation: 'Holden parenthetical' },
+      { reading: 'Barraging Paradox Miraging (superseded Holden / pt4 lineage)', citation: 'Holden parenthetical; replaced by the Red pt6 furious-set ruling' },
     ],
     derivedSystems: [],
     relatedSystems: [
@@ -1007,6 +1011,27 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); Rooted Sailing composition, documented to back the railing trick cohort.',
     auditStatus: 'holden-only',
+    tier: 'compositional-system',
+  },
+  {
+    slug: 'surfing', hashtag: '#surfing-set', displayName: 'Surfing', subtype: 'composite-derived',
+    formula: 'TOE > SAME OUT [DEX] > (no plant while) OP IN [BOD] > OP BACK SWIRL [DEX] >',
+    movementExplanation:
+      'Surfing is a composite set reading Fairy Symposium Swirling: a fairy toe-set outward ' +
+      'dex, a no-plant symposium body, and a back-swirl dex, contributing 3 ADD. Surfing-' +
+      'family trick cards reference this entry by the (surfing set) shorthand instead of ' +
+      'repeating the expansion.',
+    equivalenceNotes: [
+      { reading: 'Fairy Symposium Swirling', citation: 'derived from the surfing trick cohort expansion' },
+    ],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'fairy', label: 'Fairy (the toe-set outward entry)' },
+      { slug: 'swirling', label: 'Swirling (the back-swirl dex)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Derived from the surfing trick cohort expansion (FootbagMoves single-source).',
+    auditStatus: 'aligned',
     tier: 'compositional-system',
   },
   {
