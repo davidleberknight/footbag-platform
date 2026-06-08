@@ -8023,8 +8023,12 @@ export const freestyleService = {
     };
 
     // Section A — Promotion Ready, grouped by derived ADD (lowest first).
-    const readyCards = inSection('ready').map(shape);
-    const readyGroups = groupByAdd(inSection('ready'));
+    // Net the alias/duplicate archive out symmetrically (folk/parser already do
+    // this below) so the published section counts form a clean partition and the
+    // alias archive is never double-counted on top of a section.
+    const readyRows = inSection('ready').filter(r => !isAliasArchive(r));
+    const readyCards = readyRows.map(shape);
+    const readyGroups = groupByAdd(readyRows);
 
     // Section B — per-ecosystem frontier matrix (intelligibility lens) + the
     // curator-confirm cards.
@@ -8032,7 +8036,7 @@ export const freestyleService = {
     for (const r of universe) ecoKeys.add(r.ecosystem || '(unclassified)');
     const ecosystemMatrix: ObservationalEcosystemRow[] = [...ecoKeys].map(eco => {
       const ofEco = universe.filter(r => (r.ecosystem || '(unclassified)') === eco);
-      const c = (s: string) => ofEco.filter(r => r.section === s).length;
+      const c = (s: string) => ofEco.filter(r => r.section === s && !isAliasArchive(r)).length;
       return {
         ecosystem:  eco,
         label:      observedEcosystemLabel(eco),
@@ -8043,8 +8047,9 @@ export const freestyleService = {
         total:      ofEco.length,
       };
     }).sort((a, b) => (b.ready - a.ready) || (b.total - a.total));
-    const frontierCards = inSection('frontier').map(shape);
-    const frontierGroups = groupByAdd(inSection('frontier'));
+    const frontierRows = inSection('frontier').filter(r => !isAliasArchive(r));
+    const frontierCards = frontierRows.map(shape);
+    const frontierGroups = groupByAdd(frontierRows);
 
     // Section C — doctrine bottleneck clusters.
     const doctrineRows = inSection('doctrine');
