@@ -3618,7 +3618,7 @@ Requirements:
 
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `packages: write` for the GHCR publish step). Default-write tokens are not used.
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
-- Dependabot is enabled for npm, GitHub Actions, and Docker base images. Security-only updates may auto-merge after CI; ecosystem updates land via review.
+- No automated dependency-update bot runs against the repo; dependency versions are reviewed and bumped manually.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
 - Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
 - Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.

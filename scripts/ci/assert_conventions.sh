@@ -634,27 +634,6 @@ if ! bash scripts/ci/check_action_pinning.sh; then
   violations=$((violations + 1))
 fi
 
-# Rule: the Dependabot config exists and covers the three shipped ecosystems.
-# Reason: dependency currency for npm packages, GitHub Actions, and Docker base
-# images is automated by Dependabot; a missing or narrowed config silently
-# reopens the gap, so presence plus ecosystem coverage is asserted here.
-echo "[conventions] check: Dependabot config covers npm + github-actions + docker"
-dependabot_missing=""
-if [ ! -f .github/dependabot.yml ]; then
-  dependabot_missing=".github/dependabot.yml is absent"
-else
-  for eco in npm github-actions docker; do
-    if ! grep -qE "package-ecosystem:[[:space:]]*[\"']?${eco}[\"']?" .github/dependabot.yml; then
-      dependabot_missing="${dependabot_missing}${eco} "
-    fi
-  done
-fi
-if [ -n "$dependabot_missing" ]; then
-  echo "  missing ecosystem coverage: $dependabot_missing" >&2
-  echo "  FAIL: .github/dependabot.yml must cover npm, github-actions, and docker" >&2
-  violations=$((violations + 1))
-fi
-
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

@@ -2917,8 +2917,8 @@ section.home-media { padding-top: 0; }
 .gloss-histogram-row { display: flex; align-items: center; gap: 10px; }
 .gloss-histogram-row dt { flex: 0 0 132px; margin: 0; text-align: right; font-size: 0.82rem; color: var(--gray-700); }
 .gloss-histogram-row dd { flex: 1; margin: 0; display: flex; align-items: center; gap: 8px; }
-.gloss-bar { flex: 1; height: 12px; background: var(--gray-150); border-radius: 3px; overflow: hidden; }
-.gloss-bar-fill { display: block; height: 100%; min-width: 3px; background: var(--gray-500); border-radius: 3px; }
+.gloss-bar { flex: 1; height: 12px; background: var(--gray-150); border-radius: var(--radius-2xs); overflow: hidden; }
+.gloss-bar-fill { display: block; height: 100%; min-width: 3px; background: var(--gray-500); border-radius: var(--radius-2xs); }
 .gloss-bar-count { flex: 0 0 auto; min-width: 30px; font-size: 0.78rem; color: var(--gray-700); font-variant-numeric: tabular-nums; }
 .gloss-histogram-row--surface dt { font-weight: 600; color: var(--gray-900); }
 .gloss-histogram-row--surface .gloss-bar-fill { background: var(--gray-800); }
