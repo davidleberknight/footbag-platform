@@ -1,7 +1,7 @@
 /**
  * Dev-admin seed script. Direct-inserts admin members into the live DB
  * for dev/staging only. Migration-window-only on staging; removed at
- * production cutover (see ./README.md).
+ * production cutover.
  *
  * Each entry becomes a Tier 2 member with `is_admin=1`. Tier 2 is
  * required because admin role gates on Tier 2+ throughout the platform

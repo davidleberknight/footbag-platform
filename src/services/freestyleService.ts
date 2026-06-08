@@ -169,7 +169,6 @@ import {
 } from '../content/freestyleComboAnalysisContent';
 import {
   OBSERVATIONAL_TRICKS,
-  type ObservationalGovernanceLane,
 } from '../content/freestyleObservationalTricks';
 import {
   OBSERVATIONAL_UNIVERSE,
@@ -414,8 +413,7 @@ export interface FreestyleLandingContent {
 
 // ── Operator Board ──────────────────────────────────────────────────────
 // The landing-page mini-board introduces the Tier-1 operator vocabulary
-// (13 operators across set / body / structural tiers). Caption framing
-// per OPERATOR_BOARD_MOCKUP_REVIEW.md §B (planning artifact). Cells with
+// (13 operators across set / body / structural tiers). Cells with
 // curatorConfirmPending=true require a curator accuracy pass before any
 // prose lock.
 export interface OperatorBoardOperator {
@@ -1522,7 +1520,7 @@ export interface NotationGrammarRoleBucket {
 // labeled `sourceLabel='editorial'` so the template can never present this
 // claim as parser output.
 //
-// Forever-rules preserved (per PHASE5_STATUS_SHAPE_CONSULTS.md §7):
+// Invariants this shaping path preserves:
 //   - Editorial-derived `composedAdds` NEVER overrides asserted_adds.
 //   - Editorial-derived `composedAdds` NEVER overrides parser `computed_adds`.
 //   - No slug-specific branches anywhere in the shaping path.
@@ -1683,7 +1681,7 @@ function shapeRoleBuckets(
 // have nothing structural to decompose into; the parser-derived view + the
 // description (Editorial context block) are sufficient.
 //
-// Forever-rules (PHASE5_STATUS_SHAPE_CONSULTS.md §7):
+// Invariants this shaping path preserves:
 //   - Reads ONLY base_trick + freestyle_trick_modifier_links.
 //   - Never re-tokenizes canonical_name. Never parses description.
 //   - Never claims parser provenance (sourceLabel always 'editorial').
@@ -3086,94 +3084,6 @@ export interface LanguageOfFreestyleAtomCard {
   movementIntuition: string;       // embodied coaching cue (what it feels like)
   foundationalNote: string;        // cultural / why-foundational
   familyRole:       string;        // optional secondary; empty string ok
-}
-
-// /freestyle/observational view-model. Surfaces the observational-layer
-// trick entries (TypeScript content-module-driven; no DB integration).
-// Layer separation contract: observational entries NEVER
-// cross into canonical surfaces; this view-model is the only place they
-// surface.
-/** Two-letter source badge for compact card rendering. PassBack=PB,
- *  FootbagMoves=FM, Shred Global=SG, Footbag Finland=FF, footbag.org=FB,
- *  other=OTHER. The FB badge surfaces structurally clean compounds from
- *  the footbag.org /newmoves corpus that are awaiting curator promotion
- *  to canonical. */
-export type ObservedSourceBadge = 'PB' | 'FM' | 'SG' | 'FF' | 'FB' | 'OTHER';
-
-/** Status-chip tone palette. Pre-shaped so the template never branches
- *  on the raw ObservationalStatus enum. */
-export type ObservedStatusTone = 'neutral' | 'accent' | 'muted';
-
-export interface ObservedStatusChip {
-  label: string;
-  tone:  ObservedStatusTone;
-}
-
-export interface ObservationalLaneBucket {
-  laneSlug:   ObservationalGovernanceLane;
-  label:      string;            // pre-shaped section heading
-  intro:      string;            // one-line lane definition
-  cards:      readonly ObservedTrickCard[];
-  cardCount:  number;            // dynamic count
-}
-
-export interface ObservationalLanesView {
-  promotionQueue:  ObservationalLaneBucket;
-  formulaReview:   ObservationalLaneBucket;
-  sourceOnly:      ObservationalLaneBucket;
-  doctrineBlocked: ObservationalLaneBucket;
-}
-
-export interface ObservedTrickCardDetail {
-  /** Readings beyond the first one (the first reading is rendered as
-   *  the card's shortReading; this carries the rest). */
-  additionalReadings: readonly string[];
-  /** Curator-authored ADD-formula derivation string, when present. */
-  formula:            string | null;
-  /** Free-form curator note, when present. */
-  curatorNote:        string | null;
-  /** Curator blockers preventing canonicalization. */
-  blockers:           readonly string[];
-  /** Full free-form source citation (e.g. "PassBack dictionary
-   *  (passback-dictionary.txt)"). The card's sourceBadge + tooltip
-   *  render this implicitly; the detail expansion shows it explicitly.
-   *  Note: the underlying source file is literally named
-   *  passback-dicrionary.txt (misspelling preserved upstream); the
-   *  display string is sanitized to dictionary for the user-facing
-   *  citation. */
-  sourceCitation:     string;
-}
-
-export interface ObservedTrickCard {
-  folkSlug:         string;
-  displayName:      string;
-  /** Explicit governance lane (per ObservationalGovernanceLane). Curator-
-   *  authored; defaults to 'source-only' when the source entry omits it.
-   *  Drives lane-bucketing on the Emerging Vocabulary page. */
-  governanceLane:   ObservationalGovernanceLane;
-  sourceBadge:      ObservedSourceBadge;
-  /** Full source citation surfaced as the badge's aria-label / title. */
-  sourceTooltip:    string;
-  statusChip:       ObservedStatusChip;
-  /** First reading from proposedReadings; null when none authored. */
-  shortReading:     string | null;
-  /** External-claim label framed by source ('PB claim: 4' / 'FM claim: 5'
-   *  / null when source publishes no numeric claim). NEVER framed as
-   *  canonical ADD — these entries are NOT canonical resolved tricks
-   *  and the displayed number is often a relative modifier delta, not
-   *  a canonical difficulty class. */
-  externalClaimLabel: string | null;
-  /** Numeric form of the source's ADD claim (null when source publishes
-   *  no number). Used as the primary sort key on the observational page
-   *  so readers see source-claimed difficulty order; never rendered as
-   *  a canonical-ADD value (the labeled string above carries source
-   *  attribution). */
-  claimNumeric: number | null;
-  /** True when at least one of: additionalReadings, formula,
-   *  curatorNote, blockers is non-empty. Template uses this to gate
-   *  the <details> element. */
-  hasDetails:       boolean;
-  detailExpansion:  ObservedTrickCardDetail;
 }
 
 // ── Emerging Vocabulary governance surface ────────────────────────────────
@@ -5733,9 +5643,9 @@ export const freestyleService = {
     );
 
     // Also check dictionary for slug resolution (trick may have no records).
-    // getBySlug returns Phase-0 parser columns (jobs_notation_raw, structural
+    // getBySlug returns the parser columns (jobs_notation_raw, structural
     // _parse_json, computed_*) alongside the base trick fields; only this
-    // statement loads them — grids stay lean.
+    // statement loads them, so grids stay lean.
     const dictRow = runSqliteRead('freestyleTricks.getBySlug', () =>
       freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
     );
@@ -6200,7 +6110,7 @@ export const freestyleService = {
           // relevant sections. Tier is an authoring priority signal
           // (TIER_A_SLUGS / TIER_B_SLUGS in freestyleTrickTier.ts), NOT
           // a structural gate; suppression is content-driven (entry null
-          // → section suppresses). See PHASE_B_LOCK.md §8.
+          // → section suppresses).
           trickTier:        resolveTrickTier(slug),
           mechanicalDelta:  (() => {
             // L2 — mechanical delta. The deepest ontology layer per the
@@ -8026,47 +7936,6 @@ export const freestyleService = {
           foundationalNote: c.foundationalNote,
           familyRole:       c.familyRole,
         })),
-      },
-    };
-  },
-
-  buildObservationalLanes(cards: readonly ObservedTrickCard[]): ObservationalLanesView {
-    // Explicit governance-lane bucketing. Each card carries its
-    // curator-authored governanceLane (defaulted to 'source-only' at
-    // shape time when missing); this helper just buckets without
-    // heuristics, per the governance contract.
-    const promotionQueueCards  = cards.filter(c => c.governanceLane === 'promotion-queue');
-    const formulaReviewCards   = cards.filter(c => c.governanceLane === 'formula-review');
-    const doctrineBlockedCards = cards.filter(c => c.governanceLane === 'doctrine-blocked');
-    const sourceOnlyCards      = cards.filter(c => c.governanceLane === 'source-only');
-    return {
-      promotionQueue: {
-        laneSlug:  'promotion-queue',
-        label:     'Promotion queue',
-        intro:     'Source-backed names with plausible JOB notation and ADD accounting. Near-ready for canonical promotion after final curator review.',
-        cards:     promotionQueueCards,
-        cardCount: promotionQueueCards.length,
-      },
-      formulaReview: {
-        laneSlug:  'formula-review',
-        label:     'Formula review needed',
-        intro:     'Names with a known decomposition but inconsistent or unresolved ADD / formula reading. Awaiting curator adjudication of the structural interpretation.',
-        cards:     formulaReviewCards,
-        cardCount: formulaReviewCards.length,
-      },
-      sourceOnly: {
-        laneSlug:  'source-only',
-        label:     'Source-only documented',
-        intro:     'Known names from FootbagMoves / PassBack / Footbag.org without enough verified structure yet. Default lane for new observational entries.',
-        cards:     sourceOnlyCards,
-        cardCount: sourceOnlyCards.length,
-      },
-      doctrineBlocked: {
-        laneSlug:  'doctrine-blocked',
-        label:     'Doctrine / policy blocked',
-        intro:     'Names blocked by an unresolved doctrine issue (paradox, x-dex, nuclear/atomic, inspinning, shooting, backside, fairy/orbit reading, productive-multiplicity, etc.). Curator decision required before triage.',
-        cards:     doctrineBlockedCards,
-        cardCount: doctrineBlockedCards.length,
       },
     };
   },

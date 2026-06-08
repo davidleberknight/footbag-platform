@@ -69,7 +69,7 @@ const UNUSUAL_SURFACE_TOKENS = new Set([
   'SOLE', 'KNEE', 'HEAD', 'NECK', 'SHOULDER', 'FOREHEAD', 'CLOUD',
 ]);
 
-// ── Phase-6-specific static sets ──────────────────────────────────────────
+// ── Static token sets ──────────────────────────────────────────────────────
 
 const FOOTEDNESS_TOKENS = new Set([
   'SAME', 'OP', 'IN', 'OUT',
@@ -102,11 +102,12 @@ const ROLE_LABELS: Record<NotationRole, string> = {
   unresolved:       'Unrecognized, community notation may be evolving',
 };
 
-// Per-token tooltip overrides (UX1 Phase A). Harmonized with operational
-// renderer's WORD_TOKEN_LABELS for consistency. Ambiguous tokens (WHIRL,
-// SWIRL, SAME, OP, IN, OUT, TOE) carry layer-disambiguated wording per
-// UX1_NOTATION_INTERACTION_AUDIT.md §4. Keyed UPPERCASE for case-insensitive
-// lookup; bracket-form body-component flags handled separately below.
+// Per-token tooltip overrides. Harmonized with the operational renderer's
+// WORD_TOKEN_LABELS for consistency. Ambiguous tokens (WHIRL, SWIRL, SAME,
+// OP, IN, OUT, TOE) carry layer-disambiguated wording so the same token reads
+// distinctly across the semantic and operational layers. Keyed UPPERCASE for
+// case-insensitive lookup; bracket-form body-component flags handled
+// separately below.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // ── Base trick families (core_family) ─────────────────────────────────
   WHIRL:     'Whirl, base trick family (3 ADD)',
@@ -297,7 +298,7 @@ export function shapeNotationDisplay(
 
   const tokens: NotationToken[] = rawTokens.map(text => {
     const { role, resolvedName } = classifyToken(text, ctx);
-    // Per-token label preference order (UX1 Phase A):
+    // Per-token label preference order:
     //   1. WORD_TOKEN_LABELS[UPPER(text)],per-token specific override
     //   2. BODY_COMPONENT_LABELS[text]   ,bracketed body-component flags
     //   3. ROLE_LABELS[role] + resolved  ,core_family with slug suffix

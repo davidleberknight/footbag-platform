@@ -1,25 +1,25 @@
-// O1b: token-role highlighting for operational notation (set-arc form,
+// Token-role highlighting for operational notation (set-arc form,
 // e.g. `CLIP > OP IN [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL]`).
 //
 // Display-only. NEVER:
 //   - reads any other freestyle_tricks column (no semantic inference)
 //   - resolves cross-references (e.g. embedded `Frigidosis > ...`)
 //   - mutates ontology / asserted_adds / modifier links
-//   - couples to the semantic-notation parser (parse_freestyle_notation.py)
+//   - couples to the semantic-notation parser
 //
-// Pure pattern-matching tokenizer per OPERATIONAL_NOTATION_GRAMMAR.md §2:
+// Pure pattern-matching tokenizer over the operational set-arc grammar:
 //   - Component flags ([DEX], [DEL], [BOD], [XBD], [PDX], [XDEX]) — square-bracket
 //   - Pre-state flags ((back), (front), (no plant while), (rooted)) — parens, lowercase
 //   - Surfaces (CLIP, TOE) — primary
 //   - Sides (SAME, OP) — secondary
 //   - Directions (IN, OUT, FRONT, BACK) — secondary; FRONT/BACK fuse into
-//     rotation-variant when followed by WHIRL/SWIRL (per OPERATIONAL_NOTATION_GRAMMAR §3.5)
+//     rotation-variant when followed by WHIRL/SWIRL
 //   - Body actions (SPIN, DUCK, DIVE) — primary
 //   - Rotation variants (FRONT WHIRL, BACK WHIRL, FRONT SWIRL, BACK SWIRL) — primary; 2-token fusion
 //   - Sequence operators (>, >>) — neutral
 //
-// Color palette (warm, distinct from semantic notation's cool palette) per
-// RENDERING_SURFACE_PROPOSAL.md §3. Primary saturated (warm: amber/orange/
+// Color palette (warm, distinct from semantic notation's cool palette).
+// Primary saturated (warm: amber/orange/
 // teal); secondary muted (gray). Restraint-first: 4 primary roles get color
 // saturation; rest recede.
 
@@ -58,8 +58,8 @@ const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX']);
 // Educational tooltip text per role. Used in the `title` attribute of each
 // rendered <span> for native browser hover-disclosure. Generic fallbacks;
 // per-token overrides below where specificity adds learner clarity.
-// UX1 Phase A 2026-05-11: harmonized with semantic notationRendering for
-// cross-layer consistency; ambiguous tokens carry layer-disambiguated text.
+// Harmonized with the semantic notationRendering layer for cross-layer
+// consistency; ambiguous tokens carry layer-disambiguated text.
 const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   surface:          'Set position or landing surface',
   side:             'Step side (relative to plant foot)',
@@ -72,9 +72,9 @@ const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   unknown:          'Unrecognized — community notation may be evolving',
 };
 
-// Per-word-token specific tooltip overrides (UX1 Phase A). Layer-disambiguated
-// for tokens that also appear in semantic notation (WHIRL, SWIRL, TOE, SAME,
-// OP, IN, OUT) per UX1_NOTATION_INTERACTION_AUDIT.md §4. Keyed UPPERCASE for
+// Per-word-token specific tooltip overrides. Layer-disambiguated for tokens
+// that also appear in semantic notation (WHIRL, SWIRL, TOE, SAME, OP, IN,
+// OUT), so the same token reads distinctly across layers. Keyed UPPERCASE for
 // case-insensitive lookup.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // Surfaces

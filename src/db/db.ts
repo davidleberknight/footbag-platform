@@ -2022,17 +2022,16 @@ export interface FreestyleTrickRow {
   description:          string | null;
   aliases_json:         string | null;
   notation:             string | null;
-  // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): operational_notation lifted
-  // onto the base row type so getLandingPage + getGlossaryPage can surface
-  // the atom-layer (§13.9) and compound-layer notation on the core-tricks
-  // grid + foundational §10 grid. Nullable; most rows still have no
-  // operational notation populated.
+  // operational_notation lifted onto the base row type so getLandingPage and
+  // getGlossaryPage can surface the atom-layer and compound-layer notation on
+  // the core-tricks grid and the foundational tricks grid. Nullable; most rows
+  // still have no operational notation populated.
   operational_notation: string | null;
   sort_order:           number;
 }
 
-// Extension of FreestyleTrickRow that also carries the Phase-0 notation-grammar
-// columns + the O1a operational-notation column. Returned only by `getBySlug`
+// Extension of FreestyleTrickRow that also carries the parser notation-grammar
+// columns plus the operational-notation column. Returned only by `getBySlug`
 // (heavy parse JSON not loaded on grids; operational_notation is light but
 // only the trick-detail page needs it). All seven extra fields are nullable.
 export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
@@ -2044,7 +2043,7 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
   add_formula_status:          string | null;
   operational_notation:        string | null;
   operational_notation_source: string | null;
-  // UX3b1 (2026-05-11) editorial prose + featured-media columns.
+  // Editorial prose and featured-media columns.
   short_description:           string | null;
   execution_summary:           string | null;
   learning_notes:              string | null;
@@ -2058,8 +2057,8 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
 export interface FreestyleTrickRowWithStatus extends FreestyleTrickRow {
   is_active:     number;
   review_status: string;
-  // DSC-2 slice 1: operational_notation surfaced on the dictionary list so
-  // the By ADD view can render role-tagged tokens via shapeOperationalNotationDisplay.
+  // operational_notation surfaced on the dictionary list so the By ADD view
+  // can render role-tagged tokens via shapeOperationalNotationDisplay.
   // Nullable; many rows have no operational notation populated yet.
   operational_notation:        string | null;
   operational_notation_source: string | null;
@@ -2552,7 +2551,7 @@ export const consecutiveKicksRecords = {
 // netTeams
 //
 // Net domain enrichment layer, additive, never modifies canonical tables.
-// Evidence class: canonical_only only in phase 1.
+// Evidence class: canonical_only (the only class populated so far).
 //
 // STATISTICS FIREWALL: all appearance queries use the net_team_appearance_canonical
 // view, which enforces evidence_class = 'canonical_only' at the DB layer.
@@ -4982,9 +4981,9 @@ const ORDER_BY_BY_SORT: Record<CuratorListSort, string> = {
 };
 
 // Lazy caches — first access of a given sort key triggers the actual
-// db.prepare() call inside listCuratorMediaSorted / ...ByTagSorted. Per
-// src/db/CLAUDE.md "Statement laziness" rule, no prepare runs at module
-// load.
+// db.prepare() call inside listCuratorMediaSorted / ...ByTagSorted. No prepare
+// runs at module load, so importing this module never compiles SQL against a
+// not-yet-migrated schema.
 const listCuratorMediaCache = new Map<CuratorListSort, ReturnType<typeof db.prepare>>();
 const listCuratorMediaByTagCache = new Map<CuratorListSort, ReturnType<typeof db.prepare>>();
 
@@ -5446,8 +5445,8 @@ export const media = {
   `); },
 
   // List every gallery owned by a given member. Used by the member
-  // profile "Galleries" surface (slice 2b) and by tests asserting
-  // member-owned gallery state.
+  // profile "Galleries" surface and by tests asserting member-owned
+  // gallery state.
   get listMemberGalleriesByOwner() { return db.prepare(`
     SELECT g.id, g.name, g.description, g.sort_order
     FROM member_galleries g

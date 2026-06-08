@@ -312,6 +312,79 @@ if [ -n "$comment_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: code comments carry no doc-path references or delivery-epoch labels.
+# Reason: .claude/rules/comments.md requires every comment to state a self-
+# contained WHY in plain words. Doc paths (docs/, exploration/, or any *.md
+# filename) rot independently of the code and mislead once renamed; sprint /
+# slice / phase / wave labels are delivery-epoch tags that stop meaning anything
+# once the epoch passes. Bare section shorthands (DD §, SC §, US §,
+# DATA_GOVERNANCE §) are permitted locators and carry no .md, so they pass. The
+# scan parses real // and /* */ comments only, so string literals such as URLs
+# (https://...) are not flagged.
+echo "[conventions] check: doc-path / epoch-label references in src/ comments"
+doc_label_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+md_re    = re.compile(r'[A-Za-z0-9_./-]+\.md\b')
+path_re  = re.compile(r'\b(?:exploration|docs)/')
+label_re = re.compile(
+    r'\b(?:[Pp]hase|[Ss]lice|[Ww]ave)[ -][0-9A-Z]'
+    r'|-WAVE-[0-9]'
+    r'|\bUX-?SHIP'
+    r'|\bUX[0-9]'
+    r'|\bDSC-[0-9]'
+    r'|\bNCR-[0-9]'
+    r'|[A-Z]{3,}-REFACTOR'
+)
+
+def comment_segments(line, in_block):
+    """Return (list of comment substrings in line, in_block_after_line)."""
+    segs = []
+    i, n = 0, len(line)
+    if in_block:
+        end = line.find('*/')
+        if end == -1:
+            return [line], True
+        segs.append(line[:end])
+        i = end + 2
+    quote = None
+    while i < n:
+        c = line[i]
+        if quote:
+            if c == '\\':
+                i += 2; continue
+            if c == quote:
+                quote = None
+            i += 1; continue
+        if c in ('"', "'", '`'):
+            quote = c; i += 1; continue
+        if c == '/' and i + 1 < n and line[i + 1] == '/':
+            segs.append(line[i + 2:]); return segs, False
+        if c == '/' and i + 1 < n and line[i + 1] == '*':
+            end = line.find('*/', i + 2)
+            if end == -1:
+                segs.append(line[i + 2:]); return segs, True
+            segs.append(line[i + 2:end]); i = end + 2; continue
+        i += 1
+    return segs, False
+
+for f in sorted(pathlib.Path('src').rglob('*.ts')):
+    in_block = False
+    for lineno, line in enumerate(f.read_text().splitlines(), 1):
+        segs, in_block = comment_segments(line, in_block)
+        text = ' '.join(segs)
+        if not text:
+            continue
+        if md_re.search(text) or path_re.search(text) or label_re.search(text):
+            print(f"{f}:{lineno}: doc-path or delivery-epoch label in comment")
+PYEOF
+)
+if [ -n "$doc_label_hits" ]; then
+  echo "$doc_label_hits" >&2
+  echo "  FAIL: comments must state a self-contained WHY; drop doc paths (docs/, exploration/, *.md) and sprint/slice/phase/wave labels" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: synthetic-only identifiers in fixtures/content/scripts.
 # Rule: script credential-handling discipline.
 # Both delegated to dedicated checkers so their pattern sets stay readable.

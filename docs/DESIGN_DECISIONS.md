@@ -59,6 +59,9 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [4.3 Explicit UI Restrictions](#43-explicit-ui-restrictions)
   - [4.4 Accessible, Responsive HTML-first Design](#44-accessible-responsive-html-first-design)
   - [4.5 Front-end TypeScript for Interactivity](#45-front-end-typescript-for-interactivity)
+  - [4.6 One Type System with Body-font Notation](#46-one-type-system-with-body-font-notation)
+  - [4.7 Canonical Responsive Breakpoints](#47-canonical-responsive-breakpoints)
+  - [4.8 Stylesheet Convention Gates](#48-stylesheet-convention-gates)
 - [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
   - [5.1 Node.js with TypeScript](#51-nodejs-with-typescript)
   - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
@@ -2240,6 +2243,86 @@ Impact:
 - Controllers return HTML pages (not JSON) for standard navigation flows.
 
 - Testing validates POST/redirect/render flows with full request/response cycles.
+
+## 4.6 One Type System with Body-font Notation
+
+Decision:
+
+Every public page, including all freestyle surfaces, uses one type system. Body text, inline notation, formulas, and difficulty values render in the body font (`--font-body`); notation is distinguished by semibold weight and the secondary accent color, not a separate typeface. Hashtags and tags render in the body font inside a low-tint rounded chip. The monospace token (`--font-mono`) is reserved for content whose meaning depends on fixed-width alignment: tabular value columns and verbatim ASCII reproductions.
+
+Rationale:
+
+- A single type system keeps the site visually coherent as new sections are added; a per-section typeface fragments the page into parallel design languages.
+
+- Notation reads as emphasized prose, not code. Weight and color carry the distinction at lower visual cost than a second typeface, and the treatment survives a font-loading failure.
+
+- Monospace earns its place only where column alignment or character-exact reproduction is the meaning.
+
+Requirements:
+
+- Every `font-family` declaration in the stylesheet references `--font-body` or `--font-mono`; no rule names a typeface directly.
+
+- No section introduces its own typeface, serif accent, or alternative sans stack.
+
+Trade-offs:
+
+- Notation cannot adopt a distinct monospace look where a designer might expect one; the semibold-plus-accent treatment is the deliberate substitute.
+
+Impact:
+
+- Freestyle notation, formulas, and tags inherit the shared tokens and primitives rather than a freestyle-specific font stack.
+
+## 4.7 Canonical Responsive Breakpoints
+
+Decision:
+
+Media queries use only three canonical breakpoints: 480px (phone), 768px (mid-width), and 1024px (tablet, for surfaces with a genuine three-tier layout). No other breakpoint values appear in the stylesheet.
+
+Rationale:
+
+- A fixed breakpoint set keeps responsive behavior coherent across every surface; ad-hoc breakpoints fragment the reflow story so the same viewport width behaves differently from page to page.
+
+- Three tiers cover the device classes the audience uses without over-specifying.
+
+Requirements:
+
+- Every `@media` width is 480px, 768px, or 1024px.
+
+- The 1024px tier is used only where a surface has a real three-tier layout, not as a default.
+
+Trade-offs:
+
+- A layout that would benefit from a bespoke breakpoint must instead restructure to fit the canonical set.
+
+Impact:
+
+- New responsive rules slot into the existing breakpoint blocks rather than introducing new widths.
+
+## 4.8 Stylesheet Convention Gates
+
+Decision:
+
+A CI gate (`scripts/ci/assert_conventions.sh`) statically enforces the visual-token disciplines at merge time: colors come from `:root` design tokens (no raw hex in rule bodies), border-radius uses `--radius*` tokens (no raw px), and media queries use only the canonical breakpoints. The same script enforces the template restrictions (no inline style or script, no nested forms).
+
+Rationale:
+
+- These disciplines are easy to state and easy to violate by habit; a mechanical gate catches drift that visual review misses, because an off-palette hex or a stray breakpoint renders fine while quietly fragmenting the system.
+
+- Enforcement at merge time keeps the token set authoritative without relying on every contributor remembering the rule.
+
+Requirements:
+
+- A new color enters as a named `:root` token before use; a new corner radius enters as a `--radius*` token.
+
+- A new breakpoint is not introduced; layouts fit the canonical set.
+
+Trade-offs:
+
+- The gate rejects expedient one-off values, forcing the token-first step even for a single use.
+
+Impact:
+
+- Stylesheet changes that introduce raw hex, raw-px radius, or non-canonical breakpoints fail CI and must be expressed through the token system.
 
 # 5. Back-End Services and Patterns
 

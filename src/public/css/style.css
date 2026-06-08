@@ -232,28 +232,28 @@
   --wrapper-max: 1100px;
 
   /* Freestyle extended palette (distinct freestyle colors, named not flattened) */
-  --gold-300: #b6a267;
-  --gold-600: #6a6230;
-  --gold-610: #8a7514;
-  --azure-200: #93c5fd;
-  --umber-200: #fdba74;
-  --gold-310: #fcd34d;
-  --umber-100: #f4dfb8;
-  --brick-600: #752e2e;
-  --umber-300: #d4a14a;
-  --moss-400: #7f9a6b;
-  --gold-320: #c7a645;
-  --umber-400: #b8923a;
-  --brick-500: #c2410c;
-  --umber-310: #c4a472;
-  --umber-500: #7a5a3a;
-  --stone-200: #c7c0b0;
-  --moss-300: #4ade80;
-  --plum-500: #4e366f;
-  --umber-410: #b87333;
-  --brick-510: #a44a2c;
-  --gold-330: #c0b683;
-  --mauve-600: #5e3a55;
+  --muted-gold: #b6a267;
+  --historical-gold: #6a6230;
+  --notation-gold: #8a7514;
+  --set-azure: #93c5fd;
+  --rotation-umber: #fdba74;
+  --modifier-gold: #fcd34d;
+  --pending-umber: #f4dfb8;
+  --blocked-brick: #752e2e;
+  --attention-umber: #d4a14a;
+  --set-moss: #7f9a6b;
+  --unresolved-gold: #c7a645;
+  --flagship-umber: #b8923a;
+  --action-brick: #c2410c;
+  --historical-umber: #c4a472;
+  --historical-umber-strong: #7a5a3a;
+  --deprecated-stone: #c7c0b0;
+  --core-family-moss: #4ade80;
+  --doctrine-plum: #4e366f;
+  --tier-umber: #b87333;
+  --blockers-brick: #a44a2c;
+  --incomplete-gold: #c0b683;
+  --composite-mauve: #5e3a55;
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -3329,7 +3329,7 @@ section.home-media { padding-top: 0; }
 }
 /* Primary three: color-saturated, load-bearing operational distinctions. */
 .op-token--surface           { color: var(--warn-deep); font-weight: 600; }   /* amber-700 */
-.op-token--body-action       { color: var(--brick-500); font-weight: 600; }   /* orange-700 */
+.op-token--body-action       { color: var(--action-brick); font-weight: 600; }   /* orange-700 */
 .op-token--rotation-variant  { color: var(--secondary); font-weight: 600; }   /* teal-700 */
 /* Secondary: muted; visible but recede. */
 .op-token--side              { color: var(--gray-700); }                     /* neutral-600 */
@@ -3416,7 +3416,7 @@ section.home-media { padding-top: 0; }
 .notation-core-family       { color: var(--sec-dev); font-weight: bold; }
 .notation-set               { color: var(--sky-800); }
 .notation-rotation          { color: var(--warn-strong); }
-.notation-modifier          { color: var(--gold-610); }
+.notation-modifier          { color: var(--notation-gold); }
 /* Secondary: muted, low-saturation; visible but recede. */
 .notation-delay-surface     { color: var(--gray-700); }
 .notation-unusual-surface   { color: var(--gray-700); }
@@ -3427,8 +3427,8 @@ section.home-media { padding-top: 0; }
 .notation-suffix            { color: var(--gray-550); }
 /* Unresolved: soft amber dashed; "evolving" not "error". */
 .notation-unresolved {
-  color: var(--gold-610);
-  text-decoration: underline dashed var(--gold-320);
+  color: var(--notation-gold);
+  text-decoration: underline dashed var(--unresolved-gold);
   text-underline-offset: 2px;
 }
 
@@ -4985,9 +4985,9 @@ section.home-media { padding-top: 0; }
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
-.trick-equivalence-topology-role-badge--historical { border-color: var(--umber-310); color: var(--umber-500); }
+.trick-equivalence-topology-role-badge--historical { border-color: var(--historical-umber); color: var(--historical-umber-strong); }
 .trick-equivalence-topology-role-badge--doctrine-locked-alternate { border-color: var(--slate-400); color: var(--slate-600); }
-.trick-equivalence-topology-role-badge--deprecated { border-color: var(--stone-200); color: var(--earth-300); font-style: italic; }
+.trick-equivalence-topology-role-badge--deprecated { border-color: var(--deprecated-stone); color: var(--earth-300); font-style: italic; }
 
 /* Browse-card secondary row: surfaces the OPERATIONAL/JOB chain +
    ADD breakdown beneath the primary card content for pilot first-class
@@ -5042,7 +5042,7 @@ section.home-media { padding-top: 0; }
  * reads as "row is here but data is genuinely absent" rather than
  * competing with the curator-authored Job/ADD content. */
 .dict-card-first-class-line--incomplete .dict-card-first-class-label {
-  color: var(--gold-300);
+  color: var(--muted-gold);
 }
 .dict-card-first-class-incomplete {
   flex: 1 1 auto;
@@ -5411,22 +5411,22 @@ section.home-media { padding-top: 0; }
 /* Per-role coloration. Cool palette, harmonised with notation + family
    surfaces. Each role uses a tinted background + matching border. */
 .modifier-layer-set {
-  border-color: var(--azure-200);
+  border-color: var(--set-azure);
   background: rgba(219, 234, 254, 0.42);
   color: var(--info-text);
 }
 .modifier-layer-rotation {
-  border-color: var(--umber-200);
+  border-color: var(--rotation-umber);
   background: rgba(255, 237, 213, 0.55);
   color: var(--warn-text);
 }
 .modifier-layer-modifier {
-  border-color: var(--gold-310);
+  border-color: var(--modifier-gold);
   background: rgba(254, 243, 199, 0.52);
   color: var(--medal-bronze);
 }
 .modifier-layer-core-family {
-  border-color: var(--moss-300);
+  border-color: var(--core-family-moss);
   background: rgba(209, 250, 229, 0.65);
   color: var(--map-tier-6);
 }
@@ -5618,17 +5618,17 @@ section.home-media { padding-top: 0; }
 .substitution-from-set, .substitution-to-set {
   background: rgba(219, 234, 254, 0.55);
   color: var(--info-text);
-  border-bottom-color: var(--azure-200);
+  border-bottom-color: var(--set-azure);
 }
 .substitution-from-rotation, .substitution-to-rotation {
   background: rgba(255, 237, 213, 0.65);
   color: var(--warn-text);
-  border-bottom-color: var(--umber-200);
+  border-bottom-color: var(--rotation-umber);
 }
 .substitution-from-modifier, .substitution-to-modifier {
   background: rgba(254, 243, 199, 0.62);
   color: var(--medal-bronze);
-  border-bottom-color: var(--gold-310);
+  border-bottom-color: var(--modifier-gold);
 }
 
 .trick-substitutions-result {
@@ -6404,12 +6404,12 @@ section.home-media { padding-top: 0; }
   color: var(--fern-700);
 }
 .glossary-add-example-status--pending-doctrine {
-  background: var(--umber-100);
+  background: var(--pending-umber);
   color: var(--earth-bronze);
 }
 .glossary-add-example-status--doctrine-locked {
   background: var(--gray-350);
-  color: var(--plum-500);
+  color: var(--doctrine-plum);
 }
 .glossary-add-example-fields {
   display: grid;
@@ -7181,7 +7181,7 @@ section.home-media { padding-top: 0; }
   margin: 36px 0 24px 0;
   --tier-color: var(--steel-500);
 }
-.operator-tier-set        { --tier-color: var(--umber-410); }   /* amber: set */
+.operator-tier-set        { --tier-color: var(--tier-umber); }   /* amber: set */
 .operator-tier-body       { --tier-color: var(--focus-ring); }   /* steel: body */
 .operator-tier-structural { --tier-color: var(--steel-500); }   /* slate: structural */
 
@@ -7401,7 +7401,7 @@ section.home-media { padding-top: 0; }
   margin: 0 0 16px 0;
   padding: 12px 18px;
   background: var(--parch-100);
-  border-left: 4px solid var(--gold-300);
+  border-left: 4px solid var(--muted-gold);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   font-size: 0.92rem;
   line-height: 1.5;
@@ -7447,7 +7447,7 @@ section.home-media { padding-top: 0; }
 .observed-card {
   padding: 10px 12px;
   background: var(--bg);
-  border: 1px dashed var(--umber-310);
+  border: 1px dashed var(--historical-umber);
   border-radius: var(--radius-xs);
   font-size: 0.9rem;
 }
@@ -7491,7 +7491,7 @@ section.home-media { padding-top: 0; }
   flex: 0 0 auto;
 }
 .observed-card-status-chip--neutral { background: var(--parch-100); color: var(--earth-550); }
-.observed-card-status-chip--accent  { background: var(--umber-100); color: var(--earth-bronze); }
+.observed-card-status-chip--accent  { background: var(--pending-umber); color: var(--earth-bronze); }
 .observed-card-status-chip--muted   { background: var(--border); color: var(--gray-550); }
 
 .observed-card-meta {
@@ -7567,7 +7567,7 @@ section.home-media { padding-top: 0; }
 }
 .observed-card-detail-blockers {
   margin: 4px 0;
-  color: var(--brick-510);
+  color: var(--blockers-brick);
 }
 .observed-card-detail-source {
   margin: 6px 0 0 0;
@@ -7726,9 +7726,9 @@ section.home-media { padding-top: 0; }
 .observed-conf--medium { background: var(--parch-300); color: var(--earth-bronze); }
 .observed-conf--low    { background: var(--parch-300); color: var(--earth-400); }
 .observed-conf--stable           { background: var(--fern-150); color: var(--fern-700); }
-.observed-conf--blocked          { background: var(--danger-border); color: var(--brick-600); }
+.observed-conf--blocked          { background: var(--danger-border); color: var(--blocked-brick); }
 .observed-conf--policy-dependent { background: var(--parch-450); color: var(--earth-bronze); }
-.observed-card-source-badge--MULTI { background: var(--gray-250); color: var(--plum-500); }
+.observed-card-source-badge--MULTI { background: var(--gray-250); color: var(--doctrine-plum); }
 .observed-card-source-badge--IFPA  { background: var(--fern-150); color: var(--fern-700); }
 /* v2 card-meta carries several chips; wrap + left-align (overrides the
    single-reading space-between rule above). */
@@ -7772,11 +7772,11 @@ section.home-media { padding-top: 0; }
   justify-content: space-between;
   gap: 8px;
 }
-.observed-cluster-head h3 { margin: 0; font-size: 1rem; color: var(--brick-600); }
+.observed-cluster-head h3 { margin: 0; font-size: 1rem; color: var(--blocked-brick); }
 .observed-cluster-count {
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--brick-600);
+  color: var(--blocked-brick);
   font-variant-numeric: tabular-nums;
 }
 .observed-cluster-q { margin: 5px 0; font-size: 0.85rem; color: var(--earth-550); }
@@ -7812,7 +7812,7 @@ section.home-media { padding-top: 0; }
   margin: 8px 0 14px 0;
   padding: 12px 16px;
   background: var(--parch-100);
-  border-left: 3px solid var(--gold-300);
+  border-left: 3px solid var(--muted-gold);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   font-size: 0.92rem;
   line-height: 1.55;
@@ -7859,7 +7859,7 @@ section.home-media { padding-top: 0; }
 .passback-add-claim-cell {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  color: var(--gold-300);
+  color: var(--muted-gold);
   font-weight: 600;
 }
 .passback-add-no-formula,
@@ -8514,7 +8514,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 16px 0 18px 0;
   padding: 14px 18px;
   background: var(--amber-pale);
-  border-left: 4px solid var(--umber-300);
+  border-left: 4px solid var(--attention-umber);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   font-size: 0.94rem;
   line-height: 1.5;
@@ -8534,7 +8534,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 16px 0 18px 0;
   padding: 14px 18px;
   background: var(--amber-pale);
-  border-left: 4px solid var(--umber-300);
+  border-left: 4px solid var(--attention-umber);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   font-size: 0.94rem;
   line-height: 1.5;
@@ -9384,8 +9384,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   background: var(--parch-75);
   border-left: 3px solid var(--border);
 }
-.glossary-glyph-quickref-tier--set    { border-left-color: var(--moss-400); }
-.glossary-glyph-quickref-tier--body   { border-left-color: var(--gold-300); }
+.glossary-glyph-quickref-tier--set    { border-left-color: var(--set-moss); }
+.glossary-glyph-quickref-tier--body   { border-left-color: var(--muted-gold); }
 .glossary-glyph-quickref-tier--structural { border-left-color: var(--earth-300); }
 .glossary-glyph-quickref-tier-label {
   display: inline-block;
@@ -9904,7 +9904,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.55;
 }
 .add-analysis-callout--incompleteness {
-  border-left-color: var(--gold-330);
+  border-left-color: var(--incomplete-gold);
 }
 .add-analysis-worked-examples,
 .add-analysis-discrepancy-cases {
@@ -10250,7 +10250,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   background: var(--parch-250);
   color: var(--steel-500);
 }
-.derivation-panel-kind-chip--modifier    { background: var(--parch-150); color: var(--gold-600); }
+.derivation-panel-kind-chip--modifier    { background: var(--parch-150); color: var(--historical-gold); }
 .derivation-panel-kind-chip--trick       { background: var(--gray-250); color: var(--steel-600); }
 .derivation-panel-kind-chip--family-root { background: var(--fern-100); color: var(--fern-600); }
 .derivation-panel-family-position {
@@ -10358,7 +10358,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-right: 6px;
   border-radius: var(--radius-2xs);
   background: var(--parch-250);
-  color: var(--gold-600);
+  color: var(--historical-gold);
 }
 .derivation-panel-prose--observational .derivation-panel-prose-badge {
   background: var(--fern-100);
@@ -10455,7 +10455,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   border-radius: var(--radius-2xs);
   margin-left: auto;
 }
-.equivalence-chain-source--historical      { background: var(--parch-150); color: var(--gold-600); }
+.equivalence-chain-source--historical      { background: var(--parch-150); color: var(--historical-gold); }
 .equivalence-chain-source--structural      { background: var(--fern-100); color: var(--fern-600); }
 .equivalence-chain-source--curator-derived { background: var(--gray-250); color: var(--steel-600); }
 .equivalence-chain-source--community       { background: var(--parch-250); color: var(--steel-500); }
@@ -10505,12 +10505,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .doctrine-note {
   padding: 9px 13px;
   background: var(--parch-100);
-  border-left: 4px solid var(--gold-320);
+  border-left: 4px solid var(--unresolved-gold);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   margin: 0;
 }
 .doctrine-note--resolved              { border-left-color: var(--gray-600); }
-.doctrine-note--policy-dependent      { border-left-color: var(--gold-320); }
+.doctrine-note--policy-dependent      { border-left-color: var(--unresolved-gold); }
 .doctrine-note--historical-disagreement { border-left-color: var(--earth-300); }
 .doctrine-note--multiple-readings     { border-left-color: var(--slate-500); }
 
@@ -10857,7 +10857,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-card-audit--aligned    { background: var(--green-pale); color: var(--fern-600); }
 .set-card-audit--partial    { background: var(--orange-soft); color: var(--warn-muted); }
 .set-card-audit--conflict   { background: var(--red-pale); color: var(--danger-text); }
-.set-card-audit--holden-only{ background: var(--hover-tint); color: var(--plum-500); }
+.set-card-audit--holden-only{ background: var(--hover-tint); color: var(--doctrine-plum); }
 .set-card-citation {
   flex: 1 0 100%;
   margin-top: 2px;
@@ -10999,7 +10999,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   display: inline-block;
   margin-left: 4px;
   font-size: 0.72rem;
-  color: var(--umber-400);
+  color: var(--flagship-umber);
   vertical-align: 0.05em;
   cursor: help;
 }
@@ -11016,7 +11016,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .sets-encyclopedia-card-role-chip--plus-one-entry { background: var(--fern-100); color: var(--fern-600); }
 .sets-encyclopedia-card-role-chip--clip-entry     { background: var(--slate-200); color: var(--steel-600); }
-.sets-encyclopedia-card-role-chip--composite      { background: var(--border); color: var(--mauve-600); }
+.sets-encyclopedia-card-role-chip--composite      { background: var(--border); color: var(--composite-mauve); }
 .sets-encyclopedia-card-role-chip--rotational     { background: var(--parch-250); color: var(--earth-bronze); }
 .sets-encyclopedia-card-role-chip--whirl-swirl    { background: var(--fern-100); color: var(--fern-600); }
 .sets-encyclopedia-card-role-chip--uns-entry      { background: var(--parch-250); color: var(--steel-500); }
@@ -11314,7 +11314,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: 18px 22px;
   background: var(--parch-75);
   border: 1px solid var(--parch-300);
-  border-left: 4px solid var(--moss-400);
+  border-left: 4px solid var(--set-moss);
   border-radius: var(--radius-xs);
 }
 .glossary-intro-card-heading {
@@ -11365,7 +11365,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--gold-610);
+  color: var(--notation-gold);
 }
 .glossary-tier-break-note {
   margin: -8px 0 0;
@@ -11505,7 +11505,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   display: inline-block;
   margin-left: 4px;
   font-size: 0.72rem;
-  color: var(--umber-400);
+  color: var(--flagship-umber);
   vertical-align: 0.05em;
   cursor: help;
 }

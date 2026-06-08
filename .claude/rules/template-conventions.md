@@ -47,7 +47,7 @@ Class names live in `src/public/css/style.css`. Every class used in a template m
 
 - Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
 - Hero: `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`.
-- Sections / cards / badges / buttons: `.section-heading`, `.card`, `.card-title`, `.card-meta`, `.badge`, `.btn`, `.btn-primary`, `.btn-outline`.
+- Sections / cards / badges / buttons: `.section-heading`, `.card`, `.card-title`, `.card-meta`, `.badge`, `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`.
 - Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.
 - Text utilities: `.text-muted`, `.text-secondary`, `.text-center`, `.fs-sm`, `.fw-600`.
 

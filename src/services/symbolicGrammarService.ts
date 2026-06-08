@@ -1,8 +1,9 @@
 /**
  * symbolicGrammarService.ts
  *
- * Observational symbolic-grammar layer (Layer 3). Backed by staging CSVs only.
- * Reads from `exploration/symbolic-grammar-2/` + `exploration/glossary-synthesis-1/`.
+ * Observational symbolic-grammar layer (Layer 3). Backed by staging CSV
+ * exports loaded from the on-disk data directories named in the path
+ * constants below.
  *
  * This service NEVER touches canonical ontology tables. It is parallel to
  * canonical IFPA family-based relating (which lives in `freestyleRelatedTricks.ts`)

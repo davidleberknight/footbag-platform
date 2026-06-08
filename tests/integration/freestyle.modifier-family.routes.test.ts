@@ -1,11 +1,10 @@
 /**
  * Integration tests for GET /freestyle/modifier/:slug.
  *
- * Pilot scope: spinning modifier only (paradox / ducking remain 404).
+ * The spinning, paradox, and ducking modifier pages all ship and return 200;
+ * any unknown slug returns 404.
  * Verifies:
  *   - /freestyle/modifier/spinning returns 200 with the teaching page
- *   - /freestyle/modifier/paradox returns 404 (not shipped this phase)
- *   - /freestyle/modifier/ducking returns 404
  *   - /freestyle/modifier/garbage-slug returns 404
  *   - Six teaching sections all render (mechanical lead / anchor / diagram /
  *     confusions / progression / cross-base / related modifiers)

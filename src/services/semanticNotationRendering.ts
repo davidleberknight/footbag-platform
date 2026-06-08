@@ -5,7 +5,7 @@
  * tokens for browse-card rendering. Companion to operationalNotationRendering.ts
  * (which handles operational `[clip] > op in dex` form).
  *
- * Per BROWSE_SURFACE_AUDIT_2026-05.md §B and SEMANTIC_COMPRESSION_DOCTRINE.md §5:
+ * Role-classification contract:
  *   - Four token roles maximum (base-anchor / modifier / side-positional / unknown).
  *   - Unknown tokens render neutral; never guess a role.
  *   - The registry is curator-locked; only operators with established structural
@@ -35,11 +35,11 @@ export interface SemanticBrowseToken {
   isFamilyAnchor: boolean;
   /**
    * Cross-link to the glossary entry for this token, or null when no
-   * curator-authored anchor exists. Slice E of the 2026-05 normalization
-   * plan: token-level navigation from the dictionary surface to the
-   * glossary teaching surface. Modifier-role tokens with a §6 Surface A
-   * card map to `/freestyle/glossary#modifier-{slug}`; base-anchor tokens
-   * for the 12 core atoms map to `/freestyle/glossary#term-{slug}`.
+   * curator-authored anchor exists. Provides token-level navigation from the
+   * dictionary surface to the glossary teaching surface. Modifier-role tokens
+   * with a glossary modifier card map to `/freestyle/glossary#modifier-{slug}`;
+   * base-anchor tokens for the 12 core atoms map to
+   * `/freestyle/glossary#term-{slug}`.
    * side-positional and unknown roles never receive a glossary anchor.
    *
    * Four-layer rule: this field is a NAVIGATION reference (layer 3 →
@@ -133,7 +133,7 @@ const SIDE_POSITIONAL: ReadonlySet<string> = new Set([
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Glossary-anchor allow-lists (Slice E of 2026-05 normalization).
+// Glossary-anchor allow-lists.
 //
 // Curator-locked: only slugs with a known, populated glossary anchor receive a
 // glossaryAnchor URL. Tokens whose role allows linking but whose slug is not

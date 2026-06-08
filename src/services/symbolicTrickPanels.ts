@@ -201,7 +201,8 @@ export function buildSymbolicEducationCtas(slug: string): SymbolicEducationCta[]
  *   - the resolved topology group has zero members (degenerate; would render empty)
  *
  * Members are filtered to active dict rows (passed in by caller) and exclude
- * modifier-category rows (per `feedback_modifier_public_visibility.md`).
+ * modifier-category rows, which are curator-internal and never shown on the
+ * public panel.
  */
 export function buildSymbolicRelatedTopologyPanel(
   currentSlug: string,

@@ -34,35 +34,3 @@ modify, or reject" queue item is live-operation work: build it only after
 go-live, when pipeline reloads have stopped and the production DB owns club
 truth. Until then the queue's existing junk actions (confirm junk, promote
 to dormant) cover rescue needs.
-
-### Freestyle-unification follow-ups
-
-The freestyle CSS unification shipped; three cleanups remain (all Dave-track,
-non-blocking).
-
-1. **Dead observational-lanes code.** `src/services/freestyleService.ts` carries a
-   fully-unreferenced cluster eslint cannot flag (exported types plus an object
-   method): `buildObservationalLanes` plus `ObservedSourceBadge` / `ObservedStatusChip`
-   / `ObservationalLanesView` / `ObservedTrickCardDetail` / `ObservedTrickCard`. It was
-   orphaned when the producer functions were deleted. Re-verify zero refs, delete,
-   then build + lint + test.
-2. **Minted palette token names.** The 22 freestyle palette tokens added to `:root`
-   (`--gold-*`, `--umber-*`, `--azure-*`, `--brick-*`, `--plum-*`, `--moss-*`,
-   `--stone-*`, `--mauve-*`) are named by hue and lightness only. Rename so each name
-   conveys semantic role AND hue; the alias tokens (`--text-*`, `--accent`, `--link`,
-   ...) are already semantic and stay. Grep each token's `style.css` usages for its
-   role, rename in `:root` plus usages; the hex gate plus build plus tests verify no
-   orphan.
-3. **Propagate standards to skills/rules/docs.** `.claude/skills/add-public-page/SKILL.md`:
-   add the 1024 tablet breakpoint, the hex/radius/breakpoint gates in
-   `assert_conventions.sh`, and notation typography (body font plus chip, not mono) to
-   its guidance; fix the button-variant count (it says two, VC §4.5 says three including
-   `.btn-inverse`). Same button drift in `.claude/rules/template-conventions.md`.
-   Optionally document the extended palette in VC §4.3 and add rationale entries to
-   DESIGN_DECISIONS (notation to body font, the three-breakpoint system, the CSS gates).
-   No test changes required (the gates already enforce the standards); optionally add an
-   alias-token resolution unit test. The `bug-hunt` skill needs no standards edit (it
-   cites the updated VIEW_CATALOG and already scopes freestyle in), but the last sweep
-   excluded the freestyle surface (BUGS.md scope note); run a freestyle bug sweep now
-   that it is unified.
-
