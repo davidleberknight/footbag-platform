@@ -12099,17 +12099,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   .media-hub-grid { grid-template-columns: 1fr; }
 }
 
-/* Freestyle landing: tight big-font lede + two compact, symmetric reference
-   banners (equal-depth tiles, no giant cards). */
-.freestyle-lede { text-align: center; }
-.freestyle-lede-big {
-  max-width: 760px;
-  margin: 0 auto 18px;
-  font-size: 1.7rem;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--text-secondary);
-}
+/* Freestyle landing: two compact, symmetric reference banners (equal-depth
+   tiles, no giant cards). */
 .banner-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -12135,12 +12126,9 @@ a.banner-tile:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); transform: tra
 .banner-tile--soon { background: transparent; box-shadow: none; border: 1px dashed rgba(0, 0, 0, 0.12); }
 .banner-tile--soon .banner-tile-title { color: var(--text-muted); }
 .banner-tile-soon { margin-top: auto; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); }
-.freestyle-showcase-heading { text-align: center; margin-top: 40px; }
-.freestyle-showcase-heading h2 { margin-bottom: 0; }
 @media (max-width: 1024px) {
   .banner-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 480px) {
   .banner-grid { grid-template-columns: 1fr; }
-  .freestyle-lede-big { font-size: 1.4rem; }
 }
