@@ -11952,6 +11952,43 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   object-fit: cover;
   background: var(--surface-dark);
 }
+.tricks-mosaic-toggle {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.tricks-mosaic-toggle:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+.tricks-mosaic-playicon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: background 0.15s ease;
+}
+.tricks-mosaic-playicon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 54%;
+  transform: translate(-50%, -50%);
+  border-style: solid;
+  border-width: 9px 0 9px 15px;
+  border-color: transparent transparent transparent var(--white);
+}
+.tricks-mosaic-toggle:hover .tricks-mosaic-playicon { background: rgba(0, 0, 0, 0.62); }
+.tricks-mosaic-toggle.is-playing .tricks-mosaic-playicon { display: none; }
 .tricks-mosaic-empty {
   background: linear-gradient(135deg, var(--surface-dark) 0%, var(--gray-900) 100%);
 }

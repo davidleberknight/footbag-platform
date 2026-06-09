@@ -256,9 +256,12 @@
       {{#each content.tricksMosaic}}
         <figure class="tricks-mosaic-cell">
           {{#if mp4Url}}
-            <video class="tricks-mosaic-media" autoplay loop muted playsinline preload="metadata" poster="{{posterUrl}}">
-              <source src="{{mp4Url}}" type="video/mp4">
-            </video>
+            <button type="button" class="tricks-mosaic-toggle" aria-label="Play {{label}}" aria-pressed="false" data-trick="{{label}}">
+              <video class="tricks-mosaic-media" loop muted playsinline preload="none" poster="{{posterUrl}}">
+                <source src="{{mp4Url}}" type="video/mp4">
+              </video>
+              <span class="tricks-mosaic-playicon" aria-hidden="true"></span>
+            </button>
           {{else}}
             <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
           {{/if}}

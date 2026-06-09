@@ -4,6 +4,8 @@ const { dbPath } = setTestEnv('3986');
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import BetterSqlite3 from 'better-sqlite3';
+import { insertMember, insertCuratorVideo } from '../fixtures/factories';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -65,4 +67,38 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(res.text).toContain('Toe Stall');
   });
 
+  // Seeds one clip cell (runs last: the seeded clip would otherwise flip the
+  // no-clips placeholder state the empty-state test above relies on).
+  it('does not autoplay; each clip cell is a click-to-play toggle with an accessible label', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    try {
+      const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-mosaic' });
+      insertCuratorVideo(seedDb, {
+        uploaderMemberId: fhId,
+        sourceFilename: 'mosaic-toe-stall.mp4',
+        slotTag: '#freestyle',
+        caption: 'Toe delay',
+      });
+    } finally {
+      seedDb.close();
+    }
+
+    const res = await request(createApp()).get('/freestyle');
+    const start = res.text.indexOf('class="tricks-mosaic"');
+    const mosaic = res.text.slice(start, res.text.indexOf('</section>', start));
+
+    // the seeded clip renders a <video> that does NOT autoplay
+    expect(mosaic).toContain('class="tricks-mosaic-media"');
+    expect(mosaic).not.toContain('autoplay');
+    // click-to-play toggle button with a Play/Pause accessible label
+    expect(mosaic).toContain('class="tricks-mosaic-toggle"');
+    expect(mosaic).toContain('aria-label="Play Toe Delay"');
+    expect(mosaic).toContain('aria-pressed="false"');
+    // resting playback attributes preserved
+    expect(mosaic).toContain('loop');
+    expect(mosaic).toContain('muted');
+    expect(mosaic).toContain('playsinline');
+    // the click-to-play driver is loaded
+    expect(res.text).toContain('/js/freestyle-mosaic.js');
+  });
 });
