@@ -246,36 +246,37 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders the FH-owned aggregate gallery as a More-ways-to-browse card', async () => {
-    // The aggregate Curated Freestyle Tricks gallery duplicates the
-    // per-source galleries grouped under the intent cards, so it renders
-    // below them in the More-ways-to-browse section: name, description,
-    // and a link to the gallery page (which carries the tag-summary line).
+  it('renders exactly six equal primary media cards in a 3x2 grid, browse-by-hashtag first', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Media Galleries');
-    expect(res.text).toContain('More ways to browse');
-    expect(res.text).toContain('Curated Freestyle Tricks');
-    expect(res.text).toContain('Reference videos for freestyle footbag tricks');
-    expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
+    expect(res.text).toContain('Footbag Media');
+    const cardCount = (res.text.match(/class="media-hub-card"/g) || []).length;
+    expect(cardCount).toBe(6);
+    for (const title of ['Browse by Hashtag', 'Freestyle Tutorials &amp; Demos', 'Freestyle Records', 'Related Sports']) {
+      expect(res.text).toContain(title);
+    }
+    expect(res.text).toContain('href="/media/browse"');
+    expect(res.text).toContain('href="/media/freestyle-tutorials"');
+    // browse-by-hashtag leads the grid
+    expect(res.text.indexOf('Browse by Hashtag')).toBeLessThan(res.text.indexOf('Related Sports'));
   });
 
-  it('lists member-owned galleries on the public hub', async () => {
+  it('folds curated tricks, shred, photos, and the discipline taxonomy out of the primary grid', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media');
+    expect(res.text).not.toContain('Other disciplines');
+    expect(res.text).not.toContain('Photo Gallery');
+    expect(res.text).not.toContain('Curated Freestyle Tricks'); // folded into Tutorials & Demos
+    expect(res.text).not.toContain('Shred Videos');             // folded into Tutorials & Demos
+    expect(res.text).not.toContain('media-hub-facade');         // Takraw embed removed (no stable source)
+  });
+
+  it('lists member-owned galleries below the primary grid', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.text).toContain('Personal Vacation 2026');
     expect(res.text).toContain(`href="/media/${MEMBER_GALLERY_ID}"`);
-  });
-
-  it('orders FH-owned galleries before member-owned galleries on the hub', async () => {
-    const app = createApp();
-    const res = await request(app).get('/media');
-    const fhIdx = res.text.indexOf('Curated Freestyle Tricks');
-    const memberIdx = res.text.indexOf('Personal Vacation 2026');
-    expect(fhIdx).toBeGreaterThan(-1);
-    expect(memberIdx).toBeGreaterThan(-1);
-    expect(fhIdx).toBeLessThan(memberIdx);
   });
 
   it('excludes per-member auto-default Personal Gallery (is_default=1) from the hub', async () => {
@@ -284,6 +285,17 @@ describe('GET /media (hub)', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Personal Gallery');
     expect(res.text).not.toContain('Everything I have uploaded.');
+  });
+});
+
+describe('GET /media/freestyle-tutorials', () => {
+  it('lists the seeded freestyle tutorial galleries', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/freestyle-tutorials');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Freestyle Tutorials &amp; Demos');
+    // the curated aggregate is seeded in the fixture and linked from the index
+    expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
   });
 });
 

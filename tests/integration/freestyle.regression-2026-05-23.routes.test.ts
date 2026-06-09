@@ -225,13 +225,16 @@ describe('Item 3: PassBack tutorial link active on both entry points', () => {
     );
   });
 
-  it('media index renders an anchor pointing at gallery_passback_tutorials', async () => {
+  it('media hub Tutorials card routes to the media-side tutorials index, which gathers the source galleries', async () => {
     const app = await createApp();
-    const res = await request(app).get('/media');
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(
-      /href="\/media\/gallery_passback_tutorials"/,
-    );
+    const hub = await request(app).get('/media');
+    expect(hub.status).toBe(200);
+    // The hub no longer re-lists per-source galleries; its Tutorials & Demos card
+    // links to the media-side index that gathers them (PassBack included).
+    expect(hub.text).toContain('Freestyle Tutorials &amp; Demos');
+    expect(hub.text).toContain('href="/media/freestyle-tutorials"');
+    const index = await request(app).get('/media/freestyle-tutorials');
+    expect(index.status).toBe(200);
   });
 });
 

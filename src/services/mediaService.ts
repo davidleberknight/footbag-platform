@@ -210,94 +210,29 @@ export interface MediaHubGallerySummary {
 // A single intent destination on the /media hub. Populated cards list their
 // source galleries; `comingSoon` cards are honest placeholders for disciplines
 // with no media surface yet.
-export interface MediaHubDestination {
-  key: string;
+// One primary media card. The six cards share identical weight; a card with a
+// null href is a forward-looking collection shown as "coming soon".
+export interface MediaHubCard {
   title: string;
   description: string;
-  galleries: MediaHubGallerySummary[];
-  comingSoon: boolean;
-}
-
-// Destinations grouped under a header (Freestyle, Other disciplines, ...).
-export interface MediaHubGroup {
-  name: string;
-  destinations: MediaHubDestination[];
+  href: string | null;
+  cta: string | null;
 }
 
 export interface MediaHubContent {
-  groups: MediaHubGroup[];
-  // Galleries not mapped to a primary destination (e.g. the provenance-blind
-  // "Curated Freestyle Tricks" aggregate) surface here, below the primary
-  // intent cards, so nothing is dropped while it stops being a headline tile.
-  advancedGalleries: MediaHubGallerySummary[];
+  // Exactly six primary media-collection cards, rendered as a 3x2 grid.
+  cards: MediaHubCard[];
+  // Member-created named galleries, preserved below the primary grid.
+  memberGalleries: MediaHubGallerySummary[];
 }
 
-// /media hub intent map: galleries are grouped into destination cards by id.
-// Any gallery not listed here falls through to `advancedGalleries`, which is
-// deliberate for `gallery_curated_freestyle_tricks` (its aggregate duplicates
-// the per-source galleries under Freestyle Tutorials & Demos) and a safe
-// default for any gallery added later.
-const HUB_DESTINATIONS: ReadonlyArray<{
-  group: string;
-  key: string;
-  title: string;
-  description: string;
-  galleryIds: string[];
-  comingSoon?: boolean;
-}> = [
-  {
-    group: 'Freestyle',
-    key: 'freestyle-tutorials',
-    title: 'Freestyle Tutorials & Demos',
-    description: 'Learn and watch freestyle footbag: tutorials and demonstrations from creators worldwide.',
-    galleryIds: [
-      'gallery_tricks_of_the_trade',
-      'gallery_passback_tutorials',
-      'gallery_anz_trikz',
-      'gallery_shred_global',
-      'gallery_footbag_finland',
-      'gallery_footbag_org',
-    ],
-  },
-  {
-    group: 'Freestyle',
-    key: 'freestyle-records',
-    title: 'Freestyle Records',
-    description: 'World records and record attempts.',
-    galleryIds: ['gallery_passback_records'],
-  },
-  {
-    group: 'Other disciplines',
-    key: 'chinlone-takraw',
-    title: 'Chinlone & Takraw',
-    description: 'Traditional and related ball-foot sports.',
-    galleryIds: ['gallery_chinlone'],
-  },
-  {
-    group: 'Other disciplines',
-    key: 'net',
-    title: 'Net',
-    description: 'Footbag net footage.',
-    galleryIds: [],
-    comingSoon: true,
-  },
-  {
-    group: 'Other disciplines',
-    key: 'sideline',
-    title: 'Sideline',
-    description: 'Sideline and circle-kicking footage.',
-    galleryIds: [],
-    comingSoon: true,
-  },
-  {
-    group: 'Across footbag',
-    key: 'photos',
-    title: 'Photo Gallery',
-    description: 'Photos from events and players.',
-    galleryIds: [],
-    comingSoon: true,
-  },
-];
+// The /media/freestyle-tutorials index: the freestyle tutorial/demo video
+// galleries gathered in one media-side place (so the hub's Tutorials & Demos
+// card reaches every gallery without sending users to the Freestyle landing).
+export interface FreestyleTutorialsContent {
+  galleries: { name: string; description: string; href: string }[];
+}
+
 
 // Named-gallery page at /media/<id>: hero with "Named Gallery: <name>"
 // + criteria/exclude pill strip, description as a caption paragraph
@@ -484,32 +419,53 @@ export const mediaService = {
         },
       );
 
-      const byId = new Map(summaries.map((s) => [s.id, s]));
-      const used = new Set<string>();
-      const groupOrder: string[] = [];
-      const destinationsByGroup = new Map<string, MediaHubDestination[]>();
-      for (const dest of HUB_DESTINATIONS) {
-        const gals = dest.galleryIds
-          .map((id) => byId.get(id))
-          .filter((g): g is MediaHubGallerySummary => g != null);
-        gals.forEach((g) => used.add(g.id));
-        if (!destinationsByGroup.has(dest.group)) {
-          destinationsByGroup.set(dest.group, []);
-          groupOrder.push(dest.group);
-        }
-        destinationsByGroup.get(dest.group)!.push({
-          key: dest.key,
-          title: dest.title,
-          description: dest.description,
-          galleries: gals,
-          comingSoon: dest.comingSoon === true,
-        });
-      }
-      const groups: MediaHubGroup[] = groupOrder.map((name) => ({
-        name,
-        destinations: destinationsByGroup.get(name)!,
-      }));
-      const advancedGalleries = summaries.filter((s) => !used.has(s.id));
+      const has = (id: string): boolean => summaries.some((s) => s.id === id);
+      // Related Sports points at the existing chinlone collection when seeded;
+      // until net/sideline media is curated those cards read as coming soon.
+      const relatedSportsHref = has('gallery_chinlone') ? '/media/gallery_chinlone' : null;
+      const memberGalleries = summaries.filter((s) => !s.owner.isSystem);
+
+      // Six equal media-collection cards (3x2). Tutorials & Demos absorbs the
+      // per-source freestyle galleries and the curated-tricks aggregate; Related
+      // Sports absorbs chinlone and (future) sepak takraw.
+      const cards: MediaHubCard[] = [
+        {
+          title: 'Browse by Hashtag',
+          description: 'Find photos and videos across the media archive using shared tags.',
+          href: '/media/browse',
+          cta: 'Browse tags',
+        },
+        {
+          title: 'Freestyle Tutorials & Demos',
+          description: 'Instructional and demonstration footage from the freestyle community.',
+          href: '/media/freestyle-tutorials',
+          cta: 'Browse tutorials',
+        },
+        {
+          title: 'Freestyle Records',
+          description: 'World records, record attempts, and historical achievement footage.',
+          href: '/freestyle/records',
+          cta: 'View records',
+        },
+        {
+          title: 'Net',
+          description: 'Net footage, instructional content, and future net media collections.',
+          href: null,
+          cta: null,
+        },
+        {
+          title: 'Sideline',
+          description: 'Sideline and circle-kicking footage.',
+          href: null,
+          cta: null,
+        },
+        {
+          title: 'Related Sports',
+          description: 'Media from sports closely related to footbag.',
+          href: relatedSportsHref,
+          cta: relatedSportsHref == null ? null : 'Browse',
+        },
+      ];
 
       return {
         seo: { title: 'Media Galleries' },
@@ -517,9 +473,41 @@ export const mediaService = {
           sectionKey: 'media',
           pageKey: 'media_hub',
           title: 'Footbag Media',
-          intro: 'Tutorials, demonstrations, and records across every footbag discipline.',
+          intro: 'Browse footbag media by collection: tutorials, demonstrations, records, and reference footage.',
         },
-        content: { groups, advancedGalleries },
+        content: { cards, memberGalleries },
+      };
+    });
+  },
+
+  getFreestyleTutorialsPage(): PageViewModel<FreestyleTutorialsContent> {
+    return runSqliteRead('mediaService.getFreestyleTutorialsPage', () => {
+      const byId = new Map(
+        (media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[]).map((g) => [g.id, g]),
+      );
+      // Ordered tutorial sources; the curated aggregate trails the named ones.
+      const TUTORIAL_GALLERY_IDS = [
+        'gallery_tricks_of_the_trade',
+        'gallery_passback_tutorials',
+        'gallery_anz_trikz',
+        'gallery_shred_global',
+        'gallery_footbag_finland',
+        'gallery_footbag_org',
+        'gallery_curated_freestyle_tricks',
+      ];
+      const galleries = TUTORIAL_GALLERY_IDS
+        .map((id) => byId.get(id))
+        .filter((g): g is NamedGalleryWithOwnerRow => g != null)
+        .map((g) => ({ name: g.name, description: g.description, href: `/media/${g.id}` }));
+      return {
+        seo: { title: 'Freestyle Tutorials & Demos' },
+        page: {
+          sectionKey: 'media',
+          pageKey: 'media_freestyle_tutorials',
+          title: 'Freestyle Tutorials & Demos',
+          intro: 'Instructional and demonstration video galleries from across the freestyle community.',
+        },
+        content: { galleries },
       };
     });
   },

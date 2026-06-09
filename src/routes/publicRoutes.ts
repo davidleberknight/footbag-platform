@@ -54,6 +54,8 @@ publicRouter.get('/media',              mediaController.hub);
 // captured as the :galleryId param and the browse page would 404 through
 // the named-gallery NotFound branch.
 publicRouter.get('/media/browse',       mediaController.browse);
+// Literal sub-route; like /media/browse it MUST precede /media/:galleryId.
+publicRouter.get('/media/freestyle-tutorials', mediaController.freestyleTutorials);
 publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
 publicRouter.get('/hof',   hofController.index);
 publicRouter.get('/bap',   bapController.index);

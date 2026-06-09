@@ -40,6 +40,15 @@ export const mediaController = {
       handleControllerError(err, res, next, 'media controller (browse)');
     }
   },
+
+  freestyleTutorials(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = mediaService.getFreestyleTutorialsPage();
+      res.render('media/freestyle-tutorials', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'media controller (freestyle tutorials)');
+    }
+  },
 };
 
 // Express+qs surfaces a repeated `?tag=a&tag=b` as a string[]; a single
