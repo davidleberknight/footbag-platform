@@ -1453,7 +1453,7 @@ paradox-symposium-illusion,trick_family,symposium-illusion,illusion,terminal-ide
 guay,operational_notation,[set] > leggy in dex > ss inside,SET > OP IN [DEX] > SAME INSIDE [DEL],Bracket form of the pickup-chassis inside-stall terminator matching the pickup sibling and the guay compounds.
 rake,base_trick,,rake,Self-base so the convergence isAtomic gate fires; rake is a foundational swing primitive.
 rake,notation,,RAKE,JOB per mechanical uppercase rule.
-rake,operational_notation,,SET > SWING TOE [DEL],Reverse-element swing primitive (swing then toe) mirroring pendulum's toe-then-swing; two ADD via swing-element accounting.
+rake,operational_notation,,SET > SWING [DEX] > SAME TOE [DEL],Rake terminal = swing-into-toe catch; corrected 2026-06-08 to 2 brackets (swing [DEX] + toe-stall [DEL]) matching the 2-ADD swing-element doctrine; pendulum is the entry/set counterpart (no terminal contact).
 whirling-mirage,notation,,WHIRLING MIRAGE,JOB per mechanical uppercase rule.
 whirling-pickup,notation,,WHIRLING PICKUP,JOB per mechanical uppercase rule.
 whirling-whirl,notation,,WHIRLING WHIRL,JOB per mechanical uppercase rule.
@@ -1669,3 +1669,6 @@ reverse-swirling-blender,trick_family,,osis,loader-19 override: base_trick blend
 reverse-torque,trick_family,,osis,loader-19 override: base_trick torque defaults trick_family to torque; canonical family is osis.
 toe-spinning-torque,trick_family,,osis,loader-19 override: base_trick torque defaults trick_family to torque; canonical family is osis.
 clipper-ducking-drifter,trick_family,,clipper-stall,loader-19 override: base_trick drifter defaults trick_family to drifter; canonical family is clipper-stall.
+reverse-whirling-rake,operational_notation,,SET > OP WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL],Promoted 2026-06-08 (slice 6): X-modifiers + rake terminal (SWING [DEX] > SAME TOE [DEL]); parser-verified; bracket count = ADD.
+paradox-whirling-rake,operational_notation,,SET > OP WHIRL [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL],Promoted 2026-06-08 (slice 6): X-modifiers + rake terminal (SWING [DEX] > SAME TOE [DEL]); parser-verified; bracket count = ADD.
+paradox-symposium-whirling-rake,operational_notation,,SET > OP WHIRL [DEX] > SAME SYMP [DEX] > SWING [DEX] [PDX] > SAME TOE [DEL],Promoted 2026-06-08 (slice 6): X-modifiers + rake terminal (SWING [DEX] > SAME TOE [DEL]); parser-verified; bracket count = ADD.
