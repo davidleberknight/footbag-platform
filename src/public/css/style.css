@@ -996,88 +996,6 @@ button.tag-suggestion {
   font-size: 0.9rem;
 }
 
-/* ── Media hub cards ─────────────────────────────────────────── */
-.hub-card {
-  list-style: none;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.hub-card:hover,
-.hub-card:focus-within {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
-}
-.hub-card-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-.hub-card-link:hover { text-decoration: none; }
-
-.hub-card-accent {
-  height: 8px;
-  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
-}
-.hub-card-body {
-  padding: 16px 16px 12px;
-}
-.hub-card-name {
-  margin: 0;
-  font-size: 1.15rem;
-  line-height: 1.25;
-}
-.hub-card-description {
-  margin: 8px 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
-.hub-card-foot {
-  border-top: 1px solid var(--border);
-  padding: 10px 16px 14px;
-  padding-right: 36px;
-  position: relative;
-}
-.hub-card-summary {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-.hub-card-arrow {
-  position: absolute;
-  right: 16px;
-  bottom: 14px;
-  color: var(--primary);
-  font-size: 1.1rem;
-  font-weight: 600;
-  transition: transform 0.2s ease;
-}
-.hub-card:hover .hub-card-arrow { transform: translateX(3px); }
-
-/* Special "Browse by hashtag" tile injected at the head of the /media hub
-   gallery-grid. Visually distinct from the bookmark cards: full-tile
-   gradient + white text, so visitors immediately see it as the alternate
-   (tag-driven) entry-point alongside the curated and member-made
-   named-gallery bookmarks. */
-.hub-card-browse {
-  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
-  border-color: transparent;
-  color: var(--white);
-}
-.hub-card-browse .hub-card-link        { color: var(--white); }
-.hub-card-browse .hub-card-name        { color: var(--white); }
-.hub-card-browse .hub-card-description { color: rgba(255, 255, 255, 0.88); }
-.hub-card-browse .hub-card-arrow       { color: var(--white); }
-.hub-card-foot-browse {
-  border-top-color: rgba(255, 255, 255, 0.18);
-}
-
 /* Gallery description renders as a caption paragraph below the hero. */
 .gallery-description {
   margin: 24px 0;
@@ -12092,6 +12010,16 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .media-hub-card p { margin: 0; flex: 1; color: var(--text-secondary); font-size: 0.92rem; }
 .media-hub-card .btn { align-self: flex-start; margin-top: 4px; }
 .media-hub-soon { margin-top: 4px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+/* Browse-by-hashtag leads the grid with a distinct green fill at the same card
+   size as its siblings, so it reads as the primary tag-driven entry point. */
+.media-hub-card--browse {
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  color: var(--white);
+}
+.media-hub-card--browse .card-title { color: var(--white); }
+.media-hub-card--browse p { color: rgba(255, 255, 255, 0.88); }
+.media-hub-card--browse .btn-outline { border-color: var(--white); color: var(--white); }
+.media-hub-card--browse .btn-outline:hover { background: var(--white); color: var(--primary); }
 @media (max-width: 1024px) {
   .media-hub-grid { grid-template-columns: repeat(2, 1fr); }
 }

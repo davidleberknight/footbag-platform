@@ -207,20 +207,20 @@ export interface MediaHubGallerySummary {
   owner: GalleryOwner;
 }
 
-// A single intent destination on the /media hub. Populated cards list their
-// source galleries; `comingSoon` cards are honest placeholders for disciplines
-// with no media surface yet.
-// One primary media card. The six cards share identical weight; a card with a
-// null href is a forward-looking collection shown as "coming soon".
+// One media-collection card on the /media hub. A null href is a forward-looking
+// collection shown as "coming soon". `accent` marks the browse-by-hashtag card,
+// which leads the grid with a distinct green treatment at the same card size.
 export interface MediaHubCard {
   title: string;
   description: string;
   href: string | null;
   cta: string | null;
+  accent?: boolean;
 }
 
 export interface MediaHubContent {
-  // The equal-weight media-collection cards rendered below the browse tile.
+  // The media-collection cards rendered in the hub grid; the browse-by-hashtag
+  // card leads.
   cards: MediaHubCard[];
   // Member-created named galleries, preserved below the primary grid.
   memberGalleries: MediaHubGallerySummary[];
@@ -425,11 +425,18 @@ export const mediaService = {
       const relatedSportsHref = has('gallery_chinlone') ? '/media/gallery_chinlone' : null;
       const memberGalleries = summaries.filter((s) => !s.owner.isSystem);
 
-      // Five equal media-collection cards. Tutorials & Demos absorbs the
-      // per-source freestyle galleries and the curated-tricks aggregate; Related
-      // Sports absorbs chinlone and (future) sepak takraw. Browse-by-hashtag is
-      // a distinct entry tile in the template, not one of these equal cards.
+      // The browse-by-hashtag card leads the grid with a distinct green treatment.
+      // Tutorials & Demos absorbs the per-source freestyle galleries and the
+      // curated-tricks aggregate; Related Sports absorbs chinlone and (future)
+      // sepak takraw.
       const cards: MediaHubCard[] = [
+        {
+          title: 'Browse by hashtag',
+          description: 'Find every photo and video matching a set of hashtags.',
+          href: '/media/browse',
+          cta: 'Browse tags',
+          accent: true,
+        },
         {
           title: 'Freestyle Tutorials & Demos',
           description: 'Instructional and demonstration footage from the freestyle community.',
