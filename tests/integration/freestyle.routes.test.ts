@@ -365,11 +365,10 @@ describe('GET /freestyle/leaders', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle — enriched landing page', () => {
-  it('contains links to both records and leaders sub-pages', async () => {
+  it('surfaces the records page (leaders is reachable from there)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('/freestyle/records');
-    expect(res.text).toContain('/freestyle/leaders');
   });
 });
 
@@ -514,13 +513,12 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"[^>]*>Set notation reference/);
   });
 
-  it('landing page surfaces Operators & Modifiers as a Go Deeper card linking to /freestyle/operators', async () => {
-    // Phase C (2026-05-22): the two-band landing carries an "Operators &
-    // Modifiers" card in the Go Deeper band with a single outbound CTA to
-    // /freestyle/operators. No embedded operator-board on the landing.
+  it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
+    // The Language banner carries an "Operators & Modifiers" tile with a single
+    // outbound link to /freestyle/operators. No embedded operator-board.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('<div class="card-title">Operators &amp; Modifiers</div>');
+    expect(res.text).toContain('Operators &amp; Modifiers');
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).not.toContain('class="operator-board ');
     expect(res.text).not.toContain('class="operator-board-footer-link"');
@@ -1884,38 +1882,21 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('The Freestyle Reference');
   });
 
-  it('landing surfaces Trick Dictionary + Glossary CTAs (now via portal cards, not the retired top-reference-jump nav)', async () => {
-    // History: the original "Where to go next" three-link orientation
-    // block was retired in Slice K (2026-05-16) in favor of a compact
-    // top-of-page reference jump (.freestyle-top-reference-jump).
-    // 2026-05-18 landing reorganization removed the top-reference-jump
-    // band per Dave audit #16 (DRY violation — portal cards below
-    // already carry Dictionary + Glossary CTAs). The contract these
-    // assertions enforce is now about reachability of those CTAs from
-    // the landing, regardless of which surface carries them.
+  it('landing surfaces Trick Dictionary + Glossary + Set Encyclopedia via the Language banner', async () => {
     const res = await request(createApp()).get('/freestyle');
-    // Top-reference-jump nav band must be gone (DRY fix).
+    // The retired top-reference-jump band must be gone.
     expect(res.text).not.toContain('class="freestyle-top-reference-jump"');
     expect(res.text).not.toMatch(/<a class="freestyle-top-reference-link"/);
-    // Trick Dictionary + Glossary CTAs are now reachable via the
-    // portal cards.
+    // Reachable via the Language banner tiles.
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
-    expect(res.text).toContain('Browse the trick dictionary');
-    expect(res.text).toContain('Open the glossary');
-    // /freestyle/sets is now reachable from the landing via the Set
-    // Encyclopedia portal card (added 2026-05-25 as part of the pre-
-    // Adrian set-surface polish; the route was promoted from a 301
-    // redirect to a standalone minimalist index in the same slice).
     expect(res.text).toContain('href="/freestyle/sets"');
-    expect(res.text).toContain('Set encyclopedia');
-    // The retired "Where to go next" heading must not appear.
     expect(res.text).not.toContain('Where to go next');
   });
 
-  it('landing collapses the dictionary CTA to a single "Browse the trick dictionary" button', async () => {
+  it('landing surfaces a single dictionary link, not multiple browse CTAs', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Browse the trick dictionary');
+    expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).not.toMatch(/Browse by component\s*&rarr;/);
     expect(res.text).not.toMatch(/>Browse tricks\s*&rarr;/);
   });
@@ -2020,13 +2001,12 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 // Landing-page "Language of Freestyle Footbag" structure invariants
 
 describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
-  it('exposes a freestyle-portal-lede content-section containing at least one freestyle-portal-lede-paragraph', async () => {
-    // Structural invariant: the landing renders the lede surface with
-    // the documented class hooks. Paragraph copy is supplied by the
-    // service and is not pinned by this test.
+  it('exposes a tight big-font freestyle-lede content-section', async () => {
+    // Structural invariant: the landing renders the lede surface with the
+    // documented class hooks. Copy is not pinned by this test.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
-    expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
+    expect(res.text).toMatch(/class="content-section freestyle-lede"/);
+    expect(res.text).toMatch(/class="freestyle-lede-big"/);
   });
 
   it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {
@@ -2069,7 +2049,7 @@ describe('Freestyle landing — Featured strip (C-3 + Phase 1/C merge, 2026-05-1
   it('renders the Featured heading + grid', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toMatch(/class="[^"]*\bfreestyle-featured\b/);
-    expect(res.text).toMatch(/<h2>Featured<\/h2>/);
+    expect(res.text).toMatch(/<h2>Featured Videos<\/h2>/);
   });
 
   it('renders all four competition-format names as card titles', async () => {

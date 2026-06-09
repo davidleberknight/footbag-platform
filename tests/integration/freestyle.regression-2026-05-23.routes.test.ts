@@ -216,13 +216,15 @@ describe('Item 1: dictionary landing browse strip — no Observed Tricks tab', (
 
 // ── Item 3 — PassBack tutorial link active on freestyle landing + media ──
 describe('Item 3: PassBack tutorial link active on both entry points', () => {
-  it('freestyle landing renders an active anchor to gallery_passback_tutorials', async () => {
+  it('freestyle landing routes tutorials through the media-side index that gathers the PassBack gallery', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(
-      /<a[^>]+href="\/media\/gallery_passback_tutorials"[^>]*>[^<]*PassBack/,
-    );
+    const land = await request(app).get('/freestyle');
+    expect(land.status).toBe(200);
+    // The landing's Media section links the tutorials index rather than re-listing
+    // each per-source gallery inline.
+    expect(land.text).toContain('href="/media/freestyle-tutorials"');
+    const index = await request(app).get('/media/freestyle-tutorials');
+    expect(index.status).toBe(200);
   });
 
   it('media hub Tutorials card routes to the media-side tutorials index, which gathers the source galleries', async () => {

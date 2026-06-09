@@ -1,6 +1,6 @@
-{{! /freestyle — landing page. Two-band structure: What is Freestyle? →
-    Start Here (beginner paths) → Go Deeper (reference / archive / analysis)
-    → Featured videos. }}
+{{! /freestyle — landing. Hero → What is Freestyle? (tight lede) → Banner 1
+    (Language) → Banner 2 (Analysis & Competition) → the language in practice
+    (mosaic + by-the-numbers) → Featured videos → Media → History. }}
 
 <div class="hero hero-sm hero-with-mascot">
   <div class="hero-text">
@@ -12,13 +12,9 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── What is Freestyle? — plain intro + demo video ───────────────────── }}
-  {{#if content.intro.paragraphs.length}}
-  <section class="content-section freestyle-portal-lede">
-    {{#if content.intro.heading}}<h2>{{content.intro.heading}}</h2>{{/if}}
-    {{#each content.intro.paragraphs}}
-    <p class="freestyle-portal-lede-paragraph">{{this}}</p>
-    {{/each}}
+  {{! ── What is Freestyle? — tight, big-font lede + demo video ─────────────── }}
+  <section class="content-section freestyle-lede">
+    <p class="freestyle-lede-big">Freestyle footbag is a language. A handful of core movements (kicks, stalls, delays, spins) combine into thousands of named tricks.</p>
     {{#if content.demoVideo}}
     <figure class="demo-video">
       <video autoplay loop muted playsinline preload="metadata" poster="{{content.demoVideo.posterUrl}}">
@@ -29,193 +25,108 @@
     </figure>
     {{/if}}
   </section>
-  {{/if}}
 
-  {{! ── Start Here — beginner paths ──────────────────────────────────────── }}
-  <section class="content-section">
+  {{! ── Banner 1 — The Language of Freestyle (reference / vocabulary) ───────── }}
+  <section class="content-section freestyle-banner">
     <div class="section-heading">
-      <h2>Start Here</h2>
-      <p class="section-intro">New to freestyle? These are the best places to begin.</p>
+      <h2>The Language of Freestyle</h2>
+      <p class="section-intro">Core reference for understanding the vocabulary.</p>
     </div>
-    <div class="card-grid card-grid-2col">
-
-      <div class="card" id="watch-and-learn">
-        <div class="card-title">Watch &amp; Learn</div>
-        <p>
-          See freestyle footbag in motion. Video tutorials and demonstrations
-          from players around the world.
-        </p>
-        <div class="card-actions">
-          <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade — Kenny Shults &rarr;</a>
-          <a href="/media/gallery_passback_tutorials" class="btn btn-outline">Tutorials — PassBack &rarr;</a>
-          <a href="/media/gallery_anz_trikz" class="btn btn-outline">Tutorials — AnzTrikz &rarr;</a>
-          <a href="/media/gallery_shred_global" class="btn btn-outline">Tutorials — Shred Global &rarr;</a>
-          <a href="/media/gallery_footbag_finland" class="btn btn-outline">Tutorials — Footbag Finland &rarr;</a>
-          <a href="/media/gallery_footbag_org" class="btn btn-outline">footbag.org demos &rarr;</a>
-        </div>
-      </div>
-
+    <div class="banner-grid">
       {{#if content.totalTricks}}
-      <div class="card">
-        <div class="card-title">Trick Dictionary</div>
-        <p>
-          Every freestyle trick has a name. Browse them, see how they fit
-          together, and find the moves to learn next.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/tricks" class="btn btn-outline">Browse the trick dictionary &rarr;</a>
-        </div>
-      </div>
+      <a class="banner-tile" href="/freestyle/tricks">
+        <span class="banner-tile-title">Trick Dictionary</span>
+        <span class="banner-tile-blurb">Every named trick, and how they connect.</span>
+      </a>
       {{/if}}
-
-      <div class="card">
-        <div class="card-title">Glossary</div>
-        <p>
-          New to the words? Plain-language explanations of the terms, moves,
-          and abbreviations you'll hear in tutorials and at contests.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/glossary" class="btn btn-outline">Open the glossary &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">The Story of Freestyle</div>
-        <p>
-          How freestyle footbag grew from kicking circles in the 1980s into a
-          technical, creative sport played around the world.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/history" class="btn btn-outline">Freestyle history &rarr;</a>
-        </div>
-      </div>
-
+      <a class="banner-tile" href="/freestyle/glossary">
+        <span class="banner-tile-title">Glossary</span>
+        <span class="banner-tile-blurb">Plain-language terms and abbreviations.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/sets">
+        <span class="banner-tile-title">Set Encyclopedia</span>
+        <span class="banner-tile-blurb">The named uptime sets every trick opens with.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/operators">
+        <span class="banner-tile-title">Operators &amp; Modifiers</span>
+        <span class="banner-tile-blurb">The ideas that turn one trick into many.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/observational">
+        <span class="banner-tile-title">Emerging Vocabulary</span>
+        <span class="banner-tile-blurb">New trick names still being confirmed.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/about">
+        <span class="banner-tile-title">About Freestyle</span>
+        <span class="banner-tile-blurb">Formats, judging, and set notation.</span>
+      </a>
     </div>
   </section>
 
-  {{! ── Go Deeper — reference, archive & analysis ────────────────────────── }}
-  <section class="content-section">
+  {{! ── Banner 2 — Analysis & Competition ──────────────────────────────────── }}
+  <section class="content-section freestyle-banner">
     <div class="section-heading">
-      <h2>Go Deeper</h2>
-      <p class="section-intro">Records, competition history, and the deeper analysis behind elite freestyle.</p>
+      <h2>Analysis &amp; Competition</h2>
+      <p class="section-intro">Higher-level analysis: how freestyle behaves in practice.</p>
     </div>
-    <div class="card-grid card-grid-2col">
-
+    <div class="banner-grid">
       {{#if content.totalRecords}}
-      <div class="card">
-        <div class="card-title">Trick Records</div>
-        <p>
-          Documented freestyle trick achievements and consecutive-completion
-          records &mdash; how many times in a row a trick has been landed.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/records" class="btn btn-outline">Trick records &rarr;</a>
-          <a href="/freestyle/leaders" class="btn btn-outline">Record leaders &rarr;</a>
-        </div>
-      </div>
+      <a class="banner-tile" href="/freestyle/records">
+        <span class="banner-tile-title">Trick Records</span>
+        <span class="banner-tile-blurb">Consecutive-completion records and leaders.</span>
+      </a>
       {{/if}}
-
-      <div class="card">
-        <div class="card-title">Competition</div>
-        <p>
-          Decades of documented freestyle events and results, plus the doubles
-          partnerships that shaped the sport.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/competition" class="btn btn-outline">Competition history &rarr;</a>
-          <a href="/freestyle/partnerships" class="btn btn-outline">Partnerships &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Scoring &amp; Combos</div>
-        <p>
-          How freestyle measures trick difficulty, and how single tricks link
-          into longer flowing combinations and runs.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/add-analysis" class="btn btn-outline">ADD analysis &rarr;</a>
-          <a href="/freestyle/combo-analysis" class="btn btn-outline">Combo analysis &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Operators &amp; Modifiers</div>
-        <p>
-          The movement ideas that transform one trick into many related
-          variations.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/operators" class="btn btn-outline">Operators &amp; modifiers &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Set Encyclopedia</div>
-        <p>
-          The named uptime movement primitives every trick opens with &mdash;
-          pixie, fairy, stepping, atomic, quantum, nuclear, and the rest of
-          the compositional set vocabulary as first-class systems.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/sets" class="btn btn-outline">Set encyclopedia &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Insights</div>
-        <p>
-          Patterns drawn from decades of documented competitive freestyle
-          &mdash; the tricks and combinations that defined each era.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/insights" class="btn btn-outline">Freestyle insights &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Emerging Vocabulary</div>
-        <p>
-          Community-documented freestyle trick names we are still confirming
-          for the dictionary. New names show up here before they become official.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/observational" class="btn btn-outline">Emerging vocabulary &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">About Freestyle Footbag</div>
-        <p>
-          The sport in brief &mdash; competition formats, how routines are
-          judged, and the set-notation system behind trick names.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/about" class="btn btn-outline">About freestyle &rarr;</a>
-        </div>
-      </div>
-
+      <a class="banner-tile" href="/freestyle/competition">
+        <span class="banner-tile-title">Competition</span>
+        <span class="banner-tile-blurb">Decades of documented events and results.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/partnerships">
+        <span class="banner-tile-title">Partnerships</span>
+        <span class="banner-tile-blurb">The doubles pairings that shaped the sport.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/combo-analysis">
+        <span class="banner-tile-title">Scoring &amp; Combos</span>
+        <span class="banner-tile-blurb">How single tricks link into flowing runs.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/add-analysis">
+        <span class="banner-tile-title">ADD Analysis</span>
+        <span class="banner-tile-blurb">How freestyle measures trick difficulty.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/insights">
+        <span class="banner-tile-title">Freestyle Patterns</span>
+        <span class="banner-tile-blurb">The tricks and combinations that defined each era.</span>
+      </a>
     </div>
   </section>
 
-  {{! ── Featured — competition formats + curated demonstrations ──────────── }}
-  {{#if content.featured.length}}
-  <section class="content-section freestyle-featured" id="featured">
-    <h2>Featured</h2>
-    <div class="freestyle-featured-grid">
-      {{#each content.featured}}
-      <article class="card featured-card" id="featured-{{key}}">
-        <div class="video-embed">
-          {{> video-facade media=media}}
-        </div>
-        <div class="card-title">{{title}}</div>
-        {{#if caption}}<p class="featured-caption">{{caption}}</p>{{/if}}
-        {{> media-tag-strip tags=tags}}
-      </article>
+  {{! ── The language in practice: mosaic + by-the-numbers ───────────────────── }}
+  <div class="section-heading freestyle-showcase-heading">
+    <h2>The Language of Freestyle, in practice</h2>
+  </div>
+
+  {{! ── The 12 Foundations: core-atom mosaic ───────────────────────────────── }}
+  <section class="content-section tricks-mosaic-section{{#unless content.tricksMosaicHasClips}} tricks-mosaic-section--placeholder{{/unless}}">
+    <div class="section-heading">
+      <h2>The 12 Foundations of Freestyle</h2>
+      <p class="section-intro">Every freestyle trick is built from these core movements.</p>
+    </div>
+    <div class="tricks-mosaic">
+      {{#each content.tricksMosaic}}
+        <figure class="tricks-mosaic-cell">
+          {{#if mp4Url}}
+            <button type="button" class="tricks-mosaic-toggle" aria-label="Play {{label}}" aria-pressed="false" data-trick="{{label}}">
+              <video class="tricks-mosaic-media" loop muted playsinline preload="none" poster="{{posterUrl}}">
+                <source src="{{mp4Url}}" type="video/mp4">
+              </video>
+              <span class="tricks-mosaic-playicon" aria-hidden="true"></span>
+            </button>
+          {{else}}
+            <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
+          {{/if}}
+          <figcaption class="tricks-mosaic-label">{{label}}</figcaption>
+        </figure>
       {{/each}}
     </div>
   </section>
-  {{/if}}
 
   {{! ── Freestyle by the Numbers: six live histogram cards ─────────────────── }}
   {{#if content.byTheNumbers.length}}
@@ -246,28 +157,78 @@
   </section>
   {{/if}}
 
-  {{! ── The 12 Foundations: core-atom mosaic (lower enrichment band) ──────── }}
-  <section class="content-section tricks-mosaic-section{{#unless content.tricksMosaicHasClips}} tricks-mosaic-section--placeholder{{/unless}}">
-    <div class="section-heading">
-      <h2>The 12 Foundations of Freestyle</h2>
-      <p class="section-intro">Every freestyle trick is built from these core movements.</p>
-    </div>
-    <div class="tricks-mosaic">
-      {{#each content.tricksMosaic}}
-        <figure class="tricks-mosaic-cell">
-          {{#if mp4Url}}
-            <button type="button" class="tricks-mosaic-toggle" aria-label="Play {{label}}" aria-pressed="false" data-trick="{{label}}">
-              <video class="tricks-mosaic-media" loop muted playsinline preload="none" poster="{{posterUrl}}">
-                <source src="{{mp4Url}}" type="video/mp4">
-              </video>
-              <span class="tricks-mosaic-playicon" aria-hidden="true"></span>
-            </button>
-          {{else}}
-            <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
-          {{/if}}
-          <figcaption class="tricks-mosaic-label">{{label}}</figcaption>
-        </figure>
+  {{! ── Featured videos — the visual showcase ──────────────────────────────── }}
+  {{#if content.featured.length}}
+  <section class="content-section freestyle-featured" id="featured">
+    <h2>Featured Videos</h2>
+    <div class="freestyle-featured-grid">
+      {{#each content.featured}}
+      <article class="card featured-card" id="featured-{{key}}">
+        <div class="video-embed">
+          {{> video-facade media=media}}
+        </div>
+        <div class="card-title">{{title}}</div>
+        {{#if caption}}<p class="featured-caption">{{caption}}</p>{{/if}}
+        {{> media-tag-strip tags=tags}}
+      </article>
       {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Freestyle Media (supporting) ───────────────────────────────────────── }}
+  <section class="content-section freestyle-supporting">
+    <div class="section-heading"><h2>Freestyle Media</h2></div>
+    <div class="banner-grid banner-grid--compact">
+      <a class="banner-tile" href="/media/freestyle-tutorials">
+        <span class="banner-tile-title">Tutorials &amp; Demos</span>
+        <span class="banner-tile-blurb">Instructional and demonstration galleries.</span>
+      </a>
+      {{#if content.mediaRecordsHref}}
+      <a class="banner-tile" href="{{content.mediaRecordsHref}}">
+        <span class="banner-tile-title">Freestyle Records Videos</span>
+        <span class="banner-tile-blurb">PassBack record-attempt footage.</span>
+      </a>
+      {{else}}
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">Freestyle Records Videos</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
+      {{/if}}
+      {{#if content.mediaCuratedHref}}
+      <a class="banner-tile" href="{{content.mediaCuratedHref}}">
+        <span class="banner-tile-title">Curated Trick Videos</span>
+        <span class="banner-tile-blurb">Reference clips for individual tricks.</span>
+      </a>
+      {{else}}
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">Curated Trick Videos</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{! ── History of Freestyle (supporting) ──────────────────────────────────── }}
+  <section class="content-section freestyle-supporting">
+    <div class="section-heading"><h2>History of Freestyle</h2></div>
+    <div class="banner-grid banner-grid--compact">
+      <a class="banner-tile" href="/freestyle/history">
+        <span class="banner-tile-title">Story of Freestyle</span>
+        <span class="banner-tile-blurb">How the sport grew from kicking circles.</span>
+      </a>
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">History Timeline</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">Historical Milestones</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">Evolution of Vocabulary</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
     </div>
   </section>
 

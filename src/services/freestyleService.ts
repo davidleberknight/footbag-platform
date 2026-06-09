@@ -524,6 +524,9 @@ export interface FreestyleLandingContent {
   // shared denominator note (all cards normalized to the trick-kind total).
   byTheNumbers: FreestyleByNumbersCard[];
   byTheNumbersNote: string;
+  // Media-section gallery links, null when the gallery is not seeded.
+  mediaRecordsHref: string | null;
+  mediaCuratedHref: string | null;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -9107,6 +9110,15 @@ export const freestyleService = {
       ),
     );
 
+    // Gate the Media-section gallery links on the gallery being seeded so the
+    // landing never renders a broken link in an environment that lacks them.
+    const galleryHref = (id: string): string | null =>
+      runSqliteRead('media.getNamedGalleryById', () => media.getNamedGalleryById.get(id))
+        ? `/media/${id}`
+        : null;
+    const mediaRecordsHref = galleryHref('gallery_passback_records');
+    const mediaCuratedHref = galleryHref('gallery_curated_freestyle_tricks');
+
     return {
       seo: {
         title: 'Freestyle',
@@ -9211,6 +9223,8 @@ export const freestyleService = {
         tricksMosaicHasClips: tricksMosaic.some((c) => c.mp4Url !== null),
         byTheNumbers,
         byTheNumbersNote,
+        mediaRecordsHref,
+        mediaCuratedHref,
       },
     };
   },

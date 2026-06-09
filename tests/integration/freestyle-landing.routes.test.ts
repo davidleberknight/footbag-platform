@@ -35,12 +35,28 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     }
   });
 
-  it('keeps the Featured videos band and sits below it as a lower enrichment section', async () => {
+  it('places the Featured videos showcase below the mosaic and by-the-numbers', async () => {
     const res = await request(createApp()).get('/freestyle');
     const featuredAt = res.text.indexOf('id="featured"');
     const mosaicAt = res.text.indexOf('The 12 Foundations of Freestyle');
-    expect(featuredAt).toBeGreaterThan(-1);
-    expect(mosaicAt).toBeGreaterThan(featuredAt);
+    expect(mosaicAt).toBeGreaterThan(-1);
+    expect(featuredAt).toBeGreaterThan(mosaicAt);
+  });
+
+  it('renders the two reference banners and retires Start Here / Go Deeper', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('The Language of Freestyle');
+    expect(res.text).toContain('Analysis &amp; Competition');
+    expect(res.text).not.toContain('Start Here');
+    expect(res.text).not.toContain('Go Deeper');
+    // Insights renamed to Freestyle Patterns (route unchanged)
+    expect(res.text).toContain('Freestyle Patterns');
+    expect(res.text).toContain('href="/freestyle/insights"');
+    expect(res.text).toContain('href="/freestyle/partnerships"');
+    // supporting sections moved below the educational core
+    expect(res.text).toContain('Freestyle Media');
+    expect(res.text).toContain('History of Freestyle');
+    expect(res.text).toContain('href="/media/freestyle-tutorials"');
   });
 
   it('falls back to quiet empty-state cells when no clip is loaded', async () => {

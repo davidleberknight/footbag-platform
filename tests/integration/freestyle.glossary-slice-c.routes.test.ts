@@ -219,12 +219,10 @@ describe('Landing page — Watch & Learn card (Slice C lineage)', () => {
     expect(res.text).not.toContain('Educational pathways &rarr;');
   });
 
-  it('the Watch & Learn card lists the curated tutorial galleries', async () => {
+  it('routes tutorials to the media-side index instead of an inline gallery card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('<div class="card-title">Watch &amp; Learn</div>');
-    expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
-    expect(res.text).toContain('/media/gallery_passback_tutorials');
-    expect(res.text).toContain('/media/gallery_anz_trikz');
+    expect(res.text).not.toContain('<div class="card-title">Watch &amp; Learn</div>');
+    expect(res.text).toContain('href="/media/freestyle-tutorials"');
   });
 });

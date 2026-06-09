@@ -325,93 +325,73 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
-  it('opens with the "What is Freestyle?" lede section', async () => {
+  it('opens with a tight, big-font "What is Freestyle?" lede', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
-    expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
-    expect(res.text).toContain('What is Freestyle Footbag?');
+    expect(res.text).toMatch(/class="content-section freestyle-lede"/);
+    expect(res.text).toContain('freestyle-lede-big');
+    expect(res.text).toContain('Freestyle footbag is a language');
   });
 
-  // ── Start Here band ─────────────────────────────────────────────────────
-  it('renders the Start Here band with the four beginner cards', async () => {
+  // ── Banner 1 — The Language of Freestyle ────────────────────────────────
+  it('renders Banner 1 (The Language of Freestyle) and retires Start Here', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('>Start Here<');
-    expect(res.text).toContain('<div class="card-title">Watch &amp; Learn</div>');
-    expect(res.text).toContain('<div class="card-title">Trick Dictionary</div>');
-    expect(res.text).toContain('<div class="card-title">Glossary</div>');
-    expect(res.text).toContain('<div class="card-title">The Story of Freestyle</div>');
-  });
-
-  it('Start Here cards link to the beginner destinations', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('>The Language of Freestyle<');
+    expect(res.text).not.toContain('>Start Here<');
     for (const href of [
-      '/media/gallery_tricks_of_the_trade',
-      '/media/gallery_passback_tutorials',
-      '/media/gallery_anz_trikz',
-      '/media/gallery_shred_global',
-      '/media/gallery_footbag_finland',
       '/freestyle/tricks',
       '/freestyle/glossary',
-      '/freestyle/history',
-    ]) {
-      expect(res.text, `Start Here href ${href}`).toContain(`href="${href}"`);
-    }
-  });
-
-  // ── Go Deeper band ──────────────────────────────────────────────────────
-  it('renders the Go Deeper band with the reference / archive cards', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('>Go Deeper<');
-    expect(res.text).toContain('<div class="card-title">Trick Records</div>');
-    expect(res.text).toContain('<div class="card-title">Competition</div>');
-    expect(res.text).toContain('<div class="card-title">Scoring &amp; Combos</div>');
-    expect(res.text).toContain('<div class="card-title">Operators &amp; Modifiers</div>');
-    expect(res.text).toContain('<div class="card-title">Insights</div>');
-    // 2026-05-23 public-label rename: "Observed Tricks" → "Emerging Vocabulary".
-    expect(res.text).toContain('<div class="card-title">Emerging Vocabulary</div>');
-    expect(res.text).toContain('<div class="card-title">About Freestyle Footbag</div>');
-  });
-
-  it('Go Deeper cards link to the reference / archive destinations', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    for (const href of [
-      '/freestyle/records',
-      '/freestyle/leaders',
-      '/freestyle/competition',
-      '/freestyle/partnerships',
-      '/freestyle/add-analysis',
-      '/freestyle/combo-analysis',
+      '/freestyle/sets',
       '/freestyle/operators',
-      '/freestyle/insights',
       '/freestyle/observational',
       '/freestyle/about',
     ]) {
-      expect(res.text, `Go Deeper href ${href}`).toContain(`href="${href}"`);
+      expect(res.text, `Banner 1 href ${href}`).toContain(`href="${href}"`);
+    }
+  });
+
+  // ── Banner 2 — Analysis & Competition ───────────────────────────────────
+  it('renders Banner 2 (Analysis & Competition), retires Go Deeper, renames Insights to Freestyle Patterns', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('Analysis &amp; Competition');
+    expect(res.text).not.toContain('>Go Deeper<');
+    expect(res.text).toContain('Freestyle Patterns');
+    expect(res.text).not.toContain('>Insights<');
+    for (const href of [
+      '/freestyle/records',
+      '/freestyle/competition',
+      '/freestyle/partnerships',
+      '/freestyle/combo-analysis',
+      '/freestyle/add-analysis',
+      '/freestyle/insights',
+    ]) {
+      expect(res.text, `Banner 2 href ${href}`).toContain(`href="${href}"`);
     }
   });
 
   it('records are framed as "Trick Records", never "World Records"', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('<div class="card-title">Trick Records</div>');
+    expect(res.text).toContain('Trick Records');
     expect(res.text).not.toContain('World Records');
   });
 
-  it('orders the bands: What is Freestyle → Start Here → Go Deeper → Featured', async () => {
+  it('orders sections: lede → Banner 1 → Banner 2 → mosaic → Featured', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
-    const startIdx    = res.text.indexOf('>Start Here<');
-    const deeperIdx   = res.text.indexOf('>Go Deeper<');
+    const ledeIdx     = res.text.indexOf('freestyle-lede');
+    const banner1Idx  = res.text.indexOf('>The Language of Freestyle<');
+    const banner2Idx  = res.text.indexOf('Analysis &amp; Competition');
+    const mosaicIdx   = res.text.indexOf('The 12 Foundations of Freestyle');
     const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
     expect(ledeIdx).toBeGreaterThan(0);
-    expect(startIdx).toBeGreaterThan(ledeIdx);
-    expect(deeperIdx).toBeGreaterThan(startIdx);
-    expect(featuredIdx).toBeGreaterThan(deeperIdx);
+    expect(banner1Idx).toBeGreaterThan(ledeIdx);
+    expect(banner2Idx).toBeGreaterThan(banner1Idx);
+    expect(mosaicIdx).toBeGreaterThan(banner2Idx);
+    expect(featuredIdx).toBeGreaterThan(mosaicIdx);
   });
 
-  // ── Featured strip ──────────────────────────────────────────────────────
-  it('renders the Featured strip with the four format names + curated demonstrations', async () => {
+  // ── Featured videos showcase ────────────────────────────────────────────
+  it('renders the Featured videos showcase with the curated demonstrations', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('>Featured<');
+    expect(res.text).toContain('>Featured Videos<');
     for (const name of ['Routine', 'Circle', 'Sick 3', 'Shred 30']) {
       expect(res.text).toContain(name);
     }
