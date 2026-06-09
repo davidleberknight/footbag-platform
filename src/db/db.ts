@@ -2184,6 +2184,13 @@ export const freestyleTrickAliases = {
   get getAliasSlugsForTrick() { return db.prepare(`
     SELECT alias_slug FROM freestyle_trick_aliases WHERE trick_slug = ?
   `); },
+
+  // alias_slug -> canonical trick_slug for every alias, in one round trip. Lets
+  // the browse-row media-coverage build fold a record whose trick_name slugifies
+  // to an alias onto the canonical trick the rows are keyed by.
+  get listAllAliasSlugs() { return db.prepare(`
+    SELECT alias_slug, trick_slug FROM freestyle_trick_aliases
+  `); },
 };
 
 export const freestyleMediaLinks = {

@@ -65,4 +65,14 @@ describe('Record-to-trick linkage', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Qualifier Holder');
   });
+
+  it('the dictionary badges a record-only-video trick as "Record video", resolving the alias to canonical', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // 2-bag-juggling's record is named "2-Bag Juggle" (an alias) and carries a
+    // video_url, with no reference media: the canonical row must still badge.
+    expect(res.text).toContain('Record video');
+    // Exactly one: clipper-stall's record has no video_url, so it earns no badge.
+    expect((res.text.match(/Record video/g) || []).length).toBe(1);
+  });
 });

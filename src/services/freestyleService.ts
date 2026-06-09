@@ -2013,11 +2013,12 @@ export interface FreestyleModifierEntry {
   notes: string | null;
 }
 
-// Three-state media-coverage indicator for the trick-dictionary ADD view:
+// Media-coverage indicator for the trick-dictionary ADD view, in priority order:
 //   'tutorial' — at least one tutorial-tier source covers this trick
-//   'demo'     — only demo-tier or record-tier sources cover (no tutorial)
-//   'none'     — no media links exist for this trick
-export type TrickMediaCoverage = 'tutorial' | 'demo' | 'none';
+//   'demo'     — only demo-tier or record-tier media sources cover (no tutorial)
+//   'record'   — no reference media, but a freestyle record carries its own video
+//   'none'     — no media of any kind for this trick
+export type TrickMediaCoverage = 'tutorial' | 'demo' | 'record' | 'none';
 
 export interface FreestyleTrickIndexRow {
   slug: string;
@@ -2105,9 +2106,9 @@ export interface DictionaryTrickCard {
   statusBadge:                string | null;                 // adjudication-state badge for external placeholders
   placeholderNote:            string | null;                 // adjudication-state explainer (status, not prose description)
   hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
-  hasReferenceMedia:          boolean;                       // true when any tutorial/demo media exists
-  mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
-  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo available' / '' (none)
+  hasReferenceMedia:          boolean;                       // true when any media badge applies (tutorial, demo, or a record's own video)
+  mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'record' | 'none' — drives optional chip
+  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo available' / 'Record video' / '' (none)
   trickFamily:                string | null;                 // reserved for future family-axis affordance
   // Curator-authored flag for folk-derived /
   // mechanically-ambiguous rows. Drives a small italic pill on the
@@ -4955,6 +4956,7 @@ function shapeTrickIndexRow(
     mediaCoverageLabel:
       mediaCoverage === 'tutorial' ? 'Tutorial available'
       : mediaCoverage === 'demo'   ? 'Demo available'
+      : mediaCoverage === 'record' ? 'Record video'
       :                              '',
     isExternalOnly,
     statusBadge,
@@ -6633,6 +6635,25 @@ export const freestyleService = {
         .filter(r => r.trick_name)
         .map(r => trickNameToSlug(r.trick_name!)),
     );
+
+    // A freestyle record's own video_url is a third coverage lane, ranked below
+    // curated tutorial/demo reference media: surface it only when no reference
+    // media already covers the trick. A record's trick_name may slugify to an
+    // alias (e.g. "2-Bag Juggle" -> 2-bag-juggle), so resolve it onto the
+    // canonical trick the browse rows are keyed by, the way the detail page does.
+    const aliasToCanonical = new Map(
+      runSqliteRead('freestyleTrickAliases.listAllAliasSlugs', () =>
+        freestyleTrickAliases.listAllAliasSlugs.all() as { alias_slug: string; trick_slug: string }[],
+      ).map(a => [a.alias_slug, a.trick_slug] as [string, string]),
+    );
+    for (const r of publicRows) {
+      if (!r.trick_name || !r.video_url || r.video_url.trim() === '') continue;
+      const raw = trickNameToSlug(r.trick_name);
+      const slug = aliasToCanonical.get(raw) ?? raw;
+      if (slug && !mediaCoverageBySlug.has(slug)) {
+        mediaCoverageBySlug.set(slug, 'record');
+      }
+    }
 
     // ADD-view formula derivation context (two-line row contract).
     // modifierLinksByTrickSlug: ordered modifier list per trick (for the

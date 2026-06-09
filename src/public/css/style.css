@@ -8328,6 +8328,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   background: var(--warn-tint);       /* amber-100 */
   color: var(--warn-text);            /* amber-800 */
 }
+.dict-card-media-chip--record {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
 
 /* Small italic pill for curator-flagged folk-derived
  * / mechanically-ambiguous rows. Renders inline with the ADD chip; muted
