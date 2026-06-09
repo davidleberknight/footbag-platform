@@ -116,12 +116,12 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 - §2 + §9 — `legacy_members` structure, claim merge rules.
 - §7 — Auto-link (candidate matching and classification).
 - §10.1 — Club classification rules.
-- §10.2 — `historical_persons` expansion for club members (~1,600 cohort).
-- §10.3 — Club onboarding flow (stages 1, 2A, 2B, wrap-up; platform-side, not in this subtree).
-- §15 — Required schema changes (club tables + `name_variants`).
+- §10.2 — `historical_persons` expansion for club members.
+- §10.3 — Club onboarding flow (platform-side, not in this subtree).
+- §15 — Required schema changes.
 - §15.15 — `name_variants` schema + contract.
-- §19 — Legacy-site data dump requirements (export delivered; validation pending).
-- §26 — Persons count baseline (historical figure; current state in IP "Already done").
+- §19 — Legacy-site data dump requirements.
+- §26 — Persons count baseline.
 
 ## Curator-canonical sidecar invariants
 

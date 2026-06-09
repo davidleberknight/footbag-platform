@@ -24,80 +24,115 @@ The legacy-site webmaster has delivered the legacy data; it is under analysis by
 
 ## Open questions for the legacy-site webmaster
 
-One row per decision. Status is `open` (needs the webmaster's input), `delivered - validation pending` (material received, checks running), or `agreed` (settled; kept for the record).
+These are the decisions that involve the legacy-site webmaster. Each is labelled with its status, and **only the items marked "Still open" need an answer**; everything else is settled and kept here for the record. The numbers are fixed labels referred to elsewhere in this plan (§19 uses an independent 1-34 numbering; §28 refers back to these front-matter numbers as "front-matter question N").
 
-**A. Architecture and DNS**
+Quick status: **still open**: 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23. **Settled**: 1, 9, 12. **Confirmed against the delivered dump, to be re-confirmed on the final export**: 10, 11.
 
-| # | Decision | Why it matters | Recommended default | Status |
-|---|---|---|---|---|
-| 1 | Front-door architecture: the legacy server keeps the apex and reverse-proxies the new platform (Option A) | Defines what cutover and rollback are: a proxy flip and a proxy revert on the legacy server. The proxy must send SNI and Host as `footbag.org`; a pre-cutover smoke test proves the path | Option A | agreed |
-| 2 | DNS registrar and authoritative provider identity; ALIAS/ANAME support at the apex | Needed only at the later DNS-handover milestone, when the zone moves to Route 53; not cutover-blocking under Option A | Confirm provider details before the handover milestone | open |
-| 3 | Inventory of every retained `*.footbag.org` subdomain | Each retained name must serve HTTPS while sessions span the domain; `archive.footbag.org` is reserved for the new platform | Full inventory before cutover planning | open |
-| 4 | Reachability during the cutover windows: a contact reachable through the email transition and the front-door flip plus 48 hours | Rollback depends on the webmaster's proxy and DNS access; he is the agreed records-actor | Named secondary contact and an escalation agreement | open |
-| 5 | TLS renewal commitment on every retained subdomain | A lapsed certificate on a retained subdomain exposes session traffic | Webmaster renews; platform runs a daily expiry probe (§29.16) | open |
+**Architecture and DNS**
 
-**B. Email**
+**1. Front-door architecture (Option A). Settled.** The legacy server keeps the footbag.org apex and reverse-proxies traffic to the new platform. This is what cutover and rollback are: a proxy flip, and a proxy revert. The proxy presents footbag.org as its name, and a smoke test proves the path before the flip.
 
-| # | Decision | Why it matters | Recommended default | Status |
-|---|---|---|---|---|
-| 6 | Inventory of `@footbag.org` mailboxes and aliases; real mailboxes or forwarding-only | Every active address must exist on Google before the MX flip or its mail is silently lost; includes the webmaster's own address | Full inventory first; provision everything | open |
-| 7 | Mailing-list inventory and per-list disposition: migrate to platform lists, recreate on Google, or retire | Lists that consume inbound `@footbag.org` addresses break at the MX flip unless dispositioned first; nothing may go dark | Per-list allocation agreed before the email transition | open |
-| 8 | Email-transition date: one atomic switchover (MX to Google, SPF/DMARC flip to SES-only, legacy mail server retired inbound and outbound), strictly before the front-door cutover | One mail system, never two; the platform must own outbound from go-live. The gap between email day and front-door day stays short; the webmaster confirms the still-live legacy site tolerates dead outbound during that gap | Schedule once provisioning (rows 6-7) is verifiably complete | open |
-| 9 | Google tenancy administration: who owns and administers the Google Workspace account | Mailboxes, aliases, and routing live there permanently after the transition | To be assigned | open |
+**2. DNS registrar and authoritative provider, and whether the apex supports ALIAS/ANAME. Still open, but not a launch blocker.** Under Option A the apex never moves during cutover, so these facts are only needed later, when DNS hosting moves to Route 53. Recommendation: the webmaster supplies the registrar, the authoritative DNS provider, and the apex's ALIAS/ANAME capability ahead of that later handover.
 
-**C. Data and export**
+**3. A list of every footbag.org subdomain that stays on the legacy host. Still open.** Once members sign in, the session cookie is shared across all of footbag.org, so every retained subdomain must serve valid HTTPS. The new platform reserves archive.footbag.org. Recommendation: the webmaster lists what he knows now (a partial list is fine to start) and completes it before cutover planning, so each name can be set up and monitored.
 
-| # | Decision | Why it matters | Recommended default | Status |
-|---|---|---|---|---|
-| 10 | Export field semantics: ID namespace matches `/members/profile/{id}`, banned-flag reliability, `announce_opt_in` presence, confirmation that no password columns exist | Drives the source-validity filter (§2), claim ineligibility (§8), and gates G1-G5 | Validate the delivered data against the §19 contract | delivered - validation pending |
-| 11 | Tier and payment history fields present in the data | Decides the full tier mapping versus the honors-only fallback (§3, gate G6) | Validate; honors-only fallback if absent | delivered - validation pending |
-| 12 | Final post-write-freeze re-export | The delivered data serves as the test load; the production import needs a fresh export taken after the freeze | Schedule together with row 13 | open |
+**4. A reachable contact during the cutover windows. Still open.** Rollback is a proxy revert on the webmaster's own server, so it cannot depend on one person being awake and reachable during an incident. Recommendation: name a delegate who has standing access to the proxy and DNS, with a tested escalation path and an agreed plan for when the webmaster is unavailable, covering the email-switchover day and the 48 hours after the front-door flip.
 
-**D. Cutover logistics**
+**5. A commitment to keep TLS certificates current on every retained subdomain. Still open.** Because the signed-in session cookie reaches every footbag.org subdomain, a lapsed certificate on any of them would expose that cookie in clear text. Recommendation: the webmaster renews each certificate before it lapses, and the platform runs a daily expiry check with alarms as a backstop.
 
-| # | Decision | Why it matters | Recommended default | Status |
-|---|---|---|---|---|
-| 13 | Write-freeze timing and user-facing notice text | Sets the final-export point and what legacy users see | Hours-scale freeze before final export; notice text agreed in advance | open |
-| 14 | Legacy database retention after cutover | Manual-recovery reference during claim disputes | At least 30 days beyond the 48-hour rollback window | open |
-| 15 | Milestones that end the webmaster's temporary front-door and DNS role | The role is milestone-bounded, not calendar-bounded: stable operation, email transition complete, DNS handover executed, retained services resolved | Confirm the milestone list and the review cadence | open |
+**Email**
 
-**E. Community knowledge and feature scope**
+**6. A list of footbag.org mailboxes and aliases (real mailboxes versus forwarding). Still open.** Every address still in use must exist on Google before mail is repointed there, or its incoming mail is silently lost. Recommendation: the webmaster lists every footbag.org address, noting which are real mailboxes versus forwarding and which are actually used, and every active one is created on Google before the mail switchover.
 
-| # | Decision | Why it matters | Recommended default | Status |
-|---|---|---|---|---|
-| 16 | Impersonation-risk magnitude in the footbag community | Decides whether honors-bearing direct claims need a gate beyond post-facto oversight (§7, §13) | Keep the no-gate stance unless the webmaster's read says otherwise | open |
-| 17 | Banned-policy carryover: mostly stale, or still-meaningful community issues | Decides whether legacy bans stay audit-metadata-only (§8) | Audit-metadata-only | open |
-| 18 | Tournament-in-a-box: what the legacy feature actually does today | Wholly unscoped; needed to plan feature continuity | Scope before any build decision | open |
-| 19 | Forum retirement and read-only archive timeline | Sets `archive.footbag.org` content expectations (§29.15) | Read-only archive at cutover | open |
-| 20 | Per-feature launch allocation (v1 / v2 / v3), in particular group and committee features | Decides which legacy surfaces freeze, which subdomains stay alive, and how long the temporary role runs | v1 scope as listed in §28 unless the webmaster objects | open |
+**7. Mailing lists: what exists, and what happens to each. Still open.** The new platform sends mail out but never receives mail, so a list matters only by whether people email into it. Recommendation: sort each list into two kinds. A discussion list that members post to by email has no equivalent on the new platform, so it moves to a Google Group or is retired. A one-way announcement list becomes a platform announcement, sent out through the platform. Decide each before the mail switchover so nothing stops working.
+
+**8. The date of the email switchover. Still open.** The switchover is one step: incoming mail moves to Google, outgoing mail becomes the platform's only sender, and the legacy mail server stops sending and receiving, all strictly before the front-door cutover. Recommendation: start the scheduling conversation now (gap tolerance and a target window), and fix the actual date once the mailbox and mailing-list work above is done, since the switchover cannot happen before then.
+
+**9. Who owns and administers the Google Workspace account. Settled.** The IFPA board owns the Workspace; it is administered by the IFPA secretary together with a platform maintainer.
+
+**Data and export**
+
+**10. What the export columns mean. Confirmed against the delivered test dump; re-confirm on the final export.** The delivered dump answered the column-semantics questions: the member-account id column is identified; there is no banned column, so questionable accounts go to admin review rather than being auto-blocked; the announce opt-in is present; and the old member table does contain a password column, so the extraction strips credentials out and never loads them. One item is not yet closed: that the export's id namespace matches the mirror/profile-URL namespace the back-links depend on is still pending the 10% spot-check (§19 items 10-11, gate WM4). All of this is re-confirmed against the final post-freeze export.
+
+**11. Whether the tier and payment history is rich enough to map tiers fully. Confirmed against the delivered dump; re-confirm on the final export.** The delivered dump confirmed the paid-history inputs are present (tier, expiry, paid flags, payment dates, join date, and the payments table). Board-at-cutover status is not yet in hand: the committee-table backup was held back for size and the webmaster will supply it, so the committee data exists and is pending delivery rather than empty. Until it arrives the board tier rule is deferred (or works sooner if the tier field itself encodes a board tier); once the committee data arrives, the tier-derivation check settles the full-versus-fallback choice, with honors-only as the contingency only if the board data proves insufficient.
+
+**12. The final re-export after the write-freeze. Settled (an action, not a decision).** The webmaster produces a fresh export after the write-freeze; this is a contracted step, and its timing rides on the write-freeze item below.
+
+**Cutover logistics**
+
+**13. Write-freeze timing and the notice members see. Still open.** Two things to settle: how long before the final export the legacy site goes read-only, and the notice members see during the freeze. Recommendation: an hours-scale freeze before the final export, with the notice text agreed in advance.
+
+**14. How long the legacy database is kept after cutover. Still open.** Once the import is checked, the platform's own copy of the member records is the lasting archive, so the raw legacy database is only needed for short-term rollback and for the occasional dispute lookup. Recommendation: keep it through the 48-hour rollback window plus about thirty days for recovery and disputes, then the webmaster may retire it; keeping legacy personal data longer than that serves no purpose.
+
+**15. What milestones end the webmaster's temporary role. Still open.** The role ends on milestones, not a calendar date: stable operation, the email transition complete, the DNS handover executed, and retained services resolved. Recommendation: confirm that milestone list with the webmaster, along with a review cadence.
+
+**Community knowledge and feature scope**
+
+**16. How real the impersonation risk is. Still open.** This decides whether an honors-bearing claim needs a check before it applies, beyond the after-the-fact review already in place. Recommendation: keep the no-check approach. Several safeguards already exist: a name-collision prompt at sign-up, an after-the-fact review feed for honors claims, and an admin who can reverse a wrong claim. Footbag is a small, visible community where impersonating a known competitor would be obvious and pointless, and a pre-check would slow legitimate claims and add admin work for little gain. Add a check or a grace period only if the webmaster's read of the community says impersonation is a real concern.
+
+**17. Whether old bans still matter. Still open.** The delivered data contains no ban records at all: there is no banned, blocked, or suspended field anywhere in the dump; the only status signals are `MemberValid` and `MemberEmailInvalid`, with no dedicated inactive column (§28 item 2). The test-load report counted roughly 8,000 accounts flagged by one of these signals (re-confirmed on the final export); a cleared `MemberValid` is the §2 source-validity-filter exclusion, not a ban. So there is probably nothing to carry over. The ask: the webmaster confirms whether any bans were ever enforced outside the database. If none were, this question is moot. Either way, the recommendation is to keep any legacy ban as a background note only, never blocking a claim, since old bans are probably stale and often have unknown reasons and the new platform has its own tools for handling misbehavior. Move to enforcing specific bans only if the webmaster and board say they still matter.
+
+**18. What the legacy "tournament in a box" feature actually does. Still open.** Recommendation: leave it for a later version and scope it first. Until the webmaster writes down what it does today, there is nothing to design against, and building blind risks building the wrong thing.
+
+**19. When the forums retire and become a read-only archive. Still open.** Recommendation: the forums become a read-only archive on the member-only archive site at cutover, and the new platform does not rebuild forum features. This keeps the history without the cost and moderation load of a live forum that is out of scope. Confirm the timing with the webmaster.
+
+**20. Which features launch in the first version versus later. Still open.** This sets which legacy surfaces freeze, which subdomains stay alive, and how long the webmaster's temporary role lasts. Recommendation: ship the core platform first and keep group and committee features on the legacy parallel-role server until they are migrated or retired, so launch is not delayed and nothing goes dark. Adjust only if the webmaster objects to a specific item.
+
+**21. What to do with the legacy data domains that are out of scope. Still open.** The old data also holds galleries and media, freestyle tricks, governance records, rankings, news, the rulebook, polls, and translations. Recommendation: galleries and media are served from the archive site and not imported; the rest are catalogued now so nothing is lost, with the decision on each deferred until there is a real reason and a user story to migrate it; otherwise the default is to archive or drop.
+
+**22. The proxied WordPress sites behind sites.footbag.org. Still open.** The legacy host proxies a set of WordPress sites (years of Worlds event sites) under the operator-only sites.footbag.org name. These must keep working for legacy reasons. Recommendation: keep the webmaster's existing proxy through the parallel-role window, then decide per site whether to re-host, consolidate, or retire; treat sites.footbag.org as private and not-for-publication.
+
+**23. The /reference/ MediaWiki instance. Still open.** A live MediaWiki runs at the /reference/ path, with its source on the legacy host and its database not yet delivered. Recommendation: catalogue it now, keep it on the legacy host through the parallel-role window, and decide later whether to archive, re-host, or retire it; the webmaster confirms its current state and supplies the database if any disposition needs it.
 
 ---
 
 ## Decisions made
 
-One line per ratified decision; the referenced sections carry the detail. Rows marked "default pending" hold as decided unless the linked open question revises them.
+These decisions are settled. Each is final unless a noted open question revises it.
 
-| # | Decision | Detail |
-|---|---|---|
-| 1 | Three-table identity model (`members`, `legacy_members`, `historical_persons`); the live account always wins on merge | DD §2.4; §9 |
-| 2 | No credentials are ever imported; `legacy_email` is migration metadata only, never a login | §2, §12 |
-| 3 | Claiming is voluntary and always member-confirmed: auto-link stages candidates, sends no email, and applies nothing until the member confirms a wizard card | §7, §8 |
-| 4 | Every confirmed claim carries an evidence-strength audit tag; an optional mailbox-control link click upgrades it; unresolvable cases route to an admin help request | §7, §13 |
-| 5 | Honors-bearing claims apply without admin pre-screening, with a post-facto oversight feed and digest | §7, §13; default pending question 16 |
-| 6 | Anti-enumeration: identical response shapes whether an identifier matched nothing, many rows, or something ineligible | §8 |
-| 7 | Legacy bans never gate claims; recorded as audit metadata only | §8; default pending question 17 |
-| 8 | Blanket tier mapping at claim time; honors-only fallback if tier history is absent from the data | §3 |
-| 9 | Clubs bootstrap from the mirror under deterministic four-way classification; leadership stays candidate-only until wizard confirmation | §10 |
-| 10 | Approximately 1,600 club-only members become historical persons | §2 |
-| 11 | The export is used twice (test load, then final); exclusions are counted, never silent | §2, §25 |
-| 12 | Name model: legal name plus display name sharing a surname; imported legacy rows exempt | §4 |
-| 13 | Front-door architecture is Option A: the legacy server keeps the apex and reverse-proxies the new platform's CloudFront distribution; verified workable (alternate domain plus ACM certificate, proxy sends SNI and Host as the apex name, pre-cutover smoke test proves the path) | §28, §29.12 |
-| 14 | Cutover is the webmaster's proxy flip, gated on the proxy-path smoke test; rollback inside the 48-hour window is a proxy revert; a pre-flip database snapshot is always taken | §24, §27 |
-| 15 | One mail system, never two: the email transition (inbound to Google, outbound solely SES, legacy mail server retired inbound and outbound) completes as its own atomic step strictly before the front-door cutover | §28; timing is question 8 |
-| 16 | The webmaster handles DNS initially; the zone moves to Route 53 at a post-stability DNS-handover milestone | §29.12; provider detail is question 2 |
-| 17 | The webmaster's temporary role ends on milestones, not a calendar date | §29.12a; milestone list is question 15 |
-| 18 | Legacy URLs redirect to new-platform equivalents; legacy content lands on the member-auth-gated archive subdomain | §29.12b, §29.15 |
-| 19 | The internal QC subsystem retires at go-live | §30 |
+**1.** Three identity tables work together: members (live accounts), legacy_members (old-site records), and historical_persons (competition history). When records merge, the live account always wins.
+
+**2.** No credentials are ever imported. A legacy email is migration metadata only, never a login.
+
+**3.** Claiming a past identity is voluntary and always confirmed by the member. The system stages candidate matches, sends no email, and applies nothing until the member confirms a card.
+
+**4.** Every confirmed claim records how strong the evidence was. An optional confirmation-link click sent to an old email raises that strength. Cases that nothing can resolve go to an admin help request.
+
+**5.** Honors-bearing claims (Hall of Fame, Big Add Posse) apply without an admin checking first; admins see them afterward in an oversight feed and a daily digest. Subject to open question 16.
+
+**6.** Identifier lookups never reveal whether the input matched nothing, matched several records, or matched something ineligible; the response looks the same in every case.
+
+**7.** Old bans never block a claim; they are kept only as background notes. Subject to open question 17.
+
+**8.** Tiers are mapped in bulk at claim time, with an honors-only fallback if the data lacks tier history.
+
+**9.** Clubs are bootstrapped from the mirror using a fixed four-way classification; club leadership stays a candidate only until a member confirms it through the wizard.
+
+**10.** About 1,700 club-only members become historical persons.
+
+**11.** The export is used twice (a test load, then the final one), and every excluded row is counted, never dropped silently.
+
+**12.** The name model is a legal name plus a display name that share a surname; imported legacy records are exempt from that rule.
+
+**13.** Front-door architecture is Option A: the legacy server keeps the apex and reverse-proxies the new platform, verified workable (an alternate domain name plus a matching certificate, the proxy presenting the apex name, and a smoke test that proves the path before the flip).
+
+**14.** Cutover is the webmaster flipping his proxy, gated on the smoke test; rollback within the 48-hour window is a proxy revert; a database snapshot is always taken just before the flip.
+
+**15.** One mail system, never two: the email switchover (incoming to Google, outgoing only through the platform's sender, the legacy mail server shut down both ways) happens as its own step strictly before the front-door cutover. Its date is open question 8.
+
+**16.** The webmaster handles DNS at first; DNS hosting moves to Route 53 at a later, post-stability handover. Registrar and provider details are open question 2.
+
+**17.** The webmaster's temporary role ends on milestones, not on a calendar date. The milestone list is open question 15.
+
+**18.** The new platform uses its own URLs; they do not mirror the old site's URLs, and there is no general old-to-new mapping. A bounded set of links that appear in old footbag.org emails are forwarded by explicit handlers that resolve a legacy id or slug to a live record if one exists. An old member-profile link is resolved by its legacy account id: if a live member has claimed that account, the visitor is sent to that member's page; if the account exists but is unclaimed, to a claim landing page; otherwise to a friendly not-found page. An old club link is sent to the club's page if that club still exists, otherwise to the archive. Old forum links go to the read-only archive (the platform does not rebuild forums). Anything unrecognized shows a friendly not-found page. All other legacy content lives only on the member-only archive site.
+
+**19.** The internal quality-control subsystem is removed at go-live.
+
+**20.** The new platform does not implement single-sign-on with the legacy site, and no credentials ever cross. The archive site is read-only. If the legacy site keeps a live login for returning users, it runs entirely as a webmaster-side service on its own host that the platform does not integrate with; the voluntary claim flow remains the only identity bridge.
+
+**21.** Worlds 2026 runs on the legacy registration software, and go-live is sequenced to follow it. The platform's own event system handles events from go-live onward, and no legacy registration data is imported.
+
+**22.** Historic tournament and registration data (the legacy multi-table tournament system) is not imported. The platform's canonical historical results are cleaner and authoritative; a future tournament feature, if built, models fresh rather than importing legacy data.
 
 ---
 
@@ -184,7 +219,7 @@ The cross-source identity key is `legacy_member_id`: it links `historical_person
 
 **Key invariant:** A historical person may exist without a claimed modern account. Historical data is published regardless of whether the underlying person has ever claimed a legacy account. The `legacy_member_id` on a `historical_persons` row becomes the bridge to a modern account only after a successful claim.
 
-**Pipeline status:** club extraction, candidate classification, affiliation and leadership inference, and the ~1,600 club-only member extraction are built (`legacy_data/clubs/scripts/`, `legacy_data/scripts/`). The one outstanding piece is the mirror member extraction code, which lives outside the repository (tracked in `legacy_data/IMPLEMENTATION_PLAN.md`).
+**Pipeline status:** club extraction, candidate classification, affiliation and leadership inference, and the ~1,700 club-only member extraction are built (`legacy_data/clubs/scripts/`, `legacy_data/scripts/`). The one outstanding piece is the mirror member extraction code, which lives outside the repository (tracked in `legacy_data/IMPLEMENTATION_PLAN.md`).
 
 The live system needs clubs on day one. The mirror is the best available source of club identity and prior leadership information.
 
@@ -262,7 +297,7 @@ A club without any `club_bootstrap_leaders` row at import remains leaderless unt
 
 Each imported legacy member is a **row in `legacy_members`** (schema in DATA_MODEL §4.14b; three-table rules in DD §2.4): a permanent archival record that grants no authentication and is never deleted, even after a current member claims it. Claim sets `claimed_by_member_id` + `claimed_at`; those claim-state columns clear again on PII purge or account-deletion reversion; nothing else mutates after import.
 
-**Source-validity filter.** `legacy_members` is populated from `members WHERE MemberValid > 0`. Rows with `MemberValid = 0` are excluded as source-system garbage, along with other mechanically-obvious junk: rows with no usable identity at all (no name, no email, no handle), structurally malformed or truncated rows, exact duplicates, and clear test/placeholder rows. Exception: any otherwise-excluded row referenced by a retained published event result, an award or Hall-of-Fame/BAP honor, or a documented admin-recovery need is imported anyway and flagged as a validity-exception row. Exceptions are pulled back by linkage, never by guesswork. The junk heuristics only ever remove, and the linkage exception always wins over them, so no person tied to a result or honor is dropped. The import is counted and validated at test-load: rows examined, rows excluded per rule, rows imported, and exception rows pulled back are all reported, so no exclusion is silent.
+**Source-validity filter.** `legacy_members` is populated from `members WHERE MemberValid > 0`. Rows with `MemberValid = 0` are excluded as source-system garbage (the legacy-site webmaster confirms these are unscrubbed junk and directs the canonical `SELECT ... FROM members WHERE MemberValid > 0`), along with other mechanically-obvious junk: rows with no usable identity at all (no name, no email, no handle), structurally malformed or truncated rows, exact duplicates, and clear test/placeholder rows. Exception: any otherwise-excluded row referenced by a retained published event result, an award or Hall-of-Fame/BAP honor, or a documented admin-recovery need is imported anyway and flagged as a validity-exception row. Exceptions are pulled back by linkage, never by guesswork. The junk heuristics only ever remove, and the linkage exception always wins over them, so no person tied to a result or honor is dropped. The import is counted and validated at test-load: rows examined, rows excluded per rule, rows imported, and exception rows pulled back are all reported, so no exclusion is silent.
 
 **Mirror pre-seed before the export.** To satisfy the `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)` foreign key before the legacy-account export exists, the historical pipeline pre-seeds temporary `legacy_members` rows from the mirror (club rosters plus the `historical_persons` IDs that need an FK target), keyed on `legacy_member_id` with `import_source = 'mirror'` and other columns left NULL; the seed is insert-if-absent, so re-runs add no duplicates. The legacy-account export then supersedes these rows with its full profile fields and flips `import_source` from `'mirror'` to `'legacy_site_data'`. Both key on the same `legacy_member_id` namespace (§19 item 10), so the export updates the matching pre-seeded row in place rather than inserting a duplicate. "Not mutated after import" refers to this post-export state: the mirror pre-seed is temporary scaffolding the export replaces, not a snapshot mutated after the import completes; only the claim-state columns change later.
 
@@ -413,7 +448,7 @@ The non-unique lookup index in §15.7 supports these fallback behaviors at the s
 
 ### Known name variants
 
-Known name variants are stored in a **DB table** (not CSV), seeded from mined data (~385 pairs at the current pipeline run; the generated seed file tracks the exact count). Categories: accent variations, prefix variations, typo corrections, diminutives.
+Known name variants are stored in a **DB table** (not CSV), generated from mined data (~385 pairs at the current pipeline run); the high-confidence subset (~303) is loaded and the ~82 medium-confidence pairs are deferred (the generated seed files track exact counts). Categories: accent variations, prefix variations, typo corrections, diminutives.
 
 Variants support first-name matching (e.g. Bob/Robert). Surname changes (e.g. marriage) are handled by the member-declared former surname field rather than by the variants table; the variants table holds equivalence between spellings of the same name, not transformations between different names.
 
@@ -555,7 +590,7 @@ The active modern account always survives. The `legacy_members` row is MARKED CL
 | `is_hof`, `is_bap` | OR semantics; `members.is_hof` / `members.is_bap` set to 1 if `legacy_members` has the flag |
 | `historical_person_id` | Set to the HP's `person_id` whenever the claim resolves an HP: (a) legacy-account claim where `legacy_members.legacy_member_id` matches a `historical_persons.legacy_member_id` back-link (case E per §8), or (b) direct HP claim (cases C or D per §8). Partial UNIQUE index enforces one live member per HP. |
 | `historical_persons`-sourced fields | Whenever `members.historical_person_id` is being set, the same transaction also runs the HP merge: `country` fill-if-empty from `historical_persons.country`; `is_hof` / `is_bap` OR semantics from `hof_member` / `bap_member`; `hof_inducted_year` fill-if-empty from `hof_induction_year`; `first_competition_year` COALESCE from `first_year`. This ensures honors and country propagate onto the member row from whichever archival table carries the authoritative value. |
-| `announce_opt_in` | Carry forward only if the validated export contains this field and its semantics are confirmed; unclaimed `legacy_members` rows are never treated as active mail recipients |
+| `announce_opt_in` | Not carried forward as active consent; recorded as legacy metadata only. Members establish subscription preferences fresh after claim (`M_Manage_Email_Subscriptions`); unclaimed `legacy_members` rows are never active mail recipients |
 | Legacy admin metadata (`legacy_is_admin`) | Copied to `members.legacy_is_admin` as audit/history context only; never auto-promotes live admin role |
 | Tier | Write a single `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` applying the blanket mapping defined in §3 "Tier handling at claim". The mapping uses legacy state fields on `legacy_members` (deferred schema extension per §15.16, gated on §25 G6); honors-only fallback applies if the extension is absent. No conditional "exceeds current" logic. |
 | Confirmed club affiliations | Write/update `member_club_affiliations` |
@@ -628,7 +663,7 @@ Wizard resolution treats all source identities as resolving to the merged candid
 
 #### Hard exclusions: junk
 
-A candidate is marked `junk` only by the signal-absence rule below or the force-junk override. Junk candidates remain in the candidate set for audit but are invisible to all non-admin surfaces. Pattern rules (name blacklist, structural patterns, profanity list) are deliberately not part of the classifier: evaluated against the full 312-club candidate set they matched zero candidates, and the mirror is frozen, so they cannot ever match.
+A candidate is marked `junk` only by the signal-absence rule below or the force-junk override. Junk candidates remain in the candidate set for audit but are invisible to all non-admin surfaces. Pattern rules (name blacklist, structural patterns, profanity list) are deliberately not part of the classifier: evaluated against the full club-candidate set they matched zero candidates, and the mirror is frozen, so they cannot ever match.
 
 Signal-absence rule fires when all of the following hold simultaneously:
 
@@ -722,7 +757,7 @@ Required order:
 
 ### 10.2 Expanding historical_persons for club members
 
-The historical_persons table contains ~3,570 persons drawn from event results (count moves with pipeline runs; §26 and the pipeline QC reports are authoritative). Approximately 1,600 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
+The historical_persons table contains ~3,570 persons drawn from event results (count moves with pipeline runs; §26 and the pipeline QC reports are authoritative). Approximately 1,700 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
 
 ### 10.3 Club onboarding flow during registration
 
@@ -817,7 +852,7 @@ Task ordering is fixed: `personal_details`, then `legacy_claim`, then `club_affi
 
 ### Storage
 
-`member_onboarding_tasks` (DATA_MODEL §4.27) carries one row per (member_id, task_type) with state and timestamps. The table is permanent operational state, not migration-only.
+`member_onboarding_tasks` (DATA_MODEL §4.29) carries one row per (member_id, task_type) with state and timestamps. The table is permanent operational state, not migration-only.
 
 ### Relationship to §10.3
 
@@ -1012,7 +1047,7 @@ The staging table is `auto_link_staged_candidates` in `database/schema.sql`. The
 Location: `legacy_data/event_results/canonical_input/`
 
 - `persons.csv`: historical persons with IFPA IDs, honors, stats
-- `events.csv`, `events_normalized.csv`: historical events
+- `events.csv`: historical events (the normalized variant `events_normalized.csv` is an upstream curated input under `legacy_data/inputs/`)
 - `event_results.csv`: result entries
 - `event_result_participants.csv`: participant-to-result mappings
 - `event_disciplines.csv`: discipline breakdowns
@@ -1023,6 +1058,7 @@ Location: `legacy_data/seed/`
 
 - `clubs.csv`: club identities extracted from mirror
 - `club_members.csv`: club membership associations from mirror (~2,400 associations)
+- `name_variants.csv` (generated seed, `legacy_data/inputs/`): ~385 name-equivalence pairs from `build_name_variants.py`, committed for review; loaded by `load_name_variants_seed.py` (gate G11; see §15.15)
 
 ### Generated CSVs (pipeline output, regenerable; not committed)
 
@@ -1141,7 +1177,7 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 6. **Test export (DELIVERED, validation pending)**: a full export of live legacy member records for validation purposes only (no production changes). The webmaster has delivered the legacy data; the historical-pipeline maintainer is analyzing it. It unblocks all data-quality validation, auto-link coverage projections, and tier-mapping decisions; items 7-13 below now run as validation checks against the delivered data rather than as requests.
 
-7. **Canonical export format**: CSV, UTF-8 encoded, LF line endings, RFC 4180 quoting, empty string for NULL, ISO 8601 dates (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ for timestamps), comma delimiter. The same format is used for the test export and the final production export.
+7. **Export delivery format**: the webmaster delivers a raw per-module MariaDB dump (`mysqldump`), the same format for the test export and the final production export. The platform owns the conversion: the extraction step (legacy_data track) parses the dump, drops credential and session columns, and emits the loader input in canonical form (CSV, UTF-8 encoded, LF line endings, RFC 4180 quoting, empty string for NULL, ISO 8601 dates as YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ, comma delimiter). That canonical CSV is an internal artifact, not a separate webmaster deliverable. The source is the webmaster's private GitHub repository (per-app `create.sql` schemas plus `backups/latest.sql` dumps), which holds clear-text passwords and PII and must never be made public or gain collaborators without the webmaster's approval; the platform reads it strictly read-only and never republishes it. Server configuration not in the repository (sendmail and anti-spam, apache2, bind9 DNS) is supplied separately by the webmaster, since it cannot be mined from the dump.
 
 8. **Field semantics confirmation**: for each export column, especially:
    - Legacy member ID (field name, format, uniqueness guarantee)
@@ -1152,7 +1188,7 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
    - Tier / membership fields (current tier, expiry dates, tier history if available)
    - Account-status flags of any kind: `banned`, `inactive`, `is_admin`, `suspended`, `locked`, `deleted`, `expired`, `lapsed`, `no_contact`, privacy/visibility flags (e.g. `hidden`, `private_profile`), opt-out flags, and any other column on the legacy `members` table whose value gates eligibility for self-serve claim, opens admin-recovery paths, or affects what the member sees on the legacy site. Confirm presence, reliability, and semantics for each. If unsure whether a column counts, include it.
 
-9. **Password-column exclusion**: confirm explicitly that the export contains no password columns (no `password_hash`, no salt, no iteration count, no recovery-question answers). Password material is never imported (DD §3.9). The exclusion is a hard contract, not an implicit assumption. In addition to the webmaster's confirmation, the operator independently schema-checks the received export before loading and aborts the load if any password-bearing column is present; attestation alone is insufficient, so the schema-check is mandatory.
+9. **Credential exclusion**: password material is never imported (DD §3.9). The raw dump contains credential and session columns (the legacy `members` table carries `MemberPassword` and `MemberSession`); the platform's extraction step drops them and never emits them into the loader input. As a hard backstop, the load step aborts before reading any row if any column header looks credential-bearing (password, hash, salt, secret, recovery); attestation alone is insufficient, so this guard is mandatory.
 
 10. **Namespace agreement for `legacy_member_id`**: confirm that the integer IDs in the export are the same integers used in the legacy site's `members/profile/{id}` URLs (the mirror-derived namespace). If they diverge, resolve before any test import; otherwise every `historical_persons.legacy_member_id` → `legacy_members.legacy_member_id` back-link in the pipeline is invalidated.
 
@@ -1162,13 +1198,13 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 13. **Data-quality metric requests**: an estimate of the percentage of `legacy_email` addresses that are plausibly still deliverable (informs auto-link coverage projections), and the last-activity timestamp per row (informs admin-recovery capacity planning).
 
-14. **Final production export**: after write freeze, identical format to the test export.
+14. **Final production export**: after write freeze, a fresh raw MariaDB dump, identical format to the test export.
 
 ### 19.3 DNS and infrastructure
 
 15. **Zone authority and apex capability (deferred to the DNS-handover milestone)**: the webmaster, a DNS expert, holds and operates the zone through cutover; under the agreed Option A the apex does not move at cutover, so apex ALIAS capability is not cutover-blocking. Before the post-stability DNS-handover milestone: identify the registrar and authoritative provider, and plan the zone migration to Route 53 (a multi-day operation affecting all `*.footbag.org` records) with mail records copied from a zone snapshot.
 
-16. **Legacy subdomain inventory**: enumerate every `*.footbag.org` subdomain that must continue resolving at the legacy host through cutover and beyond. `archive.footbag.org` is reserved for the new platform per §29.15. Full inventory needed, from the webmaster, not the repo (the mirror does not represent DNS or server config). A known candidate to confirm and disposition is `lists.footbag.org` (frozen read-only listserv archive). Any private operator-only subdomain must be flagged private and not-for-publication. Media reachable only by direct `video.`/`photo.` file paths is handled under §29.15 (archive completeness), not retained as a subdomain.
+16. **Legacy subdomain inventory**: enumerate every `*.footbag.org` subdomain that must continue resolving at the legacy host through cutover and beyond. `archive.footbag.org` is reserved for the new platform per §29.15. Full inventory needed, from the webmaster, not the repo (the mirror does not represent DNS or server config). A known candidate to confirm and disposition is `lists.footbag.org` (the frozen read-only majordomo listserv archive, 1994-1999). The operator-only `sites.footbag.org` proxies a set of WordPress sites (years of Worlds event sites) that must keep working (front-matter question 22), and a live MediaWiki at the `/reference/` path is a retained service whose database is not yet delivered (front-matter question 23). Any private operator-only subdomain must be flagged private and not-for-publication. Media reachable only by direct `video.`/`photo.` file paths is handled under §29.15 (archive completeness), not retained as a subdomain.
 
 17. **Records-actor (AGREED: the webmaster)**: the webmaster applies maintainer-supplied records to the zone. The records are: the ACM validation CNAMEs (permanent; they also drive renewals), the SES DKIM CNAMEs (permanent), the SPF and DMARC TXT records (applied on email-transition day per §29.12a), the `footbag.org` MX repoint to Google (email-transition day), and the `archive.footbag.org` record pointing at the archive distribution. The apex itself does not move at cutover under Option A.
 
@@ -1184,7 +1220,7 @@ See §28 "Email transition" for the full consolidation: one mail system, never t
 
 21. **Email inventory**: what `@footbag.org` mailboxes and aliases exist today? Which are actively used vs. dead or spam-only?
 
-22. **Mailing list inventory**: what mailing lists exist, who manages them, and what software runs them? (announce@, board@, committee lists, regional lists, others.) Are there complex features (moderation, archives, digests) or are they simple distribution lists? IFPA `@ifpa.footbag.org` list mail is dispositioned separately under §29.12a (IFPA list mail), not as part of the ordinary `@footbag.org` inventory.
+22. **Mailing list inventory**: what mailing lists exist, who manages them, and what software runs them? (announce@, board@, committee lists, regional lists, others.) Are there complex features (moderation, archives, digests) or are they simple distribution lists? Recommended classification: for each list, determine whether it accepts inbound posts from subscribers (discussion) or is broadcast-only. The platform sends outbound via SES and accepts no inbound mail, so inbound/discussion lists must move to a Google Group (Google owns inbound and redistribution) or be retired, while broadcast-only lists become platform announce; settle each before the MX flip so nothing consuming an `@footbag.org` address goes dark. IFPA `@ifpa.footbag.org` list mail is dispositioned separately under §29.12a (IFPA list mail), not as part of the ordinary `@footbag.org` inventory.
 
 23. **Mail server platform**: what is the current mail server platform (Postfix, Exchange, hosted provider, etc.)? Needed for migration planning.
 
@@ -1198,9 +1234,9 @@ See §28 "Email transition" for the full consolidation: one mail system, never t
 
 27. **Tournament in a box**: see §28 "Tournament in a box" for the full set of open questions. The webmaster must define what the legacy tournament management feature does today before it can be placed in the phased feature scope.
 
-28. **Forum retirement**: when is the webmaster comfortable retiring the legacy forums? The new platform will not replicate forum functionality; legacy forum content goes to a read-only archive at `archive.footbag.org`.
+28. **Forum retirement**: when is the webmaster comfortable retiring the legacy forums? The new platform will not replicate forum functionality; legacy forum content goes to a read-only archive at `archive.footbag.org`. The webmaster is presently unsure of the live phpBB forum's state (whether it still runs, and whether already read-only), so confirming the forum content is locatable and extractable to a static mirror is a prerequisite to the archive plan.
 
-34. **Legacy-feature disclosure (deliverable)**: the webmaster enumerates every function running on the legacy site, including pages, tools, crons, feeds, forms, and mail hooks, so nothing is discovered after cutover. The facts feed USER_STORIES gap-fill: the maintainer authors the stories, the webmaster supplies the facts. Anything the disclosure reveals that belongs in v1 is added to the v1 scope. Gate WM19.
+34. **Legacy-feature disclosure (deliverable)**: the webmaster enumerates every function running on the legacy site, including pages, tools, crons, feeds, forms, and mail hooks, so nothing is discovered after cutover. The facts feed USER_STORIES gap-fill: the maintainer authors the stories, the webmaster supplies the facts. Anything the disclosure reveals that belongs in v1 is added to the v1 scope. A first installment has been delivered in narrative form (a legacy-repository walkthrough covering per-app schemas, data dumps, sub-domains, and mail systems); its facts are folded into the §28 dispositions and the item 16 subdomain inventory. Gate WM19.
 
 ### 19.6 Cutover operations
 
@@ -1233,7 +1269,7 @@ See §28 "Email transition" for the full consolidation: one mail system, never t
 The historical-pipeline work, with build state:
 
 1. **Club extraction into pipeline** (built: `legacy_data/clubs/scripts/` implements §10.1 classification, affiliation and leadership inference, and bootstrap eligibility per the §2 bootstrap rule).
-2. **Mirror member extraction** into `historical_persons` (~1,600 club-only members; loaders built, the extraction code itself is outside the repo, tracked in `legacy_data/IMPLEMENTATION_PLAN.md`). Field mapping: mirror member ID → `legacy_member_id`; mirror display name → `person_name` (NFKC normalization + suffix stripping per §4); mirror country → `country`; mirror first-seen year → `first_year` if present, else NULL; provenance recorded in `source` (`CLUB` / `MEMBERSHIP` / `RESULTS`) and `source_scope = 'PROVISIONAL'` (event-result rows carry `source_scope = 'CANONICAL'`). Conflict policy: a mirror member that duplicates an existing row is skipped and counted, via name-level dedup plus the unique index on `historical_persons.legacy_member_id` (constraint-violation skip); the existing row wins because event-result provenance is stronger than membership-only provenance.
+2. **Mirror member extraction** into `historical_persons` (~1,700 club-only members; loaders built, the extraction code itself is outside the repo, tracked in `legacy_data/IMPLEMENTATION_PLAN.md`). Field mapping: mirror member ID → `legacy_member_id`; mirror display name → `person_name` (NFKC normalization + suffix stripping per §4); mirror country → `country`; mirror first-seen year → `first_year` if present, else NULL; provenance recorded in `source` (`CLUB` / `MEMBERSHIP` / `RESULTS`) and `source_scope = 'PROVISIONAL'` (event-result rows carry `source_scope = 'CANONICAL'`). Conflict policy: a mirror member that duplicates an existing row is skipped and counted, via name-level dedup plus the unique index on `historical_persons.legacy_member_id` (constraint-violation skip); the existing row wins because event-result provenance is stronger than membership-only provenance.
 3. **Known name variants table** (built; seeded from mined data per §15.15).
 4. **World records CSV** (built; loadable per G15).
 5. **Legacy-data analysis and review sign-off** (in progress: the delivered legacy data is under analysis). The sign-off confirms legacy data is complete and member-list presentation is reviewed (unblocks members ungating), recorded as an `audit_entries` row with `action_type='legacy_pipeline.data_review_signoff'`, the maintainer's identity in `actor_member_id`, and reference identifiers plus a free-text reasoning summary in `metadata_json`.
@@ -1268,8 +1304,8 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | G8 | High-confidence bootstrap leader candidates | §25 | State 2 → State 3 |
 | G9 | Bootstrapped clubs produce valid pages | §25 | State 2 → State 3 |
 | G10 | Outbox → SES → inbox smoke passes end-to-end | §25 | State 3 → State 4 |
-| G11 | `name_variants` seeded (~385 pairs; seed file tracks the count) | §25 | State 1 → State 2 |
-| G12 | ~1,600 club-only persons extracted into `historical_persons` | §25 | State 1 → State 2 |
+| G11 | `name_variants` seeded (~385 mined pairs generated; high-confidence subset ~303 loaded, ~82 medium-confidence deferred; seed files track exact counts) | §25 | State 1 → State 2 |
+| G12 | ~1,700 club-only persons extracted into `historical_persons` | §25 | State 1 → State 2 |
 | G13 | `club_bootstrap_leaders` populated | §25 | State 1 → State 2 |
 | G14 | `persons.csv` count reconciled | §25 | State 1 → State 2 |
 | G15 | World records platform export produced | §25 | State 1 → State 2 |
@@ -1304,11 +1340,11 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 |---|---|---|---|
 | WM1 | Test export delivered and validated in the canonical format | §19 items 6, 7 | State 1 → State 2 |
 | WM2 | Legacy-export field semantics confirmed (IDs, username, email, registration date, last-activity, tiers, banned flags) | §19 item 8 | State 1 → State 2 |
-| WM3 | Password-column exclusion confirmed (no `password_hash`, salt, or related material in export) | §19 item 9 | State 1 → State 2 |
+| WM3 | Credential exclusion enforced: extraction drops `MemberPassword`/`MemberSession`; load-step credential-header abort verified | §19 item 9 | State 1 → State 2 |
 | WM4 | Namespace agreement for `legacy_member_id` confirmed and verified by 10% spot-check | §19 items 10, 11 | State 1 → State 2 |
 | WM5 | Banned-member product semantics confirmed; admin-recovery routing documented | §19 item 12 | State 1 → State 2 |
 | WM6 | Data-quality metrics delivered (deliverability estimate, last-activity timestamps) | §19 item 13 | State 1 → State 2 |
-| WM7 | Final production export delivered post-write-freeze, identical format to test export | §19 item 14 | State 3 → State 4 |
+| WM7 | Final production export delivered post-write-freeze, same raw-dump format as the test export | §19 item 14 | State 3 → State 4 |
 | WM8 | Write-freeze / maintenance mode coordinated on legacy site (dependent on §28 phased feature scope) | §19 item 29 | State 3 → State 4 |
 | WM9 | Legacy database retention committed (minimum 30 days post-cutover) | §19 item 30 | State 3 → State 4 |
 | WM10 | Front-door flip coordination confirmed: T-7d notice, flip-day availability, and the §27 monitored-window coverage (no DNS TTL choreography applies to the flip) | §19 item 18; §29.12 | State 3 → State 4 |
@@ -1394,6 +1430,8 @@ Club extraction, name-variants seeding, and world records are built (§20). Outs
 The delivered data is under validation (§25 gates). Outstanding code-side work: the optional mailbox-link-click upgrade (§7 item 1) and the stage-and-confirm batch auto-link rework with its staging table (§7 item 3, §15.20).
 
 ### Phase 4: Go-live
+
+Scheduling constraint: go-live is sequenced to follow Worlds 2026, which runs on the legacy registration software (Decision 21); the cutover write-freeze and final export do not precede Worlds 2026.
 
 External prerequisites that must land before Phase 4 starts:
 
@@ -1504,8 +1542,8 @@ The following must be confirmed at the test load before go-live. These are not o
 | G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
 | G9 | Bootstrapped clubs produce valid, non-broken club pages | Fix UI before go-live |
 | G10 | Outbox → SES → recipient inbox path works end-to-end on the pre-cutover release (enqueue test row, worker drains within 60 seconds, SES returns MessageId, message arrives in recipient inbox) | Debug before cutover; common causes are IAM Resource scope, SES sandbox state, worker container env vars, worker event-loop bugs |
-| G11 | `name_variants` seeded with the mined pairs (~385; §15.15) | Auto-link medium-confidence coverage drops; low-confidence admin queue expands; document shortfall in State 1 review |
-| G12 | ~1,600 club-only persons extracted into `historical_persons` per §10.2 | Classification signals (active-players, contact-competed) run with reduced coverage; onboarding-visible list may shrink |
+| G11 | `name_variants` seeded with the high-confidence mined pairs (~303 loaded of ~385 generated; ~82 medium-confidence deferred per §15.15) | Auto-link medium-confidence coverage drops; low-confidence admin queue expands; document shortfall in State 1 review |
+| G12 | ~1,700 club-only persons extracted into `historical_persons` per §10.2 | Classification signals (active-players, contact-competed) run with reduced coverage; onboarding-visible list may shrink |
 | G13 | `club_bootstrap_leaders` populated for pre-populated clubs meeting the §2 bootstrap rule | Leadership activation defers to path 2 (first affiliated member accepts leadership) for affected clubs |
 | G14 | Canonical `persons.csv` row count reconciled against `historical_persons` population; any accepted discrepancy documented and signed off | Block at test load until reconciled; unexplained delta risks missing or duplicated historical identities |
 | G15 | World records export produced in platform format and loads into the records schema cleanly | Records page launches empty or incomplete; fix export before go-live or hide the records entry point |
@@ -1528,7 +1566,7 @@ The following must be confirmed at the test load before go-live. These are not o
 
 ## 26. Data quality from persons.csv analysis
 
-Counts move with pipeline runs; the pipeline QC reports are authoritative. Verified against the current canonical outputs: `legacy_data/event_results/canonical_input/persons.csv` carries ~3,570 persons (the ~1,600 club-only cohort loads separately as PROVISIONAL rows per §10.2), and the generated `name_variants` seed carries ~385 pairs (gate G11; the seed file tracks the exact count).
+Counts move with pipeline runs; the pipeline QC reports are authoritative. Verified against the current canonical outputs: `legacy_data/event_results/canonical_input/persons.csv` carries ~3,570 persons (the ~1,700 club-only cohort loads separately as PROVISIONAL rows per §10.2), and the generated `name_variants` seed carries ~385 pairs (gate G11; the seed file tracks the exact count).
 
 One structural limitation worth keeping in view: first-name-change cases (a member who legitimately changed their first name, rather than a variant or spelling difference) cannot be caught by the variants table; they surface only when the member declares the change through the optional anchors (§15.17) or invokes the admin help request (§13).
 
@@ -1586,9 +1624,9 @@ Webmaster-facing open questions live in the front-matter table; this section hol
 
 Decisions gated on what validation of the delivered legacy data reveals.
 
-1. **`announce_opt_in`**: Not in the current schema. If the legacy-account export contains a meaningful communication-preference field, add the column to `members` and carry it forward at claim. Gated entirely on the test load.
-2. **`legacy_banned`**: Column added only if the legacy-account export contains a trustworthy banned/inactive field. See section 15.5. The banned flag is recorded as audit metadata only and does not gate claim cards (§13).
-3. **Tier-mapping fields on `legacy_members` (§15.16)**: five `legacy_*` tier-state columns land if test-load validation confirms the legacy export's tier fields are sufficient. If insufficient, the honors-only fallback applies (§3 precedence rows 3–5 removed; tier mapping reduces to HoF/BAP → `tier2`, everything else → `tier0`). The fallback decision, when chosen, is recorded here with the test-load evidence that drove it.
+1. **`announce_opt_in`**: Test load confirms the field is present (`MemberAnnounceOptIn`, plus `MemberEmailOptIn`). Resolved: legacy mailing opt-in is not imported as active consent and no `members` column is added. The legacy flags are recorded as legacy metadata only; members set their subscription preferences fresh after claim via `M_Manage_Email_Subscriptions`, and unclaimed `legacy_members` rows are never active mail recipients.
+2. **`legacy_banned`**: Test load shows no banned/inactive column exists in legacy `members`. Gate G3 takes its FAIL fallback: the column does not land; questionable rows route through admin review (§8). Available negative signals are `MemberValid=0` and `MemberEmailInvalid`. See section 15.5.
+3. **Tier-mapping fields on `legacy_members` (§15.16)**: test load confirms the tier/payment source inputs are present (`MemberIFPATier`, `MemberIFPAExpiration`, `MemberIFPAPrevExp`, `MemberIFPAPaid`, `MemberIFPAPaymentDate`, `MemberIFPAJoined`, `ifpa_memberpayments`); the five `legacy_*` columns are derived, not copied. Board-at-cutover data (precedence 1) was not in the delivered dump: the `groups/` committee-table backup (`ifpa_committees`, `ifpa_committee_members`) was held back for size and the webmaster will supply it, so the committee data exists and is pending delivery rather than unpopulated. Until it arrives, `legacy_was_board_at_cutover` derives only if `MemberIFPATier` encodes Tier 3; once delivered, precedence 1 derives from the committee tables. The honors-only fallback applies only if the board derivation proves insufficient after delivery (§3 precedence rows 3–5 removed; tier mapping reduces to HoF/BAP → `tier2`, everything else → `tier0`). The fallback decision, when chosen, is recorded here with the test-load evidence that drove it.
 
 ### For the legacy-site webmaster's community knowledge
 
@@ -1597,6 +1635,26 @@ Decisions gated on the webmaster's read of community dynamics rather than on tes
 4. **Impersonation risk magnitude**: how significant is the risk that a registrant picks a famous competitor's surname (or declares a former surname matching one) and confirms a card or a direct historical-record claim under a false identity? The platform currently applies no platform gate for honors-bearing direct claims (§8): honors-bearing claims apply on member confirmation; admin sees them post-facto via the oversight feed (§13); the registration-time conflict prompt (§8) catches same-name collisions at signup. If the webmaster's read indicates impersonation is a meaningful concern, the platform may reinstate a gate (hold honors-bearing direct claims for admin verification) or move to a community-grace-window model (the claim is visible but flagable for N days before solidifying). Pending the webmaster's input, the no-gate stance stands.
 
 5. **Banned policy carryover**: what fraction of legacy bans represent ongoing community issues vs. stale historical bans that nobody would enforce now? The current default treats the legacy banned flag as audit metadata only and does not gate the claim card (§13). If the webmaster and the IFPA board indicate many legacy bans are still meaningful, the platform may shift to one of: ban carries over silently (claim applies but new account starts in a restricted state); banned legacy accounts unclaimable self-serve (member contacts admin); claim held until board review. Pending input, the audit-metadata-only default stands.
+
+### Authoritative club data cross-validation (deferred)
+
+The delivered legacy dump carries authoritative club data the mirror pipeline currently infers: a `clubs` table (602 rows, with `Approved`, location lat/lon, and `ClubPlaysNet`/`ClubPlaysFreestyle`) and a `clubcontacts` table (1,400 member-to-club links carrying `ContactPriority`). The committed mirror-extracted source is `legacy_data/seed/club_members.csv` (~2,400 associations, §16). Where they overlap, an authoritative `clubcontacts` link is higher quality than a confidence-scored inference, and `ContactPriority` can seed leadership more reliably. This cross-validation is deferred (it touches the historical-pipeline track's scripts) and will be done as a coordinated quality pass. Deletion on the legacy site was soft (the `clubs.Approved` flag set false, never a row delete), so dormant and "deleted" clubs persist in the `clubs` table as unapproved rows rather than being absent; the mirror remains the source only for clubs that predate or never entered the live table. The `clubcontacts` join (`ClubContactID` to `members.MemberID`, `ContactClubID` to `ClubID`) is the authoritative member-to-club link.
+
+### Legacy data domains present but unscoped
+
+The delivered dump contains domains outside this plan. Recorded for a future scope decision; none is built without one.
+
+| Domain | Dump rows | Disposition |
+|---|---|---|
+| Gallery / media | 16,768 images, 1,955 sets | Out of scope: served from `archive.footbag.org` (§29.15); not migrated |
+| Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | Not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` data is abandoned (`moves_journal` is per-member private if ever reconsidered) |
+| IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | Decide whether governance history is preserved; payments are already read for tier derivation; committee/board data is absent from the dump |
+| Rankings | 12,672, plus 14 sets | No rankings surface scoped; decide whether it is a future feature |
+| News | 17,682 | Decide archive-only vs import vs drop |
+| Rules (`rulebook3`) | 1,619 | IFPA rules already live in `ifpa/`; likely archive-only |
+| Polls | 11, plus 4,899 answers | Likely drop |
+| Localization | ~561 across four tables | Legacy i18n; likely drop |
+| FAQ (`FaqQuestions`/`FaqAnswers`) | legacy, rarely updated | Archive-or-drop; check first for any sanctioning or membership-tier policy references |
 
 ### Front-door architecture (resolved: Option A)
 
@@ -1639,6 +1697,8 @@ Open questions for the webmaster:
 
 Allocation (decided): not in v1. Tournament-in-a-box stays on the legacy server through the parallel window (v3); the new-platform version is scoped only after the webmaster's legacy-feature disclosure (§19 item 34) defines what it does today.
 
+Historic tournament and registration data is not imported (Decision 22): the platform's canonical historical results are cleaner and authoritative, so the webmaster need not export the legacy tournament tables; a future tournament feature, if built, models fresh. Worlds 2026 runs on the legacy registration software, with go-live sequenced to follow it (Decision 21); the legacy registration system is a retained service through the parallel window. The legacy `registration/create.sql` is a stale stub and is not a reliable schema reference.
+
 ### Email transition
 
 Email architecture is decided: **one mail system, never two.** The platform must own outbound from go-live, therefore the legacy mail server retires entirely (inbound and outbound) in a single atomic transition that completes strictly before the front-door cutover. Running the legacy sender alongside SES is excluded; a dual-sender window is a deliverability and confusion hazard with no upside.
@@ -1665,8 +1725,7 @@ Email architecture is decided: **one mail system, never two.** The platform must
 2. Which are actively used vs. dead or spam-only.
 3. Mailing lists, their owners, software, and per-list disposition (front-matter question 7).
 4. Mailbox type per address: real login mailboxes (IMAP/POP) vs. forwarding aliases (drives Google configuration).
-5. Who owns and administers the Google tenancy (front-matter question 9).
-6. Validation queries against the delivered legacy data: count `@footbag.org` addresses appearing in `legacy_members.legacy_email` and `members.login_email`; each needs Google provisioning or its claim/reset round-trips bounce.
+5. Validation queries against the delivered legacy data: count `@footbag.org` addresses appearing in `legacy_members.legacy_email` and `members.login_email`; each needs Google provisioning or its claim/reset round-trips bounce.
 
 ### Standing consistency notes
 

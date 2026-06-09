@@ -28,7 +28,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   force-keep. The platform queue is not part of this loop pre-go-live; the story's platform-side
   request verbs are deferred to live operation (root IP entry).
 
-- **Mirror member extraction code lives outside the repo.** The production-shaping extraction code for the mirror member pipeline (the source of the ~1,600 club-only `historical_persons` rows) is currently reproducible only by the historical-pipeline maintainer. Commit it into `legacy_data/scripts/` before the MIGRATION_PLAN §24 State 3 → State 4 transition.
+- **Mirror member extraction code lives outside the repo.** The production-shaping extraction code for the mirror member pipeline (the source of the ~1,700 club-only `historical_persons` rows) is currently reproducible only by the historical-pipeline maintainer. Commit it into `legacy_data/scripts/` before the MIGRATION_PLAN §24 State 3 → State 4 transition.
 
 - **Candidate live-content columns need loader coverage (James-track).** `legacy_club_candidates` now carries nullable `description` and `external_url` columns (platform-side schema add; the promotion path publishes them onto the live club, URL only after validation). The enrichment loader does not yet populate them from the mirror extraction, so platform-promoted clubs currently land with an empty description and no URL. Extend the candidate loader to carry both fields from `seed/clubs.csv` and re-run the load.
 
@@ -38,6 +38,41 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   1. Content (curator): `about.hbs` uses "moves"/"move" where canonical is "tricks"/"trick" (the Shred 30 paragraph's "adds per move", the Sick 3 paragraph's "substitute easier moves").
   2. Content (curator): Glossary §1 vocabulary-stabilization claim lacks an inline citation; add one if corpus-backed.
   3. Content (curator): the glossary's closing about-framing passage names nine community contributors by name; other freestyle pages don't. Decide public-attribution policy.
+
+- **Legacy member-account import: build the raw-dump → `legacy_members` extraction (cutover-blocking; MIGRATION_PLAN §2 / §19, State 4 step 3; see the "Legacy-site data dump" BLOCKER below for the data dependency).** The webmaster delivers the legacy member data as a raw per-module MariaDB dump, same format for the test load and the final post-write-freeze export (the dump arrives as per-module `*/backups/latest.sql` files; operator-supplied, never committed). The CSV→DB loader `scripts/load_legacy_export.py` ALREADY EXISTS (credential-header abort, source-validity filter, upsert keyed on `legacy_member_id`, intra-export collision handling). The GAP is the raw-dump→canonical-CSV extraction that feeds it, plus admin and tier derivation. This entry is the canonical home for the legacy-account extraction spec (migrated from the deleted `Legacy_data_dump.md` test-load report); MIGRATION_PLAN §2 carries the design-level `legacy_members` shape, this carries the build recipe. All scripts read the dump read-only and write only CSV / report outputs, never the real-data trees.
+
+  1. **`scripts/extract_legacy_members.py`** — parse the dump's `members/backups/latest.sql`; emit the canonical credential-free CSV `load_legacy_export.py` consumes (UTF-8, LF, RFC 4180, empty string for NULL, ISO 8601 dates, comma delimiter; headers the loader's alias table recognizes).
+     - **Source-validity filter:** keep `MemberValid > 0`; exclude mechanically-obvious junk (no usable identity = no name AND no email AND no handle; structurally malformed / truncated; exact duplicates; clear test / placeholder rows). **Linkage exception:** any otherwise-excluded row whose `MemberID` is referenced by a retained published result, honor, or documented admin-recovery need is imported anyway and flagged as a validity-exception (linkage always wins over the junk heuristics). Emit counts: examined / excluded-per-rule / imported / exception.
+     - **Credentials:** drop `MemberPassword` and `MemberSession` entirely; never read them into the CSV (the loader's credential-header abort is the backstop, not the primary guard).
+     - **Column → field map** (legacy `members` column → `legacy_members` field):
+       - `MemberID` → `legacy_member_id` (PK; old-site account id; same namespace as `members/profile/{id}` URLs)
+       - `MemberAlias` → `legacy_user_id` (the handle, product term "legacy username"); also the `display_name` candidate
+       - `MemberEmail` → `legacy_email` (primary); distinct `MemberEmail2` / `MemberEmail3` → declared `old_email` anchors per MIGRATION_PLAN §15.17
+       - `MemberFirstName` / `MemberLastName` / `MemberMiddleName` (+ parallel `*Unicode` columns) → `real_name` (Unicode column first, latin1 transcode fallback)
+       - `MemberCity` / `MemberState` / `MemberCountry` (+ `*Unicode`) → `city` / `region` / `country` (nullable per §15.2)
+       - `MemberComment` → `bio`
+       - `MemberBirthMonth` / `MemberBirthDay` / `MemberBirthYear` → `birth_date` (assemble three ints)
+       - `MemberAddress1` / `MemberAddress2` → `street_address`; `MemberZIP` → `postal_code`
+       - `MemberIFPAJoined` → `ifpa_join_date`
+       - `MemberIFPATier` + payment / expiry fields → the five §15.16 tier fields (derived; see script 3)
+       - `MemberAnnounceOptIn` / `MemberEmailOptIn` → **NOT imported.** Resolved (MIGRATION_PLAN §28 item 1): legacy mailing opt-in is not carried forward as active consent and no `members` column is added; members set subscriptions fresh post-claim.
+       - `MemberPassword`, `MemberSession` → dropped (never imported)
+
+  2. **`scripts/extract_legacy_admins.py`** (or fold into script 1) — derive `legacy_is_admin`. There is NO `banned` / `blocked` column and NO admin flag on `members`; admin status is relational. Source: the `admins` table (test load 108 rows; in the dump's `members/admin/backups/latest.sql`), keyed `AdminID = MemberID`, with `AdminValid` and `AdminRealm` (scope). Set `legacy_is_admin = 1` where `AdminValid = 1`. Audit metadata only; never auto-promotes a live admin role. (The only negative signals in the dump are `MemberValid=0`, already filtered, and `MemberEmailInvalid`.)
+
+  3. **`scripts/derive_legacy_tier_fields.py`** — compute the five §15.16 tier fields (gate G6). These columns are NOT yet in `database/schema.sql` (deferred extension, added when G6 PASSes per §15.16 — a platform-schema change coordinated with Dave). Source-signal map:
+     - `legacy_ever_paid_tier2` ← `ifpa_memberpayments.PaymentLevel` history + `MemberIFPAPrevExp`
+     - `legacy_ever_paid_tier1_lifetime` ← `ifpa_memberpayments` (lifetime tier-1 purchase)
+     - `legacy_tier1_annual_active_at_cutover` ← `MemberIFPATier` + `MemberIFPAExpiration` active at cutover
+     - `legacy_was_board_at_cutover` ← **not yet delivered**: the `groups/backups` dump (`ifpa_committees`, `ifpa_committee_members`) was held back for size and the webmaster will supply it; the committee data exists (the tables are not empty). Until it arrives, derivable only if `MemberIFPATier` encodes a Tier-3 value; once delivered, derive board status from the committee tables. §3 precedence 1 drops only if the data proves insufficient after delivery.
+     - `legacy_board_underlying_paid_tier` ← moot unless board members are identifiable (see above); else from prior `ifpa_memberpayments` tier.
+     - Spot-check each field against known reference cases (HoF / BAP with documented payment history, board-at-cutover, known lifetime-tier1 payers). If insufficient overall, G6 PASSes via the honors-only fallback (§3 precedence rows 3–5 dropped; HoF / BAP → tier2, else tier0); record the fallback decision in MIGRATION_PLAN §28.
+
+  4. **`scripts/validate_legacy_export.py`** — read-only gate report: G1 (`legacy_email` unique where non-NULL across `MemberEmail` / 2 / 3), G2 (`MemberAlias` unique where non-NULL), G4 (profile / contact null shape), G5 (id quality: integer PK, max id). Some of this overlaps logic already in `load_legacy_export.py`; reconcile rather than duplicate.
+
+  5. **Loader — already built.** `scripts/load_legacy_export.py` (CSV → `legacy_members`; supersedes the mirror pre-seed on the shared `legacy_member_id` namespace; flips `import_source` 'mirror'→'legacy_site_data'; never touches claim-state columns). Script 1's CSV is its input; no new loader needed.
+
+  **Sequencing:** dry-run the full chain against the delivered test dump now; the production run is State 4 step 3. The five §15.16 schema columns are a Dave-owned `database/schema.sql` add gated on G6, separate from these scripts.
 
 ### BACKLOG (lower-priority active)
 
