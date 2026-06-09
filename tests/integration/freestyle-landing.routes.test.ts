@@ -46,4 +46,23 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(res.text).toContain('tricks-mosaic-empty');
     expect(res.text).toContain('tricks-mosaic-section--placeholder');
   });
+
+  it('renders the Freestyle by the Numbers band with six gateway cards', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Freestyle by the Numbers');
+    for (const title of ['Difficulty', 'Dexterity', 'Entry sets', 'Family endings', 'Body movements', 'Components']) {
+      expect(res.text).toContain(title);
+    }
+    // each card is a gateway into its matching browse axis
+    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system', 'view=component']) {
+      expect(res.text).toContain(`/freestyle/tricks?${view}`);
+    }
+    // shared denominator note + Family endings leads with the catch-surface roots
+    expect(res.text).toContain('Counts shown out of');
+    expect(res.text).toContain('pending notation');
+    expect(res.text).toContain('Clipper Stall');
+    expect(res.text).toContain('Toe Stall');
+  });
+
 });

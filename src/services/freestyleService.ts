@@ -406,6 +406,105 @@ export interface FreestyleMosaicCell {
   posterUrl: string | null;
 }
 
+// "Freestyle by the Numbers" landing band: six summary cards, each a different
+// lens on the same dictionary, computed live (never baked) and each a gateway
+// into its matching browse axis.
+export interface FreestyleByNumbersBar {
+  label: string;
+  count: number;
+  percent: number;       // share of the dictionary total (0..100)
+  widthBucket: number;   // 5..100; reuses the .gloss-bar-fill--w{n} width classes
+}
+export interface FreestyleByNumbersCard {
+  key: string;
+  eyebrow: string;       // the question this histogram answers
+  title: string;
+  viewKey: string;        // browse-axis value; template builds /freestyle/tricks?view={viewKey}
+  footnote: string | null;
+  bars: FreestyleByNumbersBar[];
+}
+
+// Compute the six histogram cards from the already-loaded trick rows + the
+// modifier-link feed. Trick-kind population only (resolveTrickKind === 'trick'),
+// so the counts match the dictionary browse views the cards link into.
+function buildFreestyleByNumbers(
+  trickRows: readonly FreestyleTrickRow[],
+  linkRows: readonly FreestyleTrickModifierLinkRow[],
+): { cards: FreestyleByNumbersCard[]; note: string } {
+  const tricks = trickRows.filter(r => resolveTrickKind(r.slug) === 'trick');
+  const N = Math.max(1, tricks.length);   // uniform denominator: the trick-kind total
+  const inc = <K>(m: Map<K, number>, k: K) => m.set(k, (m.get(k) ?? 0) + 1);
+
+  // Bar width AND percent are both a share of the dictionary total N (not of the
+  // largest row), so every card is directly comparable.
+  const bar = (label: string, count: number): FreestyleByNumbersBar => ({
+    label: label.replace(/-/g, ' '),
+    count,
+    percent: Math.round((count / N) * 100),
+    widthBucket: Math.min(100, Math.max(5, Math.round(((count / N) * 100) / 5) * 5)),
+  });
+  const ordered = (counts: Map<string, number>, order: string[]): FreestyleByNumbersBar[] =>
+    order.filter(k => counts.has(k)).map(k => bar(k, counts.get(k)!));
+  const top = (counts: Map<string, number>, n: number): FreestyleByNumbersBar[] =>
+    [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => bar(k, c));
+  // Family endings keeps the glossary's terminal ordering (the catch-surface
+  // roots clipper/toe lead, then the families) so the two surfaces never drift.
+  const histTop = (hist: readonly TopologyHistogramRow[], n: number): FreestyleByNumbersBar[] =>
+    hist.slice(0, n).map(h => bar(h.label, h.count));
+
+  const dexCount = (op: string | null): string => {
+    if (!op || !op.trim()) return 'Unknown';
+    const n = (op.match(/\[DEX\]/g) ?? []).length;
+    return n >= 3 ? '3+' : String(n);
+  };
+  const entrySurface = (op: string | null): string | null => {
+    const o = (op ?? '').trim().toUpperCase();
+    if (o.startsWith('TOE')) return 'toe set';
+    if (o.startsWith('CLIP')) return 'clip set';
+    return null;
+  };
+
+  const add = new Map<string, number>();
+  const dex = new Map<string, number>();
+  const entry = new Map<string, number>();
+  for (const r of tricks) {
+    if (r.adds != null) inc(add, String(r.adds));
+    inc(dex, dexCount(r.operational_notation));
+    const e = entrySurface(r.operational_notation);
+    if (e) inc(entry, e);
+  }
+
+  const trickKind = new Set(tricks.map(r => r.slug));
+  const SET_SYSTEMS = new Set(['symposium', 'paradox', 'pixie', 'fairy', 'stepping', 'quantum', 'atomic', 'blurry', 'nuclear', 'furious']);
+  const bodyMods = new Map<string, number>();
+  const allMods = new Map<string, number>();
+  for (const l of linkRows) {
+    if (!trickKind.has(l.trick_slug)) continue;
+    inc(allMods, l.modifier_slug);
+    // Body = movement operators only; the set-system launchers belong to Entry,
+    // so Body and Components read as genuinely different lenses.
+    if (!SET_SYSTEMS.has(l.modifier_slug)) inc(bodyMods, l.modifier_slug);
+    if (SET_SYSTEMS.has(l.modifier_slug)) inc(entry, l.modifier_slug);   // entry = catch surfaces + set systems
+  }
+
+  const unknownDex = dex.get('Unknown') ?? 0;
+  const cards: FreestyleByNumbersCard[] = [
+    { key: 'difficulty', eyebrow: 'How layered are tricks?', title: 'Difficulty',
+      viewKey: 'add', footnote: null, bars: ordered(add, ['1', '2', '3', '4', '5', '6', '7', '8']) },
+    { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
+      viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+', 'Unknown']) },
+    { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry sets',
+      viewKey: 'sets', footnote: null, bars: top(entry, 20) },
+    { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
+      viewKey: 'family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
+    { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
+      viewKey: 'movement-system', footnote: null, bars: top(bodyMods, 10) },
+    { key: 'component', eyebrow: 'What modifiers dominate?', title: 'Components',
+      viewKey: 'component', footnote: null, bars: top(allMods, 10) },
+  ];
+  return { cards, note: `Counts shown out of ${N} tricks; ${unknownDex} pending notation.` };
+}
+
 export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
@@ -421,6 +520,10 @@ export interface FreestyleLandingContent {
   // clip is curated, which the landing uses to keep the band quiet meanwhile.
   tricksMosaic: FreestyleMosaicCell[];
   tricksMosaicHasClips: boolean;
+  // "Freestyle by the Numbers" band: six live histogram summary cards + a
+  // shared denominator note (all cards normalized to the trick-kind total).
+  byTheNumbers: FreestyleByNumbersCard[];
+  byTheNumbersNote: string;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -8997,6 +9100,13 @@ export const freestyleService = {
       };
     });
 
+    const { cards: byTheNumbers, note: byTheNumbersNote } = buildFreestyleByNumbers(
+      trickRows,
+      runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+        freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+      ),
+    );
+
     return {
       seo: {
         title: 'Freestyle',
@@ -9099,6 +9209,8 @@ export const freestyleService = {
         totalRecords,
         tricksMosaic,
         tricksMosaicHasClips: tricksMosaic.some((c) => c.mp4Url !== null),
+        byTheNumbers,
+        byTheNumbersNote,
       },
     };
   },

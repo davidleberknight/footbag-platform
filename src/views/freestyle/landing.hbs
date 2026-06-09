@@ -217,6 +217,35 @@
   </section>
   {{/if}}
 
+  {{! ── Freestyle by the Numbers: six live histogram cards ─────────────────── }}
+  {{#if content.byTheNumbers.length}}
+  <section class="content-section by-numbers" id="by-the-numbers">
+    <div class="section-heading">
+      <h2>Freestyle by the Numbers</h2>
+      <p class="section-intro">{{content.byTheNumbersNote}} Each card opens its browse view.</p>
+    </div>
+    <div class="by-numbers-grid">
+      {{#each content.byTheNumbers}}
+      <a class="by-numbers-card" href="/freestyle/tricks?view={{viewKey}}">
+        <span class="by-numbers-eyebrow">{{eyebrow}}</span>
+        <span class="by-numbers-title">{{title}}</span>
+        <span class="by-numbers-bars">
+          {{#each bars}}
+          <span class="by-numbers-bar">
+            <span class="by-numbers-bar-label">{{label}}</span>
+            <span class="by-numbers-bar-track"><span class="by-numbers-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span>
+            <span class="by-numbers-bar-count">{{count}}</span>
+          </span>
+          {{/each}}
+        </span>
+        {{#if footnote}}<span class="by-numbers-footnote">{{footnote}}</span>{{/if}}
+        <span class="by-numbers-cta">Browse &rarr;</span>
+      </a>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
   {{! ── The 12 Foundations: core-atom mosaic (lower enrichment band) ──────── }}
   <section class="content-section tricks-mosaic-section{{#unless content.tricksMosaicHasClips}} tricks-mosaic-section--placeholder{{/unless}}">
     <div class="section-heading">

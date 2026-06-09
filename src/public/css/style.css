@@ -11982,3 +11982,54 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   .tricks-mosaic { gap: 6px; }
   .tricks-mosaic-label { font-size: 0.78rem; }
 }
+
+/* "Freestyle by the Numbers" landing band: six gateway histogram cards. Bar
+   widths reuse the .gloss-bar-fill--w{n} classes; one accent, restrained. */
+.by-numbers-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.by-numbers-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.by-numbers-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+.by-numbers-eyebrow { font-size: 0.72rem; color: var(--text-muted); }
+.by-numbers-title { font-weight: 700; font-size: 1rem; color: var(--text-secondary); }
+.by-numbers-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.by-numbers-bar {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 2.6rem;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+.by-numbers-bar-label { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.by-numbers-bar-track {
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-2xs);
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.by-numbers-bar-fill { display: block; height: 100%; background: var(--secondary); border-radius: var(--radius-2xs); }
+.by-numbers-bar-count { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.by-numbers-footnote { font-size: 0.7rem; font-style: italic; color: var(--text-muted); }
+.by-numbers-cta { margin-top: auto; font-size: 0.78rem; font-weight: 600; color: var(--secondary); }
+@media (max-width: 768px) {
+  .by-numbers-grid { grid-template-columns: 1fr; }
+}
