@@ -7,7 +7,24 @@
 
 <div class="wrapper">
 
-  {{! ── Six primary media-collection cards (3x2), identical weight ───── }}
+  {{! ── Browse-by-hashtag entry tile, distinct from the collection cards ─ }}
+  <section class="content-section">
+    <ul class="gallery-grid">
+      <li class="hub-card hub-card-browse">
+        <a href="/media/browse" class="hub-card-link">
+          <div class="hub-card-body">
+            <h2 class="hub-card-name">Browse by hashtag</h2>
+            <p class="hub-card-description">Find every photo and video matching a set of hashtags.</p>
+          </div>
+          <div class="hub-card-foot hub-card-foot-browse">
+            <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
+          </div>
+        </a>
+      </li>
+    </ul>
+  </section>
+
+  {{! ── Primary media-collection cards, identical weight ─────────────── }}
   <section class="content-section">
     <div class="media-hub-grid">
       {{#each content.cards}}

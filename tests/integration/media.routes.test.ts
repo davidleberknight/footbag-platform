@@ -246,20 +246,23 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders exactly six equal primary media cards in a 3x2 grid, browse-by-hashtag first', async () => {
+  it('renders a distinct browse-by-hashtag tile above five equal primary media cards', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Media');
     const cardCount = (res.text.match(/class="media-hub-card"/g) || []).length;
-    expect(cardCount).toBe(6);
-    for (const title of ['Browse by Hashtag', 'Freestyle Tutorials &amp; Demos', 'Freestyle Records', 'Related Sports']) {
+    expect(cardCount).toBe(5);
+    for (const title of ['Freestyle Tutorials &amp; Demos', 'Freestyle Records', 'Net', 'Sideline', 'Related Sports']) {
       expect(res.text).toContain(title);
     }
-    expect(res.text).toContain('href="/media/browse"');
     expect(res.text).toContain('href="/media/freestyle-tutorials"');
-    // browse-by-hashtag leads the grid
-    expect(res.text.indexOf('Browse by Hashtag')).toBeLessThan(res.text.indexOf('Related Sports'));
+    // The browse-by-hashtag tile is the visually distinct green entry point,
+    // not one of the equal-weight collection cards, and leads the page.
+    expect(res.text).toContain('hub-card-browse');
+    expect(res.text).toContain('Browse by hashtag');
+    expect(res.text).toContain('href="/media/browse"');
+    expect(res.text.indexOf('hub-card-browse')).toBeLessThan(res.text.indexOf('media-hub-grid'));
   });
 
   it('folds curated tricks, shred, photos, and the discipline taxonomy out of the primary grid', async () => {

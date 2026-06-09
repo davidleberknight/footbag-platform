@@ -325,11 +325,11 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
-  it('opens with a tight, big-font "What is Freestyle?" lede', async () => {
+  it('opens with the "What is Freestyle Footbag?" intro lede', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="content-section freestyle-lede"/);
-    expect(res.text).toContain('freestyle-lede-big');
-    expect(res.text).toContain('Freestyle footbag is a language');
+    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
+    expect(res.text).toContain('freestyle-portal-lede-paragraph');
+    expect(res.text).toContain('What is Freestyle Footbag?');
   });
 
   // ── Banner 1 — The Language of Freestyle ────────────────────────────────
@@ -376,7 +376,7 @@ describe('GET /freestyle — two-band landing', () => {
 
   it('orders sections: lede → Banner 1 → Banner 2 → mosaic → Featured', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const ledeIdx     = res.text.indexOf('freestyle-lede');
+    const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
     const banner1Idx  = res.text.indexOf('>The Language of Freestyle<');
     const banner2Idx  = res.text.indexOf('Analysis &amp; Competition');
     const mosaicIdx   = res.text.indexOf('The 12 Foundations of Freestyle');

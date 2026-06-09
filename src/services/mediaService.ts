@@ -220,7 +220,7 @@ export interface MediaHubCard {
 }
 
 export interface MediaHubContent {
-  // Exactly six primary media-collection cards, rendered as a 3x2 grid.
+  // The equal-weight media-collection cards rendered below the browse tile.
   cards: MediaHubCard[];
   // Member-created named galleries, preserved below the primary grid.
   memberGalleries: MediaHubGallerySummary[];
@@ -425,16 +425,11 @@ export const mediaService = {
       const relatedSportsHref = has('gallery_chinlone') ? '/media/gallery_chinlone' : null;
       const memberGalleries = summaries.filter((s) => !s.owner.isSystem);
 
-      // Six equal media-collection cards (3x2). Tutorials & Demos absorbs the
+      // Five equal media-collection cards. Tutorials & Demos absorbs the
       // per-source freestyle galleries and the curated-tricks aggregate; Related
-      // Sports absorbs chinlone and (future) sepak takraw.
+      // Sports absorbs chinlone and (future) sepak takraw. Browse-by-hashtag is
+      // a distinct entry tile in the template, not one of these equal cards.
       const cards: MediaHubCard[] = [
-        {
-          title: 'Browse by Hashtag',
-          description: 'Find photos and videos across the media archive using shared tags.',
-          href: '/media/browse',
-          cta: 'Browse tags',
-        },
         {
           title: 'Freestyle Tutorials & Demos',
           description: 'Instructional and demonstration footage from the freestyle community.',
@@ -473,7 +468,7 @@ export const mediaService = {
           sectionKey: 'media',
           pageKey: 'media_hub',
           title: 'Footbag Media',
-          intro: 'Browse footbag media by collection: tutorials, demonstrations, records, and reference footage.',
+          intro: 'Browse by hashtag or visit named galleries.',
         },
         content: { cards, memberGalleries },
       };

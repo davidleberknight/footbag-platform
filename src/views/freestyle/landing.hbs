@@ -12,9 +12,13 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── What is Freestyle? — tight, big-font lede + demo video ─────────────── }}
-  <section class="content-section freestyle-lede">
-    <p class="freestyle-lede-big">Freestyle footbag is a language. A handful of core movements (kicks, stalls, delays, spins) combine into thousands of named tricks.</p>
+  {{! ── What is Freestyle? — plain intro + demo video ───────────────────── }}
+  {{#if content.intro.paragraphs.length}}
+  <section class="content-section freestyle-portal-lede">
+    {{#if content.intro.heading}}<h2>{{content.intro.heading}}</h2>{{/if}}
+    {{#each content.intro.paragraphs}}
+    <p class="freestyle-portal-lede-paragraph">{{this}}</p>
+    {{/each}}
     {{#if content.demoVideo}}
     <figure class="demo-video">
       <video autoplay loop muted playsinline preload="metadata" poster="{{content.demoVideo.posterUrl}}">
@@ -25,6 +29,7 @@
     </figure>
     {{/if}}
   </section>
+  {{/if}}
 
   {{! ── Banner 1 — The Language of Freestyle (reference / vocabulary) ───────── }}
   <section class="content-section">

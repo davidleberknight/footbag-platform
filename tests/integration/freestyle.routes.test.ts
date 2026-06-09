@@ -2001,12 +2001,12 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 // Landing-page "Language of Freestyle Footbag" structure invariants
 
 describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
-  it('exposes a tight big-font freestyle-lede content-section', async () => {
+  it('exposes the freestyle-portal-lede intro content-section', async () => {
     // Structural invariant: the landing renders the lede surface with the
     // documented class hooks. Copy is not pinned by this test.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="content-section freestyle-lede"/);
-    expect(res.text).toMatch(/class="freestyle-lede-big"/);
+    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
+    expect(res.text).toMatch(/class="freestyle-portal-lede-paragraph"/);
   });
 
   it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {
