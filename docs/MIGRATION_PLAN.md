@@ -52,7 +52,7 @@ Quick status: **still open**: 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 19, 2
 
 **Data and export**
 
-**10. What the export columns mean. Confirmed against the delivered test dump; re-confirm on the final export.** The delivered dump answered the column-semantics questions: the member-account id column is identified; there is no banned column, so questionable accounts go to admin review rather than being auto-blocked; the announce opt-in is present; and the old member table does contain a password column, so the extraction strips credentials out and never loads them. One item is not yet closed: that the export's id namespace matches the mirror/profile-URL namespace the back-links depend on is still pending the 10% spot-check (§19 items 10-11, gate WM4). All of this is re-confirmed against the final post-freeze export.
+**10. What the export columns mean. Confirmed against the delivered test dump; re-confirm on the final export.** The delivered dump answered the column-semantics questions: the member-account id column is identified; there is no banned column, so questionable accounts go to admin review rather than being auto-blocked; the announce opt-in is present; and the old member table does contain a password column, so the extraction strips credentials out and never loads them. One item is not yet closed: that the export's id namespace matches the mirror/profile-URL namespace the back-links depend on is still pending the comprehensive namespace cross-check (§19 items 10-11, gate WM4). All of this is re-confirmed against the final post-freeze export.
 
 **11. Whether the tier and payment history is rich enough to map tiers fully. Confirmed against the delivered dump; re-confirm on the final export.** The delivered dump confirmed the paid-history inputs are present (tier, expiry, paid flags, payment dates, join date, and the payments table). Board-at-cutover status is not yet in hand: the committee-table backup was held back for size and the webmaster will supply it, so the committee data exists and is pending delivery rather than empty. Until it arrives the board tier rule is deferred (or works sooner if the tier field itself encodes a board tier); once the committee data arrives, the tier-derivation check settles the full-versus-fallback choice, with honors-only as the contingency only if the board data proves insufficient.
 
@@ -70,7 +70,7 @@ Quick status: **still open**: 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 19, 2
 
 **16. How real the impersonation risk is. Still open.** This decides whether an honors-bearing claim needs a check before it applies, beyond the after-the-fact review already in place. Recommendation: keep the no-check approach. Several safeguards already exist: a name-collision prompt at sign-up, an after-the-fact review feed for honors claims, and an admin who can reverse a wrong claim. Footbag is a small, visible community where impersonating a known competitor would be obvious and pointless, and a pre-check would slow legitimate claims and add admin work for little gain. Add a check or a grace period only if the webmaster's read of the community says impersonation is a real concern.
 
-**17. Whether old bans still matter. Still open.** The delivered data contains no ban records at all: there is no banned, blocked, or suspended field anywhere in the dump; the only status signals are `MemberValid` and `MemberEmailInvalid`, with no dedicated inactive column (§28 item 2). The test-load report counted roughly 8,000 accounts flagged by one of these signals (re-confirmed on the final export); a cleared `MemberValid` is the §2 source-validity-filter exclusion, not a ban. So there is probably nothing to carry over. The ask: the webmaster confirms whether any bans were ever enforced outside the database. If none were, this question is moot. Either way, the recommendation is to keep any legacy ban as a background note only, never blocking a claim, since old bans are probably stale and often have unknown reasons and the new platform has its own tools for handling misbehavior. Move to enforcing specific bans only if the webmaster and board say they still matter.
+**17. Whether old bans still matter. Still open.** The delivered data contains no ban records at all: there is no banned, blocked, or suspended field anywhere in the dump; the only status signals are `MemberValid` and `MemberEmailInvalid`, with no dedicated inactive column (§28 item 2). The test-load report counted roughly 8,000 accounts flagged by one of these signals (re-confirmed on the final export); a cleared `MemberValid` is the §2 source-validity-filter exclusion, not a ban. So there is probably nothing to carry over. The ask: the webmaster confirms whether the final export carries any banned, blocked, suspended, or inactive field (the test dump had none; reconfirm on the final export), and whether any bans were ever enforced outside the database. If neither, this question is moot. Either way, the recommendation is to keep any legacy ban as a background note only, never blocking a claim, since old bans are probably stale and often have unknown reasons and the new platform has its own tools for handling misbehavior. Move to enforcing specific bans only if the webmaster and board say they still matter.
 
 **18. What the legacy "tournament in a box" feature actually does. Still open.** Recommendation: leave it for a later version and scope it first. Until the webmaster writes down what it does today, there is nothing to design against, and building blind risks building the wrong thing.
 
@@ -78,7 +78,7 @@ Quick status: **still open**: 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 19, 2
 
 **20. Which features launch in the first version versus later. Still open.** This sets which legacy surfaces freeze, which subdomains stay alive, and how long the webmaster's temporary role lasts. Recommendation: ship the core platform first and keep group and committee features on the legacy parallel-role server until they are migrated or retired, so launch is not delayed and nothing goes dark. Adjust only if the webmaster objects to a specific item.
 
-**21. What to do with the legacy data domains that are out of scope. Still open.** The old data also holds galleries and media, freestyle tricks, governance records, rankings, news, the rulebook, polls, and translations. Recommendation: galleries and media are served from the archive site and not imported; the rest are catalogued now so nothing is lost, with the decision on each deferred until there is a real reason and a user story to migrate it; otherwise the default is to archive or drop.
+**21. What to do with the legacy data domains that are out of scope. Still open.** The old data also holds galleries and media, freestyle tricks, governance records, rankings, news, the rulebook, polls, and translations. Recommendation: galleries and media are served from the archive site and not imported; the rest are catalogued now so nothing is lost, with the decision on each deferred until there is a real reason and a user story to migrate it; otherwise the default is to archive or drop. The IFPA governance records specifically (the election, issue, and privately-cast vote tables) are an IFPA governance decision, not the webmaster's: the IFPA secretary rules on their disposition, and the recommended posture is to archive them encrypted and sealed, the same treatment as the legacy email archive, never published, since they include privately cast votes.
 
 **22. The proxied WordPress sites behind sites.footbag.org. Still open.** The legacy host proxies a set of WordPress sites (years of Worlds event sites) under the operator-only sites.footbag.org name. These must keep working for legacy reasons. Recommendation: keep the webmaster's existing proxy through the parallel-role window, then decide per site whether to re-host, consolidate, or retire; treat sites.footbag.org as private and not-for-publication.
 
@@ -98,7 +98,7 @@ These decisions are settled. Each is final unless a noted open question revises 
 
 **4.** Every confirmed claim records how strong the evidence was. An optional confirmation-link click sent to an old email raises that strength. Cases that nothing can resolve go to an admin help request.
 
-**5.** Honors-bearing claims (Hall of Fame, Big Add Posse) apply without an admin checking first; admins see them afterward in an oversight feed and a daily digest. Subject to open question 16.
+**5.** Honors-bearing claims (Hall of Fame, Big Add Posse) apply without an admin checking first. The honors data is validated a priori at test-load against the public HoF and BAP rosters, the small community self-polices, and an admin can revert a wrong claim; there is no daily oversight email. Subject to open question 16.
 
 **6.** Identifier lookups never reveal whether the input matched nothing, matched several records, or matched something ineligible; the response looks the same in every case.
 
@@ -462,7 +462,7 @@ The batch pass runs across all `legacy_members` rows at cutover. For each candid
 
 Pre-cutover live members and members who register after cutover are both covered: at any sign-in, the wizard surfaces any staged candidates plus the declared-anchor inputs and any newly-found candidates.
 
-Honors-bearing matches (Hall of Fame, Big Add Posse) apply on member confirmation with the same UX as any other claim; the honors flag is invisible to the registrant. The admin honors oversight feed (`A_View_Honors_Oversight_Feed`) shows every honors-bearing claim post-facto for read-only audit visibility, with no gating: direct historical-record claims and legacy-account claims carrying an `is_hof` or `is_bap` flag alike, the same all-paths scope as the daily digest below.
+Honors-bearing matches (Hall of Fame, Big Add Posse) apply on member confirmation with the same UX as any other claim; the honors flag is invisible to the registrant. Honors trustworthiness is established a priori: the imported `is_hof` / `is_bap` flags are validated at test-load against the public HoF and BAP rosters (`A_View_Honors_Oversight_Feed`), so a wrong flag is caught before any tier grants. Ongoing oversight is community self-policing plus the admin dispute-revert path; the interactive admin oversight feed is deferred to v2.
 
 ### Cross-source candidate detection
 
@@ -472,9 +472,9 @@ After the member confirms one identity source (legacy account or historical reco
 
 When a new member registers and the platform detects their surname (current or declared former) matches the surname on an already-claimed record they're about to navigate to, the wizard surfaces an inline "we already have a claim under this name, is one of these you?" prompt. This catches same-name collisions and impersonation cases at the earliest point. `M_Complete_Onboarding_Wizard` specifies the card-level interaction.
 
-### Post-cutover honors oversight digest
+### Honors oversight (a-priori, no daily email)
 
-A daily admin digest summarizes the prior 24 hours of `member_tier_grants` rows with `reason_code='legacy.claim_tier_grant'` AND a Hall of Fame or Big Add Posse honor flag. The single reason code covers every claim path; the honor-flag predicate is the load-bearing filter, and any future code path that grants an honor tier under a different reason code must be added to the digest filter alongside. Cadence, delivery, payload rules, and the monitoring window are specified by `A_View_Honors_Oversight_Feed`; the digest is implemented in `hofBapAdminDigestService`.
+There is no daily oversight email. Honors trustworthiness is established before go-live: the imported `is_hof` / `is_bap` flags are cross-checked at test-load against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant cannot rest on a wrong flag. After go-live the small, visible community self-polices and an admin reverts any wrong claim through the dispute path. The interactive admin oversight feed is a v2 surface; `A_View_Honors_Oversight_Feed` owns its design.
 
 ### Platform code gated on legacy data dump arrival
 
@@ -524,7 +524,7 @@ Entry point: `GET /history/:personId`. When the viewer's `real_name` surname OR 
 - `members.historical_person_id` is set. Historical-person identity fields are carried forward per the merge rules in §9 (under "historical_persons-sourced fields").
 - The audit row records the evidence tier defined under "Evidence-strength tiers" in §7.
 
-Anti-abuse: the surname rule (current or declared former) gates direct claims. The partial UNIQUE index on `members.historical_person_id` prevents double-claim. A member can claim at most one HP. Honors-bearing direct claims (HoF, BAP) apply without admin pre-screening; the admin oversight feed (§13) surfaces them post-facto.
+Anti-abuse: the surname rule (current or declared former) gates direct claims. The partial UNIQUE index on `members.historical_person_id` prevents double-claim. A member can claim at most one HP. Honors-bearing direct claims (HoF, BAP) apply without admin pre-screening; a-priori roster validation (§7), community self-policing, and the dispute-revert path (§13) cover oversight.
 
 ### Registration-time conflict prompt
 
@@ -885,9 +885,9 @@ Migration-time admin involvement is reactive, not gating. Members confirm their 
 
 The reactive recovery flow described in §15 is the only migration-time admin queue with active member-driven items: a member whose identity no candidate or declared anchor can resolve submits a free-text request with whatever references they can supply, and the request enters an admin queue. `A_Review_Member_Link_Help_Requests` owns the admin-facing review story. System-side contract: an approved link records evidence tier `admin_vetted_evidence` in its audit metadata; approval never auto-promotes legacy `is_admin` metadata to a live admin role; the legacy banned flag is audit metadata only and does not gate the link decision (platform discipline mechanisms govern, not legacy ban data).
 
-### Honors-bearing direct claim oversight feed
+### Honors-bearing direct claim oversight
 
-Read-only, post-facto, never gating: every honors-bearing direct historical-record claim (per §8) appears for admin visibility, with the dispute revert as the recovery path. `A_View_Honors_Oversight_Feed` owns the surface and filters; the daily digest contract is in §7.
+Never gating: honors-bearing direct historical-record claims (per §8) apply on confirmation. Honors data is validated a priori at test-load against the public rosters (§7), the community self-polices, and the dispute revert is the recovery path for a wrong claim. The interactive admin oversight feed is a v2 surface; `A_View_Honors_Oversight_Feed` owns its design.
 
 ### Dispute revert
 
@@ -1181,18 +1181,18 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 8. **Field semantics confirmation**: for each export column, especially:
    - Legacy member ID (field name, format, uniqueness guarantee)
-   - Legacy username (field name, uniqueness guarantee)
-   - Legacy email (field name, uniqueness guarantee)
+   - Legacy username (confirm the exact column name, e.g. `MemberAlias`, and its uniqueness guarantee, so the extractor maps it rather than dropping it)
+   - Legacy email (field name, uniqueness guarantee), including any secondary email columns (`MemberEmail2`, `MemberEmail3`) and a deliverability flag (`MemberEmailInvalid`): confirm which ship in the final export, since a legacy account's primary and secondary emails all participate in claim matching
    - Account registration / signup date (distinct from `ifpa_join_date`; tracks tenure on the legacy site)
-   - Last-activity timestamp (most-recent login or session activity, if available; used to size the member-initiated admin help request queue (§13), the post-cutover honors oversight digest (§7), and admin-recovery capacity planning)
+   - Last-activity timestamp (most-recent login or session activity, if available; used to size the member-initiated admin help request queue (§13) and admin-recovery capacity planning)
    - Tier / membership fields (current tier, expiry dates, tier history if available)
    - Account-status flags of any kind: `banned`, `inactive`, `is_admin`, `suspended`, `locked`, `deleted`, `expired`, `lapsed`, `no_contact`, privacy/visibility flags (e.g. `hidden`, `private_profile`), opt-out flags, and any other column on the legacy `members` table whose value gates eligibility for self-serve claim, opens admin-recovery paths, or affects what the member sees on the legacy site. Confirm presence, reliability, and semantics for each. If unsure whether a column counts, include it.
 
-9. **Credential exclusion**: password material is never imported (DD §3.9). The raw dump contains credential and session columns (the legacy `members` table carries `MemberPassword` and `MemberSession`); the platform's extraction step drops them and never emits them into the loader input. As a hard backstop, the load step aborts before reading any row if any column header looks credential-bearing (password, hash, salt, secret, recovery); attestation alone is insufficient, so this guard is mandatory.
+9. **Credential exclusion**: password material is never imported (DD §3.9). The raw dump contains credential and session columns (the legacy `members` table carries `MemberPassword` and `MemberSession`); the platform's extraction step drops them and never emits them into the loader input. As a hard backstop, the load step aborts before reading any row if any column header looks credential-bearing (password, hash, salt, secret, recovery, and the session/token/cookie/auth family, so a `MemberSession` or cookie column is caught too); attestation alone is insufficient, so this guard is mandatory.
 
 10. **Namespace agreement for `legacy_member_id`**: confirm that the integer IDs in the export are the same integers used in the legacy site's `members/profile/{id}` URLs (the mirror-derived namespace). If they diverge, resolve before any test import; otherwise every `historical_persons.legacy_member_id` → `legacy_members.legacy_member_id` back-link in the pipeline is invalidated.
 
-11. **Namespace verification protocol**: a 10% spot-check sample of `legacy_member_id` values from the test export is cross-referenced against the mirror-derived baseline ID range. The webmaster's export ID range and the mirror's must overlap; new IDs that exist only in the export are expected (post-mirror accounts) but the overlap region must agree row-for-row.
+11. **Namespace verification protocol**: every `legacy_member_id` value from the test export is integer-format-validated and cross-referenced (comprehensive 100% reconciliation, not a sample) against the mirror-derived baseline ID range and `historical_persons.legacy_member_id`. The webmaster's export ID range and the mirror's must overlap; new IDs that exist only in the export are expected (post-mirror accounts) but the overlap region must agree row-for-row.
 
 12. **Banned-member product semantics**: confirm whether the `banned` flag is reliable and document the operational handling. Default product behavior (§8 claim ineligibility, §13, §28 item 5): the legacy banned flag is recorded as audit metadata only and does not gate the self-serve claim card; disciplinary state is handled by the new platform's own discipline mechanisms, not by legacy ban state. The one admin-routed case is the Gate G3 FAIL path (§15.5): when the export carries no trustworthy banned field, rows with an untrusted banned/inactive indicator are routed to admin review because the platform cannot auto-apply a flag it cannot trust. The `legacy_banned` flag is not directly UI-visible to the claiming member. Whether to introduce gating for trustworthy bans is an open policy item pending webmaster and IFPA board input (§28 item 5); the audit-only default stands until then.
 
@@ -1341,7 +1341,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | WM1 | Test export delivered and validated in the canonical format | §19 items 6, 7 | State 1 → State 2 |
 | WM2 | Legacy-export field semantics confirmed (IDs, username, email, registration date, last-activity, tiers, banned flags) | §19 item 8 | State 1 → State 2 |
 | WM3 | Credential exclusion enforced: extraction drops `MemberPassword`/`MemberSession`; load-step credential-header abort verified | §19 item 9 | State 1 → State 2 |
-| WM4 | Namespace agreement for `legacy_member_id` confirmed and verified by 10% spot-check | §19 items 10, 11 | State 1 → State 2 |
+| WM4 | Namespace agreement for `legacy_member_id` confirmed and verified by a comprehensive (100%) integer-format + cross-source overlap check | §19 items 10, 11 | State 1 → State 2 |
 | WM5 | Banned-member product semantics confirmed; admin-recovery routing documented | §19 item 12 | State 1 → State 2 |
 | WM6 | Data-quality metrics delivered (deliverability estimate, last-activity timestamps) | §19 item 13 | State 1 → State 2 |
 | WM7 | Final production export delivered post-write-freeze, same raw-dump format as the test export | §19 item 14 | State 3 → State 4 |
@@ -1447,7 +1447,7 @@ Phase 4 activities:
 
 - Front-door flip (§29.12)
 - Members sign in to the new platform and see staged auto-link candidates surfaced via the wizard. Confirmation applies effects on a per-member basis. No batch outbound communication.
-- Honors-bearing direct-claim oversight feed begins emitting daily entries; admin reviews post-facto.
+- Honors-bearing direct claims apply on confirmation; a-priori roster validation at test-load (§7) plus community self-policing and the dispute-revert path cover oversight (no daily email; the interactive feed is v2).
 - Member-initiated admin help requests accumulate in their queue; admin processes at their own cadence.
 
 ---
@@ -1532,11 +1532,11 @@ The following must be confirmed at the test load before go-live. These are not o
 
 | Gate | Description | Failure handling |
 |---|---|---|
-| G1 | `legacy_email` is unique where non-NULL | Replace provisional unique index with non-unique lookup + ambiguity handling |
+| G1 | No email value, taken across `legacy_email` / `legacy_email2` / `legacy_email3`, appears on more than one row (cross-column uniqueness); collisions surface a priori for curation | Replace provisional unique index with non-unique lookup + ambiguity handling |
 | G2 | `legacy_user_id` is unique where non-NULL | Same as G1 |
-| G3 | Live export contains a trustworthy `banned` field. **PASS**: the field is present and its semantics are confirmed reliable. **FAIL fallback**: omit the `legacy_banned` column entirely; route claims on unverifiable rows through admin review per §8 claim ineligibility. | Fallback path applies as described in §15.5 |
+| G3 | Live export contains a trustworthy `banned` field. **PASS**: the field is present and its semantics are confirmed reliable. **FAIL fallback**: omit the `legacy_banned` column entirely; route claims on unverifiable rows through admin review per §8 claim ineligibility. Whether the final export carries a banned field is pending the webmaster (front-matter item 17); until confirmed the FAIL fallback stands and the gate script verifies import-source provenance in its place. | Fallback path applies as described in §15.5 |
 | G4 | Shape and null quality of profile/contact fields | Adjust import logic and field mapping |
-| G5 | Legacy member ID quality (format, completeness, uniqueness) | Resolve before final export |
+| G5 | Legacy member ID quality: every `legacy_member_id` integer-format-validated and comprehensively (100%) overlap-reconciled against the mirror profile-URL ids and `historical_persons.legacy_member_id`, not a 10% sample | Resolve before final export |
 | G6 | Tier-state mapping inputs sufficient AND the §15.16 schema extension on `legacy_members` (the five `legacy_*` tier-state fields) landed in `database/schema.sql` and applied to the staging DB at test load. **PASS**: inputs present and columns landed; full §3 precedence table applies. **FAIL fallback**: PASS via honors-only fallback (HoF/BAP → `tier2`; everything else → `tier0`); §3 precedence rows 3-5 are dropped; the fallback decision is recorded in §28. | Fallback path applies as described |
 | G7 | Mirror-derived club normalization quality. **Requires G12 PASS** so the classifier's `listed_contact` and `member_active` signals (§10.1 "Required order" step 1) run against the fully-populated `historical_persons` set including club-only members; running G7 against a partial `historical_persons` set silently under-classifies clubs whose people never competed | Block until G12 PASSes; increase manual review threshold for any remaining quality gaps after both gates clear |
 | G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
@@ -1648,7 +1648,7 @@ The delivered dump contains domains outside this plan. Recorded for a future sco
 |---|---|---|
 | Gallery / media | 16,768 images, 1,955 sets | Out of scope: served from `archive.footbag.org` (§29.15); not migrated |
 | Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | Not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` data is abandoned (`moves_journal` is per-member private if ever reconsidered) |
-| IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | Decide whether governance history is preserved; payments are already read for tier derivation; committee/board data is absent from the dump |
+| IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | IFPA governance decision (the IFPA secretary rules, not the operator): the election, issue, and privately-cast vote tables are recommended for archive + encryption, sealed and never published (the same treatment as the legacy email archive), since they hold privately cast votes; payments are already read for tier derivation; committee/board data is absent from the dump |
 | Rankings | 12,672, plus 14 sets | No rankings surface scoped; decide whether it is a future feature |
 | News | 17,682 | Decide archive-only vs import vs drop |
 | Rules (`rulebook3`) | 1,619 | IFPA rules already live in `ifpa/`; likely archive-only |
@@ -1866,7 +1866,7 @@ The legacy host persists in a parallel role beyond the §27 rollback window for 
 **Email-transition step (discrete, pre-front-door).** Runs as its own step on its own agreed date (§19 item 24), gated by the confirmed inventory (§19 item 21) and per-list dispositions (§19 item 26). Skeleton (detailed operator click-paths live in `docs/DEVOPS_GUIDE.md` once the step is executed):
 
 1. Provision every active `@footbag.org` mailbox or alias on Google from the confirmed inventory; verify each receives test mail. Decide the `noreply@` handling (monitored alias or Reply-To `admin@`, per §28).
-2. Pre-shrink the `footbag.org` MX TTL (webmaster).
+2. Pre-shrink the `footbag.org` MX TTL. This is the webmaster's manual action on his authoritative zone: the platform's `dns-ttl-preflight.sh` automation operates on Route 53, which is not authoritative until the later DNS handover, so it cannot lower the live MX TTL on email day. That script's only TTL role is the handover-phase `A` / `AAAA` drop.
 3. Atomically: repoint the MX to Google, flip SPF to authorize exactly SES + Google, apply the strict DMARC policy, and shut down legacy outbound. A transient lower-priority backup MX to the legacy server may bridge the hours until Google delivery is confirmed, then is removed.
 4. Verify inbound end-to-end to every provisioned address; verify SES outbound passes SPF/DKIM/DMARC checks at a major provider.
 5. Withdraw legacy `@footbag.org` delivery entirely. `@ifpa.footbag.org` on llic.net is untouched throughout.

@@ -4,6 +4,9 @@
 /.local/
 .local/**
 
+# Local symlink into the operator's footbag.org mirror checkout (machine-specific)
+/footbag.org
+
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)
 # =========================
