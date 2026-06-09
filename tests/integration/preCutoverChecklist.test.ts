@@ -103,6 +103,21 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
             'system', 'Legacy data complete; member-list presentation reviewed.', '{}')
   `).run();
 
+  // The permanent showcase event tag + Footbag Hacky historical person the
+  // SHOWCASE-PRESENCE gate requires to be present before cutover.
+  db.prepare(`
+    INSERT INTO tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      tag_normalized, tag_display, is_standard, standard_type
+    ) VALUES ('tag-beaver', '2025-01-01T00:00:00.000Z', 'system',
+              '2025-01-01T00:00:00.000Z', 'system', 1,
+              '#event_2025_beaver_open', '#event_2025_beaver_open', 1, 'event')
+  `).run();
+  db.prepare(`
+    INSERT INTO historical_persons (person_id, person_name, source_scope)
+    VALUES ('hp-footbag-hacky', 'Footbag Hacky', 'CANONICAL')
+  `).run();
+
   // Optional name_variants seed (omit for the red-path test to fail G11).
   if (opts.withNameVariants !== false) {
     const nvInsert = db.prepare(`
@@ -172,7 +187,7 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'FIXTURE-ABSENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
   });
@@ -185,16 +200,14 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
   });
 
-  it('red path: synthetic preview fixture present → FIXTURE-ABSENCE FAIL', { timeout: 60_000 }, () => {
+  it('red path: showcase records missing → SHOWCASE-PRESENCE FAIL', { timeout: 60_000 }, () => {
     buildFixtureDb(dbPath);
     const db = new BetterSqlite3(dbPath);
-    db.prepare(
-      `INSERT INTO historical_persons (person_id, person_name) VALUES ('hp-fixture-hacky', 'Footbag Hacky')`,
-    ).run();
+    db.prepare(`DELETE FROM historical_persons WHERE person_name = 'Footbag Hacky'`).run();
     db.close();
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status).not.toBe(0);
-    expect(r.stdout).toMatch(/GATE: FIXTURE-ABSENCE FAIL/);
-    expect(r.stdout).toMatch(/Footbag Hacky rows: 1/);
+    expect(r.stdout).toMatch(/GATE: SHOWCASE-PRESENCE FAIL/);
+    expect(r.stdout).toMatch(/Footbag Hacky rows: 0/);
   });
 });

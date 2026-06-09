@@ -85,7 +85,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).toContain('sim-card-one@example.com');
     expect(res.text).toContain('Verify your IFPA Footbag account');
     // Open link points to a /verify/<token> URL extracted from the body.
-    expect(res.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">Open<\/a>/);
+    expect(res.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/);
   });
 
   it('renders the resent banner with an EMPTY dev card (resend must not leak tokens or existence)', async () => {
@@ -106,7 +106,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // leak other users' verify tokens.
     expect(resendRes.text).toContain('Simulated email (dev)');
     expect(resendRes.text).toContain('No messages sent yet.');
-    const openLinks = resendRes.text.match(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">Open<\/a>/g);
+    const openLinks = resendRes.text.match(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/g);
     expect(openLinks?.length ?? 0).toBe(0);
     expect(resendRes.text).not.toContain('sim-card-two@example.com');
   });
@@ -128,7 +128,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // The Open anchor renders for the URL we did include (the filter
     // matches /verify/ pathnames). The "no URL whatsoever" branch is
     // exercised by template behavior elsewhere.
-    expect(res.text).toMatch(/>Open<\/a>/);
+    expect(res.text).toMatch(/>CLICK THIS LINK<\/a>/);
   });
 
   it('escapes HTML in subject and body (XSS defence)', async () => {
@@ -171,7 +171,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Simulated email (dev)');
     expect(res.text).not.toContain('leak-victim-a@example.com');
-    expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">Open</);
+    expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
 
   it('the just-registered user, following the redirect with the flash, sees only their own link', async () => {
@@ -185,7 +185,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(res.text).toContain('mine@example.com');
     expect(res.text).not.toContain('other-pending@example.com');
     // Exactly one Open link (mine), not one per pending user.
-    const openLinks = res.text.match(/\/verify\/[A-Za-z0-9_-]+">Open</g);
+    const openLinks = res.text.match(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</g);
     expect(openLinks?.length ?? 0).toBe(1);
   });
 });

@@ -119,11 +119,11 @@ echo "  → Building seed CSVs from canonical input..."
   --input-dir "${CANONICAL_INPUT_DIR}" \
   --output-dir "${SEED_DIR}"
 
-# Load seed CSVs into database. The preview-fixture flag injects the
-# synthetic known-good event + person used by dev/CI/staging; production
-# loads never run this script and never set the flag.
+# Load seed CSVs into database. This also seeds the showcase event and the
+# Footbag Hacky historical person, which load unconditionally in every
+# environment so the system account's identity link resolves.
 echo "  → Loading seed data into database..."
-FOOTBAG_SEED_PREVIEW_FIXTURE=1 "${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
+"${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
 

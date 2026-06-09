@@ -98,8 +98,8 @@ fi
 # 8. Dev-admin-shortcut audit (must be clean before production)
 run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
 
-# 8a. Synthetic preview fixture must be absent from a production database
-run_step "FIXTURE-ABSENCE" bash scripts/validate-fixture-absence.sh
+# 8a. Permanent showcase event + Footbag Hacky persona must be present
+run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
 
 # 9. G20 data-review sign-off: the historical-pipeline maintainer's audit
 #    row confirming legacy data is complete and member-list presentation is
