@@ -1,6 +1,9 @@
 import { PublicEventSummary } from './eventService';
 import { SeoMeta } from '../types/page';
 import { VideoMedia, expandYouTubeVideo } from './videoMedia';
+import { media, CuratorSlotMediaRow } from '../db/db';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { TRICKS_MOSAIC, mosaicClipFilename } from '../content/homepageTricksMosaic';
 
 interface HomeHero {
   heading: string;
@@ -28,6 +31,14 @@ interface HomeComingSoonSection {
   body: string;
 }
 
+interface HomeTricksMosaicCell {
+  slug: string;
+  label: string;
+  href: string;
+  mp4Url: string | null;
+  posterUrl: string | null;
+}
+
 export interface HomePageViewModel {
   seo: SeoMeta;
   page: {
@@ -38,10 +49,26 @@ export interface HomePageViewModel {
     notice?: string;
   };
   hero: HomeHero;
+  tricksMosaic: HomeTricksMosaicCell[];
   primaryLinks: HomePrimaryLink[];
   featuredUpcomingEvents?: PublicEventSummary[];
   featurePanels?: HomeFeaturePanel[];
   comingSoonSections?: HomeComingSoonSection[];
+}
+
+/**
+ * Load a mosaic loop by its source filename. Returns null when no curator-owned
+ * video with that name exists yet, so the cell falls back to its labelled empty
+ * state until the clip is produced and curated.
+ */
+function loadMosaicClip(sourceFilename: string): { mp4Url: string; posterUrl: string } | null {
+  const row = media.getCuratorMediaByFilename.get(sourceFilename) as CuratorSlotMediaRow | undefined;
+  if (!row || row.media_type !== 'video' || !row.video_id) return null;
+  const adapter = getMediaStorageAdapter();
+  return {
+    mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
+    posterUrl: row.thumbnail_url ?? '',
+  };
 }
 
 export const homeService = {
@@ -63,6 +90,16 @@ export const homeService = {
         ),
         videoCaption: '43rd IFPA World Footbag Championships, Montréal 2024 (official video).',
       },
+      tricksMosaic: TRICKS_MOSAIC.map((atom) => {
+        const clip = loadMosaicClip(mosaicClipFilename(atom.slug));
+        return {
+          slug: atom.slug,
+          label: atom.label,
+          href: `/freestyle/tricks/${atom.slug}`,
+          mp4Url: clip?.mp4Url ?? null,
+          posterUrl: clip?.posterUrl ?? null,
+        };
+      }),
       primaryLinks: [
         {
           label: 'Events',

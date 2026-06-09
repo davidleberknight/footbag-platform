@@ -11912,3 +11912,51 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0;
   padding-left: 18px;
 }
+
+/* Homepage foundational-tricks mosaic: a 4-across by 3-down grid of labelled
+   looping clips, one per core atom. Cells with no clip yet show a neutral
+   labelled tile so the grid reads as complete before the media is produced. */
+.tricks-mosaic-section {
+  margin-bottom: 32px;
+}
+.tricks-mosaic {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.tricks-mosaic-cell {
+  position: relative;
+  margin: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.tricks-mosaic-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--surface-dark);
+}
+.tricks-mosaic-empty {
+  background: linear-gradient(135deg, var(--surface-dark) 0%, var(--gray-900) 100%);
+}
+.tricks-mosaic-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--white);
+  text-align: center;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+}
+@media (max-width: 1024px) {
+  .tricks-mosaic { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .tricks-mosaic { gap: 6px; }
+  .tricks-mosaic-label { font-size: 0.78rem; padding: 6px 8px; }
+}
