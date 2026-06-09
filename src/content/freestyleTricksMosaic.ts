@@ -1,14 +1,14 @@
 import { CORE_TRICKS } from '../services/coreTrickRegistry';
 
 /**
- * The 12 foundational freestyle atoms as they appear in the homepage hero mosaic.
+ * The 12 foundational freestyle atoms as they appear in the freestyle landing mosaic.
  *
  * `slug` binds each cell to its canonical core-atom trick page (the source of the
  * eventual click-through); `label` is the plain name a newcomer reads. The display
  * order is the intended 4-across by 3-down reading order and is deliberately set
  * here rather than taken from CORE_TRICKS, which is an unordered set. The mosaic
  * must always show exactly the canonical atoms - no more, no fewer - which the
- * matcher below (and its test) enforces so the hero cannot silently drift from
+ * matcher below (and its test) enforces so the section cannot silently drift from
  * the ontology.
  */
 export interface MosaicAtom {
@@ -39,7 +39,7 @@ export function mosaicMatchesCoreAtoms(): boolean {
 
 /**
  * Source filename a curated loop must carry to light up its cell, e.g.
- * `mosaic-toe-stall.mp4`. The homepage loads each cell's clip by this name;
+ * `mosaic-toe-stall.mp4`. The freestyle landing loads each cell's clip by this name;
  * until the curated media exists the cell renders its labelled empty state.
  */
 export function mosaicClipFilename(slug: string): string {

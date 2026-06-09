@@ -14,10 +14,13 @@ set -euo pipefail
 SOURCE_URL="${SOURCE_URL:-https://www.youtube.com/watch?v=ft9SZPyXd54}"
 OUT_DIR="${OUT_DIR:-./tricks-mosaic-clips}"
 SOURCE_FILE="${SOURCE_FILE:-${OUT_DIR}/source.mp4}"
-# Optional ffmpeg video filter for consistent framing/scale across cells, e.g.
-# CROP='-vf crop=in_h:in_h,scale=480:480' for square 480px tiles. Empty keeps the
-# source framing (preserve authentic motion; do not stylize).
-CROP="${CROP:-}"
+# Framing/scale + encode knobs, sized for small mosaic tiles (light files, not
+# archival). CROP center-crops to a square and scales it; CRF and FPS trade
+# quality for file size. All overridable via env (e.g. CROP='' keeps the source
+# framing, CRF=20 for higher quality).
+CROP="${CROP:--vf crop=in_h:in_h,scale=360:360}"
+CRF="${CRF:-28}"
+FPS="${FPS:-30}"
 
 if [[ -z "${SOURCE_URL}" ]]; then
   echo "SOURCE_URL is required." >&2
@@ -29,15 +32,15 @@ mkdir -p "${OUT_DIR}"
 
 # slug  start  end   (positions within the source tutorial; ~3 repetitions each)
 TRICKS=(
-  "toe-stall 11:21 11:31"
-  "clipper-stall 11:32 11:38"
-  "around-the-world 11:39 11:48"
+  "toe-stall 11:24 11:31"
+  "clipper-stall 11:34 11:38"
+  "around-the-world 11:39 11:49"
   "orbit 11:50 12:00"
-  "legover 12:01 12:11"
+  "legover 12:02 12:11"
   "mirage 12:12 12:25"
   "pickup 12:26 12:39"
   "illusion 12:40 12:52"
-  "butterfly 12:53 13:06"
+  "butterfly 12:54 13:06"
   "osis 13:07 13:17"
   "whirl 13:18 13:30"
   "swirl 13:31 13:40"
@@ -60,8 +63,8 @@ for entry in "${TRICKS[@]}"; do
   # Both -ss and -to as input options take absolute source timestamps. Drop audio;
   # web-friendly H.264 + faststart so the loop starts instantly in the browser.
   # shellcheck disable=SC2086
-  ffmpeg -y -ss "${start}" -to "${end}" -i "${SOURCE_FILE}" -an ${CROP} \
-    -c:v libx264 -crf 20 -preset slow -pix_fmt yuv420p -movflags +faststart "${out}"
+  ffmpeg -y -ss "${start}" -to "${end}" -i "${SOURCE_FILE}" -an ${CROP} -r "${FPS}" \
+    -c:v libx264 -crf "${CRF}" -preset slow -pix_fmt yuv420p -movflags +faststart "${out}"
   # shellcheck disable=SC2086
   ffmpeg -y -ss "${start}" -i "${SOURCE_FILE}" -frames:v 1 ${CROP} "${poster}"
 done

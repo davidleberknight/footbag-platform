@@ -1,6 +1,6 @@
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
-const { dbPath } = setTestEnv('3984');
+const { dbPath } = setTestEnv('3986');
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -22,9 +22,9 @@ const MOSAIC_LABELS = [
   'Butterfly', 'Osis', 'Whirl', 'Swirl',
 ];
 
-describe('home page foundational-tricks mosaic', () => {
+describe('freestyle landing foundational-tricks mosaic', () => {
   it('renders the 12-cell mosaic with every core-atom label', async () => {
-    const res = await request(createApp()).get('/');
+    const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('The 12 Foundations of Freestyle');
     expect(res.text).toContain('class="tricks-mosaic"');
@@ -33,10 +33,17 @@ describe('home page foundational-tricks mosaic', () => {
     }
   });
 
-  it('shows labelled empty-state cells before any clip is curated', async () => {
-    const res = await request(createApp()).get('/');
-    // No curated mosaic clips exist in the test DB, so each cell falls back to its
-    // neutral labelled tile rather than a <video>.
+  it('keeps the Featured videos band and sits below it as a lower enrichment section', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const featuredAt = res.text.indexOf('id="featured"');
+    const mosaicAt = res.text.indexOf('The 12 Foundations of Freestyle');
+    expect(featuredAt).toBeGreaterThan(-1);
+    expect(mosaicAt).toBeGreaterThan(featuredAt);
+  });
+
+  it('falls back to quiet empty-state cells when no clip is loaded', async () => {
+    const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('tricks-mosaic-empty');
+    expect(res.text).toContain('tricks-mosaic-section--placeholder');
   });
 });

@@ -11917,7 +11917,17 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    looping clips, one per core atom. Cells with no clip yet show a neutral
    labelled tile so the grid reads as complete before the media is produced. */
 .tricks-mosaic-section {
+  margin-top: 40px;
   margin-bottom: 32px;
+}
+/* The placeholder state (no cell has a clip loaded) keeps this enrichment block
+   quiet so it does not compete with the main homepage content: narrower and
+   slightly recessed. The full-width grid returns once clips are present. */
+.tricks-mosaic-section--placeholder .tricks-mosaic {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+  opacity: 0.88;
 }
 .tricks-mosaic {
   display: grid;
@@ -11944,19 +11954,27 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .tricks-mosaic-label {
   position: absolute;
   left: 0;
-  right: 0;
   bottom: 0;
-  padding: 8px 10px;
+  width: 30%;
+  height: 28%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 6px;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
   color: var(--white);
-  text-align: center;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+  text-align: left;
+  /* Solid opaque box over the lower-left corner only: it masks the source
+     clip's burnt-in caption that sits there with our own label. Sized as a
+     share of the square cell so the cover scales with the tile. */
+  background: rgba(0, 0, 0, 1);
 }
 @media (max-width: 1024px) {
   .tricks-mosaic { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 480px) {
   .tricks-mosaic { gap: 6px; }
-  .tricks-mosaic-label { font-size: 0.78rem; padding: 6px 8px; }
+  .tricks-mosaic-label { font-size: 0.78rem; }
 }

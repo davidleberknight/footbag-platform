@@ -4,11 +4,11 @@ import {
   TRICKS_MOSAIC,
   mosaicMatchesCoreAtoms,
   mosaicClipFilename,
-} from '../../src/content/homepageTricksMosaic';
+} from '../../src/content/freestyleTricksMosaic';
 
-// The homepage hero mosaic must always present exactly the 12 canonical core
+// The freestyle landing mosaic must always present exactly the 12 canonical core
 // atoms, each with a human label, and load its loop by the agreed filename. These
-// guards stop the hero from silently drifting out of sync with the ontology when
+// guards stop the section from silently drifting out of sync with the ontology when
 // the atom registry changes.
 describe('homepage foundational-tricks mosaic', () => {
   it('has exactly 12 cells', () => {

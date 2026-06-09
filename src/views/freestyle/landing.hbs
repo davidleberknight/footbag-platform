@@ -217,4 +217,26 @@
   </section>
   {{/if}}
 
+  {{! ── The 12 Foundations: core-atom mosaic (lower enrichment band) ──────── }}
+  <section class="content-section tricks-mosaic-section{{#unless content.tricksMosaicHasClips}} tricks-mosaic-section--placeholder{{/unless}}">
+    <div class="section-heading">
+      <h2>The 12 Foundations of Freestyle</h2>
+      <p class="section-intro">Every freestyle trick is built from these core movements.</p>
+    </div>
+    <div class="tricks-mosaic">
+      {{#each content.tricksMosaic}}
+        <figure class="tricks-mosaic-cell">
+          {{#if mp4Url}}
+            <video class="tricks-mosaic-media" autoplay loop muted playsinline preload="metadata" poster="{{posterUrl}}">
+              <source src="{{mp4Url}}" type="video/mp4">
+            </video>
+          {{else}}
+            <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
+          {{/if}}
+          <figcaption class="tricks-mosaic-label">{{label}}</figcaption>
+        </figure>
+      {{/each}}
+    </div>
+  </section>
+
 </div>

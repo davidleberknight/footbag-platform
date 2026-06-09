@@ -71,6 +71,7 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
+import { TRICKS_MOSAIC, mosaicClipFilename } from '../content/freestyleTricksMosaic';
 import {
   CORE_ATOM_EDUCATIONAL,
   isCoreAtom,
@@ -397,6 +398,14 @@ export interface MediaTagDisplay {
   kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'discipline';
 }
 
+export interface FreestyleMosaicCell {
+  slug: string;
+  label: string;
+  href: string;
+  mp4Url: string | null;
+  posterUrl: string | null;
+}
+
 export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
@@ -407,6 +416,11 @@ export interface FreestyleLandingContent {
   // Featured strip — competition formats + curated demonstrations rendered
   // in one compact grid. Empty array hides the section content.
   featured: FreestyleFeaturedItem[];
+  // Lower enrichment band: 12 labelled core-atom cells, each loading a curated
+  // loop or showing a labelled empty tile. tricksMosaicHasClips is false until any
+  // clip is curated, which the landing uses to keep the band quiet meanwhile.
+  tricksMosaic: FreestyleMosaicCell[];
+  tricksMosaicHasClips: boolean;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -8951,6 +8965,17 @@ export const freestyleService = {
 
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
+    const tricksMosaic = TRICKS_MOSAIC.map((atom) => {
+      const clip = loadCuratorDemoVideo(mosaicClipFilename(atom.slug));
+      return {
+        slug: atom.slug,
+        label: atom.label,
+        href: `/freestyle/tricks/${atom.slug}`,
+        mp4Url: clip?.mp4Url ?? null,
+        posterUrl: clip?.posterUrl ?? null,
+      };
+    });
+
     return {
       seo: {
         title: 'Freestyle',
@@ -9051,6 +9076,8 @@ export const freestyleService = {
         ],
         totalTricks:  trickRows.length,
         totalRecords,
+        tricksMosaic,
+        tricksMosaicHasClips: tricksMosaic.some((c) => c.mp4Url !== null),
       },
     };
   },
