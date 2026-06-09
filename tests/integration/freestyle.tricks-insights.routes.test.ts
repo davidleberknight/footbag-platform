@@ -1245,11 +1245,11 @@ describe('GET /freestyle — landing page highlights', () => {
     expect(res.text).toContain('/freestyle/insights');  // link to insights exists
   });
 
-  it('contains nav buttons for new pages', async () => {
+  it('contains nav links for the language and analysis destinations', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('Trick Dictionary');
-    expect(res.text).toContain('Insights');
+    expect(res.text).toContain('Freestyle Patterns');
   });
 });
 

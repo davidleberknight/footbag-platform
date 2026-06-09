@@ -31,20 +31,21 @@ describe('GET /freestyle with no tricks or records loaded', () => {
     expect(res.status).toBe(200);
   });
 
-  it('omits the Trick Dictionary and Trick Records cards entirely', async () => {
+  it('omits the gated Trick Dictionary and Trick Records tiles entirely', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).not.toContain('<div class="card-title">Trick Dictionary</div>');
-    expect(res.text).not.toContain('<div class="card-title">Trick Records</div>');
+    expect(res.text).not.toContain('>Trick Dictionary<');
+    expect(res.text).not.toContain('>Trick Records<');
   });
 
-  it('never renders a "Coming soon" placeholder', async () => {
+  it('renders the History timeline items as coming-soon placeholders', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).not.toContain('Coming soon');
+    expect(res.text).toContain('Coming soon');
+    expect(res.text).toContain('History Timeline');
   });
 
-  it('still renders the always-available destination cards', async () => {
+  it('still renders the always-available banner destinations', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('<div class="card-title">Glossary</div>');
-    expect(res.text).toContain('<div class="card-title">Competition</div>');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/competition"');
   });
 });
