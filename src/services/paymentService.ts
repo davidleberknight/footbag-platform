@@ -153,7 +153,7 @@ export interface CancelContent {
   reason: 'canceled' | 'failed' | 'unknown';
   message: string;
   continueHref: string;
-  tryAgainHref: string | null;
+  tryAgain: { action: string; tier: string; returnTo: string } | null;
 }
 
 export interface PaymentHistoryRow {
@@ -904,9 +904,15 @@ function getPaymentCancelPage(
   payment: PaymentRow | null,
   opts: { continueHref: string; slug: string },
 ): PageViewModel<CancelContent> {
-  const tryAgainHref =
+  // The retry affordance posts to the POST-only purchase-tier route, so it is
+  // shaped as form fields (action + hidden inputs), not a GET href.
+  const tryAgain =
     payment && payment.payment_type === 'membership' && payment.purchased_tier_status
-      ? `/members/${opts.slug}/purchase-tier?tier=${payment.purchased_tier_status}&returnTo=${encodeURIComponent(opts.continueHref)}`
+      ? {
+          action: `/members/${opts.slug}/purchase-tier`,
+          tier: payment.purchased_tier_status,
+          returnTo: opts.continueHref,
+        }
       : null;
   const reason: CancelContent['reason'] =
     payment?.status === 'failed' ? 'failed' :
@@ -917,7 +923,7 @@ function getPaymentCancelPage(
   return {
     seo:  { title: 'Payment not completed' },
     page: { sectionKey: '', pageKey: 'payment_cancel', title: 'Payment not completed' },
-    content: { reason, message, continueHref: opts.continueHref, tryAgainHref },
+    content: { reason, message, continueHref: opts.continueHref, tryAgain },
   };
 }
 

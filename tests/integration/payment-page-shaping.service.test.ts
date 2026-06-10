@@ -96,7 +96,7 @@ describe('paymentService.getPaymentSuccessPage', () => {
 });
 
 describe('paymentService.getPaymentCancelPage', () => {
-  it('maps a failed payment to the failed reason + retry href', () => {
+  it('maps a failed payment to the failed reason + retry form fields', () => {
     const vm = pay.paymentService.getPaymentCancelPage(
       membershipRow({ status: 'failed' }),
       { continueHref: '/members/won', slug: 'won' },
@@ -104,9 +104,11 @@ describe('paymentService.getPaymentCancelPage', () => {
     expect(vm.page.pageKey).toBe('payment_cancel');
     expect(vm.content.reason).toBe('failed');
     expect(vm.content.message).toBe('Your payment could not be completed. Your membership tier has not changed.');
-    expect(vm.content.tryAgainHref).toBe(
-      '/members/won/purchase-tier?tier=tier1&returnTo=%2Fmembers%2Fwon',
-    );
+    expect(vm.content.tryAgain).toEqual({
+      action: '/members/won/purchase-tier',
+      tier: 'tier1',
+      returnTo: '/members/won',
+    });
   });
 
   it('maps a canceled payment to the canceled reason', () => {
@@ -118,10 +120,10 @@ describe('paymentService.getPaymentCancelPage', () => {
     expect(vm.content.message).toBe('Your payment was not completed. Your membership tier has not changed.');
   });
 
-  it('maps a missing payment to unknown reason with no retry href', () => {
+  it('maps a missing payment to unknown reason with no retry form', () => {
     const vm = pay.paymentService.getPaymentCancelPage(null, { continueHref: '/members/won', slug: 'won' });
     expect(vm.content.reason).toBe('unknown');
-    expect(vm.content.tryAgainHref).toBeNull();
+    expect(vm.content.tryAgain).toBeNull();
   });
 });
 

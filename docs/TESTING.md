@@ -153,6 +153,26 @@ Property-based testing (fast-check) and mutation testing (Stryker) are available
 
 A catastrophic surface that lacks any floor item carries a single-line entry in `IMPLEMENTATION_PLAN.md`: surface name plus the missing floor item. The entry is deleted when the gap closes. No rigor levels, no target field, no per-test ceremony; one line per gap, removed on close.
 
+### 4.6 Persona derivation and the route-by-persona authorization matrix
+
+Authorization defects (a missing gate, an over-broad gate, a privilege that leaks across an ownership boundary) surface only when the right actor exercises the right route. This section defines how the test-persona suite is derived so the derivation is systematic and provably complete rather than ad hoc, and how the personas feed the route-by-persona authorization matrix.
+
+Deriving the persona suite:
+
+1. Enumerate the authorization dimensions from the `Access:` clause of every deployed user story. The dimensions are: authentication state (anonymous, authenticated); email-verified state (verified, or registered-unverified with login blocked until verification); the membership tier ladder (Tier 0, 1, 2, 3); per-resource ownership (owner of the target row); resource-scoped roles (event organizer and co-organizer, club leader and co-leader, group owner and co-owner, group member); the admin role (the curated-media curator surface is admin-operated, not a separate role); the system or internal-caller role (scheduled jobs, secret-gated webhooks); standing flags (Active Player status, Hall-of-Fame / Big-Add-Posse / IFPA-Board honors, vote-eligibility by inclusion list); migration and legacy-claim state (graded auto-link confidence high, medium, low, no-match, plus the claimed-legacy record whose legacy admin flag must not confer admin); and identity edge cases (homoglyph, RTL-override, and unicode display names, duplicate display names, surname collisions, deceased members, accounts inside the deletion grace period).
+
+2. Treat each dimension as an axis and apply equivalence partitioning to actors, the technique ISTQB defines for inputs: every distinct gate outcome is one equivalence class, and the suite carries one seedable persona per class. For ordered dimensions add boundary-value personas at the gate edges: the tier just below a route's requirement versus at or above it, an Active Player grant that is current versus one that just expired, a deletion grace period still open versus just elapsed.
+
+3. Derive negative personas explicitly. STRIDE Elevation-of-Privilege and abuser-story analysis require, for every privileged route, an authenticated actor who is authorized and an authenticated actor who is not, plus the adjacent-owner persona (a member who owns some resource of the same type but not this one). The adjacent-owner persona is what surfaces broken object-level and function-level authorization (OWASP API Security Top 10 BOLA and BFLA); without it, an owner-only route that silently serves any authenticated member passes every positive test.
+
+4. Map each class to a concrete, named, seedable persona. A dimension that combines with another to change a gate outcome yields a separate persona (a Tier 1 club leader and a Tier 1 non-leader are two personas), but combinations that never change an outcome are not multiplied out.
+
+Controlling combinatorial growth: the axes are orthogonal, so the full cartesian product is large and most cells are uninteresting. Catastrophic and high-severity surfaces (auth, session, member privacy, payments, identity claim, per §3) are covered exhaustively across the relevant axes; the rest is sampled with pairwise (all-pairs) selection so every pair of axis values appears in at least one persona without enumerating every triple. Risk severity, not convenience, decides which surfaces are exhaustive.
+
+The matrix: the deployed-route inventory is crossed with the persona suite, and every cell asserts the expected gate outcome, an allow cell for each authorized persona and a deny cell for each unauthorized one. An unasserted route-by-persona cell is a visible candidate authorization gap rather than a silent one, so the matrix doubles as a coverage ledger. The deny half is mandatory: a route that asserts only its allow cells has not been tested for authorization.
+
+The canonical catalog and its maintenance: the persona suite is instantiated once, as the maintainer-curated catalog the persona harness seeds and the `/dev/switch` and `/dev/personas` affordances expose (§7.5). The catalog is the single source of truth; new test slices add a persona there rather than inventing fixture rows, and each persona records the testing dimensions it exercises so the catalog itself reads as a coverage matrix. A deployed surface that no existing persona exercises is the signal that a new persona is required. Where the catalog does not instantiate every class this section derives, the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not a relaxation of the target.
+
 ---
 
 ## 5. Test layers and what belongs in each
@@ -192,6 +212,8 @@ Does not belong:
 
 - Browser-only assertions (cookie attribute interaction with the browser, redirect chains visible only in a real browser)
 - Staging-AWS integration (SES, S3, KMS live)
+
+The generated route-by-persona authorization matrix (§4.6) lives here: it crosses the deployed-route inventory with the derived persona suite and asserts the expected allow or deny outcome for every cell, so an unasserted route-by-persona combination is a visible candidate authorization gap.
 
 ### 5.3 db-load smoke
 
@@ -257,6 +279,8 @@ A class, not a folder. Lives wherever the assertion most efficiently lives (unit
 - Testing-shortcut regression tests (§7.5)
 
 Cross-cutting regression classes (cookie attributes, CSRF presence on every state-changing verb, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes. The shared-helper shape keeps the per-route assertion cheap (one line per route) while preserving the property: a future refactor that mounts a sub-router outside the perimeter, or changes the cookie-issuance helper to drop a flag, fails the route's own test rather than only a centralized middleware test.
+
+Beyond the per-route helpers, three invariant families are generated across every surface they can touch, so a newly added surface is covered by construction rather than by memory: anti-enumeration exists/not-exists response-equivalence pairs, the append-only mutation guards for ledgered tables (audit, tier, active-player, system-config), and the idempotency assertions for replayable surfaces (outbox, webhook delivery, grant application).
 
 ### 5.7 Testing-shortcut regression tests
 
@@ -359,7 +383,7 @@ The script does not accept passwords or secrets as command-line arguments. Secre
 
 ### 7.4 Staging personas: model and reset
 
-Staging needs synthetic personas that cover the role matrix (anonymous, registered-unverified, verified Tier 0, Tier 1, Tier 2, Tier 3, club leader, country leader, event organizer, curator, legacy claimant with high/medium/low/no-match outcomes, name-change and alias edge cases, club-affiliation-cleanup subjects). The personas exist for routine Playwright tests against staging and for operator-driven manual exploration of role-conditional UI.
+Staging needs synthetic personas that cover the persona suite derived in §4.6 (the authentication-state, tier, ownership, resource-scoped-role, honor, migration / legacy-claim, and edge-identity classes). The personas exist for routine Playwright tests against staging and for operator-driven manual exploration of role-conditional UI.
 
 Persona contract:
 
@@ -472,6 +496,8 @@ The platform's security testing strategy has three classes of automated and tool
 These run in normal CI. The baseline adversarial list in `.claude/rules/testing.md` (oversized payloads, unicode mischief, SQL injection, XSS, timing attacks, race conditions, token replay) plus the per-route baseline (auth gate, authz gate, anti-enumeration, rate-limit, CSRF) is the floor. Threat-aware additions per the STRIDE framework (§4.2) cover any cases beyond the floor on catastrophic-severity surfaces.
 
 Tagged `@security`. Lives where the assertion most efficiently lives (unit, integration, or e2e lightweight).
+
+Static taint analysis over `src/` is part of this gate: a pinned CodeQL (or Semgrep with the project rule pack) pass runs pre-merge so injection and unsafe-sink classes are caught mechanically rather than by manual review alone.
 
 ### 9.2 Lightweight staging-safe pentest
 
@@ -594,7 +620,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 
 - *Local fast loop.* Typecheck plus lint plus changed-file unit tests via test impact analysis (`vitest --changed`). Sub-30s. Developer-triggered. No gate enforcement; convenience for the working developer.
 - *Pre-PR.* Full unit plus integration plus security regression. Sub-2min on a fresh checkout. Optional local git hook that runs `npm run test:pre-pr` before allowing push.
-- *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks. Sub-10min. Blocks merge.
+- *CI on PR.* Same as pre-PR plus db-load smoke plus lightweight Playwright plus staging-safe security checks plus per-PR dependency review (`actions/dependency-review-action` over the PR diff, alongside the whole-tree `npm audit`). Sub-10min. Blocks merge.
 - *CI nightly or on-demand.* Mutation testing on the safety-critical short list (auth, privacy filters, migration matchers, role gates), dependency audit, header check across the route table, dev-shortcuts cutover audit against the production DB. Reports, does not block.
 - *Post-deploy staging smoke.* Read-only health check, auth-gate enforcement, anti-enumeration timing, no-stack-trace probe, dev-shortcut absence probe. Sub-1min. Blocks deploy promotion on failure.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
@@ -661,6 +687,8 @@ Coverage thresholds set in `vitest.config.ts` are floors per `.claude/rules/test
 Target: 80% line/branch floor enforced in CI with ratchet (fail on drop). Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are verified by inspection of the tests themselves, not just by the coverage number. 100% coverage is not a target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
 
 Quarantine count (§11.3) is a separate signal; sustained growth is a maintenance issue.
+
+Uncovered branches are also a read-targeting signal: they are where both the test suite and a review pass go blind, so they are the priority surface for the next adversarial review.
 
 ### 12.2 Selective heavier tooling
 

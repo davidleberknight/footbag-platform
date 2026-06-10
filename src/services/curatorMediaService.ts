@@ -1755,7 +1755,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       } else {
         if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
         if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
-        if (row.video_id) keysToDelete.push(row.video_id);
+        if (row.video_id) {
+          keysToDelete.push(row.video_id);
+          // An uploaded video's poster-thumb companion is generated at upload
+          // but persisted to no column, so re-derive it from the video key to
+          // avoid orphaning it in storage. The poster-display key is already
+          // cleaned via thumbnail_url below.
+          if (row.video_id.endsWith('-video.mp4')) {
+            keysToDelete.push(row.video_id.slice(0, -'-video.mp4'.length) + '-poster-thumb.jpg');
+          }
+        }
         if (row.thumbnail_url && row.thumbnail_url.startsWith('/media-store/')) {
           keysToDelete.push(row.thumbnail_url.slice('/media-store/'.length));
         }

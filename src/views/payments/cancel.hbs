@@ -9,8 +9,12 @@
     <div class="card">
       <h2 class="card-title">{{content.message}}</h2>
       <div class="mt-6">
-        {{#if content.tryAgainHref}}
-          <a href="{{content.tryAgainHref}}" class="btn btn-primary">Try again</a>
+        {{#if content.tryAgain}}
+          <form method="POST" action="{{content.tryAgain.action}}" class="membership-upgrade-form">
+            <input type="hidden" name="tier" value="{{content.tryAgain.tier}}" />
+            <input type="hidden" name="returnTo" value="{{content.tryAgain.returnTo}}" />
+            <button type="submit" class="btn btn-primary">Try again</button>
+          </form>
         {{/if}}
         <a href="{{content.continueHref}}" class="btn btn-outline ml-2">Continue</a>
       </div>

@@ -693,6 +693,7 @@ describe('curatorMediaService.deleteMedia', () => {
 
     expect(storage.deletes.some((k) => k.endsWith('-video.mp4'))).toBe(true);
     expect(storage.deletes.some((k) => k.endsWith('-poster-display.jpg'))).toBe(true);
+    expect(storage.deletes.some((k) => k.endsWith('-poster-thumb.jpg'))).toBe(true);
   });
 
   it('writes audit entry with delete_curated_media action_type', async () => {

@@ -94,3 +94,29 @@ design recorded in the canonical docs (USER_STORIES / DESIGN_DECISIONS) or in MI
   authoritative before the handover, so it cannot pre-shrink the live MX TTL on email day) and
   correct the header; keep the `handover` phase. The email-day MX TTL pre-shrink is the
   webmaster's manual action on his authoritative zone (recorded in MIGRATION_PLAN §19.3 / §29.12a).
+
+### Bug-hunt remediation (platform-src)
+
+Verified bug-hunt findings, re-confirmed against current code, carried as deviations to close.
+
+- **B11: member-profile external URLs unimplemented.** Two deployed stories (M_Edit_Profile,
+  M_View_Profile) specify collecting up to three external URLs, validating before publication,
+  and displaying them safely, but the backing `member_links` table has no reader/writer and the
+  profile and edit templates have no URL surface. Implement as a dedicated slice: `member_links`
+  read/write statements, validate-before-publish (max 3) in `memberService` reusing
+  `externalUrlValidator`, render the block in profile + edit templates, with tests. Shares the
+  validator with M4.
+
+### Persona harness completion (platform-src)
+
+The route-by-persona authorization matrix and the automated persona-driven test scripts depend on
+a complete actor catalog, but the `/dev/personas` catalog (`src/testkit/canonicalPersonas.ts`)
+instantiates only a subset of the persona suite derived in `docs/TESTING.md` §4.6. Extend
+`PersonaSpec` (`src/testkit/personaFactory.ts`) with the missing optional fields, add the matching
+row builders in `src/testkit/personaRowBuilders.ts`, and add one seedable persona per missing class
+in `canonicalPersonas.ts` with coverage notes. Missing classes: resource-scoped roles (event
+organizer and co-organizer, club co-leader, country leader, group owner / co-owner, group member),
+a switchable curator identity, the honors (HoF / BAP / Board), vote-eligibility by inclusion list,
+the legacy no-match auto-link outcome, the claimed-legacy `legacy_is_admin=1` non-inheritance
+subject, the registered-unverified state, deceased, and deletion-grace-period. The target is the
+§4.6 taxonomy; close this when every class it derives has a catalog entry.
