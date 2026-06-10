@@ -63,49 +63,14 @@ regress.
 Buildable to-dos from the cutover-readiness audit. Each is a deviation from a now-decided
 design recorded in the canonical docs (USER_STORIES / DESIGN_DECISIONS) or in MIGRATION_PLAN.
 
-- **M4: validate seeded club URLs at boot.** Extend `src/services/externalUrlBootScan.ts` to
-  scan `clubs`, not just media gallery links: validate, quarantine, and stamp
-  `external_url_validated_at` on club rows at startup, mirroring the media pattern. Closes the
-  gap where `clubs/scripts/06_cutover_pre_populated_clubs.py` publishes unvalidated club
-  `external_url`.
-- **M5: match against all three legacy emails.** Auto-link in `identityAccessService` queries
-  the member's verified login email and declared old-email anchors against `legacy_email`,
-  `legacy_email2`, and `legacy_email3` (the columns land via the legacy_data IP / `schema.sql`
-  add). Cross-column collisions are pre-resolved by the test-load G1 gate; a still-colliding
-  address stays match-time-ambiguous as the backstop.
-- **M7: third-current-club confirm.** `clubService.confirmAffiliation`: when the member is
-  already at the two-current-club cap, do NOT flip the legacy affiliation row to
-  `confirmed_current`. Leave it actionable and return a cap-hit branch that surfaces "you are at
-  the two current-club limit; mark one as former to add this" (mirror the existing
-  `claimLeadership` affiliated-only branch). Add a test.
 - **M8: enforce claim-safety gates at cutover.** `scripts/pre-cutover-checklist.sh` runs the
   named claim-safety integration tests (G17-G27) inline against the shipped artifact, since the
   deploy ships the working tree, not a git SHA. Add the runbook note to `docs/DEVOPS_GUIDE.md`.
-- **M10: admin-non-promotion test.** Add a negative test to the legacy-claim integration suite
-  asserting that claiming a `legacy_members` row with `legacy_is_admin = 1` leaves
-  `members.is_admin = 0` (the invariant currently holds only by code-path absence).
 - **M12: retire the daily honors digest.** Remove the scheduled daily send in
   `hofBapAdminDigestService`. The v1 honors-oversight mechanism is the a-priori roster
   cross-check (legacy_data IP) plus community self-policing and admin revert. Keep the
   underlying honors-claim query (`listRecentHonorsClaims`) for on-demand admin review; the
   interactive oversight feed stays v2.
-- **M15: fix the DNS TTL preflight script.** `scripts/dns-ttl-preflight.sh`: remove the
-  `mx-day` phase (it only rewrites A/AAAA, never MX/TXT, and targets Route 53, which is not
-  authoritative before the handover, so it cannot pre-shrink the live MX TTL on email day) and
-  correct the header; keep the `handover` phase. The email-day MX TTL pre-shrink is the
-  webmaster's manual action on his authoritative zone (recorded in MIGRATION_PLAN §19.3 / §29.12a).
-
-### Bug-hunt remediation (platform-src)
-
-Verified bug-hunt findings, re-confirmed against current code, carried as deviations to close.
-
-- **B11: member-profile external URLs unimplemented.** Two deployed stories (M_Edit_Profile,
-  M_View_Profile) specify collecting up to three external URLs, validating before publication,
-  and displaying them safely, but the backing `member_links` table has no reader/writer and the
-  profile and edit templates have no URL surface. Implement as a dedicated slice: `member_links`
-  read/write statements, validate-before-publish (max 3) in `memberService` reusing
-  `externalUrlValidator`, render the block in profile + edit templates, with tests. Shares the
-  validator with M4.
 
 ### Persona harness completion (platform-src)
 

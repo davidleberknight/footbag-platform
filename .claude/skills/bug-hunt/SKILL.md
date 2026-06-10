@@ -1,9 +1,11 @@
 ---
 name: bug-hunt
-description: Run a disciplined adversarial bug hunt over the footbag-platform repository - a static code-and-design security/correctness review that re-derives the deployed surface, checks deployed user stories against their success criteria, refutes every candidate finding, and records verified findings in BUGS.md at the repo root. Use when the user asks for a bug hunt, bug sweep, security sweep, or adversarial review of the codebase. Not a testing strategy and not browser QA.
+description: Run a disciplined adversarial bug hunt over the footbag-platform repository - a static code-and-design security/correctness review that re-derives the deployed surface, checks deployed user stories against their success criteria, refutes every candidate finding, and records verified findings in BUGS.md at the repo root. Invoke ONLY when the user explicitly asks for a "bug hunt" or "bug sweep" by name. Do NOT infer it from "adversarial review", "security pass", "review the code", or similar - those are the plan-mode findings-only review workflow, not this skill. Not a testing strategy and not browser QA.
 ---
 
 # Bug Hunt — Claude Code bug-hunting prompt and static security/design review guide
+
+> **Invoke ONLY on explicit request.** Run this skill exclusively when the user asks for a "bug hunt" or "bug sweep" by name. Do NOT infer it from "adversarial review", "security pass", "review the code/design", or any general review phrasing — those mean the plan-mode, findings-only review workflow, not this full-surface BUGS.md-writing sweep. When in doubt, ask before invoking.
 
 This skill is the standing prompt for running a disciplined Claude Code bug hunt against the footbag-platform repository. It is a static, code-and-design review guide: it complements `docs/TESTING.md`, but it is not the testing strategy and not a browser QA plan. It is invoked when there is reason to believe new defects may have been introduced, when a feature area has never had an adversarial review, or when user-story/documentation drift may have created hidden implementation bugs.
 

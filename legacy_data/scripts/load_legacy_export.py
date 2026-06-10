@@ -33,10 +33,14 @@ Safety contract (in order):
   6. Dry-run by default; --apply performs the writes inside ONE
      transaction with honest per-category counters.
 
-Intra-export collisions on legacy_email or legacy_user_id (the DB enforces
-partial UNIQUE indexes on both) are excluded and reported for adjudication;
-importing them would abort the transaction, and inventing NULLs for them
-would silently change the data.
+A legacy account can carry up to three email addresses (a primary plus two
+secondary); all three are imported and all three participate in claim matching.
+An address that appears, in any of the three columns, on more than one row
+identifies two different accounts: those collisions are excluded and reported
+for adjudication. The email columns are non-unique in the schema (one address
+may be primary on one account and secondary on another), so cross-account email
+uniqueness is enforced here and by the validation gate, not by the DB.
+legacy_user_id uniqueness stays single-column.
 
 Usage:
   python legacy_data/scripts/load_legacy_export.py --export /path/to/export.csv [--db path] [--apply]
@@ -64,7 +68,9 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "legacy_member_id": ["legacy_member_id", "memberid", "member_id", "id"],
     "member_valid":     ["membervalid", "member_valid", "valid"],
     "legacy_user_id":   ["legacy_user_id", "userid", "user_id", "username", "login", "handle"],
-    "legacy_email":     ["legacy_email", "email", "emailaddress", "e_mail"],
+    "legacy_email":     ["legacy_email", "email", "emailaddress", "e_mail", "memberemail"],
+    "legacy_email2":    ["legacy_email2", "email2", "emailaddress2", "memberemail2"],
+    "legacy_email3":    ["legacy_email3", "email3", "emailaddress3", "memberemail3"],
     "real_name":        ["real_name", "realname", "name", "fullname", "full_name"],
     "display_name":     ["display_name", "displayname", "nickname"],
     "city":             ["city"],
@@ -81,8 +87,9 @@ FIELD_ALIASES: dict[str, list[str]] = {
 }
 REQUIRED_FIELDS = ["legacy_member_id", "member_valid"]
 # At least one of these must be non-empty for a row to count as having a
-# usable identity.
-IDENTITY_FIELDS = ["real_name", "display_name", "legacy_user_id", "legacy_email"]
+# usable identity. A secondary email is identity-bearing too.
+IDENTITY_FIELDS = ["real_name", "display_name", "legacy_user_id",
+                   "legacy_email", "legacy_email2", "legacy_email3"]
 
 TEST_PLACEHOLDER_NAMES = {"test", "testing", "asdf", "placeholder", "delete me", "deleteme", "xxx", "tbd"}
 
@@ -258,21 +265,36 @@ def main() -> None:
 
         importable.append(row)
 
-    # Intra-export collisions on the partially-UNIQUE columns. The colliding
-    # rows after the first are excluded and reported; the uniqueness gates
-    # decide the policy if the live export violates them.
-    for unique_field, rule in (("legacy_email", "email_conflict"), ("legacy_user_id", "user_id_conflict")):
-        seen_values: dict[str, str] = {}
-        kept: list[dict[str, str]] = []
-        for row in importable:
-            value = field(row, unique_field)
-            if value and value in seen_values:
-                excluded[rule].append(field(row, "legacy_member_id"))
-                continue
-            if value:
-                seen_values[value] = field(row, "legacy_member_id")
-            kept.append(row)
-        importable = kept
+    # Cross-column email collision: an address appearing in any of the three
+    # email columns on more than one row identifies two accounts. The colliding
+    # rows after the first are excluded and reported. Comparison is
+    # case-insensitive, matching how the platform resolves claims. This is the
+    # loader's defense-in-depth behind the validation gate.
+    email_cols = ("legacy_email", "legacy_email2", "legacy_email3")
+    seen_emails: dict[str, str] = {}
+    kept: list[dict[str, str]] = []
+    for row in importable:
+        row_emails = {field(row, c).lower() for c in email_cols if field(row, c)}
+        if any(value in seen_emails for value in row_emails):
+            excluded["email_conflict"].append(field(row, "legacy_member_id"))
+            continue
+        for value in row_emails:
+            seen_emails[value] = field(row, "legacy_member_id")
+        kept.append(row)
+    importable = kept
+
+    # legacy_user_id uniqueness stays single-column.
+    seen_user_ids: dict[str, str] = {}
+    kept = []
+    for row in importable:
+        value = field(row, "legacy_user_id")
+        if value and value in seen_user_ids:
+            excluded["user_id_conflict"].append(field(row, "legacy_member_id"))
+            continue
+        if value:
+            seen_user_ids[value] = field(row, "legacy_member_id")
+        kept.append(row)
+    importable = kept
 
     ts = now_iso()
     updated_from_mirror = 0
@@ -281,7 +303,8 @@ def main() -> None:
 
     update_sql = """
         UPDATE legacy_members SET
-          legacy_user_id = ?, legacy_email = ?, real_name = ?, display_name = ?,
+          legacy_user_id = ?, legacy_email = ?, legacy_email2 = ?, legacy_email3 = ?,
+          real_name = ?, display_name = ?,
           display_name_normalized = ?, city = ?, region = ?, country = ?, bio = ?,
           birth_date = ?, street_address = ?, postal_code = ?, ifpa_join_date = ?,
           first_competition_year = COALESCE(
@@ -293,11 +316,12 @@ def main() -> None:
     """
     insert_sql = """
         INSERT INTO legacy_members (
-          legacy_member_id, legacy_user_id, legacy_email, real_name, display_name,
+          legacy_member_id, legacy_user_id, legacy_email, legacy_email2, legacy_email3,
+          real_name, display_name,
           display_name_normalized, city, region, country, bio, birth_date,
           street_address, postal_code, ifpa_join_date, first_competition_year,
           is_hof, is_bap, legacy_is_admin, import_source, imported_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           (SELECT first_year FROM historical_persons WHERE legacy_member_id = ?),
           ?, ?, ?, 'legacy_site_data', ?)
     """
@@ -314,6 +338,8 @@ def main() -> None:
         values_common = (
             field(row, "legacy_user_id") or None,
             field(row, "legacy_email") or None,
+            field(row, "legacy_email2") or None,
+            field(row, "legacy_email3") or None,
             real_name or None,
             display_name or None,
             normalize(display_name) if display_name else None,

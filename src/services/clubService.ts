@@ -1491,6 +1491,8 @@ export class ClubService {
    *     'confirmed_current' with resolved_club_id stamped (schema CHECK
    *     enforces both fields move together), plus an insert into
    *     member_club_affiliations (source='legacy_claim', is_current=1).
+   *     Exception: at the two-current-club cap this is a no-op cap hit
+   *     (see Multi-club safety below).
    *   - 'decline' (pending row): transition to 'rejected'. No affiliation
    *     row written.
    *   - non-pending row: idempotent no-op; returns the existing
@@ -1506,19 +1508,21 @@ export class ClubService {
    * Multi-club safety: a member may hold at most two current club
    * affiliations (primary + secondary). The first current club is
    * primary (is_primary=1); the second is secondary (is_primary=0).
-   * If the member already has two is_current=1 rows, the new
-   * affiliation insert is skipped (cap hit); the legacy affiliation
-   * row still transitions to 'confirmed_current'. The cap is enforced
-   * at the service layer (count-before-insert), matching the 5-leader
-   * cap pattern in claimLeadership. The UNIQUE(member_id, club_id)
-   * index catches idempotent re-inserts of the same member-club pair.
+   * If the member already has two is_current=1 rows, the confirm is a
+   * cap hit: the legacy affiliation row is left pending (NOT transitioned
+   * to 'confirmed_current'), no affiliation is inserted, and the method
+   * returns branch 'cap_hit'. The row stays actionable so the member can
+   * mark a current club as former and retry. The cap is enforced at the
+   * service layer (count-before-write), matching the 5-leader cap pattern
+   * in claimLeadership. The UNIQUE(member_id, club_id) index catches
+   * idempotent re-inserts of the same member-club pair.
    */
   confirmAffiliation(
     affiliationRowId: string,
     actorMemberId: string,
     userDecision: 'confirm' | 'correct' | 'decline',
   ): {
-    branch: 'confirmed' | 'declined' | 'idempotent';
+    branch: 'confirmed' | 'declined' | 'idempotent' | 'cap_hit';
     affiliationRowId: string;
     resolvedClubId: string | null;
     newAffiliationId: string | null;
@@ -1585,11 +1589,23 @@ export class ClubService {
     const resolvedClubId = candidate.mapped_club_id;
 
     // 'confirm' or 'correct': transition status + stamp resolved_club_id +
-    // insert member_club_affiliations atomically.
+    // insert member_club_affiliations atomically. The two-current-club cap is
+    // checked before the transition so a capped confirm leaves the row pending
+    // and actionable rather than silently consuming it.
     let newAffiliationId: string | null = null;
+    let capHit = false;
     const now = new Date().toISOString();
     try {
       transaction(() => {
+        // Two-current-club cap (max 2 is_current=1 rows per member). At the
+        // cap, leave the legacy row pending (no transition, no insert) and
+        // surface a cap-hit branch so the member can free a slot and retry.
+        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+        if (currentCount >= 2) {
+          capHit = true;
+          return;
+        }
+
         const updated = legacyPersonClubAffiliations.setResolutionStatusConfirmed.run(
           resolvedClubId,
           'onboarding_service',
@@ -1600,24 +1616,18 @@ export class ClubService {
             `Legacy affiliation status changed concurrently: ${affiliationRowId}`,
           );
         }
-        // Two-current-club cap (max 2 is_current=1 rows per member).
         // First current club is primary; second is secondary.
-        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
-        if (currentCount >= 2) {
+        const isPrimary = currentCount === 0 ? 1 : 0;
+        newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        try {
+          memberClubAffiliations.insertAffiliation.run(
+            newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
+            actorMemberId, resolvedClubId, isPrimary, 'legacy_claim',
+          );
+        } catch (err) {
+          if (!isUniqueViolation(err)) throw err;
+          // UNIQUE(member_id, club_id): already affiliated at this club.
           newAffiliationId = null;
-        } else {
-          const isPrimary = currentCount === 0 ? 1 : 0;
-          newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-          try {
-            memberClubAffiliations.insertAffiliation.run(
-              newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
-              actorMemberId, resolvedClubId, isPrimary, 'legacy_claim',
-            );
-          } catch (err) {
-            if (!isUniqueViolation(err)) throw err;
-            // UNIQUE(member_id, club_id): already affiliated at this club.
-            newAffiliationId = null;
-          }
         }
 
         // Revival: a confirmed current affiliation returns an inactive club
@@ -1644,6 +1654,15 @@ export class ClubService {
     } catch (err) {
       if (err instanceof ConflictError) throw err;
       throw err;
+    }
+
+    if (capHit) {
+      return {
+        branch:           'cap_hit',
+        affiliationRowId,
+        resolvedClubId,
+        newAffiliationId: null,
+      };
     }
 
     return {

@@ -57,10 +57,10 @@ function throwOnAudit() {
 }
 
 describe('memberService write-path atomicity', () => {
-  it('updateOwnProfile rolls back the profile update when the audit append throws', () => {
+  it('updateOwnProfile rolls back the profile update when the audit append throws', async () => {
     const { id, slug } = seedMember({ bio: 'ORIGINAL BIO' });
     const spy = throwOnAudit();
-    expect(() => svc.updateOwnProfile(slug, {
+    await expect(svc.updateOwnProfile(slug, {
       bio: 'NEW BIO',
       city: 'NewCity',
       region: '',
@@ -70,7 +70,8 @@ describe('memberService write-path atomicity', () => {
       firstCompetitionYear: '',
       showCompetitiveResults: '1',
       showFirstCompetitionYear: '0',
-    })).toThrow('forced audit failure');
+      links: [],
+    })).rejects.toThrow('forced audit failure');
     spy.mockRestore();
     expect(memberField(id, 'bio')).toBe('ORIGINAL BIO');
   });

@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for a coordinated record
-# swap. Two phases exist; the front-door cutover itself changes NO DNS
-# records (the webmaster flips a reverse proxy), so this script is NOT part
-# of the flip checklist:
+# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for the zone handover.
+# The front-door cutover itself changes NO DNS records (the webmaster flips a
+# reverse proxy), so this script is NOT part of the flip checklist; it serves
+# the one milestone that actually moves DNS:
 #
-#   --phase mx-day    Email transition day: drops TTL on the MX (and related
-#                     mail TXT) records ahead of the Google inbound swap.
-#                     Default records: "footbag.org." (MX/TXT live at apex).
 #   --phase handover  DNS handover milestone: drops TTL on the apex A/AAAA +
 #                     www records ahead of the zone move to Route 53.
 #                     Default records: "footbag.org.,www.footbag.org.".
+#
+# The email-day MX/TXT TTL pre-shrink is deliberately NOT done here: those
+# records live on the webmaster's authoritative zone until the handover, and
+# this script can only rewrite A/AAAA in Route 53, which is not authoritative
+# before then. The webmaster lowers the MX/TXT TTL by hand on his own zone
+# ahead of the mail swap.
 #
 # Lowers the TTL on the selected records to 60 seconds, issued 48 hours
 # before the swap so the previously-cached TTL has expired by the moment.
@@ -41,9 +44,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${PHASE}" in
-  mx-day)   DEFAULT_RECORDS="footbag.org." ;;
   handover) DEFAULT_RECORDS="footbag.org.,www.footbag.org." ;;
-  *) echo "--phase mx-day|handover is required (the front-door flip changes no DNS records)" >&2; exit 2 ;;
+  *) echo "--phase handover is required (the front-door flip changes no DNS records; the MX/TXT TTL is the webmaster's manual action on his zone)" >&2; exit 2 ;;
 esac
 
 if [[ "${MOCK}" -eq 1 ]]; then

@@ -438,9 +438,9 @@ When a single legacy account back-links to more than one historical person via t
 
 ### Anchor availability when uniqueness assumptions fail
 
-The classifier presumes that `legacy_email` and `legacy_user_id` are each unique where non-NULL in the legacy export (gates G1 and G2 in §25). If a uniqueness check fails at test load, the affected anchor is treated as ambiguous:
+The classifier matches a member's login email and declared old emails against a legacy account's three email columns (`legacy_email` / `legacy_email2` / `legacy_email3`), and presumes that no email value spans two accounts and that `legacy_user_id` is unique where non-NULL (gates G1 and G2 in §25). If a uniqueness check fails at test load, the affected anchor is treated as ambiguous:
 
-- **When `legacy_email` is not unique.** Email lookups return multiple `legacy_members` rows for some live members. Affected matches surface no candidate (the platform cannot disambiguate); the member uses declared anchors or asks admin for help instead (§13). Unambiguous email matches in the rest of the export continue to classify normally.
+- **When an email value spans two accounts.** The cross-column lookup returns multiple `legacy_members` rows for some live members. Affected matches surface no candidate (the platform cannot disambiguate); the member uses declared anchors or asks admin for help instead (§13). Unambiguous email matches in the rest of the export continue to classify normally.
 - **When `legacy_user_id` is not unique.** The legacy-username anchor is used in the self-serve identifier-lookup affordance (§8) but does not contribute to auto-link confidence. Self-serve username lookups that return multiple rows display the non-revealing matched-multiple banner (§8) and never silently resolve. Auto-link is unaffected.
 - **When both are non-unique.** Ambiguous slices have no auto-surfaced candidate; recovery is through member declaration or admin help.
 
@@ -938,21 +938,11 @@ The column is audit metadata only and never gates the self-serve claim card, whe
 ### 15.6 `legacy_member_id` uniqueness
 Partial unique index `ux_members_legacy_id` on `members(legacy_member_id) WHERE legacy_member_id IS NOT NULL`.
 
-### 15.7 Provisional uniqueness for `legacy_email` and `legacy_user_id`
+### 15.7 Uniqueness for `legacy_email` columns and `legacy_user_id`
 
-Partial unique indexes:
+`legacy_user_id` is unique where non-NULL; if the test load disproves that assumption (gate G2 in §25), it drops to a non-unique lookup with service-layer ambiguity handling.
 
-```sql
-CREATE UNIQUE INDEX ux_legacy_members_legacy_email
-  ON legacy_members(legacy_email)
-  WHERE legacy_email IS NOT NULL;
-
-CREATE UNIQUE INDEX ux_legacy_members_legacy_user_id
-  ON legacy_members(legacy_user_id)
-  WHERE legacy_user_id IS NOT NULL;
-```
-
-If the test load disproves either uniqueness assumption (gates G1, G2 in §25), the partial unique index is replaced with a non-unique lookup index plus service-layer ambiguity handling in the claim flow.
+A legacy account carries up to three email addresses (`legacy_email` plus secondary `legacy_email2` / `legacy_email3`); a member's verified login email and each declared old email match against all three (§7, M_Claim_Legacy_Account). The email columns are non-unique, because one address may legitimately be primary on one account and secondary on another. Cross-account email uniqueness (an address must not identify two different accounts) is the go-live gate G1 (§25), checked by `scripts/validate-legacy-import-gates.sh`, which flags any value shared across accounts in the three columns for curation before cutover; an address still ambiguous at match time surfaces no auto candidate (the runtime backstop).
 
 ### 15.8 `members_searchable` view
 Includes `email_verified_at IS NOT NULL` filter.
@@ -1294,7 +1284,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
-| G1 | `legacy_email` unique where non-NULL | §25 | State 2 → State 3 |
+| G1 | No email value shared across accounts, taken across `legacy_email`/`legacy_email2`/`legacy_email3` | §25 | State 2 → State 3 |
 | G2 | `legacy_user_id` unique where non-NULL | §25 | State 2 → State 3 |
 | G3 | Trustworthy `banned` field in export | §25 | State 2 → State 3 |
 | G4 | Profile/contact field shape and null quality | §25 | State 2 → State 3 |

@@ -139,6 +139,8 @@ export interface LegacyMemberOverrides {
   legacy_member_id?: string;
   legacy_user_id?: string | null;
   legacy_email?: string | null;
+  legacy_email2?: string | null;
+  legacy_email3?: string | null;
   real_name?: string | null;
   display_name?: string | null;
   city?: string | null;
@@ -167,7 +169,7 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
   db.prepare(`
     INSERT INTO legacy_members (
       legacy_member_id,
-      legacy_user_id, legacy_email,
+      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
       real_name, display_name, display_name_normalized,
       city, region, country,
       bio, birth_date, street_address, postal_code,
@@ -175,10 +177,12 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
       is_hof, is_bap, legacy_is_admin,
       import_source, imported_at,
       version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(legacy_member_id) DO UPDATE SET
       legacy_user_id = excluded.legacy_user_id,
       legacy_email = excluded.legacy_email,
+      legacy_email2 = excluded.legacy_email2,
+      legacy_email3 = excluded.legacy_email3,
       real_name = excluded.real_name,
       display_name = excluded.display_name,
       display_name_normalized = excluded.display_name_normalized,
@@ -200,6 +204,8 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
     legacyId,
     o.legacy_user_id ?? null,
     o.legacy_email ?? null,
+    o.legacy_email2 ?? null,
+    o.legacy_email3 ?? null,
     name,
     display,
     display.toLowerCase(),
@@ -437,6 +443,42 @@ export function insertMemberClubAffiliation(
     o.is_primary ?? 0,
     o.is_contact ?? 0,
     o.source ?? 'member_self_service',
+  );
+  return id;
+}
+
+// ── Member external link ──────────────────────────────────────────────────────
+//
+// Minimal `member_links` row factory. The application validates and stamps
+// `validated_at` on real writes; this factory seeds an already-validated link
+// for read/display tests.
+
+export interface MemberLinkOverrides {
+  id?: string;
+  label?: string;
+  url?: string;
+  validated_at?: string | null;
+  sort_order?: number;
+}
+
+export function insertMemberLink(
+  db: BetterSqlite3.Database,
+  memberId: string,
+  o: MemberLinkOverrides = {},
+): string {
+  const id = o.id ?? `mlink-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO member_links (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, label, url, validated_at, sort_order
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    memberId,
+    o.label ?? 'My Site',
+    o.url ?? 'https://example.com/',
+    o.validated_at === undefined ? TS : o.validated_at,
+    o.sort_order ?? 0,
   );
   return id;
 }

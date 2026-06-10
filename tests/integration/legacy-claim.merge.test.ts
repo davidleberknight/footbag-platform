@@ -420,3 +420,38 @@ describe('consumeAndClaimLegacy — token-consume atomicity with merge', () => {
     expect(tokenRow.used_at).toBeNull();
   });
 });
+
+// ─── Admin status is never inherited from a legacy account ──────────────────
+//
+// Legacy admin authority does not carry to the modern platform. The single
+// admin-creation path is the SSM-token bootstrap claim; a legacy_members row
+// flagged as a legacy administrator must not promote the claiming member. The
+// invariant currently holds because no claim code path reads legacy_is_admin
+// into members.is_admin; this test pins that so a future merge addition cannot
+// silently grant admin.
+
+describe('claimLegacyAccount — admin authority is never inherited', () => {
+  it('claiming a legacy account flagged legacy_is_admin=1 leaves members.is_admin = 0', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: memberId,
+      slug: `slug_${memberId}`,
+      login_email: `${memberId}@example.com`,
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId,
+      real_name: 'Legacy Administrator',
+      legacy_is_admin: 1,
+    });
+    db.close();
+
+    // Precondition: a freshly inserted member is not an admin.
+    expect(memberRow(memberId).is_admin).toBe(0);
+
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(memberRow(memberId).is_admin).toBe(0);
+  });
+});

@@ -1,9 +1,11 @@
 ---
 name: design-bug-hunt
-description: Run a disciplined adversarial design bug hunt across canonical docs, all user stories, design decisions, service/view catalogs, migration/go-live design, testing/DevOps standards, and environment parity artifacts. Use this when the user asks for a design bug hunt, documentation-level bug sweep, requirements/design gap review, production-surviving bug hunt, migration design review, or parity/go-live design audit. This complements bug-hunt: it focuses on bugs in the intended design and specifications, not primarily implementation bugs.
+description: Run a disciplined adversarial design bug hunt across canonical docs, all user stories, design decisions, service/view catalogs, migration/go-live design, testing/DevOps standards, and environment parity artifacts. Invoke ONLY when the user explicitly asks for a "design bug hunt" or "design bug sweep" by name. Do NOT infer it from "adversarial review", "design review", "review the docs", or any general review phrasing - those mean the plan-mode findings-only review workflow, not this skill. This complements bug-hunt: it focuses on bugs in the intended design and specifications, not primarily implementation bugs.
 ---
 
 # Design Bug Hunt Skill
+
+> **Invoke ONLY on explicit request.** Run this skill exclusively when the user asks for a "design bug hunt" or "design bug sweep" by name. Do NOT infer it from "adversarial review", "design review", "review the docs", or any general review phrasing — those mean the plan-mode, findings-only review workflow, not this skill. When in doubt, ask before invoking.
 
 This skill performs an adversarial design-level bug hunt for `footbag-platform`.
 

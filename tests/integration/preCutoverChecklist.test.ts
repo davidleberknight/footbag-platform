@@ -210,4 +210,20 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.stdout).toMatch(/GATE: SHOWCASE-PRESENCE FAIL/);
     expect(r.stdout).toMatch(/Footbag Hacky rows: 0/);
   });
+
+  it('red path: an email shared across accounts in a secondary column → G1 FAIL', { timeout: 60_000 }, () => {
+    buildFixtureDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    // legmem-1 carries legacy1@example.com as its primary; put the same
+    // address (different case) on legmem-2's secondary column so the value
+    // identifies two accounts across columns.
+    db.prepare(
+      `UPDATE legacy_members SET legacy_email2 = 'LEGACY1@example.com' WHERE legacy_member_id = 'legmem-2'`,
+    ).run();
+    db.close();
+    const r = runChecklist(dbPath, snapshotDir);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/GATE: G1 FAIL/);
+    expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
+  });
 });

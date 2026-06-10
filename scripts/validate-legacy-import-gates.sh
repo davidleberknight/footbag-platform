@@ -6,7 +6,8 @@
 # if any gate fails. Consumed by scripts/pre-cutover-checklist.sh.
 #
 # Gates (per MIGRATION_PLAN.md §24):
-#   G1: legacy_email unique where non-NULL
+#   G1: no email value is shared across accounts, taken across the three
+#       legacy email columns (legacy_email/legacy_email2/legacy_email3)
 #   G2: legacy_user_id unique where non-NULL
 #   G3: legacy_banned presence + non-null ratio
 #   G4: profile/contact field shape (null ratios for real_name, country)
@@ -42,16 +43,24 @@ emit_gate() {
   return 0
 }
 
-# G1: legacy_email duplicates where non-NULL
+# G1: cross-column email collision. An address appearing on more than one
+# distinct account, in any of the three email columns, identifies two accounts
+# and must be curated before cutover. Case-insensitive, matching how the
+# platform resolves claims. A value repeated within one row is not a collision.
 g1_dupes=$(q "SELECT COUNT(*) FROM (
-  SELECT legacy_email FROM legacy_members
-  WHERE legacy_email IS NOT NULL
-  GROUP BY legacy_email HAVING COUNT(*) > 1
+  SELECT email FROM (
+    SELECT legacy_member_id AS mid, lower(legacy_email)  AS email FROM legacy_members WHERE legacy_email  IS NOT NULL
+    UNION ALL
+    SELECT legacy_member_id, lower(legacy_email2) FROM legacy_members WHERE legacy_email2 IS NOT NULL
+    UNION ALL
+    SELECT legacy_member_id, lower(legacy_email3) FROM legacy_members WHERE legacy_email3 IS NOT NULL
+  )
+  GROUP BY email HAVING COUNT(DISTINCT mid) > 1
 );")
 if [[ "${g1_dupes}" -eq 0 ]]; then
-  emit_gate G1 PASS "legacy_email unique (no duplicates among non-NULL rows)"
+  emit_gate G1 PASS "no email shared across accounts (across all three email columns)"
 else
-  emit_gate G1 FAIL "${g1_dupes} duplicate legacy_email value(s) found"
+  emit_gate G1 FAIL "${g1_dupes} email value(s) shared across accounts (cross-column)"
 fi
 
 # G2: legacy_user_id duplicates where non-NULL

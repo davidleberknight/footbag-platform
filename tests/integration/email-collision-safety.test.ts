@@ -31,12 +31,30 @@ let tokenSvc: typeof import('../../src/services/accountTokenService');
 
 // Scenario: the same identifier string appears in DIFFERENT columns across
 // two legacy rows (e.g. an email on row A and a legacy_user_id on row B).
-// The DB's partial UNIQUE index on legacy_email prevents same-column email
-// duplicates, but findByIdentifier matches across columns, so cross-column
-// ambiguity is the realistic collision shape the hardening must handle.
+// The email columns are non-unique by design; the claim lookup matches across
+// them, so cross-column ambiguity is the realistic collision shape the lookup
+// must surface as ambiguous rather than silently picking a row.
 const AMBIG_EMAIL  = 'shared@example.com';
 const LM_AMBIG_A   = 'lm-ambig-a';
 const LM_AMBIG_B   = 'lm-ambig-b';
+
+// Scenario: a member arrives under a legacy account's SECONDARY email. A legacy
+// row carries the address in legacy_email2 / legacy_email3 (not the primary);
+// the lookup must still resolve to that single row.
+const SECONDARY_EMAIL = 'Second.Address@Example.com'; // mixed case: matches case-insensitively
+const LM_SECONDARY    = 'lm-secondary';
+const MEM_SECONDARY   = 'mem-secondary';
+const TERTIARY_EMAIL  = 'third.address@example.com';
+const LM_TERTIARY     = 'lm-tertiary';
+const MEM_TERTIARY    = 'mem-tertiary';
+
+// Scenario: a cross-account collision where one address is the PRIMARY on one
+// legacy row and a SECONDARY on another. The legacy-data validation gate is the
+// a-priori catch; this proves the match-time backstop when an address slips it.
+const XCOL_EMAIL = 'crosscol@example.com';
+const LM_XCOL_A  = 'lm-xcol-a';
+const LM_XCOL_B  = 'lm-xcol-b';
+const MEM_XCOL   = 'mem-xcol';
 
 // Scenario: clean single-match member — email anchors to one legacy row with
 // HP provenance; classifier must still emit tier1.
@@ -88,6 +106,47 @@ beforeAll(async () => {
     email_verified_at: null,
   });
 
+  // Secondary-email match: the address lives in legacy_email2, the primary is a
+  // different address. A member logging in under the secondary still links.
+  insertLegacyMember(db, {
+    legacy_member_id: LM_SECONDARY,
+    legacy_email: 'primary-of-secondary@example.com',
+    legacy_email2: SECONDARY_EMAIL,
+  });
+  insertMember(db, {
+    id: MEM_SECONDARY,
+    slug: 'mem_secondary',
+    login_email: SECONDARY_EMAIL.toLowerCase(),
+    real_name: 'Secondary Arrival',
+    email_verified_at: null,
+  });
+
+  // Tertiary-email match: same shape against legacy_email3.
+  insertLegacyMember(db, {
+    legacy_member_id: LM_TERTIARY,
+    legacy_email: 'primary-of-tertiary@example.com',
+    legacy_email3: TERTIARY_EMAIL,
+  });
+  insertMember(db, {
+    id: MEM_TERTIARY,
+    slug: 'mem_tertiary',
+    login_email: TERTIARY_EMAIL,
+    real_name: 'Tertiary Arrival',
+    email_verified_at: null,
+  });
+
+  // Cross-account collision across columns: XCOL_EMAIL is the primary on row A
+  // and a secondary on row B.
+  insertLegacyMember(db, { legacy_member_id: LM_XCOL_A, legacy_email: XCOL_EMAIL });
+  insertLegacyMember(db, { legacy_member_id: LM_XCOL_B, legacy_email2: XCOL_EMAIL });
+  insertMember(db, {
+    id: MEM_XCOL,
+    slug: 'mem_xcol',
+    login_email: XCOL_EMAIL,
+    real_name: 'Cross Column',
+    email_verified_at: null,
+  });
+
   db.close();
   createApp = await importApp();
   identitySvc = await import('../../src/services/identityAccessService');
@@ -123,6 +182,33 @@ describe('lookupLegacyAccount — union shape', () => {
   it('returns kind:"ambiguous_email" when two legacy rows share the email', () => {
     const lookup = identitySvc.identityAccessService
       .lookupLegacyAccount(MEM_AMBIG, AMBIG_EMAIL);
+    expect(lookup.kind).toBe('ambiguous_email');
+    if (lookup.kind === 'ambiguous_email') {
+      expect(lookup.count).toBe(2);
+    }
+  });
+
+  it('matches an address held in a legacy account\'s secondary email column', () => {
+    const lookup = identitySvc.identityAccessService
+      .lookupLegacyAccount(MEM_SECONDARY, SECONDARY_EMAIL.toLowerCase());
+    expect(lookup.kind).toBe('single');
+    if (lookup.kind === 'single') {
+      expect(lookup.result.legacyMemberId).toBe(LM_SECONDARY);
+    }
+  });
+
+  it('matches an address held in a legacy account\'s tertiary email column', () => {
+    const lookup = identitySvc.identityAccessService
+      .lookupLegacyAccount(MEM_TERTIARY, TERTIARY_EMAIL);
+    expect(lookup.kind).toBe('single');
+    if (lookup.kind === 'single') {
+      expect(lookup.result.legacyMemberId).toBe(LM_TERTIARY);
+    }
+  });
+
+  it('returns kind:"ambiguous_email" when an address is primary on one row and secondary on another', () => {
+    const lookup = identitySvc.identityAccessService
+      .lookupLegacyAccount(MEM_XCOL, XCOL_EMAIL);
     expect(lookup.kind).toBe('ambiguous_email');
     if (lookup.kind === 'ambiguous_email') {
       expect(lookup.count).toBe(2);

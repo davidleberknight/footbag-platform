@@ -3402,7 +3402,13 @@ CREATE TABLE legacy_members (
 
   -- Legacy identifiers from the old-site namespace
   legacy_user_id   TEXT,
+  -- A legacy account could hold up to three email addresses (a primary plus two
+  -- secondary). A claimant's login email and each declared old email match
+  -- against all three, so someone who reaches the platform under a secondary
+  -- address still links to their legacy record.
   legacy_email     TEXT,
+  legacy_email2    TEXT,
+  legacy_email3    TEXT,
 
   -- Profile snapshot from mirror/dump (immutable post-import)
   real_name                TEXT,
@@ -3444,11 +3450,23 @@ CREATE UNIQUE INDEX ux_legacy_members_claimed_by
   ON legacy_members(claimed_by_member_id)
   WHERE claimed_by_member_id IS NOT NULL;
 
--- Claim-flow lookup indexes: claim resolution matches by legacy_email,
--- legacy_user_id, and claimed_by_member_id.
-CREATE UNIQUE INDEX ux_legacy_members_legacy_email
+-- Claim-flow lookup indexes: claim resolution matches by legacy_email (and its
+-- two secondary columns), legacy_user_id, and claimed_by_member_id.
+-- The email columns are non-unique: one address may legitimately appear as the
+-- primary on one account and a secondary on another, and cross-account email
+-- uniqueness (an address must not identify two different legacy accounts) is
+-- guaranteed a-priori by the legacy-data validation gate before matching runs,
+-- not by the DB. A still-colliding address is the match-time ambiguity backstop:
+-- the claim lookup returns multiple rows and surfaces no auto candidate.
+CREATE INDEX idx_legacy_members_legacy_email
   ON legacy_members(legacy_email)
   WHERE legacy_email IS NOT NULL;
+CREATE INDEX idx_legacy_members_legacy_email2
+  ON legacy_members(legacy_email2)
+  WHERE legacy_email2 IS NOT NULL;
+CREATE INDEX idx_legacy_members_legacy_email3
+  ON legacy_members(legacy_email3)
+  WHERE legacy_email3 IS NOT NULL;
 CREATE UNIQUE INDEX ux_legacy_members_legacy_user_id
   ON legacy_members(legacy_user_id)
   WHERE legacy_user_id IS NOT NULL;

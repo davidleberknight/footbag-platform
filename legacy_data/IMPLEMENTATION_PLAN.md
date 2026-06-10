@@ -51,7 +51,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
      - **Column → field map** (legacy `members` column → `legacy_members` field):
        - `MemberID` → `legacy_member_id` (PK; old-site account id; same namespace as `members/profile/{id}` URLs)
        - `MemberAlias` → `legacy_user_id` (the handle, product term "legacy username"); also the `display_name` candidate
-       - `MemberEmail` → `legacy_email`; distinct `MemberEmail2` / `MemberEmail3` → `legacy_email2` / `legacy_email3` columns on `legacy_members` (M5). A member's verified login email and declared old-email anchors all match against the three columns; an address that is primary on one row and secondary on another is caught a priori by the G1 cross-column collision check (script 4), not left to match-time ambiguity.
+       - `MemberEmail` → `legacy_email`; distinct `MemberEmail2` / `MemberEmail3` → `legacy_email2` / `legacy_email3`. A legacy account's three emails all participate in claim matching; an address shared across accounts (primary on one, secondary on another) is flagged by the G1 cross-column collision gate (`scripts/validate-legacy-import-gates.sh`) before cutover and excluded at load by `load_legacy_export.py`.
        - `MemberFirstName` / `MemberLastName` / `MemberMiddleName` (+ parallel `*Unicode` columns) → `real_name` (Unicode column first, latin1 transcode fallback)
        - `MemberCity` / `MemberState` / `MemberCountry` (+ `*Unicode`) → `city` / `region` / `country` (nullable per §15.2)
        - `MemberComment` → `bio`
@@ -73,11 +73,11 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
      - `legacy_board_underlying_paid_tier` ← moot unless board members are identifiable (see above); else from prior `ifpa_memberpayments` tier.
      - Spot-check each field against known reference cases (HoF / BAP with documented payment history, board-at-cutover, known lifetime-tier1 payers). If insufficient overall, G6 PASSes via the honors-only fallback (§3 precedence rows 3–5 dropped; HoF / BAP → tier2, else tier0); record the fallback decision in MIGRATION_PLAN §28.
 
-  4. **`scripts/validate_legacy_export.py`** — read-only gate report: G1 (no email value, taken across `MemberEmail` / 2 / 3, appears on more than one row; this cross-column collision check flags an address that is primary on one account and secondary on another for curation a priori, per M5), G2 (`MemberAlias` unique where non-NULL), G4 (profile / contact null shape), G5 (id quality, per M2: every `legacy_member_id` integer-format-validated AND a comprehensive 100% overlap reconciliation against the mirror `members/profile/{id}` id set and `historical_persons.legacy_member_id`, not a 10% sample). Some of this overlaps logic already in `load_legacy_export.py`; reconcile rather than duplicate.
+  4. **`scripts/validate_legacy_export.py`** — read-only export-CSV gate report for G2 (`MemberAlias` unique where non-NULL), G4 (profile / contact null shape), G5 (id quality, per M2: every `legacy_member_id` integer-format-validated AND a comprehensive 100% overlap reconciliation against the mirror `members/profile/{id}` id set and `historical_persons.legacy_member_id`, not a 10% sample). G1 (cross-column email collision across `MemberEmail` / 2 / 3) is already enforced post-load by `scripts/validate-legacy-import-gates.sh` and at load by `load_legacy_export.py`; do not re-implement it here. Some of the remaining checks overlap logic already in `load_legacy_export.py`; reconcile rather than duplicate.
 
   5. **Loader — already built.** `scripts/load_legacy_export.py` (CSV → `legacy_members`; supersedes the mirror pre-seed on the shared `legacy_member_id` namespace; flips `import_source` 'mirror'→'legacy_site_data'; never touches claim-state columns). Script 1's CSV is its input; no new loader needed.
 
-  **Sequencing:** dry-run the full chain against the delivered test dump now; the production run is State 4 step 3. The five §15.16 schema columns are a Dave-owned `database/schema.sql` add gated on G6, separate from these scripts. The `legacy_email2` / `legacy_email3` columns on `legacy_members` (M5) are likewise a Dave-owned `database/schema.sql` add; the matching-side change in `identityAccessService` is tracked in the root IP.
+  **Sequencing:** dry-run the full chain against the delivered test dump now; the production run is State 4 step 3. The five §15.16 schema columns are a Dave-owned `database/schema.sql` add gated on G6, separate from these scripts.
 
 ### BACKLOG (lower-priority active)
 

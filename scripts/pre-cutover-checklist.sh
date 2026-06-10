@@ -127,9 +127,10 @@ else
 fi
 
 # NOTE: no DNS step here. The front-door flip changes no DNS records (the
-# webmaster flips the reverse proxy); TTL choreography belongs to the email
-# transition day and the DNS handover milestone via
-# scripts/dns-ttl-preflight.sh --phase mx-day|handover.
+# webmaster flips the reverse proxy); TTL choreography belongs to the DNS
+# handover milestone via scripts/dns-ttl-preflight.sh --phase handover. The
+# email-day MX/TXT TTL pre-shrink is the webmaster's manual action on his
+# authoritative zone, not a step this script runs.
 
 echo
 echo "=== pre-cutover summary ==="

@@ -62,7 +62,8 @@
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
 import { randomUUID } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
+import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
@@ -80,6 +81,8 @@ import { formatDateDisplay } from './dateFormat';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
+const MAX_MEMBER_LINKS = 3;
+const MAX_LINK_LABEL = 80;
 
 // Records a forensic audit row for a member self-service profile/PII mutation.
 // Metadata carries the touched field names only (never the new values), so the
@@ -201,6 +204,13 @@ export interface MyClubsView {
   nearbySuggestions: NearbyClubSuggestion[];
 }
 
+/** A validated external link shown on a member's profile: member-supplied
+ *  label plus the normalized URL the validator accepted. */
+export interface MemberLinkView {
+  label: string;
+  url: string;
+}
+
 export interface OwnProfileContent {
   displayName: string;
   bio: string;
@@ -239,6 +249,8 @@ export interface OwnProfileContent {
    * (detoured), and completed tasks with pre-shaped CTA labels. */
   dashboardTasks?: DashboardTaskWidget | null;
   myClubs?: MyClubsView;
+  /** Validated external links (max 3), shown on the profile. */
+  links?: MemberLinkView[];
 }
 
 export interface ClaimedLegacyIdentityView {
@@ -268,6 +280,9 @@ export interface ProfileEditContent extends OwnProfileContent {
   error?: string;
   avatarError?: string;
   avatarSuccess?: string;
+  /** Fixed-length edit slots (one per allowed link); empty slots carry blank
+   *  label/url so the form always renders the full set of inputs. */
+  linkSlots: MemberLinkView[];
 }
 
 export interface PublicProfileContent {
@@ -290,6 +305,8 @@ export interface PublicProfileContent {
   contactEmail: string | null;
   tierBadgeText: string | null;
   isActivePlayer: boolean;
+  /** Validated external links (max 3), shown on the public profile. */
+  links: MemberLinkView[];
 }
 
 export interface ProfileEditInput {
@@ -302,6 +319,9 @@ export interface ProfileEditInput {
   firstCompetitionYear: string;
   showCompetitiveResults: string | string[];
   showFirstCompetitionYear: string | string[];
+  /** Label/URL pairs submitted by the edit form; blank pairs are dropped,
+   *  non-blank pairs are validated before publication. */
+  links: Array<{ label: string; url: string }>;
 }
 
 function normalizeText(val: unknown): string {
@@ -656,6 +676,7 @@ export const memberService = {
         memberSlug:   slug,
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
         dashboardTasks:         buildDashboardTasksView(row.id),
+        links:        buildMemberLinksView(row.id),
       },
     };
   },
@@ -715,6 +736,7 @@ export const memberService = {
         contactEmail,
         tierBadgeText,
         isActivePlayer,
+        links:          buildMemberLinksView(row.id),
       },
     };
   },
@@ -743,11 +765,12 @@ export const memberService = {
         error,
         avatarError,
         avatarSuccess,
+        linkSlots: buildMemberLinkSlots(row.id),
       },
     };
   },
 
-  updateOwnProfile(slug: string, input: ProfileEditInput): void {
+  async updateOwnProfile(slug: string, input: ProfileEditInput): Promise<void> {
     const row = fetchMemberBySlug(slug);
     // Per-member edit throttle; admins are exempt. Hit before validation so
     // invalid submissions count against the bucket too.
@@ -786,6 +809,9 @@ export const memberService = {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
     }
 
+    // Validate links (network I/O) before the transaction; the write is sync.
+    const validatedLinks = await validateMemberLinks(input.links);
+
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberProfile.run(
@@ -801,10 +827,23 @@ export const memberService = {
         now,
         row.id,
       );
+      // Replace-all: links are re-validated on every save, so the prior set is
+      // cleared and the validated set re-inserted in slot order.
+      memberLinks.deleteAllForMember.run(row.id);
+      validatedLinks.forEach((lnk, i) => {
+        memberLinks.insert.run(
+          `mlink_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+          row.id,
+          lnk.label,
+          lnk.url,
+          i,
+        );
+      });
       memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
       auditProfileUpdate(row.id, [
         'bio', 'city', 'region', 'country', 'phone', 'emailVisibility',
         'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
+        'links',
       ]);
     });
   },
@@ -1256,6 +1295,58 @@ function buildMyClubsView(memberId: string): MyClubsView {
     showCreateTierNote: rows.length === 0 && !hasTier1Benefits,
     nearbySuggestions,
   };
+}
+
+function buildMemberLinksView(memberId: string): MemberLinkView[] {
+  const rows = memberLinks.listByMember.all(memberId) as Array<{ label: string; url: string }>;
+  return rows.map((r) => ({ label: r.label, url: r.url }));
+}
+
+// Fixed-length edit slots: existing links first, then blank pairs so the edit
+// form always renders the full set of inputs up to the cap.
+function buildMemberLinkSlots(memberId: string): MemberLinkView[] {
+  const links = buildMemberLinksView(memberId);
+  const slots: MemberLinkView[] = [];
+  for (let i = 0; i < MAX_MEMBER_LINKS; i += 1) {
+    slots.push(links[i] ?? { label: '', url: '' });
+  }
+  return slots;
+}
+
+// Validate submitted label/URL pairs before publication. Blank pairs drop out;
+// a pair with only one side filled is a user error; each surviving URL runs
+// through the shared external-URL validator (scheme allowlist, SSRF guard,
+// Safe Browsing, reachability). Returns the normalized links in slot order.
+// The validator does network I/O, so this runs before any transaction opens.
+async function validateMemberLinks(
+  pairs: Array<{ label: string; url: string }>,
+): Promise<MemberLinkView[]> {
+  const present = pairs
+    .map((p) => ({ label: normalizeText(p.label), url: normalizeText(p.url) }))
+    .filter((p) => p.label !== '' || p.url !== '');
+
+  if (present.length > MAX_MEMBER_LINKS) {
+    throw new ValidationError(`You can add at most ${MAX_MEMBER_LINKS} links.`);
+  }
+
+  const validated: MemberLinkView[] = [];
+  for (const p of present) {
+    if (p.label === '') {
+      throw new ValidationError('Add a label for each link.');
+    }
+    if (p.label.length > MAX_LINK_LABEL) {
+      throw new ValidationError(`Link labels must be ${MAX_LINK_LABEL} characters or fewer.`);
+    }
+    if (p.url === '') {
+      throw new ValidationError('Add a URL for each link, or clear its label.');
+    }
+    const result = await validateExternalUrl(p.url);
+    if (!result.valid || !result.normalizedUrl) {
+      throw new ValidationError(result.error ?? 'That link could not be verified.');
+    }
+    validated.push({ label: p.label, url: result.normalizedUrl });
+  }
+  return validated;
 }
 
 function buildIdentityCta(

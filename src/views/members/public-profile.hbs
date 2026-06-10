@@ -31,6 +31,17 @@
     </div>
     {{/if}}
 
+    {{#if content.links.length}}
+    <div class="profile-section">
+      <h2 class="profile-section-heading">Links</h2>
+      <ul>
+        {{#each content.links}}
+          <li>{{{externalLink this.url label=this.label}}}</li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
     {{#if content.showCompetitiveResults}}
     {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear}}
     {{/if}}

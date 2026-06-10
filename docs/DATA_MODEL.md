@@ -784,7 +784,7 @@ Permanent archival table: one row per imported legacy account from the old footb
 #### Columns
 
 - `legacy_member_id` (`TEXT`, PK): the old-site user-account id.
-- `legacy_user_id`, `legacy_email`: migration metadata from the mirror/dump. `legacy_email` is used to deliver the one-time claim link (per `M_Claim_Legacy_Account`); never a login credential.
+- `legacy_user_id`, `legacy_email`, `legacy_email2`, `legacy_email3`: migration metadata from the mirror/dump. A legacy account could hold up to three email addresses; all three participate in M_Claim_Legacy_Account matching. `legacy_email` (the primary) is used to deliver the one-time claim link; none is ever a login credential.
 - Profile snapshot; `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
 - Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
 - `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
@@ -795,7 +795,7 @@ Permanent archival table: one row per imported legacy account from the old footb
 #### Indexes
 
 - `ux_legacy_members_claimed_by`; partial UNIQUE on `claimed_by_member_id` where non-NULL. Enforces at most one current member per legacy account.
-- `ux_legacy_members_legacy_email`; partial UNIQUE on `legacy_email` where non-NULL. Supports M_Claim_Legacy_Account email lookup.
+- `idx_legacy_members_legacy_email` / `idx_legacy_members_legacy_email2` / `idx_legacy_members_legacy_email3`; partial non-unique lookup indexes on the three email columns where non-NULL. Support M_Claim_Legacy_Account email matching. Non-unique because one address may be primary on one account and secondary on another; cross-account email uniqueness is enforced by the §25 G1 validation gate, not the DB.
 - `ux_legacy_members_legacy_user_id`; partial UNIQUE on `legacy_user_id` where non-NULL. Supports M_Claim_Legacy_Account username lookup.
 
 ### 4.15 Member Links

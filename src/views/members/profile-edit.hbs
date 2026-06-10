@@ -191,6 +191,38 @@
         </div>
       </fieldset>
 
+      <fieldset class="form-fieldset">
+        <legend>External links</legend>
+        <p class="form-hint">Add up to 3 links (personal site, social media). Each link is checked before it appears on your profile.</p>
+        {{#each content.linkSlots}}
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="link_label_{{@index}}">Label</label>
+              <input
+                type="text"
+                id="link_label_{{@index}}"
+                name="link_label"
+                value="{{this.label}}"
+                maxlength="80"
+                form="profileEditForm"
+              />
+            </div>
+            <div class="form-field">
+              <label for="link_url_{{@index}}">URL</label>
+              <input
+                type="url"
+                id="link_url_{{@index}}"
+                name="link_url"
+                value="{{this.url}}"
+                maxlength="2048"
+                placeholder="https://..."
+                form="profileEditForm"
+              />
+            </div>
+          </div>
+        {{/each}}
+      </fieldset>
+
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" form="profileEditForm">Save</button>
         <a href="/members/{{content.memberKey}}" class="btn btn-outline">Cancel</a>

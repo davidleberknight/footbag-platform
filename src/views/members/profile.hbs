@@ -39,6 +39,17 @@
           {{/if}}
         </div>
 
+        {{#if content.links.length}}
+        <div class="profile-section">
+          <h2 class="profile-section-heading">Links</h2>
+          <ul>
+            {{#each content.links}}
+              <li>{{{externalLink this.url label=this.label}}}</li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/if}}
+
         {{> member-block-identity content.identity}}
 
         {{> member-block-claimed-legacy-identities content.claimedLegacyIdentities}}

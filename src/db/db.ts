@@ -1623,6 +1623,28 @@ export const memberClubAffiliations = {
   `); },
 };
 
+export const memberLinks = {
+  get listByMember() { return db.prepare(`
+    SELECT id, label, url, validated_at, sort_order
+      FROM member_links
+     WHERE member_id = ?
+     ORDER BY sort_order, created_at
+  `); },
+
+  get insert() { return db.prepare(`
+    INSERT INTO member_links (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, label, url, validated_at, sort_order
+    ) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'member',
+              strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'member', 1,
+              ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?)
+  `); },
+
+  get deleteAllForMember() { return db.prepare(`
+    DELETE FROM member_links WHERE member_id = ?
+  `); },
+};
+
 export const clubViabilitySignals = {
   get insertSignal() { return db.prepare(`
     INSERT INTO club_viability_signals (
@@ -6470,6 +6492,8 @@ export interface LegacyMemberRow {
   legacy_member_id: string;
   legacy_user_id: string | null;
   legacy_email: string | null;
+  legacy_email2: string | null;
+  legacy_email3: string | null;
   real_name: string | null;
   display_name: string | null;
   display_name_normalized: string | null;
@@ -6496,7 +6520,7 @@ export const legacyMembers = {
   get insert() { return db.prepare(`
     INSERT INTO legacy_members (
       legacy_member_id,
-      legacy_user_id, legacy_email,
+      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
       real_name, display_name, display_name_normalized,
       city, region, country,
       bio, birth_date, street_address, postal_code,
@@ -6505,14 +6529,14 @@ export const legacyMembers = {
       import_source, imported_at,
       version
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
     )
   `); },
 
   get findByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
-      legacy_user_id, legacy_email,
+      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
       real_name, display_name,
       bio, birth_date, street_address, postal_code,
       city, region, country,
@@ -6521,7 +6545,8 @@ export const legacyMembers = {
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE claimed_by_member_id IS NULL
-      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
+      AND (legacy_member_id = ? OR legacy_user_id = ?
+           OR legacy_email = ? OR legacy_email2 = ? OR legacy_email3 = ?)
     LIMIT 1
   `); },
 
@@ -6530,7 +6555,7 @@ export const legacyMembers = {
   get findAllByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
-      legacy_user_id, legacy_email,
+      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
       real_name, display_name,
       bio, birth_date, street_address, postal_code,
       city, region, country,
@@ -6539,13 +6564,16 @@ export const legacyMembers = {
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE claimed_by_member_id IS NULL
-      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ? COLLATE NOCASE)
+      AND (legacy_member_id = ? OR legacy_user_id = ?
+           OR legacy_email = ? COLLATE NOCASE
+           OR legacy_email2 = ? COLLATE NOCASE
+           OR legacy_email3 = ? COLLATE NOCASE)
   `); },
 
   get findByLegacyMemberId() { return db.prepare(`
     SELECT
       legacy_member_id,
-      legacy_user_id, legacy_email,
+      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
       real_name, display_name,
       bio, birth_date, street_address, postal_code,
       city, region, country,

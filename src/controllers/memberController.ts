@@ -42,6 +42,14 @@ function isOwnProfile(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
 }
 
+// Repeated form fields (e.g. three `link_label` inputs) arrive as an array;
+// a single one arrives as a string. Normalize both to a string[].
+function coerceStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => (typeof v === 'string' ? v : ''));
+  if (typeof value === 'string') return [value];
+  return [];
+}
+
 function renderNotFound(res: Response): void {
   res.status(404).render('errors/not-found', {
     seo:  { title: 'Page Not Found' },
@@ -140,13 +148,20 @@ export const memberController = {
   },
 
   /** POST /members/:memberKey/edit */
-  postProfileEdit(req: Request, res: Response, next: NextFunction): void {
+  async postProfileEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
       return;
     }
     const memberKey = req.params.memberKey;
     try {
+      const linkLabels = coerceStringArray(req.body.link_label);
+      const linkUrls   = coerceStringArray(req.body.link_url);
+      const linkCount  = Math.max(linkLabels.length, linkUrls.length);
+      const links: Array<{ label: string; url: string }> = [];
+      for (let i = 0; i < linkCount; i += 1) {
+        links.push({ label: linkLabels[i] ?? '', url: linkUrls[i] ?? '' });
+      }
       const input: ProfileEditInput = {
         bio:             req.body.bio            ?? '',
         city:            req.body.city           ?? '',
@@ -157,9 +172,10 @@ export const memberController = {
         firstCompetitionYear: req.body.firstCompetitionYear ?? '',
         showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
         showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
+        links,
       };
       try {
-        memberService.updateOwnProfile(memberKey, input);
+        await memberService.updateOwnProfile(memberKey, input);
         writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED);
         res.redirect(303, `/members/${memberKey}`);
       } catch (err) {

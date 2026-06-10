@@ -1521,8 +1521,12 @@ export interface LegacyAccountLookupResult {
 /**
  * Outcome of a legacy-account lookup by identifier (email / username / id).
  *
- * The `ambiguous_email` branch signals that the identifier matches 2+ rows.
- * Callers MUST NOT silently pick one. Verify-time paths surface this as
+ * The lookup matches the identifier against a legacy account's primary and two
+ * secondary email columns, so a member who arrives under a secondary address
+ * still links. The `ambiguous_email` branch signals that the identifier matches
+ * 2+ rows, which includes an address that collides across accounts (primary on
+ * one, secondary on another) when the legacy-data validation gate did not catch
+ * it first. Callers MUST NOT silently pick one. Verify-time paths surface this as
  * classification `low / ambiguous_email_anchor`; the manual claim form
  * surfaces it as a form-level error asking the user to disambiguate.
  */
@@ -1545,7 +1549,12 @@ function lookupLegacyAccount(
     throw new ValidationError('Your account is already linked to a legacy record.');
   }
 
-  const rows = legacyMembers.findAllByIdentifier.all(trimmed, trimmed, normalizeEmail(identifier)) as LegacyMemberRow[];
+  // The email value is bound once per legacy email column (primary plus two
+  // secondary); a match on any column links the account.
+  const normalizedEmail = normalizeEmail(identifier);
+  const rows = legacyMembers.findAllByIdentifier.all(
+    trimmed, trimmed, normalizedEmail, normalizedEmail, normalizedEmail,
+  ) as LegacyMemberRow[];
   if (rows.length === 0) return { kind: 'none' };
   if (rows.length > 1) {
     return { kind: 'ambiguous_email', count: rows.length };

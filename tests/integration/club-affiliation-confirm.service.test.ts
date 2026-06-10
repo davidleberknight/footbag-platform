@@ -325,16 +325,20 @@ describe('clubService.confirmAffiliation — two-current-club cap: second curren
 });
 
 describe('clubService.confirmAffiliation — three-club cap: third current affiliation blocked', () => {
-  it('member with two current clubs, third confirm is capped: lpca transitions but no mca row created', () => {
+  it('member with two current clubs, third confirm is a cap hit: row stays pending and actionable, no mca row created', () => {
     const result = svc.confirmAffiliation(threeCapAffC, MEMBER_THREE_CAP, 'confirm');
 
-    expect(result.branch).toBe('confirmed');
+    // At the two-current-club cap the confirm is a no-op cap hit: the resolved
+    // club is reported back for messaging, but no affiliation lands.
+    expect(result.branch).toBe('cap_hit');
     expect(result.resolvedClubId).toBe(threeCapClubC);
     expect(result.newAffiliationId).toBeNull();
 
+    // The legacy row is left pending (not transitioned, not stamped) so the
+    // member can free a current-club slot and confirm it later.
     const row = readAffiliation(threeCapAffC);
-    expect(row.resolution_status).toBe('confirmed_current');
-    expect(row.resolved_club_id).toBe(threeCapClubC);
+    expect(row.resolution_status).toBe('pending');
+    expect(row.resolved_club_id).toBeNull();
 
     const affs = readMemberAffiliations(MEMBER_THREE_CAP);
     const currentAffs = affs.filter((a) => a.is_current === 1);

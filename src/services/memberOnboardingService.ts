@@ -695,7 +695,8 @@ type ClubAffiliationsBranch =
   | 'affiliated_only'
   | 'idempotent'
   | 'declined'
-  | 'confirmed';
+  | 'confirmed'
+  | 'cap_hit';
 
 interface ClubAffiliationsResult {
   branch: ClubAffiliationsBranch;
@@ -818,7 +819,9 @@ function submitMembershipResponse(
       ? 'wizard.club_affiliations.confirmed'
       : result.branch === 'declined'
         ? 'wizard.club_affiliations.declined'
-        : 'wizard.club_affiliations.idempotent';
+        : result.branch === 'cap_hit'
+          ? 'wizard.club_affiliations.cap_hit'
+          : 'wizard.club_affiliations.idempotent';
   appendAuditEntry({
     actionType,
     category:      'onboarding',
@@ -840,6 +843,7 @@ function submitMembershipResponse(
   const branch: ClubAffiliationsBranch =
     result.branch === 'confirmed'  ? 'confirmed'
     : result.branch === 'declined' ? 'declined'
+    : result.branch === 'cap_hit'  ? 'cap_hit'
     : 'idempotent';
   const taskState = maybeCompleteClubAffiliationsTask(memberId);
   return {
@@ -1019,6 +1023,10 @@ export type WizardFlash =
   | {
       kind: 'WIZARD_CLUB_CARD_RESOLVED';
       payload: { clubName: string; decision: 'confirm' | 'correct' | 'decline' };
+    }
+  | {
+      kind: 'WIZARD_CLUB_CAP_HIT';
+      payload: { clubName: string };
     };
 
 // Per-method `formState` shapes carried in the `validation_error` arm
@@ -1542,6 +1550,14 @@ async function processClubAffiliationsSubmit(
       return { kind: 'retry_same', flash: null };
     }
     return advanceAfter(memberId, 'club_affiliations');
+  }
+  if (result.branch === 'cap_hit') {
+    // At the two-current-club cap the card stays actionable; surface the cap
+    // notice instead of a "resolved" banner so the member can free a slot.
+    return {
+      kind: 'retry_same',
+      flash: { kind: 'WIZARD_CLUB_CAP_HIT', payload: { clubName } },
+    };
   }
   return {
     kind: 'retry_same',

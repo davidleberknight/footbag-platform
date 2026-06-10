@@ -55,6 +55,7 @@ interface ClubAffiliationsCardContent {
   cardsTotal:      number;
   cardsRemaining:  number;
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline'; message: string } | null;
+  capHitNotice:    { message: string } | null;
   formError:       string | null;
   leadershipOffers?: Array<{ clubId: string; clubName: string }>;
   isWrapUp?:       boolean;
@@ -119,6 +120,10 @@ function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void
   }
   if (flash.kind === 'WIZARD_CLUB_CARD_RESOLVED') {
     writeFlash(res, req, FLASH_KIND.WIZARD_CLUB_CARD_RESOLVED, JSON.stringify(flash.payload));
+    return;
+  }
+  if (flash.kind === 'WIZARD_CLUB_CAP_HIT') {
+    writeFlash(res, req, FLASH_KIND.WIZARD_CLUB_CAP_HIT, JSON.stringify(flash.payload));
   }
 }
 
@@ -206,6 +211,18 @@ function readClubResolvedFlash(
   return null;
 }
 
+function readClubCapHitFlash(req: Request, res: Response): { clubName: string } | null {
+  const flash = readFlash(req);
+  if (!flash) return null;
+  if (flash.kind !== FLASH_KIND.WIZARD_CLUB_CAP_HIT) return null;
+  clearFlash(res, req);
+  try {
+    const payload = JSON.parse(flash.payload ?? '{}');
+    if (typeof payload.clubName === 'string') return { clubName: payload.clubName };
+  } catch { /* garbage payload: drop the notice */ }
+  return null;
+}
+
 function renderClubAffiliationsCard(
   req: Request,
   res: Response,
@@ -222,6 +239,10 @@ function renderClubAffiliationsCard(
   };
   const resolvedNotice = resolvedFlash
     ? { ...resolvedFlash, message: RESOLVED_MESSAGES[resolvedFlash.decision](resolvedFlash.clubName) }
+    : null;
+  const capHitFlash = readClubCapHitFlash(req, res);
+  const capHitNotice = capHitFlash
+    ? { message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Mark one of your current clubs as former to add it.` }
     : null;
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
@@ -245,6 +266,7 @@ function renderClubAffiliationsCard(
       cardsTotal,
       cardsRemaining,
       resolvedNotice,
+      capHitNotice,
       formError:      opts.formError ?? null,
       leadershipOffers,
       isWrapUp:       stage === 'wrap_up',

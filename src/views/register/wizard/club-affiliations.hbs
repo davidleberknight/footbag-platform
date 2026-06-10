@@ -12,6 +12,12 @@
       </p>
     {{/if}}
 
+    {{#if content.capHitNotice}}
+      <p class="form-notice" role="status">
+        {{content.capHitNotice.message}}
+      </p>
+    {{/if}}
+
     {{#if content.formError}}
       <p class="form-notice" role="alert">{{content.formError}}</p>
     {{/if}}

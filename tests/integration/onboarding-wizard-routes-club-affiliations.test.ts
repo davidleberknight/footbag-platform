@@ -15,6 +15,7 @@ import {
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMemberClubAffiliation,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -31,6 +32,7 @@ const MEMBER_F1_OTHER  = 'wiz-clubaff-other';
 const MEMBER_JUNK      = 'wiz-clubaff-junk';
 const MEMBER_PROMOTE   = 'wiz-clubaff-promote';
 const MEMBER_NOPROMOTE = 'wiz-clubaff-nopromote';
+const MEMBER_CAP       = 'wiz-clubaff-cap';
 
 let membershipClubId = '';
 let membershipAffId  = '';
@@ -45,6 +47,7 @@ let promoteCandId    = '';
 let promoteAffId     = '';
 let nopromoteCandId  = '';
 let nopromoteAffId   = '';
+let capAffId         = '';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -176,6 +179,30 @@ beforeAll(async () => {
     legacy_member_id:         'lm-wiz-nopromote',
     legacy_club_candidate_id: nopromoteCandId,
     confidence_score:         0.7,
+  });
+
+  // At-cap: member already holds two current club affiliations plus a pending
+  // membership candidate for a third club. Confirming the third is a cap hit.
+  insertMember(db, {
+    id: MEMBER_CAP,
+    slug: 'wiz_clubaff_cap',
+    login_email: 'wiz-cap@example.com',
+    legacy_member_id: 'lm-wiz-cap',
+  });
+  const capClubA = insertClub(db, { name: 'Cap Current Club A' });
+  const capClubB = insertClub(db, { name: 'Cap Current Club B' });
+  insertMemberClubAffiliation(db, MEMBER_CAP, capClubA, { is_current: 1, is_primary: 1 });
+  insertMemberClubAffiliation(db, MEMBER_CAP, capClubB, { is_current: 1, is_primary: 0 });
+  const capClubC = insertClub(db, { name: 'Cap Third Club C' });
+  const capCand = insertLegacyClubCandidate(db, {
+    classification: 'pre_populate',
+    mapped_club_id: capClubC,
+    display_name:   'Cap Third Club C',
+  });
+  capAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-cap',
+    legacy_club_candidate_id: capCand,
+    confidence_score:         0.9,
   });
 
   // F1 setup: a different member's candidate that the attacker tries to POST.
@@ -317,6 +344,31 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');
+  });
+
+  it('membership confirm at the two-current-club cap -> 303 retry_same; row stays pending; cap notice renders', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_CAP))
+      .type('form')
+      .send({ kind: 'membership', candidateId: capAffId, userDecision: 'confirm', activitySignal: 'active' });
+
+    expect(res.status).toBe(303);
+    // The card stays actionable: the legacy row is not transitioned, so the
+    // member can free a current-club slot and confirm it later.
+    expect(readAffiliationStatus(capAffId)).toBe('pending');
+
+    // Replay the cap-hit flash onto the receiving GET; the notice renders.
+    const setCookies = (res.headers['set-cookie'] ?? []) as unknown as string[];
+    const flashCookie = setCookies
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+    const getRes = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', `${cookieFor(MEMBER_CAP)}; ${flashCookie}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.text).toContain('already at the two current-club limit');
   });
 
   it('leadership confirm -> 303 advance; bootstrap_leader claimed; task completed', async () => {
