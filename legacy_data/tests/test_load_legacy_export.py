@@ -141,6 +141,27 @@ def test_credential_column_aborts_before_any_write(tmp_path: Path) -> None:
     assert rows[0]["n"] == 0
 
 
+@pytest.mark.parametrize("cred_header", ["MemberSession", "SessionToken", "AuthCookie", "MemberToken"])
+def test_session_family_credential_columns_abort_before_any_write(
+    tmp_path: Path, cred_header: str
+) -> None:
+    # Session / token / cookie / auth headers carry credential-equivalent
+    # material (a session blob authenticates as the account), so they must trip
+    # the same pre-read abort as the password family and never reach the import.
+    db = make_db(tmp_path)
+    export = write_export(
+        tmp_path,
+        [export_row("100")],
+        headers=EXPORT_HEADERS + [cred_header],
+    )
+    result = run_loader(db, export)
+    assert result.returncode != 0
+    assert "credential-bearing" in result.stderr
+    assert cred_header in result.stderr
+    rows = query(db, "SELECT COUNT(*) AS n FROM legacy_members")
+    assert rows[0]["n"] == 0
+
+
 def test_missing_required_header_aborts_with_header_list(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     headers = [h for h in EXPORT_HEADERS if h != "MemberValid"]

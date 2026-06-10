@@ -58,7 +58,10 @@ except ImportError:
 from datetime import datetime, timezone
 from pathlib import Path
 
-CREDENTIAL_HEADER_RE = re.compile(r"password|passwd|pwd|hash|salt|secret|recovery", re.IGNORECASE)
+CREDENTIAL_HEADER_RE = re.compile(
+    r"password|passwd|pwd|hash|salt|secret|recovery|session|token|cookie|auth",
+    re.IGNORECASE,
+)
 
 # Canonical field -> accepted export header spellings (case-insensitive).
 # The webmaster's export headers are matched against this table; when the
