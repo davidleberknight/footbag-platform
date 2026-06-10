@@ -43,6 +43,7 @@
       "Bash(head:*)",
       "Bash(tail:*)",
       "Bash(cat:*)",
+      "Bash(echo:*)",
       "WebFetch(domain:*)",
       "WebSearch",
       "mcp__playwright__browser_navigate",

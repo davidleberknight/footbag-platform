@@ -87,4 +87,15 @@ describe('GET /clubs/:key -- gallery link', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('View gallery');
   });
+
+  it('renders the hero hashtag with only the hero class, not the inline chip', async () => {
+    // The club-detail hero hashtag must not also carry the .club-hashtag chip
+    // class: the chip paints a near-white background that, on the green hero,
+    // renders as a full-width white strip with the white hero text invisible.
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_portland');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<p class="hero-hashtag">');
+    expect(res.text).not.toContain('club-hashtag hero-hashtag');
+  });
 });
