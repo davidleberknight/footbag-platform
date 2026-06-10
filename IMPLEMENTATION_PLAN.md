@@ -38,10 +38,11 @@ to dormant) cover rescue needs.
 ### Visitor-facing em dashes pending cleanup and gate
 
 Rendered template text and `src/content` editorial strings contain em dashes,
-contrary to the no-em-dash prose rule in `.claude/rules/comments.md` and
-`.claude/rules/doc-governance.md`. About 340 occurrences exist, some of which
-are legitimate data separators in notation and equivalence arrays. Canonical
-state is no em dashes in visitor-facing text. Close the gap with a dedicated
+contrary to the public-facing-text em-dash rule in `.claude/rules/doc-governance.md`
+(em dashes are unrestricted in docs and code; only visitor-facing text is in
+scope). About 340 occurrences exist, some of which are legitimate data separators
+in notation and equivalence arrays. Canonical state is no em dashes in
+visitor-facing text. Close the gap with a dedicated
 pass that rewrites the prose occurrences (commas, parentheses, or restructure),
 exempts the genuine data-separator arrays, then adds an `assert_conventions.sh`
 rule scanning `.hbs` text nodes and `src/content` string literals so the
@@ -63,9 +64,6 @@ regress.
 Buildable to-dos from the cutover-readiness audit. Each is a deviation from a now-decided
 design recorded in the canonical docs (USER_STORIES / DESIGN_DECISIONS) or in MIGRATION_PLAN.
 
-- **M8: enforce claim-safety gates at cutover.** `scripts/pre-cutover-checklist.sh` runs the
-  named claim-safety integration tests (G17-G27) inline against the shipped artifact, since the
-  deploy ships the working tree, not a git SHA. Add the runbook note to `docs/DEVOPS_GUIDE.md`.
 - **M12: retire the daily honors digest.** Remove the scheduled daily send in
   `hofBapAdminDigestService`. The v1 honors-oversight mechanism is the a-priori roster
   cross-check (legacy_data IP) plus community self-policing and admin revert. Keep the

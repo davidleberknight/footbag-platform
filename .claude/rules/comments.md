@@ -37,7 +37,10 @@ self-contained. Forbidden everywhere:
   self-contained explanation, never as a substitute for one.
 - **Preview / demo / special login identifiers** (usernames, emails, literal `login_email`
   values). Refer by role ("the preview-user account"); literals live in env vars / local notes.
-- **Em dashes in prose.** Use commas, parentheses, or restructure the sentence.
+- **Em dashes** are the exception to *forbidden everywhere*: restricted only in public-facing text a
+  site visitor reads (rendered template text, editorial/content strings, UI labels and notices, email
+  bodies), where commas, parentheses, or restructuring replace them. Not restricted in code comments,
+  scripts, or non-public string values.
 
 ## Deviations
 

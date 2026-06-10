@@ -2156,6 +2156,8 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 
 Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §13.10 (HoF and BAP daily digest) and §7.6 (Cutover rollback decision rule) as needed.
 
+The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the shipped working tree. Because a deploy ships the working tree rather than a committed SHA, this is the authoritative check that the artifact going live passes the claim-flow safety gates (anti-enumeration, rate limiting, claim and auto-link, mailbox-control round-trip, admin help-request). A cutover deploy must not pass `SKIP_TESTS=yes`, which would bypass the equivalent deploy-time `npm test`; the preflight gate is the backstop that the live artifact is verified.
+
 ### 16.7 DNS cutover sequence runbook
 
 The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken. This sequence swaps only the apex and `www` A/AAAA records; it does not touch MX. The `@footbag.org` MX move to Google is a separate, earlier step (§16.8 MX-to-Google mail cutover; MIGRATION_PLAN §29.12a) completed before T-0, so the apex swap is MX-neutral. Retained `*.footbag.org` subdomains (including the `ifpa.` mail host) keep their existing records and must not be altered or clobbered by the apply.

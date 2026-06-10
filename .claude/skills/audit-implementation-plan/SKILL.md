@@ -61,7 +61,7 @@ Delete if the item: is already done, is hypothetical, is redundant, is historica
 - **No scope expansion.** Do not introduce new work, invent tasks, or reframe project direction. Only reflect reality already implied by the system.
 - **Accurate system grounding.** All content must reflect actual system behavior, not assumptions: gating logic matches code, pipeline dependencies match real execution order, DB requirements match schema reality.
 - **Consolidate overlapping sections.** "Still to do" + "Known gaps" → Active work. "Release checklist" → Release-readiness criteria.
-- **Style.** Concise structured prose, prefer bullets, general prose rules per `.claude/rules/doc-governance.md` (no em dashes, no emojis).
+- **Style.** Concise structured prose, prefer bullets, general prose rules per `.claude/rules/doc-governance.md` (no emojis).
 
 ---
 

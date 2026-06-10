@@ -190,6 +190,10 @@ describe('pre-cutover checklist orchestrator', () => {
     for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G6-tiers', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
+    // The integration / smoke / e2e suites report SKIP under --skip-tests,
+    // keeping this orchestrator test hermetic; assert the claim-safety step
+    // is wired and properly skip-gated.
+    expect(r.stdout).toMatch(/GATE: CLAIM-SAFETY SKIP/);
   });
 
   it('red path: empty name_variants → G11 FAIL → exit non-zero, summary reports the failure', { timeout: 60_000 }, () => {

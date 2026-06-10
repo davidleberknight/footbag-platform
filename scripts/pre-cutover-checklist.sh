@@ -85,12 +85,21 @@ run_step "G6-tiers" bash scripts/validate-legacy-tiers.sh
 # 6. G11: name variants
 run_step "G11" bash scripts/validate-name-variants.sh
 
-# 7. G9 + G10 (smoke): exercised by npm run test:smoke; mockable via
-# FOOTBAG_PRECUTOVER_SKIP_TESTS for local dry runs.
+# 7. Claim-safety integration suite + smoke/e2e. The integration suite
+# re-runs the claim-flow safety gates (anti-enumeration, rate limiting,
+# claim and auto-link, mailbox-control round-trip, admin help-request)
+# against the shipped working tree, since a deploy ships the working tree,
+# not a committed SHA, so a green CI run on a commit does not certify this
+# artifact. G9 + G10 are exercised by the smoke suite. All three are
+# skipped under --skip-tests for local dry runs and the orchestrator's own
+# hermetic test, which would otherwise recurse through the integration
+# suite.
 if [[ "${SKIP_TESTS}" -eq 0 ]]; then
+  run_step "CLAIM-SAFETY" npm run test:integration
   run_step "SMOKE" npm run test:smoke
   run_step "E2E"   npm run test:e2e
 else
+  results+=("GATE: CLAIM-SAFETY SKIP: --skip-tests passed")
   results+=("GATE: SMOKE SKIP: --skip-tests passed")
   results+=("GATE: E2E SKIP: --skip-tests passed")
 fi
