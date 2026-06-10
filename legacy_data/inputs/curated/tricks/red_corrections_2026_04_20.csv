@@ -170,7 +170,7 @@ The blender base (transitively Whirling Osis) carries 4 ADD; ducking + paradox a
 mind-bender,learning_notes,,"Pairs naturally with Spender (Spinning + Paradox + Blender; also 6 ADD). Both are 6-ADD blender compounds; both carry paradox; the difference is body-modifier: Spender carries spinning (body rotation), Mind Bender carries ducking (body compression). Compare the two side-by-side for cross-modifier feel.",UX3b1 schema-backed prose backfill 2026-05-11: migrate from UX2_PILOT_RAW service-layer constant into freestyle_tricks columns.
 mind-bender,prerequisite_notes,,"Comfortable execution of blender (4 ADD) and paradox-blender (5 ADD) is the natural entry point. The ducking modifier should be solid on a separate base (ducking-whirl, ducking-butterfly) before attempting Mind Bender. Spender is the natural same-tier sibling to study alongside.",UX3b1 schema-backed prose backfill 2026-05-11: migrate from UX2_PILOT_RAW service-layer constant into freestyle_tricks columns.
 pendulum,notation,,PENDULUM,Curator-provided 2026-05-14 NR-1B: sui-generis primitive; self-token notation matches body-stall sibling pattern (head-stall=HEAD STALL etc.)
-pendulum,operational_notation,[DEL] [DEX],SET > TOE SWING [DEL],"2026-05-24 curator rendered-output audit: prior op_notation '[DEL] [DEX]' was ambiguous two-flags-out-of-context. Replaced with the canonical bracket form parallel to rake (rake = SET > SWING TOE [DEL]; pendulum is the direction-variant with toe>swing element order). Source: NR-1B + swing-element doctrine 2026-05-19."
+pendulum,operational_notation,[DEL] [DEX],TOE SWING (SET) > SAME TOE [DEL],"James curator fborg-reconciliation ruling: explicit swing-element form. ADD = swing(1) + toe(1) = 2 (swing-element exception, parallel to rake). The toe-swing is the entry set; the SAME TOE [DEL] is the terminal stall."
 squeeze,notation,,SQUEEZE,Curator-provided 2026-05-14 NR-1B: sui-generis primitive; self-token notation matches body-stall sibling pattern.
 squeeze,operational_notation,,[UNS] [DEL],"Curator-provided 2026-05-14 NR-1B: execution-mechanics tags from source description (crook-of-knee delay). [UNS] is curator-introduced flag preserved verbatim; not in existing op-notation taxonomy. Source: Red pt7 2026-05-04 plus curator narrative."
 inside-stall,operational_notation,,[set] > inside,Pre-Red completion sweep 2026-05-16: surface-stall op-notation fill; matches sibling pattern of toe-stall ([set] > toe) and clipper-stall ([set] > clipper). Unambiguous surface naming; no Red dependency.
@@ -1678,3 +1678,19 @@ diving-pickup,operational_notation,,SET > DIVE [BOD] > OP IN [DEX] > SAME TOE [D
 diving-smudge,operational_notation,,TOE > DIVE [BOD] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL],"Diving chassis: DIVE [BOD] after entry (+1 ADD), mirror of canonical diving exemplars; bracket count 4 equals asserted ADD."
 inspinning-guay,operational_notation,,CLIP > (front) SPIN [BOD] > SAME IN [DEX] > SAME INSIDE [DEL],"Inspinning (pt7): mirror of spinning-guay with (back) to (front) SPIN and first dex OP to SAME; entry normalized to CLIP per spinning-guay; bracket count 3 equals asserted ADD."
 spinning-butterfly-kick,operational_notation,,SET > (back) SPIN [BOD] JUMP [BOD] > SAME/OP OUT [DEX],"Spinning on jump-class base: (back) SPIN [BOD] merges with the base JUMP per the gyro-eclipse exemplar (+1 ADD); bracket count 3 equals asserted ADD."
+triple-spin,notation,,TRIPLE SPIN,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+triple-spin,operational_notation,,SPIN [BOD] > SPIN [BOD] > SPIN [BOD],James curator ruling: fborg-3add Triple Spin. 3 brackets matches 3 ADD.
+triple-orbit,notation,,TRIPLE ORBIT,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+triple-orbit,operational_notation,,TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],James curator ruling: orbit plus two extra dexes. 4 brackets matches 4 ADD.
+double-pixie,notation,,DOUBLE PIXIE,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+double-pixie,operational_notation,,TOE > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],James curator ruling: double the pixie dex; set-to-trick implies terminal toe stall. 3 brackets matches 3 ADD.
+double-fairy,notation,,DOUBLE FAIRY,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+double-fairy,operational_notation,,TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL],James curator ruling: double the fairy dex; set-to-trick implies terminal toe stall. 3 brackets matches 3 ADD.
+orbit-kick,notation,,ORBIT KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+orbit-kick,operational_notation,,TOE > SAME OUT [DEX],James curator ruling: orbit minus terminal stall (kick rule). 1 bracket matches 1 ADD.
+legover-kick,notation,,LEGOVER KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+legover-kick,operational_notation,,SET > OP OUT [DEX],James curator ruling: legover minus terminal stall (kick rule). 1 bracket matches 1 ADD.
+double-kick,notation,,DOUBLE KICK,James curator fborg-reconciliation: JOB self-token mirrors double-knee.
+double-kick,operational_notation,,double kick,James curator ruling: sui-generis self-token 1 ADD body primitive (foot analogue of double-knee).
+diving-clipper,operational_notation,,SET > DIVE [BOD] > SAME CLIP [XBD] [DEL],James curator clipper-stall ruling: terminal clipper is a stall (XBD + DEL = 2 ADD). diving(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
+gyro-clipper,operational_notation,,SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],James curator clipper-stall ruling: terminal clipper is a stall. gyro(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
