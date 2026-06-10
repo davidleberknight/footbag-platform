@@ -1724,3 +1724,15 @@ atomic-double-leg-over,trick_family,,legover,James loader-19 base-family overrid
 atomic-ducking-torque,notation,,ATOMIC DUCKING TORQUE,James PassBack-reconciliation: JOB per mechanical uppercase rule.
 atomic-ducking-torque,operational_notation,,TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],James ruling: atomic plus ducking on torque. 6 brackets matches 6 ADD.
 atomic-ducking-torque,trick_family,,osis,James loader-19 base-family override: torque family is osis.
+diving-eclipse,operational_notation,,SET > DIVE [BOD] > JUMP [BOD] > SAME/OP INSIDE [DEL] > OP OUT [DEX] > (land),James notation-backfill: diving on eclipse; bracket count 4 matches ADD.
+diving-toe-stall,operational_notation,,SET > DIVE [BOD] > SAME TOE [DEL],James notation-backfill: diving on toe-stall; bracket count 2 matches ADD.
+spinning-ducking-drifter,operational_notation,,TOE > (back) SPIN [BOD] > DUCK [BOD] > OP IN [DEX] > SAME CLIP [XBD] [DEL],James notation-backfill: spinning on ducking-drifter; bracket count 5 matches ADD.
+spinning-miraging-symposium-torque,operational_notation,,SET > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP IN [DEX] [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],James notation-backfill: spinning miraging on symposium-torque; bracket count 7 matches ADD.
+spinning-symposium-whirling-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],James notation-backfill: spinning symposium on whirling-swirl; bracket count 6 matches ADD.
+spinning-tomahawk,operational_notation,,CLIP > (back) SPIN [BOD] >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD] [DEL],James notation-backfill: spinning on tomahawk; bracket count 6 matches ADD.
+stepping-ducking-symposium-eggbeater,operational_notation,,SET > OP IN [DEX] > DUCK [BOD] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],James notation-backfill: stepping ducking symposium on eggbeater; bracket count 6 matches ADD.
+symposium-blur,operational_notation,,CLIP > (no plant while) OP IN [BOD] [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL],James notation-backfill: symposium on blur; bracket count 5 matches ADD.
+symposium-mobius,operational_notation,,CLIP >> (back) SPIN [BOD] >> (no plant while) SAME IN [BOD] [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],James notation-backfill: symposium on mobius; bracket count 6 matches ADD.
+symposium-tomahawk,operational_notation,,CLIP >> DUCK [BOD] >> (no plant while) SAME FRONT WHIRL [BOD] [DEX] [PDX] > OP CLIP [XBD] [DEL],James notation-backfill: symposium on tomahawk; bracket count 6 matches ADD.
+whirling-pickup,operational_notation,,SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > SAME TOE [DEL],James notation-backfill: whirling on pickup; bracket count 3 matches ADD.
+whirling-rake,operational_notation,,SET > OP FRONT WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL],James notation-backfill: whirling on rake; bracket count 3 matches ADD.
