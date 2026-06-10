@@ -1741,3 +1741,12 @@ bedwetter,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] 
 schmoe,operational_notation,,SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],James notation-backfill: stepping on legover (schmoe = stepping-legover); bracket count 3 matches ADD.
 blurrage,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],James notation-backfill: stepping on barrage (blurrage = stepping-barrage); bracket count 4 matches ADD.
 triple-around-the-world,operational_notation,,TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL],James notation-backfill: multiplicity of around-the-world; bracket count 4 matches ADD.
+clown-face,operational_notation,,TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],notation-backfill: furious (=barraging +2 two-dex) on eggbeater; bracket count 5 matches ADD.
+genesis,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],notation-backfill: furious on whirl; bracket count 5 matches ADD.
+nebula,operational_notation,,SET > OP IN [DEX] > OP OUT [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],notation-backfill: furious on double-leg-over; bracket count 5 matches ADD.
+rage,operational_notation,,SET > (no plant while) OP IN [BOD] [DEX] > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL],notation-backfill: furious on symposium-mirage; bracket count 5 matches ADD.
+barraging-pickup,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > SAME TOE [DEL],notation-backfill: barraging (+2 two-dex) on pickup; bracket count 4 matches ADD.
+fury,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [PDX] [DEX] > OP TOE [DEL],notation-backfill: existing structural formula migrated; bracket count 5 matches ADD.
+refraction,operational_notation,,SET > OP INSIDE [DEL] > OP OUT [DEX] > OP CLIP [XBD],notation-backfill: base-atom existing formula migrated; bracket count 3 matches ADD.
+double-around-the-world-heel,adds,3,4,curator: heel terminal adds one via unusual-surface [UNS].
+double-around-the-world-heel,operational_notation,,TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL],notation-backfill: double-ATW into heel-stall; bracket count 4 matches ADD (UNS counts).
