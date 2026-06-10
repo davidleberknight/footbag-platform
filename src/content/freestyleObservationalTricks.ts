@@ -130,18 +130,6 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
   // Curator may enrich proposedAddFormula + curatorNote per row as part of
   // selective promotion to canonical.
   // ─────────────────────────────────────────────────────────────────────────
-  {
-    folkSlug:           'anonymous',
-    displayName:        'Anonymous',
-    proposedReadings:   ['Spinning far Miraging Symp. Miraging Refraction'],
-    proposedAddFormula: null,
-    proposedAddTotal:   3,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
   // 'big-apple' is omitted: already canonical in freestyle_tricks
   // (adds=6, base_trick='torque'). Source PB readings are cited in the
   // canonical row's red_additions entry.
@@ -215,11 +203,11 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     displayName:        'Green Eggs and Ham',
     proposedReadings:   ['Stepping Ducking far Swivel'],
     proposedAddFormula: null,
-    proposedAddTotal:   2,
+    proposedAddTotal:   null,
     sourceLabel:        'passback',
     sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
     status:             'pending-review',
-    curatorNote:        null,
+    curatorNote:        'Needs authoring: blocked on the swivel definition (base swivel vs the symposium-twirl alias gives 2 vs 7 ADD).',
     unresolvedBlockers: [],
   },
   {
@@ -383,18 +371,6 @@ export const OBSERVATIONAL_TRICKS: readonly ObservationalTrick[] = [
     proposedReadings:   ['Spinning far Motion'],
     proposedAddFormula: null,
     proposedAddTotal:   2,
-    sourceLabel:        'passback',
-    sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
-    status:             'pending-review',
-    curatorNote:        null,
-    unresolvedBlockers: [],
-  },
-  {
-    folkSlug:           'pandora-s-box',
-    displayName:        'Pandora\'s Box',
-    proposedReadings:   ['Gyro Pickup'],
-    proposedAddFormula: null,
-    proposedAddTotal:   1,
     sourceLabel:        'passback',
     sourceCitation:     'PassBack dictionary (passback-dictionary.txt)',
     status:             'pending-review',
