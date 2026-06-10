@@ -71,6 +71,10 @@ CREATE TABLE clubs (
   whatsapp                  TEXT,
   external_url              TEXT,
   external_url_validated_at TEXT,
+  -- Non-NULL when the boot scan rejected the seeded URL (a Safe Browsing match
+  -- or a post-write threat-list change). Public render hides the URL; the
+  -- club-edit read still returns it so an operator can replace or remove it.
+  external_url_quarantine_reason TEXT,
 
   -- ON DELETE SET NULL: deleting a media item detaches the club logo without
   -- requiring a before-delete trigger. The application stamps updated_at/updated_by

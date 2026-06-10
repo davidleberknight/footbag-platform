@@ -686,7 +686,10 @@ export const clubs = {
       c.city,
       c.region,
       c.country,
-      c.external_url,
+      -- A quarantined club URL is hidden from public render, the same way the
+      -- gallery_external_links public read filters out quarantined rows.
+      CASE WHEN c.external_url_quarantine_reason IS NULL
+           THEN c.external_url ELSE NULL END AS external_url,
       c.status,
       t.tag_normalized,
       t.tag_display
@@ -748,7 +751,8 @@ export const clubs = {
       c.city,
       c.region,
       c.country,
-      c.external_url,
+      CASE WHEN c.external_url_quarantine_reason IS NULL
+           THEN c.external_url ELSE NULL END AS external_url,
       c.contact_email,
       c.whatsapp,
       c.status,
@@ -1327,7 +1331,9 @@ export const clubBootstrapLeaderSignals = {
 // external-URL replacements awaiting leader/contact/admin review.
 export const clubContent = {
   get findClubContentForEdit() { return db.prepare(`
-    SELECT id, description, external_url FROM clubs WHERE id = ?
+    SELECT id, description, external_url,
+           external_url_validated_at, external_url_quarantine_reason
+    FROM clubs WHERE id = ?
   `); },
 
   get updateClubDescription() { return db.prepare(`
@@ -1340,6 +1346,37 @@ export const clubContent = {
   get updateClubExternalUrl() { return db.prepare(`
     UPDATE clubs SET external_url = ?, external_url_validated_at = ?,
         updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+};
+
+// Boot-scan over seeded club external_url values that never passed the Node
+// validator: the club cutover populator writes external_url directly, so those
+// rows land unvalidated. Mirrors the gallery_external_links boot scan: accept
+// stamps external_url_validated_at; reject stamps external_url_quarantine_reason
+// (which the public club read then hides). Both halves carry the row-version
+// bump with a 'boot-scan' updated_by sentinel.
+export const clubExternalUrlScan = {
+  get listForBootScan() { return db.prepare(`
+    SELECT id, name, external_url AS url
+    FROM clubs
+    WHERE external_url IS NOT NULL
+      AND external_url_validated_at IS NULL
+      AND external_url_quarantine_reason IS NULL
+    ORDER BY created_at ASC
+  `); },
+
+  get stampValidated() { return db.prepare(`
+    UPDATE clubs
+    SET external_url_validated_at = ?, updated_at = ?, updated_by = ?,
+        version = version + 1
+    WHERE id = ?
+  `); },
+
+  get stampQuarantine() { return db.prepare(`
+    UPDATE clubs
+    SET external_url_quarantine_reason = ?, updated_at = ?, updated_by = ?,
+        version = version + 1
     WHERE id = ?
   `); },
 };
