@@ -30,6 +30,15 @@ const APPROVED = [
   { slug: 'pixie-clipper',    adds: 3, notation: 'TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-kick',    adds: 1, notation: 'SET > OP IN [DEX]' },
   { slug: 'illusioning-kick', adds: 1, notation: 'SET > OP OUT [DEX]' },
+  // missing-canonical creations (PassBack reconciliation): multiplicity +
+  // atomic-prefix compounds. atomic-whirl held (overlaps the X-Dex migration).
+  { slug: 'double-illusion',        adds: 3, notation: 'SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
+  { slug: 'double-whirl',           adds: 4, notation: 'SET > OP IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'triple-swirl',           adds: 5, notation: 'CLIP > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'triple-mirage',          adds: 4, notation: 'SET > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]' },
+  { slug: 'atomic-blender',         adds: 5, notation: 'TOE > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'atomic-double-leg-over', adds: 4, notation: 'TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'atomic-ducking-torque',  adds: 6, notation: 'TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
 // bracket-count deliberately differs from ADD: swing-element (pendulum) and

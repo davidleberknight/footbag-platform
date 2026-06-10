@@ -1707,3 +1707,20 @@ miraging-kick,notation,,MIRAGING KICK,James curator fborg-reconciliation: JOB pe
 miraging-kick,operational_notation,,SET > OP IN [DEX],James curator ruling: curator-approved miraging-kick (kick-only dex atom). 1 bracket matches 1 ADD.
 illusioning-kick,notation,,ILLUSIONING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
 illusioning-kick,operational_notation,,SET > OP OUT [DEX],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.
+double-illusion,notation,,DOUBLE ILLUSION,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+double-illusion,operational_notation,,SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL],James ruling: multiplicity of illusion. 3 brackets matches 3 ADD.
+double-whirl,notation,,DOUBLE WHIRL,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+double-whirl,operational_notation,,SET > OP IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],James ruling: multiplicity of whirl; fborg-4add double whirl. 4 brackets matches 4 ADD.
+triple-swirl,notation,,TRIPLE SWIRL,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+triple-swirl,operational_notation,,CLIP > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],James ruling: multiplicity of swirl. 5 brackets matches 5 ADD.
+triple-mirage,notation,,TRIPLE MIRAGE,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+triple-mirage,operational_notation,,SET > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL],James ruling: multiplicity of mirage. 4 brackets matches 4 ADD.
+atomic-blender,notation,,ATOMIC BLENDER,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+atomic-blender,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],James ruling: atomic chassis plus blender. 5 brackets matches 5 ADD.
+atomic-blender,trick_family,,osis,James loader-19 base-family override: blender family is osis.
+atomic-double-leg-over,notation,,ATOMIC DOUBLE LEGOVER,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+atomic-double-leg-over,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],James ruling: atomic dex prefix plus double-leg-over. 4 brackets matches 4 ADD.
+atomic-double-leg-over,trick_family,,legover,James loader-19 base-family override: double-leg-over family is legover.
+atomic-ducking-torque,notation,,ATOMIC DUCKING TORQUE,James PassBack-reconciliation: JOB per mechanical uppercase rule.
+atomic-ducking-torque,operational_notation,,TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],James ruling: atomic plus ducking on torque. 6 brackets matches 6 ADD.
+atomic-ducking-torque,trick_family,,osis,James loader-19 base-family override: torque family is osis.
