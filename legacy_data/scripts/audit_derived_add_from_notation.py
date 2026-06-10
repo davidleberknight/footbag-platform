@@ -191,7 +191,10 @@ def parse_int_add(raw):
 # Operational-notation bracket flags (ATAM convention; one ADD each).
 # Case-insensitive — some op_notation entries use lowercase ([xbd] etc.).
 ATAM_FLAGS = ("BOD", "DEX", "XBD", "DEL", "UNS")
-BRACKET_FLAG_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX)\]", re.IGNORECASE)
+# [XDEX] is the extra x-dex difficulty a qualifying dex carries on top of its
+# own [DEX] (the atomic / quantum far-miraging-or-illusioning trigger); it
+# counts the same +1 ADD as any other bracket flag.
+BRACKET_FLAG_RE = re.compile(r"\[(BOD|DEX|XBD|DEL|UNS|PDX|XDEX)\]", re.IGNORECASE)
 
 
 # ── Parser vocabulary maps (curator-governed; expand cautiously) ─────────

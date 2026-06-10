@@ -1229,7 +1229,7 @@ paradox-symposium-eggbeater,operational_notation,,CLIP (plant) > (no plant while
 tapping-symposium-whirl,notation,,TAPPING SYMPOSIUM WHIRL,W9o 2026-05-27: JOB per mechanical uppercase rule.
 tapping-symposium-whirl,operational_notation,,TOE > OP OUT [DEX] >> (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: W9l tapping prefix + symposium-whirl chain. 5 brackets matches 5 ADD.
 atomic-miraging-butterfly,notation,,ATOMIC MIRAGING BUTTERFLY,W9o 2026-05-27: JOB per mechanical uppercase rule.
-atomic-miraging-butterfly,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: atomic-butterfly canonical + miraging dex injection. 5 brackets matches 5 ADD.
+atomic-miraging-butterfly,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] [XDEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Red June 2026 X-Dex ruling: the miraging dex on an atomic set carries X-Dex. atomic-butterfly canonical plus miraging dex with [XDEX]. 6 brackets matches 6 ADD.
 pixie-miraging-flail,notation,,PIXIE MIRAGING FLAIL,W9o 2026-05-27: JOB per mechanical uppercase rule.
 pixie-miraging-flail,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9o 2026-05-27: pixie prefix + miraging injection + flail body. First pixie+miraging stack. 5 brackets matches 5 ADD.
 paradox-blender,operational_notation,,SET > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Curator-ruled 2026-05-29: sibling-derived from blender base; paradox adds [PDX] on first dex with OP->SAME flip per the whirl/flurry rotational-body precedent. 5 brackets == 5 ADD."
