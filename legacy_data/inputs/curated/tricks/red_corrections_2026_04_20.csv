@@ -1750,3 +1750,5 @@ fury,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [PDX] [DEX
 refraction,operational_notation,,SET > OP INSIDE [DEL] > OP OUT [DEX] > OP CLIP [XBD],notation-backfill: base-atom existing formula migrated; bracket count 3 matches ADD.
 double-around-the-world-heel,adds,3,4,curator: heel terminal adds one via unusual-surface [UNS].
 double-around-the-world-heel,operational_notation,,TOE > SAME IN/OUT [DEX] > SAME IN/OUT [DEX] > SAME HEEL [UNS] [DEL],notation-backfill: double-ATW into heel-stall; bracket count 4 matches ADD (UNS counts).
+jani-walker,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],notation-backfill: existing structural formula migrated; bracket count 5 matches ADD.
+predator,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],notation-backfill: = atomic-double-leg-over (non-rotational atomic +1) shipped sibling; bracket count 4 matches ADD.
