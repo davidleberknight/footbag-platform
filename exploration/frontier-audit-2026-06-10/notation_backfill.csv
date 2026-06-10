@@ -1,0 +1,60 @@
+slug,base,adds,group,reason
+atomic-torque,torque,6,blocked-doctrine,atomic
+barraging-pickup,pickup,4,blocked-doctrine,barraging
+blurry-torque,torque,6,blocked-doctrine,blurry
+blurry-whirl,whirl,5,blocked-doctrine,blurry
+down-double-down,down-double-down,4,blocked-doctrine,DOD/DDD
+fairy-gyro-torque,torque,6,blocked-doctrine,fairy
+fairy-merkon,merkon,4,blocked-doctrine,fairy
+fairy-ripstein,ripstein,5,blocked-doctrine,fairy
+paradox-symposium-illusion,symposium-illusion,4,blocked-doctrine,paradox
+pixie-spinning-paradox-blender,spinning-paradox-blender,7,blocked-doctrine,paradox
+pixie-spinning-paradox-symposium-whirl,spinning-paradox-symposium-whirl,7,blocked-doctrine,paradox
+pixie-spinning-paradox-whirl,spinning-paradox-whirl,6,blocked-doctrine,paradox
+stepping-ducking-paradox-illusion,illusion,5,blocked-doctrine,paradox
+surging-ducking-paradox-torque,torque,8,blocked-doctrine,paradox
+bedwetter,eggbeater,4,curator-review,folk name / operator not in slug
+big-apple-sauce,torque,8,curator-review,folk name / operator not in slug
+bill-ted-s-excellent-adventure,eggbeater,5,curator-review,folk name / operator not in slug
+blizzard,illusion,3,curator-review,folk name / operator not in slug
+blurrage,barrage,4,curator-review,folk name / operator not in slug
+clown-face,eggbeater,5,curator-review,folk name / operator not in slug
+double-around-the-world-heel,double-around-the-world,3,curator-review,folk name / operator not in slug
+floatation,butterfly,6,curator-review,folk name / operator not in slug
+fury,mirage,5,curator-review,folk name / operator not in slug
+genesis,whirl,5,curator-review,folk name / operator not in slug
+hop-over,hop-over,2,curator-review,base not notated (cascade)
+jani-walker,,5,curator-review,base not notated (cascade)
+liquifier,blender,6,curator-review,folk name / operator not in slug
+margaritaville,blender,7,curator-review,folk name / operator not in slug
+nebula,double-leg-over,5,curator-review,folk name / operator not in slug
+oh-wheely,nova,6,curator-review,folk name / operator not in slug
+omelette,pickup,3,curator-review,folk name / operator not in slug
+plasma,,5,curator-review,base not notated (cascade)
+predator,double-leg-over,4,curator-review,folk name / operator not in slug
+rage,mirage,5,curator-review,folk name / operator not in slug
+redwetter,eggbeater,6,curator-review,folk name / operator not in slug
+sailing,sailing,2,curator-review,base not notated (cascade)
+schmoe,legover,3,curator-review,folk name / operator not in slug
+sole-survivor,whirl,5,curator-review,folk name / operator not in slug
+spyro,spyro,1,curator-review,base not notated (cascade)
+surging,,2,curator-review,base not notated (cascade)
+swirlwind,swirl,7,curator-review,folk name / operator not in slug
+terrage,terrage,4,curator-review,base not notated (cascade)
+triple-around-the-world,around-the-world,4,curator-review,folk name / operator not in slug
+warp,mirage,5,curator-review,folk name / operator not in slug
+witchdoctor,mirage,5,curator-review,folk name / operator not in slug
+refraction,refraction,3,blocked-operator,refraction
+diving-eclipse,eclipse,4,mechanical,clean op diving on notated base
+diving-toe-stall,toe-stall,2,mechanical,clean op diving on notated base
+gyro-diving-clipper,diving-clipper,3,mechanical,clean op gyro on notated base
+spinning-ducking-drifter,ducking-drifter,5,mechanical,clean op spinning on notated base
+spinning-miraging-symposium-torque,symposium-torque,7,mechanical,clean op miraging+spinning on notated base
+spinning-symposium-whirling-swirl,whirling-swirl,6,mechanical,clean op spinning+symposium on notated base
+spinning-tomahawk,tomahawk,6,mechanical,clean op spinning on notated base
+stepping-ducking-symposium-eggbeater,eggbeater,6,mechanical,clean op ducking+stepping+symposium on notated base
+symposium-blur,blur,5,mechanical,clean op symposium on notated base
+symposium-mobius,mobius,6,mechanical,clean op symposium on notated base
+symposium-tomahawk,tomahawk,6,mechanical,clean op symposium on notated base
+whirling-pickup,pickup,3,mechanical,clean op whirling on notated base
+whirling-rake,rake,3,mechanical,clean op whirling on notated base

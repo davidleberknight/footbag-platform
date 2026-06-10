@@ -1,0 +1,24 @@
+item,layer,reading,current,derived_add_if_DDD
+Blurrier,observational,Stepping near Double Down,3,5
+Cold Fusion,observational,Nuclear far Double Down,3,5
+Dimmier,observational,Pixie near Double Down,3,5
+Dimmiest,observational,Pixie far Double Down,3,5
+Id,observational,Atomic Ducking far Double Down,null,6
+Kiwi,observational,Tapping Double Down,null,4
+Leviathon,observational,Stepping Ducking far Double Down,3,6
+Scorpion\,observational,Spinning far Double Down,2,5
+Shooting Star,observational,Shooting far Double Down,4,5
+Spanishfly,observational,Clipper Ducking far Double Down,2,6
+Torch-R-Rack,observational,Stepping far Symp. Double Down,3,5
+Your Mom,observational,Atomic far Symp. Double Down,3,5
+Archnemesis,residual,Barraging near Double Down,unmatched,
+Blackula,residual,"Toe near Symp. Double Down, Symp DOD",unmatched,
+DDD/Down Double Down,residual,Clipper near Double Down,unmatched,
+DOD/Double Over Down,residual,Toe near Double Down,unmatched,
+Dolomite,residual,Toe far Symp. Double Down,unmatched,
+Heart,residual,Frantic far Double Down Swirl,unmatched,
+Mofly,residual,(downtime) Miraging far Symp. Double Down,unmatched,
+Motion,residual,Double Down near Osis,unmatched,
+POD,residual,"Pixie DOD, Pixie near Double Down",unmatched,
+Scorpion's Tail,residual,Spinning far Double Down,unmatched,
+Shaft,residual,"Clipper near Symp. Double Down, Symp. DDD",unmatched,
