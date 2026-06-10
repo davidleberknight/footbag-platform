@@ -5,11 +5,11 @@
  * The curated PUBLIC-DISPLAY family layer for the Trick Dictionary landing
  * "By family" browse card.
  *
- * This is intentionally distinct from two other family notions:
- *   - the raw `freestyle_tricks.trick_family` labels (~87 distinct values,
- *     many singletons / alias-ish), which are NOT all surfaced publicly; and
- *   - the 8 canonical PARENT family anchors (freestyleParentFamilies.ts), the
- *     three-tier-doctrine top level.
+ * This is intentionally distinct from the raw `freestyle_tricks.trick_family`
+ * labels (~87 distinct values, many singletons / alias-ish), which are NOT all
+ * surfaced publicly. This curated set IS the family system the By-family browse
+ * renders directly: the 20 roots plus the 4 derived branches below, and nothing
+ * else.
  *
  * The landing menu shows THIS curated set: a human-chosen browse roster of the
  * families worth offering as jump-links from the index. Each entry links to the
@@ -34,8 +34,8 @@
  * Hierarchy. A family is either a root (its own terminal identity, e.g. whirl, swirl, inside-stall)
  * or a derived branch that inherits a root's identity (a parent set, e.g. torque/blender under osis,
  * double-leg-over/eggbeater under legover). Both are first-class family parents; the `parent` field
- * records the branch relationship for display. This branch hierarchy is distinct from the broader
- * ?view=family fold in freestyleParentFamilies.ts.
+ * records the branch relationship for display and drives the By-family browse's
+ * root-then-branch section ordering.
  *
  * Counts are derived at render time from active trick membership, never hard-coded here.
  */
@@ -79,3 +79,75 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'double-leg-over',   label: 'Double Legover',  parent: 'legover' },
   { slug: 'eggbeater',         label: 'Eggbeater',       parent: 'legover' },
 ];
+
+/**
+ * Sub-label → the family whose terminal ending topology it conserves. A
+ * trick_family label that is neither a family above nor listed here is NOT a
+ * family: it either has too few descendants to clear the ≥3 floor (rev-whirl,
+ * twirl, around-the-world, orbit) or is a universal catch surface above the
+ * ceiling (toe-stall, clipper-stall). Such labels do not render in the By-family
+ * browse; their rows stay reachable through the raw `?family={slug}` filter.
+ *
+ * Most folds are derivable from the slug's terminal token (paradox-illusion
+ * conserves the illusion terminal). The two marked "curator" are not visible in
+ * the slug and come from curator doctrine.
+ */
+export const SUBLABEL_FAMILY_OF: ReadonlyMap<string, string> = new Map<string, string>([
+  ['whirling-swirl',      'swirl'],
+  ['mobius',              'torque'],        // curator: a mobius is a torque-family member
+  ['guay',                'inside-stall'],  // curator: a guay lands into an inside stall
+  ['double-pickup',       'pickup'],
+  ['paradox-mirage',      'mirage'],
+  ['paradox-illusion',    'illusion'],
+  ['reverse-drifter',     'drifter'],
+  ['high-plains-drifter', 'drifter'],
+]);
+
+const FAMILY_SLUG_SET: ReadonlySet<string> = new Set(PUBLIC_DISPLAY_FAMILIES.map(f => f.slug));
+
+/**
+ * Resolve a raw trick_family label to the public family it renders under, or null
+ * when the label is not a family (route-out). The 20 roots and 4 branches resolve
+ * to themselves; sub-labels fold to the family whose terminal they conserve.
+ */
+export function resolveDisplayFamily(label: string): string | null {
+  if (FAMILY_SLUG_SET.has(label)) return label;
+  return SUBLABEL_FAMILY_OF.get(label) ?? null;
+}
+
+/**
+ * The 24 families in display order: the 20 roots first, then the 4 derived
+ * branches, mirroring the glossary's roster-then-descendant-lineage ordering.
+ * Drives the top-level section order of the By-family browse.
+ */
+export const PUBLIC_FAMILY_ORDER: readonly string[] = PUBLIC_DISPLAY_FAMILIES.map(f => f.slug);
+
+/** slug → display label for the 24 families. */
+export const PUBLIC_FAMILY_LABEL: ReadonlyMap<string, string> = new Map(
+  PUBLIC_DISPLAY_FAMILIES.map(f => [f.slug, f.label] as const),
+);
+
+/** slug → parent family label for the 4 derived branches; absent for roots. */
+export const PUBLIC_FAMILY_PARENT_LABEL: ReadonlyMap<string, string> = new Map(
+  PUBLIC_DISPLAY_FAMILIES
+    .filter((f): f is PublicDisplayFamily & { parent: string } => Boolean(f.parent))
+    .map(f => [f.slug, PUBLIC_DISPLAY_FAMILIES.find(p => p.slug === f.parent)!.label] as const),
+);
+
+/** slug → parent root slug for the 4 derived branches; absent for roots. */
+export const PUBLIC_FAMILY_PARENT_OF: ReadonlyMap<string, string> = new Map(
+  PUBLIC_DISPLAY_FAMILIES
+    .filter((f): f is PublicDisplayFamily & { parent: string } => Boolean(f.parent))
+    .map(f => [f.slug, f.parent] as const),
+);
+
+/**
+ * A family slug plus its ancestor root, if any. A derived branch (e.g. torque)
+ * is contained in its parent root (osis): every branch member is also a member
+ * of the root, so it renders in both sections. A root returns just itself.
+ * Branch parents are always roots, so one level of expansion suffices.
+ */
+export function familyWithAncestors(slug: string): string[] {
+  const parent = PUBLIC_FAMILY_PARENT_OF.get(slug);
+  return parent ? [slug, parent] : [slug];
+}

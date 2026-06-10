@@ -1,11 +1,11 @@
 /**
- * Integration tests for the rev-whirl override + its place under the
- * parent-family skeleton.
+ * Integration tests for the rev-whirl content override and rev-whirl's
+ * route-out from the public family browse.
  *
  * Two reversible TypeScript content layers compose here:
  *
- *   1. The rev-whirl override (freestyleFamilyOverrides.ts) re-buckets three
- *      whirl-family rows under the intermediate `rev-whirl` label:
+ *   1. The rev-whirl override re-buckets three whirl-family rows under the
+ *      intermediate `rev-whirl` label:
  *        - rev-whirl (the canonical direction-variant anchor)
  *        - hatchet (SAME FRONT WHIRL [DEX] > OP CLIP [XBD])
  *        - mullet  (SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD])
@@ -13,13 +13,12 @@
  *      rev-whirl shared-structure invariant text. These content-module
  *      facts are unchanged and still asserted below.
  *
- *   2. The parent-family skeleton (freestyleParentFamilies.ts) then folds the
- *      `rev-whirl` label INTO the Whirl / Swirl parent. So in the rendered
- *      Family view, rev-whirl/hatchet/mullet are subordinate rows under the
- *      Whirl / Swirl section — there is no top-level "Rev Whirl" section.
- *
- *   Deferred / hybrid rows (tomahawk, surreal, montage) stay in whirl-family;
- *   rev-up is dropped from family view by its self-bucket singleton override.
+ *   2. rev-whirl is NOT a public display family: its lineage is too sparse to
+ *      clear the family floor, so the public family browse routes it out. In
+ *      the rendered family view there is no id="family-rev-whirl" section and
+ *      the rev-whirl / hatchet / mullet rows do not appear at all. The raw
+ *      trick_family data is never overwritten, so the ?family=rev-whirl filter
+ *      URL still returns 200 and lists the rows reachable through it.
  *
  *   No database `trick_family` column is updated; both layers are reversible
  *   TypeScript content.
@@ -58,13 +57,13 @@ beforeAll(async () => {
     slug: 'paradox-whirl', canonical_name: 'paradox whirl',
     trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
   });
-  // Hybrid: chain-authored as whirl-family per Slice A2. Stays in whirl
-  // per the hybrid-preservation policy.
+  // Chain-authored as whirl-family; stays in whirl per the
+  // chain-identity-preservation policy.
   insertFreestyleTrick(db, {
     slug: 'montage', canonical_name: 'montage',
     trick_family: 'whirl', category: 'compound', adds: '7', is_active: 1,
   });
-  // Deferred ambiguous case: stays in whirl per curator-deferred policy.
+  // Ambiguous decomposition: stays in whirl per curator-deferred policy.
   insertFreestyleTrick(db, {
     slug: 'rev-up', canonical_name: 'rev up',
     trick_family: 'whirl', category: 'dex', adds: '3', is_active: 1,
@@ -74,20 +73,21 @@ beforeAll(async () => {
     trick_family: 'whirl', category: 'compound', adds: '5', is_active: 1,
   });
 
-  // Rows that move to the rev-whirl family via the Stage A override.
-  // Their DB trick_family remains 'whirl' — the service-side override
-  // re-buckets them at family-view render time.
+  // Rows the content override re-buckets under the rev-whirl label. Their
+  // DB trick_family remains 'whirl'; the override re-labels them at render
+  // time, but rev-whirl is a route-out family, so they drop from the
+  // family view while staying reachable via the raw ?family= filter.
   insertFreestyleTrick(db, {
     slug: 'rev-whirl', canonical_name: 'rev whirl',
-    trick_family: 'whirl', category: 'dex', adds: '3', is_active: 1,
+    trick_family: 'rev-whirl', category: 'dex', adds: '3', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'hatchet', canonical_name: 'hatchet',
-    trick_family: 'whirl', category: 'compound', adds: '4', is_active: 1,
+    trick_family: 'rev-whirl', category: 'compound', adds: '4', is_active: 1,
   });
   insertFreestyleTrick(db, {
     slug: 'mullet', canonical_name: 'mullet',
-    trick_family: 'whirl', category: 'compound', adds: '6', is_active: 1,
+    trick_family: 'rev-whirl', category: 'compound', adds: '6', is_active: 1,
   });
 
   db.close();
@@ -97,7 +97,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Family override — content module', () => {
-  it('resolves rev-whirl, hatchet, mullet to the rev-whirl family', () => {
+  it('resolves rev-whirl, hatchet, mullet to the rev-whirl label', () => {
     expect(resolveFamilyOverride('rev-whirl')).toBe('rev-whirl');
     expect(resolveFamilyOverride('hatchet')).toBe('rev-whirl');
     expect(resolveFamilyOverride('mullet')).toBe('rev-whirl');
@@ -108,20 +108,18 @@ describe('Family override — content module', () => {
     expect(resolveFamilyOverride('paradox-whirl')).toBeNull();
   });
 
-  it('overrides rev-up into a self-named singleton (emergency 2026-05-19) but preserves tomahawk deferral', () => {
-    // Emergency public-readiness slice 2026-05-19: rev-up gets a
-    // self-bucket override ('rev-up' → 'rev-up') so the family-view
-    // length>1 filter drops it from the Whirl section. No new family
-    // is created; rev-up still surfaces on ADD view (canonical row
-    // active) and carries the pendingDecomposition pill via
-    // UNRESOLVED_COMPOUNDS. tomahawk remains deferred per Slice J.
+  it('overrides rev-up into a self-named singleton but preserves tomahawk deferral', () => {
+    // rev-up gets a self-bucket override ('rev-up' → 'rev-up') so the
+    // family-view length>1 filter drops it; rev-up still surfaces on the
+    // ADD view (canonical row active) and carries the pendingDecomposition
+    // pill via UNRESOLVED_COMPOUNDS. tomahawk remains curator-deferred.
     expect(resolveFamilyOverride('rev-up')).toBe('rev-up');
     expect(resolveFamilyOverride('tomahawk')).toBeNull();
   });
 
-  it('does NOT override the hybrid compounds (surreal, montage)', () => {
-    // Per the hybrid-preservation policy: chain-authored compositional
-    // reading wins over op-notation mechanics for family membership.
+  it('does NOT override the chain-authored compounds (surreal, montage)', () => {
+    // Chain-authored compositional reading wins over op-notation mechanics
+    // for family membership.
     expect(resolveFamilyOverride('surreal')).toBeNull();
     expect(resolveFamilyOverride('montage')).toBeNull();
   });
@@ -137,29 +135,38 @@ describe('Family override — content module', () => {
     expect(resolveFamilyDisplayName('butterfly')).toBeNull();
   });
 
-  it('exposes the Rev-Whirl family invariant text (mirror form, Slice L-polish)', () => {
-    // Slice J introduced the entry with op-notation-derived text
-    // ("front whirl > op clipper [XBD]"). Slice L-polish (same day,
-    // 2026-05-16) updated to the pedagogical mirror form so the
-    // sibling-family relationship to Whirl reads symmetrically:
+  it('exposes the rev-whirl shared-structure invariant text (mirror form)', () => {
+    // The invariant reads as the mirror of the whirl entry so the pairing
+    // is legible:
     //   Whirl:     leggy in  dex > ss clipper
     //   Rev-Whirl: leggy out dex > ss clipper
     expect(getFamilyInvariant('rev-whirl')).toBe('leggy out dex > ss clipper');
   });
 });
 
-describe('Family View — rev-whirl folds into the Whirl / Swirl parent', () => {
-  it('does NOT render a top-level Rev-Whirl family section', async () => {
+describe('Family view — rev-whirl is a route-out, not a family', () => {
+  it('does NOT render a rev-whirl family section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // rev-whirl is now a child label of the Whirl / Swirl parent: no
+    // rev-whirl has too sparse a lineage to be a public family: no
     // top-level section, no "Rev Whirl family" heading.
     expect(res.text).not.toContain('id="family-rev-whirl"');
     expect(res.text).not.toMatch(/Rev Whirl family<\/a>/);
   });
 
-  it('renders rev-whirl, hatchet, mullet INSIDE the Whirl / Swirl section', async () => {
+  it('the rev-whirl, hatchet, mullet rows are absent from the family view entirely', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?view=family');
+    for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
+      expect(
+        res.text,
+        `${slug} routes out of the family view`,
+      ).not.toContain(`data-trick-slug="${slug}"`);
+    }
+  });
+
+  it('the Whirl family does NOT absorb the rev-whirl rows', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
@@ -169,46 +176,27 @@ describe('Family View — rev-whirl folds into the Whirl / Swirl parent', () => 
     for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
       expect(
         sectionHtml,
-        `${slug} should fold into the Whirl / Swirl parent section`,
-      ).toContain(`data-trick-slug="${slug}"`);
+        `${slug} must not fold into the Whirl section`,
+      ).not.toContain(`data-trick-slug="${slug}"`);
     }
-  });
-
-  it('renders the combined "Whirl / Swirl" display name on the parent', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
-    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=whirl">Whirl \/ Swirl family<\/a>/);
   });
 });
 
-describe('Whirl / Swirl Family — invariant + folded children', () => {
-  it('Whirl / Swirl family section still renders the whirl invariant', async () => {
+describe('Family view — Whirl family renders separately', () => {
+  it('Whirl family section renders under its own "Whirl" heading + invariant', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\?family=whirl">Whirl family<\/a>/);
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
     expect(sectionHtml).toMatch(/Shared terminal structure: <code>leggy in dex &gt; ss clipper<\/code>/);
   });
 
-  it('rev-whirl, hatchet, mullet appear in the Whirl / Swirl section (folded in)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
-    const sectionStart = res.text.indexOf('id="family-whirl"');
-    const sectionEnd = res.text.indexOf('</section>', sectionStart);
-    const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
-      expect(
-        sectionHtml,
-        `${slug} should fold into the Whirl / Swirl parent section`,
-      ).toContain(`data-trick-slug="${slug}"`);
-    }
-  });
-
-  it('tomahawk STAYS in the Whirl section; rev-up was pulled out by the 2026-05-19 emergency slice', async () => {
-    // Emergency public-readiness slice 2026-05-19: rev-up moved into
-    // a self-bucket singleton family that the length>1 filter drops
-    // from family view. tomahawk remains deferred in Whirl per Slice J.
+  it('tomahawk STAYS in the Whirl section; rev-up is dropped by its self-bucket override', async () => {
+    // rev-up moved into a self-bucket singleton family that the length>1
+    // filter drops from family view. tomahawk remains curator-deferred in
+    // Whirl.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
@@ -220,21 +208,33 @@ describe('Whirl / Swirl Family — invariant + folded children', () => {
     ).toContain('data-trick-slug="tomahawk"');
     expect(
       sectionHtml,
-      'rev-up was pulled from Whirl family by the emergency 2026-05-19 slice',
+      'rev-up was pulled from Whirl family by its self-bucket override',
     ).not.toContain('data-trick-slug="rev-up"');
   });
 
-  it('hybrid compound (montage) STAYS in the Whirl section', async () => {
-    // Hybrid-preservation policy: chain identity wins over mechanical
-    // execution. montage has a curator-authored chain reading
-    // `spinning ducking paradox symposium whirl`; that places it in
-    // whirl-family lineage. Its FRONT WHIRL execution is a contextual
-    // detail-page note, not a family-membership commitment.
+  it('chain-authored compound (montage) STAYS in the Whirl section', async () => {
+    // Chain identity wins over mechanical execution. montage has a
+    // curator-authored chain reading that places it in whirl-family
+    // lineage; its FRONT WHIRL execution is a contextual detail-page note,
+    // not a family-membership commitment.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
     expect(sectionHtml).toContain('data-trick-slug="montage"');
+  });
+});
+
+describe('Family filter — rev-whirl rows stay reachable by raw label', () => {
+  it('?family=rev-whirl returns 200 and lists its rows (raw trick_family untouched)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?family=rev-whirl');
+    expect(res.status).toBe(200);
+    for (const slug of ['rev-whirl', 'hatchet', 'mullet']) {
+      expect(
+        res.text,
+        `?family=rev-whirl should list ${slug}`,
+      ).toContain(`data-trick-slug="${slug}"`);
+    }
   });
 });

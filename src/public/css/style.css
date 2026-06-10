@@ -8437,6 +8437,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-subtle);
   line-height: 1.5;
 }
+.trick-family-branch-of {
+  margin: 2px 0 4px 0;
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+  line-height: 1.4;
+}
 .trick-family-shared-structure code {
   font-family: var(--font-body);
   font-weight: 600;

@@ -1,16 +1,16 @@
 /**
- * /freestyle/tricks?view=family — parent-family skeleton (2026-05-28).
+ * /freestyle/tricks?view=family — public family browse skeleton.
  *
- * The Family view renders a reversible parent-family taxonomy driven by
- * src/content/freestyleParentFamilies.ts + RETIRED_FAMILIES:
- *   - 8 canonical parent anchors render as top-level family sections.
- *   - approved child labels fold INTO their parent (subordinate rows, no
- *     top-level child section).
- *   - route-out labels (modifier ecosystems / alternative surfaces /
- *     foundational surfaces / multi-bag/kick) do NOT render as families.
- *   - deferred labels keep rendering as their own family, untouched.
- *   - raw trick_family data is never overwritten, so old ?family=<slug>
- *     filter URLs (including merged + retired labels) stay usable.
+ * The Family view renders the curated public-display family taxonomy:
+ *   - Each public family renders as its own top-level id="family-{slug}"
+ *     section, including roots and derived branches.
+ *   - Sub-labels fold INTO the family whose terminal they conserve
+ *     (subordinate rows, no top-level sub-label section).
+ *   - Route-out labels (modifier ecosystems, alternative surfaces,
+ *     foundational surfaces, sparse lineages) do NOT render as families and
+ *     their rows are skipped entirely.
+ *   - Raw trick_family data is never overwritten, so ?family=<slug> filter
+ *     URLs (including route-out labels) stay usable.
  *
  * The fixture seeds ≥2 rows per route-out label specifically so that, absent
  * the route-out, the rows.length > 1 filter would have rendered them — proving
@@ -41,17 +41,25 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   const rows = [
-    // ── Osis parent: native osis rows + folded torque-lineage children ──
+    // ── Osis family: native osis rows ──
     trick('osis', 'osis', 'dex'),
     trick('spinning-osis', 'osis'),
-    trick('torque', 'torque'),            // folds into osis
-    trick('spinning-torque', 'torque'),   // folds into osis
 
-    // ── Whirl / Swirl parent: native whirl rows + folded swirl/twirl ──
+    // ── Torque family: renders as its own family (derived branch) ──
+    trick('torque', 'torque', 'dex'),
+    trick('spinning-torque', 'torque'),
+
+    // ── Whirl family: native whirl rows ──
     trick('whirl', 'whirl', 'dex'),
     trick('paradox-whirl', 'whirl'),
-    trick('swirl', 'swirl', 'dex'),       // folds into whirl
-    trick('twirl', 'twirl'),              // folds into whirl
+
+    // ── Swirl family: renders as its own family (separate from whirl) ──
+    trick('swirl', 'swirl', 'dex'),
+    trick('paradox-swirl', 'swirl'),
+
+    // ── twirl: route-out (sparse lineage), ≥2 rows so the singleton
+    //    filter is not the reason it hides ──
+    trick('twirl', 'twirl'), trick('big-twirl', 'twirl'),
 
     // ── Route-outs: modifier ecosystems (≥2 rows each) ──
     trick('big-pixie', 'pixie'), trick('lil-pixie', 'pixie'),
@@ -64,9 +72,10 @@ beforeAll(async () => {
     trick('toe-one', 'toe-stall'), trick('toe-two', 'toe-stall'),
     trick('clip-stall-one', 'clipper-stall'), trick('clip-stall-two', 'clipper-stall'),
 
-    // ── Deferred labels: still render as their own family (≥2 rows) ──
+    // ── Other public families render as their own sections (≥2 rows) ──
     trick('eclipse', 'eclipse', 'dex'), trick('lunar-eclipse', 'eclipse'),
     trick('drifter', 'drifter', 'dex'), trick('day-drifter', 'drifter'),
+    trick('inside-stall', 'inside-stall', 'dex'), trick('guay', 'guay'),
   ];
   for (const r of rows) insertFreestyleTrick(db, r);
 
@@ -82,36 +91,39 @@ async function familyView(): Promise<string> {
   return res.text;
 }
 
-describe('Family skeleton — canonical parents render top-level', () => {
-  it('renders the seeded parents (osis, whirl) as top-level family sections', async () => {
+describe('Family skeleton — public families render top-level', () => {
+  it('renders the seeded families (osis, whirl, swirl, torque) as top-level sections', async () => {
     const html = await familyView();
     expect(html).toContain('id="family-osis"');
     expect(html).toContain('id="family-whirl"');
+    expect(html).toContain('id="family-swirl"');
+    expect(html).toContain('id="family-torque"');
   });
 
-  it('renders the combined "Whirl / Swirl" display name on the whirl parent', async () => {
+  it('renders "Whirl" and "Swirl" as separate family headings', async () => {
     const html = await familyView();
-    expect(html).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">Whirl \/ Swirl family<\/a><\/h2>/);
+    expect(html).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">Whirl family<\/a><\/h2>/);
+    expect(html).toMatch(/<h2><a href="\/freestyle\/tricks\?family=swirl">Swirl family<\/a><\/h2>/);
+    // The combined "Whirl / Swirl" name is gone.
+    expect(html).not.toContain('Whirl / Swirl family');
   });
 });
 
-describe('Family skeleton — approved children fold in subordinate, not top-level', () => {
-  it('does NOT render top-level sections for folded child labels', async () => {
+describe('Family skeleton — sub-labels fold in, sparse lineages route out', () => {
+  it('renders the guay sub-label rows nested under the inside-stall family', async () => {
     const html = await familyView();
-    for (const child of ['torque', 'swirl', 'twirl']) {
-      expect(html, `${child} must not be a top-level family`).not.toContain(`id="family-${child}"`);
-    }
+    // guay folds into inside-stall; it has no top-level section of its own.
+    expect(html).toContain('id="family-inside-stall"');
+    expect(html).not.toContain('id="family-guay"');
+    expect(html).toContain('data-trick-slug="guay"');
   });
 
-  it('renders the child rows nested under their parent section', async () => {
+  it('does NOT render twirl as a family and skips its rows entirely', async () => {
     const html = await familyView();
-    // torque + spinning-torque live under the osis section.
-    const osis = html.slice(html.indexOf('id="family-osis"'), html.indexOf('id="family-whirl"') > html.indexOf('id="family-osis"') ? html.indexOf('id="family-whirl"') : html.length);
-    expect(osis).toContain('data-trick-slug="torque"');
-    expect(osis).toContain('data-trick-slug="spinning-torque"');
-    // swirl + twirl appear somewhere in the family view (under whirl).
-    expect(html).toContain('data-trick-slug="swirl"');
-    expect(html).toContain('data-trick-slug="twirl"');
+    expect(html, 'twirl must not be a top-level family').not.toContain('id="family-twirl"');
+    for (const slug of ['twirl', 'big-twirl']) {
+      expect(html, `${slug} must not appear in family view`).not.toContain(`data-trick-slug="${slug}"`);
+    }
   });
 });
 
@@ -138,8 +150,8 @@ describe('Family skeleton — route-outs do not render as families', () => {
   });
 });
 
-describe('Family skeleton — deferred labels still render safely', () => {
-  it('renders deferred labels (eclipse, drifter) as their own family sections', async () => {
+describe('Family skeleton — other public families render safely', () => {
+  it('renders eclipse and drifter as their own family sections', async () => {
     const html = await familyView();
     expect(html).toContain('id="family-eclipse"');
     expect(html).toContain('id="family-drifter"');
@@ -150,12 +162,12 @@ describe('Family skeleton — deferred labels still render safely', () => {
 
 describe('Family skeleton — old ?family= filter URLs stay usable (data untouched)', () => {
   // The filter reads raw trick_family, which the skeleton never overwrites, so
-  // merged-child and retired-label URLs still resolve to their rows.
+  // sub-label and route-out URLs still resolve to their rows.
   it.each([
-    ['torque', 'torque'],                          // merged child label
-    ['swirl', 'swirl'],                            // merged child label
-    ['clipper-stall', 'clip-stall-one'],           // retired (route-out) label
-    ['pixie', 'big-pixie'],                        // retired (ecosystem) label
+    ['swirl', 'swirl'],                            // public family label
+    ['twirl', 'twirl'],                            // route-out label
+    ['clipper-stall', 'clip-stall-one'],           // route-out surface label
+    ['pixie', 'big-pixie'],                        // route-out ecosystem label
   ])('?family=%s returns 200 and still lists its rows', async (family, sampleSlug) => {
     const res = await request(await createApp()).get(`/freestyle/tricks?family=${family}`);
     expect(res.status).toBe(200);

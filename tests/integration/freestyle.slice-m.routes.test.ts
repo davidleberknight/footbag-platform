@@ -1,15 +1,12 @@
 /**
- * Integration tests for Slice M (pre-Red ontology stabilization).
+ * Integration tests for four freestyle browse behaviors.
  *
- * Covers four behaviors introduced in Slice M:
- *
- *   1. Osis-lineage folding — under the parent-family skeleton
- *      (freestyleParentFamilies.ts), torque + blender (and their branch
- *      members mobius / paradox-torque / paradox-blender / mind-bender) fold
- *      INTO the osis parent as subordinate rows; they no longer render as
- *      their own top-level families. drifter remains a deferred family of its
- *      own (no parent entry yet), with high-plains-drifter re-bucketed in via
- *      the family override.
+ *   1. Derived-branch families — torque + blender each render as their own
+ *      top-level family section (derived branches that resolve to themselves),
+ *      with their members (mobius / paradox-torque under torque,
+ *      paradox-blender / mind-bender under blender) folded in. They do NOT
+ *      fold invisibly into osis. drifter renders as its own family, with
+ *      high-plains-drifter re-bucketed in via the family override.
  *
  *   2. Clipper-Stall family retirement — Family View no longer renders
  *      an id="family-clipper-stall" section. The clipper-stall row
@@ -27,8 +24,8 @@
  *      surgery) render the "decomposition under review" pill;
  *      other cards do not.
  *
- * Test fixture covers the full Slice M curator pilot plus enough
- * comparison rows to assert both "renders" and "does not render".
+ * The fixture covers each behavior plus enough comparison rows to assert both
+ * "renders" and "does not render".
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -56,27 +53,26 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'pixie',    modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body' });
-  // Slice N coverage check — atomic is in the Movement System axis pilot
-  // but NOT in MODIFIER_COMPOSITION_GLOSSES; its group is the canary
-  // that the gloss row is suppressed for un-glossed modifiers.
+  // atomic is in the Movement System axis but has NO entry in
+  // MODIFIER_COMPOSITION_GLOSSES; its group is the canary that the gloss row
+  // is suppressed for un-glossed modifiers.
   insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'atomic',   modifier_type: 'set'  });
 
-  // ── Osis-lineage rows ──────────────────────────────────────────────────
+  // ── Osis row (single member; osis family does not render on its own here) ─
   insertFreestyleTrick(db, { slug: 'osis',    canonical_name: 'osis',    adds: '3', base_trick: 'osis', trick_family: 'osis', category: 'base' });
-  // torque + blender — DB trick_family='osis'; dual-membership adds them
-  // to torque-family + blender-family per FAMILY_DUAL_MEMBERSHIPS.
-  insertFreestyleTrick(db, { slug: 'torque',  canonical_name: 'torque',  adds: '4', base_trick: 'osis', trick_family: 'osis', category: 'compound', operational_notation: '[set] > paradox > whirling op osis' });
-  insertFreestyleTrick(db, { slug: 'blender', canonical_name: 'blender', adds: '4', base_trick: 'osis', trick_family: 'osis', category: 'compound', operational_notation: '[set] > whirling op osis' });
 
-  // ── Torque-family branch ───────────────────────────────────────────────
-  insertFreestyleTrick(db, { slug: 'mobius',           canonical_name: 'mobius',          adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'paradox-torque',   canonical_name: 'paradox torque',  adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound' });
+  // ── Torque family (derived branch; anchors its own family) ─────────────
+  // torque carries trick_family='torque' and renders its own family section.
+  insertFreestyleTrick(db, { slug: 'torque',         canonical_name: 'torque',         adds: '4', base_trick: 'osis',   trick_family: 'torque', category: 'compound', operational_notation: '[set] > paradox > whirling op osis' });
+  insertFreestyleTrick(db, { slug: 'mobius',         canonical_name: 'mobius',         adds: '5', base_trick: 'torque', trick_family: 'mobius', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-torque', canonical_name: 'paradox torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound' });
 
-  // ── Blender-family branch ──────────────────────────────────────────────
-  insertFreestyleTrick(db, { slug: 'paradox-blender',  canonical_name: 'paradox blender', adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound' });
-  insertFreestyleTrick(db, { slug: 'mind-bender',      canonical_name: 'mind bender',     adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound' });
+  // ── Blender family (derived branch; anchors its own family) ────────────
+  insertFreestyleTrick(db, { slug: 'blender',         canonical_name: 'blender',        adds: '4', base_trick: 'osis',    trick_family: 'blender', category: 'compound', operational_notation: '[set] > whirling op osis' });
+  insertFreestyleTrick(db, { slug: 'paradox-blender', canonical_name: 'paradox blender', adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'mind-bender',     canonical_name: 'mind bender',    adds: '6', base_trick: 'blender', trick_family: 'blender', category: 'compound' });
 
-  // ── Clipper-Stall lineage rows (family retired in Slice M) ─────────────
+  // ── Clipper-Stall lineage rows (family retired from the Family View) ───
   insertFreestyleTrick(db, { slug: 'clipper-stall',     canonical_name: 'Clipper Stall',     adds: '2', base_trick: 'clipper-stall', trick_family: 'clipper-stall', category: 'base' });
   insertFreestyleTrick(db, { slug: 'drifter',           canonical_name: 'drifter',           adds: '3', base_trick: 'clipper-stall', trick_family: 'clipper-stall', category: 'compound', operational_notation: 'CLIP >> OP IN [DEX] > SAME CLIP [XBD] [DEL]' });
   insertFreestyleTrick(db, { slug: 'ducking-clipper',   canonical_name: 'ducking clipper',   adds: '3', base_trick: 'clipper-stall', trick_family: 'clipper-stall', category: 'compound' });
@@ -122,53 +118,61 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 // ─────────────────────────────────────────────────────────────────────────
-// 1. Branch-family dual-membership
+// 1. Derived-branch families render as their own family parents
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Family skeleton — torque + blender fold into osis (Family View)', () => {
-  it('torque does NOT render as a top-level family (folds into osis)', async () => {
+function familySection(html: string, slug: string): string {
+  const start = html.indexOf(`id="family-${slug}"`);
+  if (start < 0) return '';
+  const end = html.indexOf('<section', start + 1);
+  return end > -1 ? html.substring(start, end) : html.substring(start);
+}
+
+describe('Family view — torque + blender render as their own family parents', () => {
+  it('torque renders as its own top-level family with its members folded in', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('id="family-torque"');
-  });
-
-  it('blender does NOT render as a top-level family (folds into osis)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).not.toContain('id="family-blender"');
-  });
-
-  it('drifter-family renders with drifter as its anchor + high-plains-drifter re-bucketed in', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('id="family-drifter"');
-    const start = res.text.indexOf('id="family-drifter"');
-    const end = res.text.indexOf('<section', start + 1);
-    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(section).toContain('data-trick-slug="drifter"');
-    expect(section).toContain('data-trick-slug="high-plains-drifter"');
-  });
-
-  it('osis-family still contains torque + blender (lineage preserved)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('id="family-osis"');
-    const start = res.text.indexOf('id="family-osis"');
-    const end = res.text.indexOf('<section', start + 1);
-    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(section).toContain('data-trick-slug="torque"');
-    expect(section).toContain('data-trick-slug="blender"');
-  });
-
-  it('the torque + blender branch members also fold into the osis section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    const start = res.text.indexOf('id="family-osis"');
-    const end = res.text.indexOf('<section', start + 1);
-    const section = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    for (const slug of ['mobius', 'paradox-torque', 'paradox-blender', 'mind-bender']) {
-      expect(section, `${slug} should fold into the osis section`).toContain(`data-trick-slug="${slug}"`);
+    expect(res.text).toContain('id="family-torque"');
+    const section = familySection(res.text, 'torque');
+    for (const slug of ['torque', 'mobius', 'paradox-torque']) {
+      expect(section, `${slug} should render in the torque family`).toContain(`data-trick-slug="${slug}"`);
     }
-    // ...and none of them render as their own top-level family.
+  });
+
+  it('blender renders as its own top-level family with its members folded in', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toContain('id="family-blender"');
+    const section = familySection(res.text, 'blender');
+    for (const slug of ['blender', 'paradox-blender', 'mind-bender']) {
+      expect(section, `${slug} should render in the blender family`).toContain(`data-trick-slug="${slug}"`);
+    }
+  });
+
+  it('every torque + blender member also appears in the osis section (a branch is contained in its root)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    // torque and blender are derived branches of osis, so every member of
+    // either branch is also a member of osis and renders in the osis section
+    // as well as in its own branch section.
+    expect(res.text).toContain('id="family-osis"');
+    const osis = familySection(res.text, 'osis');
+    for (const slug of ['osis', 'torque', 'mobius', 'paradox-torque', 'blender', 'paradox-blender', 'mind-bender']) {
+      expect(osis, `${slug} should also appear in the osis section`).toContain(`data-trick-slug="${slug}"`);
+    }
+  });
+
+  it('the torque + blender members do not render as their own top-level families', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
     for (const slug of ['mobius', 'paradox-torque', 'paradox-blender', 'mind-bender']) {
       expect(res.text).not.toContain(`id="family-${slug}"`);
     }
+  });
+
+  it('drifter family renders with drifter as its anchor + high-plains-drifter re-bucketed in', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toContain('id="family-drifter"');
+    const section = familySection(res.text, 'drifter');
+    expect(section).toContain('data-trick-slug="drifter"');
+    expect(section).toContain('data-trick-slug="high-plains-drifter"');
   });
 });
 
@@ -176,7 +180,7 @@ describe('Family skeleton — torque + blender fold into osis (Family View)', ()
 // 2. Clipper-Stall family retirement
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice M — Clipper-Stall family retirement (Family View)', () => {
+describe('Clipper-Stall family retirement (Family View)', () => {
   it('Family View no longer renders id="family-clipper-stall"', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).not.toContain('id="family-clipper-stall"');
@@ -213,7 +217,7 @@ describe('Slice M — Clipper-Stall family retirement (Family View)', () => {
 // 3. Paradox modifier-composition gloss (Movement System view)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice M — paradox composition gloss (Movement System view)', () => {
+describe('Paradox composition gloss (Movement System view)', () => {
   it('paradox group renders the curator-authored italic composition gloss', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
@@ -228,10 +232,10 @@ describe('Slice M — paradox composition gloss (Movement System view)', () => {
   });
 
   it('un-glossed modifier groups DO NOT render a composition gloss row', async () => {
-    // Post Slice N: paradox + spinning + ducking + symposium + stepping +
-    // pixie are all curator-authored glosses. atomic is in the Movement
-    // System axis pilot but has NO gloss entry — its group is the
-    // canary verifying the gloss row suppresses cleanly when null.
+    // paradox + spinning + ducking + symposium + stepping + pixie are all
+    // curator-authored glosses. atomic is in the Movement System axis but
+    // has NO gloss entry — its group is the canary verifying the gloss row
+    // suppresses cleanly when null.
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     const atomicStart = res.text.indexOf('id="movement-atomic"');
     expect(atomicStart, 'atomic group should be present in the rendered view').toBeGreaterThan(-1);
@@ -245,14 +249,14 @@ describe('Slice M — paradox composition gloss (Movement System view)', () => {
 // 4. Unresolved-compound pill (dictionary trick cards)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Slice M — unresolved-compound pill', () => {
+describe('Unresolved-compound pill', () => {
   it('renders the pending pill on each curator-flagged folk-derived row (shared-card view)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     // For each unresolved slug seeded into the fixture, the rendered
-    // card must carry the pending-pill marker. Post Pre-Red sweep
-    // 2026-05-16: tomahawk removed from UNRESOLVED_COMPOUNDS (FM+PB
-    // agree on `ducking paradox whirl`); explicitly excluded here.
+    // card must carry the pending-pill marker. tomahawk is not in
+    // UNRESOLVED_COMPOUNDS (its decomposition is settled), so it is
+    // excluded here.
     for (const slug of ['rev-up', 'reaper', 'surreal', 'montage', 'surgery']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
@@ -265,9 +269,8 @@ describe('Slice M — unresolved-compound pill', () => {
 
   it('does NOT render the pill on non-flagged rows', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    // Sanity rows that should NOT carry the pill. tomahawk explicitly
-    // included to verify the Pre-Red 2026-05-16 removal from
-    // UNRESOLVED_COMPOUNDS took effect.
+    // Sanity rows that should NOT carry the pill. tomahawk is explicitly
+    // included to verify it is absent from UNRESOLVED_COMPOUNDS.
     for (const slug of ['whirl', 'paradox-whirl', 'osis', 'torque', 'blender', 'drifter', 'tomahawk']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card should render`).toBeGreaterThan(-1);

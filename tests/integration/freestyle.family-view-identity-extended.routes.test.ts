@@ -167,15 +167,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Family View — butterfly / mirage / osis (incl. torque lineage) pilot families render', () => {
-  // Family skeleton (freestyleParentFamilies.ts): the torque lineage folds
-  // into the osis parent, so torque/paradox-torque/spinning-torque/
-  // blurry-torque render UNDER id="family-osis", not a top-level torque
-  // section. The osis section therefore carries both pilot sets.
+describe('Family View — butterfly / mirage / osis / torque pilot families render', () => {
+  // Each public family renders as its own section. The osis pilots render
+  // under id="family-osis" and the torque pilots under id="family-torque";
+  // both sets appear in the family view.
   const familySections = [
     { family: 'butterfly', pilots: BUTTERFLY_PILOTS },
     { family: 'mirage',    pilots: MIRAGE_PILOTS    },
-    { family: 'osis',      pilots: [...OSIS_PILOTS, ...TORQUE_PILOTS] },
+    { family: 'osis',      pilots: OSIS_PILOTS      },
+    { family: 'torque',    pilots: TORQUE_PILOTS    },
   ];
 
   for (const section of familySections) {

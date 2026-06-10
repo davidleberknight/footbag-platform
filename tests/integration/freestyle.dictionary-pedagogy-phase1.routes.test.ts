@@ -11,12 +11,11 @@
  * Contract under test:
  *   - Family view renders the new pedagogy intro paragraph
  *   - ADD view renders the new pedagogy intro paragraph
- *   - Parent-family invariants (whirl, butterfly, mirage, osis) render under
+ *   - Family invariants (whirl, butterfly, mirage, osis, swirl) render under
  *     their family headings
- *   - rev-whirl + swirl are child labels under the parent-family skeleton:
- *     they fold into the Whirl / Swirl parent, so their child invariants no
- *     longer surface as standalone section lines (the parent whirl invariant
- *     covers the section)
+ *   - swirl renders as its own root family, distinct from whirl
+ *   - rev-whirl is a route-out (too few descendants to be a family): no family
+ *     section, and its invariant does not surface
  *   - No curator-internal language reaches the rendered HTML
  *
  * Design doc:
@@ -133,10 +132,10 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
     expect(res.text).toContain('leggy in dex &gt; ss clipper');
   });
 
-  it('rev-whirl invariant does NOT render as its own section (folds into Whirl / Swirl)', async () => {
+  it('rev-whirl is a route-out: no family section, invariant does not surface', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    // rev-whirl folds into the Whirl / Swirl parent; only the parent's whirl
-    // invariant surfaces, not the child rev-whirl invariant.
+    // rev-whirl has too few descendants to be a family, so it renders no
+    // family section and its invariant does not appear.
     expect(res.text).not.toContain('id="family-rev-whirl"');
     expect(res.text).not.toContain('leggy out dex &gt; ss clipper');
   });
@@ -156,10 +155,10 @@ describe('Dictionary Pedagogy Phase 1 — extended family invariants', () => {
     expect(res.text).toContain('spin &gt; ss clipper');
   });
 
-  it('swirl invariant does NOT render as its own section (folds into Whirl / Swirl)', async () => {
+  it('swirl renders as its own root family, distinct from whirl', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).not.toContain('id="family-swirl"');
-    expect(res.text).not.toContain('leggy xbd out dex &gt; ss clipper');
+    expect(res.text).toContain('id="family-swirl"');
+    expect(res.text).toContain('leggy xbd out dex &gt; ss clipper');
   });
 });
 

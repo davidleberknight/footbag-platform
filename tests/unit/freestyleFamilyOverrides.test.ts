@@ -74,8 +74,7 @@ describe('RETIRED_FAMILIES (Family-view route-outs)', () => {
   });
 
   it('retires representative modifier-ecosystem + alternative-surface route-outs', () => {
-    // Membership of the full route-out set is exhaustively asserted in
-    // freestyleParentFamilies.test.ts; here we spot-check the kinds.
+    // Spot-check representative route-out kinds.
     expect(isRetiredFamily('pixie')).toBe(true);                  // modifier ecosystem
     expect(isRetiredFamily('cross-body-sole-stall')).toBe(true);  // alternative surface
     expect(isRetiredFamily('2-bag-juggling')).toBe(true);         // multi-bag primitive

@@ -257,7 +257,7 @@
   {{#if content.familyViewIntro}}
   <p class="browse-view-intro">{{content.familyViewIntro}}</p>
   {{/if}}
-  <p class="family-view-ordering-note"><em>Families are ordered by structural anchor weight, not alphabetically. Whirl, butterfly, mirage, osis, and other foundational families anchor the most compound rows.</em></p>
+  <p class="family-view-ordering-note"><em>Families are listed in the dictionary's canonical order: the root families first, then the derived branch families (torque and blender under osis; double legover and eggbeater under legover).</em></p>
   {{#if content.familyScale}}<p class="browse-view-scale">{{content.familyScale}}</p>{{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
@@ -266,6 +266,9 @@
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
+    {{#if branchParentName}}
+    <p class="trick-family-branch-of">Branch of the {{branchParentName}} family.</p>
+    {{/if}}
     {{! Family-anchor sub-label. Names
         the canonical family-anchor trick so readers connect the
         glossary's "family-anchor trick" vocabulary to the dictionary

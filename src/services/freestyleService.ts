@@ -96,13 +96,7 @@ import {
   resolveFamilyOverride,
   resolveFamilyDisplayName,
   resolveFamilyDualMemberships,
-  isRetiredFamily,
 } from '../content/freestyleFamilyOverrides';
-import {
-  resolveParentFamily,
-  PARENT_FAMILY_ORDER,
-  PARENT_FAMILY_DISPLAY,
-} from '../content/freestyleParentFamilies';
 import {
   MOVEMENT_SYSTEM_AXES,
   resolveModifierCompositionGloss,
@@ -110,7 +104,14 @@ import {
 import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
-import { PUBLIC_DISPLAY_FAMILIES } from '../content/freestylePublicFamilies';
+import {
+  PUBLIC_DISPLAY_FAMILIES,
+  resolveDisplayFamily,
+  familyWithAncestors,
+  PUBLIC_FAMILY_ORDER,
+  PUBLIC_FAMILY_LABEL,
+  PUBLIC_FAMILY_PARENT_LABEL,
+} from '../content/freestylePublicFamilies';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, clusterForModifier } from '../content/freestyleModifierClusters';
@@ -2782,6 +2783,10 @@ export interface FreestyleFamilyGroup {
   // the section heading. Curator-authored per family slug; null when no
   // entry exists. See src/content/freestyleFamilyInvariants.ts.
   sharedStructure: string | null;
+  // For a derived branch family (torque/blender under osis; double-leg-over/
+  // eggbeater under legover), the display name of its parent root family. Null
+  // for a root family.
+  branchParentName: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -5838,24 +5843,20 @@ export const freestyleService = {
     const dictEntry = dictRow ? shapeDictEntry(dictRow, allDictRows, allModifierRows) : null;
 
     // Family-context resolution. The family block must agree
-    // with the family-view browse: apply the parent-family skeleton, not the
-    // raw trick_family. Child labels (torque/swirl/…) resolve to their parent
-    // (osis/whirl); route-out labels (foundational surfaces, modifier
-    // ecosystems, alternative surfaces, multi-bag/kick) are not browse
-    // families, so the family-context block suppresses rather than presenting
-    // a misleading "<label> family". The same per-row resolution the browse
-    // uses (override → parent-fold) builds the folded-lineage member list, so a
-    // parent and its folded children show a consistent ladder. No trick_family
-    // data is overwritten; resolution is the reversible content map.
+    // with the family-view browse: resolve each row to the public family it
+    // renders under, not the raw trick_family. Sub-labels fold to the family
+    // whose terminal they conserve; labels that are not families (catch
+    // surfaces, modifier ecosystems, sparse lineages) resolve to null, so the
+    // family-context block suppresses rather than presenting a misleading
+    // "<label> family". The same per-row resolution the browse uses builds the
+    // folded-lineage member list, so a family and its folded sub-labels show a
+    // consistent ladder. No trick_family data is overwritten; resolution is the
+    // reversible content map.
     const familyOfRow = (r: { slug: string; trick_family: string | null }): string | null => {
       const raw = resolveFamilyOverride(r.slug) ?? r.trick_family;
-      return raw ? resolveParentFamily(raw) : null;
+      return raw ? resolveDisplayFamily(raw) : null;
     };
-    const effectiveFamilySlug = (() => {
-      if (!dictRow) return null;
-      const resolved = familyOfRow(dictRow);
-      return resolved && !isRetiredFamily(resolved) ? resolved : null;
-    })();
+    const effectiveFamilySlug = dictRow ? familyOfRow(dictRow) : null;
 
     // Build family members list for difficulty ladder
     let familyMembers: FreestyleFamilyMember[] = [];
@@ -5971,7 +5972,8 @@ export const freestyleService = {
 
         const familySlug = effectiveFamilySlug;
         const familyName = familySlug
-          ? (PARENT_FAMILY_DISPLAY.get(familySlug)
+          ? (PUBLIC_FAMILY_LABEL.get(familySlug)
+             ?? resolveFamilyDisplayName(familySlug)
              ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')))
           : null;
         // Pathway "Learn this trick" surfaces tutorial- and demo-tier counts
@@ -6395,16 +6397,17 @@ export const freestyleService = {
             // invariant, surface a callout in the trick-family
             // section so the trick-detail page teaches the
             // family-anchor role explicitly. Returns null otherwise.
-            // F1/F2: a trick is a family-anchor only when it anchors its
-            // EFFECTIVE (parent-resolved, non-routed-out) family — so child
-            // labels that fold into a parent (e.g. swirl → whirl) and route-out
-            // labels do not claim anchor status, and the browse href targets a
-            // family section that actually renders.
+            // A trick is a family-anchor only when it anchors its EFFECTIVE
+            // (resolved, non-routed-out) family — so sub-labels that fold into
+            // a family (e.g. mobius → torque) and route-out labels do not claim
+            // anchor status, and the browse href targets a family section that
+            // actually renders.
             if (!dictRow || !effectiveFamilySlug) return null;
             if (effectiveFamilySlug !== dictRow.slug) return null;
             const invariant = getFamilyInvariant(effectiveFamilySlug);
             if (!invariant) return null;
-            const familyName = PARENT_FAMILY_DISPLAY.get(effectiveFamilySlug)
+            const familyName = PUBLIC_FAMILY_LABEL.get(effectiveFamilySlug)
+              ?? resolveFamilyDisplayName(effectiveFamilySlug)
               ?? (effectiveFamilySlug.charAt(0).toUpperCase()
                   + effectiveFamilySlug.slice(1).replace(/-/g, ' '));
             return {
@@ -6868,34 +6871,29 @@ export const freestyleService = {
       resolveFamilyOverride(row.slug) ?? row.trick_family;
 
     // Family-view bucketing is multi-membership-aware.
-    // Each row contributes to its primary family AND every entry in its
-    // dual-membership list (FAMILY_DUAL_MEMBERSHIPS) — preserving lineage
-    // membership while also surfacing branch-family anchors in their own
-    // family. Retired families (RETIRED_FAMILIES, e.g. clipper-stall) are
-    // skipped at primary-family time; dual-memberships are never retired
-    // (asserted in the content module's cross-mechanism invariants).
-    // Parent-family skeleton (freestyleParentFamilies.ts): after resolving a
-    // row's family label, fold approved child labels into their parent anchor
-    // (e.g. torque/blender/mobius → osis; swirl/twirl/rev-whirl → whirl) so
-    // children render subordinate UNDER the parent rather than as their own
-    // top-level family. Labels with no parent entry resolve to themselves
-    // (parents, and deferred labels, are unchanged). Retired-family route-outs
-    // (RETIRED_FAMILIES) are checked AFTER parent resolution — a route-out
-    // label has no parent and resolves to itself, then gets skipped.
+    // Resolution maps each raw label to the public family it renders under: the
+    // 24 families resolve to themselves; sub-labels fold to the family whose
+    // terminal they conserve; everything else (catch surfaces, modifier
+    // ecosystems, sparse lineages) resolves to null and is skipped, so only the
+    // 24 families render. A derived branch is contained in its parent root
+    // (every torque member is also an osis member), so each membership expands
+    // to include its ancestor root and the row appears in both sections.
+    // No trick_family data is overwritten.
     const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
+    const addMembership = (families: string[], slug: string): void => {
+      for (const f of familyWithAncestors(slug)) {
+        if (!families.includes(f)) families.push(f);
+      }
+    };
     for (const row of activeRows) {
       if (!isTrickRow(row)) continue;
       const rawFamily = familyOf(row);
       const families: string[] = [];
-      const primaryFamily = rawFamily ? resolveParentFamily(rawFamily) : null;
-      if (primaryFamily && !isRetiredFamily(primaryFamily)) {
-        families.push(primaryFamily);
-      }
+      const primaryFamily = rawFamily ? resolveDisplayFamily(rawFamily) : null;
+      if (primaryFamily) addMembership(families, primaryFamily);
       for (const extra of resolveFamilyDualMemberships(row.slug)) {
-        const parented = resolveParentFamily(extra);
-        if (!isRetiredFamily(parented) && !families.includes(parented)) {
-          families.push(parented);
-        }
+        const resolved = resolveDisplayFamily(extra);
+        if (resolved) addMembership(families, resolved);
       }
       for (const fslug of families) {
         const bucket = familyMap.get(fslug) ?? [];
@@ -6903,10 +6901,10 @@ export const freestyleService = {
         familyMap.set(fslug, bucket);
       }
     }
-    // Section ordering: the 8 approved canonical parent anchors first
-    // (PARENT_FAMILY_ORDER), then any remaining deferred labels (rendered in
-    // map-iteration order by the second loop below).
-    const FAMILY_ORDER = PARENT_FAMILY_ORDER;
+    // Section ordering: the 24 public families, the 20 roots first then the 4
+    // derived branches. Only these render; any label that is not a family
+    // resolved to null above and never entered familyMap.
+    const FAMILY_ORDER = PUBLIC_FAMILY_ORDER;
 
     // Map of family-slug → optional symbolic cross-link. Conservative: only
     // surfaces that have shipped pedagogy / progression pages get a link.
@@ -6943,11 +6941,11 @@ export const freestyleService = {
       // so semantic tokens matching it carry isFamilyAnchor=true (solid
       // underline at render time).
       const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug, ctx));
-      // Display name resolution: a parent-family display override
-      // (e.g. 'whirl' → 'Whirl / Swirl') wins; then the curator override
-      // (e.g. 'rev-whirl' → 'Rev Whirl'); otherwise default capitalize.
+      // Display name resolution: the curated public-family label wins
+      // (e.g. 'double-leg-over' → 'Double Legover'); then the curator override;
+      // otherwise default capitalize.
       const familyName =
-        PARENT_FAMILY_DISPLAY.get(familySlug)
+        PUBLIC_FAMILY_LABEL.get(familySlug)
         ?? resolveFamilyDisplayName(familySlug)
         ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
       return {
@@ -6957,6 +6955,7 @@ export const freestyleService = {
         cards,
         crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
         sharedStructure: getFamilyInvariant(familySlug),
+        branchParentName: PUBLIC_FAMILY_PARENT_LABEL.get(familySlug) ?? null,
       };
     };
 
@@ -6964,11 +6963,6 @@ export const freestyleService = {
     for (const fslug of FAMILY_ORDER) {
       const rows = familyMap.get(fslug);
       if (rows && rows.length > 1) {
-        familyGroups.push(buildFamilyGroup(fslug, rows));
-      }
-    }
-    for (const [fslug, rows] of familyMap.entries()) {
-      if (!FAMILY_ORDER.includes(fslug) && rows.length > 1) {
         familyGroups.push(buildFamilyGroup(fslug, rows));
       }
     }
@@ -7568,8 +7562,8 @@ export const freestyleService = {
             {
               label:        'By family',
               href:         '/freestyle/tricks?view=family',
-              // Curated public-display family roster (distinct from the 8 parent
-              // anchors and the raw trick_family labels); see freestylePublicFamilies.ts.
+              // The curated 24-family roster the By-family browse renders;
+              // distinct from the raw trick_family labels.
               count:        PUBLIC_DISPLAY_FAMILIES.length,
               countDisplay: fmtCount(PUBLIC_DISPLAY_FAMILIES.length),
               countSuffix:  'families',

@@ -1,137 +1,327 @@
 # Historical Footbag Pipeline + Platform DB
 
 ## Scope
-This subtree prepares canonical data and integrates with the platform DB.
-Do not modify repo-root code, docs, `.claude/skills/`, or `.claude/rules/` from here.
-For repo-root/platform tasks, defer to repo-root `CLAUDE.md` and `IMPLEMENTATION_PLAN.md`.
-`legacy_data` work follows James's track; cross-track changes require explicit coordination.
 
-## Source of Truth
-- Authoritative outputs: `out/canonical/*.csv`
-- Platform DB derives from canonical + enrichment layers
-- Workbook is derived only
-- Mirror HTML = highest priority (1997–present)
-- Structured curated CSVs = authoritative pre-1997 intake
-- Identity lock files are frozen (patch toolchain only)
+This subtree prepares canonical historical data and loads it into the platform DB.
 
-## Routing (use runbooks)
-- Full pipeline run → `runbooks/complete-pipeline.md`
-- Rebuild / QC / canonical validation → `runbooks/historical-pipeline.md`
-- Add pre-1997 source → `runbooks/promote-curated-source.md`
-- Workbook work → `runbooks/workbook-v22.md`
-- Identity rebuild → `runbooks/rebuild-identity-pipeline.md`
-- Alias cleanup → `runbooks/cleanup-alias-pattern-c.md`
-- QC investigation → `runbooks/pipeline-diagnostics.md`
+Stay in this lane:
+- Do not modify repo-root code, repo-root docs, `.claude/skills/`, or `.claude/rules/`.
+- For repo-root/platform tasks, use repo-root `CLAUDE.md` and `IMPLEMENTATION_PLAN.md`.
+- `legacy_data` is James's track. Cross-track changes require explicit coordination.
+- Never run `git commit`, `git push`, or `git pull`. Stage-only changes are allowed; the human owns commits.
 
-DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.md`), not a runbook.
+## Source of truth
 
-## Pipeline Invariants
-- AliasResolver is sole identity authority
-- Canonical CSVs deterministic (LF, UTF-8, sorted)
-- Name normalization is deterministic (NFKC, lowercase, trim)
-- Name-variant generators are idempotent
-- Person-likeness gate filters non-person rows
-- Alias merges occur upstream only
-- Only HIGH-confidence rows reach DB
-- No team names in person entities
-- Corrections carry provenance metadata
-- Honor overrides secondary to AliasResolver
-- Workbook person visibility follows platform filter
-- Federations (WFA/NHSA) may act as host clubs for early events
-## DB Invariants
-- Soft delete via `deleted_at`; never hard delete
-- Audit logs append-only
-- Unique constraints via partial indexes
-- Services enforce business rules; DB layer is dumb
-- Controllers contain no SQL or business logic
-- Ambiguous identity resolution never auto-selects
-- Auto-link requires strong multi-anchor match
-- name_variants stores high-confidence entries only
-- Integration tests use real SQLite DB
-- Each test uses isolated temp DB
-- Writes are transactional (all-or-nothing)
+Authoritative data flow:
 
-## Non-negotiable rules
-- QC must PASS before committing canonical-output changes
-- Never edit `out/canonical/*.csv` directly
-- Never modify identity lock files directly
-- Never fabricate results (unknown stays unknown)
-- All exclusions must be traceable in `overrides/`
-- Prefer one-command workflows defined in skills
-- Never run git commit/push/pull; stage-only changes allowed, human owns commits
-- Verify external URLs before reviewer sign-off; pattern-extrapolation from a known URL form is not verification. Extrapolated URLs may sit in staging with `reviewer` blank, but must be HTTP-confirmed (browser, WebFetch, curl, or source-site index) before promotion. Capture the verification fact in the row's `notes` (e.g. "WebFetch 200 YYYY-MM-DD"). The 10 FootbagSpot 404 incident on 2026-04-26 is the load-bearing precedent.
-- Use `sed -i` for batch edits to wide curated CSVs (`person_aliases.csv`, `snippet_candidates.csv`, etc.); never `csv.DictReader → csv.DictWriter` round-trips. DictReader's `restkey=None` default puts extra columns under a literal `None` key on rows with embedded commas or trailing commas, which then crashes DictWriter mid-stream and leaves the file truncated. The 2026-04-25 person_aliases.csv truncation (2,772 → 333 rows) is the load-bearing precedent. Always `wc -l` before and after.
+```text
+curated / mirror / overrides
+  -> out/canonical/*.csv
+  -> pipeline/platform/export_canonical_platform.py
+  -> event_results/canonical_input/*.csv
+  -> pipeline/build_workbook_release.py
+  -> out/Footbag_Results_Release.xlsx
+  -> platform DB enrichment/loaders
+```
 
-## Workbook generation contract
-- The ONLY supported workbook pipeline is:
-  canonical CSVs
-    → `pipeline/platform/export_canonical_platform.py`
-    → `event_results/canonical_input/*.csv`
-    → `pipeline/build_workbook_release.py`
-    → `out/Footbag_Results_Release.xlsx`
-- The legacy builders (`pipeline/03_build_excel.py`, `pipeline/04_build_analytics.py`) and their output (`Footbag_Results_Canonical.xlsx`) have been removed and must not be reintroduced.
-- `build_workbook_release.py` reads only from `event_results/canonical_input/` + `inputs/review_quarantine_events.csv` + `inputs/identity_lock/` + `inputs/curated/`. EVENT INDEX must match `canonical_input/events.csv` row-for-row; if it ever diverges, the bug is in `build_event_index` or in what populates the `events` dict — not in the canonical input.
-- The 30-event delta between `out/canonical/events.csv` (pre-filter) and `event_results/canonical_input/events.csv` (post-filter) is intentional: `export_canonical_platform.py` drops sparse disciplines, then drops events with zero remaining disciplines. Never reintroduce the dropped events downstream.
+Key rules:
+- `out/canonical/*.csv` is authoritative pipeline output. Never edit it directly.
+- The workbook is derived only.
+- Mirror HTML is the highest-priority source for 1997-present results.
+- Structured curated CSVs are authoritative for pre-1997 intake.
+- Identity lock files are frozen except through the patch toolchain.
+- Unknown data stays unknown. Never fabricate results.
 
-## Event-key naming convention
+## Runbook routing
 
-- Default rule: `event_key = YYYY_city_slug` (e.g. `1985_worlds_golden`, `2003_eastregion_australia`).
-- Same-year same-city multi-org collisions take a city + org suffix: `1983_worlds_boulder_nhsa` / `1983_worlds_boulder_wfa`, `1984_worlds_golden_wfa` / `1984_worlds_golden_fbw`.
-- No-city exception class: events whose source has no specific host city retain non-`YYYY_city_slug` keys because the events are not single-city. Current exceptions: `1982_westregion` (regional championship), `1983_oregon_state` (state-level championship), `1983_secret_underground` (private jam). Renaming these to a synthetic city would misrepresent the source.
+Use the runbooks instead of improvising:
 
-## Clubs + classification + bootstrap
-- Extraction: `scripts/extract_clubs.py` parses mirror HTML → `seed/clubs.csv`. Columns include `contact_member_id` (from `members/profile/{id}`) alongside `contact_email`.
-- Classification: `clubs/scripts/02_build_legacy_club_candidates.py` implements MIGRATION_PLAN §10.1 classification rules (R1–R10). Emits `clubs/out/legacy_club_candidates.csv` with `category` ∈ {pre_populate, onboarding_visible, dormant, junk}. `bootstrap_eligible=1` iff `category='pre_populate'`.
-- Contact signal: R3/R4/R5 use real `contact_member_id` when present, substitute predicate ("any affiliated member active 2020+") when absent. `contact_signal_substitute_applied=1` marks substitute usage.
-- Bootstrap leaders: `clubs/scripts/04_build_club_bootstrap_leaders.py` emits `club_bootstrap_leaders.csv`. Filters `confidence_score >= 0.70` + `bootstrap_eligible=1`.
-- DB load order (pipeline): Phase G `09_load_enrichment_to_sqlite.py` loads candidates + affiliations. Phase H: `06_cutover_pre_populated_clubs.py` writes `mapped_club_id` on eligible candidates and ensures matching `clubs` rows exist; then `07_load_bootstrap_leaders.py` loads `club_bootstrap_leaders` (FK `club_id → clubs.id` via `mapped_club_id`). All loaders use DELETE+INSERT, idempotent.
-- DB tables: `clubs`, `tags`, `legacy_club_candidates`, `legacy_person_club_affiliations`, `club_bootstrap_leaders`.
+| Task | Runbook |
+|---|---|
+| Full pipeline run | `runbooks/complete-pipeline.md` |
+| Rebuild / QC / canonical validation | `runbooks/historical-pipeline.md` |
+| Add pre-1997 source | `runbooks/promote-curated-source.md` |
+| Workbook work | `runbooks/workbook-v22.md` |
+| Identity rebuild | `runbooks/rebuild-identity-pipeline.md` |
+| Alias cleanup | `runbooks/cleanup-alias-pattern-c.md` |
+| QC investigation | `runbooks/pipeline-diagnostics.md` |
 
-## Records (freestyle + consecutive kicks)
-- Curated inputs: `inputs/curated/records/records_master.csv` (freestyle trick records) + `inputs/consecutives_records.csv` (consecutive kicks). These are the authoritative source of truth; no pipeline regenerates them.
-- Loaders: `event_results/scripts/10_load_freestyle_records_to_sqlite.py` + `11_load_consecutive_records_to_sqlite.py`. Both run from `scripts/reset-local-db.sh`. Pattern: `DELETE FROM` + `INSERT OR REPLACE` (fully idempotent).
-- DB tables: `freestyle_records` + `consecutive_kicks_records`. Platform consumer: `/records` route via `recordsService`.
-- No `out/records/` CSV export — no downstream consumer; raw curated CSVs and the DB are the two authoritative representations.
+DB mutation safety lives in `.claude/rules/db-write-safety.md`.
+
+## Non-negotiable safety rules
+
+- QC must pass before canonical-output changes are committed.
+- Never edit generated canonical CSVs directly.
+- Never edit identity lock files directly.
+- All exclusions must be traceable in `overrides/`.
+- Verify external URLs before reviewer sign-off. Pattern extrapolation is not verification.
+  - Unverified extrapolated URLs may sit in staging with blank `reviewer`.
+  - Before promotion, confirm by browser, WebFetch, curl, or source-site index.
+  - Capture verification in `notes`, for example: `WebFetch 200 YYYY-MM-DD`.
+- For wide curated CSV batch edits, use `sed -i`; do not round-trip with `csv.DictReader -> csv.DictWriter`.
+  - `DictReader` can place extra columns under a literal `None` key and truncate files on write.
+  - Always `wc -l` before and after.
+- Prefer one-command workflows defined in skills/runbooks.
+
+## Pipeline invariants
+
+Identity and canonicalization:
+- `AliasResolver` is the sole identity authority.
+- Alias merges happen upstream only.
+- Name normalization is deterministic: NFKC, lowercase, trim.
+- Name-variant generators are idempotent.
+- Person-likeness gates filter non-person rows.
+- No team names in person entities.
+- Honor overrides are secondary to `AliasResolver`.
+
+Canonical outputs:
+- Canonical CSVs are deterministic: LF, UTF-8, sorted.
+- Only HIGH-confidence rows reach DB.
+- Corrections carry provenance metadata.
+- Workbook person visibility follows the platform filter.
+- Federations such as WFA/NHSA may act as host clubs for early events.
+
+## DB invariants
+
+- Soft delete with `deleted_at`; never hard delete.
+- Audit logs are append-only.
+- Unique constraints use partial indexes.
+- Services enforce business rules; the DB layer stays dumb.
+- Controllers contain no SQL or business logic.
+- Ambiguous identity resolution never auto-selects.
+- Auto-link requires a strong multi-anchor match.
+- `name_variants` stores high-confidence entries only.
+- Integration tests use real SQLite DBs and isolated temp DBs.
+- Writes are transactional.
+
+## Loader contract
+
+For pipeline-regenerated tables:
+- Use DELETE + INSERT, not `INSERT OR IGNORE` alone.
+- Scope deletes where multiple owners share a table.
+  - Example: `DELETE WHERE source='mirror_mined'`.
+  - Example: `DELETE WHERE source_scope='PROVISIONAL'`.
+- Use one transaction spanning delete and insert; commit once.
+- Report honest counters.
+  - Good: increment only when `rowcount` shows an insert.
+  - Bad: raw `+= 1` after `INSERT OR IGNORE`.
+- Every skipped row needs a named category: dedup, FK miss, PK collision, bad row, etc.
+
+## Workbook contract
+
+The only supported workbook pipeline is:
+
+```text
+out/canonical/*.csv
+  -> pipeline/platform/export_canonical_platform.py
+  -> event_results/canonical_input/*.csv
+  -> pipeline/build_workbook_release.py
+  -> out/Footbag_Results_Release.xlsx
+```
+
+Removed legacy builders must not be reintroduced:
+- `pipeline/03_build_excel.py`
+- `pipeline/04_build_analytics.py`
+- `Footbag_Results_Canonical.xlsx`
+
+`build_workbook_release.py` reads only:
+- `event_results/canonical_input/`
+- `inputs/review_quarantine_events.csv`
+- `inputs/identity_lock/`
+- `inputs/curated/`
+
+Important:
+- EVENT INDEX must match `canonical_input/events.csv` row-for-row.
+- If it diverges, debug `build_event_index` or the population of the `events` dict.
+- The 30-event delta between `out/canonical/events.csv` and `event_results/canonical_input/events.csv` is intentional. `export_canonical_platform.py` drops sparse disciplines, then drops events with zero remaining disciplines.
+
+## Event-key convention
+
+Default:
+
+```text
+event_key = YYYY_city_slug
+```
+
+Examples:
+- `1985_worlds_golden`
+- `2003_eastregion_australia`
+
+Same-year, same-city, multi-org collisions take city + org suffix:
+- `1983_worlds_boulder_nhsa`
+- `1983_worlds_boulder_wfa`
+- `1984_worlds_golden_wfa`
+- `1984_worlds_golden_fbw`
+
+No-city exception keys retain non-`YYYY_city_slug` form because the events are not single-city:
+- `1982_westregion`
+- `1983_oregon_state`
+- `1983_secret_underground`
+
+Do not invent synthetic cities for these exceptions.
+
+## Clubs pipeline
+
+Extraction:
+- `scripts/extract_clubs.py`
+- Mirror HTML -> `seed/clubs.csv`
+- Includes `contact_member_id` from `members/profile/{id}` plus `contact_email`.
+
+Classification:
+- `clubs/scripts/02_build_legacy_club_candidates.py`
+- Implements `MIGRATION_PLAN` §10.1 rules R1-R10.
+- Emits `clubs/out/legacy_club_candidates.csv`.
+- `category` is one of: `pre_populate`, `onboarding_visible`, `dormant`, `junk`.
+- `bootstrap_eligible=1` iff `category='pre_populate'`.
+
+Contact signal:
+- R3/R4/R5 use real `contact_member_id` when present.
+- If absent, they may use the substitute predicate: any affiliated member active 2020+.
+- `contact_signal_substitute_applied=1` marks substitute usage.
+
+Bootstrap leaders:
+- `clubs/scripts/04_build_club_bootstrap_leaders.py`
+- Emits `club_bootstrap_leaders.csv`.
+- Filters `confidence_score >= 0.70` and `bootstrap_eligible=1`.
+
+DB load order:
+1. Phase G: `09_load_enrichment_to_sqlite.py`
+   - Loads candidates and affiliations.
+2. Phase H: `06_cutover_pre_populated_clubs.py`
+   - Writes `mapped_club_id`.
+   - Ensures matching `clubs` rows exist.
+3. `07_load_bootstrap_leaders.py`
+   - Loads `club_bootstrap_leaders`.
+   - FK: `club_id -> clubs.id` via `mapped_club_id`.
+
+All club loaders are idempotent DELETE + INSERT loaders.
+
+DB tables:
+- `clubs`
+- `tags`
+- `legacy_club_candidates`
+- `legacy_person_club_affiliations`
+- `club_bootstrap_leaders`
+
+## Records
+
+Authoritative curated inputs:
+- `inputs/curated/records/records_master.csv`
+- `inputs/consecutives_records.csv`
+
+No pipeline regenerates these.
+
+Loaders:
+- `event_results/scripts/10_load_freestyle_records_to_sqlite.py`
+- `event_results/scripts/11_load_consecutive_records_to_sqlite.py`
+- Both run from `scripts/reset-local-db.sh`.
+- Pattern: `DELETE FROM` + `INSERT OR REPLACE`.
+
+DB tables:
+- `freestyle_records`
+- `consecutive_kicks_records`
+
+Platform consumer:
+- `/records` route via `recordsService`.
+
+There is no `out/records/` export. The curated CSVs and DB are the two authoritative representations.
 
 ## Name variants
-- Generator: `pipeline/identity/build_name_variants.py` reads four upstream sources (`inputs/identity_lock/Person_Display_Names_v1.csv`, `inputs/bap_data_updated.csv`, `out/canonical/persons.csv`, `overrides/person_aliases.csv`) and emits `inputs/name_variants.csv`. Deterministic; runs at Phase 2b of `run_v0_backbone`.
-- `inputs/name_variants.csv` is **generated, not hand-curated**. Manual edits are clobbered on the next pipeline run. To add a pair, modify the upstream source (typically `overrides/person_aliases.csv`).
-- Loader: `scripts/load_name_variants_seed.py`. Scoped `DELETE FROM name_variants WHERE source='mirror_mined'` + INSERT OR IGNORE. Only HIGH-confidence pairs inserted; MEDIUM → `out/name_variants_deferred.csv` (reported, not loaded).
-- Honest counter: uses `conn.total_changes` to report actual inserts (not IGNORE'd rows).
-- DB table: `name_variants` with PK `(canonical_normalized, variant_normalized)`, source `∈ {mirror_mined, admin_added, member_submitted}`.
 
-## Persons layers in historical_persons
-- `source_scope='CANONICAL'`: event-results-derived, owned by `08_load_mvfp_seed_full_to_sqlite.py`. DELETE+INSERT pattern.
-- `source_scope='PROVISIONAL'`: club-only + membership-only cohorts (MIGRATION_PLAN §10.2), owned by `09_load_enrichment_to_sqlite.py`. `source` column distinguishes `CLUB` / `MEMBERSHIP` / `RESULTS`. DELETE WHERE source_scope='PROVISIONAL' + INSERT pattern; CANONICAL rows preserved.
-- Identity locks are patch-toolchain only (`legacy_data/tools/patch_pt_*.py`, `legacy_data/tools/patch_placements_*.py`). Patches mutate `Persons_Truth_Final.csv` / `Placements_ByPerson.csv` in place; git log is the version trail.
+Generator:
+- `pipeline/identity/build_name_variants.py`
 
-## Loader invariants (applies to all DB-load scripts)
-- DELETE+INSERT for pipeline-regenerated tables; never rely on `INSERT OR IGNORE` alone — it silently skips existing rows and does not propagate upstream changes.
-- Scope the DELETE where multiple owners share a table (e.g. `DELETE WHERE source='mirror_mined'`, `DELETE WHERE source_scope='PROVISIONAL'`).
-- Honest counter: `cur = conn.execute(...); inserted += (1 if cur.rowcount else 0)`. Raw `+= 1` after `INSERT OR IGNORE` double-counts IGNORE'd rows.
-- Single transaction spans the DELETE + INSERT loop; commit once at the end.
-- Loaders report counter-mismatch explicitly: every skipped row has a named category (dedup, FK miss, PK collision, bad row).
+Inputs:
+- `inputs/identity_lock/Person_Display_Names_v1.csv`
+- `inputs/bap_data_updated.csv`
+- `out/canonical/persons.csv`
+- `overrides/person_aliases.csv`
 
-## MIGRATION_PLAN references (load targeted sections only)
-- §2 + §9 — `legacy_members` structure, claim merge rules.
-- §7 — Auto-link (candidate matching and classification).
-- §10.1 — Club classification rules.
+Output:
+- `inputs/name_variants.csv`
+
+Rules:
+- `inputs/name_variants.csv` is generated, not hand-curated.
+- Manual edits are clobbered on the next pipeline run.
+- To add a pair, modify the upstream source, usually `overrides/person_aliases.csv`.
+
+Loader:
+- `scripts/load_name_variants_seed.py`
+- Deletes only `source='mirror_mined'`.
+- Inserts only HIGH-confidence pairs.
+- MEDIUM rows go to `out/name_variants_deferred.csv`.
+- Reports actual inserts with `conn.total_changes`.
+
+DB table:
+- `name_variants`
+- PK: `(canonical_normalized, variant_normalized)`
+- `source` is one of: `mirror_mined`, `admin_added`, `member_submitted`.
+
+## `historical_persons` layers
+
+`source_scope='CANONICAL'`:
+- Event-results-derived.
+- Owned by `08_load_mvfp_seed_full_to_sqlite.py`.
+- DELETE + INSERT pattern.
+
+`source_scope='PROVISIONAL'`:
+- Club-only and membership-only cohorts from `MIGRATION_PLAN` §10.2.
+- Owned by `09_load_enrichment_to_sqlite.py`.
+- `source` distinguishes `CLUB`, `MEMBERSHIP`, and `RESULTS`.
+- Deletes only `source_scope='PROVISIONAL'`; preserves CANONICAL rows.
+
+Identity locks:
+- Patch-toolchain only.
+- Tools live under `legacy_data/tools/patch_pt_*.py` and `legacy_data/tools/patch_placements_*.py`.
+- Patches mutate `Persons_Truth_Final.csv` / `Placements_ByPerson.csv` in place.
+- Git log is the version trail.
+
+## MIGRATION_PLAN targeted references
+
+Load only the relevant section:
+- §2 + §9 — `legacy_members` structure and claim merge rules.
+- §7 — auto-link candidate matching and classification.
+- §10.1 — club classification rules.
 - §10.2 — `historical_persons` expansion for club members.
-- §10.3 — Club onboarding flow (platform-side, not in this subtree).
-- §15 — Required schema changes.
-- §15.15 — `name_variants` schema + contract.
-- §19 — Legacy-site data dump requirements.
-- §26 — Persons count baseline.
+- §10.3 — club onboarding flow; platform-side, not this subtree.
+- §15 — required schema changes.
+- §15.15 — `name_variants` schema and contract.
+- §19 — legacy-site data dump requirements.
+- §26 — persons count baseline.
 
-## Curator-canonical sidecar invariants
+## Curator-canonical freestyle sidecars
 
-- **Tricks-of-the-Trade lessons (`sourceId='tt_youtube'`).** The 40 `*.meta.json` files in `curated/freestyle_tricks/` were hand-canonicalized 2026-05-06: `title` rewritten to `NN - <lesson_title>` form (zero-padded lesson number), `#tricks_of_the_trade` appended to `tags`. The TT named gallery (`/freestyle/tt-series`) depends on both invariants — caption_asc sort + tag-AND membership. Any tool that regenerates these sidecars (`scripts/migrate-freestyle-media-to-curated.py`, `scripts/promote_snippet_candidates.py`, future variants) MUST preserve the canonical title format AND the `#tricks_of_the_trade` tag, or the gallery breaks silently and the next dev re-seed wipes the canonical state. Until the legacy staging-CSV pipeline (`curated/freestyle_media/video_snippet_candidates.csv` and similar) is eliminated in favor of the admin curator UX, do not re-run any sidecar-producing tool without first verifying it produces canonical titles + tags against `curated/freestyle_media/tt_roster.csv`.
+Tricks-of-the-Trade lessons use `sourceId='tt_youtube'`.
+
+The 40 `curated/freestyle_tricks/*.meta.json` sidecars were hand-canonicalized on 2026-05-06:
+- `title` must stay in `NN - <lesson_title>` format.
+- Lesson number must stay zero-padded.
+- `#tricks_of_the_trade` must stay in `tags`.
+
+The TT named gallery `/freestyle/tt-series` depends on both invariants:
+- `caption_asc` sort.
+- tag-AND membership.
+
+Do not rerun sidecar-producing tools unless they preserve canonical titles and tags:
+- `scripts/migrate-freestyle-media-to-curated.py`
+- `scripts/promote_snippet_candidates.py`
+- future variants.
+
+Until the staging-CSV pipeline is replaced by the admin curator UX, verify sidecar output against:
+- `curated/freestyle_media/tt_roster.csv`
+- `curated/freestyle_media/video_snippet_candidates.csv`
 
 ## Archive governance
 
-`exploration/_archive/YYYY-MM/` and `legacy_data/reports/_archive/` are intentionally lower-visibility surfaces for AI agents and operational workflows. Rules:
+Archives are provenance, not active instruction.
 
-- **Shipped exploration phases move to archive.** Plan documents, phase reports, audit outputs, and execution guides for completed waves leave `exploration/{dir}/` and land in `exploration/_archive/YYYY-MM/{dir}/` preserving subdirectory provenance.
-- **Active operational docs stay lean.** `legacy_data/IMPLEMENTATION_PLAN.md` and the runbooks are execution-only; shipped work disappears (no "Closed" sections, no tombstones).
-- **Closed exploration becomes pointers, not inline summaries.** Operational docs reference exploration outcomes via 1-line links to memory entries and `exploration/{dir}/`; full narratives stay in their original home.
-- **An agent reading from `_archive/` should assume the content is provenance, not instruction.** Do not load archived docs by default; load only when reconstructing the rationale behind a current state.
+Archive locations:
+- `exploration/_archive/YYYY-MM/`
+- `legacy_data/reports/_archive/`
+
+Rules:
+- Completed exploration phases move to archive.
+- Active operational docs stay lean: no closed sections, no tombstones.
+- Closed exploration becomes one-line pointers, not inline summaries.
+- Do not load archived docs by default.
+- Load archives only when reconstructing rationale behind current state.

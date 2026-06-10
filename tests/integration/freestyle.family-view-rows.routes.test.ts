@@ -1,8 +1,8 @@
 /**
- * /freestyle/tricks?view=family — two-line row contract (2026-05-27 migration).
+ * /freestyle/tricks?view=family — two-line row contract.
  *
- * Family view migrated to the SAME generalized dictionary-trick-row partial as
- * the ADD view. Every family row obeys the two-line contract:
+ * Family view uses the SAME generalized dictionary-trick-row partial as the
+ * ADD view. Every family row obeys the two-line contract:
  *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
  *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
  *
@@ -53,9 +53,9 @@ beforeAll(async () => {
     // whirl family
     { slug: 'whirl', canonical_name: 'whirl', adds: '3', base_trick: 'whirl', trick_family: 'whirl', category: 'dex', notation: 'WHIRL', operational_notation: 'SET > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'paradox-whirl', canonical_name: 'paradox whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', notation: 'PARADOX WHIRL', operational_notation: 'CLIP > OP IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
-    // osis family — torque children fold into the osis parent (family
-    // skeleton, freestyleParentFamilies.ts). Both rows carry trick_family
-    // 'torque' but render UNDER id="family-osis", not a top-level torque section.
+    // torque family — a derived branch that renders as its own top-level
+    // family section. Both rows carry trick_family 'torque' and render UNDER
+    // id="family-torque".
     { slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'TORQUE', operational_notation: 'CLIP > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     { slug: 'spinning-torque', canonical_name: 'spinning torque', adds: '5', base_trick: 'torque', trick_family: 'torque', category: 'compound', notation: 'SPINNING TORQUE', operational_notation: 'CLIP > (back) SPIN [BOD] > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]', review_status: 'expert_reviewed', is_active: 1 },
   ];
@@ -75,9 +75,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// torque folds into the osis parent under the family skeleton, so the
-// rendered top-level section is osis (not torque).
-const FAMILIES = ['mirage', 'legover', 'butterfly', 'whirl', 'osis'];
+// torque is a derived branch that renders as its own top-level family
+// section.
+const FAMILIES = ['mirage', 'legover', 'butterfly', 'whirl', 'torque'];
 const ALL_MEMBERS = ['mirage', 'smear', 'legover', 'magellan', 'butterfly', 'ripwalk', 'whirl', 'paradox-whirl', 'torque', 'spinning-torque'];
 
 function rowFor(html: string, slug: string): string {
