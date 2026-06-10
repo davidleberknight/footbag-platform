@@ -406,14 +406,19 @@ def main() -> int:
                 )
                 tags_inserted += cur.rowcount
 
+                # contact_email is intentionally NOT written here. Club contact
+                # is leader-supplied during onboarding, never carried from the
+                # legacy site (the seed contact_email is never populated, so this
+                # only ever wrote NULL). Leaving it out keeps any future
+                # repopulation of the column from leaking onto live clubs.
                 cur = con.execute(
                     """
                     INSERT OR IGNORE INTO clubs
                       (id, created_at, created_by, updated_at, updated_by, version,
                        name, description, city, region, country,
-                       contact_email, external_url, status, hashtag_tag_id)
+                       external_url, status, hashtag_tag_id)
                     VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1,
-                            ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                            ?, ?, ?, ?, ?, ?, 'active', ?)
                     """,
                     (
                         club_id, ts, ts,
@@ -422,7 +427,6 @@ def main() -> int:
                         seed_row["city"],
                         seed_row.get("region") or None,
                         seed_row["country"],
-                        seed_row.get("contact_email") or None,
                         seed_row.get("external_url") or None,
                         tag_id,
                     ),

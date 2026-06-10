@@ -492,12 +492,19 @@ def main() -> None:
                       contact_signal_substitute_applied,
                       last_hosted_year, max_affiliated_member_last_year,
                       contact_member_last_year, created_year, last_updated_year,
-                      unique_member_names, linkable_member_count, ever_hosted
+                      unique_member_names, linkable_member_count, ever_hosted,
+                      -- Live-content fields published onto the club at promotion.
+                      -- external_url is the raw extracted value; it is validated
+                      -- before going live (external_url_validated_at / quarantine
+                      -- columns stay NULL here). contact_email is intentionally
+                      -- never carried (club contact is leader-supplied).
+                      description, external_url
                     ) VALUES (
                       ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?
+                      ?, ?, ?, ?, ?, ?, ?, ?,
+                      ?, ?
                     )
                     """,
                     (
@@ -533,6 +540,8 @@ def main() -> None:
                         opt_int(row.get("unique_member_names", "")),
                         opt_int(row.get("linkable_member_count", "")),
                         parse_bool_col(row.get("ever_hosted", "0")),
+                        row.get("description") or "",
+                        opt_str(row.get("external_url", "")),
                     ),
                 )
                 # cur.rowcount reports actual DB writes; raw += 1 would count
