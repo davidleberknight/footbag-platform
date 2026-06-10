@@ -267,7 +267,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toContain('What makes a family?');
     expect(html).toMatch(/Whirl is the model/);
     expect(html).toMatch(/Foundational surfaces<\/strong> \(toe, clipper\)/);
-    expect(html).toMatch(/Modifier ecosystems<\/strong> \(pixie, ducking, spinning\)/);
+    expect(html).toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/);
   });
 
   it('teaches the five kinds of family-ish object (first-class / sub-family / atom / ecosystem / anchor)', async () => {
