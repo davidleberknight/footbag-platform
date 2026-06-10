@@ -1694,3 +1694,16 @@ double-kick,notation,,DOUBLE KICK,James curator fborg-reconciliation: JOB self-t
 double-kick,operational_notation,,double kick,James curator ruling: sui-generis self-token 1 ADD body primitive (foot analogue of double-knee).
 diving-clipper,operational_notation,,SET > DIVE [BOD] > SAME CLIP [XBD] [DEL],James curator clipper-stall ruling: terminal clipper is a stall (XBD + DEL = 2 ADD). diving(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
 gyro-clipper,operational_notation,,SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],James curator clipper-stall ruling: terminal clipper is a stall. gyro(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
+clipper,operational_notation,,CLIP [XBD],James curator fborg-reconciliation: clipper (1 ADD) is the kick-only cross-body inside kick ([XBD] only); clipper-stall is the 2-ADD [XBD] [DEL] form. 1 bracket matches 1 ADD.
+dragon,notation,,DRAGON,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+dragon,operational_notation,,SET > SAME OUT [XBD] [DEL],James curator ruling: fborg-2add Dragon (cross body outside delay). 2 brackets matches 2 ADD.
+probe,notation,,PROBE,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+probe,operational_notation,,SET > OP CLIP [XBD] [DEL],James curator ruling: fborg-2add Probe (blind opposite-shoulder clipper stall). 2 brackets matches 2 ADD.
+toe-clipper,notation,,TOE CLIPPER,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+toe-clipper,operational_notation,,JUMP [BOD] > OP TOE [XBD],James curator ruling: fborg-2add Toe Clipper (jump cross-body toe kick). 2 brackets matches 2 ADD.
+stepping-clipper,operational_notation,,CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL],James curator clipper-stall ruling: stepping(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
+pixie-clipper,operational_notation,,TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL],James curator: promote generic pixie-clipper to direction-unspecified 3 ADD (no fborg generic precedent); pixie dex(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
+miraging-kick,notation,,MIRAGING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+miraging-kick,operational_notation,,SET > OP IN [DEX],James curator ruling: curator-approved miraging-kick (kick-only dex atom). 1 bracket matches 1 ADD.
+illusioning-kick,notation,,ILLUSIONING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+illusioning-kick,operational_notation,,SET > OP OUT [DEX],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.

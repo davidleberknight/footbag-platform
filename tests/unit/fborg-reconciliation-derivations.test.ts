@@ -20,6 +20,16 @@ const APPROVED = [
   // clipper-stall correction: terminal clipper is [XBD] [DEL] = 2, not 1.
   { slug: 'diving-clipper', adds: 3, notation: 'SET > DIVE [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'gyro-clipper',   adds: 3, notation: 'SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
+  // deferred batch: clipper kick notation, fborg 2-ADD gaps, stepping/pixie
+  // clipper stall corrections, miraging/illusioning kick atoms.
+  { slug: 'clipper',          adds: 1, notation: 'CLIP [XBD]' },
+  { slug: 'dragon',           adds: 2, notation: 'SET > SAME OUT [XBD] [DEL]' },
+  { slug: 'probe',            adds: 2, notation: 'SET > OP CLIP [XBD] [DEL]' },
+  { slug: 'toe-clipper',      adds: 2, notation: 'JUMP [BOD] > OP TOE [XBD]' },
+  { slug: 'stepping-clipper', adds: 3, notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'pixie-clipper',    adds: 3, notation: 'TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL]' },
+  { slug: 'miraging-kick',    adds: 1, notation: 'SET > OP IN [DEX]' },
+  { slug: 'illusioning-kick', adds: 1, notation: 'SET > OP OUT [DEX]' },
 ] as const;
 
 // bracket-count deliberately differs from ADD: swing-element (pendulum) and
@@ -56,8 +66,8 @@ describe('fborg-reconciliation derived operational notation', () => {
     });
   }
 
-  it('clipper-stall corrections set diving-clipper and gyro-clipper to 3 ADD', () => {
-    for (const slug of ['diving-clipper', 'gyro-clipper']) {
+  it('clipper-stall corrections set diving/gyro/stepping/pixie clipper to 3 ADD', () => {
+    for (const slug of ['diving-clipper', 'gyro-clipper', 'stepping-clipper', 'pixie-clipper']) {
       const line = additionsLines.find(l => l.startsWith(`${slug},`));
       expect(line, `red_additions row for ${slug}`).toBeDefined();
       expect(line!.split(',')[1]).toBe('3');
