@@ -1,0 +1,48 @@
+name,slug,classification,pb_add_claim,readings
+Big Orange,big-orange,already-canonical-or-alias,1,Spinning near Symp. Flux | Rev. Big Apple
+Flare,flare,already-canonical-or-alias,2,Symp. Whirling far Mirage
+GDLO,gdlo,already-canonical-or-alias,2,Gyro DLO
+Ghost,ghost,already-canonical-or-alias,,Whirling Rake
+Golden Shower,golden-shower,already-canonical-or-alias,3,Stepping Ducking far Symp. Eggbeater
+GYBAS,gybas,already-canonical-or-alias,2,Stepping far Dyno
+Johnny Vodka,johnny-vodka,already-canonical-or-alias,,Pixie Mobius
+POD,pod,already-canonical-or-alias,3,Pixie DOD | Pixie near Double Down
+Ripcurl,ripcurl,already-canonical-or-alias,2,Stepping near Butterfly Swirl | Sidewalk Swirl
+Riptide,riptide,already-canonical-or-alias,2,Stepping far Butterfly Swirl | Ripwalk Swirl
+Slapdown,slapdown,already-canonical-or-alias,2,Quantum near Butterfly
+Spikehammer,spikehammer,already-canonical-or-alias,2,Stepping Ducking Mirage
+Super Mario,super-mario,already-canonical-or-alias,1,Spinning far Symp. Torque | Symp. Marius
+Superdeeduperfly,superdeeduperfly,already-canonical-or-alias,2,Spinning Ducking Superfly | Alpine Superduperfly
+Superduperfly,superduperfly,already-canonical-or-alias,2,Spinning Superfly
+Swifter,swifter,already-canonical-or-alias,2,Stepping far Swirl
+Whirlwalk,whirlwalk,already-canonical-or-alias,2,Whirling far Whirl
+Whirlygig,whirlygig,already-canonical-or-alias,2,Stepping far Symp. Whirl
+Blurrier,blurrier,doctrine/undefined-operator,3,Stepping near Double Down
+Cold Fusion,cold-fusion,doctrine/undefined-operator,3,Nuclear far Double Down | Pdx. Fusion
+Dimmier,dimmier,doctrine/undefined-operator,3,Pixie near Double Down
+Dimmiest,dimmiest,doctrine/undefined-operator,3,Pixie far Double Down
+Id,id,doctrine/undefined-operator,,Atomic Ducking far Double Down | Alpine Fusion
+Jackknife,jackknife,doctrine/undefined-operator,2,Stepping Diving ss Butterfly | Alpine Sidewalk
+King Koopa,king-koopa,doctrine/undefined-operator,1,Spinning Ducking far Symp.Torque | Alpine Super Mario
+Kiwi,kiwi,doctrine/undefined-operator,,Tapping Double Down
+Legbreaker,legbreaker,doctrine/undefined-operator,2,Flailing far Butterfly | Symp. Atomic far Butterfly
+Leviathon,leviathon,doctrine/undefined-operator,3,Stepping Ducking far Double Down
+Locomotion,locomotion,doctrine/undefined-operator,3,Stepping far Motion
+Moby Dick,moby-dick,doctrine/undefined-operator,2,Mobiusscrew | Gyro Torquescrew
+Mortal Kombat,mortal-kombat,doctrine/undefined-operator,2,Stepping Ducking far Grifter
+Motion Sickness,motion-sickness,doctrine/undefined-operator,2,Spinning far Motion
+Scorpion\,scorpion-s-tail,doctrine/undefined-operator,2,Spinning far Double Down
+Shooting Star,shooting-star,doctrine/undefined-operator,4,Shooting far Double Down | Pogo Nuclear far Double Down
+Skullsmasher,skullsmasher,doctrine/undefined-operator,2,Atomic Ducking far Mirage | Alpine Atomsmasher
+Spanishfly,spanishfly,doctrine/undefined-operator,2,Clipper Ducking far Double Down
+Torch-R-Rack,torch-r-rack,doctrine/undefined-operator,3,Stepping far Symp. Double Down | BS Blurriest
+Your Mom,your-mom,doctrine/undefined-operator,3,Atomic far Symp. Double Down | BS Fusion
+Irish Cream,irish-cream,needs-authoring,2,Atomic Gyro Torque | Tapping Mobius
+Monster,monster,needs-authoring,,Symp. Swirling Gyro Inside
+Rotor,rotor,needs-authoring,,(downtime) Swirling Gyro Inside Stall
+Tobius,tobius,needs-authoring,1,Toe Mobius | Toe Spinning near Torque
+Wauxspin,wauxspin,needs-authoring,,Butterfly Gyro Toe
+Anonymous,anonymous,promotion-candidate,3,Spinning far Miraging Symp. Miraging Refraction
+Green Eggs and Ham,green-eggs-and-ham,promotion-candidate,2,Stepping Ducking far Swivel
+Pandora\,pandora-s-box,promotion-candidate,1,Gyro Pickup
+,source-only,source-only/historical,,

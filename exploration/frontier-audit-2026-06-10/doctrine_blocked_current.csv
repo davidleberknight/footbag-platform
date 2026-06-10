@@ -1,0 +1,42 @@
+name,slug,blocker_group,detail
+Cold Fusion,cold-fusion,DOD/DDD/dragon,"undefined: double-down (DOD/DDD policy open), pdx"
+Dimmier,dimmier,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Dimmiest,dimmiest,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Id,id,DOD/DDD/dragon,"undefined: alpine, double-down (DOD/DDD policy open)"
+Kiwi,kiwi,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Leviathon,leviathon,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Scorpion\,scorpion-s-tail,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Spanishfly,spanishfly,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Torch-R-Rack,torch-r-rack,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Your Mom,your-mom,DOD/DDD/dragon,undefined: double-down (DOD/DDD policy open)
+Blurrier,blurrier,blur/furious,undefined: double-down (DOD/DDD policy open)
+Blink,blink,motion/twisting/frantic/undefined,undefined op: twisting
+E-Walk,e-walk,motion/twisting/frantic/undefined,undefined op: frantic
+Heart,heart,motion/twisting/frantic/undefined,undefined op: frantic
+Legbreaker,legbreaker,motion/twisting/frantic/undefined,undefined: flailing
+Legbreaker,legbreaker,motion/twisting/frantic/undefined,undefined op: flailing
+Locomotion,locomotion,motion/twisting/frantic/undefined,undefined: motion
+Locomotion,locomotion,motion/twisting/frantic/undefined,undefined op: motion
+Motion Sickness,motion-sickness,motion/twisting/frantic/undefined,undefined: motion
+Motion Sickness,motion-sickness,motion/twisting/frantic/undefined,undefined op: motion
+Nemosis,nemosis,motion/twisting/frantic/undefined,undefined op: motion
+What!?,what,motion/twisting/frantic/undefined,undefined op: twisting
+Cloud,cloud,other,"undefined op: calf, w/, ""whirl"", position"
+Jackknife,jackknife,other,"undefined: alpine, ss"
+Jackknife,jackknife,other,undefined op: ss
+Kilo,kilo,other,undefined op: kilo
+King Koopa,king-koopa,other,"undefined: alpine, mario, super, symp.torque"
+King Koopa,king-koopa,other,undefined op: symp.torque
+Lawn Moir,lawn-moir,other,undefined op: slicing
+Merlin,merlin,other,undefined op: symp.mirage
+Moby Dick,moby-dick,other,"undefined: mobiusscrew, torquescrew"
+Moby Dick,moby-dick,other,undefined op: mobiusscrew
+Mortal Kombat,mortal-kombat,other,undefined: grifter
+Mortal Kombat,mortal-kombat,other,undefined op: grifter
+Paratoxic,paratoxic,other,undefined op: pdx
+Revstein,revstein,other,undefined op: twist
+Sidewinder,sidewinder,other,undefined op: buterfly
+Skullsmasher,skullsmasher,other,undefined: alpine
+Whale Tail,whale-tail,other,undefined op: gryo
+Your Sister,your-sister,other,undefined op: kiwi
+Shooting Star,shooting-star,shooting,undefined: double-down (DOD/DDD policy open)
