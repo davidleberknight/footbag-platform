@@ -21,6 +21,13 @@ const APPROVED = [
   { slug: 'symposium-tomahawk', adds: 6, notation: 'CLIP >> DUCK [BOD] >> (no plant while) SAME FRONT WHIRL [BOD] [DEX] [PDX] > OP CLIP [XBD] [DEL]' },
   { slug: 'whirling-pickup', adds: 3, notation: 'SET > OP FRONT WHIRL [DEX] > OP IN [DEX] > SAME TOE [DEL]' },
   { slug: 'whirling-rake', adds: 3, notation: 'SET > OP FRONT WHIRL [DEX] > SWING [DEX] > SAME TOE [DEL]' },
+  // settled-decomposition folk names: the operator comes from the confirmed folk
+  // mapping (blizzard = stepping-illusion, etc.), not the slug.
+  { slug: 'blizzard', adds: 3, notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
+  { slug: 'bedwetter', adds: 4, notation: 'TOE > OP IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'schmoe', adds: 3, notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'blurrage', adds: 4, notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' },
+  { slug: 'triple-around-the-world', adds: 4, notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]' },
 ] as const;
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|UNS|XDEX)\]/g;
