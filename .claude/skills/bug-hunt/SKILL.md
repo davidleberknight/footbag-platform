@@ -40,6 +40,8 @@ When an AI agent runs this file, treat it as a prompt with explicit role, succes
 - The rendered clickable surface has been considered: every link, form action, and button-triggered navigation should have a deterministic route-wiring/smoke check that proves it resolves to an intentional route and does not 500.
 - Ambiguous requirement/design discrepancies are not guessed; ask one excellent maintainer question at a time.
 - The output is actionable, minimal, and restricted to `BUGS.md`.
+- A coverage ledger lists every deployed controller, service, middleware, adapter, shared lib, and template with a read / not-read mark and (for not-read) an explicit reason; the sweep is not complete while any security-relevant surface is unread.
+- The sweep looped to dryness: it records the pass count and confirms the final two passes surfaced no new candidate.
 
 **Non-goals:** do not run a browser QA pass, do not redesign the application, do not write fixes, do not create a test plan, and do not record speculative issues as bugs.
 
@@ -52,7 +54,7 @@ When an AI agent runs this file, treat it as a prompt with explicit role, succes
 
 ### 0.2 Audit-wide scope filters (apply to every section)
 
-Before applying the filters below, rebuild the in-scope inventory from the repository. This file contains a known-good seed inventory, not a substitute for reading `src/app.ts`, `src/routes/*.ts`, controller/service call sites, and the current user-story documents. If the seed list disagrees with code, treat that as a drift signal and verify before flagging anything.
+Hard gate: before any finding is recorded, rebuild the in-scope inventory from the repository and write the diff between the re-derived surface and the seed inventory into scratch notes. The seed inventory is a starting hypothesis, never a scope authority. A run that has not produced and reconciled this diff has not established scope and must not record findings yet. Any seed-versus-code disagreement is investigated to resolution, not assumed in the seed's favor.
 
 - **Deployed-only**. A user story is "deployed" if at least one HTTP route in `src/routes/*.ts` (mounted by `src/app.ts`) serves it, or if a service-only call site is invoked at runtime.
 - **Everything deployed is in scope by default.** Per-run exclusions come only from the prompt that kicks off the hunt; record any such exclusion in the `BUGS.md` scope note so a later run knows what was skipped.
@@ -162,7 +164,7 @@ Read deployed controllers, services, middleware, adapters, templates, schema-fac
 - **Scope = currently deployed code in `src/`** per §1 deployed-US inventory.
 - **Skip CAPTCHA AC; skip the `legacy_data/` pipeline unless the kickoff prompt includes it** per §0.2. Honor any per-run exclusions from the kickoff prompt and record them in the `BUGS.md` scope note.
 - **One question per turn** if you need to ask the maintainer something.
-- **No subagent prompts for safe commands** — small lookups stay in the main session.
+- **Breadth fan-out is encouraged; verification stays central.** Trivial lookups stay in the main session. For coverage, controlled read-only sub-agents may sweep one surface or bug-class each in parallel, but every candidate they surface is re-verified against the cited lines in the main session before it is recorded: a sub-agent conclusion is a lead, never a finding. Security/correctness survivors still get the main-session adversarial second pass.
 - **Concise communication**. No filler, no preamble, no emojis.
 - **No backwards-compat hacks**. If you find dead code, deletable shims, or unused exports, flag them under "low severity" but do not propose elaborate migration plans.
 - **No diagnose-and-remediate-in-one-step**. Diagnose. Report. Wait for the maintainer to gate per-finding remediation in a separate slice.
@@ -853,9 +855,13 @@ Run these checks. Fix the report (or your scan) if any fail.
 15. **CI/CD gap sweep ran**: deterministic guardrails in `package.json`, `scripts/`, `.github/workflows/`, config files, and test harnesses were reviewed against §4.4.38 and §5.
 16. **Clickable-route coverage was assessed**: the report states whether a systematic link/form/button route-wiring smoke test exists; missing coverage is recorded as a Testing and CI/CD verification gap.
 
+### 4.7A Adversarial review of this skill (every run)
+
+Each run spends a final, explicit step attacking this skill, not just the code: where did the scope filters, anti-patterns, seed inventory, or stopping wording let a bug slip, narrow scope, or excuse incompleteness this run? Treat any default exclusion (CAPTCHA, `legacy_data/`, non-deployed stories) as a hypothesis to re-justify against this run's evidence, not a settled boundary. Record concrete skill-improvement notes to the maintainer in the closing summary (never edit this skill mid-hunt). A run that found the skill flawless must say why, naming what it specifically tried to break.
+
 ### 4.8 Anti-patterns — what NOT to flag
 
-These tempt false positives. Resist.
+These are false-positive calibrators, not a suppression list. They exist to keep noise out, never to wave off a verified bug. When uncertain whether something is real, the default is to verify it to a yes or no, not to drop it. If it survives verification, it is a finding regardless of how it feels.
 
 - **"This is hard to read"** — not a bug. Maintenance friction without a behavioral failure is out of scope. (A genuine layering divergence is §4.4B, not "hard to read".)
 - **"This file is too long"** — out of scope.
@@ -871,7 +877,11 @@ Note: stale/bogus comments, code duplication that causes behavioral drift, and "
 
 ### 4.9 Time budget and stopping condition
 
-For the **security/correctness sweep (§4.4)** you are NOT expected to find every possible bug — only the high-leverage ones. Stop when:
+The default standard is the most exhaustive correct audit achievable by static review: find every bug the deployed surface can yield, not a high-leverage subset. There is no finding-count cap and no count-based stopping target. "No shortcuts" is the baseline, not something a prompt has to request.
+
+The sweep is not done when the steps are run; it is done when the surface is exhausted. Exhaustion means: (a) every deployed controller, service, middleware, adapter, shared lib, and template appears in the coverage ledger marked read; (b) every §4.4 / §4.4B bug class has been applied to every surface it can touch; (c) the surface has been re-swept until two consecutive passes surface no new candidate; and (d) a completeness critic has asked "what class, surface, actor, or success criterion did this pass not touch?" and that list is empty or itself swept.
+
+The checklist below is a minimum coverage floor, necessary but never sufficient; completing it does not end the sweep, only the exhaustion conditions above do. Minimum floor:
 
 - You have rebuilt the deployed surface and completed the scratch deployed-story traceability pass.
 - You have audited the deployed-US controllers (including `freestyleController`) + their services + the shared middleware + the 8 adapters + the shared lib helpers.
@@ -881,7 +891,7 @@ For the **security/correctness sweep (§4.4)** you are NOT expected to find ever
 - You have spot-verified 3+ catastrophic/high findings.
 - The findings file is complete and self-checked per §4.7.
 
-**Quality-over-quantity governs the §4.4 security sweep only**: if its catastrophic/high/medium count climbs past ~30, re-read §4.8 and check whether you are inflating low-value items. The **§4.4B design/hygiene sweep is meant to be exhaustive within its lower-severity band** — report every real divergence you find; those findings live in the `BUGS.md` design-divergence group and are not counted against the security-sweep budget. Calibrate by severity, not by total count.
+Calibrate by severity, never by count. The §4.4B design/hygiene sweep is likewise exhaustive within its lower-severity band: report every real divergence you find; those findings live in the `BUGS.md` design-divergence group and are not counted against any budget. A finding total climbing high is not a trim signal; re-verify each entry and keep every real one. §4.8 calibrates false positives; it never licenses dropping a verified bug.
 
 If you find zero catastrophic findings and fewer than 3 high findings, double-check that you actually swept §4.4.4-§4.4.7 (auth gates, anti-enumeration, CSRF). A zero-catastrophic result is possible if §3 already caught everything, but improbable; spot-verify against the deployed surface before concluding.
 
