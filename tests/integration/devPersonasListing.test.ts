@@ -72,13 +72,34 @@ describe('GET /dev/personas (staging boot)', () => {
     }
   });
 
-  it('shows tier, role, and coverage for a representative persona', async () => {
+  it('shows a shaped tier label, the role, purpose, and coverage for a representative persona', async () => {
     const res = await request(createApp()).get('/dev/personas');
     const admin = CANONICAL_PERSONAS.find((p) => p.isAdmin);
     expect(admin, 'catalog should include at least one admin persona').toBeDefined();
-    expect(res.text).toContain(admin!.tier);
+    // Tier renders as a shaped label, not the raw domain code in the tier cell.
+    expect(res.text).toContain('Tier 2');
     expect(res.text).toContain('admin');
-    // A coverage note from the first persona renders in its row.
+    // The persona's purpose (its why) and a coverage note both render.
+    expect(res.text).toContain(admin!.purpose);
     expect(res.text).toContain(CANONICAL_PERSONAS[0].coverageNotes[0]);
+  });
+
+  it('renders an authorization role beyond admin/member (club leader reads as a leader)', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    const leader = CANONICAL_PERSONAS.find((p) => p.club?.leader || p.club?.role);
+    expect(leader, 'catalog should include at least one club-leader persona').toBeDefined();
+    expect(res.text).toContain('club leader');
+  });
+
+  it('groups personas under their authorization-axis headings', async () => {
+    const res = await request(createApp()).get('/dev/personas');
+    const dimensions = new Set(
+      CANONICAL_PERSONAS.map((p) => p.dimension).filter((d): d is string => Boolean(d)),
+    );
+    expect(dimensions.size).toBeGreaterThan(1);
+    for (const dimension of dimensions) {
+      // Handlebars HTML-escapes '&' in headings to '&amp;'.
+      expect(res.text).toContain(dimension.replace(/&/g, '&amp;'));
+    }
   });
 });

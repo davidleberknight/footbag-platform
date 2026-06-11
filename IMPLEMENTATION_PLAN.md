@@ -10,41 +10,27 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-### Dev/staging admin bootstrap rides registration
+### Club classification overrides ride the pipeline CSV pre-go-live
 
-`identityAccessService.registerMember` calls `applyDevStagingBootstrapAdmin`
-(the operator-supplied email allowlist) so dev and staging get admin accounts
-without manual SQL. Canonical design has exactly one admin-creation path: the
-single-shot SSM-token claim at `/admin/bootstrap-claim`. The allowlist and
-every related shortcut are tagged `CUTOVER-REMOVE` in code, and the removal
-procedure in `src/dev-bootstrap/README.md` deletes them at production
-go-live. Until then, production safety rests on the env-config fail-fast
-guards plus the production image build stripping `dist/dev-bootstrap/`.
+Until go-live, club force-keep / force-junk classification overrides are
+hand-edited rows in `legacy_data/overrides/club_classification_overrides.csv`
+(`club_key,name,force_category,reason`), because pipeline reloads rebuild the
+DB from the CSVs and the override must survive each reload. After go-live,
+reloads stop, the production DB owns club truth, and the admin queue actions
+(USER_STORIES `A_Periodic_Club_Cleanup`, MIGRATION_PLAN §10.4) become the
+override path. Delete this entry when those queue actions ship.
 
-### Force-keep / force-junk requests deferred to live operation
+### Persona harness: classes blocked on unbuilt features
 
-Classification overrides are hand-edited rows in
-`legacy_data/overrides/club_classification_overrides.csv`
-(`club_key,name,force_category,reason`; any of the four §10.1 categories),
-the same pattern as every other override CSV. Cases are few; the six
-curator-review clubs are seeded. The platform is not in the loop: no
-export, merge, or bridge tooling exists or should be built. The
-A_Periodic_Club_Cleanup story's "force-keep or force-junk request: apply,
-modify, or reject" queue item is live-operation work: build it only after
-go-live, when pipeline reloads have stopped and the production DB owns club
-truth. Until then the queue's existing junk actions (confirm junk, promote
-to dormant) cover rescue needs.
+`src/testkit/canonicalPersonas.ts` seeds a persona for every §4.6 class whose code
+path has landed. The classes still unseeded are blocked on features that do not yet
+exist, not on the harness:
 
-### Persona harness completion (platform-src)
+- event organizer / co-organizer — `event_organizers` exists, no organizer-gated edit routes do.
+- group owner / co-owner / member — designed in USER_STORIES §3.10 and §6, no schema or routes yet.
+- vote-eligibility by inclusion list — no voting routes or eligibility code yet.
+- the claimed-legacy banned subject — `legacy_members` has no banned column yet.
 
-The route-by-persona authorization matrix and the automated persona-driven test scripts depend on
-a complete actor catalog, but the `/dev/personas` catalog (`src/testkit/canonicalPersonas.ts`)
-instantiates only a subset of the persona suite derived in `docs/TESTING.md` §4.6. Extend
-`PersonaSpec` (`src/testkit/personaFactory.ts`) with the missing optional fields, add the matching
-row builders in `src/testkit/personaRowBuilders.ts`, and add one seedable persona per missing class
-in `canonicalPersonas.ts` with coverage notes. Missing classes: resource-scoped roles (event
-organizer and co-organizer, club co-leader, country leader, group owner / co-owner, group member),
-a switchable curator identity, the honors (HoF / BAP / Board), vote-eligibility by inclusion list,
-the legacy no-match auto-link outcome, the claimed-legacy `legacy_is_admin=1` non-inheritance
-subject, the registered-unverified state, deceased, and deletion-grace-period. The target is the
-§4.6 taxonomy; close this when every class it derives has a catalog entry.
+Add each persona (plus its adjacent-owner negative where the route is ownership-scoped)
+in the change that lands its feature. The system / internal-caller actor is not a catalog
+persona: it is exercised by the secret-gated `/ipc` request, not a `/dev/switch` session.

@@ -42,6 +42,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   insertClub,
+  insertClubLeader,
   insertMemberClubAffiliation,
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
@@ -144,6 +145,12 @@ export interface PersonaLegacySpec {
    * tests/fixtures/autoLinkScenarios.ts.
    */
   autoLinkConfidence?: PersonaAutoLinkConfidence;
+  /**
+   * Sets legacy_members.legacy_is_admin=1 on this persona's legacy row. With
+   * `linked: true` it seeds the claimed-legacy-admin case: the legacy admin flag
+   * must never confer a live admin role, so the member's own is_admin stays 0.
+   */
+  legacyIsAdmin?: boolean;
 }
 
 export interface PersonaClubSpec {
@@ -153,6 +160,12 @@ export interface PersonaClubSpec {
    * plus one leadership signal, so the persona reads as a confirmed club leader.
    */
   leader?: boolean;
+  /**
+   * Writes a live club_leaders row at this role — the table the club-content
+   * authorization gate reads. 'co-leader' edits content but cannot perform the
+   * sole-leader-only actions. Distinct from `leader` (the bootstrap claim).
+   */
+  role?: 'leader' | 'co-leader';
 }
 
 /**
@@ -222,6 +235,34 @@ export interface PersonaSpec {
   /** Required when tier === 'tier3'; the post-governance underlying tier. */
   underlyingTier?: 'tier1' | 'tier2';
   isAdmin?: boolean;
+  /**
+   * Email-verified state. Omitted/true seeds a verified account; false leaves
+   * email_verified_at NULL, the registered-unverified state whose login is
+   * blocked until verification and which the member search excludes.
+   */
+  emailVerified?: boolean;
+  /** Marks the member deceased (login blocked, search-excluded, honors preserved on render). */
+  isDeceased?: boolean;
+  /**
+   * Soft-deletion lifecycle position. 'grace_open' is within the restoration
+   * window (login offers restore); 'grace_elapsed' is past the window, pre-purge
+   * (login permanently rejected). The boundary pair around member_cleanup_grace_days.
+   */
+  deletionState?: 'grace_open' | 'grace_elapsed';
+  /** Standing honors. HoF/BAP are lifetime; Board is the Tier 3 governance flag. */
+  honors?: { hof?: boolean; bap?: boolean; board?: boolean };
+  /**
+   * Authorization axis this persona belongs to, used to group the /dev/personas
+   * catalog so it reads as a coverage matrix.
+   */
+  dimension?: string;
+  /** One sentence: what code path / gate this persona exists to exercise. */
+  purpose?: string;
+  /**
+   * Marks an adjacent-owner / unauthorized actor whose value is the deny half of
+   * the authorization matrix (owns a resource of the same type, but not this one).
+   */
+  negative?: boolean;
   onboardingComplete?: boolean;
   /**
    * Per-task onboarding state (partial / skipped / in-progress). Takes
@@ -303,6 +344,7 @@ export function seedPersona(
       legacy_member_id: legacyMemberId,
       real_name: legacyDisplayName,
       ...(legacyEmail ? { legacy_email: legacyEmail } : {}),
+      ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
     });
     personId = insertHistoricalPerson(db, {
       legacy_member_id: legacyMemberId,
@@ -318,6 +360,31 @@ export function seedPersona(
     }
   }
 
+  // Soft-deletion lifecycle timestamps are relative to the seeding moment so the
+  // restoration window resolves correctly whenever the persona is loaded: an open
+  // grace is restorable on login, an elapsed one is past the window (pre-purge).
+  const deletionFields: {
+    deleted_at?: string;
+    deletion_requested_at?: string;
+    deletion_grace_expires_at?: string;
+  } = {};
+  if (spec.deletionState) {
+    const GRACE_DAYS = 90; // member_cleanup_grace_days default
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    if (spec.deletionState === 'grace_open') {
+      const deletedAt = new Date(now - DAY_MS).toISOString();
+      deletionFields.deleted_at = deletedAt;
+      deletionFields.deletion_requested_at = deletedAt;
+      deletionFields.deletion_grace_expires_at = new Date(now + (GRACE_DAYS - 1) * DAY_MS).toISOString();
+    } else {
+      const deletedAt = new Date(now - (GRACE_DAYS + 30) * DAY_MS).toISOString();
+      deletionFields.deleted_at = deletedAt;
+      deletionFields.deletion_requested_at = deletedAt;
+      deletionFields.deletion_grace_expires_at = new Date(now - 30 * DAY_MS).toISOString();
+    }
+  }
+
   insertMember(db, {
     id: memberId,
     slug: spec.slug,
@@ -325,6 +392,12 @@ export function seedPersona(
     real_name: memberRealName,
     display_name: spec.displayName,
     is_admin: isAdmin as 0 | 1,
+    ...(spec.emailVerified === false ? { email_verified_at: null } : {}),
+    ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: '2025-06-01T00:00:00.000Z' } : {}),
+    ...(spec.honors?.hof ? { is_hof: 1 as const } : {}),
+    ...(spec.honors?.bap ? { is_bap: 1 as const } : {}),
+    ...(spec.honors?.board ? { is_board: 1 as const } : {}),
+    ...deletionFields,
     ...(opts.passwordHash ? { password_hash: opts.passwordHash } : {}),
     ...(spec.legacy?.linked ? { legacy_member_id: legacyMemberId } : {}),
   });
@@ -336,6 +409,7 @@ export function seedPersona(
       legacy_member_id: legacyMemberId!,
       real_name: legacyDisplayName,
       ...(spec.legacy.legacyEmail ? { legacy_email: spec.legacy.legacyEmail } : {}),
+      ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
       claimed_by_member_id: memberId,
       claimed_at: '2025-01-01T00:00:00.000Z',
     });
@@ -426,6 +500,9 @@ export function seedPersona(
         signal_type: 'listed_contact',
         is_present: 1,
       });
+    }
+    if (spec.club.role) {
+      insertClubLeader(db, { club_id: clubId, member_id: memberId, role: spec.club.role });
     }
   }
 

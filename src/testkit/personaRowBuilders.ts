@@ -44,10 +44,16 @@ export interface MemberOverrides {
   email_verified_at?: string | null;
   is_admin?: 0 | 1;
   is_system?: 0 | 1;
+  is_board?: 0 | 1;
   is_hof?: 0 | 1;
+  hof_inducted_year?: number | null;
   is_bap?: 0 | 1;
   is_deceased?: 0 | 1;
+  deceased_at?: string | null;
+  deceased_note?: string | null;
   deleted_at?: string | null;
+  deletion_requested_at?: string | null;
+  deletion_grace_expires_at?: string | null;
   personal_data_purged_at?: string | null;
   show_competitive_results?: 0 | 1;
   show_first_competition_year?: 0 | 1;
@@ -89,21 +95,21 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       password_hash, password_changed_at, password_version,
       real_name, display_name, display_name_normalized,
       bio, city, country,
-      is_admin, is_system, is_hof, is_bap, is_deceased,
+      is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, is_deceased, deceased_at, deceased_note,
       searchable,
-      deleted_at, personal_data_purged_at,
+      deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
       show_competitive_results, show_first_competition_year, legacy_member_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
     passwordHash, passwordChanged, o.password_version ?? 1,
     name, display, display.toLowerCase(),
     o.bio ?? '', o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),
-    o.is_admin ?? 0, o.is_system ?? 0, o.is_hof ?? 0, o.is_bap ?? 0, o.is_deceased ?? 0,
+    o.is_admin ?? 0, o.is_system ?? 0, o.is_board ?? 0, o.is_hof ?? 0, o.hof_inducted_year ?? null, o.is_bap ?? 0, o.is_deceased ?? 0, o.deceased_at ?? null, o.deceased_note ?? null,
     o.searchable ?? 1,
-    o.deleted_at ?? null, purged,
+    o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
     o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.legacy_member_id ?? null, o.first_competition_year ?? null,
     TS, SYS, TS, SYS,
   );
@@ -411,6 +417,33 @@ export function insertClubBootstrapLeaderSignal(
     o.is_present,
     o.source ?? 'test_fixture',
   );
+  return id;
+}
+
+// ── Club leader (live leadership row) ─────────────────────────────────────────
+//
+// The club_leaders table is what the club-content authorization gate reads: a
+// confirmed live leader, distinct from the migration-time club_bootstrap_leaders
+// claim. role defaults to 'leader'; 'co-leader' holds identical content-edit
+// rights but cannot perform the sole-leader-only actions (e.g. stepping down as
+// the only leader). Two leaders of different clubs is the adjacent-owner shape
+// that catches club-scoped authorization that checks only "any leadership row".
+
+export interface ClubLeaderOverrides {
+  id?: string;
+  club_id: string;   // required — FK to clubs(id)
+  member_id: string; // required — FK to members(id)
+  role?: 'leader' | 'co-leader';
+}
+
+export function insertClubLeader(db: BetterSqlite3.Database, o: ClubLeaderOverrides): string {
+  const id = o.id ?? `cl-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO club_leaders (
+      id, created_at, created_by, updated_at, updated_by, version,
+      club_id, member_id, role, added_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(id, TS, SYS, TS, SYS, o.club_id, o.member_id, o.role ?? 'leader', TS);
   return id;
 }
 

@@ -2,42 +2,54 @@
   <h1>{{page.title}}</h1>
   <p>
     Permanent persona harness (development and staging only). {{personaCount}} persona{{#unless (eq personaCount 1)}}s{{/unless}}
-    loaded from the canonical catalog and the optional <code>.local/test-personas.json</code> extension.
-    Click Switch to issue a real session cookie and act as that persona.
+    loaded from the canonical catalog and the optional <code>.local/test-personas.json</code> extension,
+    grouped by the authorization axis each one exercises. Click Switch to issue a real session cookie and act as that persona.
   </p>
 
   <form method="post" action="/dev/personas/refresh" class="mb-4">
     <button type="submit" class="btn btn-primary">Refresh all personas to initial state</button>
   </form>
 
-  <table class="dev-persona-list">
-    <thead>
-      <tr>
-        <th>Slug</th>
-        <th>Tier</th>
-        <th>Role</th>
-        <th>Coverage notes</th>
-        <th>Source</th>
-        <th>Act as</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each personas}}
-        <tr>
-          <td><code>{{slug}}</code></td>
-          <td>{{tier}}</td>
-          <td>{{role}}</td>
-          <td>
-            <ul class="dev-persona-coverage">
-              {{#each coverage}}
-                <li>{{this}}</li>
-              {{/each}}
-            </ul>
-          </td>
-          <td>{{source}}</td>
-          <td><a href="{{switchHref}}">Switch</a></td>
-        </tr>
-      {{/each}}
-    </tbody>
-  </table>
+  {{#each groups}}
+    <section class="mb-8">
+      <h2 class="section-heading">{{dimension}}</h2>
+      <table class="dev-persona-list">
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Tier</th>
+            <th>Roles</th>
+            <th>Why this persona exists</th>
+            <th>Coverage notes</th>
+            <th>Source</th>
+            <th>Act as</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each personas}}
+            <tr>
+              <td>
+                <code>{{slug}}</code>
+                {{#if negative}}<span class="badge">deny / adjacent</span>{{/if}}
+              </td>
+              <td>{{tierLabel}}</td>
+              <td>
+                {{#each roles}}<span class="badge">{{this}}</span> {{/each}}
+              </td>
+              <td>{{purpose}}</td>
+              <td>
+                <ul class="dev-persona-coverage">
+                  {{#each coverage}}
+                    <li>{{this}}</li>
+                  {{/each}}
+                </ul>
+              </td>
+              <td>{{source}}</td>
+              <td><a href="{{switchHref}}">Switch</a></td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+  {{/each}}
 </div>

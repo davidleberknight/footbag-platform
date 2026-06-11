@@ -91,6 +91,9 @@ const CLUB_CANDIDATE_RESOLUTIONS = Object.keys({
   rejected: true,
 } satisfies Record<ClubCandidateResolution, true>) as ClubCandidateResolution[];
 
+const DELETION_STATES = ['grace_open', 'grace_elapsed'] as const;
+const CLUB_ROLES = ['leader', 'co-leader'] as const;
+
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   'slug',
   'displayName',
@@ -99,6 +102,13 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'tier',
   'underlyingTier',
   'isAdmin',
+  'emailVerified',
+  'isDeceased',
+  'deletionState',
+  'honors',
+  'dimension',
+  'purpose',
+  'negative',
   'onboardingComplete',
   'onboardingTasks',
   'payments',
@@ -181,6 +191,34 @@ export function validatePersonaSpec(entry: unknown, label: string): PersonaSpec 
   if (e.onboardingComplete !== undefined && typeof e.onboardingComplete !== 'boolean') {
     fail('onboardingComplete must be a boolean when present');
   }
+  if (e.emailVerified !== undefined && typeof e.emailVerified !== 'boolean') {
+    fail('emailVerified must be a boolean when present');
+  }
+  if (e.isDeceased !== undefined && typeof e.isDeceased !== 'boolean') {
+    fail('isDeceased must be a boolean when present');
+  }
+  if (
+    e.deletionState !== undefined &&
+    !DELETION_STATES.includes(e.deletionState as (typeof DELETION_STATES)[number])
+  ) {
+    fail(`deletionState must be one of ${quoteList(DELETION_STATES)} when present`);
+  }
+  if (e.honors !== undefined) {
+    if (!isObject(e.honors)) fail('honors must be an object');
+    for (const [key, val] of Object.entries(e.honors as Record<string, unknown>)) {
+      if (!['hof', 'bap', 'board'].includes(key)) fail(`honors key '${key}' must be one of hof|bap|board`);
+      if (typeof val !== 'boolean') fail(`honors.${key} must be a boolean`);
+    }
+  }
+  if (e.dimension !== undefined && !isNonEmptyString(e.dimension)) {
+    fail('dimension must be a non-empty string when present');
+  }
+  if (e.purpose !== undefined && !isNonEmptyString(e.purpose)) {
+    fail('purpose must be a non-empty string when present');
+  }
+  if (e.negative !== undefined && typeof e.negative !== 'boolean') {
+    fail('negative must be a boolean when present');
+  }
 
   if (e.onboardingTasks !== undefined) {
     if (!isObject(e.onboardingTasks)) fail('onboardingTasks must be an object');
@@ -239,6 +277,9 @@ export function validatePersonaSpec(entry: unknown, label: string): PersonaSpec 
     if (legacy.autoLinkConfidence !== undefined && legacy.linked === true) {
       fail('legacy.autoLinkConfidence requires an unlinked match (omit legacy.linked)');
     }
+    if (legacy.legacyIsAdmin !== undefined && typeof legacy.legacyIsAdmin !== 'boolean') {
+      fail('legacy.legacyIsAdmin must be a boolean when present');
+    }
   }
 
   if (e.club !== undefined) {
@@ -249,6 +290,9 @@ export function validatePersonaSpec(entry: unknown, label: string): PersonaSpec 
     }
     if (club.leader !== undefined && typeof club.leader !== 'boolean') {
       fail('club.leader must be a boolean when present');
+    }
+    if (club.role !== undefined && !CLUB_ROLES.includes(club.role as (typeof CLUB_ROLES)[number])) {
+      fail(`club.role must be one of ${quoteList(CLUB_ROLES)} when present`);
     }
   }
 
