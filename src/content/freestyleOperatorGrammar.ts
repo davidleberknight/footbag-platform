@@ -428,7 +428,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     confidence: 'high',
     decomposesTo: 'spinning + stepping',
     notes:
-      "Red pt2: Surging Modeling Rule. Surging decomposes informally as spinning + stepping but is NOT in the modifier table: it operates as its own primitive at 2 ADD (standalone) and as +1/+2 (modifier).",
+      "Red pt2: Surging Modeling Rule. Surging decomposes informally as spinning + stepping but is NOT in the modifier table. As an operator/set it contributes +2 (spinning + stepping); as a standalone trick it is 3 ADD (surging + toe stall), following the same convention as pixie, fairy, pendulum, and double-fairy when represented as standalone tricks.",
   },
 
   // ── furious ────────────────────────────────────────────────────────

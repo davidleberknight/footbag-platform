@@ -465,7 +465,7 @@ Apply this rule everywhere `surging` appears in a trick name or composition:
 - **Modifier table:** do NOT add a `surging` row to `freestyle_trick_modifiers`. Only `spinning` and `stepping` belong there.
 - **Compound rows:** when a trick is named "Surging X" (e.g. `bigwalk`, `surge`, `surreal`, `surgery`, `venom`), set `modifier_links=spinning|stepping|...` on the compound row. The "surging X" form lives in the `aliases` column.
 - **Description templates:** "Surging-modified {base}" is acceptable prose shorthand, but the structural decomposition (spinning + stepping) must appear in the row's note field for ADD-math validation.
-- **The `surging` row in the dictionary** remains a standalone compound (`spinning + stepping = 2 ADD`, no base trick); it is NOT a modifier. This preserves the named-trick identity while keeping the modifier table strict.
+- **The `surging` row in the dictionary** remains a standalone compound (decomposes to `spinning + stepping`, no base trick); it is NOT a modifier. As a standalone trick it is **3 ADD** (`surging` + toe stall, following the pixie / fairy / pendulum / double-fairy set-standalone convention); its operator/set contribution stays **+2** (spinning + stepping). This preserves the named-trick identity while keeping the modifier table strict.
 
 ---
 
