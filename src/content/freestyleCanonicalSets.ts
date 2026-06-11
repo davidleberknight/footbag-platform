@@ -164,7 +164,35 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
 
 export const CANONICAL_SETS: readonly CanonicalSet[] = [
 
-  // ── True core sets (8) ─────────────────────────────────────────────
+  // ── True core sets (10) ────────────────────────────────────────────
+  {
+    slug: 'toe', hashtag: '#toe-set', displayName: 'Toe Set', subtype: 'true-core',
+    formula: 'TOE >',
+    movementExplanation:
+      'The foundational entry surface: the bag is set up from a toe delay with no added ' +
+      'dexterity. Most uptime sets are this toe set plus a pre-base motion.',
+    equivalenceNotes: [],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'clipper', label: 'Clipper Set (inside-surface entry)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Platform entry-surface reference.',
+  },
+  {
+    slug: 'clipper', hashtag: '#clipper-set', displayName: 'Clipper Set', subtype: 'true-core',
+    formula: 'CLIP >',
+    movementExplanation:
+      'The other foundational entry surface: the bag is set from a clipper (cross-body ' +
+      'inside-surface) delay with no added dexterity. Many cross-body sets start here.',
+    equivalenceNotes: [],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'toe', label: 'Toe Set (toe-surface entry)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Platform entry-surface reference.',
+  },
   {
     slug: 'pixie', hashtag: '#pixie-set', displayName: 'Pixie', subtype: 'true-core',
     formula: 'TOE > SAME IN [DEX] >',
@@ -325,7 +353,24 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'literal-primitive',
   },
 
-  // ── Composite / derived sets (11) ──────────────────────────────────
+  // ── Composite / derived sets (12) ──────────────────────────────────
+  {
+    slug: 'illusioning', hashtag: '#illusioning-set', displayName: 'Illusioning', subtype: 'composite-derived',
+    formula: 'SET > OP OUT [DEX] >',
+    movementExplanation:
+      'A derived entry topology readable as the uptime illusion shape: structurally the ' +
+      'reverse-direction mirror of miraging (an outward dex rather than inward), with the ' +
+      'terminal stall omitted because the set continues into the next move.',
+    equivalenceNotes: [
+      { reading: 'uptime illusion structure', citation: 'Structural reading' },
+    ],
+    derivedSystems: [],
+    relatedSystems: [
+      { slug: 'miraging', label: 'Miraging (inward-dex mirror)' },
+    ],
+    source: 'platform-tracked',
+    sourceCitation: 'Structural pattern; not in the Holden compilation.',
+  },
   {
     slug: 'miraging', hashtag: '#miraging-set', displayName: 'Miraging', subtype: 'composite-derived',
     formula: 'SET > OP IN [DEX] >',

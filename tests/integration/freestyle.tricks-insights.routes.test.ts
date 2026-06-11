@@ -488,9 +488,9 @@ describe('public dictionary presentation', () => {
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/class="browse-view-intro"/);
-    // The intro carries a live documented-trick count, in beginner-facing
-    // wording ("officially documented", not the internal "canonical").
-    expect(res.text).toMatch(/\d+ officially documented tricks to date/);
+    // The intro carries a live documented names + aliases count, in
+    // beginner-facing wording (not the internal "canonical").
+    expect(res.text).toMatch(/[\d,]+ officially documented trick names and aliases/);
     // The retired publication-state expansion note must not return.
     expect(res.text).not.toContain('being expanded and aligned with established freestyle notation');
   });

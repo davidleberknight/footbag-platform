@@ -2433,6 +2433,10 @@ export interface EncyclopediaSetCard {
   compactMovement: string;
   /** Single short line — combines source + audit status into one label. */
   provenanceLine:  string;
+  /** Beginner-safe status pill that keeps internal source names off the card:
+   *  'Under review' (documented disagreement), 'Platform-tracked', or
+   *  'Community-cited' (compilation-only). key is the kebab CSS hook. */
+  statusPill:      { label: string; key: string };
   /** Up to 3 quick-relation tags (derived first, then related). */
   quickRelations:  readonly SlugLinkVM[];
   /** Resolves to /freestyle/sets/<slug>. */
@@ -2710,6 +2714,9 @@ export interface AlternativeSurfaceTrickView {
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
+  // Quick-jump chips for the ADD view (levels 1..6 + a collapsed "7+ ADD"),
+  // each linking to the in-page ADD section anchor. Empty off the ADD view.
+  addJumpChips: { label: string; href: string }[];
   // ?view=dex-count grouped view.
   // Always shaped; UI branch renders only when activeView === 'dex-count'.
   dexCountGroups: FreestyleTrickDexCountGroup[];
@@ -7148,6 +7155,18 @@ export const freestyleService = {
     if (addBuckets.has(null)) {
       addGroups.push(buildGroup(null, 'Unrated / unresolved', addBuckets.get(null) ?? []));
     }
+    // ADD jump-nav chips: levels 1..6 individually, all 7-and-up collapsed into
+    // one "7+ ADD" chip pointing at the first high-ADD section. Each chip jumps
+    // to that ADD section's in-page anchor.
+    const addJumpChips: { label: string; href: string }[] = [];
+    for (let n = 1; n <= 6; n++) {
+      const g = addGroups.find(grp => grp.addNumeric === n);
+      if (g) addJumpChips.push({ label: `${n} ADD`, href: `#${g.anchorId}` });
+    }
+    const firstHighAdd = addGroups
+      .filter(grp => grp.addNumeric != null && (grp.addNumeric as number) >= 7)
+      .sort((a, b) => (a.addNumeric as number) - (b.addNumeric as number))[0];
+    if (firstHighAdd) addJumpChips.push({ label: '7+ ADD', href: `#${firstHighAdd.anchorId}` });
 
     // Trick count drives the totalTricks view-model field (used for
     // view-model completeness; never surfaced as a lead stat).
@@ -7827,6 +7846,7 @@ export const freestyleService = {
       },
       content: {
         addGroups,
+        addJumpChips,
         dexCountGroups,
         setsBrowseView,
         activeView,
@@ -7875,7 +7895,11 @@ export const freestyleService = {
           ],
         },
         dictionaryIntro:
-          `${canonicalCount} officially documented tricks to date. The dictionary lets you ` +
+          `${fmtCount(OBSERVATIONAL_UNIVERSE_STATS.universeTotal)} officially documented trick names and aliases. ` +
+          `${canonicalCount} first-class tricks are fully covered in this dictionary. ` +
+          'The remaining documented names live in Emerging Vocabulary: observed, historical, alias, ' +
+          'source-variant, or not-yet-promoted entries that are tracked but not yet treated as full ' +
+          'dictionary pages. The dictionary lets you ' +
           'understand freestyle through three lenses: difficulty (how layered is a trick), ' +
           'structure (what kind of trick is it), and tracking & expansion (what\'s tracked ' +
           'beyond the documented set). Pick a lens below.',
@@ -8777,6 +8801,20 @@ export const freestyleService = {
         }));
     };
 
+    // Public status pill: keeps internal source names off the card. A
+    // documented disagreement (partial / conflict audit) reads "Under review";
+    // canonical and platform-tracked sets read "Platform-tracked"; remaining
+    // compilation-only sets read "Community-cited".
+    const deriveStatusPill = (s: typeof CANONICAL_SETS[number]): { label: string; key: string } => {
+      if (s.auditStatus === 'conflict' || s.auditStatus === 'partial') {
+        return { label: 'Under review', key: 'under-review' };
+      }
+      if (s.source === 'canonical' || s.source === 'platform-tracked') {
+        return { label: 'Platform-tracked', key: 'platform-tracked' };
+      }
+      return { label: 'Community-cited', key: 'community-cited' };
+    };
+
     const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => {
       const role = deriveCardRole(s);
       const flagshipTitle = FLAGSHIP_SET_TOOLTIPS[s.slug];
@@ -8787,6 +8825,7 @@ export const freestyleService = {
         formula:         s.formula,
         compactMovement: compactFirstSentence(s.movementExplanation),
         provenanceLine:  buildProvenanceLine(s),
+        statusPill:      deriveStatusPill(s),
         quickRelations:  shapeQuickRelations(s),
         detailHref:      `/freestyle/sets/${s.slug}`,
         roleKey:         role.roleKey,

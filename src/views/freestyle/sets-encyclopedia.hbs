@@ -27,7 +27,6 @@
       <li><a href="{{content.crossLinks.dictionaryBysetHref}}">{{content.crossLinks.dictionaryBysetLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(which tricks use this set?)</span></li>
       <li><a href="{{content.crossLinks.compositionalHubHref}}">{{content.crossLinks.compositionalHubLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(how do sets relate as families?)</span></li>
       <li><a href="{{content.crossLinks.operatorsPageHref}}">{{content.crossLinks.operatorsPageLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(what transformations act on tricks?)</span></li>
-      <li><a href="{{content.crossLinks.flatReferenceHref}}">{{content.crossLinks.flatReferenceLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(Holden's flat list, no commentary.)</span></li>
     </ul>
   </nav>
 
@@ -66,7 +65,7 @@
         </header>
         <code class="sets-encyclopedia-card-formula">{{formula}}</code>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
-        <p class="sets-encyclopedia-card-provenance">{{provenanceLine}}</p>
+        <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
         {{#if quickRelations.length}}
         <p class="sets-encyclopedia-card-relations-row">
           <span class="sets-encyclopedia-card-relations-label">Derived:</span>

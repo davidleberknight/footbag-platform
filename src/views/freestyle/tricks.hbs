@@ -154,6 +154,14 @@
        JOB: + ADD:. No green ADD chip (the value is in the section header
        + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
+  {{#if content.addJumpChips.length}}
+  <nav class="add-jump" aria-label="Jump to ADD level">
+    <span class="add-jump-label">Jump to:</span>
+    {{#each content.addJumpChips}}
+      <a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+  {{/if}}
   {{#each content.addGroups}}
   <section class="content-section trick-add-group" id="{{anchorId}}">
     <div class="section-heading">

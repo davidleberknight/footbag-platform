@@ -93,11 +93,21 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   it('opens with the plain movement-first dictionary intro + glossary link', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="browse-view-intro"');
-    // The intro carries a live count of documented tricks, in beginner-facing
-    // wording ("officially documented", not the internal "canonical").
-    expect(res.text).toMatch(/\d+ officially documented tricks to date/);
+    // The intro carries a live count of documented names + aliases and the
+    // first-class subset, in beginner-facing wording (not the internal
+    // "canonical").
+    expect(res.text).toMatch(/[\d,]+ officially documented trick names and aliases/);
+    expect(res.text).toMatch(/\d+ first-class tricks are fully covered/);
     expect(res.text).toContain('class="dictionary-intro-glossary-link"');
     expect(res.text).toContain('href="/freestyle/glossary"');
+  });
+
+  it('renders ADD jump-nav chips that link to the in-page ADD section anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toContain('class="add-jump"');
+    // Each chip jumps to its ADD section (e.g. <a href="#add-2">2 ADD</a>),
+    // the same affordance as the old per-level move list.
+    expect(res.text).toMatch(/<a href="#add-\d+">\d+ ADD<\/a>/);
   });
 
   it('does not render the coverage / governance block', async () => {

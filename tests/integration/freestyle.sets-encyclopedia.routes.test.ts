@@ -86,18 +86,27 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
     },
   );
 
-  it('every set card has a compact-movement sentence + provenance line + formula block', async () => {
+  it('every set card has a compact-movement sentence + status pill + formula block', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     // Count cards by counting card detail-link occurrences (one per card)
     const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
     const movementMatches   = res.text.match(/sets-encyclopedia-card-movement/g) ?? [];
-    const provenanceMatches = res.text.match(/sets-encyclopedia-card-provenance/g) ?? [];
+    const statusMatches     = res.text.match(/sets-encyclopedia-card-status /g) ?? [];
     const formulaMatches    = res.text.match(/sets-encyclopedia-card-formula/g) ?? [];
-    // All four counts equal — every card has every required field.
+    // All four counts equal — every card has every required field. The status
+    // pill replaces the former source-naming provenance line.
     expect(detailLinkMatches.length).toBeGreaterThan(0);
     expect(movementMatches.length).toBe(detailLinkMatches.length);
-    expect(provenanceMatches.length).toBe(detailLinkMatches.length);
+    expect(statusMatches.length).toBe(detailLinkMatches.length);
     expect(formulaMatches.length).toBe(detailLinkMatches.length);
+  });
+
+  it('status pills use beginner-safe labels and never expose internal source names', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toMatch(/sets-encyclopedia-card-status--(platform-tracked|community-cited|under-review)/);
+    // Internal source-name provenance phrasing is gone from the cards.
+    expect(res.text).not.toContain('Holden aligned');
+    expect(res.text).not.toContain('Holden partial');
   });
 
   it('cards do NOT carry the verbose Set Hub fields (equivalences, source/audit footer with citation, alt-surfaces cross-link)', async () => {
@@ -113,7 +122,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
 });
 
 describe('GET /freestyle/sets — cross-navigation', () => {
-  it('renders the four cross-nav links disambiguating from sibling surfaces', async () => {
+  it('renders the three cross-nav links disambiguating from sibling surfaces', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.text).toContain('class="sets-encyclopedia-cross-nav"');
     // `=` is HTML-escaped to `&#x3D;` in Handlebars output. Match the
@@ -121,7 +130,9 @@ describe('GET /freestyle/sets — cross-navigation', () => {
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view/);
     expect(res.text).toMatch(/href="\/freestyle\/compositional-sets"/);
     expect(res.text).toMatch(/href="\/freestyle\/operators"/);
-    expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"/);
+    // The flat Holden reference link is intentionally not surfaced here
+    // (no source-person naming on the public related-surfaces list).
+    expect(res.text).not.toMatch(/href="\/freestyle\/sets\/reference"/);
   });
 
   it('each cross-nav link carries the disambiguating question phrasing', async () => {

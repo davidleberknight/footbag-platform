@@ -128,14 +128,16 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toContain('No canonical tricks currently link this set');
   });
 
-  it('renders cross-links to set hub, compositional hub, movement-system axis, and flat reference', async () => {
+  it('renders cross-links to set hub, compositional hub, and movement-system axis', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     // Handlebars HTML-encodes `=` in interpolated href values (?view=sets → ?view&#x3D;sets);
     // browsers decode entities in href values so the link works. Match either form.
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view(?:=|&#x3D;)sets"/);
     expect(res.text).toContain('href="/freestyle/compositional-sets#single-dex-primitives"');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view(?:=|&#x3D;)movement-system#movement-axis-set-uptime"/);
-    expect(res.text).toContain('href="/freestyle/sets/reference"');
+    // The flat Holden reference table link is intentionally not surfaced
+    // (no source-person naming on the public related-surfaces list).
+    expect(res.text).not.toContain('href="/freestyle/sets/reference"');
   });
 
   it('renders the operator-reference cross-link for sets with a registered modifier', async () => {
@@ -167,16 +169,16 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 // ─────────────────────────────────────────────────────────────────────────
 //
 // True-core subtype declaration order in CANONICAL_SETS:
-//   pixie → fairy → stepping → quantum → atomic → bubba → slapping → tapping
-// First (pixie): no prev, next = fairy
+//   toe → clipper → pixie → fairy → stepping → quantum → atomic → bubba → slapping → tapping
+// First (toe): no prev, next = clipper
 // Middle (stepping): prev = fairy, next = quantum
 // Last (tapping): prev = slapping, no next
 
 describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
-  it('first-in-subtype (pixie): renders next=fairy, no previous', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+  it('first-in-subtype (toe): renders next=clipper, no previous', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/toe');
     expect(res.text).toContain('class="set-detail-sibling-nav"');
-    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/fairy">/);
+    expect(res.text).toMatch(/<a class="set-detail-sibling-nav-next" href="\/freestyle\/sets\/clipper">/);
     expect(res.text).not.toMatch(/<a class="set-detail-sibling-nav-prev"/);
   });
 
