@@ -103,7 +103,10 @@ describe('GET /freestyle/observational — governance surface', () => {
     const html = await page();
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
-    expect(html).toContain('Blurry / Furious');
+    // Blocker-precise clusters: blurry is split from furious (furious is resolved
+    // and no longer a blocker), and DOD/DDD is its own card.
+    expect(html).toContain('Blurry transitivity');
+    expect(html).toContain('DOD / DDD policy');
   });
 
   it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {

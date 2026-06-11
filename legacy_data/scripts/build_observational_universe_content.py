@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sqlite3
 from collections import Counter
 from datetime import date
@@ -49,12 +50,11 @@ RED_ADD_CSV = REPO / "legacy_data/inputs/curated/tricks/red_additions_2026_04_20
 # Live platform DB: authoritative canonical/alias gate (see build_tracked_names_content.py).
 DB = REPO / "database/footbag.db"
 
-DOCTRINE_CLUSTERS = {"blurry/furious", "weaving", "pogo", "shooting"}
-# Doctrine clusters whose STRUCTURE is known (blocked only on an ADD / classification
-# ruling, not on the movement reading) — these are promotion-frontier eligible. The
-# remaining doctrine clusters are structural-reading questions → lexical archive.
-# (Curator-set line, 2026-05-28; reversible — edit this set to retune the frontier.)
-COHERENT_DOCTRINE_CLUSTERS = {"blurry/furious", "symposium/paradox"}
+# Doctrine-blocked clusters whose STRUCTURE is known (blocked only on an ADD /
+# policy ruling, not on the movement reading) — promotion-frontier eligible. The
+# remaining clusters are undefined-operator / structural-reading questions →
+# lexical archive. (Curator-set; reversible — edit this set to retune the frontier.)
+COHERENT_DOCTRINE_CLUSTERS = {"blurry", "dod-ddd"}
 # Three-layer ontology: frontier buckets are promotable candidate structures; archive
 # buckets are lexical history (never counted as candidate tricks).
 FRONTIER_BUCKETS = {"promotion_ready", "doctrine_pending", "unresolved_candidate"}
@@ -66,12 +66,40 @@ INTAKE_BUCKETS = [
 # Public-facing (renders on /freestyle/observational): no individual names, no
 # internal ruling identifiers (per the no-individual-names-on-freestyle-views rule).
 BLOCKING_QUESTION = {
-    "blurry/furious": "Does blurry / furious carry +2 on rotational bases? (open ruling)",
-    "weaving": "Weaving movement structure unruled.",
-    "pogo": "Pogo structural / ADD reading unruled.",
-    "shooting": "Shooting structural reading unruled.",
-    "other": "Ruling pending.",
+    "blurry":   "Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling)",
+    "dod-ddd":  "How do Double-Down and Double-Over-Down terminals score? (policy unruled)",
+    "pogo":     "How does the zero-ADD pogo set compose onto a base? (unruled)",
+    "weaving":  "Weaving is an undefined folk operator; movement structure unruled.",
+    "shooting": "Shooting is an undefined folk operator; structural reading unruled.",
+    "other":    "Operator weight or definition pending (fairy / pixie weight; folk operators).",
 }
+
+
+# Unresolved doctrine blocker for a row name, highest-priority first. The shipped
+# operators (illusioning / furious / nuclear / quantum / symposium / paradox /
+# barraging, plus miraging / spinning / ducking / stepping / tapping / whirling /
+# swirling / gyro / diving) are resolved and never block on their own. Returns a
+# cluster key, or None when the row carries only resolved operators — those route
+# out of doctrine into the needs-authoring frontier.
+def doctrine_blocker(name: str) -> str | None:
+    n = " " + name.lower() + " "
+    if re.search(r"double (over )?down|double-down|\bdod\b|\bddd\b", n):
+        return "dod-ddd"
+    if "blurr" in n or "blizzard" in n:
+        return "blurry"
+    if "pogo" in n:
+        return "pogo"
+    if "weaving" in n:
+        return "weaving"
+    if "shooting" in n:
+        return "shooting"
+    if re.search(r"\bfairy\b|\bpixie\b", n):
+        return "other"
+    for folk in ("splicing", "floating", "warping", "flailing", "surfing",
+                 "railing", "slapping", "frantic", "rooting", "sailing", "alpine", "zulu"):
+        if folk in n:
+            return "other"
+    return None
 # corpus → short source badge (reuses the template's PB/FM/SG/FB chip vocab)
 SOURCE_BADGE = {
     "stanford": "SG", "passback": "PB", "footbagmoves": "FM",
@@ -139,12 +167,19 @@ def main() -> None:
         fc = r["failure_class"]
         eco = r["ecosystem"]
         if db == "doctrine-sensitive":
-            section = "doctrine"
-            cluster = eco if eco in DOCTRINE_CLUSTERS else "other"
-            # structurally-coherent doctrine clusters (known structure, blocked only
-            # on an ADD / classification ruling) are promotion-frontier; the rest are
-            # structural-reading questions → lexical archive.
-            intake = "doctrine_pending" if eco in COHERENT_DOCTRINE_CLUSTERS else "doctrine_unresolved"
+            blocker = doctrine_blocker(r["name"])
+            if blocker is None:
+                # Resolved-only: every operator is shipped doctrine, so this is not a
+                # doctrine question — it is structurally understood and awaiting
+                # notation authoring. Route to the needs-authoring frontier.
+                section, cluster = "frontier", ""
+                intake = "unresolved_candidate"
+            else:
+                section = "doctrine"
+                cluster = blocker
+                # Structure-known clusters (blurry / DOD-DDD) are promotion-frontier;
+                # undefined-operator clusters are lexical archive.
+                intake = "doctrine_pending" if blocker in COHERENT_DOCTRINE_CLUSTERS else "doctrine_unresolved"
         elif db == "alias-collapse":
             # Collapses to an existing canonical: lexical archive, never a candidate.
             section, cluster = "folk", ""

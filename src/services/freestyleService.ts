@@ -3339,8 +3339,10 @@ const OBSERVED_ECOSYSTEM_LABELS: Record<string, string> = {
   'pixie': 'Pixie', 'fairy': 'Fairy', 'stepping': 'Stepping', 'quantum': 'Quantum',
   'atomic': 'Atomic', 'ducking': 'Ducking', 'spinning/gyro': 'Spinning / Gyro',
   'symposium/paradox': 'Symposium / Paradox', 'whirl/osis/other': 'Whirl / Osis',
-  'blurry/furious': 'Blurry / Furious', 'weaving': 'Weaving', 'pogo': 'Pogo',
-  'shooting': 'Shooting', 'other': 'Other', '(unclassified)': 'Other compounds',
+  'blurry/furious': 'Blurry / Furious',
+  'blurry': 'Blurry transitivity', 'dod-ddd': 'DOD / DDD policy',
+  'pogo': 'Pogo composition', 'weaving': 'Weaving operator', 'shooting': 'Shooting operator',
+  'other': 'Other', '(unclassified)': 'Other compounds',
 };
 
 function observedSourceLabel(badge: string): string {
@@ -8254,7 +8256,7 @@ export const freestyleService = {
     // Section C — doctrine bottleneck clusters.
     const doctrineRows = inSection('doctrine');
     const doctrineClusters: ObservationalDoctrineCluster[] =
-      ['blurry/furious', 'weaving', 'pogo', 'shooting', 'other']
+      ['blurry', 'dod-ddd', 'pogo', 'weaving', 'shooting', 'other']
         .map(key => {
           const rows = doctrineRows.filter(r => r.cluster === key);
           return {
