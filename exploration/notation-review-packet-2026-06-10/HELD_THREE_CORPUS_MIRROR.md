@@ -105,11 +105,18 @@ not affect ADD.
 
 ## Summary
 
-| held row | nearest canonical (verbatim skeleton) | single transform | transform attested by | residual call |
-|---|---|---|---|---|
-| big-apple-sauce (8) | spinning-miraging-symposium-torque (7) | +[PDX] on sympo event | spinning-paradox-symposium-whirl; ducking-paradox-symposium-{mirage,whirl} | miraging-inject + paradox-merge co-occur (sum of two attested ops) |
-| swirlwind (7) | spinning-symposium-whirling-swirl (6) | +[PDX] on sympo event | spinning-paradox-symposium-whirl; ducking-paradox-symposium-whirl | none of note (cleanest) |
-| surging-ducking-paradox-torque (8) | ducking-paradox-torque (6) | +surging prefix (spin+step) | spinning-ducking-paradox-blender; ratified surging standalone | stepping-dex insertion point within surging prefix |
+| held row | nearest canonical (verbatim skeleton) | single transform | transform attested by | residual call | PDX placement exact? | full ordering exact in one canonical? | verdict |
+|---|---|---|---|---|---|---|---|
+| big-apple-sauce (8) | spinning-miraging-symposium-torque (7) | +[PDX] on sympo event | spinning-paradox-symposium-whirl; ducking-paradox-symposium-{mirage,whirl} | miraging-inject + paradox-merge co-occur (sum of two attested ops) | yes | **no** — miraging + paradox never co-occur in any canonical (0 rows) | HOLD (composition row) |
+| swirlwind (7) | spinning-symposium-whirling-swirl (6) | +[PDX] on sympo event | spinning-paradox-symposium-whirl; ducking-paradox-symposium-whirl | none of note (cleanest) | yes | **yes (base-swap only)** — spinning-paradox-symposium-whirl shows identical ordering + PDX placement; only base differs (whirl→whirling-swirl, the extra swirl dex attested by spinning-symposium-whirling-swirl) | APPROVED + backfilled |
+| surging-ducking-paradox-torque (8) | ducking-paradox-torque (6) | +surging prefix (spin+step) | spinning-ducking-paradox-blender; ratified surging standalone | stepping-dex insertion point within surging prefix | yes | **no** — no canonical stacks spinning + stepping + ducking; spin>step>duck triple-prefix unattested | HOLD (composition row) |
+
+## Decision
+
+- **swirlwind — APPROVED, backfilled.** Satisfies the exact-exemplar standard: `spinning-paradox-symposium-whirl` demonstrates the identical operator ordering AND PDX placement, with only a base swap (whirl → whirling-swirl) whose appended swirl dex is itself attested by `spinning-symposium-whirling-swirl`. A mechanical notation backfill, not a curator judgment.
+- **big-apple-sauce, surging-ducking-paradox-torque — CONTINUE TO HOLD.** Each requires composing two exact exemplars across a co-occurrence that no single canonical demonstrates (miraging+paradox; spinning+stepping+ducking). These are curator-judgment rows, not mechanical backfills, and stay held for a curator/Red ruling on the unattested ordering element.
+
+**PDX-placement note:** all three have their `[PDX]` in a position exactly attested by existing canonicals (merged-symposium `OP IN [PDX] [BOD] [DEX]` for the first two; base-dex `OP IN [PDX] [DEX]` for the third). The hold on two of them is purely about the unattested *operator ordering*, never the PDX placement.
 
 **Conclusion:** all three are exemplar-derived. Each target equals a verbatim corpus skeleton plus
 one transformation that is itself quoted from existing canonicals. The two genuinely novel residuals
