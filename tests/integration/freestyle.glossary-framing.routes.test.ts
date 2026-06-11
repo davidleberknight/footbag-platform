@@ -430,6 +430,14 @@ describe('Glossary edge-case classification notes', () => {
     expect(html).toContain('Swirl behaves differently from most dex families');
     expect(html).toContain('no recognized kick variant');
   });
+
+  it('gathers the exceptions under one "Edge cases and special structures" heading', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="edge-cases-special-structures"');
+    expect(html).toContain('Swing-element tricks');
+    // the terminate-in-contact rule keeps a pointer to the consolidated section
+    expect(html).toContain('href="#edge-cases-special-structures"');
+  });
 });
 
 describe('Glossary foundational frame — Tricks / Sets / Modifiers + register notes', () => {
