@@ -1,0 +1,715 @@
+slug,adds,verdict,has_intuition,fborg_has_prose,current_description_excerpt,priority
+atomic-butterfly,4,THEIRS-STRONGER,no,yes,Atomic-modified butterfly.,2
+barfly,4,THEIRS-STRONGER,no,yes,Double infinity.,2
+bigwalk,5,THEIRS-STRONGER,no,yes,Surging-modified butterfly.,2
+bubba,2,fborg-name-only (no prose),no,no,Clipper-entry illusion.,2
+double-leg-over,3,THEIRS-STRONGER,no,yes,Mirage-modified legover.,2
+double-over-down,4,THEIRS-STRONGER,no,yes,"Doubled out-to-in dex from a toe set, ending in opposite-leg",2
+double-over-down-swirl,5,THEIRS-STRONGER,no,yes,Double-over-down chassis ending in an opposite-leg back swir,2
+double-spinning-osis,5,THEIRS-STRONGER,no,yes,Double-spinning compound on osis base. 5 ADD = double-spinni,2
+down-diver,5,THEIRS-STRONGER,no,yes,Diving body modifier on double-over-down chassis. 5 ADD = di,2
+down-double-down,4,THEIRS-STRONGER,no,yes,Two out-to-in dexterities between two same-side clipper dela,2
+dragon,2,fborg-name-only (no prose),no,no,Cross-body outside delay (fborg-2add): the outside-surface a,2
+dragonfly-kick,2,fborg-name-only (no prose),no,no,Body kick.,2
+ducking-butterfly,4,THEIRS-STRONGER,no,yes,Ducking-modified butterfly.,2
+ducking-osis,4,THEIRS-STRONGER,no,yes,Ducking-modified osis.,2
+dyno,4,THEIRS-STRONGER,no,yes,Compound trick.,2
+eggbeater,3,THEIRS-STRONGER,no,yes,Illusion-modified legover.,2
+fairy-clipper,3,THEIRS-STRONGER,no,yes,Fairy-modified clipper.,2
+flying-inside,1,fborg-name-only (no prose),no,no,Inside-leg jumping motion.,2
+flying-outside,1,fborg-name-only (no prose),no,no,Outside-leg jumping motion.,2
+gyro-butterfly,4,THEIRS-STRONGER,no,yes,Gyro-modified butterfly.,2
+gyro-butterfly-swirl,5,THEIRS-STRONGER,no,yes,Gyro modifier on butterfly-swirl base. 5 ADD = gyro(+1) + bu,2
+gyro-drifter,4,THEIRS-STRONGER,no,yes,Gyro modifier on drifter base. 4 ADD = gyro(+1) + drifter(3),2
+hop-over,2,fborg-name-only (no prose),no,no,Jumping leg-over motion.,2
+miraging-eclipse,4,THEIRS-STRONGER,no,yes,Mirage-modified eclipse.,2
+nemesis,6,THEIRS-STRONGER,no,yes,Furious-modified barfly.,2
+paradon,4,THEIRS-STRONGER,no,yes,Compound trick.,2
+paradox-whirl,4,THEIRS-STRONGER,no,yes,Paradox-modified whirl.,2
+pixie-opposite-clipper,3,THEIRS-STRONGER,no,yes,Pixie modifier with opposite-side clipper terminator. 3 ADD ,2
+pixie-same-clipper,3,THEIRS-STRONGER,no,yes,Pixie modifier with same-side clipper terminator. 3 ADD = pi,2
+pixie-swirl,4,THEIRS-STRONGER,no,yes,Pixie modifier on swirl base. 4 ADD = pixie(+1) + swirl(3); ,2
+probe,2,fborg-name-only (no prose),no,no,Blind opposite-shoulder clipper stall (fborg-2add): the bag ,2
+refraction,3,THEIRS-STRONGER,no,yes,"Dexterity, 3 ADD.",2
+ricochet,5,THEIRS-STRONGER,no,yes,Two out-to-in dexterities from a toe set ending on a cross-b,2
+scrambled-eggbeater,3,THEIRS-STRONGER,no,yes,Atomic-modified pickup.,2
+smear,3,THEIRS-STRONGER,no,yes,Pixie-modified mirage.,2
+smudge,3,THEIRS-STRONGER,no,yes,Pixie-modified illusion.,2
+sole-kick,1,fborg-name-only (no prose),no,no,Sole-foot kick motion.,2
+spinning-osis,4,THEIRS-STRONGER,no,yes,Spinning-modified osis.,2
+spinning-paradox-torque,6,THEIRS-STRONGER,no,yes,Spinning + paradox on torque base. 6 ADD = spinning(+1) + pa,2
+stepping-osis,4,THEIRS-STRONGER,no,yes,Stepping-modified osis.,2
+stepping-superfly,6,THEIRS-STRONGER,no,yes,Stepping modifier on superfly base. 6 ADD = stepping(+1) + s,2
+symposium-double-leg-over,4,THEIRS-STRONGER,no,yes,Symposium modifier on double-leg-over base. 4 ADD = symposiu,2
+symposium-illusion,3,THEIRS-STRONGER,no,yes,Symposium modifier on illusion base. 3 ADD = symposium(+1) +,2
+symposium-whirl,4,THEIRS-STRONGER,no,yes,Symposium-modified whirl.,2
+tap,3,THEIRS-STRONGER,no,yes,Tapping-modified mirage.,2
+toe-clipper,2,fborg-name-only (no prose),no,no,Jump and kick the bag with the toes with the kicking leg tuc,2
+tombstone,4,THEIRS-STRONGER,no,yes,Stepping-modified drifter.,2
+venom,6,THEIRS-STRONGER,no,yes,Surging-modified barfly.,2
+vortex,4,THEIRS-STRONGER,no,yes,Gyro-modified drifter.,2
+walk-over,2,fborg-name-only (no prose),no,no,Stepping leg-over motion.,2
+whirling-swirl,4,THEIRS-STRONGER,no,yes,Whirl-modified swirl.,2
+around-the-world,2,comparable,no,yes,Circle the bag clockwise with the foot before a toe stall.,3
+atomic-barrage,4,comparable,no,yes,Atomic modifier on barrage base. 4 ADD = atomic(+1) + barrag,3
+atomic-eclipse,4,fborg-name-only (no prose),no,no,Atomic-modified eclipse.,3
+atomic-illusion,3,comparable,no,yes,Atomic Illusion (FB.org /newmoves).,3
+avalanche,5,fborg-name-only (no prose),no,no,Folk-name compression for stepping + ducking + paradox-illus,3
+barfly-swirl,5,comparable,no,yes,Barfly with an added back-swirl dex.,3
+bedwetter,4,comparable,no,yes,Stepping-modified eggbeater (PassBack folk-name).,3
+blizzard,3,comparable,no,yes,Stepping-far illusion (PassBack folk-name).,3
+blurrage,4,comparable,no,yes,Stepping-modified barrage (PassBack folk-name).,3
+blurry-torque,6,fborg-name-only (no prose),no,no,Blurry-modified torque.,3
+blurry-whirl,5,fborg-name-only (no prose),no,no,Blurry-modified whirl.,3
+bullwhip,5,fborg-name-only (no prose),no,no,Compound trick.,3
+butterfly-kick,2,comparable,no,yes,Jumping outward-dex kick; no terminal stall.,3
+butterfly-swirl,4,comparable,no,yes,Butterfly with an added back-swirl dex.,3
+clipper,1,comparable,no,yes,Body kick into clipper position.,3
+dimwalk,4,fborg-name-only (no prose),no,no,Pixie-modified butterfly.,3
+double-around-the-world,3,comparable,no,yes,two consecutive full leg circles,3
+double-around-the-world-heel,4,comparable,no,yes,Two consecutive full leg circles ending in a heel delay (ter,3
+double-fairy,3,comparable,no,yes,Double fairy: two outside dexes into an opposite toe stall. ,3
+double-pickup,3,comparable,no,yes,Double Pickup (FB.org /newmoves).,3
+double-pixie,3,comparable,no,yes,Double pixie: two inside dexes into an opposite toe stall. 3,3
+ducking-barfly,5,fborg-name-only (no prose),no,no,Ducking-modified barfly.,3
+ducking-paradox-symposium-whirl,6,fborg-name-only (no prose),no,no,Ducking + paradox + symposium on whirl base. 6 ADD = ducking,3
+ducking-paradox-whirl,5,fborg-name-only (no prose),no,no,Ducking + paradox on whirl base. 5 ADD = ducking(+1) + parad,3
+fairy,2,comparable,no,yes,opposite of pixie direction; acts as +1 set modifier,3
+fairy-butterfly,4,fborg-name-only (no prose),no,no,Fairy-modified butterfly.,3
+fairy-illusion,3,fborg-name-only (no prose),no,no,Fairy-modified illusion.,3
+fairy-merkon,4,fborg-name-only (no prose),no,no,Fairy-modified merkon.,3
+fairy-symposium-mirage,4,fborg-name-only (no prose),no,no,Fairy + symposium on mirage base. 4 ADD = fairy(+1) + sympos,3
+fairy-whirl,4,fborg-name-only (no prose),no,no,Fairy-modified whirl.,3
+flail,3,comparable,no,yes,Symposium-modified illusion.,3
+flurricane,5,fborg-name-only (no prose),no,no,Gyro modifier on flurry base. 5 ADD = gyro(+1) + flurry(4); ,3
+flurry,4,comparable,no,yes,"Three consecutive dexes from a clipper set, finishing on the",3
+flux,4,fborg-name-only (no prose),no,no,Atomic modifier on osis base. 4 ADD = atomic(+1) + osis(3); ,3
+fog,5,comparable,no,yes,Stepping-modified paradox double leg over.,3
+fusion,5,comparable,no,yes,Atomic-modified down-over-down.,3
+grave-digger,5,comparable,no,yes,Stepping-modified same-side torque.,3
+gyro-flurry,5,fborg-name-only (no prose),no,no,Gyro modifier on flurry base. 5 ADD = gyro(+1) + flurry(4); ,3
+gyro-symposium-torque,6,fborg-name-only (no prose),no,no,Gyro + symposium on torque base. 6 ADD = gyro(+1) + symposiu,3
+haze,4,comparable,no,yes,Stepping-modified double leg over.,3
+high-plains-drifter,4,comparable,no,yes,Two-dex compound from clipper stall.,3
+hop-over-swirl,4,comparable,no,yes,A hopping-over inside-around-the-world (swirl) delay: the su,3
+inspinning-paradox-illusion,4,fborg-name-only (no prose),no,no,Inspinning modifier on paradox-illusion base. 4 ADD = inspin,3
+inspinning-paradox-mirage,4,fborg-name-only (no prose),no,no,Inspinning modifier on paradox-mirage base. 4 ADD = inspinni,3
+jani-walker,5,fborg-name-only (no prose),no,no,Compound trick.,3
+magellan,3,fborg-name-only (no prose),no,no,Pixie-modified legover.,3
+merkon,3,fborg-name-only (no prose),no,no,Spinning-modified legover.,3
+omelette,3,comparable,no,yes,Illusioning-modified pickup.,3
+paradon-swirl,5,comparable,no,yes,Paradon with an added back-swirl dex.,3
+paradox-barrage,4,comparable,no,yes,Paradox barrage (FB.org /newmoves 2003).,3
+paradox-double-leg-over,4,comparable,no,yes,Paradox dlo (FB.org: paradox mirage with extra legover at th,3
+paradox-symposium-mirage,4,comparable,no,yes,Paradox symposium mirage (FB.org /newmoves 2003).,3
+paradox-symposium-whirl,5,comparable,no,yes,Paradox-modified symposium whirl.,3
+pixie,2,comparable,no,yes,leg passes under bag opposite direction; acts as +1 set modi,3
+pixie-double-over-down,5,fborg-name-only (no prose),no,no,Pixie modifier on double-over-down chassis. 5 ADD = pixie(+1,3
+pixie-eclipse,4,fborg-name-only (no prose),no,no,Pixie-modified eclipse.,3
+pixie-mirage,3,comparable,no,yes,Tier-1 sweep: pixie on mirage.,3
+pixie-whirl,4,fborg-name-only (no prose),no,no,Pixie-modified whirl.,3
+plasma,5,fborg-name-only (no prose),no,no,Compound trick.,3
+quantum-butterfly,4,fborg-name-only (no prose),no,no,Quantum modifier on butterfly base. 4 ADD = quantum(+1) + bu,3
+quantum-double-over-down,5,fborg-name-only (no prose),no,no,Quantum modifier on double-over-down base. 5 ADD = quantum(+,3
+quantum-drifter,4,fborg-name-only (no prose),no,no,Quantum-modified drifter.,3
+quantum-illusion,3,comparable,no,yes,Quantum Illusion (FB.org /newmoves).,3
+quantum-mirage,3,comparable,no,yes,Quantum Mirage (FB.org /newmoves).,3
+reverse-magellan,3,fborg-name-only (no prose),no,no,Reverse magellan.,3
+smog,4,comparable,no,yes,Pixie-modified double leg over.,3
+smoke,4,fborg-name-only (no prose),no,no,Pixie-modified drifter.,3
+spike-hammer,5,fborg-name-only (no prose),no,no,Folk-name compression for stepping + ducking + paradox-mirag,3
+spinning-butterfly-kick,3,comparable,no,yes,Tier-1 sweep: spinning on butterfly kick.,3
+spinning-legover,3,fborg-name-only (no prose),no,no,Spinning modifier on legover base. 3 ADD = spinning(+1) + le,3
+spinning-paradox-drifter,5,fborg-name-only (no prose),no,no,Spinning + paradox on drifter base. 5 ADD = spinning(+1) + p,3
+spinning-paradox-symposium-whirl,6,fborg-name-only (no prose),no,no,Spinning + paradox + symposium on whirl base. 6 ADD = spinni,3
+stepping-ducking-mirage,4,comparable,no,yes,Stepping-modified ducking mirage.,3
+superfly,5,fborg-name-only (no prose),no,no,Symposium-modified barfly.,3
+surge,5,comparable,no,yes,Surging-modified paradox mirage.,3
+surgery,6,comparable,no,yes,Surging-modified symposium reverse-whirl.,3
+swirl,3,comparable,no,yes,Reverse-direction rotational dex; anchor of the swirl family,3
+symposium-barfly,5,fborg-name-only (no prose),no,no,Symposium modifier on barfly base. 5 ADD = symposium(+1) + b,3
+symposium-reverse-whirl,4,comparable,no,yes,Symposium Reverse Whirl (FB.org /newmoves).,3
+symposium-torque,5,fborg-name-only (no prose),no,no,Symposium-modified torque.,3
+tapping-legover,3,fborg-name-only (no prose),no,no,Tapping-modified legover.,3
+tapping-mirage,3,comparable,no,yes,Tapping modifier on mirage base. 3 ADD = tapping(+1) + mirag,3
+toe-ripwalk,4,fborg-name-only (no prose),no,no,Ripwalk off a toe entry.,3
+triple-around-the-world,4,comparable,no,yes,"Three consecutive full leg circles around the bag, ending in",3
+twirl,4,comparable,no,yes,Folk name; decomposes to reverse swirling osis.,3
+witchdoctor,5,comparable,no,yes,Atomic + symposium + mirage.,3
+2-bag-juggling,2,no-fborg-entry,no,no,Two-bag juggling — boundary-object multi-bag-control primiti,5
+3-bag-juggling,3,no-fborg-entry,no,no,Three-bag juggling — multi-bag-control primitive at the n=3 ,5
+aeon-flux,5,no-fborg-entry,no,no,Aeon Flux (folk-named FM-corpus trick; FM technical: Nuclear,5
+anoxia,6,no-fborg-entry,no,no,Anoxia (folk-named FM-corpus trick; FM technical: Spinning D,5
+around-the-world-kick,1,fborg-name-only (no prose),no,no,Circle the bag clockwise with the foot before kicking it.,5
+assassin,4,no-fborg-entry,no,no,Pixie-and-ducking modified mirage.,5
+atom-bomb,6,no-fborg-entry,no,no,Folk name; decomposes to flailing symposium mirage.,5
+atom-smasher,4,ours-stronger,yes,yes,"Atomic mirage: outside-then-inside dex sequence, recaught on",5
+atomic,2,no-fborg-entry,no,no,Atomic set: rising-bag double-tap launch; standalone 2 ADD. ,5
+atomic-blender,5,no-fborg-entry,no,no,Atomic on blender. 5 ADD = atomic(1) + blender(4). Atomic ch,5
+atomic-clipper,3,no-fborg-entry,no,no,Atomic modifier on clipper-stall base. 3 ADD = atomic(+1) + ,5
+atomic-double-leg-over,4,no-fborg-entry,no,no,Atomic on double-leg-over. 4 ADD = atomic(1) + double-leg-ov,5
+atomic-ducking-torque,6,no-fborg-entry,no,no,Atomic and ducking on torque. 6 ADD = atomic(1) + ducking(1),5
+atomic-flail,4,no-fborg-entry,no,no,Atomic modifier on flail base. 4 ADD = atomic(+1) + flail(3),5
+atomic-inspinning-butterfly,5,no-fborg-entry,no,no,Atomic + inspinning on butterfly base. 5 ADD = atomic(+1) + ,5
+atomic-miraging-butterfly,6,no-fborg-entry,no,no,Atomic + miraging on butterfly base. 6 ADD = atomic(+1) + mi,5
+atomic-osis,4,fborg-name-only (no prose),no,no,Atomic Osis (FB.org /newmoves).,5
+atomic-torque,6,no-fborg-entry,no,no,Atomic-modified torque.,5
+backside-symposium-smear,5,fborg-name-only (no prose),no,no,Smear with a backside dex and symposium timing.,5
+barraging-barfly,6,no-fborg-entry,no,no,Barraging-modified barfly.,5
+barraging-barfly-swirl,7,no-fborg-entry,no,no,Tier-1 sweep: barraging on barfly swirl.,5
+barraging-butterfly,5,fborg-name-only (no prose),no,no,Barraging-modified butterfly.,5
+barraging-eggbeater,5,no-fborg-entry,no,no,Barraging-modified eggbeater.,5
+barraging-illusion,4,no-fborg-entry,no,no,Barraging-modified illusion.,5
+barraging-legover,4,no-fborg-entry,no,no,Barraging-modified legover.,5
+barraging-mirage,4,no-fborg-entry,no,no,Barraging-modified mirage.,5
+barraging-osis,5,no-fborg-entry,no,no,Barraging-modified osis.,5
+barraging-pickup,4,no-fborg-entry,no,no,Barraging-modified pickup.,5
+barraging-whirl,5,no-fborg-entry,no,no,Barraging-modified whirl.,5
+big-apple,6,fborg-name-only (no prose),no,no,Gyro-and-symposium modified torque.,5
+big-apple-sauce,8,no-fborg-entry,no,no,"A torque carrying a body spin, a paradox hip-pivot, a miragi",5
+big-papa-smurf,7,no-fborg-entry,no,no,"A blender entered through a surfing set: fairy, no-plant sym",5
+bill-ted-s-excellent-adventure,5,no-fborg-entry,no,no,A flailing eggbeater (symposium illusioning).,5
+bladerunner,5,no-fborg-entry,no,no,Folk name; decomposes to atomic eggbeater.,5
+blaze,3,no-fborg-entry,no,no,Whirling-modified mirage (PassBack folk-name).,5
+blender,4,ours-stronger,yes,yes,Whirl-modified osis.,5
+bling-blang,4,no-fborg-entry,no,no,Folk name; decomposes to whirling reverse whirl.,5
+blister,4,no-fborg-entry,no,no,Blister (folk-named FM-corpus trick; FM technical: Whirling ,5
+blue-widow,7,no-fborg-entry,no,no,Blue Widow (folk-named FM-corpus trick; FM technical: Pixie ,5
+blur,4,ours-stronger,yes,yes,Blurry-modified mirage.,5
+blurriest,5,ours-stronger,yes,yes,Blurry-modified barfly.,5
+butterfly,3,ours-stronger,yes,yes,"Compound dex; base for ripwalk, dimwalk, and parkwalk.",5
+butterfly-gyro-toe,4,no-fborg-entry,no,no,Butterfly gyro toe.,5
+chainsaw-massacre,7,no-fborg-entry,no,no,Folk name; decomposes to bubba paradox symposium eggbeater.,5
+clipper-diving-whirl,4,no-fborg-entry,no,no,Clipper diving whirl.,5
+clipper-ducking-blender,5,no-fborg-entry,no,no,Clipper ducking blender.,5
+clipper-ducking-drifter,4,no-fborg-entry,no,no,Clipper ducking drifter.,5
+clipper-ducking-symposium-whirl,5,no-fborg-entry,no,no,Whirl off a clipper entry with a ducking body move and sympo,5
+clipper-ducking-whirl,4,no-fborg-entry,no,no,Clipper ducking whirl.,5
+clipper-stall,2,no-fborg-entry,no,no,"Catch the bag on your foot held across your body, sole turne",5
+clipper-symposium-whirl,4,no-fborg-entry,no,no,Clipper symposium whirl.,5
+cloud-kick,1,fborg-name-only (no prose),no,no,Kick off the back of the shin.,5
+cloud-stall,2,no-fborg-entry,no,no,Catch and balance the bag on the back of your shin.,5
+clown-face,5,no-fborg-entry,no,no,A furious eggbeater.,5
+colossus,6,no-fborg-entry,no,no,Folk name; decomposes to spyro diving symposium whirl.,5
+cross-body-sole-stall,3,no-fborg-entry,no,no,Catch the bag on the sole of your foot held across your body,5
+dada-curve,4,no-fborg-entry,no,no,Pending dictionary candidate; media-verified.,5
+dark-avenue,5,no-fborg-entry,no,no,Dark Avenue (folk-named FM-corpus trick; FM technical: Fairy,5
+darkwalk,5,no-fborg-entry,no,no,Folk name; decomposes to pixie diving butterfly.,5
+diving-butterfly,4,no-fborg-entry,no,no,Diving-modified butterfly.,5
+diving-clipper,3,no-fborg-entry,no,no,Diving into a clipper stall.,5
+diving-drifter,4,no-fborg-entry,no,no,Diving-modified drifter.,5
+diving-eclipse,4,no-fborg-entry,no,no,Diving-modified eclipse.,5
+diving-guay,3,no-fborg-entry,no,no,Tier-1 sweep: diving on guay.,5
+diving-illusion,3,no-fborg-entry,no,no,Diving-modified illusion.,5
+diving-legover,3,no-fborg-entry,no,no,Diving-modified legover.,5
+diving-mirage,3,no-fborg-entry,no,no,Diving-modified mirage.,5
+diving-osis,4,no-fborg-entry,no,no,Diving-modified osis.,5
+diving-pickup,3,no-fborg-entry,no,no,Diving-modified pickup.,5
+diving-reverse-swirl,4,no-fborg-entry,no,no,Diving reverse swirl.,5
+diving-smudge,4,no-fborg-entry,no,no,Diving-modified smudge.,5
+diving-swirl,4,no-fborg-entry,no,no,Diving-modified swirl.,5
+diving-symposium-mirage,4,no-fborg-entry,no,no,Diving-modified symposium mirage.,5
+diving-toe-stall,2,no-fborg-entry,no,no,Tier-1 sweep: diving on toe stall.,5
+diving-whirl,4,no-fborg-entry,no,no,Diving-modified whirl.,5
+dolomite,5,no-fborg-entry,no,no,Folk name; decomposes to symposium paradon.,5
+dorshanatrix,5,no-fborg-entry,no,no,A railing symposium mirage.,5
+double-illusion,3,no-fborg-entry,no,no,Double illusion: two outside dexes into an opposite toe stal,5
+double-kick,1,no-fborg-entry,no,no,Double kick: jump and contact the bag with both feet. 1 ADD ,5
+double-knee,1,no-fborg-entry,no,no,Jump and contact the bag with both knees.,5
+double-orbit,3,no-fborg-entry,no,no,Double full-orbit dex.,5
+double-spin,2,fborg-name-only (no prose),no,no,Double rotational body spin.,5
+double-spinning-butterfly,5,no-fborg-entry,no,no,Double-spinning compound on butterfly base. 5 ADD = double-s,5
+double-spinning-clipper,4,no-fborg-entry,no,no,Double-spinning compound on clipper-stall base. 4 ADD = doub,5
+double-spinning-mirage,4,no-fborg-entry,no,no,Double-spinning compound on mirage base. 4 ADD = double-spin,5
+double-spinning-whirl,5,no-fborg-entry,no,no,Double-spinning compound on whirl base. 5 ADD = double-spinn,5
+double-whirl,4,no-fborg-entry,no,no,Double whirl: two inside dexes into a clipper stall. 4 ADD =,5
+drifter,3,ours-stronger,yes,yes,Mirage-modified clipper stall.,5
+ducking-butterfly-swirl,5,no-fborg-entry,no,no,Ducking modifier on butterfly-swirl base. 5 ADD = ducking(+1,5
+ducking-clipper,3,no-fborg-entry,no,no,Ducking-modified clipper stall.,5
+ducking-double-leg-over,4,no-fborg-entry,no,no,Ducking modifier on double-leg-over base. 4 ADD = ducking(+1,5
+ducking-drifter,4,no-fborg-entry,no,no,Ducking modifier on drifter base. 4 ADD = ducking(+1) + drif,5
+ducking-eclipse,4,no-fborg-entry,no,no,Ducking modifier on eclipse base. 4 ADD = ducking(+1) + ecli,5
+ducking-guay,3,no-fborg-entry,no,no,Ducking modifier on guay base. 3 ADD = ducking(+1) + guay(2),5
+ducking-illusion,3,no-fborg-entry,no,no,Ducking-modified illusion.,5
+ducking-legover,3,no-fborg-entry,no,no,Ducking-modified legover.,5
+ducking-mirage,3,no-fborg-entry,no,no,Ducking-modified mirage.,5
+ducking-paradox-blender,6,no-fborg-entry,no,no,Ducking + paradox on blender base. 6 ADD = ducking(+1) + par,5
+ducking-paradox-drifter,5,no-fborg-entry,no,no,Ducking + paradox on drifter base. 5 ADD = ducking(+1) + par,5
+ducking-paradox-flail,5,no-fborg-entry,no,no,Ducking + paradox on flail base. 5 ADD = ducking(+1) + parad,5
+ducking-paradox-illusion,4,no-fborg-entry,no,no,Ducking + paradox on illusion base.,5
+ducking-paradox-mirage,4,no-fborg-entry,no,no,Ducking + paradox on mirage base.,5
+ducking-paradox-symposium-illusion,5,no-fborg-entry,no,no,Ducking + paradox + symposium on illusion base. 5 ADD = duck,5
+ducking-paradox-symposium-mirage,5,no-fborg-entry,no,no,Ducking + paradox + symposium on mirage base. 5 ADD = duckin,5
+ducking-paradox-torque,6,no-fborg-entry,no,no,Ducking + paradox on torque base. 6 ADD = ducking(+1) + para,5
+ducking-pickup,3,no-fborg-entry,no,no,Ducking-modified pickup.,5
+ducking-reverse-guay,3,no-fborg-entry,no,no,Reverse guay with a ducking body move.,5
+ducking-symposium-mirage,4,no-fborg-entry,no,no,Ducking + symposium on mirage base. 4 ADD = ducking(+1) + sy,5
+ducking-symposium-reverse-whirl,5,no-fborg-entry,no,no,Tier-1 sweep: ducking on symposium reverse whirl.,5
+ducking-toe-stall,2,no-fborg-entry,no,no,Ducking modifier on toe-stall base. 2 ADD = ducking(+1) + to,5
+ducking-whirl,4,no-fborg-entry,no,no,Ducking-modified whirl.,5
+eclipse,3,ours-stronger,yes,yes,3-ADD named compound,5
+ego,6,no-fborg-entry,no,no,Folk name; decomposes to atomic ducking whirl.,5
+fairy-barrage,4,no-fborg-entry,no,no,Fairy modifier on barrage base. 4 ADD = fairy(+1) + barrage(,5
+fairy-blender,5,no-fborg-entry,no,no,Fairy modifier on blender base. 5 ADD = fairy(+1) + blender(,5
+fairy-butterfly-swirl,5,no-fborg-entry,no,no,Fairy modifier on butterfly-swirl base. 5 ADD = fairy(+1) + ,5
+fairy-diving-butterfly,5,no-fborg-entry,no,no,Fairy + diving on butterfly base. 5 ADD = fairy(+1) + diving,5
+fairy-double-leg-over,4,no-fborg-entry,no,no,Fairy modifier on double-leg-over base. 4 ADD = fairy(+1) + ,5
+fairy-double-over-down,5,no-fborg-entry,no,no,Fairy modifier on double-over-down base. 5 ADD = fairy(+1) +,5
+fairy-double-pickup,4,no-fborg-entry,no,no,Fairy modifier on double-pickup base. 4 ADD = fairy(+1) + do,5
+fairy-drifter,4,no-fborg-entry,no,no,Fairy-modified drifter.,5
+fairy-ducking-blender,6,no-fborg-entry,no,no,Fairy + ducking on blender base. 6 ADD = fairy(+1) + ducking,5
+fairy-ducking-butterfly,5,no-fborg-entry,no,no,Fairy set + ducking on butterfly base.,5
+fairy-ducking-clipper,4,no-fborg-entry,no,no,Fairy + ducking on clipper-stall base. 4 ADD = fairy(+1) + d,5
+fairy-ducking-double-leg-over,5,no-fborg-entry,no,no,Fairy + ducking on double-leg-over base. 5 ADD = fairy(+1) +,5
+fairy-ducking-illusion,4,no-fborg-entry,no,no,Fairy + ducking on illusion base. 4 ADD = fairy(+1) + duckin,5
+fairy-ducking-legover,4,no-fborg-entry,no,no,Fairy set + ducking on legover base.,5
+fairy-ducking-mirage,4,no-fborg-entry,no,no,Tier-1 sweep: fairy on ducking mirage.,5
+fairy-ducking-osis,5,no-fborg-entry,no,no,Fairy + ducking on osis base. 5 ADD = fairy(+1) + ducking(+1,5
+fairy-ducking-pickup,4,no-fborg-entry,no,no,Fairy set + ducking on pickup base.,5
+fairy-ducking-torque,6,no-fborg-entry,no,no,Fairy + ducking on torque base. 6 ADD = fairy(+1) + ducking(,5
+fairy-ducking-whirl,5,no-fborg-entry,no,no,Fairy + ducking on whirl base. 5 ADD = fairy(+1) + ducking(+,5
+fairy-dyno,5,no-fborg-entry,no,no,Fairy modifier on dyno base. 5 ADD = fairy(+1) + dyno(4); JO,5
+fairy-eclipse,4,no-fborg-entry,no,no,Fairy modifier on eclipse base. 4 ADD = fairy(+1) + eclipse(,5
+fairy-eggbeater,4,no-fborg-entry,no,no,Fairy-modified eggbeater.,5
+fairy-flail,4,no-fborg-entry,no,no,Fairy modifier on flail base. 4 ADD = fairy(+1) + flail(3); ,5
+fairy-guay,3,no-fborg-entry,no,no,Tier-1 sweep: fairy on guay.,5
+fairy-gyro-butterfly,5,no-fborg-entry,no,no,Fairy + gyro on butterfly base. 5 ADD = fairy(+1) + gyro(+1),5
+fairy-gyro-drifter,5,no-fborg-entry,no,no,Fairy-modified gyro drifter.,5
+fairy-gyro-mirage,4,no-fborg-entry,no,no,Fairy + gyro on mirage base. 4 ADD = fairy(+1) + gyro(+1) + ,5
+fairy-gyro-torque,6,no-fborg-entry,no,no,Fairy-modified torque.,5
+fairy-gyro-whirl,5,no-fborg-entry,no,no,Fairy + gyro on whirl base. 5 ADD = fairy(+1) + gyro(+1) + w,5
+fairy-legover,3,no-fborg-entry,no,no,Fairy-modified legover.,5
+fairy-mirage,3,fborg-name-only (no prose),no,no,Fairy modifier on mirage base. 3 ADD = fairy(+1) + mirage(2),5
+fairy-mobius,6,no-fborg-entry,no,no,Fairy modifier on mobius base. 6 ADD = fairy(+1) + mobius(5),5
+fairy-osis,4,no-fborg-entry,no,no,Fairy modifier on osis base. 4 ADD = fairy(+1) + osis(3); JO,5
+fairy-paradon,5,no-fborg-entry,no,no,Fairy modifier on paradon base. 5 ADD = fairy(+1) + paradon(,5
+fairy-pickup,3,no-fborg-entry,no,no,Fairy-modified pickup.,5
+fairy-rev-whirl,4,no-fborg-entry,no,no,Fairy-modified rev whirl.,5
+fairy-reverse-guay,3,no-fborg-entry,no,no,Reverse guay off a fairy entry.,5
+fairy-reverse-swirl,4,no-fborg-entry,no,no,Fairy reverse swirl.,5
+fairy-reverse-whirl,4,no-fborg-entry,no,no,Fairy reverse whirl.,5
+fairy-ripstein,5,no-fborg-entry,no,no,Fairy-modified ripstein.,5
+fairy-spinning-blender,6,no-fborg-entry,no,no,Fairy + spinning on blender base. 6 ADD = fairy(+1) + spinni,5
+fairy-spinning-butterfly,5,no-fborg-entry,no,no,Fairy + spinning on butterfly base. 5 ADD = fairy(+1) + spin,5
+fairy-spinning-ducking-osis,6,no-fborg-entry,no,no,Fairy-modified spinning ducking osis.,5
+fairy-spinning-illusion,4,no-fborg-entry,no,no,Fairy + spinning on illusion base. 4 ADD = fairy(+1) + spinn,5
+fairy-spinning-mirage,4,no-fborg-entry,no,no,Fairy + spinning on mirage base. 4 ADD = fairy(+1) + spinnin,5
+fairy-spinning-osis,5,no-fborg-entry,no,no,Fairy + spinning on osis base. 5 ADD = fairy(+1) + spinning(,5
+fairy-swirl,4,no-fborg-entry,no,no,Fairy modifier on swirl base. 4 ADD = fairy(+1) + swirl(3); ,5
+fairy-swirling-swirl,5,no-fborg-entry,no,no,Fairy-modified swirl.,5
+fairy-symposium-eggbeater,5,no-fborg-entry,no,no,Fairy + symposium on eggbeater base. 5 ADD = fairy(+1) + sym,5
+fairy-symposium-whirl,5,no-fborg-entry,no,no,Fairy + symposium on whirl base. 5 ADD = fairy(+1) + symposi,5
+fairy-torque,5,no-fborg-entry,no,no,Tier-1 sweep: fairy on torque.,5
+fairy-twirl,5,no-fborg-entry,no,no,Fairy modifier on twirl base. 5 ADD = fairy(+1) + twirl(4); ,5
+fender,5,no-fborg-entry,no,no,Fender (folk-named FM-corpus trick; FM technical: Fairy Blen,5
+fender-bender,6,no-fborg-entry,no,no,Fender Bender (folk-named FM-corpus trick; FM technical: Fai,5
+feral,4,no-fborg-entry,no,no,Feral (folk-named FM-corpus trick; FM technical: Fairy Whirl,5
+floatation,6,no-fborg-entry,no,no,"A butterfly entered through a floating set (quantum, symposi",5
+flying-clipper,2,fborg-name-only (no prose),no,no,Jumping body kick into clipper position.,5
+flying-fish,5,no-fborg-entry,no,no,A railing ducking mirage.,5
+food-processor,6,ours-stronger,yes,yes,Blurry-modified blender.,5
+forehead-stall,1,no-fborg-entry,no,no,Balance the bag on your forehead.,5
+forque,5,no-fborg-entry,no,no,Forque (folk-named FM-corpus trick; FM technical: Fairy Torq,5
+fume,4,no-fborg-entry,no,no,Fume (folk-named FM-corpus trick; FM technical: Fairy Drifte,5
+furious,2,no-fborg-entry,no,no,Furious set; +1 ADD non-rotational / +2 ADD rotational. Stan,5
+fury,5,fborg-name-only (no prose),yes,no,Furious-modified paradox mirage.,5
+gangsta-party,7,no-fborg-entry,no,no,Folk name; decomposes to spinning ducking paradox blender.,5
+gary-coleman,6,no-fborg-entry,no,no,Folk name; decomposes to atomic symposium whirl.,5
+gauntlet,7,fborg-name-only (no prose),no,no,Stepping-ducking-paradox-modified torque.,5
+genesis,5,no-fborg-entry,no,no,A furious whirl.,5
+genuphobia,7,no-fborg-entry,no,no,A symposium torque entered fairy-side with a spyro spin.,5
+goliath,5,no-fborg-entry,no,no,Folk name; decomposes to pixie ducking double legover.,5
+guay,2,no-fborg-entry,no,no,Pickup dexterity finished with an inside delay.,5
+guillotine,4,no-fborg-entry,no,no,Guillotine (folk-named FM-corpus trick; FM technical: Fairy ,5
+gyro-barfly,5,no-fborg-entry,no,no,Gyro modifier on barfly base. 5 ADD = gyro(+1) + barfly(4); ,5
+gyro-barrage,4,no-fborg-entry,no,no,Gyro modifier on barrage base. 4 ADD = gyro(+1) + barrage(3),5
+gyro-blender,5,no-fborg-entry,no,no,Gyro modifier on blender base. 5 ADD = gyro(+1) + blender(4),5
+gyro-clipper,3,no-fborg-entry,no,no,Gyro into a clipper stall.,5
+gyro-dada-curve,5,no-fborg-entry,no,no,Gyro modifier on dada-curve base. 5 ADD = gyro(+1) + dada-cu,5
+gyro-diving-butterfly,5,no-fborg-entry,no,no,Tier-1 sweep: gyro on diving butterfly.,5
+gyro-diving-clipper,3,no-fborg-entry,no,no,Tier-1 sweep: gyro on diving clipper.,5
+gyro-double-leg-over,4,no-fborg-entry,no,no,Gyro-modified double leg over.,5
+gyro-double-over-down,5,no-fborg-entry,no,no,Gyro modifier on double-over-down base. 5 ADD = gyro(+1) + d,5
+gyro-double-pickup,4,no-fborg-entry,no,no,Gyro modifier on double-pickup base. 4 ADD = gyro(+1) + doub,5
+gyro-ducking-symposium-torque,7,no-fborg-entry,no,no,Gyro + ducking + symposium on torque base. 7 ADD = gyro(+1) ,5
+gyro-eclipse,4,no-fborg-entry,no,no,Gyro modifier on eclipse base. 4 ADD = gyro(+1) + eclipse(3),5
+gyro-eggbeater,4,no-fborg-entry,no,no,Gyro modifier on eggbeater base. 4 ADD = gyro(+1) + eggbeate,5
+gyro-flail,4,no-fborg-entry,no,no,Gyro modifier on flail base. 4 ADD = gyro(+1) + flail(3); JO,5
+gyro-guay,3,no-fborg-entry,no,no,Gyro modifier on guay base. 3 ADD = gyro(+1) + guay(2); JOB ,5
+gyro-illusion,3,no-fborg-entry,no,no,Gyro-modified illusion.,5
+gyro-legover,3,no-fborg-entry,no,no,Gyro modifier on legover base. 3 ADD = gyro(+1) + legover(2),5
+gyro-mirage,3,no-fborg-entry,no,no,Gyro-modified mirage.,5
+gyro-osis,4,no-fborg-entry,no,no,Gyro modifier on osis base. 4 ADD = gyro(+1) + osis(3); JOB ,5
+gyro-pickup,3,no-fborg-entry,no,no,Gyro modifier on pickup base. 3 ADD = gyro(+1) + pickup(2); ,5
+gyro-reverse-guay,3,no-fborg-entry,no,no,Reverse guay with a gyro rotation.,5
+gyro-symposium-swirl,5,no-fborg-entry,no,no,Gyro + symposium on swirl base. 5 ADD = gyro(+1) + symposium,5
+gyro-symposium-whirl,5,no-fborg-entry,no,no,Gyro + symposium on whirl base. 5 ADD = gyro(+1) + symposium,5
+gyro-whirl,4,no-fborg-entry,no,no,Gyro-modified whirl.,5
+gyro-whirling-swirl,5,no-fborg-entry,no,no,Gyro + whirling on swirl base. 5 ADD = gyro(+1) + whirling-s,5
+hatchet,4,no-fborg-entry,no,no,Diving-modified whirl.,5
+head-stall,1,fborg-name-only (no prose),no,no,Balance the bag on top of your head.,5
+heel-stall,1,no-fborg-entry,no,no,Catch and balance the bag on your heel.,5
+illusion,2,ours-stronger,yes,yes,"Toe-set dex'd from outside back across to the inside, recaug",5
+illusioning-kick,1,no-fborg-entry,no,no,Illusioning kick: the opposite-side outside illusioning dex ,5
+inside-stall,1,no-fborg-entry,no,no,Catch and balance the bag on the inside of your foot.,5
+inspinning-butterfly,4,fborg-name-only (no prose),no,no,Inspinning-modified butterfly.,5
+inspinning-clipper,3,no-fborg-entry,no,no,Inspinning modifier on clipper-stall base. 3 ADD = inspinnin,5
+inspinning-flail,4,no-fborg-entry,no,no,Inspinning modifier on flail base. 4 ADD = inspinning(+1) + ,5
+inspinning-guay,3,no-fborg-entry,no,no,Tier-1 sweep: inspinning on guay.,5
+inspinning-illusion,3,no-fborg-entry,no,no,Inspinning modifier on illusion base. 3 ADD = inspinning(+1),5
+inspinning-legover,3,no-fborg-entry,no,no,Inspinning modifier on legover base. 3 ADD = inspinning(+1) ,5
+inspinning-mirage,3,no-fborg-entry,no,no,Inspinning modifier on mirage base. 3 ADD = inspinning(+1) +,5
+inspinning-osis,4,no-fborg-entry,no,no,Inspinning modifier on osis base. 4 ADD = inspinning(+1) + o,5
+inspinning-reverse-guay,2,no-fborg-entry,no,no,Reverse guay entered with an inspinning rotation.,5
+inspinning-symposium-mirage,4,no-fborg-entry,no,no,Inspinning modifier on symposium-mirage base. 4 ADD = inspin,5
+inspinning-toe-stall,2,no-fborg-entry,no,no,Inspinning modifier on toe-stall base. 2 ADD = inspinning(+1,5
+juno-reactor,6,no-fborg-entry,no,no,Folk-named reactor variant.,5
+knee-clipper,2,fborg-name-only (no prose),no,no,Catch the bag on your knee brought across your body.,5
+knee-stall,1,no-fborg-entry,no,no,Catch and balance the bag on your knee.,5
+legeater,3,no-fborg-entry,no,no,Quantum-modifier pickup.,5
+legover,2,no-fborg-entry,no,no,Leg-over dexterity.,5
+legover-kick,1,no-fborg-entry,no,no,Legover kick: the leg-over out-dex without a terminal stall.,5
+liquifier,6,no-fborg-entry,no,no,"A blender entered through a splicing set (gyro, reving).",5
+lotus,5,fborg-name-only (no prose),no,no,Lotus (folk-named FM-corpus trick; FM technical: Spinning Pd,5
+maelstrom,6,no-fborg-entry,no,no,Folk name; decomposes to spinning ducking paradox whirl.,5
+mantis,4,no-fborg-entry,no,no,Gyro-modifier eggbeater.,5
+margaritaville,7,no-fborg-entry,no,no,A blender with a surging spin-step entry and a paradox hip-p,5
+matador,5,no-fborg-entry,no,no,Nuclear-modifier butterfly.,5
+mind-bender,6,no-fborg-entry,no,no,Ducking-and-paradox modified blender.,5
+mirage,2,ours-stronger,yes,yes,"Toe-set dex'd outside the supporting leg, recaught on the op",5
+miraging-clipper,3,no-fborg-entry,no,no,Miraging modifier on clipper-stall base. 3 ADD = miraging(+1,5
+miraging-dyno,5,no-fborg-entry,no,no,Miraging modifier on dyno base. 5 ADD = miraging(+1) + dyno(,5
+miraging-kick,1,no-fborg-entry,no,no,Miraging kick: the opposite-side inside miraging dex without,5
+miraging-osis,4,no-fborg-entry,no,no,Miraging modifier on osis base. 4 ADD = miraging(+1) + osis(,5
+miraging-pickup,3,no-fborg-entry,no,no,Miraging modifier on pickup base. 3 ADD = miraging(+1) + pic,5
+miraging-symposium-butterfly,5,no-fborg-entry,no,no,Miraging-modified symposium butterfly.,5
+miraging-symposium-double-over-down,6,no-fborg-entry,no,no,Miraging + symposium on double-over-down base. 6 ADD = mirag,5
+miraging-symposium-eggbeater,5,no-fborg-entry,no,no,Miraging + symposium on eggbeater base. 5 ADD = miraging(+1),5
+miraging-symposium-illusion,4,no-fborg-entry,no,no,Miraging + symposium on illusion base. 4 ADD = miraging(+1) ,5
+miraging-symposium-mirage,4,no-fborg-entry,no,no,Miraging + symposium on mirage base. 4 ADD = miraging(+1) + ,5
+miraging-symposium-whirl,5,no-fborg-entry,no,no,Miraging-modified symposium whirl.,5
+mobius,5,ours-stronger,yes,yes,Gyro-modified torque.,5
+montage,7,no-fborg-entry,no,no,Spinning-modified ducking paradox symposium whirl.,5
+morpheus,6,no-fborg-entry,no,no,Folk name; decomposes to spinning ducking paradox drifter.,5
+mullet,6,no-fborg-entry,no,no,Ducking-modified paradox symposium whirl.,5
+nebula,5,no-fborg-entry,no,no,A furious double leg over.,5
+neck-stall,1,no-fborg-entry,no,no,Balance the bag on the back of your neck.,5
+nova,4,no-fborg-entry,no,no,Symposium-modifier double-leg-over.,5
+nuclear-double-leg-over,5,no-fborg-entry,no,no,Nuclear on double-leg-over. 5 ADD = nuclear(2) + double-leg-,5
+nuclear-drifter,5,no-fborg-entry,no,no,Nuclear on drifter. 5 ADD = nuclear(2) + drifter(3).,5
+nuclear-dyno,6,no-fborg-entry,no,no,Nuclear on dyno. 6 ADD = nuclear(2) + dyno(4).,5
+nuclear-guay,4,no-fborg-entry,no,no,Nuclear on guay. 4 ADD = nuclear(2) + guay(2).,5
+nuclear-illusion,4,no-fborg-entry,no,no,Nuclear-modified illusion.,5
+nuclear-legover,4,no-fborg-entry,no,no,Nuclear-modified legover.,5
+nuclear-pickup,4,no-fborg-entry,no,no,Nuclear-modified pickup.,5
+nuclear-torque,6,no-fborg-entry,no,no,Nuclear on torque. 6 ADD = nuclear(2) + torque(4).,5
+nuclear-whirl,5,fborg-name-only (no prose),no,no,Nuclear Whirl (FB.org /newmoves).,5
+oh-wheely,6,no-fborg-entry,no,no,A nuclear nova.,5
+orbit,2,no-fborg-entry,no,no,Reverse full-orbit dex.,5
+orbit-kick,1,no-fborg-entry,no,no,Orbit kick: a single out-dex without a terminal stall. 1 ADD,5
+osis,3,ours-stronger,yes,yes,Inside-to-outside delay combination.,5
+outside-stall,1,no-fborg-entry,no,no,Catch and balance the bag on the outside of your foot.,5
+overlord,7,no-fborg-entry,no,no,Overlord (folk-named FM-corpus trick; FM technical: Pixie Sp,5
+pandemonium,5,no-fborg-entry,no,no,Folk name; decomposes to pixie symposium eggbeater.,5
+paradox-blender,5,no-fborg-entry,no,no,Paradox-modified blender.,5
+paradox-blizzard,4,fborg-name-only (no prose),no,no,Paradox + blizzard composite (FB.org /newmoves 2003).,5
+paradox-da-da-curve,5,no-fborg-entry,no,no,Paradox modifier on dada-curve base. 5 ADD = paradox(+1) + d,5
+paradox-drifter,4,no-fborg-entry,no,no,Paradox-modified drifter.,5
+paradox-eggbeater,4,no-fborg-entry,no,no,Paradox modifier on eggbeater base. 4 ADD = paradox(+1) + eg,5
+paradox-flail,4,no-fborg-entry,no,no,Paradox modifier on flail base. 4 ADD = paradox(+1) + flail(,5
+paradox-flurry,5,no-fborg-entry,no,no,Paradox modifier on flurry base. 5 ADD = paradox(+1) + flurr,5
+paradox-fusion,6,no-fborg-entry,no,no,Paradox-modified fusion.,5
+paradox-high-plains-drifter,5,fborg-name-only (no prose),no,no,Paradox HPD (FB.org alias Paradox Double Drifter).,5
+paradox-illusion,3,no-fborg-entry,no,no,Paradox-modified illusion.,5
+paradox-mirage,3,no-fborg-entry,yes,no,Paradox-modified mirage.,5
+paradox-ripwalk,5,no-fborg-entry,no,no,Paradox-modified ripwalk.,5
+paradox-symposium-eggbeater,5,no-fborg-entry,no,no,Paradox + symposium on eggbeater base. 5 ADD = paradox(+1) +,5
+paradox-symposium-illusion,4,no-fborg-entry,no,no,Paradox-modified symposium illusion.,5
+paradox-symposium-whirling-rake,5,no-fborg-entry,no,no,Whirl with symposium timing and a paradox into a rake termin,5
+paradox-torque,5,no-fborg-entry,no,no,Paradox-modified torque.,5
+paradox-whirling-rake,4,no-fborg-entry,no,no,Whirl with a paradox into a rake terminal.,5
+paradox-whirling-swirl,5,no-fborg-entry,no,no,Paradox modifier on whirling-swirl base. 5 ADD = paradox(+1),5
+parallax,3,no-fborg-entry,no,no,Parallax (folk-named FM-corpus trick; FM technical: Gyro Leg,5
+parkwalk,4,fborg-name-only (no prose),no,no,Pixie-modified same-side butterfly.,5
+paste,3,no-fborg-entry,no,no,Pixie-modified pickup.,5
+peak-delay,1,fborg-name-only (no prose),no,no,Folk-name surface delay — 'peak' = rim of a ballcap (communi,5
+phoenix,5,no-fborg-entry,yes,no,Pixie-and-ducking modified butterfly.,5
+pickup,2,fborg-name-only (no prose),no,no,Pickup dexterity caught from below.,5
+pigbeater,4,no-fborg-entry,no,no,Pixie-modified eggbeater.,5
+pixie-barfly,5,no-fborg-entry,no,no,Pixie modifier on barfly base. 5 ADD = pixie(+1) + barfly(4),5
+pixie-barrage,4,no-fborg-entry,no,no,Pixie modifier on barrage base. 4 ADD = pixie(+1) + barrage(,5
+pixie-blender,5,no-fborg-entry,no,no,Pixie modifier on blender base. 5 ADD = pixie(+1) + blender(,5
+pixie-clipper,3,no-fborg-entry,no,no,Generic pixie into a clipper stall (direction-unspecified).,5
+pixie-dada-curve,5,no-fborg-entry,no,no,Pixie modifier on dada-curve base. 5 ADD = pixie(+1) + dada-,5
+pixie-diving-butterfly,5,no-fborg-entry,no,no,Tier-1 sweep: pixie on diving butterfly.,5
+pixie-diving-mirage,4,no-fborg-entry,no,no,Pixie + diving on mirage base. 4 ADD = pixie(+1) + diving(+1,5
+pixie-diving-pickup,4,no-fborg-entry,no,no,Pixie + diving on pickup base. 4 ADD = pixie(+1) + diving(+1,5
+pixie-diving-symposium-mirage,5,no-fborg-entry,no,no,Pixie + diving + symposium on mirage base. 5 ADD = pixie(+1),5
+pixie-diving-whirl,5,no-fborg-entry,no,no,Pixie + diving on whirl base. 5 ADD = pixie(+1) + diving(+1),5
+pixie-dolomite,6,no-fborg-entry,no,no,Pixie-modified dolomite.,5
+pixie-double-leg-over,4,no-fborg-entry,no,no,Pixie modifier on double-leg-over base. 4 ADD = pixie(+1) + ,5
+pixie-double-pickup,4,no-fborg-entry,no,no,Tier-1 sweep: pixie on double pickup.,5
+pixie-ducking-butterfly,5,no-fborg-entry,no,no,Tier-1 sweep: pixie on ducking butterfly.,5
+pixie-ducking-clipper,4,no-fborg-entry,no,no,Pixie + ducking on clipper-stall base. 4 ADD = pixie(+1) + d,5
+pixie-ducking-double-leg-over,5,no-fborg-entry,no,no,Pixie + ducking on double-leg-over base. 5 ADD = pixie(+1) +,5
+pixie-ducking-illusion,4,no-fborg-entry,no,no,Pixie + ducking on illusion base. 4 ADD = pixie(+1) + duckin,5
+pixie-ducking-legover,4,no-fborg-entry,no,no,Pixie set + ducking on legover base.,5
+pixie-ducking-mirage,4,no-fborg-entry,no,no,Tier-1 sweep: pixie on ducking mirage.,5
+pixie-ducking-osis,5,no-fborg-entry,no,no,Pixie + ducking on osis base. 5 ADD = pixie(+1) + ducking(+1,5
+pixie-ducking-pickup,4,no-fborg-entry,no,no,Pixie set + ducking on pickup base.,5
+pixie-ducking-symposium-mirage,5,no-fborg-entry,no,no,Pixie + ducking + symposium on mirage base. 5 ADD = pixie(+1,5
+pixie-ducking-whirl,5,no-fborg-entry,no,no,Pixie + ducking on whirl base. 5 ADD = pixie(+1) + ducking(+,5
+pixie-dyno,5,no-fborg-entry,no,no,Pixie modifier on dyno base. 5 ADD = pixie(+1) + dyno(4); JO,5
+pixie-eggbeater,4,no-fborg-entry,no,no,Pixie-modified eggbeater.,5
+pixie-flail,4,no-fborg-entry,no,no,Pixie modifier on flail base. 4 ADD = pixie(+1) + flail(3); ,5
+pixie-guay,3,no-fborg-entry,no,no,Tier-1 sweep: pixie on guay.,5
+pixie-legover,3,no-fborg-entry,no,no,Pixie-modified legover.,5
+pixie-miraging-flail,5,no-fborg-entry,no,no,Pixie + miraging on flail base. 5 ADD = pixie(+1) + miraging,5
+pixie-mobius,6,no-fborg-entry,no,no,Pixie modifier on mobius base. 6 ADD = pixie(+1) + mobius(5),5
+pixie-osis,4,no-fborg-entry,no,no,Pixie-modified osis.,5
+pixie-paradon,5,no-fborg-entry,no,no,Pixie-modified paradon.,5
+pixie-pickup,3,no-fborg-entry,no,no,Pixie-modified pickup.,5
+pixie-quantum-butterfly,5,no-fborg-entry,no,no,Pixie + quantum on butterfly base. 5 ADD = pixie(+1) + quant,5
+pixie-rev-whirl,4,no-fborg-entry,no,no,Pixie-modified rev whirl.,5
+pixie-reverse-guay,3,no-fborg-entry,no,no,Reverse guay off a pixie entry.,5
+pixie-reverse-swirl,4,no-fborg-entry,no,no,Pixie reverse swirl.,5
+pixie-reverse-whirl,4,no-fborg-entry,no,no,Pixie reverse whirl.,5
+pixie-spinning-paradox-blender,7,no-fborg-entry,no,no,Pixie-modified spinning paradox blender.,5
+pixie-spinning-paradox-symposium-whirl,7,no-fborg-entry,no,no,Pixie-modified spinning paradox symposium whirl.,5
+pixie-spinning-paradox-whirl,6,no-fborg-entry,no,no,Pixie-modified spinning paradox whirl.,5
+pixie-symposium-eggbeater,5,no-fborg-entry,no,no,Pixie + symposium on eggbeater base. 5 ADD = pixie(+1) + sym,5
+pixie-symposium-illusion,4,no-fborg-entry,no,no,Pixie + symposium on illusion base. 4 ADD = pixie(+1) + symp,5
+pixie-symposium-mirage,4,fborg-name-only (no prose),no,no,Pixie Symposium Mirage (FB.org /newmoves).,5
+pixie-symposium-rev-whirl,5,no-fborg-entry,no,no,Pixie-modified rev whirl.,5
+pixie-symposium-reverse-whirl,5,no-fborg-entry,no,no,Tier-1 sweep: pixie on symposium reverse whirl.,5
+pixie-symposium-whirl,5,no-fborg-entry,no,no,Pixie + symposium on whirl base. 5 ADD = pixie(+1) + symposi,5
+pixie-symposium-whirling-swirl,6,no-fborg-entry,no,no,Pixie-modified whirling swirl.,5
+pixie-torque,5,no-fborg-entry,no,no,Pixie modifier on torque base. 5 ADD = pixie(+1) + torque(4),5
+pogo,0,no-fborg-entry,no,no,Pogo set; does not contribute ADD when modifying a base tric,5
+predator,4,no-fborg-entry,no,no,Atomic-modified dlo (PassBack folk-name).,5
+puck,4,no-fborg-entry,no,no,Puck (folk-named FM-corpus trick; FM technical: Pixie Duckin,5
+quagmire,4,no-fborg-entry,no,no,Quagmire (folk-named FM-corpus trick; FM technical: Quantum ,5
+quantanamera,5,no-fborg-entry,no,no,Quantanamera (folk-named FM-corpus trick; FM technical: Quan,5
+quantum,2,no-fborg-entry,no,no,"Quantum set: upward double-dex launch. Standalone 2 ADD, par",5
+quantum-blender,5,no-fborg-entry,no,no,Quantum modifier on blender base. 5 ADD = quantum(+1) + blen,5
+quantum-ducking-whirl,5,no-fborg-entry,no,no,Quantum + ducking on whirl base. 5 ADD = quantum(+1) + ducki,5
+quantum-eclipse,4,no-fborg-entry,no,no,Quantum modifier on eclipse base. 4 ADD = quantum(+1) + ecli,5
+quantum-eggbeater,4,no-fborg-entry,no,no,Quantum modifier on eggbeater base. 4 ADD = quantum(+1) + eg,5
+quantum-guay,3,no-fborg-entry,no,no,Quantum on guay. 3 ADD = quantum(1) + guay(2).,5
+quantum-gyro-mirage,4,no-fborg-entry,no,no,Quantum + gyro on mirage base. 4 ADD = quantum(+1) + gyro(+1,5
+quantum-legover,3,no-fborg-entry,no,no,Quantum modifier on legover base. 3 ADD = quantum(+1) + lego,5
+quantum-osis,4,no-fborg-entry,no,no,Quantum modifier on osis base. 4 ADD = quantum(+1) + osis(3),5
+quantum-pickup,3,no-fborg-entry,no,no,Quantum modifier on pickup base. 3 ADD = quantum(+1) + picku,5
+quantum-symposium-mirage,4,fborg-name-only (no prose),no,no,Quantum-modified symposium mirage.,5
+quantum-symposium-whirl,5,no-fborg-entry,no,no,Quantum + symposium on whirl base. 5 ADD = quantum(+1) + sym,5
+quantum-torque,5,no-fborg-entry,no,no,Quantum modifier on torque base. 5 ADD = quantum(+1) + torqu,5
+quantum-whirl,4,fborg-name-only (no prose),no,no,Quantum Whirl (FB.org /newmoves).,5
+rage,5,no-fborg-entry,no,no,A furious symposium mirage.,5
+rail-warrior,6,no-fborg-entry,no,no,A railing ducking butterfly.,5
+reactor,5,no-fborg-entry,no,no,Folk name; decomposes to atomic whirl.,5
+reaper,3,fborg-name-only (no prose),no,no,Two-dex compound from clipper stall to toe.,5
+redwetter,6,no-fborg-entry,no,no,An eggbeater launched out of a shooting set.,5
+rev-swirl,3,no-fborg-entry,no,no,Rev swirl.,5
+rev-whirl,3,no-fborg-entry,no,no,Reverse-direction whirl.,5
+reverse-blender,4,no-fborg-entry,no,no,Reverse blender.,5
+reverse-drifter,3,no-fborg-entry,no,no,Direction-reversed drifter; separate canonical from drifter ,5
+reverse-swirling-blender,5,no-fborg-entry,no,no,Reverse swirling blender.,5
+reverse-swirling-osis,4,no-fborg-entry,no,no,Reverse swirling osis.,5
+reverse-swirling-paradox-torque,6,no-fborg-entry,no,no,Reverse torque with a swirling dex and a paradox.,5
+reverse-swirling-pickup,3,no-fborg-entry,no,no,Reverse swirling pickup.,5
+reverse-swirling-symposium-mirage,4,no-fborg-entry,no,no,Reverse mirage with a swirling dex and symposium timing.,5
+reverse-torque,4,no-fborg-entry,no,no,Reverse torque.,5
+reverse-whirling-rake,3,no-fborg-entry,no,no,Reverse whirl into a rake terminal.,5
+reverse-whirling-twirl,5,no-fborg-entry,no,no,Reverse twirl with a whirling dex.,5
+ripped-warrior,5,no-fborg-entry,no,no,Folk name; decomposes to stepping ducking far butterfly.,5
+ripstein,4,ours-stronger,yes,yes,Popular freestyle trick.,5
+ripwalk,4,ours-stronger,yes,yes,Blurry-modified butterfly.,5
+rooted,0,no-fborg-entry,no,no,Rooted set; does not contribute ADD when modifying a base tr,5
+royale,4,fborg-name-only (no prose),no,no,Paradox-modified reverse drifter.,5
+sailing,2,no-fborg-entry,no,no,Sailing set. 2 ADD standalone. Equivalent to a Pixie Quantum,5
+schmoe,3,no-fborg-entry,no,no,Stepping-modified legover (PassBack folk-name).,5
+scorpions-tail,5,no-fborg-entry,no,no,Spinning body modifier on down-double-down chassis. 5 ADD = ,5
+shooting,3,no-fborg-entry,no,no,Shooting set; 3 ADD standalone. Acts as +3 ADD modifier when,5
+shoulder-stall,1,no-fborg-entry,no,no,Balance the bag on your shoulder.,5
+sidewalk,4,fborg-name-only (no prose),no,no,Stepping-modified same-side butterfly.,5
+slapstick,6,no-fborg-entry,no,no,Slapstick (folk-named FM-corpus trick; FM technical: Pixie S,5
+sole-stall,2,no-fborg-entry,no,no,Catch and balance the bag on the sole of your raised foot.,5
+sole-survivor,5,no-fborg-entry,no,no,Spinning + symposium whirl (PassBack folk-name).,5
+spender,6,no-fborg-entry,no,no,Spinning-modified paradox blender.,5
+spin,1,fborg-name-only (no prose),no,no,Single rotational body spin.,5
+spinal-tap,5,no-fborg-entry,no,no,Tapping-modifier torque.,5
+spinning-barfly,5,no-fborg-entry,no,no,Spinning modifier on barfly base. 5 ADD = spinning(+1) + bar,5
+spinning-blender,5,no-fborg-entry,no,no,Spinning modifier on blender base. 5 ADD = spinning(+1) + bl,5
+spinning-butterfly,4,fborg-name-only (no prose),no,no,Spinning-modified butterfly.,5
+spinning-butterfly-swirl,5,no-fborg-entry,no,no,Spinning modifier on butterfly-swirl base. 5 ADD = spinning(,5
+spinning-clipper,3,no-fborg-entry,no,no,Spinning-modified clipper stall.,5
+spinning-diving-symposium-whirl,6,no-fborg-entry,no,no,Spinning-modified symposium whirl.,5
+spinning-double-leg-over,4,no-fborg-entry,no,no,Spinning modifier on double-leg-over base. 4 ADD = spinning(,5
+spinning-drifter,4,no-fborg-entry,no,no,Spinning modifier on drifter base. 4 ADD = spinning(+1) + dr,5
+spinning-ducking-blender,6,no-fborg-entry,no,no,Spinning + ducking on blender base. 6 ADD = spinning(+1) + d,5
+spinning-ducking-butterfly,5,no-fborg-entry,no,no,Spinning + ducking on butterfly base. 5 ADD = spinning(+1) +,5
+spinning-ducking-clipper,4,no-fborg-entry,no,no,Spinning + ducking on clipper-stall base. 4 ADD = spinning(+,5
+spinning-ducking-drifter,5,no-fborg-entry,no,no,Spinning-modified ducking drifter.,5
+spinning-ducking-illusion,4,no-fborg-entry,no,no,Spinning + ducking on illusion base. 4 ADD = spinning(+1) + ,5
+spinning-ducking-legover,4,no-fborg-entry,no,no,Spinning + ducking on legover base. 4 ADD = spinning(+1) + d,5
+spinning-ducking-mirage,4,no-fborg-entry,no,no,Spinning + ducking on mirage base. 4 ADD = spinning(+1) + du,5
+spinning-ducking-osis,5,no-fborg-entry,no,no,Spinning + ducking on osis base. 5 ADD = spinning(+1) + duck,5
+spinning-ducking-paradox-blender,7,no-fborg-entry,no,no,Spinning + ducking + paradox on blender base. 7 ADD = spinni,5
+spinning-ducking-paradox-drifter,6,no-fborg-entry,no,no,Spinning + ducking + paradox on drifter base. 6 ADD = spinni,5
+spinning-ducking-paradox-mirage,5,no-fborg-entry,no,no,Spinning + ducking + paradox on mirage base. 5 ADD = spinnin,5
+spinning-ducking-paradox-symposium-mirage,6,no-fborg-entry,no,no,Spinning + ducking + paradox + symposium on mirage base. 6 A,5
+spinning-ducking-paradox-symposium-whirl,7,no-fborg-entry,no,no,Spinning + ducking + paradox + symposium on whirl base. 7 AD,5
+spinning-ducking-paradox-whirl,6,no-fborg-entry,no,no,Spinning + ducking + paradox on whirl base. 6 ADD = spinning,5
+spinning-ducking-pickup,4,no-fborg-entry,no,no,Spinning + ducking on pickup base. 4 ADD = spinning(+1) + du,5
+spinning-ducking-superfly,7,no-fborg-entry,no,no,Spinning-modified superfly.,5
+spinning-ducking-symposium-double-over-down,7,no-fborg-entry,no,no,Spinning + ducking + symposium on double-over-down base. 7 A,5
+spinning-ducking-symposium-whirl,6,no-fborg-entry,no,no,Spinning-modified symposium whirl.,5
+spinning-ducking-whirl,5,no-fborg-entry,no,no,Spinning + ducking on whirl base. 5 ADD = spinning(+1) + duc,5
+spinning-eggbeater,4,no-fborg-entry,no,no,Spinning-modified eggbeater.,5
+spinning-guay,3,no-fborg-entry,no,no,Spinning modifier on guay base. 3 ADD = spinning(+1) + guay(,5
+spinning-illusion,3,no-fborg-entry,no,no,Spinning modifier on illusion base. 3 ADD = spinning(+1) + i,5
+spinning-mirage,3,no-fborg-entry,no,no,Spinning modifier on mirage base. 3 ADD = spinning(+1) + mir,5
+spinning-miraging-symposium-torque,7,no-fborg-entry,no,no,Spinning-modified symposium torque.,5
+spinning-paradox-blender,6,fborg-name-only (no prose),no,no,Spinning paradox blender (FB.org /newmoves 2003).,5
+spinning-paradox-double-leg-over,5,no-fborg-entry,no,no,Spinning + paradox on double-leg-over base. 5 ADD = spinning,5
+spinning-paradox-illusion,4,fborg-name-only (no prose),no,no,Spinning paradox illusion (FB.org /newmoves 2003).,5
+spinning-paradox-mirage,4,fborg-name-only (no prose),no,no,Spinning paradox mirage (FB.org /newmoves 2003).,5
+spinning-paradox-whirl,5,fborg-name-only (no prose),no,no,Spinning paradox whirl (FB.org /newmoves 2003).,5
+spinning-pickup,3,fborg-name-only (no prose),no,no,Spinning Pickup (FB.org /newmoves).,5
+spinning-rev-whirl,4,no-fborg-entry,no,no,Spinning-modified rev whirl.,5
+spinning-reverse-guay,3,no-fborg-entry,no,no,Reverse guay with a spinning rotation.,5
+spinning-reverse-swirl,4,no-fborg-entry,no,no,Spinning reverse swirl.,5
+spinning-reverse-whirl,4,no-fborg-entry,no,no,Spinning reverse whirl.,5
+spinning-superfly,6,no-fborg-entry,no,no,Spinning modifier on superfly base. 6 ADD = spinning(+1) + s,5
+spinning-swirl,4,no-fborg-entry,no,no,Spinning modifier on swirl base. 4 ADD = spinning(+1) + swir,5
+spinning-symposium-eggbeater,5,no-fborg-entry,no,no,Spinning + symposium on eggbeater base. 5 ADD = spinning(+1),5
+spinning-symposium-flux,6,no-fborg-entry,no,no,Spinning-modified flux.,5
+spinning-symposium-illusion,4,no-fborg-entry,no,no,Spinning + symposium on illusion base. 4 ADD = spinning(+1) ,5
+spinning-symposium-mirage,4,no-fborg-entry,no,no,Spinning + symposium on mirage base. 4 ADD = spinning(+1) + ,5
+spinning-symposium-pickup,4,no-fborg-entry,no,no,Spinning + symposium on pickup base. 4 ADD = spinning(+1) + ,5
+spinning-symposium-swirl,5,no-fborg-entry,no,no,Spinning + symposium on swirl base. 5 ADD = spinning(+1) + s,5
+spinning-symposium-torque,6,no-fborg-entry,no,no,Spinning-modified symposium torque.,5
+spinning-symposium-whirl,5,no-fborg-entry,no,no,Spinning-modified symposium whirl.,5
+spinning-symposium-whirling-swirl,6,no-fborg-entry,no,no,Spinning-modified whirling swirl.,5
+spinning-toe-stall,2,no-fborg-entry,no,no,Spinning modifier on toe-stall base. 2 ADD = spinning(+1) + ,5
+spinning-tomahawk,6,no-fborg-entry,no,no,Spinning-modified tomahawk.,5
+spinning-torque,5,no-fborg-entry,no,no,Spinning-modified torque.,5
+spinning-whirl,4,no-fborg-entry,no,no,Spinning-modified whirl.,5
+spinning-whirling-swirl,5,no-fborg-entry,no,no,Spinning-modified whirling swirl.,5
+spyro,1,no-fborg-entry,no,no,Gyro move where the dexing foot plants before the dex.,5
+stepping-barfly,5,no-fborg-entry,no,no,Stepping modifier on barfly base. 5 ADD = stepping(+1) + bar,5
+stepping-barrage,4,no-fborg-entry,no,no,Tier-1 sweep: stepping on barrage.,5
+stepping-blender,5,no-fborg-entry,no,no,Stepping-modified blender.,5
+stepping-butterfly,4,fborg-name-only (no prose),no,no,Stepping-modified butterfly.,5
+stepping-butterfly-swirl,5,no-fborg-entry,no,no,Stepping modifier on butterfly-swirl base. 5 ADD = stepping(,5
+stepping-clipper,3,no-fborg-entry,no,no,Stepping into a clipper stall.,5
+stepping-diving-butterfly,5,no-fborg-entry,no,no,Stepping-modified diving butterfly.,5
+stepping-diving-mirage,4,no-fborg-entry,no,no,Stepping-modified diving mirage.,5
+stepping-double-over-down,5,no-fborg-entry,no,no,Stepping modifier on double-over-down base. 5 ADD = stepping,5
+stepping-ducking-butterfly,5,no-fborg-entry,no,no,Stepping (same-side) + ducking on butterfly base.,5
+stepping-ducking-double-leg-over,5,no-fborg-entry,no,no,Stepping + ducking on double-leg-over base. 5 ADD = stepping,5
+stepping-ducking-drifter,5,no-fborg-entry,no,no,Stepping-modified ducking drifter.,5
+stepping-ducking-osis,5,no-fborg-entry,no,no,Stepping + ducking on osis base.,5
+stepping-ducking-paradox-blender,7,fborg-name-only (no prose),no,no,Triple-operator stack on blender (FB.org /newmoves 2003).,5
+stepping-ducking-paradox-illusion,5,fborg-name-only (no prose),no,no,Stepping-modified ducking paradox illusion.,5
+stepping-ducking-paradox-symposium-whirl,7,no-fborg-entry,no,no,Stepping + ducking + paradox + symposium on whirl base.,5
+stepping-ducking-symposium-eggbeater,6,no-fborg-entry,no,no,Stepping-modified ducking symposium eggbeater.,5
+stepping-ducking-torque,6,no-fborg-entry,no,no,Stepping + ducking on torque base. 6 ADD = stepping(+1) + du,5
+stepping-dyno,5,no-fborg-entry,no,no,Stepping modifier on dyno base. 5 ADD = stepping(+1) + dyno(,5
+stepping-eggbeater,4,fborg-name-only (no prose),no,no,Stepping Eggbeater (FB.org /newmoves).,5
+stepping-flail,4,no-fborg-entry,no,no,Stepping modifier on flail base. 4 ADD = stepping(+1) + flai,5
+stepping-guay,3,no-fborg-entry,no,no,Tier-1 sweep: stepping on guay.,5
+stepping-illusion,3,no-fborg-entry,no,no,Stepping-modified illusion.,5
+stepping-legover,3,no-fborg-entry,no,no,Stepping-modified legover.,5
+stepping-mirage,3,no-fborg-entry,no,no,Stepping-modified mirage.,5
+stepping-paradox-torque,6,fborg-name-only (no prose),no,no,Stepping-modified paradox torque.,5
+stepping-pickup,3,no-fborg-entry,no,no,Stepping modifier on pickup base. 3 ADD = stepping(+1) + pic,5
+stepping-reaper,4,no-fborg-entry,no,no,Stepping-modified reaper.,5
+stepping-rev-whirl,4,no-fborg-entry,no,no,Stepping-modified reverse whirl.,5
+stepping-reverse-guay,3,no-fborg-entry,no,no,Reverse guay off a stepping entry.,5
+stepping-reverse-swirl,4,no-fborg-entry,no,no,Stepping reverse swirl.,5
+stepping-reverse-whirl,4,no-fborg-entry,no,no,Stepping reverse whirl.,5
+stepping-swirl,4,no-fborg-entry,no,no,Stepping modifier on swirl base. 4 ADD = stepping(+1) + swir,5
+stepping-symposium-mirage,4,no-fborg-entry,no,no,Stepping + symposium on mirage base. 4 ADD = stepping(+1) + ,5
+stepping-symposium-whirl,5,no-fborg-entry,no,no,Stepping + symposium on whirl base. 5 ADD = stepping(+1) + s,5
+stepping-whirl,4,no-fborg-entry,no,no,Stepping-modified whirl.,5
+stepping-whirling-swirl,5,fborg-name-only (no prose),no,no,Stepping-modified whirling swirl.,5
+sumo,5,no-fborg-entry,yes,no,Nuclear-modified mirage; 5 ADD via an X-Dex escalation on th,5
+surging,3,no-fborg-entry,no,no,Surging primitive (decomposes informally as spinning + stepp,5
+surging-ducking-paradox-torque,8,no-fborg-entry,no,no,"A torque with a ducking head-duck, a paradox hip-pivot, and ",5
+surging-legover,4,no-fborg-entry,no,no,Surging-modified legover.,5
+surging-mirage,4,no-fborg-entry,no,no,Surging-modified mirage.,5
+surging-osis,5,no-fborg-entry,no,no,Surging-modified osis.,5
+surging-whirl,5,no-fborg-entry,no,no,Surging-modified whirl.,5
+surreal,6,ours-stronger,yes,yes,Surging-modified paradox whirl.,5
+swirling-butterfly,4,no-fborg-entry,no,no,Swirling-modified butterfly.,5
+swirling-mirage,3,no-fborg-entry,no,no,Swirling-modified mirage.,5
+swirling-paradox-mirage,4,no-fborg-entry,no,no,Swirling-modified paradox mirage.,5
+swirling-reverse-swirl,4,no-fborg-entry,no,no,Swirling reverse swirl.,5
+swirling-swirl,4,no-fborg-entry,no,no,Swirling-modified swirl.,5
+swirling-symposium-whirl,5,no-fborg-entry,no,no,Swirling-modified symposium whirl.,5
+swirling-whirl,4,no-fborg-entry,no,no,Swirling-modified whirl.,5
+swirling-whirling-swirl,5,no-fborg-entry,no,no,Swirling-modified whirling swirl.,5
+swirlwind,7,no-fborg-entry,no,no,"A whirling swirl carrying a spin, a paradox hip-pivot, and a",5
+symposium-atomic-butterfly,5,no-fborg-entry,no,no,Symposium-modified atomic butterfly.,5
+symposium-blur,5,no-fborg-entry,no,no,Symposium-modified blur.,5
+symposium-bubba,3,no-fborg-entry,no,no,Symposium-modified bubba.,5
+symposium-butterfly,4,no-fborg-entry,no,no,Symposium modifier on butterfly base. 4 ADD = symposium(+1) ,5
+symposium-double-over-down,5,no-fborg-entry,no,no,Symposium modifier on double-over-down base. 5 ADD = symposi,5
+symposium-eggbeater,4,fborg-name-only (no prose),no,no,Symposium Eggbeater (FB.org /newmoves).,5
+symposium-mirage,3,no-fborg-entry,no,no,Symposium-modified mirage.,5
+symposium-miraging-mirage,4,no-fborg-entry,no,no,Symposium-modified mirage.,5
+symposium-mobius,6,no-fborg-entry,no,no,Symposium-modified mobius.,5
+symposium-paradon,5,no-fborg-entry,no,no,Symposium modifier on paradon base. 5 ADD = symposium(+1) + ,5
+symposium-pixie,3,no-fborg-entry,no,no,Symposium modifier on pixie base. 3 ADD = symposium(+1) + pi,5
+symposium-reverse-swirling-pickup,4,no-fborg-entry,no,no,Reverse pickup with a swirling dex and symposium timing.,5
+symposium-reverse-whirling-swirl,5,no-fborg-entry,no,no,Reverse swirl with a whirling dex and symposium timing.,5
+symposium-swirl,4,no-fborg-entry,no,no,Symposium-modified swirl.,5
+symposium-tomahawk,6,fborg-name-only (no prose),no,no,Symposium-modified tomahawk.,5
+symposium-twirl,5,no-fborg-entry,no,no,Symposium modifier on twirl base. 5 ADD = symposium(+1) + tw,5
+symposium-whirling-mirage,4,no-fborg-entry,no,no,Tier-1 sweep: symposium on whirling mirage.,5
+symposium-whirling-swirl,5,no-fborg-entry,no,no,Symposium-modified whirling swirl.,5
+tapdown,4,no-fborg-entry,no,no,Tapping-modifier butterfly.,5
+tapping-butterfly,4,no-fborg-entry,no,no,Tapping modifier on butterfly base. 4 ADD = tapping(+1) + bu,5
+tapping-clipper,3,no-fborg-entry,no,no,Tapping modifier on clipper-stall base. 3 ADD = tapping(+1) ,5
+tapping-double-leg-over,4,no-fborg-entry,no,no,Tapping modifier on double-leg-over base. 4 ADD = tapping(+1,5
+tapping-double-over-down,5,no-fborg-entry,no,no,Tier-1 sweep: tapping on double over down.,5
+tapping-drifter,4,no-fborg-entry,no,no,Tapping modifier on drifter base. 4 ADD = tapping(+1) + drif,5
+tapping-eggbeater,4,no-fborg-entry,no,no,Tapping modifier on eggbeater base. 4 ADD = tapping(+1) + eg,5
+tapping-guay,3,no-fborg-entry,no,no,Tier-1 sweep: tapping on guay.,5
+tapping-illusion,3,fborg-name-only (no prose),no,no,Tapping Illusion (FB.org /newmoves).,5
+tapping-leg-over,3,no-fborg-entry,no,no,Tapping modifier on legover base. 3 ADD = tapping(+1) + lego,5
+tapping-mobius,6,no-fborg-entry,no,no,Tapping modifier on mobius base. 6 ADD = tapping(+1) + mobiu,5
+tapping-osis,4,no-fborg-entry,no,no,Tapping modifier on osis base. 4 ADD = tapping(+1) + osis(3),5
+tapping-pickup,3,no-fborg-entry,no,no,Tapping modifier on pickup base. 3 ADD = tapping(+1) + picku,5
+tapping-symposium-whirl,5,no-fborg-entry,no,no,Tapping + symposium on whirl base. 5 ADD = tapping(+1) + sym,5
+tapping-torque,5,no-fborg-entry,no,no,Tapping modifier on torque base. 5 ADD = tapping(+1) + torqu,5
+tapping-twirl,5,no-fborg-entry,no,no,Tapping modifier on twirl base. 5 ADD = tapping(+1) + twirl(,5
+tapping-whirl,4,no-fborg-entry,no,no,Tapping-modified whirl.,5
+toe-ducking-legover,3,no-fborg-entry,no,no,Toe ducking legover.,5
+toe-flurry,4,no-fborg-entry,no,no,Flurry off a toe entry.,5
+toe-gyro-mirage,3,no-fborg-entry,no,no,Toe gyro mirage.,5
+toe-spinning-torque,5,no-fborg-entry,no,no,Toe spinning torque.,5
+toe-stall,1,no-fborg-entry,yes,no,Catch and balance the bag on the top of your foot.,5
+toe-symposium-swirl,4,no-fborg-entry,no,no,Toe symposium swirl.,5
+toe-whirling-swirl,4,no-fborg-entry,no,no,Toe whirling swirl.,5
+tomahawk,5,fborg-name-only (no prose),no,no,Ducking-modified paradox whirl.,5
+torque,4,ours-stronger,yes,yes,Mirage variation of an osis.,5
+triple-mirage,4,no-fborg-entry,no,no,Triple mirage: three inside dexes into an opposite toe stall,5
+triple-orbit,4,no-fborg-entry,no,no,Triple full orbit: three out-dexes into a toe stall. 4 ADD =,5
+triple-spin,3,fborg-name-only (no prose),no,no,Three consecutive 360-degree body spins between kicks. 3 ADD,5
+triple-swirl,5,no-fborg-entry,no,no,Triple swirl: three swirl dexes into a clipper stall. 5 ADD ,5
+tripwalk,4,no-fborg-entry,no,no,Quantum-modifier butterfly.,5
+trixie,5,no-fborg-entry,no,no,Folk name; decomposes to triple pixie.,5
+warp,5,no-fborg-entry,no,no,"A downtime mirage launched out of a warping set (two dexes, ",5
+whirl,3,ours-stronger,yes,yes,Rotational body-spin dex; anchor of the whirl family.,5
+whirling-butterfly,4,no-fborg-entry,no,no,Whirling-modified butterfly.,5
+whirling-gyro-mirage,4,no-fborg-entry,no,no,Mirage with a gyro rotation and a whirling dex.,5
+whirling-mirage,3,no-fborg-entry,no,no,Whirling-modified mirage.,5
+whirling-paradox-mirage,4,no-fborg-entry,no,no,Mirage with a whirling dex and a paradox.,5
+whirling-pickup,3,no-fborg-entry,no,no,Whirling-modified pickup.,5
+whirling-rake,3,no-fborg-entry,no,no,Whirling-modified rake.,5
+whirling-reverse-whirl,4,no-fborg-entry,no,no,Whirling reverse whirl.,5
+whirling-whirl,4,no-fborg-entry,no,no,Whirling-modified whirl.,5
+wrap,2,fborg-name-only (no prose),no,no,Inside delay then pull the footbag around the support leg in,5
+yoda,5,fborg-name-only (no prose),no,no,Yoda (folk-named FM-corpus trick; FM technical: Pixie Quantu,5
