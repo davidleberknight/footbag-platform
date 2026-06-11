@@ -100,6 +100,7 @@ import {
 import {
   MOVEMENT_SYSTEM_AXES,
   resolveModifierCompositionGloss,
+  resolveAxisForModifier,
 } from '../content/freestyleMovementSystems';
 import {
   ALTERNATIVE_SURFACES,
@@ -114,7 +115,7 @@ import {
 } from '../content/freestylePublicFamilies';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
-import { MODIFIER_CLUSTERS, clusterForModifier } from '../content/freestyleModifierClusters';
+import { MODIFIER_CLUSTERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
 import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
@@ -1080,6 +1081,14 @@ function shapeTrickPathways(args: {
   return { learn, watch, family };
 }
 
+export interface FreestyleTrickModifierMembership {
+  name:        string;          // modifier display name (e.g. "Paradox")
+  clusterLabel: string;         // "By modifier" browse-cluster label
+  axisName:    string | null;   // Movement System axis name, null when unclassified
+  axisKey:     string | null;   // axis key; the template builds the ?view=movement-system deep-link from it
+  gloss:       string | null;   // one-line composition gloss, null when none authored
+}
+
 export interface FreestyleTrickContent {
   trickName: string;
   sortName: string | null;
@@ -1106,6 +1115,17 @@ export interface FreestyleTrickContent {
   // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
   // This is the CANONICAL (Layer 1) IFPA-family-based relating.
   relatedTricks: FreestyleRelatedTrick[];
+  // "Modifiers on this trick" — one row per modifier link, carrying its
+  // browse-cluster label, Movement System axis deep-link (when classified),
+  // and optional composition gloss. Always shaped from the trick's modifier
+  // links, independent of the modifier-layering panel's >=3-link gate. Empty
+  // when the trick carries no modifier links.
+  modifierMemberships: FreestyleTrickModifierMembership[];
+  // Families this trick belongs to beyond its primary family: the parent root
+  // of a branch family (branch->root containment) plus any curator
+  // dual-memberships. The template builds the `?family=` href from `slug`
+  // (single-variable URL). Empty for root-family and route-out tricks.
+  additionalFamilies: { label: string; slug: string }[];
   // Observational symbolic-grammar topology panel (Layer 3). Null when:
   //   - slug is not in the flagship allow-list (8 flagship slugs)
   //   - slug has no topology-axis group membership in the staging CSVs
@@ -5989,6 +6009,49 @@ export const freestyleService = {
           familyMemberCount: familyMembers.length,
         });
 
+        // "Modifiers on this trick" rows (one per distinct modifier link):
+        // browse-cluster label + Movement System axis deep-link + optional
+        // composition gloss. Always shaped, independent of the >=3-link
+        // modifier-layering panel below it.
+        const modifierMemberships: FreestyleTrickModifierMembership[] = (() => {
+          const seen = new Set<string>();
+          const out: FreestyleTrickModifierMembership[] = [];
+          for (const link of modifierLinks) {
+            const ms = link.modifier_slug;
+            if (seen.has(ms)) continue;
+            seen.add(ms);
+            const axis = resolveAxisForModifier(ms);
+            out.push({
+              name:         link.modifier_name,
+              clusterLabel: clusterLabelForModifier(ms),
+              axisName:     axis ? axis.axisName : null,
+              axisKey:      axis ? axis.axisKey : null,
+              gloss:        resolveModifierCompositionGloss(ms),
+            });
+          }
+          return out;
+        })();
+
+        // Families beyond the primary one: branch->root containment (a branch
+        // family's parent root, via familyWithAncestors) plus curator
+        // dual-memberships. Lets a multi-family trick (e.g. a torque-family
+        // trick, also an osis member) echo on its own page what By-family browse
+        // already shows.
+        const additionalFamilies: { label: string; slug: string }[] = (() => {
+          if (!effectiveFamilySlug) return [];
+          const extras = new Set<string>([
+            ...familyWithAncestors(effectiveFamilySlug),
+            ...resolveFamilyDualMemberships(slug),
+          ]);
+          extras.delete(effectiveFamilySlug);
+          return [...extras].map(fam => {
+            const label = PUBLIC_FAMILY_LABEL.get(fam)
+              ?? resolveFamilyDisplayName(fam)
+              ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/-/g, ' '));
+            return { label: `${label} family`, slug: fam };
+          });
+        })();
+
         return {
           trickName,
           sortName,
@@ -6006,7 +6069,9 @@ export const freestyleService = {
             ? { label: `${familyName} family`, slug: familySlug }
             : null,
           familyTiers:      buildFamilyTiers(familyMembers),
+          additionalFamilies,
           relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
+          modifierMemberships,
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
           symbolicMemberships:     dictRow

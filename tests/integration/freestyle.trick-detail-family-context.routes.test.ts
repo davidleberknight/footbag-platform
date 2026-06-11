@@ -83,7 +83,11 @@ describe('Trick-detail family context — families resolve to themselves', () =>
     expect(m, 'family chip present').not.toBeNull();
     expect(m![1]).toBe('/freestyle/tricks?family=torque');
     expect(m![2]).toBe('Torque family');
-    expect(html).not.toContain('>Osis family<');
+    // The hero family chip resolves to the branch (Torque), never its Osis
+    // parent. Osis surfaces only through the separate branch-to-root
+    // "also a member of" note, as an additional-family chip — not a second
+    // hero family chip.
+    expect(html).toContain('class="trick-also-family-chip" href="/freestyle/tricks?family=osis">Osis family</a>');
   });
 
   it('the Torque family ladder includes its members and the Osis ladder does not absorb them', async () => {

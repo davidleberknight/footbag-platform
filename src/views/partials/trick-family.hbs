@@ -26,6 +26,12 @@
     </p>
   </div>
   {{/if}}
+  {{#if content.additionalFamilies.length}}
+  <p class="trick-also-family">
+    Also a member of:
+    {{#each content.additionalFamilies}}<a class="trick-also-family-chip" href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#unless @last}} {{/unless}}{{/each}}
+  </p>
+  {{/if}}
   <div class="family-lineage">
     {{#each content.familyTiers}}
     <div class="family-lineage-tier{{#if hasCurrent}} family-lineage-tier-current{{/if}}">

@@ -88,3 +88,12 @@ const SLUG_TO_CLUSTER: ReadonlyMap<string, string> = new Map(
 export function clusterForModifier(slug: string): string {
   return SLUG_TO_CLUSTER.get((slug || '').trim()) ?? 'other';
 }
+
+const CLUSTER_KEY_TO_LABEL: ReadonlyMap<string, string> = new Map(
+  MODIFIER_CLUSTERS.map(c => [c.key, c.label] as const),
+);
+
+/** Reader-facing cluster label for a modifier slug (falls back to the "other" cluster label). */
+export function clusterLabelForModifier(slug: string): string {
+  return CLUSTER_KEY_TO_LABEL.get(clusterForModifier(slug)) ?? 'Other tracked operators';
+}

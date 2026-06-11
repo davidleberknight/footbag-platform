@@ -3373,6 +3373,71 @@ section.home-media { padding-top: 0; }
   flex-direction: column;
 }
 .related-tricks-list li > a { font-weight: 500; }
+.related-trick-reason {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+}
+
+/* "Modifiers on this trick" block: one row per modifier link with its
+   browse-cluster label, Movement System axis deep-link, and optional gloss. */
+.trick-modifiers .trick-modifier-list { margin-top: 0.5rem; }
+.trick-modifier-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.trick-modifier-item {
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+.trick-modifier-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.trick-modifier-name {
+  font-weight: 600;
+  color: var(--secondary);
+}
+.trick-modifier-cluster {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.trick-modifier-axis {
+  font-size: 0.8rem;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.05em 0.6em;
+  color: var(--secondary);
+}
+.trick-modifier-axis:hover { text-decoration: underline; }
+.trick-modifier-gloss {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Additional-family chips: branch->root containment + curator dual-memberships. */
+.trick-also-family {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.trick-also-family-chip {
+  display: inline-block;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.05em 0.6em;
+  color: var(--secondary);
+}
+.trick-also-family-chip:hover { text-decoration: underline; }
 
 .next-tricks-list {
   list-style: none;

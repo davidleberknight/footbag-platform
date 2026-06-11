@@ -1,0 +1,27 @@
+{{!--
+  Modifiers on this trick. One row per modifier link: its By-modifier browse
+  cluster, its Movement System axis (deep-linked when the modifier is
+  classified), and a one-line composition gloss when one is authored.
+  Always renders from the trick's modifier links, independent of the
+  modifier-layering panel's three-link gate below it.
+--}}
+{{#if content.modifierMemberships.length}}
+<section class="content-section trick-modifiers">
+  <div class="section-heading">
+    <h2>Modifiers on this trick</h2>
+    <p class="section-intro">How each modifier in this trick's name groups in the browse views.</p>
+  </div>
+  <ul class="trick-modifier-list">
+    {{#each content.modifierMemberships}}
+    <li class="trick-modifier-item">
+      <div class="trick-modifier-head">
+        <span class="trick-modifier-name">{{name}}</span>
+        <span class="trick-modifier-cluster">{{clusterLabel}}</span>
+        {{#if axisKey}}<a class="trick-modifier-axis" href="/freestyle/tricks?view=movement-system#movement-axis-{{axisKey}}">{{axisName}}</a>{{/if}}
+      </div>
+      {{#if gloss}}<p class="trick-modifier-gloss">{{gloss}}</p>{{/if}}
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

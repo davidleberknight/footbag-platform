@@ -8,7 +8,20 @@ export interface FreestyleRelatedTrick {
   adds:          string | null;
   detailHref:    string;
   rule:          'neighborhood' | 'family' | 'modifier-prefix' | 'parent' | 'grandparent';
+  // Plain-words reason this trick is related, surfaced per row so the reader
+  // can tell WHY each neighbour is listed instead of seeing a flat list.
+  ruleLabel:     string;
 }
+
+// Reader-facing label per relating rule. The service shapes this so the
+// template branches on nothing.
+const RULE_LABELS: Record<FreestyleRelatedTrick['rule'], string> = {
+  'neighborhood':    'Movement neighbour',
+  'family':          'Same family',
+  'modifier-prefix': 'Shares a modifier',
+  'parent':          'Built on',
+  'grandparent':     'Structural ancestor',
+};
 
 const MAX_RESULTS  = 8;
 const R3_GATE_SIZE = 6;
@@ -98,6 +111,7 @@ function shape(row: FreestyleTrickRow, rule: FreestyleRelatedTrick['rule']): Fre
     adds:          row.adds,
     detailHref:    `/freestyle/tricks/${row.slug}`,
     rule,
+    ruleLabel:     RULE_LABELS[rule],
   };
 }
 
