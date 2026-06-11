@@ -1,19 +1,26 @@
 /**
- * GET /freestyle/tricks/:slug — structured relationship model (Slice 1).
+ * GET /freestyle/tricks/:slug — structured relationship model.
  *
- * Pins three additive surfaces:
+ * Pins these additive surfaces:
  *   1. Quantity ladder (spin -> double-spin -> triple-spin): a cross-family
  *      progression rendered with a current-rung marker + rationale, NOT a family.
  *   2. Swing elements: the pendulum/rake movement-neighbour pair re-labeled
  *      "Swing elements" with the open-terminal rationale.
  *   3. Related tricks split into labeled relationship groups (group label, not
- *      per-row reason). Regression: orphan body primitives still render.
+ *      per-row reason).
+ *   4. Orphan-neighbour overlays: double-kick / miraging-kick / toe-clipper
+ *      surface their curated movement neighbours, and modifier composition
+ *      glosses render inline.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3571');
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -31,10 +38,20 @@ beforeAll(async () => {
     // Swing-element pair.
     t('pendulum', 'pendulum', '2'),
     t('rake', 'rake', '2'),
-    // Orphan body primitives (regression).
+    // Orphan body primitives + their curated neighbour targets.
     t('double-kick', 'double-kick', '1', 'body'),
+    t('double-knee', 'double-knee', '1', 'body'),
     t('miraging-kick', 'miraging-kick', '1', 'dex'),
+    t('toe-clipper', 'toe-clipper', '2'),
+    t('flying-inside', 'clipper', '2'),
+    t('flying-outside', 'clipper', '2'),
+    t('flying-clipper', 'clipper', '2'),
+    t('mirage', 'mirage', '2', 'dex'),
+    // A trick carrying the gyro modifier, to exercise the composition gloss.
+    t('gyro-clipper', 'clipper-stall', '2'),
   ]) insertFreestyleTrick(db, r);
+  insertFreestyleTrickModifier(db, { slug: 'gyro', modifier_name: 'Gyro', modifier_type: 'body' });
+  insertFreestyleTrickModifierLink(db, 'gyro-clipper', 'gyro');
   db.close();
   createApp = await importApp();
 });
@@ -85,8 +102,21 @@ describe('Related groups + regressions', () => {
     expect(html).toContain('Same family');           // spin <-> triple-spin
     expect(html).not.toContain('related-trick-reason'); // per-row reason retired
   });
-  it('orphan body primitives still render', async () => {
-    expect(await page('double-kick')).toContain('Footbag Trick');
-    expect(await page('miraging-kick')).toContain('Footbag Trick');
+});
+
+describe('Orphan-neighbour overlays + modifier glosses', () => {
+  it('double-kick surfaces its flying-contact set and the double-knee sibling', async () => {
+    const html = await page('double-kick');
+    expect(html).toContain('Movement neighbours');
+    expect(html).toContain('/freestyle/tricks/flying-clipper');
+    expect(html).toContain('/freestyle/tricks/double-knee');   // mutual sibling pair
+  });
+  it('miraging-kick relates to mirage; toe-clipper to flying-clipper', async () => {
+    expect(await page('miraging-kick')).toContain('/freestyle/tricks/mirage');
+    expect(await page('toe-clipper')).toContain('/freestyle/tricks/flying-clipper');
+  });
+  it('renders the gyro modifier composition gloss inline', async () => {
+    const html = await page('gyro-clipper');
+    expect(html).toContain('GYRO + base');
   });
 });

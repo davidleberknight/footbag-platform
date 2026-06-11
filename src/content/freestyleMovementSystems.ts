@@ -163,6 +163,38 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'a high-energy pre-base treatment that decomposes to spinning + stepping. ' +
     'Compounds: SURGE + WHIRL, SURGE + OSIS.',
   ],
+  ['atomic',
+    'ATOMIC + base: a set that packs two dexterities into one set before the base; ' +
+    'carries an extra hidden dex on rotational bases. ' +
+    'Compounds: ATOMIC + TORQUE, ATOMIC + MIRAGE.',
+  ],
+  ['quantum',
+    'QUANTUM + base: a compressed atomic set, one extra dex packed into the set before the base. ' +
+    'Compounds: QUANTUM + MIRAGE, QUANTUM + OSIS.',
+  ],
+  ['nuclear',
+    'NUCLEAR + base: a compound set of a paradox plus a downtime illusion, ' +
+    'adding two motions before the base. ' +
+    'Compounds: NUCLEAR + DRIFTER, NUCLEAR + TORQUE.',
+  ],
+  ['gyro',
+    'GYRO + base: a half (180°) body turn during the dex, ' +
+    'spinning and dexing on the same foot that set the bag. ' +
+    'Compounds: GYRO + MIRAGE, GYRO + CLIPPER.',
+  ],
+  ['diving',
+    'DIVE + base: a forward dive of the upper body over the bag during the dex. ' +
+    'Compounds: DIVE + CLIPPER, DIVE + MIRAGE.',
+  ],
+  ['miraging',
+    'MIRAGING + base: prepends a mirage-style inside dex at the front of the base trick. ' +
+    'Compounds: MIRAGING + OSIS (torque), MIRAGING + LEGOVER.',
+  ],
+  ['whirling',
+    'WHIRLING + base: a whirl dex during uptime before the bag peaks, ' +
+    'flipping the leading dex direction of the base. ' +
+    'Compounds: WHIRLING + MIRAGE, WHIRLING + OSIS.',
+  ],
 ]);
 
 /**

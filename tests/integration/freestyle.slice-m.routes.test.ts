@@ -53,10 +53,11 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'pixie',    modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body' });
-  // atomic is in the Movement System axis but has NO entry in
+  insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'atomic',   modifier_type: 'set'  });
+  // weaving is in the Midtime Body axis but has NO entry in
   // MODIFIER_COMPOSITION_GLOSSES; its group is the canary that the gloss row
   // is suppressed for un-glossed modifiers.
-  insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'atomic',   modifier_type: 'set'  });
+  insertFreestyleTrickModifier(db, { slug: 'weaving',  modifier_name: 'weaving',  modifier_type: 'body' });
 
   // ── Osis row (single member; osis family does not render on its own here) ─
   insertFreestyleTrick(db, { slug: 'osis',    canonical_name: 'osis',    adds: '3', base_trick: 'osis', trick_family: 'osis', category: 'base' });
@@ -110,6 +111,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'paradox-drifter','paradox',  1);
   insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning', 1);
   insertFreestyleTrickModifierLink(db, 'atom-smasher',   'atomic',   1);
+  insertFreestyleTrickModifierLink(db, 'atom-smasher',   'weaving',  1);
 
   db.close();
   createApp = await importApp();
@@ -232,15 +234,14 @@ describe('Paradox composition gloss (Movement System view)', () => {
   });
 
   it('un-glossed modifier groups DO NOT render a composition gloss row', async () => {
-    // paradox + spinning + ducking + symposium + stepping + pixie are all
-    // curator-authored glosses. atomic is in the Movement System axis but
-    // has NO gloss entry — its group is the canary verifying the gloss row
-    // suppresses cleanly when null.
+    // Most axis modifiers now carry a curator-authored gloss. weaving is in the
+    // Midtime Body axis but has NO gloss entry — its group is the canary
+    // verifying the gloss row suppresses cleanly when null.
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const atomicStart = res.text.indexOf('id="movement-atomic"');
-    expect(atomicStart, 'atomic group should be present in the rendered view').toBeGreaterThan(-1);
-    const atomicEnd = res.text.indexOf('<section', atomicStart + 1);
-    const slice = atomicEnd > -1 ? res.text.substring(atomicStart, atomicEnd) : res.text.substring(atomicStart);
+    const weavingStart = res.text.indexOf('id="movement-weaving"');
+    expect(weavingStart, 'weaving group should be present in the rendered view').toBeGreaterThan(-1);
+    const weavingEnd = res.text.indexOf('<section', weavingStart + 1);
+    const slice = weavingEnd > -1 ? res.text.substring(weavingStart, weavingEnd) : res.text.substring(weavingStart);
     expect(slice).not.toContain('movement-group-composition-gloss');
   });
 });

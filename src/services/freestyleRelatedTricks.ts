@@ -52,7 +52,13 @@ const MODIFIER_PREFIXES: ReadonlySet<string> = new Set([
 // variants, not the unrelated `double-*` multiplier tricks. Extend as airborne
 // contact variants are added (e.g. double-inside, double-toe).
 const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
+  // Both-feet / both-knees airborne primitives share the flying-contact set.
   'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
+  'double-kick': ['flying-inside', 'flying-outside', 'flying-clipper'],
+  // The kick-only miraging dex atom reads as a mirage entry without a stall.
+  'miraging-kick': ['mirage'],
+  // Cross-body toe contact: the toe-surface sibling of the inside-contact clipper kick.
+  'toe-clipper': ['flying-clipper'],
 };
 
 // Mutual movement neighborhoods: every member relates to the others. Surface
@@ -65,6 +71,8 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   // Swing elements: completed by the swing action itself, with an open terminal
   // (stall / kick / catch / follow-on). A movement neighbourhood, not a family.
   ['pendulum', 'rake'],
+  // Sibling body primitives: contact the bag with both limbs in the air.
+  ['double-kick', 'double-knee'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the
