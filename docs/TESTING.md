@@ -38,6 +38,19 @@ Any `logger.error()` call in service or controller code is treated as "an operat
 
 When an AI agent (Claude Code or any other) writes or reviews tests for this codebase, the agent applies this document the same way a human contributor does: read the user story verbatim, understand what is being asserted, classify the risk severity, apply the relevant techniques, and submit for human review. §13 expands these obligations into the AI-assisted testing governance rules.
 
+### 2.4 Tests verify intent, never implementation (the load-bearing rule)
+
+This is the single most important rule in the entire strategy, and it is absolute. Every test in the suite exists to prove the system does what its **intent** requires: the success criteria in `docs/USER_STORIES.md`, the decisions in `docs/DESIGN_DECISIONS.md`, and the security and privacy principles in `docs/DATA_GOVERNANCE.md`. A test earns its place only by tracing to one of those sources of intent. The success criterion is the oracle; the code is the thing under test, never the standard the test is measured against.
+
+The forbidden anti-pattern, stated plainly so it cannot be mistaken: **a test that asserts the code does exactly what the code currently does.** Reading an implementation and writing assertions that mirror it produces a test that passes by construction, blesses whatever behavior happens to exist (bugs included), and fails only when someone later fixes the code. Such a test manufactures false confidence and actively resists correction. It is worse than no test, because it disguises an untested surface as a tested one.
+
+The consequences are non-negotiable:
+
+- When the code and the success criterion disagree, the test encodes the criterion and the code is fixed to match. The test does not bend to the code.
+- A test is never weakened, loosened, or deleted to make failing code pass. If a test fails, either the code is wrong (fix it) or the intent the test encodes was wrong.
+- The intent is corrected only at its source. If a success criterion itself is wrong, it is changed in `docs/USER_STORIES.md` (or the relevant design doc) with explicit human consent first, and only then is the test rewritten against the corrected intent. The code is never the authority that licenses a test change.
+- A surface with no traceable intent is unintended scope (§4.1): write the missing story or remove the surface, do not paper over it with a behavior-mirroring test.
+
 ---
 
 ## 3. Risk classification and OWASP ASVS levels
@@ -365,7 +378,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 
 ### 7.2 Adapter parity tests are mandatory
 
-The three-test contract from `.claude/rules/testing.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `HttpReachabilityAdapter`, and any future adapter):
+The three-test contract from `.claude/rules/testing.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
 
 - Boot-time config test (`tests/unit/env-config.test.ts`): module-load fails fast when required prod-mode env vars are absent.
 - Interface parity test (`tests/integration/adapter-parity.test.ts`): both implementations satisfy the TypeScript interface with identical observable output structure, exercised via an injected fake client.
@@ -374,6 +387,8 @@ The three-test contract from `.claude/rules/testing.md` applies to every adapter
 These tests describe permanent contracts. They are not sprint-scoped.
 
 The staging-smoke leg applies to adapters that reach an external service over the network: `JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, and `SecretsAdapter` (real AWS via the assumed-role chain) and `SafeBrowsingAdapter` (the real Google Safe Browsing API). The three internal docker-network adapters (`HttpReachabilityAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`) carry boot-config and interface-parity tests but no workstation staging-smoke: their dependency is the internal `image` worker rather than an external surface the dev-against-staging (no-ssh) model can reach, and their failure mode is a noisy first-request error rather than silent IAM or network drift. Their wiring is covered by the interface-parity tests, the compose `image:4000/health` healthcheck that gates stack startup, and the e2e upload path.
+
+`PaymentAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation reaches Stripe, but a smoke test that created a real Checkout session or delivered a real charge has side effects no read-only probe should: the live path is instead verified by the signed-webhook integration tests (signature acceptance, tamper rejection, and replay idempotency against the real verifier) and by the stub checkout pass-through that drives the same handler. Live-Stripe end-to-end exercise belongs to the operator's manual pre-launch check, not the smoke suite.
 
 ### 7.3 Staging smoke entry point
 
@@ -890,3 +905,158 @@ On the staging host the harness is seeded after a deploy with `./deploy_to_aws.s
 ### 16.9 Provenance and the cutover audit
 
 Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `dev_persona_seed` or `dev_switch_persona`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
+
+---
+
+## 17. Per-story test charters
+
+This section prescribes, per user story, the tests the platform requires. Each charter selects from the test-dimension taxonomy (§17.1) and names the story-specific edge, scenario, time, and concurrency cases. Charters are prescriptive and timeless: they describe the tests a story warrants, not which already exist. Build status lives in `IMPLEMENTATION_PLAN.md`. Properties that every surface shares are verified once by a generative sweep (§17.2) rather than restated in each charter, so a charter that reads "covered by the CSRF sweep" is asserting the sweep includes that route, not that the property is untested.
+
+### 17.1 Test-dimension taxonomy
+
+A charter references these dimensions by number.
+
+1. Functional happy path: each success criterion; output shape or view-model; rendered content.
+2. Functional edge: zero, one, many, and N+1 rows; boundary values; optional-field permutations; draft or unpublished exclusion; route-ordering precedence.
+3. Input and adversarial: malformed, oversized, and wrong-type input; unicode mischief (RTL override, homoglyph, zero-width); SQL injection; XSS into Handlebars; every free-text field.
+4. Authentication: anonymous gate (redirect to login); registered-unverified, deceased, and soft-deleted accounts cannot act; session expiry and the sliding-refresh window; cookie attributes; logout invalidation; password-version bump invalidates other sessions.
+5. Authorization: allow for each authorized actor and deny for each unauthorized one; adjacent-owner object-level checks; tier-ladder boundary (just below versus at or above); resource roles (leader, co-leader, organizer, owner); admin; honor flags; legacy-admin-flag non-inheritance.
+6. Anti-enumeration: exists versus not-exists equivalence (status, body, timing) on login, reset, verify, claim, and owner-scoped 404s.
+7. CSRF and Origin-pin: every state-changing verb refuses a foreign or absent Origin.
+8. Rate-limit: boundary at the limit and limit-plus-one; 429 with `Retry-After`; window reset.
+9. State-machine scenarios: each legal transition and each illegal-transition rejection across multi-step flows (onboarding, legacy claim, club cleanup, purchase, account deletion and restoration, vote lifecycle).
+10. Temporal and time: expiry boundaries (just before, at, just after); grace-window open versus elapsed; token TTL expiry and replay; sweep-driven expiry; open and close windows; calendar boundaries where relevant. Deterministic through an injected clock or runtime-relative offsets, never absolute years.
+11. Concurrency: simultaneous claims (constraint-loser rollback); double-submit; sole-owner handoff race; same-window collision.
+12. Idempotency: replaying the same key yields the same outcome (webhook, outbox, grant, consume-once token).
+13. Error and operational: each throw path maps to its status and class; operational paths emit an audit row plus `logger.error`; no stack trace in a 5xx; 503 on database-busy.
+14. Privacy and data-governance: public surfaces never emit contact fields or PII; search excludes unverified, deceased, opted-out, and purged members; member-only fields are gated; logging hygiene; export and erasure correctness.
+15. Audit: state-changing paths emit the correct audit row; append-only immutability is enforced by the table trigger.
+16. Adapter parity: boot-config fail-fast; interface parity between stub and live; staging-smoke for external adapters.
+17. Accessibility: axe checks on UI surfaces; keyboard, focus, label, and contrast for stories with UI.
+18. Migration: loader row-count and shape; confidence outcomes; alias and name-change; club-affiliation cases.
+
+### 17.2 Platform-wide generative sweeps
+
+Several properties hold across every surface and are tested once, generatively, over the live route table or the schema, so a newly added surface is covered by construction:
+
+- CSRF Origin-pin sweep: every deployed state-changing route refuses a foreign Origin, with only the signature-authenticated webhook and `/ipc/*` exemptions.
+- Route-by-persona authorization matrix: deployed routes crossed with the canonical persona catalog, asserting an allow cell for each authorized persona and a deny cell for each unauthorized one, including the adjacent-owner case.
+- Ledger immutability: every append-only table keeps its BEFORE UPDATE and BEFORE DELETE abort triggers, and the triggers fire on a seeded row.
+- Anti-enumeration equivalence: exists versus not-exists parity on the authentication and claim surfaces.
+- Session lifetime: JWT expiry rejection and the sliding-refresh-window boundary.
+
+A per-story charter names only the cases specific to that story; the cross-cutting properties above are inherited from these sweeps.
+
+### 17.3 Charters: authentication and identity
+
+**M_Login** (dims 1, 3, 4, 6, 8, 13, 15). Valid credentials issue a session cookie with the correct attributes; a wrong password yields a generic failure; a registered-unverified account is blocked with a verification prompt; a deceased or soft-deleted account is rejected (grace-open offers restoration, grace-elapsed does not). Anti-enum: unknown email and wrong password are indistinguishable in body and timing. Rate-limit: repeated failures return 429 with `Retry-After`, and the window resets. Adversarial: injection, oversized, and unicode input in the email field. Audit: both failed and successful attempts are recorded.
+
+**M_Verify_Email** (dims 1, 4, 6, 9, 10, 12, 13). A valid token verifies the account and runs the legacy auto-link; resend issues a fresh token. Time: an expired token is rejected and the account stays unverified. Single-use: a consumed token cannot be replayed. Anti-enum: invalid and expired tokens produce the same enumeration-safe outcome. Adversarial: malformed or oversized token segment.
+
+**M_Reset_Password** (dims 1, 3, 4, 6, 8, 9, 10, 12, 13). Requesting a reset issues a token (rendered on the simulated-email card on dev and staging); completing the reset bumps `password_version`, invalidates other sessions, and re-issues the current one. Time: an expired token is rejected with the password unchanged. Single-use: a replayed token is rejected. Anti-enum: the forgot-password request returns identical UX and timing for a known and an unknown email. Rate-limit: repeated requests are throttled. Validation: password policy and confirm-match on completion. Operational: a session-issue failure after the password commit renders a 503, not a 500.
+
+**M_Change_Password** (dims 1, 3, 4, 13). Authenticated owner only; another member's password-edit route returns 404 (anti-enumeration). The correct current password is required; success bumps `password_version`, keeps the current browser signed in, and invalidates other sessions. Validation: confirm-match and policy.
+
+**M_Logout** (dims 1, 4, 7). POST clears the session cookie (Max-Age zero); a safe-path Referer is honored for the redirect, otherwise `/`. GET does not clear the session (POST-only).
+
+**M_Claim_Legacy_Account** (dims 1, 2, 3, 5, 6, 9, 10, 11, 12, 13, 15). Scenarios across confidence high (auto-confirm), medium (queued for review), low, and no-match; the email-equality fast path versus the historical-person card confirm; cross-source confirm; and anchor mailbox verification. Time: claim-confirm and anchor-verify token TTL expiry and replay. Concurrency: two simultaneous claims of one legacy row, with the loser rolling back to no partial link, grant, or audit. Anti-enum: an unknown person id and an already-claimed record both return the enumeration-safe message, and low or no-match leaks no candidate identity. Authz: a claimed legacy admin flag never confers a live admin role. Audit: claim, link, and grant are recorded.
+
+### 17.4 Charters: visitor and public read surfaces
+
+**V_Browse_Static_Content** (dims 1, 2, 14, 17). Any visitor reads the public site with no authentication. Public pages never expose member contact fields or PII. An unknown slug or section returns 404, not a 500. High-traffic public pages carry accessibility checks.
+
+**V_Browse_Clubs** (dims 1, 2, 14). The club index and detail render for anyone; member-only organizer or contact details appear only to authenticated members. Draft and archived clubs are excluded from the public list. Edge: empty, one, and many clubs; an unknown club key returns 404.
+
+**V_Browse_Upcoming_Events** (dims 1, 2, 14). The upcoming list and event detail render publicly; member-only organizer contact appears only when authenticated. Draft and unpublished events never appear publicly. Route ordering: the year-archive segment matches before the event-key param.
+
+**V_Browse_Past_Events** (dims 1, 2). The past-event archive and year pages render publicly; results-specific treatment appears only where published results exist.
+
+**V_View_Gallery** (dims 1, 2, 3, 14). Public and named galleries render; captions are escaped so no stored XSS executes; owner-private media is not exposed. Route ordering: literal gallery sub-routes precede the gallery-id param.
+
+**V_View_Trick_Reference_Videos** (dims 1, 2, 3). Freestyle reference surfaces (tricks, sets, glossary, records, leaders) render publicly with escaped free text. Route ordering: literal freestyle sub-routes precede the trick-slug param.
+
+**V_Browse_Hashtags** (dims 1, 2). Hashtag and tag-driven browse renders publicly with no member PII.
+
+**V_Register_Account** (dims 1, 3, 6, 8, 13, 15). Registration creates an unverified account and issues a verification token; login is blocked until verification. Anti-enum: registering an already-registered email returns the same enumeration-safe UX as a fresh address. Rate-limit on repeated registration. Validation and adversarial input on every field (email shape, password policy, unicode display name). Audit on account creation.
+
+### 17.5 Charters: club and club leader
+
+**M_View_Club** (dims 1, 2, 5, 14). Anyone views the public club page; member-only surfaces appear only to authenticated members. An unknown club key returns 404.
+
+**M_Join_Club** and **M_Leave_Club** (dims 1, 5, 7, 9, 11, 13, 15). Authenticated members join and leave; the onboarding gate redirects a not-yet-onboarded member off club paths. Business rules: the two-club affiliation cap, primary versus secondary, idempotent re-join. Concurrency: a double-submit join does not create duplicate affiliations. Audit on each transition.
+
+**M_Create_Club** (dims 1, 3, 5, 8, 13, 15). Authenticated Tier-1-benefits members only; a Tier-0 member without Active Player is denied at the gate. Validation: name, country, and near-match confirmation, with the duplicate-name, already-leader, and affiliation-cap branches. Audit on creation.
+
+**CL_Edit_Club** (dims 1, 5, 7, 13, 15). Only a club's leader or co-leader edits its content; a leader of a different club is denied (adjacent-owner). External-URL changes are validated before persistence. Audit on the content edit.
+
+**CL_Mark_Club_Inactive** and **CL_Archive_Club** (dims 1, 5, 9, 10, 15). Leader-scoped state transitions; the sole-leader-only actions are denied to a co-leader. The inactive and archived states gate public visibility. Audit on each transition.
+
+### 17.6 Charters: member profile, account, and media
+
+**M_Edit_Profile** (dims 1, 3, 4, 5, 13, 14). An authenticated owner edits their own profile; another member's edit route returns 404. Validation and adversarial input on every field, escaped on render. Contact fields are gated to the owner and admins. Audit on change.
+
+**M_View_Profile** (dims 1, 2, 14). The public profile renders for anyone; member-only and contact fields appear only to authorized viewers; a deceased member keeps honors and history visible. An unknown member key returns 404.
+
+**M_Search_Members** (dims 1, 2, 6, 14). Authenticated search; results exclude unverified, deceased, opted-out, and PII-purged members. No existence oracle and no contact-field leak in results. Adversarial query input.
+
+**M_Upload_Photo**, **M_Submit_Video**, and member media edit and delete (dims 1, 2, 3, 5, 13, 16). Owner-only (cross-owner 404), with the Tier-1-benefits gate on write (a Tier-0 member without Active Player is denied). Upload validation: MIME, size, and polyglot rejection, with image and video processing through their adapters. Captions are escaped. Audit on upload, edit, and delete.
+
+**M_Complete_Onboarding_Wizard** (dims 1, 2, 9, 13). Authenticated; a state machine across the personal-details, legacy-claim, and club-affiliation tasks with skip and resume, where the onboarding gate redirects an incomplete member off gated paths. Out-of-order and illegal-step submissions are rejected.
+
+**M_Contact_IFPA_Admin** (dims 1, 3, 5, 8, 13). Authenticated owner; validation and rate-limit on submission; the admin queue receives the request.
+
+**M_Nominate_HoF_Candidate** and **M_Submit_HoF_Affidavit** (dims 1, 3, 5, 13, 15). Authenticated; validation; audit on submission.
+
+**M_View_Payment_History** (dims 1, 2, 5, 14). Owner-only (cross-owner 404); shows the member's own payment ledger and no other member's data.
+
+**M_Delete_Account**, **M_Restore_Account**, and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion enters a grace window: while open, login offers restoration; once elapsed, the account proceeds to purge. HoF and BAP members are preserved. Data export returns only the requesting member's own data. Time: the grace-window boundary (open versus elapsed).
+
+### 17.7 Charters: payment and membership
+
+**M_Purchase_Tier_1** and **M_Purchase_Tier_2** (dims 1, 5, 9, 12, 13, 15). Authenticated; the stub checkout drives the real signed-webhook path, where confirm grants the tier and cancel and decline do not. Idempotency: a replayed webhook does not double-grant. The payment-status-transition ledger is append-only. Audit on the grant.
+
+**M_Donate** (dims 1, 3, 13, 15). Authenticated; a donation is recorded distinctly from membership; amount validation.
+
+**SYS_Handle_Stripe_Webhooks** (dims 1, 7, 12, 13, 15). Origin-exempt and signature-authenticated; an absent or invalid signature is rejected; replay is idempotent; the transition ledger is append-only.
+
+### 17.8 Charters: admin
+
+**A_View_Dashboard**, **A_View_System_Health**, and **A_View_Audit_Logs** (dims 1, 5, 14). Admin-only (the deny half is covered by the authorization matrix); audit logs are read-only.
+
+**A_Override_Member_Data**, **A_Mark_Member_Deceased**, and **A_Manage_Admin_Role** (dims 1, 3, 5, 13, 15). Admin-only; validation; every override writes an audit row; an admin-role change never derives from a legacy flag.
+
+**A_Periodic_Club_Cleanup** and **A_Reassign_Club_Leader** (dims 1, 5, 9, 13, 15). Admin-only; the club-cleanup state machine (claim, resolve, promote, delist) with idempotent re-resolution; audit on each action.
+
+**A_Upload_Curated_Media** and **A_Moderate_Media** (dims 1, 3, 5, 16). The admin-operated curator surface; upload validation and async video processing; audit.
+
+**A_Configure_System_Parameters** (dims 1, 5, 13, 15). Admin-only; a config write appends to the immutable system_config ledger, and the current value is the latest effective row.
+
+**A_Reconcile_Payments**, **A_Review_Member_Link_Help_Requests**, and **A_Resolve_Contact_IFPA_Admin_Request** (dims 1, 5, 9, 13, 15). Admin-only queue actions with audit and idempotent resolution.
+
+### 17.9 Charters: not-yet-deployed surfaces
+
+These surfaces have no routes yet; each gains a full charter when it lands. The dimension emphasis is fixed now so the charter is ready:
+
+- **Voting** (A_Create_Vote, A_Cancel_Vote, A_Publish_Vote_Results, M_View_Vote_Options, M_Vote, M_Verify_Vote_And_View_Results, SYS_Open_Vote, SYS_Close_Vote): dims 5, 9, 10, 11, 12, 15. Eligibility-snapshot and ballot immutability, open and close windows, one-vote idempotency, a verifiable receipt, and eligibility by inclusion list, tier, or honor flag.
+- **Groups** (A_Create_Group, A_Edit_Group_Properties, A_Archive_Group, A_Reassign_Group_Owner, GO_Edit_Group, GO_Manage_Members, GO_Manage_CoOwners, GO_Moderate_Email_Queue, M_View_Group, M_Join_Group, M_Leave_Group, M_View_Group_Files, M_Upload_Group_File): dims 5, 9, 14. Owner and co-owner authorization, private-group privacy, the sole-owner handoff race, and the group-versus-club distinction.
+- **Event organizer** (EO_View_Participants, EO_Close_Registration, EO_Export_Participants, EO_Email_Participants, EO_Upload_Results, EO_Play_Routine_Music, EO_Manage_CoOrganizers): dims 5, 9, 16. Organizer and co-organizer authorization, registration windows, results upload, and participant-export privacy.
+- **System and background jobs** (SYS_Check_Active_Player_Expiry, SYS_Send_Email, SYS_Cleanup_Expired_Tokens, SYS_Cleanup_Soft_Deleted_Records, SYS_Process_Recurring_Donations, SYS_Reconcile_Payments_Nightly, the backup jobs): dims 10, 12, 13. Injected-clock determinism, idempotent re-runs, and operational-error alerting. The Active-Player expiry job runs under an injected now, while the live `is_active_player` gate compares the stored expiry to the SQL clock, so its fixtures use runtime-relative offsets per §10.8.
+
+---
+
+## 18. Completeness audit checklist
+
+A periodic audit of test completeness walks this checklist top to bottom. Each line names a dimension, where its evidence lives, and the pass condition. A complete audit records a verdict per line; a dimension that cannot be verified against the codebase is itself a finding. Where a prescribed capability is not yet wired, that is a tracked deviation in `IMPLEMENTATION_PLAN.md`, not a relaxation of this checklist.
+
+1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17. Pass: every deployed story has a charter, and every applicable charter dimension is met by a test or carries an `IMPLEMENTATION_PLAN.md` gap entry. A deployed route that maps to no story is unintended scope (§4.1).
+2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter (JWT-KMS, SES, MediaStorage-S3, Secrets-SSM, SafeBrowsing) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign and SES-send round-trips). The internal docker-network adapters (HttpReachability, ImageProcessing, VideoTranscoding) carry only the first two legs. Pass: the matrix has no missing required leg.
+3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
+4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SES send (default sender and per-message override), S3 round-trip, SSM-plus-KMS secret decryption, Safe Browsing, persona-seed idempotency, dev-admin-seed secret containment, and health and readiness. Run: `RUN_STAGING_SMOKE=1 npm run test:smoke` (`scripts/test-smoke.sh`) or `./run_all_tests.sh --with-smoke`. Pass: every external surface has a smoke probe.
+5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with post-deploy staging-smoke gating promotion. Pass: the residue gate exists and passes; no test writes to production.
+6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, and rate-limit boundaries. Pass: each baseline class has a test.
+7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked `IMPLEMENTATION_PLAN.md` deviation. The audit records which tiers are wired.
+8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every `MIGRATION_PLAN.md` validation gate has a test.
+9. **Admin operational surfaces.** Work-queue resolution, club cleanup, leadership reassignment, curator media, audit-log view, and system-config each have allow and deny authorization cells (the matrix, §4.6) and audit-emission assertions. Pass: no admin state-changing route lacks a deny cell or an audit assertion.
+10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs on every PR.
+11. **Cross-cutting generative sweeps.** CSRF Origin-pin over the live route table, the route-by-persona authorization matrix (allow, deny, and adjacent-owner), ledger-immutability triggers, anti-enumeration equivalence, and session and token temporal contracts. Pass: each sweep enumerates from the live route table or schema, so a newly added surface is covered by construction rather than by memory.
+12. **Coverage floor (§12).** The `vitest.config.ts` thresholds hold, and catastrophic surfaces are verified by inspection of the tests, not by the number alone. Pass: thresholds are met, or the shortfall is a tracked `IMPLEMENTATION_PLAN.md` item.
