@@ -4,7 +4,6 @@ import 'dotenv/config';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { createApp } from './app';
-import { runExternalUrlBootScan } from './services/externalUrlBootScan';
 // CUTOVER-REMOVE: dev/staging boot-time admin shortcuts.
 // Current: initDevShortcuts() prints the dev/staging boot banner and runs
 //   the Tier 2 invariant repair on every startup.
@@ -51,34 +50,23 @@ async function probeImageWorkerForDev(): Promise<void> {
   }
 }
 
-// One-shot scan for external URLs that bypassed the runtime validator
-// (curator gallery sidecar seeder writes rows directly without calling the
-// Node validator). Rows missing validated_at get checked here; failures land
-// in quarantine_reason and are filtered out of public render. Sequential,
-// blocking on startup so we never serve a partial-quarantine state.
-let server: ReturnType<typeof app.listen>;
-(async () => {
-  try {
-    await runExternalUrlBootScan({
-      log: (message, fields) => {
-        if (fields) logger.info(`boot-scan: ${message}`, fields);
-        else logger.info(`boot-scan: ${message}`);
-      },
-    });
-  } catch (err) {
-    logger.error('external URL boot scan failed', { error: String(err) });
-  }
-  server = app.listen(config.port, () => {
-    logger.info('server started', {
-      port: config.port,
-      env: config.nodeEnv,
-      db: config.dbPath,
-    });
-    initDevShortcuts(); // see deviation comment on the import above
-    // Fire-and-forget; never blocks server start.
-    void probeImageWorkerForDev();
+// External-URL verification (Safe Browsing + reachability) deliberately does
+// NOT run at server startup. Booting the app happens on every deploy, and a
+// deploy must make zero third-party network callouts. Probing hundreds of
+// seeded club/gallery URLs at boot also stalls the health check that the reverse
+// proxy depends on, so the proxy never starts and the site 504s. Seeded rows
+// render as-is until a separate, non-boot verification path stamps a
+// quarantine_reason; the public read hides only rows that carry one.
+const server = app.listen(config.port, () => {
+  logger.info('server started', {
+    port: config.port,
+    env: config.nodeEnv,
+    db: config.dbPath,
   });
-})();
+  initDevShortcuts(); // see deviation comment on the import above
+  // Fire-and-forget; never blocks server start.
+  void probeImageWorkerForDev();
+});
 
 function shutdown(signal: string): void {
   logger.info('graceful shutdown initiated', { signal });

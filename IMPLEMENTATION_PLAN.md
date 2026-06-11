@@ -34,21 +34,3 @@ exist, not on the harness:
 Add each persona (plus its adjacent-owner negative where the route is ownership-scoped)
 in the change that lands its feature. The system / internal-caller actor is not a catalog
 persona: it is exercised by the secret-gated `/ipc` request, not a `/dev/switch` session.
-
-### Security tooling prescribed by §9 not yet wired
-
-`docs/TESTING.md` §9 prescribes two security-testing capabilities that are not yet
-implemented; the §18 completeness audit flags them until they land.
-
-- Static taint analysis (§9.1): a pinned CodeQL (or Semgrep with the project rule pack)
-  pass should run pre-merge over `src/`. No such job exists in `.github/workflows/ci.yml`.
-  Closing the gap adds the workflow and the rule pack.
-- Heavyweight pentest (§9.3): the operator-invoked `npm run test:pentest:heavy` entry
-  point (OWASP ZAP baseline, a header walk across the route table, upload-abuse and
-  internal-route probes) does not exist. Closing the gap adds the `test:pentest:heavy`
-  script and its probe harness.
-
-The regression-grade `@security` floor and the staging-safe probe building blocks
-(security headers, no-stack-trace-in-5xx, contact-field leakage, anti-enumeration timing)
-already exist; only the static-analysis gate and the heavyweight entry point are
-outstanding. Delete each bullet when its capability is wired.

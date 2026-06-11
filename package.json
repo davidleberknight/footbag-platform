@@ -24,6 +24,7 @@
     "test:strong-hash": "FOOTBAG_CHEAP_PASSWORD_HASH=0 vitest run tests/unit/passwordHash.test.ts tests/integration/security.login-timing.test.ts",
     "test:e2e": "playwright test -c tests/playwright.config.ts",
     "test:e2e:smoke": "playwright test -c tests/playwright.config.ts --grep @smoke",
+    "test:pentest:heavy": "bash scripts/pentest/run-heavy.sh",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --coverage",
     "test:pre-pr": "npm run build && bash scripts/ci/assert_conventions.sh && npm test",
     "test:all": "npm run build && bash scripts/ci/assert_conventions.sh && npm test && npm run test:smoke && npm run test:e2e"

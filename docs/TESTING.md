@@ -529,13 +529,13 @@ Probes:
 
 ### 9.3 Heavyweight human-invoked pentest
 
-Invoked via `npm run test:pentest:heavy` (target script). Browser-driven attack flow exploration (credential stuffing under rate limit, CSRF bypass attempts, file-upload abuse, path traversal probes, SSRF attempts, open-redirect probes, role-escalation attempts, session-fixation attempts, token-replay attempts, login-rate-limit bypass via header spoofing) is operator-invoked via the `browser-qa` skill, not via a standing Playwright suite. May include:
+Invoked via `npm run test:pentest:heavy`. Browser-driven attack flow exploration (credential stuffing under rate limit, CSRF bypass attempts, file-upload abuse, path traversal probes, SSRF attempts, open-redirect probes, role-escalation attempts, session-fixation attempts, token-replay attempts, login-rate-limit bypass via header spoofing) is operator-invoked via the `browser-qa` skill, not via a standing Playwright suite. May include:
 
 - OWASP ZAP automated baseline scan against the local stack or a dedicated pentest staging environment.
 - Dependency and supply-chain vulnerability scanning (`npm audit` plus equivalent third-party tooling).
 - Header check across every route (a script that walks the route table and asserts security headers).
 - Upload-abuse probes (avatar, media, freestyle music) targeting MIME confusion, polyglot files, oversize, and path traversal.
-- Internal route probing (the `/internal/*` surface is reachable only with the internal event secret; probe asserts that an absent or wrong secret returns the same response shape as a not-found).
+- Internal-surface probing: the `/internal/*` admin tooling redirects an unauthenticated request to login and returns 403 to an authenticated non-admin; the shared-secret `/ipc/*` channel returns 401 to a missing or a wrong secret alike, so the two are indistinguishable.
 - Audit of any reachable dev-only scaffolding callsite (persona harness / dev-bootstrap) from staging or production (the audit script in §9.5 is the canonical mechanism).
 
 Heavyweight pentest:

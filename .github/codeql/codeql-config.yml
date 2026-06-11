@@ -1,0 +1,16 @@
+name: "footbag-platform CodeQL config"
+
+# The taint and injection sinks that matter live in the deployed application
+# code, so the security pass is scoped to src/. Tests, operational scripts, and
+# the legacy-data pipeline are excluded: they are not the internet-facing attack
+# surface, and narrowing the analysis keeps the pass fast and its findings
+# actionable. (paths filtering applies to interpreted languages, which covers
+# this project's JavaScript/TypeScript.)
+paths:
+  - src
+
+# security-extended adds the deeper, higher-recall security queries on top of
+# the default suite, catching injection and unsafe-sink classes that the default
+# query pack alone leaves to manual review.
+queries:
+  - uses: security-extended

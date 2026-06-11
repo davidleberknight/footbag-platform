@@ -22,11 +22,15 @@
 #     checkout). Do not run it locally.
 #   - test:smoke: operator workstation against staging AWS; opt in with
 #     --with-smoke (requires RUN_STAGING_SMOKE=1 + AWS credentials).
+#   - test:pentest:heavy: heavyweight operator pentest; opt in with --pentest
+#     (boots a throwaway stack; the OWASP ZAP leg needs Docker, else it skips).
 #
 # Usage:
 #   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, secret-scan, unit, integration, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS smoke suite (needs RUN_STAGING_SMOKE=1)
+#   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
+#   ./run_all_tests.sh --full       # everything: full suite + pentest + staging smoke (smoke SKIPs without AWS creds)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
 
@@ -35,15 +39,23 @@ cd "$(dirname "$0")"
 
 QUICK=0
 WITH_SMOKE=0
+PENTEST=0
+FULL=0
+# Set when smoke runs only because --full implied it (not an explicit
+# --with-smoke). In that case missing staging credentials SKIP the smoke gate
+# instead of failing the whole run, so --full is usable without an AWS profile.
+SMOKE_OPTIONAL=0
 FAIL_FAST=0
 for arg in "$@"; do
   case "$arg" in
     --quick)      QUICK=1 ;;
     --with-smoke) WITH_SMOKE=1 ;;
+    --pentest)    PENTEST=1 ;;
+    --full)       FULL=1 ;;
     --fail-fast)  FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -56,6 +68,15 @@ Options:
   --with-smoke  Additionally run the staging-AWS adapter smoke suite
                 (npm run test:smoke). Requires RUN_STAGING_SMOKE=1 and a
                 configured staging AWS profile; errors out otherwise.
+  --pentest     Additionally run the heavyweight pentest harness
+                (npm run test:pentest:heavy). Boots a throwaway stack and runs
+                the security-header walk, internal-route, and upload-abuse
+                probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
+                it is slow and the ZAP leg needs Docker; CI does not run it.
+  --full        Everything: the full suite plus --pentest and the staging-AWS
+                smoke. Unlike --with-smoke, smoke SKIPs (rather than fails) when
+                RUN_STAGING_SMOKE / AWS creds are absent, so --full runs end to
+                end on a workstation without an AWS profile.
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
@@ -68,12 +89,25 @@ Not run here:
   - db-load-smoke (loader pipeline): runs in CI on every push (clean checkout).
   - test:smoke (live staging AWS): opt in with --with-smoke from the operator
     workstation.
+  - test:pentest:heavy (heavyweight pentest): opt in with --pentest; boots a
+    throwaway stack and the ZAP leg needs Docker.
 USAGE
       exit 0
       ;;
     *) echo "unknown arg: $arg" >&2; exit 1 ;;
   esac
 done
+
+# --full is the kitchen sink: full mode plus every opt-in gate. Staging smoke is
+# included but degrades to a SKIP when staging credentials are absent (see
+# SMOKE_OPTIONAL), so --full runs end to end on a workstation without an AWS
+# profile while still exercising everything that can run there.
+if (( FULL == 1 )); then
+  QUICK=0
+  WITH_SMOKE=1
+  PENTEST=1
+  SMOKE_OPTIONAL=1
+fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
 need_cmd() {
@@ -247,8 +281,23 @@ gate_e2e() {
   npm run test:e2e
 }
 
+gate_pentest() {
+  # Boots a throwaway stack on 3000/4001, so reclaim those ports first like the
+  # e2e gate. The ZAP leg self-skips when Docker is absent; the scriptable probes
+  # still run. The harness writes only to os.tmpdir(), so the no-real-data guard
+  # stays satisfied.
+  reclaim_port 3000
+  reclaim_port 4001
+  npm run test:pentest:heavy
+}
+
 gate_smoke() {
   if [[ "${RUN_STAGING_SMOKE:-}" != "1" ]]; then
+    if (( SMOKE_OPTIONAL == 1 )); then
+      echo "  staging smoke needs RUN_STAGING_SMOKE=1 + a staging AWS profile; skipping under --full."
+      echo "  Recommendation: RUN_STAGING_SMOKE=1 ./run_all_tests.sh --full (from the operator workstation)."
+      return 77
+    fi
     echo "ERROR: --with-smoke requires RUN_STAGING_SMOKE=1 and a configured staging AWS profile." >&2
     echo "Recommendation: RUN_STAGING_SMOKE=1 ./run_all_tests.sh --with-smoke (from the operator workstation)." >&2
     return 1
@@ -306,7 +355,7 @@ gate_audit() {
 # compound gates) in the right place. Keep every gate SAFE: it must write only
 # to os.tmpdir()/mktemp, never to legacy_data/ or curated/.
 # =============================================================================
-echo "→ run_all_tests.sh starting (mode: $( (( QUICK )) && echo quick || echo full )$( (( WITH_SMOKE )) && echo +smoke || true ))"
+echo "→ run_all_tests.sh starting (mode: $( (( QUICK )) && echo quick || echo full )$( (( WITH_SMOKE )) && echo +smoke || true )$( (( PENTEST )) && echo +pentest || true ))"
 
 run_gate build       npm run build
 run_gate lint        npm run lint
@@ -323,6 +372,10 @@ fi
 
 if (( WITH_SMOKE == 1 )); then
   run_gate smoke      gate_smoke
+fi
+
+if (( PENTEST == 1 )); then
+  run_gate pentest    gate_pentest
 fi
 
 # db-load-smoke (loader pipeline) is intentionally absent: it writes legacy_data

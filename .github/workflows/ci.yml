@@ -202,9 +202,33 @@ jobs:
           path: tests/test-results/
           if-no-files-found: ignore
 
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+
+    # CodeQL uploads its findings to the code-scanning API; that single write
+    # scope is the one job that needs more than the workflow-wide read-only
+    # default, so it takes a job-level override rather than widening the whole
+    # workflow.
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3
+        with:
+          languages: javascript-typescript
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3
+
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, unit-tests, integration-tests, db-load-smoke, e2e, codeql]
     runs-on: ubuntu-latest
     if: always()
 
@@ -219,7 +243,8 @@ jobs:
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
-             [ "${{ needs.e2e.result }}" != "success" ]; then
+             [ "${{ needs.e2e.result }}" != "success" ] || \
+             [ "${{ needs.codeql.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
             echo "  lint: ${{ needs.lint.result }}"
@@ -230,6 +255,7 @@ jobs:
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
+            echo "  codeql: ${{ needs.codeql.result }}"
             exit 1
           fi
 
