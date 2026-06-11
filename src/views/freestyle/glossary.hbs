@@ -1603,25 +1603,34 @@
       <li><strong>Shred Circle</strong>: a group format where players take turns performing runs.</li>
     </ul>
 
-    {{! ── Derivation atlas — five compositional examples. Sits this late
-        in the page because it belongs after the reader
+    {{! ── Decomposition table — the key structural readings in one compact
+        place. Sits this late in the page because it belongs after the reader
         knows families, modifiers, notation, and ADD. The `derivation-atlas`
         anchor is preserved for inbound deep-links. }}
     <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
-      Derivation atlas &mdash; five compositional examples
+      Decomposition table
     </h3>
     <p class="glossary-derivation-atlas-intro">
-      Five entries demonstrating the compositional system in one place: a
-      root family (<a href="/freestyle/tricks/whirl">whirl</a>), a modifier (<a href="/freestyle/tricks/paradox">paradox</a>), a compound trick (<a href="/freestyle/tricks/flurry">flurry</a>),
-      a symbolic-compression bridge (<a href="/freestyle/tricks/blur">blur</a>), and a rotational-doctrine
-      worked example (<a href="/freestyle/tricks/mobius">mobius</a>). Each panel stacks five axes &mdash; formula,
-      family, ADD with breakdown, lineage, and shorthand &mdash; so they
-      read as one object.
+      The most useful structural readings in one place. Each row reads a named
+      trick as the operators and base it is built from. A <strong>&equiv;</strong>
+      row is a structural equivalence; a <strong>&asymp;</strong> row is an
+      educational approximation that communicates movement feel without replacing
+      the formal classification.
     </p>
-    <div class="glossary-derivation-atlas">
-      {{#each content.derivationAtlas}}
-        {{> derivation-panel entry=this}}
-      {{/each}}
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead>
+          <tr><th>Trick</th><th>Reads as</th><th>Register</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/torque">Torque</a></td><td>Miraging Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/blender">Blender</a></td><td>Whirling Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/mobius">Mobius</a></td><td>Gyro Torque &equiv; Gyro Miraging Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/ripwalk">Ripwalk</a></td><td>Stepping Butterfly</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/blur">Blur</a></td><td>Stepping Paradox Mirage</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/twirl">Twirl</a></td><td>Reverse Swirling Osis <span class="detail-muted">&asymp; Swirl + Spin (movement feel)</span></td><td>&equiv; / &asymp;</td></tr>
+        </tbody>
+      </table>
     </div>
 
     {{! ── Vocabulary relationships — four ways trick names can relate ───────
@@ -1737,21 +1746,6 @@
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
-    <p class="glossary-note">
-      Not all decompositions express formal classification. Some are educational
-      approximations intended to communicate movement feel, marked with
-      &asymp; rather than &equiv;:
-    </p>
-    <ul class="glossary-equivalence-worked-example">
-      <li><strong><a href="/freestyle/tricks/ripwalk">Ripwalk</a></strong> &equiv; Stepping Butterfly</li>
-      <li><strong>Blur</strong> &equiv; Stepping Paradox Mirage</li>
-      <li><strong><a href="/freestyle/tricks/twirl">Twirl</a></strong> &asymp; Swirl + Spin</li>
-    </ul>
-    <p class="detail-muted">
-      Structurally, Twirl is classified as Reverse Swirling Osis. The
-      &asymp; reading communicates how the move feels (a swirl and a spin) without
-      replacing that formal classification.
-    </p>
 
     <h4 class="glossary-equivalence-worked-heading">3. Equivalent derivations &mdash; multiple valid paths</h4>
     <p>

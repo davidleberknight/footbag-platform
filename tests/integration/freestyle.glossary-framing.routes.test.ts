@@ -464,9 +464,9 @@ describe('Glossary foundational frame — Tricks / Sets / Modifiers + register n
     expect(html).toContain('href="/freestyle/tricks/eclipse"');
   });
 
-  it('introduces the educational-approximation register with Twirl as the first example', async () => {
+  it('introduces the educational-approximation register with Twirl in the decomposition table', async () => {
     const html = await glossary();
-    expect(html).toContain('intended to communicate movement feel');
+    expect(html).toContain('educational approximation');
     expect(html).toContain('Swirl + Spin');
     expect(html).toContain('Reverse Swirling Osis');
   });
