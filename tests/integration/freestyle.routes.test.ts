@@ -768,12 +768,12 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
 
   it('a folk-layer entry is documented by name in the Folk / Unresolved archive', async () => {
     // The page is driven by the generated observational universe: folk
-    // entries whose structure is not yet understood (Big Orange) render
+    // entries whose structure is not yet understood (Amadeus) render
     // by name in the Folk / Unresolved full list. Proposed readings are
     // not rendered on this surface; they stay curator-internal until a
     // structural reading is adjudicated.
     const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toContain('Big Orange');
+    expect(res.text).toContain('Amadeus');
   });
 });
 

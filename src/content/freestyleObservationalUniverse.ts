@@ -595,7 +595,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Nuclear Butterfly (Matador)", "slug": "nuclear-butterfly-matador", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear DDD (Cold Fusion) (Geesha)", "slug": "nuclear-ddd-cold-fusion-geesha", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Double Legover", "slug": "nuclear-double-legover", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Nuclear Drifter", "slug": "nuclear-drifter", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Drifter (69)", "slug": "nuclear-drifter-69", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear far Butterfly", "slug": "nuclear-far-butterfly", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear far Mirage", "slug": "nuclear-far-mirage", "source": "PB", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "blurry/furious", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
@@ -666,7 +665,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pogo ss Pickup", "slug": "pogo-ss-pickup", "source": "SG", "ecosystem": "pogo", "parentFamily": "", "section": "doctrine", "cluster": "pogo", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pogo Voodoo", "slug": "pogo-voodoo", "source": "FB", "ecosystem": "pogo", "parentFamily": "", "section": "doctrine", "cluster": "pogo", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Quantum far Double Down", "slug": "quantum-far-double-down", "source": "PB", "ecosystem": "quantum", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Quantum Guay", "slug": "quantum-guay", "source": "SG", "ecosystem": "quantum", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "parser-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Quantum Reverse Guay", "slug": "quantum-reverse-guay", "source": "SG", "ecosystem": "quantum", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "parser-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Quantum Weaving Butterfly", "slug": "quantum-weaving-butterfly", "source": "FM", "ecosystem": "quantum", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "parser-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Shooting Barfly (Porn Star)", "slug": "shooting-barfly-porn-star", "source": "SG", "ecosystem": "shooting", "parentFamily": "", "section": "doctrine", "cluster": "shooting", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
@@ -784,7 +782,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Nuclear ss Reverse Whirl", "slug": "nuclear-ss-reverse-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear ss Whirl", "slug": "nuclear-ss-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Nuclear ss Whirl (Hurl)", "slug": "nuclear-ss-whirl-hurl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Nuclear Torque", "slug": "nuclear-torque", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pogo Blender", "slug": "pogo-blender", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pogo DLO", "slug": "pogo-dlo", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pogo Nuclear far Double Down", "slug": "pogo-nuclear-far-double-down", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
@@ -801,7 +798,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Weaving Eclipse", "slug": "weaving-eclipse", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Weaving Whirl", "slug": "weaving-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
   {"name": "Weaving XBD Rake", "slug": "weaving-xbd-rake", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive"},
-  {"name": "69", "slug": "69", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "84", "slug": "84", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Alex Zerbe is the greatest", "slug": "alex-zerbe-is-the-greatest", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Alpine Fusion", "slug": "alpine-fusion", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unresolved-directional-syntax", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -952,7 +948,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Fyro Mirage", "slug": "fyro-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Gilan", "slug": "gilan", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Glaucoma", "slug": "glaucoma", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Godzilla", "slug": "godzilla", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Gravedigger", "slug": "gravedigger", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Green Eggs and Ham", "slug": "green-eggs-and-ham", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Grifter", "slug": "grifter", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
@@ -1130,7 +1125,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Symple Reverse Guay", "slug": "symple-reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Tap Dance", "slug": "tap-dance", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Tapwater", "slug": "tapwater", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Terminator", "slug": "terminator", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Terraging Clipper", "slug": "terraging-clipper", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
   {"name": "Terraging near Clipper", "slug": "terraging-near-clipper", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Timberwulff", "slug": "timberwulff", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1456,7 +1450,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1381,
+    "total": 1375,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1464,16 +1458,16 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 144,
-    "lexicalArchive": 1225,
+    "promotionFrontier": 143,
+    "lexicalArchive": 1220,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 45,
         "distinctStructures": 45
       },
       "doctrine_pending": {
-        "names": 91,
-        "distinctStructures": 91
+        "names": 90,
+        "distinctStructures": 90
       },
       "unresolved_candidate": {
         "names": 8,
@@ -1492,18 +1486,18 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 9
       },
       "low_confidence": {
-        "names": 642,
-        "distinctStructures": 642
+        "names": 639,
+        "distinctStructures": 639
       },
       "doctrine_unresolved": {
-        "names": 158,
-        "distinctStructures": 158
+        "names": 156,
+        "distinctStructures": 156
       }
     },
     "ready": 44,
     "frontier": 12,
-    "doctrineBlocked": 249,
-    "folkUnresolved": 698,
+    "doctrineBlocked": 246,
+    "folkUnresolved": 695,
     "parserUnresolved": 378,
     "promotionReadyPct": 4,
     "doctrineBlockedPct": 18,
@@ -1511,8 +1505,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "parserUnresolvedPct": 27,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 601,
-      "FM": 391,
+      "SG": 599,
+      "FM": 387,
       "PB": 265,
       "FB": 109,
       "MULTI": 15

@@ -117,6 +117,72 @@ export const RESOLVED_FORMULAS_FRAMING_PROSE =
 // composition is mechanically derivable.
 export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   {
+    slug:        'quantum-guay',
+    name:        'quantum guay',
+    operator:    'quantum',
+    base:        'guay',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'quantum(+1) + guay(2) = 3 ADD',
+    operationalNotation: 'TOE > OP IN [DEX] > OP IN [DEX] > SAME INSIDE [DEL]',  // quantum-drifter chassis on guay; guay non-rotational so no X-Dex.
+    provenance:  'quantum = +1 set modifier; guay = 2 ADD base (pickup into inside-stall)',
+  },
+  {
+    slug:        'nuclear-guay',
+    name:        'nuclear guay',
+    operator:    'nuclear',
+    base:        'guay',
+    baseAdd:     2,
+    totalAdd:    4,
+    derivation:  'nuclear(+2) + guay(2) = 4 ADD',
+    operationalNotation: 'CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > SAME INSIDE [DEL]',  // nuclear-illusion chassis on guay.
+    provenance:  'nuclear = +2 set modifier (paradox + downtime illusion); guay = 2 ADD base',
+  },
+  {
+    slug:        'nuclear-drifter',
+    name:        'nuclear drifter',
+    operator:    'nuclear',
+    base:        'drifter',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'nuclear(+2) + drifter(3) = 5 ADD',
+    operationalNotation: 'CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > SAME CLIP [XBD] [DEL]',  // nuclear chassis on drifter.
+    provenance:  'nuclear = +2 set modifier; drifter = 3 ADD base',
+  },
+  {
+    slug:        'nuclear-double-leg-over',
+    name:        'nuclear double leg over',
+    operator:    'nuclear',
+    base:        'double-leg-over',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'nuclear(+2) + double-leg-over(3) = 5 ADD',
+    operationalNotation: 'CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // nuclear chassis on double-leg-over.
+    provenance:  'nuclear = +2 set modifier; double-leg-over = 3 ADD base',
+  },
+  {
+    slug:        'nuclear-dyno',
+    name:        'nuclear dyno',
+    operator:    'nuclear',
+    base:        'dyno',
+    baseAdd:     4,
+    totalAdd:    6,
+    derivation:  'nuclear(+2) + dyno(4) = 6 ADD',
+    operationalNotation: 'CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // nuclear chassis on dyno.
+    provenance:  'nuclear = +2 set modifier; dyno = 4 ADD base',
+  },
+  {
+    slug:        'nuclear-torque',
+    name:        'nuclear torque',
+    operator:    'nuclear',
+    base:        'torque',
+    baseAdd:     4,
+    totalAdd:    6,
+    derivation:  'nuclear(+2) + torque(4) = 6 ADD',
+    operationalNotation: 'CLIP > SAME OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // nuclear chassis on torque.
+    provenance:  'nuclear = +2 set modifier; torque = 4 ADD base (osis branch)',
+  },
+  {
     slug:        'paradox-mirage',
     name:        'paradox mirage',
     operator:    'paradox',
