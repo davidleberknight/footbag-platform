@@ -49,6 +49,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
 SEED_CSV = LEGACY_DATA_ROOT / "seed" / "clubs.csv"
+# URL safety verdicts produced at data-prep time by `npm run verify:seed-urls`,
+# so the cutover stamps validated_at/quarantine without any runtime URL callout.
+VERDICTS_CSV = LEGACY_DATA_ROOT / "seed" / "clubs_url_verdicts.csv"
 DUPLICATE_OVERRIDES_CSV = LEGACY_DATA_ROOT / "overrides" / "club_duplicates.csv"
 
 
@@ -70,6 +73,29 @@ def load_duplicate_canonical_map(path: Path = DUPLICATE_OVERRIDES_CSV) -> dict[s
             keep = (row.get("keep_legacy_key") or "").strip()
             if drop and keep:
                 out[drop] = keep
+    return out
+
+
+def load_url_verdicts(path: Path = VERDICTS_CSV) -> dict[str, dict[str, str | None]]:
+    """Map legacy_club_key -> {external_url, validated_at, quarantine_reason}.
+
+    A verdict is applied only when its external_url still matches the seed row,
+    so a URL changed since the last verify run is treated as unverified. Missing
+    file -> empty map (every URL loads unverified and the public read hides it).
+    """
+    if not path.exists():
+        return {}
+    out: dict[str, dict[str, str | None]] = {}
+    with path.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            key = (row.get("legacy_club_key") or "").strip()
+            if not key:
+                continue
+            out[key] = {
+                "external_url": row.get("external_url") or "",
+                "validated_at": (row.get("validated_at") or "") or None,
+                "quarantine_reason": (row.get("quarantine_reason") or "") or None,
+            }
     return out
 
 _CLASSIFICATION_ORDER = {
@@ -191,6 +217,8 @@ def main() -> int:
     # Index seed/clubs.csv by legacy_club_key for on-demand full-row fallback
     with open(SEED_CSV, newline="", encoding="utf-8") as f:
         seed_by_key = {r["legacy_club_key"]: r for r in csv.DictReader(f)}
+
+    url_verdicts = load_url_verdicts(VERDICTS_CSV)
 
     ts = now_iso()
     con = sqlite3.connect(db_path)
@@ -411,14 +439,27 @@ def main() -> int:
                 # legacy site (the seed contact_email is never populated, so this
                 # only ever wrote NULL). Leaving it out keeps any future
                 # repopulation of the column from leaking onto live clubs.
+                # External-URL safety verdict (data-prep time; see VERDICTS_CSV).
+                # Applied only when the verdict still matches this row's URL; an
+                # unmatched or absent verdict leaves the columns NULL so the
+                # public read hides the URL until it is verified.
+                ext_url = seed_row.get("external_url") or None
+                verdict = url_verdicts.get(legacy_key)
+                ext_validated_at = None
+                ext_quarantine = None
+                if ext_url and verdict and verdict["external_url"] == ext_url:
+                    ext_validated_at = verdict["validated_at"]
+                    ext_quarantine = verdict["quarantine_reason"]
+
                 cur = con.execute(
                     """
                     INSERT OR IGNORE INTO clubs
                       (id, created_at, created_by, updated_at, updated_by, version,
                        name, description, city, region, country,
-                       external_url, status, hashtag_tag_id)
+                       external_url, external_url_validated_at,
+                       external_url_quarantine_reason, status, hashtag_tag_id)
                     VALUES (?, ?, 'cutover_06', ?, 'cutover_06', 1,
-                            ?, ?, ?, ?, ?, ?, 'active', ?)
+                            ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
                     """,
                     (
                         club_id, ts, ts,
@@ -427,7 +468,9 @@ def main() -> int:
                         seed_row["city"],
                         seed_row.get("region") or None,
                         seed_row["country"],
-                        seed_row.get("external_url") or None,
+                        ext_url,
+                        ext_validated_at,
+                        ext_quarantine,
                         tag_id,
                     ),
                 )

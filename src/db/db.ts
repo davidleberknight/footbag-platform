@@ -686,9 +686,11 @@ export const clubs = {
       c.city,
       c.region,
       c.country,
-      -- A quarantined club URL is hidden from public render, the same way the
-      -- gallery_external_links public read filters out quarantined rows.
-      CASE WHEN c.external_url_quarantine_reason IS NULL
+      -- A club URL renders publicly only once it has been verified at data-prep
+      -- time (external_url_validated_at stamped) and not quarantined. The same
+      -- hide-until-verified rule governs the gallery_external_links public read.
+      CASE WHEN c.external_url_validated_at IS NOT NULL
+            AND c.external_url_quarantine_reason IS NULL
            THEN c.external_url ELSE NULL END AS external_url,
       c.status,
       t.tag_normalized,
@@ -751,7 +753,8 @@ export const clubs = {
       c.city,
       c.region,
       c.country,
-      CASE WHEN c.external_url_quarantine_reason IS NULL
+      CASE WHEN c.external_url_validated_at IS NOT NULL
+            AND c.external_url_quarantine_reason IS NULL
            THEN c.external_url ELSE NULL END AS external_url,
       c.contact_email,
       c.whatsapp,
@@ -1346,37 +1349,6 @@ export const clubContent = {
   get updateClubExternalUrl() { return db.prepare(`
     UPDATE clubs SET external_url = ?, external_url_validated_at = ?,
         updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ?
-  `); },
-};
-
-// Boot-scan over seeded club external_url values that never passed the Node
-// validator: the club cutover populator writes external_url directly, so those
-// rows land unvalidated. Mirrors the gallery_external_links boot scan: accept
-// stamps external_url_validated_at; reject stamps external_url_quarantine_reason
-// (which the public club read then hides). Both halves carry the row-version
-// bump with a 'boot-scan' updated_by sentinel.
-export const clubExternalUrlScan = {
-  get listForBootScan() { return db.prepare(`
-    SELECT id, name, external_url AS url
-    FROM clubs
-    WHERE external_url IS NOT NULL
-      AND external_url_validated_at IS NULL
-      AND external_url_quarantine_reason IS NULL
-    ORDER BY created_at ASC
-  `); },
-
-  get stampValidated() { return db.prepare(`
-    UPDATE clubs
-    SET external_url_validated_at = ?, updated_at = ?, updated_by = ?,
-        version = version + 1
-    WHERE id = ?
-  `); },
-
-  get stampQuarantine() { return db.prepare(`
-    UPDATE clubs
-    SET external_url_quarantine_reason = ?, updated_at = ?, updated_by = ?,
-        version = version + 1
     WHERE id = ?
   `); },
 };
@@ -5574,8 +5546,10 @@ export const media = {
   // db.ts stays a flat statement surface.
   // listGalleryExternalLinks is the admin/operator view: returns every row
   // including quarantine_reason for surfacing in the admin edit form.
-  // listGalleryExternalLinksForPublic filters out rows with non-NULL
-  // quarantine_reason so public render paths never serve a flagged URL.
+  // listGalleryExternalLinksForPublic shows a row only once it has been verified
+  // (validated_at stamped) and not quarantined, so public render paths never
+  // serve an unverified or flagged URL. Verification happens at curator-sidecar
+  // intake time, not at app boot.
   get listGalleryExternalLinks() { return db.prepare(`
     SELECT id, label, url, validated_at, quarantine_reason, sort_order
     FROM gallery_external_links
@@ -5586,36 +5560,10 @@ export const media = {
   get listGalleryExternalLinksForPublic() { return db.prepare(`
     SELECT id, label, url, validated_at, sort_order
     FROM gallery_external_links
-    WHERE gallery_id = ? AND quarantine_reason IS NULL
+    WHERE gallery_id = ?
+      AND validated_at IS NOT NULL
+      AND quarantine_reason IS NULL
     ORDER BY sort_order ASC, created_at ASC
-  `); },
-
-  // Boot-scan input: rows that have not been validated yet (sidecar-seeded)
-  // and have not previously been quarantined. Cross-gallery scope; the boot
-  // scan iterates everything missing validation, not per-gallery.
-  get listGalleryExternalLinksForBootScan() { return db.prepare(`
-    SELECT id, gallery_id, url
-    FROM gallery_external_links
-    WHERE validated_at IS NULL AND quarantine_reason IS NULL
-    ORDER BY created_at ASC
-  `); },
-
-  // Boot-scan output: stamp validated_at on accept; stamp quarantine_reason
-  // on reject. Both update updated_at + updated_by per the row-versioning
-  // convention; updated_by carries a sentinel ('boot-scan') so audit trails
-  // can attribute the change.
-  get stampGalleryExternalLinkValidated() { return db.prepare(`
-    UPDATE gallery_external_links
-    SET validated_at = ?, updated_at = ?, updated_by = ?,
-        version = version + 1
-    WHERE id = ?
-  `); },
-
-  get stampGalleryExternalLinkQuarantine() { return db.prepare(`
-    UPDATE gallery_external_links
-    SET quarantine_reason = ?, updated_at = ?, updated_by = ?,
-        version = version + 1
-    WHERE id = ?
   `); },
 
   get deleteGalleryExternalLinks() { return db.prepare(`

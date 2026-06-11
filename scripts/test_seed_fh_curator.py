@@ -69,8 +69,18 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
         # `freestyle_media_sources` table (a CSV-loader artefact) so the
         # sidecar `sourceId` FK on media_sources resolves.
         source_dir.mkdir()
-        for subdir in ("avatars", "events", "landing", "galleries"):
+        for subdir in ("avatars", "events", "galleries"):
             (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
+        # Controlled landing fixture: copy only the two demo loops so the seeder
+        # sees exactly two videos, independent of how many demo/mosaic loops the
+        # real curated/landing/ accumulates over time. Keeps the seeded input
+        # deterministic and avoids transcoding the full mosaic set every run.
+        landing = source_dir / "landing"
+        landing.mkdir()
+        real_landing = REPO_ROOT / "curated" / "landing"
+        for stem in ("demo-freestyle", "demo-net"):
+            for suffix in (".meta.json", ".mp4", ".poster.jpg"):
+                shutil.copy2(real_landing / f"{stem}{suffix}", landing / f"{stem}{suffix}")
 
         # Apply current schema.sql to a fresh DB.
         subprocess.run(
@@ -1074,8 +1084,18 @@ def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         source_dir.mkdir()
-        for subdir in ("avatars", "events", "landing", "galleries"):
+        for subdir in ("avatars", "events", "galleries"):
             (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
+        # Controlled landing fixture: copy only the two demo loops so the seeder
+        # sees exactly two videos, independent of how many demo/mosaic loops the
+        # real curated/landing/ accumulates over time. Keeps the seeded input
+        # deterministic and avoids transcoding the full mosaic set every run.
+        landing = source_dir / "landing"
+        landing.mkdir()
+        real_landing = REPO_ROOT / "curated" / "landing"
+        for stem in ("demo-freestyle", "demo-net"):
+            for suffix in (".meta.json", ".mp4", ".poster.jpg"):
+                shutil.copy2(real_landing / f"{stem}{suffix}", landing / f"{stem}{suffix}")
         subprocess.run(
             ["sqlite3", str(db_path)],
             input=SCHEMA.read_text(),
@@ -1110,11 +1130,65 @@ def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
         )
 
 
+def test_gallery_external_link_verdicts_stamped() -> None:
+    """Gallery external links are stamped from the committed url_verdicts.json
+    companion at seed time (read-only, no callout): a verified URL gets
+    validated_at, a flagged URL gets quarantine_reason, and a URL with no verdict
+    loads unverified (both NULL) so the public read hides it until verified."""
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = tmp_path / "curated"
+        galleries_dir = source_dir / "galleries"
+        galleries_dir.mkdir(parents=True)
+        (galleries_dir / "vis_test.json").write_text(json.dumps({
+            "id": "gallery_vis_test",
+            "name": "Vis Test",
+            "description": "",
+            "sortOrder": "upload_desc",
+            "criteriaTags": ["#curated"],
+            "excludeTags": [],
+            "externalLinks": [
+                {"label": "Verified", "url": "https://ok.example/", "sortOrder": 0},
+                {"label": "Flagged", "url": "https://bad.example/", "sortOrder": 1},
+                {"label": "Unverified", "url": "https://new.example/", "sortOrder": 2},
+            ],
+        }, indent=2))
+        (galleries_dir / "url_verdicts.json").write_text(json.dumps({
+            "gallery_vis_test": {
+                "https://ok.example/": {"validated_at": "2026-06-11T00:00:00Z", "quarantine_reason": None},
+                "https://bad.example/": {"validated_at": None, "quarantine_reason": "This URL is not allowed."},
+            },
+        }, indent=2))
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc == 0, f"seeder failed: {stderr}"
+        con = sqlite3.connect(db_path)
+        try:
+            rows = {
+                url: (validated_at, quarantine)
+                for url, validated_at, quarantine in con.execute(
+                    "SELECT url, validated_at, quarantine_reason "
+                    "FROM gallery_external_links WHERE gallery_id = 'gallery_vis_test'"
+                )
+            }
+        finally:
+            con.close()
+        assert rows["https://ok.example/"] == ("2026-06-11T00:00:00Z", None)
+        assert rows["https://bad.example/"] == (None, "This URL is not allowed.")
+        assert rows["https://new.example/"] == (None, None)
+
+
 if __name__ == "__main__":
     test_seed_fh_curator_against_fresh_schema()
     print("OK: seed_fh_curator.py produces expected rows + on-disk artifacts; idempotent on re-run")
     test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags()
     print("OK: freestyle_tricks seeder creates FH-owned named gallery + tag-AND criteria; idempotent")
+    test_gallery_external_link_verdicts_stamped()
+    print("OK: gallery external-link verdicts stamped from url_verdicts.json companion")
     test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars()
     test_seeder_orphan_cleanup_spares_member_owned_url_ref()
     test_seeder_rejects_vimeo_sidecar_without_thumbnail_url()

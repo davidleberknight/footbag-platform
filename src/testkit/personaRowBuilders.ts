@@ -304,25 +304,38 @@ export interface ClubOverrides {
   region?: string | null;
   country?: string;
   external_url?: string | null;
+  // Public reads hide a club URL until it is verified. A provided external_url is
+  // treated as verified-by-default here so fixtures that just want a visible link
+  // do not each repeat a stamp; set external_url_validated_at: null to model the
+  // unverified case, or external_url_quarantine_reason to model a flagged one.
+  external_url_validated_at?: string | null;
+  external_url_quarantine_reason?: string | null;
   status?: 'active' | 'inactive' | 'archived';
 }
 
 export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): string {
   const id    = o.id             ?? `club-test-${uid()}`;
   const tagId = o.hashtag_tag_id ?? insertTag(db, { standard_type: 'club', tag_normalized: `#club_test_${uid()}` });
+  const externalUrl = o.external_url !== undefined ? o.external_url : null;
+  const validatedAt = o.external_url_validated_at !== undefined
+    ? o.external_url_validated_at
+    : (externalUrl ? TS : null);
+  const quarantineReason = o.external_url_quarantine_reason ?? null;
   db.prepare(`
     INSERT INTO clubs (
       id, hashtag_tag_id, name, description, city, region, country,
-      external_url, status,
+      external_url, external_url_validated_at, external_url_quarantine_reason, status,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, tagId,
     o.name         ?? 'Test Club',
     o.city         ?? 'Testville',
     o.region       !== undefined ? o.region : null,
     o.country      ?? 'USA',
-    o.external_url !== undefined ? o.external_url : null,
+    externalUrl,
+    validatedAt,
+    quarantineReason,
     o.status       ?? 'active',
     TS, SYS, TS, SYS,
   );

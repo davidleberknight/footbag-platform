@@ -2035,7 +2035,7 @@ Impact:
 
 Decision:
 
-User-supplied external URLs are validated at the service boundary at every ingestion path. The validation contract applies to all user-supplied external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
+User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
 
 Scheme allowlist:
 
@@ -2062,6 +2062,10 @@ Safe Browsing lookup:
 - Each candidate URL is checked against a Safe Browsing dataset before acceptance.
 - A positive match is rejected with a generic "URL is not allowed" message; the matched threat category is logged for operator review.
 
+Public render gate:
+
+- An external URL renders publicly only once its row carries a validation timestamp and no quarantine reason (`validated_at` set, `quarantine_reason` null). A row that is not yet verified, or that failed verification, is hidden from public render; the stored value is retained so the admin edit surface (and, for clubs, the listed contact or leader) can review and correct it. Interactive writes stamp the timestamp on accept, so an accepted URL renders immediately.
+
 Error responses:
 
 - "URL could not be reached. Please verify the link." for HEAD failures when the reachability check is enabled.
@@ -2086,7 +2090,7 @@ Rationale:
 
 Requirements:
 
-- A single URL-validator helper module exports the validation pipeline. Controllers call the helper, not ad-hoc URL inspection.
+- A single URL-validator helper module exports the validation pipeline. Controllers call the helper, not ad-hoc URL inspection. Data-prep tooling that verifies seeded or curated-sidecar URLs invokes the same helper (never a reimplementation), so the scheme, SSRF, Safe Browsing, and reachability rules have one source of truth.
 - The validator distinguishes platform URLs (YouTube, Vimeo) from generic external URLs and routes platform URLs to the §6.8 oEmbed check.
 - The redirect-follow guard is implemented as a re-resolution at each hop, not a one-time check on the original host.
 - A template helper renders external links with the safe attribute set. Direct `<a href="{{url}}">` markup that bypasses the helper is rejected at code review.

@@ -34,6 +34,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CSV_PATH = Path(__file__).parent.parent / "seed" / "clubs.csv"
+# URL safety verdicts produced at data-prep time by `npm run verify:seed-urls`.
+# Stamping these here means the deployed/booting app never makes a URL callout;
+# a club URL with no verdict stays NULL and is hidden by the public read until it
+# is verified.
+VERDICTS_PATH = Path(__file__).parent.parent / "seed" / "clubs_url_verdicts.csv"
 
 
 def now_iso() -> str:
@@ -149,6 +154,29 @@ def load_csv(path: Path) -> list[dict[str, str]]:
         return [{k: (v or "") for k, v in row.items()} for row in reader]
 
 
+def load_verdicts(path: Path) -> dict[str, dict[str, str | None]]:
+    """Map legacy_club_key -> {external_url, validated_at, quarantine_reason}.
+
+    The verdict is applied only when its external_url still matches the seed row,
+    so a URL changed since the last verify run is treated as unverified. Missing
+    file -> empty map (every URL then loads unverified and stays hidden).
+    """
+    if not path.exists():
+        return {}
+    out: dict[str, dict[str, str | None]] = {}
+    with path.open("r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            key = (row.get("legacy_club_key") or "").strip()
+            if not key:
+                continue
+            out[key] = {
+                "external_url": row.get("external_url") or "",
+                "validated_at": (row.get("validated_at") or "") or None,
+                "quarantine_reason": (row.get("quarantine_reason") or "") or None,
+            }
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -168,6 +196,7 @@ def main() -> None:
         sys.exit(1)
 
     rows = load_csv(CSV_PATH)
+    verdicts = load_verdicts(VERDICTS_PATH)
     ts = now_iso()
 
     con = sqlite3.connect(db_path)
@@ -191,6 +220,7 @@ def main() -> None:
     inserted_tags = 0
     inserted_clubs = 0
     skipped = 0
+    stamped_verdicts = 0
 
     with con:
         for row in rows:
@@ -224,14 +254,30 @@ def main() -> None:
             )
             inserted_tags += cur.rowcount
 
+            # External-URL safety verdict (data-prep time; see VERDICTS_PATH).
+            # Applied only when the verdict still matches this row's URL; an
+            # unmatched or absent verdict leaves the columns NULL so the public
+            # read hides the URL until it is verified.
+            ext_url = row["external_url"] or None
+            verdict = verdicts.get(key)
+            ext_validated_at = None
+            ext_quarantine = None
+            if ext_url and verdict and verdict["external_url"] == ext_url:
+                ext_validated_at = verdict["validated_at"]
+                ext_quarantine = verdict["quarantine_reason"]
+                if ext_validated_at or ext_quarantine:
+                    stamped_verdicts += 1
+
             # Insert club (skip on conflict — id is PRIMARY KEY)
             cur = con.execute(
                 """
                 INSERT OR IGNORE INTO clubs
                   (id, created_at, created_by, updated_at, updated_by, version,
                    name, description, city, region, country,
-                   contact_email, external_url, status, hashtag_tag_id)
-                VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                   contact_email, external_url,
+                   external_url_validated_at, external_url_quarantine_reason,
+                   status, hashtag_tag_id)
+                VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
                 """,
                 (
                     club_id, ts, ts,
@@ -241,7 +287,9 @@ def main() -> None:
                     row["region"] or None,
                     row["country"],
                     row["contact_email"] or None,
-                    row["external_url"] or None,
+                    ext_url,
+                    ext_validated_at,
+                    ext_quarantine,
                     tag_id,
                 ),
             )
@@ -300,7 +348,8 @@ def main() -> None:
 
     print(
         f"Done. tags inserted: {inserted_tags}, clubs inserted: {inserted_clubs}, "
-        f"clubs skipped (already present): {skipped}."
+        f"clubs skipped (already present): {skipped}, "
+        f"url verdicts stamped: {stamped_verdicts}."
     )
 
 

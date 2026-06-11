@@ -192,6 +192,13 @@ run_phase_b_mirror_extract() {
     python scripts/extract_clubs.py
     python scripts/extract_club_members.py
     python scripts/extract_member_usernames.py
+    # Stamp URL safety verdicts for club URLs at data-prep time, so the deployed
+    # app never makes a URL callout. Idempotent: when the committed seed and
+    # verdict file already agree every row is kept and no network call is made,
+    # so a normal soup-to-nuts run stays callout-free; only genuinely new or
+    # changed URLs are checked here. Real Safe Browsing verdicts require the live
+    # adapter configured in this environment.
+    ( cd "${REPO_ROOT}" && npm run --silent verify:seed-urls -- --clubs-only )
     echo ""
 }
 

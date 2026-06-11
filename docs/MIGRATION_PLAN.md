@@ -725,7 +725,7 @@ For each pre-populated candidate, the live `clubs` row carries:
 - `name`, `city`, `country`: from the (possibly merged) candidate.
 - `region`: from the candidate when present; may be NULL.
 - `hashtag_tag_id`: standardized hashtag generated deterministically from `name`.
-- `external_url`: published only if URL verification (see §10.3) passes. Failed verifications leave the column NULL; the original value remains on the candidate row for the wizard to surface to the listed contact.
+- `external_url`: carried from the candidate and verified at data-prep time per DD §3.17. The public club read shows the URL only once it is verified and not quarantined; an unverified or flagged URL is retained on the row but hidden from public render, and surfaced to the listed contact (and admin) for review.
 - `description`: published as-is from the legacy data.
 - `contact_email`, `whatsapp`: not pre-populated from legacy data.
 
@@ -771,7 +771,7 @@ System rules the wizard preserves:
 
 #### Content editing
 
-Description and external URL on every live `clubs` row are edited directly by the listed contact and any registered club leader; there is no approval gate and no suggestion queue. Other members report inaccuracies to club leadership out of band. Every URL bound for a live page (whether copied from legacy data at go-live or edited by contact or leader) must pass URL verification before appearing publicly. Failed verifications leave the column NULL and surface the validator's error to the editor.
+Description and external URL on every live `clubs` row are edited directly by the listed contact and any registered club leader; there is no approval gate and no suggestion queue. Other members report inaccuracies to club leadership out of band. Every URL bound for a live page passes URL verification before appearing publicly per DD §3.17: a contact or leader edit is verified at submit time, and a URL carried from legacy data is verified at data-prep time. Until a URL is verified and not quarantined it is hidden from public render; the value is retained and the validator's error is surfaced to the editor.
 
 ### 10.4 Long-term cleanup
 

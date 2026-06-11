@@ -167,6 +167,10 @@ Extraction:
 - Mirror HTML -> `seed/clubs.csv`
 - Includes `contact_member_id` from `members/profile/{id}` plus `contact_email`.
 
+URL safety verification (data-prep time, no app callout):
+- `npm run verify:seed-urls -- --clubs-only` (run_pipeline.sh Phase B) reuses the Node validator and writes `seed/clubs_url_verdicts.csv` (per-`legacy_club_key` `validated_at` / `quarantine_reason`). Idempotent: already-verdicted URLs are kept, so a normal run makes no network callout. Real Safe Browsing verdicts require the live adapter configured in the run environment.
+- The loaders (`load_clubs_seed.py`, Phase H `06_cutover_pre_populated_clubs.py`) join that file and stamp `clubs.external_url_validated_at` / `external_url_quarantine_reason`. The public read hides a club URL until it is verified and not quarantined.
+
 Classification:
 - `clubs/scripts/02_build_legacy_club_candidates.py`
 - Implements `MIGRATION_PLAN` §10.1 rules R1-R10.

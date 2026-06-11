@@ -15,6 +15,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "audit": "audit-ci --moderate",
+    "verify:seed-urls": "tsx scripts/verify-seed-urls.ts",
     "start": "node dist/server.js",
     "test": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",
     "test:watch": "vitest --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",

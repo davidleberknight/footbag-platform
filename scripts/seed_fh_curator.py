@@ -808,6 +808,31 @@ def _seed_one_sidecar(
     return media_id, final_tags, platform, url
 
 
+# Per-URL safety verdicts for gallery external links, produced at sidecar-
+# authoring time by `npm run verify:seed-urls` and committed beside the sidecars.
+# Reading them here (never calling out) lets the seed stamp validated_at /
+# quarantine_reason, so the deployed app makes no URL callout and the public read
+# hides a link until it is verified.
+GALLERY_URL_VERDICTS_FILE = "url_verdicts.json"
+
+
+def _load_gallery_url_verdicts(galleries_dir: Path) -> dict:
+    """Map gallery_id -> {url -> {"validated_at", "quarantine_reason"}}.
+
+    Missing file -> empty map (every link loads unverified and stays hidden).
+    """
+    path = galleries_dir / GALLERY_URL_VERDICTS_FILE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as err:
+        sys.exit(f"ERROR: {path}: malformed JSON: {err}")
+    if not isinstance(data, dict):
+        sys.exit(f"ERROR: {path}: top-level value must be a JSON object")
+    return data
+
+
 def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
     """Load every gallery JSON sidecar from /curated/galleries/, validate
     each, and return a list of dicts in the shape ensure_named_gallery
@@ -827,7 +852,11 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
             "FH gallery definitions live there as JSON sidecars."
         )
 
-    files = sorted(galleries_dir.glob("*.json"))
+    verdicts = _load_gallery_url_verdicts(galleries_dir)
+    files = [
+        p for p in sorted(galleries_dir.glob("*.json"))
+        if p.name != GALLERY_URL_VERDICTS_FILE
+    ]
     loaded: list[dict] = []
 
     for path in files:
@@ -961,6 +990,7 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
             "external_links": tuple(
                 (lk["label"], lk["url"], lk["sort_order"]) for lk in validated_links
             ),
+            "link_verdicts": verdicts.get(gallery_id, {}),
         })
 
     return loaded
@@ -978,6 +1008,7 @@ def ensure_named_gallery(
     criteria_tags: tuple,
     exclude_tags: tuple = (),
     external_links: tuple = (),
+    link_verdicts: dict | None = None,
 ) -> None:
     """Ensure an FH-owned named gallery row exists in member_galleries with
     the given metadata, AND its criteria-tag and exclude-tag sets match
@@ -1034,16 +1065,25 @@ def ensure_named_gallery(
         "DELETE FROM gallery_external_links WHERE gallery_id = ?",
         (gallery_id,),
     )
+    # A URL is stamped from its committed verdict (validated_at on accept,
+    # quarantine_reason on reject); a link with no verdict loads unverified
+    # (both NULL) and the public read hides it until it is verified.
+    verdicts = link_verdicts or {}
     for label, url, link_sort in external_links:
         link_id = f"glink_{gallery_id}_{link_sort}"
+        verdict = verdicts.get(url) or {}
         con.execute(
             """
             INSERT INTO gallery_external_links (
                 id, created_at, created_by, updated_at, updated_by, version,
-                gallery_id, label, url, validated_at, sort_order
-            ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, NULL, ?)
+                gallery_id, label, url, validated_at, quarantine_reason, sort_order
+            ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?, ?)
             """,
-            (link_id, ts, ts, gallery_id, label, url, link_sort),
+            (
+                link_id, ts, ts, gallery_id, label, url,
+                verdict.get("validated_at"), verdict.get("quarantine_reason"),
+                link_sort,
+            ),
         )
 
 
@@ -1068,6 +1108,7 @@ def ensure_fh_named_galleries(
             criteria_tags=g["criteria_tags"],
             exclude_tags=g["exclude_tags"],
             external_links=g.get("external_links", ()),
+            link_verdicts=g.get("link_verdicts", {}),
         )
 
     kept_ids = [g["id"] for g in galleries]
