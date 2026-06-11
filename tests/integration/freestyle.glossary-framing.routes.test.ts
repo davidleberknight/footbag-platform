@@ -411,3 +411,23 @@ describe('Glossary Phase 3 — L3 folk/structural projections + equivalence mech
     expect(html).toMatch(/alpine-big-apple/);
   });
 });
+
+describe('Glossary edge-case classification notes', () => {
+  it('documents the swing-element exception (Pendulum / Rake) to the terminate-in-contact rule', async () => {
+    const html = await glossary();
+    expect(html).toContain('swing element');
+    expect(html).toContain('Pendulum and Rake');
+  });
+
+  it('disambiguates the overloaded clipper terminology', async () => {
+    const html = await glossary();
+    expect(html).toContain('is a flying (no-stall) clipper kick');
+    expect(html).toContain('clipper naming lineage');
+  });
+
+  it('notes swirl has no kick variant and grows through structural variants', async () => {
+    const html = await glossary();
+    expect(html).toContain('Swirl behaves differently from most dex families');
+    expect(html).toContain('no recognized kick variant');
+  });
+});
