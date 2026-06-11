@@ -4,7 +4,7 @@
   Status-first, ADD-ordered. Observational layer ONLY: provisional ADD /
   decomposition are observationally extrapolated, NEVER canonical; cards carry
   a tracked tag (not a canonical hashtag), no detail-page link, no media. The
-  page reads as a curator work queue: Promotion Ready first (lowest derived ADD
+  page reads as a curator work queue: Awaiting Ruling first (lowest derived ADD
   first), then frontier-health metrics, then Needs Authoring, then Doctrine
   Blocked clusters, then the long-tail folk / alias / ecosystem material behind
   disclosure.
@@ -33,16 +33,17 @@
     </p>
     {{else}}
 
-    {{! ── Section A — Promotion Ready (FIRST; grouped by derived ADD) ── }}
+    {{! ── Section A — Awaiting Ruling (FIRST; grouped by derived ADD) ── }}
     {{#if content.readyTotal}}
-    <section class="observed-section" id="promotion-ready" aria-label="Promotion ready">
+    <section class="observed-section" id="promotion-ready" aria-label="Awaiting ruling">
       <div class="section-heading">
-        <h2>Promotion Ready</h2>
+        <h2>Awaiting Ruling</h2>
         <span class="section-count">{{content.readyTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Structurally understood, with a clean derived ADD and no doctrine blocker,
-        awaiting curator review only. Promote lowest-ADD first.
+        Structurally understood, with a clean derived ADD, but blocked on a curator
+        ruling, an operator chassis, or a missing base before promotion. Ordered by
+        derived ADD, lowest first.
       </p>
       {{#each content.readyGroups}}
       <div class="observed-eco-group">

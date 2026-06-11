@@ -55,7 +55,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    for (const label of ['Promotion Ready', 'Needs Authoring', 'Doctrine Blocked',
+    for (const label of ['Awaiting Ruling', 'Needs Authoring', 'Doctrine Blocked',
                          'Folk / Unresolved', 'Alias / Duplicate', 'Structurally Understood']) {
       expect(html).toContain(label);
     }
@@ -66,7 +66,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toMatch(/\d+%/);
   });
 
-  it('makes Promotion Ready the first content section, above the metric strip', async () => {
+  it('makes Awaiting Ruling the first content section, above the metric strip', async () => {
     const html = await page();
     const readyIdx = html.indexOf('id="promotion-ready"');
     const metricsIdx = html.indexOf('observed-stats');
@@ -83,7 +83,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(sum).toBe(OBSERVATIONAL_UNIVERSE_STATS.total);
   });
 
-  it('groups Promotion Ready + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
+  it('groups Awaiting Ruling + Needs Authoring by derived ADD (lowest first, Unknown last)', async () => {
     const html = await page();
     expect(html).toContain('id="promotion-ready"');
     expect(html).toContain('id="needs-authoring"');
@@ -92,7 +92,7 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(html).toMatch(/observed-eco-heading">\d+ ADD/);
     // Provisional ADD stays labelled extrapolated, never canonical.
     expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
-    // Lowest ADD precedes higher ADD inside Promotion Ready.
+    // Lowest ADD precedes higher ADD inside Awaiting Ruling.
     const block = html.slice(html.indexOf('id="promotion-ready"'), html.indexOf('observed-stats'));
     const nums = [...block.matchAll(/observed-eco-heading">(\d+) ADD/g)].map(m => Number(m[1]));
     expect(nums.length).toBeGreaterThan(0);

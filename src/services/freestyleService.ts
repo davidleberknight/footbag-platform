@@ -8222,7 +8222,7 @@ export const freestyleService = {
         });
     };
 
-    // Section A — Promotion Ready, grouped by derived ADD (lowest first).
+    // Section A — Awaiting Ruling, grouped by derived ADD (lowest first).
     // Net the alias/duplicate archive out symmetrically (folk/parser already do
     // this below) so the published section counts form a clean partition and the
     // alias archive is never double-counted on top of a section.
@@ -8300,7 +8300,7 @@ export const freestyleService = {
     const frontierSize  = readyN + needsN + doctrineN + folkN; // excludes the alias archive
     const pctUnderstood = frontierSize ? Math.round(((readyN + needsN) / frontierSize) * 100) : 0;
     const statBlocks: ObservationalStat[] = [
-      { label: 'Promotion Ready',         value: String(readyN),      hint: 'structurally understood, clean ADD, no blocker' },
+      { label: 'Awaiting Ruling',         value: String(readyN),      hint: 'structurally understood; blocked on a curator ruling, an operator chassis, or a missing base' },
       { label: 'Needs Authoring',         value: String(needsN),      hint: 'structure understood, awaiting notation or decomposition' },
       { label: 'Doctrine Blocked',        value: String(doctrineN),   hint: 'awaiting a curator or Red ruling' },
       { label: 'Folk / Unresolved',       value: String(folkN),       hint: 'documented names whose structure is not yet understood' },
