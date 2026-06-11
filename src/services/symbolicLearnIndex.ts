@@ -54,7 +54,7 @@ const PROGRESSIONS_SECTION: LearnIndexSection = {
 
 const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
   heading:    'Modifier pedagogy',
-  introBlurb: 'Deep-dive teaching pages for individual modifiers — what the modifier does physically, how it composes onto bases, and where it appears across the dictionary.',
+  introBlurb: 'Deep-dive teaching pages for individual modifiers: what the modifier does physically, how it composes onto bases, and where it appears across the dictionary.',
   entries: [
     {
       title:      'Spinning',
@@ -73,7 +73,7 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
     {
       title:      'Ducking',
       href:       '/freestyle/modifier/ducking',
-      shortBlurb: 'A head dip that lets the bag pass around the neck. One member of a four-way head-motion family (ducking / weaving / diving / zulu — a 2×2 of head direction × bag-fall side). Six teaching sections including a progression on butterfly and folk single-token compounds (phoenix, mullet, mind-bender) that hide ducking in their canonical reading.',
+      shortBlurb: 'A head dip that lets the bag pass around the neck. One member of a four-way head-motion family (ducking / weaving / diving / zulu, a 2×2 of head direction × bag-fall side). Six teaching sections including a progression on butterfly and folk single-token compounds (phoenix, mullet, mind-bender) that hide ducking in their canonical reading.',
       status:     'shipped',
       isShipped:  true,
     },
@@ -82,7 +82,7 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
 
 const REFERENCE_SECTION: LearnIndexSection = {
   heading:    'Reference surfaces',
-  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself — the glossary connective panels for high-value terms, and the set-notation reference that names the operational language.',
+  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself: the glossary connective panels for high-value terms, and the set-notation reference that names the operational language.',
   entries: [
     {
       title:      'Set notation reference',
@@ -94,7 +94,7 @@ const REFERENCE_SECTION: LearnIndexSection = {
     {
       title:      'Glossary movement-topology panels',
       href:       '/freestyle/glossary#connective-panels',
-      shortBlurb: 'Paradox, symposium, ducking, spinning, whirl, pixie — each as a short panel pointing to where the term lives in practice across the dictionary.',
+      shortBlurb: 'Paradox, symposium, ducking, spinning, whirl, pixie: each as a short panel pointing to where the term lives in practice across the dictionary.',
       status:     'shipped',
       isShipped:  true,
     },
@@ -105,7 +105,7 @@ export function buildSymbolicLearnIndex(operatorBoard: OperatorBoardData): Symbo
   return {
     pageHeading: 'Educational pathways through freestyle footbag',
     pageIntro:
-      'Guided progression paths for exploring freestyle movement — how a modifier feels, how a family of tricks builds up step by step, how a glossary term shows up across the catalog. The trick dictionary remains the main reference; these are companions for learning.',
+      'Guided progression paths for exploring freestyle movement: how a modifier feels, how a family of tricks builds up step by step, how a glossary term shows up across the catalog. The trick dictionary remains the main reference; these are companions for learning.',
     operatorBoard,
     sections: [
       PROGRESSIONS_SECTION,

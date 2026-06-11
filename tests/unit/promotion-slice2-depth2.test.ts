@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 // Slice 2 of the observational->canonical promotion: the D1 depth-2 cohort (two
 // ratified modifiers on a base; composition order entry -> body -> operators ->
-// base core -> terminal, verified in VERIFICATION_BATCH_RESULTS.md). Self-contained
+// base core -> terminal). Self-contained
 // verification of each promoted notation: parse-valid and bracket count == ADD.
 // `reverse-swirling-paradox-torque` carries a torque->osis family override (loader-19).
 const APPROVED = [

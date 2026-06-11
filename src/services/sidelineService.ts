@@ -47,7 +47,7 @@ const SIDELINE_GAMES: SidelineGame[] = [
     iconSrc: '/img/sideline-icon-hackysack.svg',
     iconAlt: 'Two figures circle-kicking a footbag',
     paragraphs: [
-      'Circle kicking, more commonly known as "hacky sack," is the original and most well-known footbag game. A group stands in a circle and keeps the footbag off the ground without using their hands, passing to other players, and trying to get everyone to kick the bag before it drops — known as a "hack." Simple tricks are encouraged, but the focus stays on the group and the flow.',
+      'Circle kicking, more commonly known as "hacky sack," is the original and most well-known footbag game. A group stands in a circle and keeps the footbag off the ground without using their hands, passing to other players, and trying to get everyone to kick the bag before it drops, known as a "hack." Simple tricks are encouraged, but the focus stays on the group and the flow.',
     ],
     demoVideo: {
       webmUrl: '/video/sideline/hackysack.webm',

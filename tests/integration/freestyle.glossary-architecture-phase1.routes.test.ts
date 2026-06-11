@@ -19,9 +19,6 @@
  *     structural formula with the `(same | op)(in | out)dexterity`
  *     iterable middle.
  *   - Curator-internal language never leaks into the prose.
- *
- * Design doc:
- *   exploration/glossary-architecture-overhaul-2026-05-21/DESIGN.md
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

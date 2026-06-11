@@ -68,7 +68,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'set',
     oneLineMeaning: 'A cross-body uptime set with x-dex character. Operational form: TOE > OP OUT [DEX] > (op-side component).',
     decomposition:  null,
-    pendingNote:    'X-Dex fires on the following dex only when it is a far miraging/illusioning move (Atomic or Quantum set — identical trigger); legovers and pickups never carry it. The surface name is the dictionary headline (e.g. Atom Smasher = Atomic Mirage); the dex-by-dex breakdown is pedagogy, not the canonical key.',
+    pendingNote:    'X-Dex fires on the following dex only when it is a far miraging/illusioning move (Atomic or Quantum set, identical trigger); legovers and pickups never carry it. The surface name is the dictionary headline (e.g. Atom Smasher = Atomic Mirage); the dex-by-dex breakdown is pedagogy, not the canonical key.',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
     lineageNote:    'Operational form per the legacy notation reference; X-Dex trigger and presentation curator-adjudicated.',
     curatorConfirmPending: false,

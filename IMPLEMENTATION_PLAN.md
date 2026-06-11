@@ -35,41 +35,6 @@ go-live, when pipeline reloads have stopped and the production DB owns club
 truth. Until then the queue's existing junk actions (confirm junk, promote
 to dormant) cover rescue needs.
 
-### Visitor-facing em dashes pending cleanup and gate
-
-Rendered template text and `src/content` editorial strings contain em dashes,
-contrary to the public-facing-text em-dash rule in `.claude/rules/doc-governance.md`
-(em dashes are unrestricted in docs and code; only visitor-facing text is in
-scope). About 340 occurrences exist, some of which are legitimate data separators
-in notation and equivalence arrays. Canonical state is no em dashes in
-visitor-facing text. Close the gap with a dedicated
-pass that rewrites the prose occurrences (commas, parentheses, or restructure),
-exempts the genuine data-separator arrays, then adds an `assert_conventions.sh`
-rule scanning `.hbs` text nodes and `src/content` string literals so the
-cleaned state cannot regress.
-
-### Test-comment doc and finding-id references pending cleanup and gate
-
-`tests/` comments and `describe` / `it` names reference docs, section
-shorthands, and finding ids, contrary to the stricter test-comment rule in
-`.claude/rules/comments.md`. About 130 occurrences exist. Canonical state is
-plain-words long-term contract descriptions with no doc or finding-id
-reference. Close the gap with a pass that rewrites the offending comments and
-test names, then adds an `assert_conventions.sh` rule scanning `tests/`
-comments and `describe` / `it` string arguments so the cleaned state cannot
-regress.
-
-### Migration-readiness audit follow-ups (platform-src)
-
-Buildable to-dos from the cutover-readiness audit. Each is a deviation from a now-decided
-design recorded in the canonical docs (USER_STORIES / DESIGN_DECISIONS) or in MIGRATION_PLAN.
-
-- **M12: retire the daily honors digest.** Remove the scheduled daily send in
-  `hofBapAdminDigestService`. The v1 honors-oversight mechanism is the a-priori roster
-  cross-check (legacy_data IP) plus community self-policing and admin revert. Keep the
-  underlying honors-claim query (`listRecentHonorsClaims`) for on-demand admin review; the
-  interactive oversight feed stays v2.
-
 ### Persona harness completion (platform-src)
 
 The route-by-persona authorization matrix and the automated persona-driven test scripts depend on

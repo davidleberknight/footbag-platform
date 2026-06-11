@@ -126,7 +126,7 @@ export function allMovementSystemModifierSlugs(): string[] {
 
 export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map([
   ['paradox',
-    'PDX + base — the body crosses sides without changing the set foot. ' +
+    'PDX + base: the body crosses sides without changing the set foot. ' +
     'Reads as an entry topology, not a terminal family. ' +
     'Entry shape: clip > op-in dex. ' +
     'Compounds: PDX + WHIRL, PDX + TORQUE, PDX + BLENDER.',
@@ -134,32 +134,32 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   // 5 additional pilot glosses. Each line stays ≤200 chars per the
   // restraint discipline. No parser tokens; no multi-line essays.
   ['spinning',
-    'SPIN + base — a full-body 360° rotation carried through the dex moment. ' +
+    'SPIN + base: a full-body 360° rotation carried through the dex moment. ' +
     'Compounds: SPIN + WHIRL, SPIN + TORQUE, SPIN + OSIS.',
   ],
   ['ducking',
-    'DUCK + base — a head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite. ' +
+    'DUCK + base: a head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite. ' +
     'Compounds: DUCK + WHIRL, DUCK + OSIS.',
   ],
   ['symposium',
-    'SYMP + base — the support leg stays off the ground during the dex (no-plant discipline). ' +
+    'SYMP + base: the support leg stays off the ground during the dex (no-plant discipline). ' +
     'Compounds: SYMP + WHIRL, SYMP + MIRAGE.',
   ],
   ['stepping',
-    'STEP + base — a foot relocation during uptime that compresses or lengthens the set. ' +
+    'STEP + base: a foot relocation during uptime that compresses or lengthens the set. ' +
     'Per pt11: blurry = stepping paradox; compounds: STEP + WHIRL, STEP + OSIS.',
   ],
   ['pixie',
-    'PIX + base — a compressed pre-base uptime set; tighter motion than stepping. ' +
+    'PIX + base: a compressed pre-base uptime set; tighter motion than stepping. ' +
     'Compounds: PIX + BUTTERFLY (dimwalk), PIX + MIRAGE (smear), PIX + DRIFTER (smoke).',
   ],
   ['fairy',
-    'FAIRY + base — an alternate uptime path; the bag travels with illusion-style mechanics ' +
+    'FAIRY + base: an alternate uptime path; the bag travels with illusion-style mechanics ' +
     'rather than the standard pixie compression. ' +
     'Compounds: FAIRY + MIRAGE, FAIRY + BUTTERFLY.',
   ],
   ['surging',
-    'SURGE + base — stepping foot relocation combined with spinning body rotation; ' +
+    'SURGE + base: stepping foot relocation combined with spinning body rotation; ' +
     'a high-energy pre-base treatment that decomposes to spinning + stepping. ' +
     'Compounds: SURGE + WHIRL, SURGE + OSIS.',
   ],

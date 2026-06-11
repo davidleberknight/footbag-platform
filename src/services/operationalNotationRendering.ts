@@ -69,7 +69,7 @@ const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   component_flag:   'Component flag',
   sequence_op:      'Sequence step indicator',
   pre_state:        'Pre-state flag',
-  unknown:          'Unrecognized — community notation may be evolving',
+  unknown:          'Unrecognized: community notation may be evolving',
 };
 
 // Per-word-token specific tooltip overrides. Layer-disambiguated for tokens
@@ -78,23 +78,23 @@ const ROLE_LABELS: Record<OperationalTokenRole, string> = {
 // case-insensitive lookup.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // Surfaces
-  CLIP:  'CLIP — clipper set position (start of trick)',
-  TOE:   'TOE (operational) — toe set position (start of trick)',
+  CLIP:  'CLIP: clipper set position (start of trick)',
+  TOE:   'TOE (operational): toe set position (start of trick)',
   // Sides — layer-disambiguated (semantic notation uses footedness role)
-  SAME:  'SAME (operational) — step on same side as plant foot',
-  OP:    'OP (operational) — step on opposite side from plant foot',
+  SAME:  'SAME (operational): step on same side as plant foot',
+  OP:    'OP (operational): step on opposite side from plant foot',
   // Directions — IN/OUT layer-disambiguated; FRONT/BACK fuse with WHIRL/SWIRL
-  IN:    'IN (operational) — inward arc (toward body)',
-  OUT:   'OUT (operational) — outward arc (away from body)',
-  FRONT: 'FRONT — forward direction (fuses with WHIRL/SWIRL)',
-  BACK:  'BACK — backward direction (fuses with WHIRL/SWIRL)',
+  IN:    'IN (operational): inward arc (toward body)',
+  OUT:   'OUT (operational): outward arc (away from body)',
+  FRONT: 'FRONT: forward direction (fuses with WHIRL/SWIRL)',
+  BACK:  'BACK: backward direction (fuses with WHIRL/SWIRL)',
   // Body actions
-  SPIN:  'SPIN — body rotation in place',
-  DUCK:  'DUCK — body action (downward)',
-  DIVE:  'DIVE — body action (forward-downward)',
+  SPIN:  'SPIN: body rotation in place',
+  DUCK:  'DUCK: body action (downward)',
+  DIVE:  'DIVE: body action (forward-downward)',
   // Standalone WHIRL/SWIRL — layer-disambiguated from semantic core_family
-  WHIRL: 'WHIRL (operational) — rotational dex step within the trick',
-  SWIRL: 'SWIRL (operational) — rotational dex step within the trick',
+  WHIRL: 'WHIRL (operational): rotational dex step within the trick',
+  SWIRL: 'SWIRL (operational): rotational dex step within the trick',
 };
 
 // Component-flag specific tooltip overrides. The 6 flags carry meaningfully
@@ -227,7 +227,7 @@ export function shapeOperationalNotationDisplay(
           const nounLabel = ahead[1]!.toUpperCase() === 'WHIRL' ? 'whirl' : 'swirl';
           tokens.push({
             text: fused, role: 'rotation_variant', cssRole: 'rotation-variant',
-            label: `Rotational dex — ${dirLabel}-direction ${nounLabel}`,
+            label: `Rotational dex: ${dirLabel}-direction ${nounLabel}`,
           });
           continue;
         }

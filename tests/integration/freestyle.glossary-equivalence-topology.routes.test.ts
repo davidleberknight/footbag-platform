@@ -14,9 +14,6 @@
  *     witchdoctor still render.
  *   - Curator-internal language never reaches the rendered HTML
  *     (curatorConfirmPending, curatorNote, "1-component gap").
- *
- * Design doc:
- *   exploration/equivalence-topology-phase-1-2026-05-21/DESIGN.md
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

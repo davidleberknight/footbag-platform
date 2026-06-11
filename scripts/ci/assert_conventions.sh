@@ -634,6 +634,58 @@ if ! bash scripts/ci/check_action_pinning.sh; then
   violations=$((violations + 1))
 fi
 
+# Rule: tests/ comments and describe/it names never reference docs, doc-section
+# shorthands, or finding ids. A test name describes the long-term contract in
+# plain words; doc paths and section numbers rot as docs evolve, and finding
+# ids are throwaway. Product structure (glossary §N sections), pipeline phases,
+# user-story slugs, and code identifiers are not doc references and stay.
+# Allowlisted: ".md" named as the file extension the password-leak scanners
+# skip, and the in-repo archive path asserted as a literal string value.
+echo "[conventions] check: tests/ doc / finding-id references"
+test_doc_hits=$(grep -rnE '\.md\b|exploration/|\b(DD|US|SC|VC|DM|DG|MP) §|MIGRATION_PLAN|USER_STORIES|DESIGN_DECISIONS|SERVICE_CATALOG|VIEW_CATALOG|DATA_MODEL|DATA_GOVERNANCE|STABILIZATION_PLAN|PHASE_B_LOCK|regression: ?B[0-9]|\bBUG_HUNT\b|\(B[0-9]+\)' tests/ --include='*.ts' \
+  | grep -vE 'documentation \(\.md\)' \
+  | grep -vE "toContain\('exploration/" \
+  || true)
+if [ -n "$test_doc_hits" ]; then
+  echo "$test_doc_hits" >&2
+  echo "  FAIL: test comments/names must describe the contract in plain words, not reference docs, doc-section numbers, or finding ids" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: no em dashes in visitor-facing text. Em dashes are unrestricted in
+# code comments, scripts, and docs; only public text a visitor reads is in
+# scope: rendered .hbs text nodes, src/content string values, and the
+# visitor-facing strings (page titles, definitions, tooltips, prose) authored
+# in src/services and src/controllers. Use a comma, parentheses, or a colon
+# instead. Comment blocks (Handlebars and code) are stripped before scanning;
+# curator-audit metadata (resolvedFormulas `provenance`, not rendered) and
+# standalone "—" no-value placeholders are exempt; dev-only and internal-QC
+# surfaces are out of scope.
+echo "[conventions] check: visitor-facing em dashes"
+emdash_hits=""
+for f in $(grep -rl '—' src/views --include='*.hbs' 2>/dev/null | grep -vE 'internal-qc/|/dev/' || true); do
+  h=$(perl -0777 -pe 's/\{\{!--.*?--\}\}//gs; s/\{\{!.*?\}\}//gs' "$f" | grep -nE '—' | sed "s|^|$f:|" || true)
+  [ -n "$h" ] && emdash_hits="${emdash_hits}${h}"$'\n'
+done
+content_emdash=$(grep -rnE '—' src/content --include='*.ts' \
+  | grep -vE ':[0-9]+:[[:space:]]*(//|\*|/\*)' \
+  | grep -vE 'provenance:' \
+  || true)
+[ -n "$content_emdash" ] && emdash_hits="${emdash_hits}${content_emdash}"$'\n'
+for f in $(grep -rl '—' src/services src/controllers --include='*.ts' 2>/dev/null | grep -v 'internal-qc/' || true); do
+  s=$(perl -0777 -pe 's{//[^\n]*}{}g; s{/\*.*?\*/}{}gs;' "$f" \
+        | grep -nE '—' \
+        | grep -vE "(['\"\`])—" \
+        | grep -vE 'indexOf' \
+        | sed "s|^|$f:|" || true)
+  [ -n "$s" ] && emdash_hits="${emdash_hits}${s}"$'\n'
+done
+if [ -n "$(printf '%s' "$emdash_hits" | tr -d '[:space:]')" ]; then
+  printf '%s\n' "$emdash_hits" >&2
+  echo "  FAIL: em dashes are not allowed in visitor-facing text; use a comma, parentheses, or a colon" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

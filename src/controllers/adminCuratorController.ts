@@ -568,8 +568,8 @@ export const adminCuratorController = {
       const item = await svc.getMediaItem(mediaId);
       if (!item) {
         res.status(404).render('admin/curator/edit', {
-          seo: { title: 'Curated Media — Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media — Not Found' },
+          seo: { title: 'Curated Media: Not Found' },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media: Not Found' },
           notFound: true,
           mediaId,
         });
@@ -642,8 +642,8 @@ export const adminCuratorController = {
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).render('admin/curator/edit', {
-            seo: { title: 'Curated Media — Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media — Not Found' },
+            seo: { title: 'Curated Media: Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Curated Media: Not Found' },
             notFound: true,
             mediaId,
           });
@@ -783,8 +783,8 @@ export const adminCuratorController = {
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery — Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            seo: { title: 'Curator Gallery: Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
             notFound: true,
             galleryId,
           });
@@ -827,8 +827,8 @@ export const adminCuratorController = {
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery — Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            seo: { title: 'Curator Gallery: Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
             notFound: true,
             galleryId,
           });
@@ -879,8 +879,8 @@ export const adminCuratorController = {
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).render('admin/curator/galleries/edit', {
-            seo: { title: 'Curator Gallery — Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            seo: { title: 'Curator Gallery: Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
             notFound: true,
             galleryId,
           });
@@ -1119,8 +1119,8 @@ export const adminCuratorController = {
       const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
       if (!job) {
         res.status(404).render('admin/curator/job-status', {
-          seo: { title: 'Curator Upload — Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload — Not Found' },
+          seo: { title: 'Curator Upload: Not Found' },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload: Not Found' },
           notFound: true,
           jobId,
         });
@@ -1362,8 +1362,8 @@ async function executeCuratorGalleryEditMultipart(args: {
   } catch (err) {
     if (err instanceof NotFoundError) {
       res.status(404).render('admin/curator/galleries/edit', {
-        seo: { title: 'Curator Gallery — Not Found' },
-        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+        seo: { title: 'Curator Gallery: Not Found' },
+        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery: Not Found' },
         notFound: true,
         galleryId,
       });

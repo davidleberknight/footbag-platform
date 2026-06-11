@@ -181,7 +181,7 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 2. Card structure (per SYMBOLIC_CARD_SPEC.md §1)
+// 2. Card structure
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('dictionary-trick-card — required slots', () => {

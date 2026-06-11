@@ -5,9 +5,6 @@
  * (alternate-derivation entries for tricks whose canonical reading
  * admits a structurally distinct path). Tests pin schema invariants
  * + content membership so a future inadvertent edit fails loudly.
- *
- * Design doc:
- *   exploration/equivalence-topology-phase-1-2026-05-21/DESIGN.md
  */
 import { describe, it, expect } from 'vitest';
 import {

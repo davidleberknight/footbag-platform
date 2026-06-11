@@ -18,9 +18,6 @@
  *   - The operational chain text matches the family invariant in
  *     spirit (both reference the same terminal mechanic)
  *   - A non-anchor trick (paradox-mirage) does NOT render the callout
- *
- * Design doc:
- *   exploration/dictionary-pedagogy-phase-1-2026-05-21/DESIGN.md §13
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

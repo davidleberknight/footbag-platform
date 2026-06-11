@@ -124,7 +124,7 @@ describe('GET /verify/:token', () => {
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
-    // A response that establishes a session must not be cacheable (regression: B14).
+    // A response that establishes a session must not be cacheable.
     expect(res.headers['cache-control']).toMatch(/no-store/);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });

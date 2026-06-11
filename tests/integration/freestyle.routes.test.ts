@@ -168,8 +168,8 @@ beforeAll(async () => {
   //   - op-notation-seeded:        operational_notation populated; no source-note
   //   - op-notation-with-source:   operational_notation + source-note populated (O1d)
   //   - op-notation-empty:         neither populated (section must omit)
-  // Op-notation string mirrors the post-normalization shape proposed in
-  // exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md §4.
+  // Op-notation string mirrors the post-normalization operational-notation
+  // shape.
   insertFreestyleTrick(db, {
     slug: 'op-notation-seeded',
     canonical_name: 'op-notation-seeded',
@@ -569,7 +569,6 @@ describe('GET /freestyle/operators (Phase B promotion of glossary §6)', () => {
 });
 
 describe('GET /freestyle/observational — observational-layer trick entries', () => {
-  // 2026-05-18 implementation slice of observational_layer_proposal.md.
   // Layer separation contract: observational entries never cross into
   // canonical surfaces; they surface only on this route. Cards are
   // visually distinct (no hashtag, no trick-detail link, observational
@@ -655,8 +654,8 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
   });
 
   it('observational cards have NO hashtag chip (canonical-only convention)', async () => {
-    // Identity-layer contract from curated_vs_observational_boundary.md
-    // forever-invariant #2: observational entries never get #-tag chips.
+    // Identity-layer forever-invariant: observational entries never get
+    // #-tag chips.
     const res = await request(createApp()).get('/freestyle/observational');
     expect(res.text).not.toContain('class="dict-card-hashtag"');
     expect(res.text).not.toMatch(/<span[^>]*class="[^"]*hashtag[^"]*"[^>]*>#/);
@@ -1206,12 +1205,12 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// O1a (2026-05-10) — operational notation rendering surface on trick-detail.
+// O1a — operational notation rendering surface on trick-detail.
 // New "Set notation (operational)" section between semantic Notation and the
 // Notation grammar diagnostic. Section is conditional on the trick row's
 // freestyle_tricks.operational_notation column being non-empty. O1a renders
 // the string verbatim inside <code> with no token highlighting (deferred to
-// O1b per RENDERING_SURFACE_PROPOSAL.md).
+// O1b).
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () => {
@@ -1231,7 +1230,7 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     // O1b: each token rendered as a span with role class. O1c refined the
     // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
     // the generic "Plant or landing surface").
-    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP — clipper set position \(start of trick\)">CLIP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP: clipper set position \(start of trick\)">CLIP<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-major" data-role="sequence_op"[^>]*>&gt;&gt;<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side"[^>]*>SAME<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--direction" data-role="direction"[^>]*>OUT<\/span>/);
@@ -1276,9 +1275,9 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     // Pre-O1c the tooltip was the generic "Plant-foot side"; O1c specializes
     // SAME and OP per-token.
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="OP \(operational\) — step on opposite side from plant foot">OP<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="SAME \(operational\) — step on same side as plant foot">SAME<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP — clipper set position \(start of trick\)">CLIP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="OP \(operational\): step on opposite side from plant foot">OP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="SAME \(operational\): step on same side as plant foot">SAME<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP: clipper set position \(start of trick\)">CLIP<\/span>/);
   });
 
   it('renders the curator-authored source-note when operational_notation_source is populated (O1d)', async () => {
@@ -1565,9 +1564,9 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
   });
 });
 
-describe('Glossary improvements + history refresh (2026-05-17)', () => {
-  // Implementations of glossary_improvement_recommendations.md HIGH+MEDIUM
-  // priority items + HISTORY_PAGE_CONDENSED.md sections.
+describe('Glossary improvements + history refresh', () => {
+  // High and medium priority glossary improvements plus the condensed
+  // history-page sections.
   //
   // Glossary recommendations implemented:
   //   #1 §1 vocabulary-stabilization framing
@@ -2332,9 +2331,9 @@ describe('Freestyle glossary — re-bloat guard', () => {
     //                dedicated #jobs-notation subsection quoting Ben
     //                Job's 1995 article (canonical formula + six
     //                example tricks + extension-token list), with a
-    //                cite to the in-repo archive at
-    //                exploration/fborg/JobsNotation.txt. The historical
-    //                source-of-truth surface for the grammar lineage.
+    //                cite to the in-repo Jobs notation archive. The
+    //                historical source-of-truth surface for the grammar
+    //                lineage.
     //   200K → 215K  2026-05-25 Vocabulary Relationships subsection
     //                expansion in §composition: replaced prior
     //                #compression-vs-alternate-derivation with a four-

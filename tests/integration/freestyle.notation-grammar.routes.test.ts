@@ -690,7 +690,7 @@ describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning
 });
 
 // ---------------------------------------------------------------------------
-// Editorial decomposition view-model (Architecture B1 strict)
+// Editorial decomposition view-model
 
 describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: full editorial state)', () => {
   it('renders the Editorial decomposition block with base, modifiers, and composed math', async () => {

@@ -8,8 +8,8 @@
  *   - The system_job_runs lifecycle wrapper (`recordJobRun`): insert on start,
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
- *     drain, Active Player expiry, HoF/BAP admin digest, staged-candidate
- *     expiry, batch auto-link, PII purge scan
+ *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
+ *     PII purge scan
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
  *     admin alert
@@ -19,8 +19,7 @@
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService,
- *     HofBapAdminDigestService, IdentityAccessService classification/staging,
- *     CommunicationService drain)
+ *     IdentityAccessService classification/staging, CommunicationService drain)
  *   - Outbox row mechanics (CommunicationService)
  *   - Row-level PII erasure (MemberService primitives)
  *
@@ -67,11 +66,6 @@ import {
   type RunDailyPassResult,
   type RunOpts as ActivePlayerExpiryRunOpts,
 } from './activePlayerExpiryService';
-import {
-  runDailyPass as runHofBapAdminDigestDailyPass,
-  type HofBapDigestRunResult,
-  type HofBapDigestRunOpts,
-} from './hofBapAdminDigestService';
 import { identityAccessService } from './identityAccessService';
 
 export interface PiiPurgeScanResult {
@@ -244,32 +238,6 @@ export class OperationsPlatformService {
    */
   getActivePlayerExpiryIntervalMs(): number {
     const seconds = readIntConfig('active_player_expiry_check_interval_seconds', 86400);
-    const clamped = Math.max(60, seconds);
-    return clamped * 1000;
-  }
-
-  /**
-   * SYS_HoF_BAP_Admin_Digest daily entry point. Delegates the lookback
-   * scan + mailing-list enqueue to the digest service; wraps the call
-   * with `recordJobRun` so admin tooling sees one `system_job_runs` row
-   * per pass.
-   */
-  async runHofBapAdminDigest(
-    opts: HofBapDigestRunOpts = {},
-  ): Promise<HofBapDigestRunResult> {
-    return this.recordJobRun(
-      'SYS_HoF_BAP_Admin_Digest',
-      () => runHofBapAdminDigestDailyPass(opts),
-      opts.now,
-    );
-  }
-
-  /**
-   * Returns the daily-tick interval for the HoF/BAP digest worker, in
-   * milliseconds. Reads from system_config; clamped to a one-minute floor.
-   */
-  getHofBapAdminDigestIntervalMs(): number {
-    const seconds = readIntConfig('hof_bap_digest_check_interval_seconds', 86400);
     const clamped = Math.max(60, seconds);
     return clamped * 1000;
   }

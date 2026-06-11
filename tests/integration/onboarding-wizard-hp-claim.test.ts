@@ -6,7 +6,6 @@
  * back-link, and deceased-HP-does-not-affect-member invariant.
  *
  * User story anchors: M_Claim_Legacy_Account, M_Complete_Onboarding_Wizard.
- * Design anchors: MIGRATION_PLAN sections 6, 8, 9.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

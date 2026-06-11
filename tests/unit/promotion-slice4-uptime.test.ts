@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 // Slice 4 of the observational->canonical promotion: the D3 `>>`-boundary cohort.
 // Each base carries an internal `>>` (uptime) boundary that reverse/entry-surface
-// must preserve (verified in VERIFICATION_BATCH_RESULTS.md). Self-contained:
+// must preserve. Self-contained:
 // parse-valid, bracket count == ADD, and the `>>` survives in each notation.
 // All five carry a family override (base trick != family).
 const APPROVED = [

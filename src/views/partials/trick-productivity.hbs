@@ -13,7 +13,7 @@
     {{#each content.productivity.productiveDescendants}}
     <li>
       <a class="trick-productive-descendant-link" href="{{href}}">{{label}}</a>
-      {{#if note}}<span class="trick-productive-descendant-note">— {{note}}</span>{{/if}}
+      {{#if note}}<span class="trick-productive-descendant-note">({{note}})</span>{{/if}}
     </li>
     {{/each}}
   </ul>

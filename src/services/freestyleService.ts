@@ -1746,7 +1746,7 @@ const STATUS_LABELS: Record<string, { label: string; description: string }> = {
   },
   exact_self_atom: {
     label:       'Exact: named trick / self-atom',
-    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically — a different kind of agreement than a structural derivation.',
+    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically: a different kind of agreement than a structural derivation.',
   },
   approximate: {
     label:       'Approximate',
@@ -3092,7 +3092,7 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
     { short: 'PDX',      meaning: 'Paradox (body modifier).' },
     { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
     { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
-    { short: 'SYMP',     meaning: 'Symposium — or symple; context decides.' },
+    { short: 'SYMP',     meaning: 'Symposium, or symple; context decides.' },
     { short: 'DLO',      meaning: 'Double Leg Over.' },
     { short: 'ATW',      meaning: 'Around-the-World.' },
     { short: 'DATW',     meaning: 'Double Around-the-World.' },
@@ -3103,8 +3103,8 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
     { short: 'DEX',  meaning: 'Dexterity component. The foot circles the bag.' },
     { short: 'XBD',  meaning: 'Cross-body component. Active foot crosses the body’s centerline.' },
     { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, flying, or paradox pose change. Carries +1 ADD in body-modifier accounting (e.g. BOD(1) + clipper(1) for flying clipper).' },
-    { short: 'CLIP', meaning: 'Clipper — inside-arch shoe surface.' },
-    { short: 'TOE',  meaning: 'Toe surface — top of the shoe.' },
+    { short: 'CLIP', meaning: 'Clipper: inside-arch shoe surface.' },
+    { short: 'TOE',  meaning: 'Toe surface: top of the shoe.' },
     { short: 'UNS',  meaning: 'Unusual surface. Non-standard delay or kick surface (sole, cloud, knee-front, etc.). Carries 1 ADD in surface-anchor accounting (e.g. UNS(1) = 1 ADD for sole-kick / cloud-kick).' },
     { short: 'DEL',  meaning: 'Delay / terminal stall component closing a JOB-notation chain.' },
   ],
@@ -3466,8 +3466,8 @@ const FAMILY_NOTES: Record<string, string> = {
     'most common entry point into the compound vocabulary.',
   osis:
     'The osis spawns two major named sub-families: torque (miraging osis) and blender ' +
-    '(whirling osis). These in turn anchor their own clusters — paradox torque and mobius ' +
-    'on the torque side, paradox blender and spender on the blender side — making the osis ' +
+    '(whirling osis). These in turn anchor their own clusters (paradox torque and mobius' +
+    'on the torque side, paradox blender and spender on the blender side), making the osis' +
     'one of the most generative bases in the advanced trick vocabulary.',
   mirage:
     'The mirage is the foundational 2-ADD dex base. Compounds include smear (pixie ' +
@@ -5401,38 +5401,38 @@ const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
   {
     slug:       'hippy-downtime-dex',
     name:       'Hippy downtime dex',
-    definition: 'Tricks whose downtime dex comes from the hip — the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
+    definition: 'Tricks whose downtime dex comes from the hip: the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
     matches:    row => !!(row.base_trick && HIPPY_BASES.has(row.base_trick)),
   },
   {
     slug:       'leggy-dex',
     name:       'Leggy dex',
-    definition: 'Tricks whose dex comes from the knee — the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
+    definition: 'Tricks whose dex comes from the knee: the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
     matches:    row => !!(row.base_trick && LEGGY_BASES.has(row.base_trick)),
   },
   {
     slug:       'whirl-swirl-structures',
     name:       'Whirl / swirl structures',
-    definition: 'Tricks built on the rotational dex pair — Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
+    definition: 'Tricks built on the rotational dex pair: Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
     matches:    row => row.base_trick === 'whirl' || row.base_trick === 'swirl',
   },
   {
     slug:       'pixie-uptime-dex',
     name:       'Pixie uptime dex',
-    definition: 'Tricks with a pixie set treatment in the uptime — compressed pre-base set that compresses the rising-bag window.',
+    definition: 'Tricks with a pixie set treatment in the uptime: compressed pre-base set that compresses the rising-bag window.',
     matches:    (_row, hasLink) => hasLink('pixie'),
   },
   {
     slug:       'symposium-clipper-structures',
     name:       'Symposium clipper structures',
-    definition: 'Clipper-landing tricks performed with a symposium discipline — the support leg leaves the ground during the dex.',
+    definition: 'Clipper-landing tricks performed with a symposium discipline: the support leg leaves the ground during the dex.',
     matches:    (row, hasLink) => hasLink('symposium')
       && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
   },
   {
     slug:       'ducking-clipper-structures',
     name:       'Ducking clipper structures',
-    definition: 'Clipper-landing tricks with a ducking head-dip in the midtime — the bag passes around the neck while the rest of the trick continues.',
+    definition: 'Clipper-landing tricks with a ducking head-dip in the midtime: the bag passes around the neck while the rest of the trick continues.',
     matches:    (row, hasLink) => hasLink('ducking')
       && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
   },
@@ -5730,7 +5730,7 @@ export const freestyleService = {
       seo: {
         title: 'Trick Records',
         description:
-          'Documented freestyle footbag trick achievements — the most consecutive completions of a trick, on record.',
+          'Documented freestyle footbag trick achievements: the most consecutive completions of a trick, on record.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -6207,7 +6207,7 @@ export const freestyleService = {
             if (!isCoreAtom(slug)) return null;
             return {
               label:     'Core movement atom',
-              explainer: 'Foundational primitive — functions as a compositional base rather than a recursively decomposed structure.',
+              explainer: 'Foundational primitive: functions as a compositional base rather than a recursively decomposed structure.',
             };
           })(),
           transform: (() => {
@@ -6279,7 +6279,7 @@ export const freestyleService = {
             const entry = getTrickMechanicalDelta(slug);
             if (entry === null) return null;
             const topologyLabelMap: Record<string, string> = {
-              'atom':              'Atom — defining mechanical pattern',
+              'atom':              'Atom: defining mechanical pattern',
               'paradox':           'Paradox topology',
               'x-dex':             'X-dex escalation',
               'rotational':        'Rotational',
@@ -6482,7 +6482,7 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Competition',
         description:
-          'Freestyle footbag competition history — the events, eras, and documented ' +
+          'Freestyle footbag competition history: the events, eras, and documented ' +
           'results that have shaped the sport since 1980.',
       },
       page: {
@@ -6505,7 +6505,7 @@ export const freestyleService = {
         recentEvents,
         totalEvents,
         dataNote: 'Freestyle singles only. Includes Open, Intermediate, and Women\'s divisions. ' +
-                  'Data from canonical event results — all placements are sourced directly from documented competition records.',
+                  'Data from canonical event results: all placements are sourced directly from documented competition records.',
       },
     };
   },
@@ -6585,7 +6585,7 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle History',
         description:
-          'The evolution of competitive freestyle footbag — pioneers, eras, the ADD system, ' +
+          'The evolution of competitive freestyle footbag: pioneers, eras, the ADD system, ' +
           'and the shift from North American origins to European dominance.',
       },
       page: {
@@ -6607,7 +6607,7 @@ export const freestyleService = {
         regionalShift:
           'Early freestyle innovation was driven largely by North American players. From the mid-2000s ' +
           'onward the competitive center of gravity shifted toward Europe, both in performance and in ' +
-          'participation density. Václav Klouda (Czech Republic) has accumulated 109 podium finishes — ' +
+          'participation density. Václav Klouda (Czech Republic) has accumulated 109 podium finishes: ' +
           'more than any other player in the dataset. Damian Gielnicki, Mariusz Wilk, Stefan Siegert, ' +
           'Honza Weber, and Andreas Nawrath form a European technical cluster whose work produced both ' +
           'the highest-ADD sequences on record and some of the most diverse trick vocabularies in the data.',
@@ -6615,14 +6615,14 @@ export const freestyleService = {
           'Modern freestyle is a refined, recombinational sport. The trick grammar settled into recognizable ' +
           'form by the late 2000s; today\'s competitive edge sits in how the established vocabulary is ' +
           'sequenced, executed, and made musical. Within the existing palette, the space of meaningful ' +
-          'combinations is enormous — players continue to find new arrangements, new transitions, and new ' +
+          'combinations is enormous: players continue to find new arrangements, new transitions, and new ' +
           'expressive possibilities inside it. The question hasn\'t become "what trick is left to invent?" ' +
           'so much as "how cleanly, how creatively, and how consistently can this language be played?"',
         evolution: [
           {
             period: '1980s',
             label:  'Clipper & Mirage',
-            summary: 'The foundational vocabulary — clipper-set tricks, mirage and its dex variants, the early whirl and butterfly motifs. Routines were judged on execution and creativity rather than a difficulty score.',
+            summary: 'The foundational vocabulary: clipper-set tricks, mirage and its dex variants, the early whirl and butterfly motifs. Routines were judged on execution and creativity rather than a difficulty score.',
           },
           {
             period: 'Early 1990s',
@@ -6630,9 +6630,9 @@ export const freestyleService = {
             summary: 'Modifiers entered the formal vocabulary. Paradox, symposium, and the body-position grammar that lets the same base trick branch into many distinct named compounds.',
           },
           {
-            period: 'Mid-1990s — 2000s',
+            period: 'Mid-1990s to 2000s',
             label:  'ADD & Modifier Stacking',
-            summary: 'The ADD system named what players had been doing intuitively. Modifier stacking — paradox + symposium, ducking + paradox — made multi-modifier compounds the heart of competitive routines.',
+            summary: 'The ADD system named what players had been doing intuitively. Modifier stacking (paradox + symposium, ducking + paradox) made multi-modifier compounds the heart of competitive routines.',
           },
           {
             period: '2000s',
@@ -6640,22 +6640,22 @@ export const freestyleService = {
             summary: 'The blurry modifier reshaped the top of the difficulty curve, anchoring runs that pushed past 5 ADD. "Fearless" runs (every trick at 5 ADD or more) became the marker of a top-tier performance.',
           },
           {
-            period: '2010s — present',
+            period: '2010s to present',
             label:  'Consistency & Execution',
             summary: 'New-trick invention slowed; competitive depth grew. The frontier moved from "what new structure exists?" to "how cleanly can the established vocabulary be performed under pressure?" Sequencing, transitions, and routine architecture became the differentiators.',
           },
         ],
         comboEvolution: [
-          'In the earliest period of the sport, freestyle wasn\'t really about combos at all. Players showed individual tricks within an open-floor performance, with kicks and stalls strung loosely between them. A "combo" was something audiences and judges noticed when it happened — not yet a structural unit you built and named.',
+          'In the earliest period of the sport, freestyle wasn\'t really about combos at all. Players showed individual tricks within an open-floor performance, with kicks and stalls strung loosely between them. A "combo" was something audiences and judges noticed when it happened: not yet a structural unit you built and named.',
           'Through the late 1980s and into the early 1990s, players began linking dexterity tricks intentionally. Two-trick chains became the working unit: a clipper-set dex into a body trick, or a mirage into a butterfly. The community started naming patterns rather than just patches of execution.',
-          'The paradox-and-symposium era of the mid-1990s expanded what a single trick could carry — modifiers gave you a way to layer body positions onto a base — and that, in turn, gave linking new richness. A run could now move from one well-defined compound to another, instead of dropping back to a base trick between every difficulty spike.',
+          'The paradox-and-symposium era of the mid-1990s expanded what a single trick could carry (modifiers gave you a way to layer body positions onto a base), and that, in turn, gave linking new richness. A run could now move from one well-defined compound to another, instead of dropping back to a base trick between every difficulty spike.',
           'The 2000s were the blurry/fearless density era. The blurry modifier reshaped the top of the curve, and "fearless" runs (every trick at 5 ADD or higher) became the marker of a top-tier performance. The combo question shifted from "how many tricks?" to "how high a sustained density can you hold across a run?"',
           'Modern competitive freestyle reads as a flow-and-execution sport. Trick vocabulary settled years ago; the differentiators are sequencing, transitions, musicality, and consistency over a full routine\'s length. "Guiltless" (≥3 ADD per trick) and "fearless" (≥5 ADD per trick) are baseline expectations at the top tier rather than highlights. The art now is in how the established palette is played.',
         ],
         earlyRoutineEvolution: [
-          'Early freestyle judging was about routines first. Players choreographed a run, set it to music or mood, and were judged on creativity, execution, and the energy a performance carried. Difficulty mattered, but as a felt quality the judges and audience read together — not yet as a number.',
-          'The ADD system, formalized in the early 1990s, gave the community a shared scale for that felt quality. Routines didn\'t stop being creative; they got a second axis. Players could now talk about a run\'s difficulty independently of its choreography, and the run-quality vocabulary in the glossary — Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly — emerged to describe routines by the floor of difficulty they sustained.',
-          'Today the vocabulary still works on both axes. Creative routines remain a competition format and an art form. Alongside them, ADD-aware difficulty standards (guiltless or fearless throughout, transitions held under pressure) describe what serious competitive runs look like at the top. The two ways of judging haven\'t replaced each other — they share the same competitive culture.',
+          'Early freestyle judging was about routines first. Players choreographed a run, set it to music or mood, and were judged on creativity, execution, and the energy a performance carried. Difficulty mattered, but as a felt quality the judges and audience read together: not yet as a number.',
+          'The ADD system, formalized in the early 1990s, gave the community a shared scale for that felt quality. Routines didn\'t stop being creative; they got a second axis. Players could now talk about a run\'s difficulty independently of its choreography, and the run-quality vocabulary in the glossary (Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly) emerged to describe routines by the floor of difficulty they sustained.',
+          'Today the vocabulary still works on both axes. Creative routines remain a competition format and an art form. Alongside them, ADD-aware difficulty standards (guiltless or fearless throughout, transitions held under pressure) describe what serious competitive runs look like at the top. The two ways of judging haven\'t replaced each other: they share the same competitive culture.',
         ],
         // History-page visuals are reserved for archival imagery (BAP / Hall
         // of Fame photos and similar). Until those assets are curated, every
@@ -7162,7 +7162,7 @@ export const freestyleService = {
     };
     const auditLabels: Record<CanonicalSetAuditKey, string> = {
       'aligned':     'Aligned with Holden',
-      'partial':     'Partial — framing differs',
+      'partial':     'Partial: framing differs',
       'conflict':    'Documented disagreement',
       'holden-only': 'Holden-cited only',
     };
@@ -7172,7 +7172,7 @@ export const freestyleService = {
       displayName:         s.displayName,
       formula:             s.formula,
       movementExplanation: s.movementExplanation,
-      equivalenceReadings: s.equivalenceNotes.map(n => `${n.reading} — ${n.citation}`),
+      equivalenceReadings: s.equivalenceNotes.map(n => `${n.reading}: ${n.citation}`),
       source:              s.source,
       sourceLabel:         sourceLabels[s.source],
       sourceCitation:      s.sourceCitation,
@@ -7205,8 +7205,8 @@ export const freestyleService = {
     const altSurfacesCrossLink: AltSurfacesCrossLink = {
       heading: 'Looking for alternate surfaces?',
       framing:
-        'Surface mechanics — sole, heel, cloud, knee, head, neck, shoulder, forehead, ' +
-        'and flying entries — are a distinct ontology layer from sets. They live as a ' +
+        'Surface mechanics (sole, heel, cloud, knee, head, neck, shoulder, forehead, ' +
+        'and flying entries) are a distinct ontology layer from sets. They live as a ' +
         'first-class section on the Movement Systems view.',
       movementSystemHref: '/freestyle/tricks?view=movement-system',
       ctaLabel:           'View alternative surfaces on Movement Systems',
@@ -7214,7 +7214,7 @@ export const freestyleService = {
 
     const setsBrowseView: FreestyleSetsBrowseView = {
       intro:
-        'Sets are first-class compositional vocabulary — the named movement primitives that ' +
+        'Sets are first-class compositional vocabulary: the named movement primitives that ' +
         'open a trick. Each card is a set ontology object: hashtag, formula, movement ' +
         'explanation, equivalence notes, derived and related systems, and source ' +
         'provenance; each card links to its own set detail page. For the body-modifier ' +
@@ -7237,18 +7237,18 @@ export const freestyleService = {
     // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
     // a future slice may expand this map to additional modifiers.
     const COMPONENT_DEFINITIONS: Record<string, string> = {
-      paradox:   'A hip pivot between two dexes on the same set — the body changes sides without changing the set foot.',
-      symposium: 'A no-plant body discipline — the support leg stays off the ground during the dex.',
+      paradox:   'A hip pivot between two dexes on the same set: the body changes sides without changing the set foot.',
+      symposium: 'A no-plant body discipline: the support leg stays off the ground during the dex.',
       spinning:  'A full-body 360° rotation carried through the dex moment.',
       ducking:   'A head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite.',
-      diving:    'A head arc — over and under the bag — with the bag falling to the same side.',
+      diving:    'A head arc (over and under the bag) with the bag falling to the same side.',
       weaving:   'Head moves toward the bag, bag falls to the same side.',
       gyro:      'A half-body 180° rotation carried through the dex moment.',
       whirling:  'A body rotation through the dex moment, distinct from spinning by tempo and direction (whirling + osis = blender per Red consult).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
       pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
       atomic:    'A cross-body uptime set with x-dex character.',
-      quantum:   'The compressed form of atomic — a tighter uptime treatment.',
+      quantum:   'The compressed form of atomic: a tighter uptime treatment.',
       nuclear:   'A +2 set modifier; structurally paradox + illusion.',
       fairy:     'A pre-base uptime set treatment closely related to pixie.',
       furious:   'A +2 set modifier with a heavier uptime treatment.',
@@ -7384,7 +7384,7 @@ export const freestyleService = {
 
     const componentView: ComponentBrowseView = {
       duplicationNote:
-        'Compounds appear in every component group they belong to. A trick with paradox AND spinning shows up under both — the duplication is intentional, since each grouping is a separate browse path.',
+        'Compounds appear in every component group they belong to. A trick with paradox AND spinning shows up under both: the duplication is intentional, since each grouping is a separate browse path.',
       axes: [
         {
           axisKey:   'body',
@@ -7668,7 +7668,7 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Trick Dictionary',
         description:
-          `The freestyle footbag trick dictionary — ${canonicalCount} named canonical tricks, ` +
+          `The freestyle footbag trick dictionary: ${canonicalCount} named canonical tricks, ` +
           'browsable by difficulty, family, set, dex count, and movement system.',
       },
       page: {
@@ -7760,7 +7760,7 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Insights',
         description:
-          'Patterns across decades of documented competitive freestyle footbag — the tricks, ' +
+          'Patterns across decades of documented competitive freestyle footbag: the tricks, ' +
           'transitions, and difficulty trends visible in the historical record.',
       },
       page: {
@@ -7797,7 +7797,7 @@ export const freestyleService = {
   getAddAnalysisPage(): PageViewModel<AddAnalysisContent> {
     return {
       seo: {
-        title:       'ADD Analysis — Freestyle',
+        title:       'ADD Analysis (Freestyle)',
         description:
           'How freestyle’s difficulty system is constructed, where its components come from, and why sources sometimes count the same trick differently.',
       },
@@ -7831,9 +7831,9 @@ export const freestyleService = {
   getComboAnalysisPage(): PageViewModel<ComboAnalysisContent> {
     return {
       seo: {
-        title:       'Combo Analysis — Freestyle',
+        title:       'Combo Analysis (Freestyle)',
         description:
-          'How freestyle tricks connect into longer flowing combinations and runs — setup tricks, resolution tricks, recovery patterns, and the transitions that hold a run together.',
+          'How freestyle tricks connect into longer flowing combinations and runs: setup tricks, resolution tricks, recovery patterns, and the transitions that hold a run together.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -7856,7 +7856,7 @@ export const freestyleService = {
       seo: {
         title: 'About Freestyle',
         description:
-          'About freestyle footbag — competition formats, judging, and community resources.',
+          'About freestyle footbag: competition formats, judging, and community resources.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -7876,7 +7876,7 @@ export const freestyleService = {
   getJobsNotationArticlePage(): PageViewModel<{ articleTitle: string; articleText: string }> {
     return {
       seo: {
-        title:       'By the Way, Not the Name — Ben Job (1995)',
+        title:       'By the Way, Not the Name: Ben Job (1995)',
         description: 'Ben Job\'s 1995 proposal of a compositional grammar for footbag freestyle tricks, the historical source for the dictionary notation.',
       },
       page: {
@@ -7909,7 +7909,7 @@ export const freestyleService = {
     const content = buildSymbolicLearnIndex(this.getOperatorBoard('learn'));
     return {
       seo: {
-        title:       'Educational pathways — Freestyle',
+        title:       'Educational pathways (Freestyle)',
         description:
           'Index of observational educational surfaces alongside the canonical freestyle trick dictionary: progressions, modifier pedagogy, and glossary connective panels.',
       },
@@ -7948,7 +7948,7 @@ export const freestyleService = {
     }
     return {
       seo: {
-        title:       `${content.displayName} — Freestyle modifier`,
+        title:       `${content.displayName} (Freestyle modifier)`,
         description: content.pageSubtitle,
       },
       page: {
@@ -7980,7 +7980,7 @@ export const freestyleService = {
     const content = buildWalkingFamilyProgression(allDictRows);
     return {
       seo: {
-        title: 'Walking-family progression — Freestyle',
+        title: 'Walking-family progression (Freestyle)',
         description:
           'Educational symbolic-grammar progression for the walking family: butterfly through ripwalk, dimwalk, sidewalk, dada-curve, matador, and phoenix. Observational layer.',
       },
@@ -8276,7 +8276,7 @@ export const freestyleService = {
           `duplicates a published canonical trick.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
-          'Provisional ADD and decomposition are observationally extrapolated — they ' +
+          'Provisional ADD and decomposition are observationally extrapolated: they ' +
           'are NOT canonical, carry a tracked tag rather than a hashtag, and have no ' +
           'detail page until a curator promotes them.',
         readyTotal:    readyCards.length,
@@ -8350,7 +8350,7 @@ export const freestyleService = {
     };
     const auditLabels: Record<CanonicalSetAuditKey, string> = {
       'aligned':     'Aligned with Holden',
-      'partial':     'Partial — framing differs',
+      'partial':     'Partial: framing differs',
       'conflict':    'Documented disagreement',
       'holden-only': 'Holden-cited only',
     };
@@ -8430,7 +8430,7 @@ export const freestyleService = {
       seo: {
         title:       `${set.displayName} (set system)`,
         description:
-          `${set.displayName} canonical set ontology — formula, movement explanation, ` +
+          `${set.displayName} canonical set ontology: formula, movement explanation, ` +
           `equivalence readings, derived and related systems, example tricks, and ` +
           `Holden / platform provenance.`,
       },
@@ -8456,7 +8456,7 @@ export const freestyleService = {
         subtypeLabel,
         formula:               set.formula,
         movementExplanation:   set.movementExplanation,
-        equivalenceReadings:   set.equivalenceNotes.map(n => `${n.reading} — ${n.citation}`),
+        equivalenceReadings:   set.equivalenceNotes.map(n => `${n.reading}: ${n.citation}`),
         derivedSystems:        set.derivedSystems.map(r => ({
           slug:  r.slug,
           label: r.label,
@@ -8707,7 +8707,7 @@ export const freestyleService = {
     }));
 
     const crossLinks: EncyclopediaCrossLinks = {
-      dictionaryBysetLabel:  'Trick Dictionary — tricks grouped by modifier',
+      dictionaryBysetLabel:  'Trick Dictionary: tricks grouped by modifier',
       dictionaryBysetHref:   '/freestyle/tricks?view=sets',
       compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
       compositionalHubHref:  '/freestyle/compositional-sets',
@@ -8721,7 +8721,7 @@ export const freestyleService = {
       seo: {
         title:       'Set Encyclopedia',
         description:
-          'Canonical sets as first-class compositional vocabulary — the named uptime ' +
+          'Canonical sets as first-class compositional vocabulary: the named uptime ' +
           'movement primitives that open a trick. One card per set; detail pages carry ' +
           'the deep ontology.',
       },
@@ -8957,7 +8957,7 @@ export const freestyleService = {
     return {
       seo: {
         title:       'Compositional Sets',
-        description: 'Systematic exploration of how named freestyle sets compose from a small grammar — uptime reinterpretation ladders, family branching, and operator cards.',
+        description: 'Systematic exploration of how named freestyle sets compose from a small grammar: uptime reinterpretation ladders, family branching, and operator cards.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -8976,7 +8976,7 @@ export const freestyleService = {
           canonicalFormula: '(toe | clip) > [(same | op)(in | out) dexterity]* > (same | op)(toe | clip)',
           softenerNote:
             'The dictionary\'s operational notation system descends from this compositional grammar, ' +
-            'extending it with additional movement primitives and modifiers — swirl/twirl, body modifiers ' +
+            'extending it with additional movement primitives and modifiers: swirl/twirl, body modifiers ' +
             '(ducking, diving, spinning), no-plant variants (symposium), unusual surfaces, and ' +
             'torque-class hybrids. The base grammar covers a large central region of the trick language; ' +
             'the extensions reach into the rest.',
@@ -8989,7 +8989,7 @@ export const freestyleService = {
           headlineRows,
           fullAuditNote:
             'The headline rows above sample each category. The full row-by-row ' +
-            'audit — covering every entry in the corpus with source citations — ' +
+            'audit (covering every entry in the corpus with source citations) ' +
             'lives in the curator workspace alongside the platform\'s content ' +
             'modules. It is reviewed before any Holden-only entry is promoted to ' +
             'canonical or any conflict is resolved.',
@@ -9116,7 +9116,7 @@ export const freestyleService = {
     return {
       seo: {
         title: 'Freestyle',
-        description: 'Freestyle footbag — what it is, how to start, and the records, competition, and history behind the sport.',
+        description: 'Freestyle footbag: what it is, how to start, and the records, competition, and history behind the sport.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -9150,7 +9150,7 @@ export const freestyleService = {
             key:     'routine',
             title:   'Routine',
             caption: 'Choreographed performance to music.',
-            media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto — Worlds Online 2020 Qualification Routine'),
+            media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto, Worlds Online 2020 Qualification Routine'),
             tags:    [],
           },
           {
@@ -9164,21 +9164,21 @@ export const freestyleService = {
             key:     'sick3',
             title:   'Sick 3',
             caption: 'Best-trick chain of three.',
-            media:   expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022 — Sick 3'),
+            media:   expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022: Sick 3'),
             tags:    [],
           },
           {
             key:     'shred30',
             title:   'Shred 30',
             caption: 'Thirty-second technical scoring.',
-            media:   expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida — World Footbag Championships 2020 Shred 30'),
+            media:   expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida, World Footbag Championships 2020 Shred 30'),
             tags:    [],
           },
           {
             key:     'reese-1988',
-            title:   '1988 World Footbag Championships — Rick Reese Freestyle Routine',
+            title:   '1988 World Footbag Championships: Rick Reese Freestyle Routine',
             caption: 'Representative of early freestyle.',
-            media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese — Worlds 1988 Freestyle Routine'),
+            media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese, Worlds 1988 Freestyle Routine'),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#footbag_hof_archive', '#worlds_1988'],
                      ),
@@ -9194,9 +9194,9 @@ export const freestyleService = {
           },
           {
             key:     'worlds-2023-team',
-            title:   'World Footbag Championships 2023 — Team Freestyle Finals (1st Place)',
+            title:   'World Footbag Championships 2023: Team Freestyle Finals (1st Place)',
             caption: 'Scott Davidson and Tuan Vu. Medellín, Colombia.',
-            media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals — 1st Place'),
+            media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals, 1st Place'),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#worlds_2023', '#team'],
                      ),

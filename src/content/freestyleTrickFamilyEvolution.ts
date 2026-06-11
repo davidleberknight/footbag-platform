@@ -39,25 +39,25 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Topology intensification',
         prose:
-          "Layering paradox onto mirage adds a hip-pivot cross-body transition during the dex cycle. The resulting trick — paradox-mirage — anchors much of modern shred vocabulary.",
+          "Layering paradox onto mirage adds a hip-pivot cross-body transition during the dex cycle. The resulting trick (paradox-mirage) anchors much of modern shred vocabulary.",
         exemplarSlugs: ['paradox-mirage'],
       },
       {
         branchAxis: 'Multi-dex extension',
         prose:
-          "Stepping the dex pattern across the same chassis produces blur (a stepping-paradox-mirage shape). The two-dex pattern composes further into fury — a three-dex extension on the blur chassis.",
+          "Stepping the dex pattern across the same chassis produces blur (a stepping-paradox-mirage shape). The two-dex pattern composes further into fury, a three-dex extension on the blur chassis.",
         exemplarSlugs: ['blur', 'fury'],
       },
       {
         branchAxis: 'X-dex escalation',
         prose:
-          "Layering a nuclear modifier on paradox-mirage produces sumo — a named exception where the nuclear escalation reads as 5 ADD rather than the standard +2 nuclear rule. Sumo is the canonical x-dex escalation locus.",
+          "Layering a nuclear modifier on paradox-mirage produces sumo, a named exception where the nuclear escalation reads as 5 ADD rather than the standard +2 nuclear rule. Sumo is the canonical x-dex escalation locus.",
         exemplarSlugs: ['sumo'],
       },
       {
         branchAxis: 'Terminal surface shift',
         prose:
-          "Shifting the terminal from a toe delay to a clipper stall transforms mirage into drifter — same core in-to-out dex pattern, different landing surface.",
+          "Shifting the terminal from a toe delay to a clipper stall transforms mirage into drifter: same core in-to-out dex pattern, different landing surface.",
         exemplarSlugs: ['drifter'],
       },
     ],
@@ -76,19 +76,19 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Three-dex extension',
         prose:
-          "Adding a third dex extends blur into fury — the longest-named multi-dex chain on the paradox-mirage chassis.",
+          "Adding a third dex extends blur into fury, the longest-named multi-dex chain on the paradox-mirage chassis.",
         exemplarSlugs: ['fury'],
       },
       {
         branchAxis: 'X-dex escalation',
         prose:
-          "Layering a nuclear modifier escalates paradox-mirage into sumo — a 5-ADD named exception to the standard +2 nuclear rule.",
+          "Layering a nuclear modifier escalates paradox-mirage into sumo, a 5-ADD named exception to the standard +2 nuclear rule.",
         exemplarSlugs: ['sumo'],
       },
       {
         branchAxis: 'Rotational layering',
         prose:
-          "Layering a surging rotational system over paradox-whirl produces surreal-class compounds — the mirror branch on the rotational side of the topology.",
+          "Layering a surging rotational system over paradox-whirl produces surreal-class compounds, the mirror branch on the rotational side of the topology.",
         exemplarSlugs: ['surreal'],
       },
     ],
@@ -105,13 +105,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Three-dex extension',
         prose:
-          "Layering a furious modifier onto the same paradox-mirage chassis produces fury — a deeper multi-dex sequence than blur. Fury and blur read as siblings on the chassis rather than parent-and-child.",
+          "Layering a furious modifier onto the same paradox-mirage chassis produces fury, a deeper multi-dex sequence than blur. Fury and blur read as siblings on the chassis rather than parent-and-child.",
         exemplarSlugs: ['fury'],
       },
       {
         branchAxis: 'Multi-dex naming superlative',
         prose:
-          "The blurry-naming tradition extends into a different chassis to produce blurriest — a 5-ADD blurry-barfly compound carrying maximal blurry character. Kin in name; distinct in structural base.",
+          "The blurry-naming tradition extends into a different chassis to produce blurriest, a 5-ADD blurry-barfly compound carrying maximal blurry character. Kin in name; distinct in structural base.",
         exemplarSlugs: ['blurriest'],
       },
       {
@@ -129,13 +129,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Topology intensification',
         prose:
-          "Layering paradox onto drifter produces paradox-drifter — the hip-pivot cross-body transition threaded into the mirage-dex with clipper terminal.",
+          "Layering paradox onto drifter produces paradox-drifter, the hip-pivot cross-body transition threaded into the mirage-dex with clipper terminal.",
         exemplarSlugs: ['paradox-drifter'],
       },
       {
         branchAxis: 'Rotational variant',
         prose:
-          "Layering rotational character onto the drifter chassis produces vortex — the rotational extension on the clipper-anchored terminal.",
+          "Layering rotational character onto the drifter chassis produces vortex, the rotational extension on the clipper-anchored terminal.",
         exemplarSlugs: ['vortex'],
       },
       {
@@ -147,13 +147,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Deeper compositional extension',
         prose:
-          "Layering additional modifiers produces 5-ADD compounds on the drifter chassis — lotus among them.",
+          "Layering additional modifiers produces 5-ADD compounds on the drifter chassis, lotus among them.",
         exemplarSlugs: ['lotus'],
       },
       {
         branchAxis: 'Clipper-stall sibling branch',
         prose:
-          "High-plains-drifter sits on the same clipper-stall chassis as drifter with an additional modifier — sibling-of-drifter rather than descendant.",
+          "High-plains-drifter sits on the same clipper-stall chassis as drifter with an additional modifier, sibling-of-drifter rather than descendant.",
         exemplarSlugs: ['high-plains-drifter'],
       },
     ],
@@ -165,13 +165,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Topology intensification',
         prose:
-          "Layering paradox onto the doubled-dex chassis produces paradox-barrage — paradox hip-pivot threaded through the second dex.",
+          "Layering paradox onto the doubled-dex chassis produces paradox-barrage, paradox hip-pivot threaded through the second dex.",
         exemplarSlugs: ['paradox-barrage'],
       },
       {
         branchAxis: 'Stepping-paradox extension',
         prose:
-          "Layering stepping-paradox onto barrage produces blurrage — a 4-ADD compound on the same doubled-dex chassis with a multi-dex extension axis.",
+          "Layering stepping-paradox onto barrage produces blurrage, a 4-ADD compound on the same doubled-dex chassis with a multi-dex extension axis.",
         exemplarSlugs: ['blurrage'],
       },
       {
@@ -194,7 +194,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Topology intensification',
         prose:
-          "Layering paradox onto the blender chassis produces paradox-blender — paradox hip-pivot threaded into the whirl-osis compound.",
+          "Layering paradox onto the blender chassis produces paradox-blender, paradox hip-pivot threaded into the whirl-osis compound.",
         exemplarSlugs: ['paradox-blender'],
       },
       {
@@ -212,7 +212,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Operator-path productivity',
         prose:
-          "The blurry operator extended onto the compound-of-canonicals chassis produces food-processor — blurry-modified blender at 6 ADD.",
+          "The blurry operator extended onto the compound-of-canonicals chassis produces food-processor, blurry-modified blender at 6 ADD.",
         exemplarSlugs: ['food-processor'],
       },
     ],
@@ -241,7 +241,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Body-modifier branch',
         prose:
-          "Ducking-osis, spinning-osis, atomic-osis, paradox-osis — each layers a body modifier on the spin-clipper chassis at the 4-ADD layer.",
+          "Ducking-osis, spinning-osis, atomic-osis, paradox-osis: each layers a body modifier on the spin-clipper chassis at the 4-ADD layer.",
         exemplarSlugs: ['ducking-osis', 'spinning-osis'],
       },
       {
@@ -271,7 +271,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Stepping branch',
         prose:
-          "Layering stepping onto butterfly produces ripwalk — the shred-vocabulary entry on the chassis at 4 ADD.",
+          "Layering stepping onto butterfly produces ripwalk, the shred-vocabulary entry on the chassis at 4 ADD.",
         exemplarSlugs: ['ripwalk'],
       },
       {
@@ -283,13 +283,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Stepping-paradox branch',
         prose:
-          "Layering stepping-paradox onto butterfly produces parkwalk — a deeper modifier stack on the chassis at 4 ADD.",
+          "Layering stepping-paradox onto butterfly produces parkwalk, a deeper modifier stack on the chassis at 4 ADD.",
         exemplarSlugs: ['parkwalk'],
       },
       {
         branchAxis: 'Body-modifier branch',
         prose:
-          "Atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly — each layers a single body modifier on the chassis at 4 ADD.",
+          "Atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly: each layers a single body modifier on the chassis at 4 ADD.",
         exemplarSlugs: ['atomic-butterfly', 'ducking-butterfly'],
       },
       {
@@ -301,7 +301,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Naming-driven extensions',
         prose:
-          "Bigwalk, darkwalk, dark-avenue, sidewalk, tripwalk, quantanamera — folk-named 4-5 ADD compounds carrying their own identities while sharing the butterfly chassis.",
+          "Bigwalk, darkwalk, dark-avenue, sidewalk, tripwalk, and quantanamera are folk-named 4-5 ADD compounds carrying their own identities while sharing the butterfly chassis.",
         exemplarSlugs: ['bigwalk', 'darkwalk'],
       },
     ],
@@ -319,7 +319,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Gyro layering',
         prose:
-          "Layering gyro onto torque produces mobius (gyro-torque at 5 ADD) — the gyro lineage that builds on torque's intermediate-base status.",
+          "Layering gyro onto torque produces mobius (gyro-torque at 5 ADD), the gyro lineage that builds on torque's intermediate-base status.",
         exemplarSlugs: ['mobius'],
       },
       {
@@ -331,7 +331,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Naming-driven extensions',
         prose:
-          "Forque, grave-digger, spinal-tap, big-apple — folk-named compounds on the torque chassis at 5-6 ADD.",
+          "Forque, grave-digger, spinal-tap, and big-apple are folk-named compounds on the torque chassis at 5-6 ADD.",
         exemplarSlugs: ['forque', 'grave-digger'],
       },
       {
@@ -350,13 +350,13 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Terminal compound',
         prose:
-          "Layering an osis terminal onto whirl produces blender — the compound-of-canonicals reading whirl-osis. Blender exemplifies how two canonical tricks combine into a recognized third.",
+          "Layering an osis terminal onto whirl produces blender, the compound-of-canonicals reading whirl-osis. Blender exemplifies how two canonical tricks combine into a recognized third.",
         exemplarSlugs: ['blender'],
       },
       {
         branchAxis: 'Suspension variant',
         prose:
-          "Adding a no-plant symposium constraint produces pogo — whirl performed without the setting foot contacting the ground. Pogo is the whirl-family suspension exemplar.",
+          "Adding a no-plant symposium constraint produces pogo, whirl performed without the setting foot contacting the ground. Pogo is the whirl-family suspension exemplar.",
         exemplarSlugs: ['pogo'],
       },
       {
@@ -368,7 +368,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Topology intensification',
         prose:
-          "Layering paradox onto whirl produces paradox-whirl, which itself anchors further compositional layering — surge (surging-paradox-whirl, surfaced as surreal) at the top of the rotational-topology ladder.",
+          "Layering paradox onto whirl produces paradox-whirl, which itself anchors further compositional layering: surge (surging-paradox-whirl, surfaced as surreal) at the top of the rotational-topology ladder.",
         exemplarSlugs: ['surreal'],
       },
     ],

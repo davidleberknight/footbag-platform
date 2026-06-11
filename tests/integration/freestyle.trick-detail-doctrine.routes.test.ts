@@ -211,7 +211,7 @@ describe('Tier A flagship pages — L2-L6 ontology sections render', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-mechanical-delta"');
     expect(res.text).toContain('>Mechanical delta<');
-    expect(res.text).toContain('Atom — defining mechanical pattern');
+    expect(res.text).toContain('Atom: defining mechanical pattern');
     // Stable substring from mirage's L2 prose
     expect(res.text).toMatch(/in-to-out dex/);
   });
@@ -283,8 +283,8 @@ describe('Tier A flagship pages — L2-L6 ontology sections render', () => {
   it('paradox-mirage renders the progressive-readings staircase with both paradox readings', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.text).toContain('Mirage atom');
-    expect(res.text).toContain('Paradox layer — older reading');
-    expect(res.text).toContain('Paradox layer — interpretive reading');
+    expect(res.text).toContain('Paradox layer: older reading');
+    expect(res.text).toContain('Paradox layer: interpretive reading');
     expect(res.text).toContain('ADD accounting');
     expect(res.text).toContain('Productive descendants');
   });
@@ -308,11 +308,10 @@ describe('Placeholder-description suppressor', () => {
   });
 });
 
-// Per PHASE_B_LOCK.md §8 (universal-grammar amendment): pages with no
-// curated L1-L6 content suppress those sections via content-driven
-// nulls, not via tier-gating. Tier remains an authoring priority signal,
-// NOT a structural gate.
-describe('Pages with no curated L1-L6 content suppress those sections (§8 universal grammar)', () => {
+// Universal-grammar rule: pages with no curated L1-L6 content suppress
+// those sections via content-driven nulls, not via tier-gating. Tier
+// remains an authoring priority signal, NOT a structural gate.
+describe('Pages with no curated L1-L6 content suppress those sections', () => {
   it('plain-tier-c-trick (no curated L1-L6 entries) does NOT render mechanical-delta / ontology-role / productivity / family-evolution / progressive-readings sections', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/plain-tier-c-trick');
     expect(res.status).toBe(200);
@@ -572,7 +571,7 @@ describe('Phase C — barrage renders all six L1-L6 layers', () => {
   it('barrage renders L2 mechanical-delta as an atom-class anchor (no parent)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/barrage');
     expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom — defining mechanical pattern');
+    expect(res.text).toContain('Atom: defining mechanical pattern');
   });
 
   it('barrage renders L3 ontology-role as "Naming-disambiguation exemplar"', async () => {
@@ -766,7 +765,7 @@ describe('Phase C — osis renders all six L1-L6 layers', () => {
     const res = await request(await createApp()).get('/freestyle/tricks/osis');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom — defining mechanical pattern');
+    expect(res.text).toContain('Atom: defining mechanical pattern');
     expect(res.text).toMatch(/core movement atom/);
   });
 
@@ -807,7 +806,7 @@ describe('Phase C — butterfly renders all six L1-L6 layers', () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom — defining mechanical pattern');
+    expect(res.text).toContain('Atom: defining mechanical pattern');
     expect(res.text).toMatch(/core movement atom/);
   });
 
@@ -1022,7 +1021,7 @@ describe('Phase C — ripstein folk-name rescue (L1/L2/L3/L6 + placeholder suppr
   it('ripstein renders L2 mechanical-delta with atom topology (no parent; structural reading from op notation)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
     expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom — defining mechanical pattern');
+    expect(res.text).toContain('Atom: defining mechanical pattern');
     expect(res.text).toMatch(/doubled same-side back-swirl/);
   });
 

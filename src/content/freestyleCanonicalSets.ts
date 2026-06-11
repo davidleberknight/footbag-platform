@@ -131,14 +131,14 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
     label: 'Rotational set systems',
     intro:
       'Named compositional systems carrying a SPIN body token inside the set chain. Not ' +
-      'merely "spin + set" — these are recognizable systems with their own movement ' +
+      'merely "spin + set": these are recognizable systems with their own movement ' +
       'identity.',
   },
   {
     key:   'whirl-swirl',
     label: 'Whirl / swirl-derived systems',
     intro:
-      'CLIP-anchored cross-body rotational sets — explicit SWIRL tokens or the whirl ' +
+      'CLIP-anchored cross-body rotational sets: explicit SWIRL tokens or the whirl ' +
       'family terminal pattern. Several family members are documented symposium / gyro ' +
       'variants of the base whirl shape.',
   },
@@ -146,7 +146,7 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
     key:   'uns',
     label: 'UNS sets (unusual non-standard entry)',
     intro:
-      'Sets whose initial contact is something other than TOE or CLIP — pinch, dragon, ' +
+      'Sets whose initial contact is something other than TOE or CLIP: pinch, dragon, ' +
       'frigidosis. The dex grammar applies as elsewhere; the entry surface shifts.',
   },
   {
@@ -235,7 +235,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'TOE > OP IN [DEX] > (op side component)',
     movementExplanation:
       'Toe set, then an opposite-side inward dex resolving to an op-side terminal. Reads ' +
-      'as a compressed atomic — the dex direction matches atomic, the terminal side flips.',
+      'as a compressed atomic: the dex direction matches atomic, the terminal side flips.',
     equivalenceNotes: [
       { reading: 'compressed atomic', citation: 'Holden reading' },
     ],
@@ -270,7 +270,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'nuclear', label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); platform tracks atomic as a +1 set primitive (audit row records partial — platform does not formalize Holden\'s Toe-set Illusion decomposition).',
+    sourceCitation: 'Holden compilation (2003); platform tracks atomic as a +1 set primitive (audit row records partial: platform does not formalize Holden\'s Toe-set Illusion decomposition).',
     auditStatus: 'partial',
     tier: 'literal-primitive',
   },
@@ -294,7 +294,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'slapping', hashtag: '#slapping-set', displayName: 'Slapping', subtype: 'true-core',
     formula: 'TOE > OP IN [DEX] > (same side component)',
     movementExplanation:
-      'Toe set, then an opposite-side inward dex resolving to a same-side terminal — the ' +
+      'Toe set, then an opposite-side inward dex resolving to a same-side terminal, the ' +
       'terminal-side mirror of quantum. Holden-cited; no current platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -350,7 +350,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'terraging', hashtag: '#terraging-set', displayName: 'Terraging', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Double Pixie. Two same-side inward dexes layered over a toe set — a literal ' +
+      'Double Pixie. Two same-side inward dexes layered over a toe set, a literal ' +
       'doubling of the pixie pattern.',
     equivalenceNotes: [
       { reading: 'Double Pixie', citation: 'Holden parenthetical' },
@@ -522,8 +522,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'nuclear', hashtag: '#nuclear-set', displayName: 'Nuclear', subtype: 'composite-derived',
     formula: 'CLIP > SAME OUT [DEX] >',
     movementExplanation:
-      'Platform reading: paradox + illusion compounded — paradox\'s hip pivot combined with ' +
-      'a downtime illusioning dex. Holden treats it as a basic single-dex set; the ' +
+      'Platform reading: paradox + illusion compounded (paradox\'s hip pivot combined with ' +
+      'a downtime illusioning dex). Holden treats it as a basic single-dex set; the ' +
       'platform tracks it as a +2 compound.',
     equivalenceNotes: [
       { reading: 'paradox + illusion compound', citation: 'Platform reading (pt14)' },
@@ -536,7 +536,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'atomic', label: 'Atomic (related uptime set; not a nuclear component under the paradox + illusion reading)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); audit row partial — Holden\'s "basic" reading vs platform\'s compound reading.',
+    sourceCitation: 'Holden compilation (2003); audit row partial: Holden\'s "basic" reading vs platform\'s compound reading.',
     auditStatus: 'partial',
     tier: 'compositional-system',
   },
@@ -559,7 +559,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'stepping', label: 'Stepping (platform\'s reading anchor)' },
     ],
     source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); audit row conflict — readings disagree on entry surface anchor.',
+    sourceCitation: 'Holden compilation (2003); audit row conflict: readings disagree on entry surface anchor.',
     auditStatus: 'conflict',
     tier: 'compositional-system',
   },
@@ -567,7 +567,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'sonic', hashtag: '#sonic-set', displayName: 'Sonic', subtype: 'rotational',
     formula: 'CLIP > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',
     movementExplanation:
-      'Double spinning over a clipper set — two back-spin tokens in sequence. Holden-cited; ' +
+      'Double spinning over a clipper set, two back-spin tokens in sequence. Holden-cited; ' +
       'no current platform canonical.',
     equivalenceNotes: [
       { reading: 'double spinning', citation: 'Holden parenthetical' },
@@ -732,7 +732,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'whirling', hashtag: '#whirling-set', displayName: 'Whirling', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (same side component)',
     movementExplanation:
-      'Whirl-family base — clipper-anchored opposite-side inward dex with a same-side ' +
+      'Whirl-family base: clipper-anchored opposite-side inward dex with a same-side ' +
       'terminal. Anchor of the whirl-family naming branch.',
     equivalenceNotes: [],
     derivedSystems: [
@@ -807,7 +807,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pogo', hashtag: '#pogo-set', displayName: 'Pogo', subtype: 'whirl-swirl',
     formula: 'CLIP > (no plant while) OP IN [DEX] >',
     movementExplanation:
-      'Symposium Whirling. Whirling\'s shape with an explicit no-plant constraint — the ' +
+      'Symposium Whirling. Whirling\'s shape with an explicit no-plant constraint: the ' +
       'support leg does not contact the ground during the dex.',
     equivalenceNotes: [
       { reading: 'Symposium Whirling', citation: 'Holden parenthetical' },

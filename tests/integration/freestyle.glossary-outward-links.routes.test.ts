@@ -27,9 +27,6 @@
  *     standardized links.
  *   - Forbidden variants ("See tricks using", "Learn more about") do
  *     not appear in the rendered HTML.
- *
- * Design doc:
- *   exploration/glossary-architecture-overhaul-2026-05-21/DESIGN.md §12
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

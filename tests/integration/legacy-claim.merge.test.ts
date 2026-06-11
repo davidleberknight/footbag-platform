@@ -308,7 +308,7 @@ describe('claimLegacyAccount — single tier grant per claim', () => {
   });
 });
 
-// ─── Stale HP-link guard (regression: B13) ──────────────────────────────────
+// ─── Stale HP-link guard ─────────────────────────────────────────────────────
 //
 // The member↔HP link write is WHERE historical_person_id IS NULL. A member who
 // previously direct-claimed a historical person (historical_person_id set,

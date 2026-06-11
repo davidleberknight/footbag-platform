@@ -15,9 +15,6 @@
  *     the integration test pins the published-only contract).
  *   - Curator-internal language (curatorNote, pending labels) never
  *     reaches the rendered HTML.
- *
- * Design doc:
- *   exploration/equivalence-topology-phase-1-2026-05-21/DESIGN.md
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

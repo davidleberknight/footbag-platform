@@ -1345,9 +1345,9 @@ function getLinkHistoryView(
   }
   let outcomeNote: string | undefined;
   if (opts.sentOutcome === 'no_match' && config.sesAdapter === 'stub') {
-    outcomeNote = "No confirmation email was sent for this attempt. The identifier may not match an eligible legacy record. (Production users see the same banner regardless — anti-enumeration.)";
+    outcomeNote = "No confirmation email was sent for this attempt. The identifier may not match an eligible legacy record. (Production users see the same banner regardless, for anti-enumeration.)";
   } else if (opts.sentOutcome === 'target_rate_limited' && config.sesAdapter === 'stub') {
-    outcomeNote = "No confirmation email was sent for this attempt. The legacy mailbox has hit its hourly send cap. (Production users see the same banner regardless — anti-enumeration.)";
+    outcomeNote = "No confirmation email was sent for this attempt. The legacy mailbox has hit its hourly send cap. (Production users see the same banner regardless, for anti-enumeration.)";
   }
 
   return {

@@ -311,7 +311,7 @@ describe('First-class rendering parity — informative chain preserved', () => {
 });
 
 describe('First-class rendering parity — honest incomplete-state', () => {
-  // Post-2026-05-25 Bucket A backfill (DERIVATION_AUDIT.md §2.1):
+  // Bucket A backfill:
   // symposium-mirage and ripwalk were promoted out of the JOB-pending
   // state when their operationalNotation field was added to
   // RESOLVED_FORMULAS_SPRINT_1. Only paradox-mirage and atomic-butterfly

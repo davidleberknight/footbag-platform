@@ -217,7 +217,7 @@ export const INSIGHTS_NARRATIVES: string[] = [
 
   'The plateau in average ADD after 2007 suggests that freestyle did not continue to increase ' +
   'in raw technical difficulty after the mid-2000s. Instead, progress shifted toward consistency, ' +
-  'execution quality, and the number of players capable of reaching the established ceiling — ' +
+  'execution quality, and the number of players capable of reaching the established ceiling, ' +
   'a transition from technical expansion to competitive depth.',
 
   'While ADD values above 6 may be theoretically possible, the dataset shows no sustained ' +
@@ -330,28 +330,28 @@ export const HISTORY_ERAS: FreestyleHistoryEra[] = [
     period: '1980–1989',
     label: 'Foundation Era',
     summary:
-      'Freestyle footbag took shape inside the broader hacky sack culture of the early 1980s. Players began organizing the casual circles into something with shape: a recognizable cast of body and dex motions — clipper, mirage, legover, whirl, butterfly, osis — became the working vocabulary of competitive routines. There was no formal scoring yet. Performances were judged on execution, creativity, and the energy a routine carried into a circle. This era was about establishing what the sport could be. 26 documented freestyle events, primarily in North America.',
+      'Freestyle footbag took shape inside the broader hacky sack culture of the early 1980s. Players began organizing the casual circles into something with shape: a recognizable cast of body and dex motions (clipper, mirage, legover, whirl, butterfly, osis) became the working vocabulary of competitive routines. There was no formal scoring yet. Performances were judged on execution, creativity, and the energy a routine carried into a circle. This era was about establishing what the sport could be. 26 documented freestyle events, primarily in North America.',
     keyFigures: ['Kenny Shults', 'Eric Wulff', 'Scott Davidson', 'Greg Nelson', 'Tim Kelley', 'Daryl Genz', 'Carol Wedemeyer'],
   },
   {
     period: '1990–1999',
     label: 'Codifying the Language',
     summary:
-      'The 1990s gave the sport its grammar. The ADD (Additional Degree of Difficulty) system put numbers on what players had been doing intuitively for a decade — turning a shared feel for difficulty into a shared scale. The BAP (Big ADD Posse) recognition, started in 1992, honored the cohort who had built the sport into something with depth. Sick 3 emerged as the format where pure technical difficulty could be celebrated separately from routine choreography. The community kept growing, and so did the geographic reach. 49 documented freestyle events.',
+      'The 1990s gave the sport its grammar. The ADD (Additional Degree of Difficulty) system put numbers on what players had been doing intuitively for a decade, turning a shared feel for difficulty into a shared scale. The BAP (Big ADD Posse) recognition, started in 1992, honored the cohort who had built the sport into something with depth. Sick 3 emerged as the format where pure technical difficulty could be celebrated separately from routine choreography. The community kept growing, and so did the geographic reach. 49 documented freestyle events.',
     keyFigures: ['Peter Irish', 'Ryan Mulroney', 'Serge Kaldany', 'Rick Reese', 'Tuan Vu', 'John Schneider', 'Ken Somolinos'],
   },
   {
     period: '2000–2009',
     label: 'Technical Acceleration',
     summary:
-      'The most heavily documented decade: 144 freestyle events, the densest Sick 3 sequence record, and the highest single-chain ADD on file — 22 ADD across a 7-trick run by Greg Solis in 2008. The blurry modifier reshaped what the top of the difficulty curve looked like. Players built routines around blurry whirl (5 ADD) as a launch node and whirl (3 ADD) as the resolution. By the late 2000s the modifier-stacking grammar that defines modern freestyle was largely in place, and European players began to assert serious competitive presence in what had been a North-American-dominated scene.',
+      'The most heavily documented decade: 144 freestyle events, the densest Sick 3 sequence record, and the highest single-chain ADD on file (22 ADD across a 7-trick run by Greg Solis in 2008). The blurry modifier reshaped what the top of the difficulty curve looked like. Players built routines around blurry whirl (5 ADD) as a launch node and whirl (3 ADD) as the resolution. By the late 2000s the modifier-stacking grammar that defines modern freestyle was largely in place, and European players began to assert serious competitive presence in what had been a North-American-dominated scene.',
     keyFigures: ['Václav Klouda', 'Stefan Siegert', 'Greg Solis', 'Byrin Wylie', 'Damian Gielnicki', 'Mariusz Wilk', 'Honza Weber'],
   },
   {
     period: '2010–2019',
     label: 'European Center of Gravity',
     summary:
-      'The decade where freestyle\'s competitive heart shifted firmly to Europe. Average sequence ADD held steady around 3.1–3.3; what changed was depth — more players reaching the technical frontier the 2000s had defined. Václav Klouda extended his already-extraordinary career; a Polish, Czech, and German technical cluster pushed sequencing and consistency forward. The vocabulary kept refining; the community kept widening. 41 documented freestyle events.',
+      'The decade where freestyle\'s competitive heart shifted firmly to Europe. Average sequence ADD held steady around 3.1–3.3; what changed was depth: more players reaching the technical frontier the 2000s had defined. Václav Klouda extended his already-extraordinary career; a Polish, Czech, and German technical cluster pushed sequencing and consistency forward. The vocabulary kept refining; the community kept widening. 41 documented freestyle events.',
     keyFigures: ['Václav Klouda', 'Damian Gielnicki', 'Mariusz Wilk', 'Matthias Lino Schmidt', 'Filip Wojcik', 'Andreas Nawrath'],
   },
   {
@@ -364,8 +364,8 @@ export const HISTORY_ERAS: FreestyleHistoryEra[] = [
 ];
 
 export const HISTORY_ADD_SYSTEM: string[] = [
-  'The ADD system gave the community a shared way to talk about difficulty. It assigns a base value to each trick and adds bonuses for the modifiers layered on top. Base values reflect the minimum mechanical demand of a trick — the number of distinct body actions required within a single set cycle — turning what players already felt intuitively into something legible across players, eras, and contests.',
-  'Modifiers are the body mechanics layered onto a base: rotations (spinning, blurry), dexterities (pixie, fairy), and positional constraints (ducking, symposium, paradox, atomic). Modifiers also interact with the base they attach to. A rotational base — mirage, whirl, torque — receives +2 from blurry rather than +1, because wrapping a blur around an already-rotating body is meaningfully harder than blurring a non-rotating base. Small details like this are what give the system its texture.',
+  'The ADD system gave the community a shared way to talk about difficulty. It assigns a base value to each trick and adds bonuses for the modifiers layered on top. Base values reflect the minimum mechanical demand of a trick (the number of distinct body actions required within a single set cycle), turning what players already felt intuitively into something legible across players, eras, and contests.',
+  'Modifiers are the body mechanics layered onto a base: rotations (spinning, blurry), dexterities (pixie, fairy), and positional constraints (ducking, symposium, paradox, atomic). Modifiers also interact with the base they attach to. A rotational base (mirage, whirl, torque) receives +2 from blurry rather than +1, because wrapping a blur around an already-rotating body is meaningfully harder than blurring a non-rotating base. Small details like this are what give the system its texture.',
   'The highest single-trick ADD in well-documented competitive play sits at 6: food processor (blurry blender = blurry+blender, 4+2) and blurry symposium whirl (symposium +1, blurry +2, whirl 3). Community discussion of 7-ADD constructions continues, and individual executions have been claimed; documenting them at sustained competitive scale remains an open frontier.',
-  'By the late 2000s the trick grammar had largely settled. The decades since haven\'t shown many genuinely new base structures — but they\'ve shown enormous growth in how players combine, sequence, and execute the existing vocabulary. The frontier moved from "what new trick can be invented?" to "how cleanly, how consistently, how creatively can the established palette be played?" Both questions remain open.',
+  'By the late 2000s the trick grammar had largely settled. The decades since haven\'t shown many genuinely new base structures, but they\'ve shown enormous growth in how players combine, sequence, and execute the existing vocabulary. The frontier moved from "what new trick can be invented?" to "how cleanly, how consistently, how creatively can the established palette be played?" Both questions remain open.',
 ];

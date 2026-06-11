@@ -37,7 +37,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     stages: [
       {
         stage:   'Simple atom',
-        reading: "TOE > OP IN [DEX] > OP TOE [DEL] — toe set, opposite-side inward dex, opposite toe delay.",
+        reading: "TOE > OP IN [DEX] > OP TOE [DEL]: toe set, opposite-side inward dex, opposite toe delay.",
       },
       {
         stage:   'Topology transformation',
@@ -67,11 +67,11 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
         reading: "Ordinary mirage: TOE > OP IN [DEX] > OP TOE [DEL]. Single dex, in-to-out direction, no body-side shift.",
       },
       {
-        stage:   'Paradox layer — older reading',
+        stage:   'Paradox layer: older reading',
         reading: "Op-side dex from a clipper entry: CLIP > OP OUT [DEX] > OP TOE [DEL] in one shorthand tradition.",
       },
       {
-        stage:   'Paradox layer — interpretive reading',
+        stage:   'Paradox layer: interpretive reading',
         reading: "Cross-body hip-pivot during the dex cycle. Same notation as the older reading; understood as an added topology rather than starting-side variation.",
       },
       {
@@ -91,11 +91,11 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     stages: [
       {
         stage:   'Simple anchor',
-        reading: "CLIP > OP IN [DEX] > (same side terminal) — cross-body rotational dex circling up-and-over to a clipper terminal.",
+        reading: "CLIP > OP IN [DEX] > (same side terminal): cross-body rotational dex circling up-and-over to a clipper terminal.",
       },
       {
         stage:   'Terminal compound',
-        reading: "Layering an osis terminal gives blender — the compound whirl-osis.",
+        reading: "Layering an osis terminal gives blender, the compound whirl-osis.",
       },
       {
         stage:   'Topology intensification',
@@ -103,7 +103,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Compositional extension',
-        reading: "Layering a surging rotational system on paradox-whirl produces surreal — the top of the rotational-topology ladder.",
+        reading: "Layering a surging rotational system on paradox-whirl produces surreal, the top of the rotational-topology ladder.",
       },
       {
         stage:   'Family-language summary',
@@ -135,7 +135,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Further extension',
-        reading: "Layering furious onto the same chassis produces fury — a deeper multi-dex sequence at 5 ADD.",
+        reading: "Layering furious onto the same chassis produces fury, a deeper multi-dex sequence at 5 ADD.",
       },
     ],
   },
@@ -178,7 +178,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
         reading: "The standard +2 nuclear rule on the mirage chassis would suggest nuclear(+2) + mirage(2) = 4 ADD.",
       },
       {
-        stage:   'X-Dex escalation — named exception',
+        stage:   'X-Dex escalation: named exception',
         reading: "Sumo is the doctrine's named exemplar where the standard rule does not hold: an implicit X-Dex transition pushes the ADD to 5 even though the canonical name does not surface the X-Dex explicitly.",
       },
       {
@@ -227,7 +227,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'X-Dex reversal',
-        reading: "Reversing the dex direction to outside-then-inside produces the X-Dex character — same surfaces, opposite directional flow.",
+        reading: "Reversing the dex direction to outside-then-inside produces the X-Dex character: same surfaces, opposite directional flow.",
       },
       {
         stage:   'Atomic operator',
@@ -253,7 +253,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Naming-disambiguation',
-        reading: "The trick BARRAGE is structurally distinct from the operator BARRAGING — same root, two layers (anchor and operator).",
+        reading: "The trick BARRAGE is structurally distinct from the operator BARRAGING: same root, two layers (anchor and operator).",
       },
       {
         stage:   'Chassis descendants',
@@ -287,7 +287,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Naming-tradition role',
-        reading: "Blurriest is the superlative form of the blurry-naming family — the deepest blurry-character compound in the dictionary.",
+        reading: "Blurriest is the superlative form of the blurry-naming family, the deepest blurry-character compound in the dictionary.",
       },
       {
         stage:   'Cross-chassis kin',
@@ -311,7 +311,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Compound-of-canonicals',
-        reading: "Combining whirl's dex with osis's spin-terminal produces blender: SET > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]. 4 ADD via whirl(+1 operator) + osis(3) — or symmetrically osis(+1 operator) + whirl(3). Both decompositions arrive at the same total.",
+        reading: "Combining whirl's dex with osis's spin-terminal produces blender: SET > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]. 4 ADD via whirl(+1 operator) + osis(3), or symmetrically osis(+1 operator) + whirl(3). Both decompositions arrive at the same total.",
       },
       {
         stage:   'Compound name as anchor',
@@ -319,7 +319,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Productive descendants',
-        reading: "Paradox-blender, food-processor, spender, mind-bender, fender, fender-bender, and others build on the blender chassis — compound-of-canonicals topology itself anchors further compositional layering.",
+        reading: "Paradox-blender, food-processor, spender, mind-bender, fender, fender-bender, and others build on the blender chassis: compound-of-canonicals topology itself anchors further compositional layering.",
       },
     ],
   },
@@ -371,7 +371,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Multi-axis stacking',
-        reading: "Phoenix demonstrates two-axis modifier stacking on a non-trivial chassis — set-treatment (pixie) and body-posture (ducking) operating without competing for the same structural slot.",
+        reading: "Phoenix demonstrates two-axis modifier stacking on a non-trivial chassis: set-treatment (pixie) and body-posture (ducking) operating without competing for the same structural slot.",
       },
     ],
   },
@@ -413,11 +413,11 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Position among atoms',
-        reading: "Butterfly is the leg-over canonical with cross-body terminal — distinct from legover (same-side terminal) and from the rotational-dex atoms (whirl, osis).",
+        reading: "Butterfly is the leg-over canonical with cross-body terminal: distinct from legover (same-side terminal) and from the rotational-dex atoms (whirl, osis).",
       },
       {
         stage:   'Single-modifier productivity',
-        reading: "The 4-ADD bucket on the butterfly chassis is the densest in the dictionary — 10+ named single-modifier compounds (ripwalk, dimwalk, parkwalk, atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly, sidewalk, tapdown, tripwalk, butterfly-kick).",
+        reading: "The 4-ADD bucket on the butterfly chassis is the densest in the dictionary: 10+ named single-modifier compounds (ripwalk, dimwalk, parkwalk, atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly, sidewalk, tapdown, tripwalk, butterfly-kick).",
       },
       {
         stage:   'Multi-modifier productivity',
@@ -443,7 +443,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Compound-of-canonicals',
-        reading: "Combining mirage's dex with osis's spin-terminal produces torque. 4 ADD via mirage(+1 operator) + osis(3) — or symmetrically osis(+1 operator) + mirage(2 + cross-body-terminal-shift).",
+        reading: "Combining mirage's dex with osis's spin-terminal produces torque. 4 ADD via mirage(+1 operator) + osis(3), or symmetrically osis(+1 operator) + mirage(2 + cross-body-terminal-shift).",
       },
       {
         stage:   'Sibling compound',
@@ -451,7 +451,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Sub-family anchor',
-        reading: "Torque earned its own descendant family (mobius, paradox-torque, atomic-torque, gauntlet) — compound-of-canonicals topology can itself anchor further productivity.",
+        reading: "Torque earned its own descendant family (mobius, paradox-torque, atomic-torque, gauntlet): compound-of-canonicals topology can itself anchor further productivity.",
       },
     ],
   },
@@ -477,7 +477,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Compound name as anchor',
-        reading: "Mobius reads as 'gyro torque' structurally, but the compound carries its own name — the cultural-canonical promotion pattern recurs (torque, blender, mobius all earned named identity beyond their operator-board decompositions).",
+        reading: "Mobius reads as 'gyro torque' structurally, but the compound carries its own name: the cultural-canonical promotion pattern recurs (torque, blender, mobius all earned named identity beyond their operator-board decompositions).",
       },
     ],
   },
@@ -495,11 +495,11 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Folk-name encoding',
-        reading: "The DB description encodes the operator as 'blurry butterfly' — reflecting the shred-vocabulary tradition where 'blurry' is the folk handle for the stepping-class operator on the chassis.",
+        reading: "The DB description encodes the operator as 'blurry butterfly', reflecting the shred-vocabulary tradition where 'blurry' is the folk handle for the stepping-class operator on the chassis.",
       },
       {
         stage:   'Naming-tradition root',
-        reading: "Ripwalk anchors the 'walk'-suffixed naming family on the butterfly chassis — parkwalk, sidewalk, dimwalk, tapdown, bigwalk, darkwalk, tripwalk read as kin in the shred lineage.",
+        reading: "Ripwalk anchors the 'walk'-suffixed naming family on the butterfly chassis: parkwalk, sidewalk, dimwalk, tapdown, bigwalk, darkwalk, tripwalk read as kin in the shred lineage.",
       },
       {
         stage:   'Family-language summary',
@@ -529,7 +529,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Visually distinctive folk name',
-        reading: "Food-processor's name does not resemble its structural decomposition — the cultural-promotion pattern can produce names entirely orthogonal to the operator-board grammar.",
+        reading: "Food-processor's name does not resemble its structural decomposition: the cultural-promotion pattern can produce names entirely orthogonal to the operator-board grammar.",
       },
     ],
   },
@@ -541,7 +541,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     stages: [
       {
         stage:   'Placeholder DB row',
-        reading: "Before the doctrine, ripstein's DB description was \"Popular freestyle trick.\" — a placeholder pattern carrying no movement-language content.",
+        reading: "Before the doctrine, ripstein's DB description, \"Popular freestyle trick.\", was a placeholder pattern carrying no movement-language content.",
       },
       {
         stage:   'Operational notation as evidence',
@@ -549,7 +549,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Doubled-dex reading',
-        reading: "Two reverse-rotational dex moments in sequence — parallel to barrage's doubled-mirage-class reading at 3 ADD, but with rotational rather than linear dexes.",
+        reading: "Two reverse-rotational dex moments in sequence, parallel to barrage's doubled-mirage-class reading at 3 ADD, but with rotational rather than linear dexes.",
       },
       {
         stage:   'ADD accounting',
@@ -557,7 +557,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Folk-name rescue pattern',
-        reading: "Ripstein demonstrates the doctrine's salvage capacity — culturally-canonical folk names recover meaningful structural readings via the L1-L6 layers when DB rows carry no content.",
+        reading: "Ripstein demonstrates the doctrine's salvage capacity: culturally-canonical folk names recover meaningful structural readings via the L1-L6 layers when DB rows carry no content.",
       },
       {
         stage:   'Demonstration case',

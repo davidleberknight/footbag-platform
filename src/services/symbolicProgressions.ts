@@ -111,7 +111,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
     slug:          'dada-curve',
     modifierAdded: 'no modifier; no foot plant',
     rationale:
-      'The same kick-and-recovery shape as ripwalk, executed with the supporting foot stationary throughout. No stepping action, no pixie compaction, no modifier at all — the body absorbs the full wing arc without the help of a relocated base.',
+      'The same kick-and-recovery shape as ripwalk, executed with the supporting foot stationary throughout. No stepping action, no pixie compaction, no modifier at all: the body absorbs the full wing arc without the help of a relocated base.',
     symbolicNote:
       'Self-atom in the butterfly-walking family. Topology-equivalent to ripwalk; the differentiator is the absence of any foot plant during the wing motion.',
     glossaryTerms: ['butterfly'],

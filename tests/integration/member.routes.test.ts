@@ -132,10 +132,9 @@ describe('GET /members — landing page', () => {
     const res = await request(app).get('/members');
     expect(res.status).toBe(200);
     // Tier 0 members CAN compete in events and join clubs per
-    // M_Register_For_Event and IFPAMembershipStructure_2026.md §3.2.
+    // M_Register_For_Event.
     expect(res.text).not.toContain('tournament eligibility');
-    // IFPA was incorporated in 1994 per ifpa/ArticlesOfIncorporation.md;
-    // earlier prose claimed "since 1983".
+    // IFPA was incorporated in 1994, not 1983.
     expect(res.text).not.toContain('since 1983');
     // The vague "IFPA-member-only areas" filler from M_Purchase_Tier_1 has no
     // enumerable Tier-1-only area in the code or docs; concrete benefits

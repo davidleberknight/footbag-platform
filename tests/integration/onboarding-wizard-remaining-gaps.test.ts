@@ -4,7 +4,6 @@
  * leadership gate, and dashboard task widget content.
  *
  * User story anchors: M_Complete_Onboarding_Wizard, M_Join_Club.
- * Design anchors: MIGRATION_PLAN section 10.3, VIEW_CATALOG section 7.6a.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

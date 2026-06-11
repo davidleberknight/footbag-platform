@@ -17,9 +17,6 @@
  *   - rev-whirl is a route-out (too few descendants to be a family): no family
  *     section, and its invariant does not surface
  *   - No curator-internal language reaches the rendered HTML
- *
- * Design doc:
- *   exploration/dictionary-pedagogy-phase-1-2026-05-21/DESIGN.md
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

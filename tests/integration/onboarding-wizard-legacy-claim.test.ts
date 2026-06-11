@@ -6,7 +6,6 @@
  * tier grant mapping, claim idempotency, and transitive HP claim (Case E).
  *
  * User story anchors: M_Claim_Legacy_Account, M_Complete_Onboarding_Wizard.
- * Design anchors: MIGRATION_PLAN sections 3, 7, 8, 9.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

@@ -49,12 +49,12 @@
 export const COMPOUND_SEMANTIC_DESCRIPTIONS: ReadonlyMap<string, string> = new Map([
   // Curator-locked initial set.
   // Wording is plain compositional prose; not notation, not ADD math.
-  ['double-legover', 'mirage + legover chain — two consecutive in-direction dex steps from a single set.'],
-  ['blurry',         'stepping paradox-whirl structure — two-dex set with a paradox second component.'],
-  ['furious',        'barraging extended with a third dex — three-dex chain layering on the high-stepping pattern.'],
-  ['atom-smasher',   'atomic mirage composition — atomic set primitive followed by a mirage-class terminal.'],
+  ['double-legover', 'mirage + legover chain: two consecutive in-direction dex steps from a single set.'],
+  ['blurry',         'stepping paradox-whirl structure: two-dex set with a paradox second component.'],
+  ['furious',        'barraging extended with a third dex: three-dex chain layering on the high-stepping pattern.'],
+  ['atom-smasher',   'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
   // Alternate canonical slug for atom smasher (some seeds use atomsmasher); both render the same description.
-  ['atomsmasher',    'atomic mirage composition — atomic set primitive followed by a mirage-class terminal.'],
+  ['atomsmasher',    'atomic mirage composition: atomic set primitive followed by a mirage-class terminal.'],
   // Foundational atoms and operators: identity plus the uptime/delay relationship pairs
   // (Around the World / Pixie and Orbit / Fairy). Worded as "an uptime X", never "X equals Y".
   ['around-the-world', 'Circle the bag with the foot, the leg tracing a full loop around the hanging bag before a toe stall. Around the World completes the dexterity around a delayed bag; its reverse-direction version is Orbit. Pixie can be understood as an uptime Around the World: both involve a leg circling the bag, but Around the World completes the dexterity around a delayed bag, while Pixie performs the circling motion as part of the set itself, before the bag reaches its peak.'],

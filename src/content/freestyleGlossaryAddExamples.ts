@@ -78,7 +78,7 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     officialAdd:       3,
     derivation:        'quantum atom = TOE > OP IN [DEX] > OP TOE [DEL] = [DEX] + [DEL] + body topology = 3 ADD',
     status:            'canonical',
-    observationalNote: 'Quantum is the 4-primitive direction-quadrant matrix counterpart of pixie / fairy / atomic — same compositional weight, different dex direction + leg. The full matrix is documented in §6 Modifiers.',
+    observationalNote: 'Quantum is the 4-primitive direction-quadrant matrix counterpart of pixie / fairy / atomic: same compositional weight, different dex direction + leg. The full matrix is documented in §6 Modifiers.',
   },
   {
     slug:              'baroque',

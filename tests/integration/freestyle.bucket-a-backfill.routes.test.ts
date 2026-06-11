@@ -2,9 +2,8 @@
  * Bucket A derivation backfill — regression tests (2026-05-25).
  *
  * Pre-Red derivation governance pass applied 19 sibling-derived
- * operational_notation candidates from
- *   exploration/derivation-audit-2026-05-25/DERIVATION_AUDIT.md §2.1
- * to RESOLVED_FORMULAS_SPRINT_1 (via the operationalNotation field).
+ * operational_notation candidates to RESOLVED_FORMULAS_SPRINT_1 (via the
+ * operationalNotation field).
  *
  * Two rendering paths:
  *

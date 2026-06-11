@@ -221,7 +221,7 @@ describe('shapeOperationalNotationDisplay — Blur worked example', () => {
   it('Blur has two distinct dex segments separated by >> (matches the IFPA Stepping-Paradox-Mirage reading)', () => {
     // The two-dex-with-PDX-on-segment-2 structure is the operational
     // signature that aligns with pt10's reading of blur as Stepping
-    // Paradox Mirage; see OPERATIONAL_NOTATION_GRAMMAR §5.1.
+    // Paradox Mirage.
     const ops = out!.tokens.filter(t => t.role === 'sequence_op');
     expect(ops.find(t => t.text === '>>')).toBeDefined();
     const dexFlags = out!.tokens.filter(t => t.text === '[DEX]');
@@ -231,9 +231,8 @@ describe('shapeOperationalNotationDisplay — Blur worked example', () => {
 
 describe('shapeOperationalNotationDisplay — convention drift case (ALL-CAPS+brackets)', () => {
   // The "Stepping Ducking PS Whirl" row in the FM sample uses the same
-  // ALL-CAPS+brackets convention proposed in RENDERING_SURFACE_PROPOSAL §4
-  // (i.e. matches IFPA's NOTATION_STYLE_GUIDE). Tokenizer must handle it
-  // identically to the lowercase-bracket FM default.
+  // ALL-CAPS+brackets convention as IFPA's notation style guide. The
+  // tokenizer must handle it identically to the lowercase-bracket FM default.
   const out = shapeOperationalNotationDisplay(
     'CLIP > OP IN [DEX] > DUCK [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL]',
   );

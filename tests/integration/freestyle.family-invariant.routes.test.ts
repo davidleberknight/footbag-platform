@@ -18,12 +18,11 @@
  *     families (butterfly / mirage / osis / torque / legover / etc.)
  *     render WITHOUT the invariant line.
  *
- * Per the curator's terminal-vs-entry-topology distinction (recorded
- * in exploration/dictionary-glossary-normalization-audit-2026-05/
- * FAMILY_LEVEL_INVARIANTS.md addendum), only TRUE terminal families
- * (whirl, butterfly, mirage, osis, swirl) are candidates for invariant
- * entries. Entry/topology/modifier systems (paradox, symposium,
- * spinning, ducking, stepping, pixie/fairy/atomic) are NOT.
+ * Per the curator's terminal-vs-entry-topology distinction, only TRUE
+ * terminal families (whirl, butterfly, mirage, osis, swirl) are
+ * candidates for invariant entries. Entry/topology/modifier systems
+ * (paradox, symposium, spinning, ducking, stepping, pixie/fairy/atomic)
+ * are NOT.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -98,9 +97,8 @@ describe('Family invariant — content module', () => {
 
   it('returns null for entry/topology/modifier systems that are NOT terminal families', () => {
     // Paradox, symposium, spinning, ducking are entry/topology/modifier
-    // systems — not terminal families. The curator distinction in
-    // FAMILY_LEVEL_INVARIANTS.md addendum says these do NOT belong
-    // here. Verify each returns null.
+    // systems — not terminal families. The curator distinction says these
+    // do NOT belong here. Verify each returns null.
     for (const nonTerminalSlug of [
       'paradox', 'symposium', 'spinning', 'ducking', 'stepping',
       'pixie', 'fairy', 'atomic',

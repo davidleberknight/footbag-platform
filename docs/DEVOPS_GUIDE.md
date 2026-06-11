@@ -1861,18 +1861,11 @@ Future state when the team grows beyond one maintainer:
 
 The severity definitions and acknowledgment targets above are operational policy; the maintainer ratifies them before treating as binding and updates them in this section if the project's reality shifts.
 
-### 13.10 Hall of Fame and Big Add Posse daily admin digest review
+### 13.10 Hall of Fame and Big Add Posse honors oversight
 
-A daily system job emits a digest of the prior 24 hours of silent auto-link claims that produced a `member_tier_grants` row with `reason_code='legacy.claim_tier_grant'` and a Hall of Fame or Big Add Posse honor flag, delivered to the admin-alerts mailing list. The digest covers a configurable monitoring window (default 56 days from cutover).
+Honors-bearing claims (a claim landing on a member who carries a Hall of Fame or Big Add Posse flag) apply on the member's own wizard confirmation, the same as any other claim. Trustworthiness is established a priori: the imported `is_hof` / `is_bap` flags are cross-checked before go-live against the authoritative public rosters (footbaghalloffame.net for Hall of Fame, bigaddposse.com for Big Add Posse), and mismatches are curated out, so an honor-driven tier grant rests only on a validated flag.
 
-Operator workflow:
-
-1. Open the daily digest email.
-2. For each listed claim, read the original claim audit row to identify the linked member display name, the linked legacy member display name, and the honor type (HoF or BAP).
-3. Spot-check the link for plausibility against public history. If anything looks wrong, contact the linked member directly. Claims apply only on the member's own wizard confirmation; this digest is a post-facto back-stop, never a gate.
-4. If a wrong link is identified, route it through the dispute-revert procedure per §13.11.
-
-The digest is informational. Actions on flagged claims are taken through the dispute-revert procedure per §13.11.
+After go-live, ongoing oversight is community self-policing plus the admin dispute-revert path: if a wrong honors-bearing link surfaces, route it through the dispute-revert procedure per §13.11.
 
 ### 13.11 Claim dispute and revert handling
 
@@ -2154,7 +2147,7 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 - Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-shortcuts.sh`; expected count is zero.
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
 
-Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §13.10 (HoF and BAP daily digest) and §7.6 (Cutover rollback decision rule) as needed.
+Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §13.10 (HoF and BAP honors oversight) and §7.6 (Cutover rollback decision rule) as needed.
 
 The orchestrator's `CLAIM-SAFETY` gate re-runs the integration suite against the shipped working tree. Because a deploy ships the working tree rather than a committed SHA, this is the authoritative check that the artifact going live passes the claim-flow safety gates (anti-enumeration, rate limiting, claim and auto-link, mailbox-control round-trip, admin help-request). A cutover deploy must not pass `SKIP_TESTS=yes`, which would bypass the equivalent deploy-time `npm test`; the preflight gate is the backstop that the live artifact is verified.
 

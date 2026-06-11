@@ -125,12 +125,12 @@ export interface AddAnalysisContent {
 
 const PHILOSOPHY_PARAGRAPH =
   'IFPA attempts to provide a structural reading for every accepted trick. ' +
-  'Some readings are exact — settled by community rulings over many years. ' +
-  'Some are approximate — readable through known operator vocabulary but ' +
-  'not yet curator-locked. Some are observational — names the community ' +
+  'Some readings are exact: settled by community rulings over many years. ' +
+  'Some are approximate: readable through known operator vocabulary but ' +
+  'not yet curator-locked. Some are observational: names the community ' +
   'uses for tricks whose breakdown is still under discussion. Many ' +
   'tricks admit multiple valid structural readings at different stopping ' +
-  'depths — the compressed folk name and one or more deeper expansions ' +
+  'depths: the compressed folk name and one or more deeper expansions ' +
   'all describing the same trick. Stopping-depth equivalence is a ' +
   'foundational property of the movement language system, not a discrepancy. ' +
   'The goal is not to fabricate certainty. The goal is to make the movement ' +
@@ -149,27 +149,27 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // readers to see where the ADDs come from when reading a foundational
   // trick's name.
   {
-    componentClass: 'Stall — a catch on a recognized surface',
+    componentClass: 'Stall: a catch on a recognized surface',
     contribution:   '1 ADD',
     example:        'toe-stall, clipper-stall, neck-stall',
   },
   {
-    componentClass: 'Dexterity (dex) — one bag-foot interaction',
+    componentClass: 'Dexterity (dex): one bag-foot interaction',
     contribution:   '1 ADD',
     example:        'inside dex, outside dex, hippy, leggy',
   },
   {
-    componentClass: 'Cross-body traversal (xbody) — the bag crosses one plane around the body',
+    componentClass: 'Cross-body traversal (xbody): the bag crosses one plane around the body',
     contribution:   '1 ADD',
     example:        'the kick portion of a clipper; the body-cross in whirl',
   },
   {
-    componentClass: 'Spin flag — a rotational primitive in an atom’s flag breakdown',
+    componentClass: 'Spin flag: a rotational primitive in an atom’s flag breakdown',
     contribution:   '1 ADD',
     example:        'osis carries a spin flag (spin(1) + xbod(1) + stall(1) = 3 ADD). Distinct from the spinning body operator, which adds +1 atop a base, and from the rotational-character property of certain atoms, which triggers the atomic +2-rotational rule. Three different concepts; one accounting primitive lives here.',
   },
   {
-    componentClass: 'Unusual surface — a catch on a body surface other than the standard toe / instep / outstep / knee',
+    componentClass: 'Unusual surface: a catch on a body surface other than the standard toe / instep / outstep / knee',
     contribution:   '1 ADD',
     example:        'head-stall, shoulder-stall, cloud (calf), sole-stall, neck-stall',
   },
@@ -180,24 +180,24 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // pedagogical / organizational convention, NOT a canonical
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
-    componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
+    componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
     contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + illusion; Red 2026-06-02: prior paradox-atomic reading retired); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry-topology modifiers — paradox, symposium (pedagogical axis, not an official grouping)',
+    componentClass: 'Entry-topology modifiers: paradox, symposium (pedagogical axis, not an official grouping)',
     contribution:   '+1 each. These modify the dex-entry position. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
     example:        'paradox + mirage (2) = 3 ADD',
   },
   {
-    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not an official grouping)',
-    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases; flying +1 (the jump body-action — flying inside, flying outside, flying clipper).',
+    componentClass: 'Midtime body modifiers: spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging, flying (pedagogical axis, not an official grouping)',
+    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases; flying +1 (the jump body-action: flying inside, flying outside, flying clipper).',
     example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD; flying + clipper kick = flying clipper = 2 ADD',
   },
   {
-    componentClass: 'Positional / directional cues — same-side (ss) / far / near / reverse / op',
+    componentClass: 'Positional / directional cues: same-side (ss) / far / near / reverse / op',
     contribution:   '+0 ADD. Positional cues, not difficulty contributions.',
-    example:        'Red 2026-05-11 + 2026-05-15 — SS=+0 universal; far/near/reverse +0 by analogy',
+    example:        'Red 2026-05-11 + 2026-05-15: SS=+0 universal; far/near/reverse +0 by analogy',
   },
 ];
 
@@ -207,7 +207,7 @@ const EDITORIAL_TRUTH_RULE =
   'This is the IFPA editorial contract.';
 
 const INCOMPLETENESS_NOTE =
-  "Some compound tricks are folk-named — they exist in the community but their " +
+  "Some compound tricks are folk-named: they exist in the community but their " +
   "structural breakdown isn't yet curator-confirmed. Those rows carry a " +
   '"pending breakdown refinement" indicator on their dictionary card. ' +
   'They count as full tricks; their structural reading is what’s pending.';
@@ -236,15 +236,15 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '1 ADD',
     components: 'One stall on the top of the toe.',
     derivation: 'stall(1) = 1 ADD',
-    whyNote:    'The simplest accepted catch — a single recognized stall surface. Foundational primitive for the entire stall-based naming system.',
+    whyNote:    'The simplest accepted catch: a single recognized stall surface. Foundational primitive for the entire stall-based naming system.',
   },
   {
     trickName:  'Cross-body traversal (xbody primitive)',
     trickSlug:  null,
     addLabel:   '1 ADD',
-    components: 'Accounting primitive illustrated via clipper motion — not an official named trick. One cross-body traversal in isolation, without a stall finish.',
+    components: 'Accounting primitive illustrated via clipper motion, not an official named trick. One cross-body traversal in isolation, without a stall finish.',
     derivation: 'xbody(1) = 1 ADD',
-    whyNote:    'Establishes xbody as a foundational accounting primitive. The bag crossing one plane around the body contributes 1 ADD wherever it appears — in clipper kicks, in whirl, in butterfly, in osis. Shown here in isolation so the primitive is legible; the official clipper-stall trick (xbody + stall = 2 ADD) appears below.',
+    whyNote:    'Establishes xbody as a foundational accounting primitive. The bag crossing one plane around the body contributes 1 ADD wherever it appears: in clipper kicks, in whirl, in butterfly, in osis. Shown here in isolation so the primitive is legible; the official clipper-stall trick (xbody + stall = 2 ADD) appears below.',
   },
 
   // ── 2 ADD foundational atoms (stall + one other primitive) ────────────
@@ -262,7 +262,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '2 ADD',
     components: 'One dex + one stall. Operational chain: [set] > hippy in dex > op toe.',
     derivation: 'dex(1) + stall(1) = 2 ADD',
-    whyNote:    'A dexterity event finishing in a stall — an inward-hippy dex landing on the opposite-side toe. Foundational dexterity primitive (not rotational) that anchors a deep cohort (paradox-mirage, atom-smasher, blur, witchdoctor) via modifier stacks and composite-base readings.',
+    whyNote:    'A dexterity event finishing in a stall: an inward-hippy dex landing on the opposite-side toe. Foundational dexterity primitive (not rotational) that anchors a deep cohort (paradox-mirage, atom-smasher, blur, witchdoctor) via modifier stacks and composite-base readings.',
   },
   {
     trickName:  'Legover',
@@ -304,7 +304,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '3 ADD',
     components: 'Operational chain: [set] > leggy in dex > ss clipper. Cross-body + dex + stall walked flag-by-flag.',
     derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
-    whyNote:    'A rotational dex with same-side clipper terminal — three flag-counting primitives combine into the foundational rotational atom. Anchors a deep family (paradox-whirl, spinning-whirl, ducking-whirl, blurry-whirl, symposium-whirl, mobius via torque branch).',
+    whyNote:    'A rotational dex with same-side clipper terminal: three flag-counting primitives combine into the foundational rotational atom. Anchors a deep family (paradox-whirl, spinning-whirl, ducking-whirl, blurry-whirl, symposium-whirl, mobius via torque branch).',
   },
   {
     trickName:  'Swirl',
@@ -328,7 +328,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '3 ADD',
     components: 'Operational chain: [set] > (downtime) spin > ss clipper. Spin flag + cross-body + stall walked flag-by-flag.',
     derivation: 'spin(1) + xbody(1) + stall(1) = 3 ADD',
-    whyNote:    'A spin flag built into the atom — distinct from the spinning body operator (a +1 modifier applied atop a base) and from the rotational-character property that triggers atomic +2-rotational. Three concepts share the word "spin"; osis owns the atomic-flag one. Two major branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
+    whyNote:    'A spin flag built into the atom: distinct from the spinning body operator (a +1 modifier applied atop a base) and from the rotational-character property that triggers atomic +2-rotational. Three concepts share the word "spin"; osis owns the atomic-flag one. Two major branch compounds (Torque and Blender) are its 4-ADD derivatives, each spawning its own family.',
   },
 
   // ── Operator visibility: paradox stacked on a base ───────────────────
@@ -370,7 +370,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Mobius',
     trickSlug:  'mobius',
     addLabel:   '5 ADD',
-    components: 'Gyro operator (+1) on torque (4) — or deep-form unfolding.',
+    components: 'Gyro operator (+1) on torque (4), or deep-form unfolding.',
     derivation: 'gyro(+1) + torque(4) = 5 ADD   (deep form: spinning(+1) + ss(+0) + miraging(+1) + osis(3) = 5 ADD)',
     whyNote:    'Settled by pt11. The flagship multi-depth example. Two valid stopping depths reach the same total. Players say mobius; analysts can unfold to either depth.',
   },
@@ -485,7 +485,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'IFPA (operator class)',
     externalAdd:             '5',
     delta:                   '0',
-    decompositionDifference: 'Barraging’s contribution to Baroque is structural — it multiplies the dex count rather than adding as a body modifier. Two dexes (+2) + osis (3) = 5.',
+    decompositionDifference: 'Barraging’s contribution to Baroque is structural: it multiplies the dex count rather than adding as a body modifier. Two dexes (+2) + osis (3) = 5.',
     pattern:                 'operator class (structural dex-multiplier)',
     ifpaStatusLine:          'settled by Wave 1 2026-05-15 (Baroque named ruling)',
   },
@@ -512,7 +512,7 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     trickName:  'Sumo (Nuclear Mirage)',
     trickSlug:  'sumo',
     ifpaAdd:    '5',
-    briefNote:  'Sumo’s 5 ADD comes via a named X-Dex pt9 exception — pt9 ruled that certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
+    briefNote:  'Sumo’s 5 ADD comes via a named X-Dex pt9 exception: pt9 ruled that certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
   },
   {
     trickName:  'Genesis (footbagmoves: Furious Whirl)',
@@ -529,9 +529,9 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
 const CLOSING_PARAGRAPHS: readonly string[] = [
   // Why disagreements exist: 3 recurring reasons
   'Three recurring reasons disagreements exist:',
-  'Positional vs additive — same-side, far, near, and reverse are positional cues in IFPA’s framing (Red 2026-05-11). Some external sources count them as ADD-additive.',
-  'Compression vs expansion — many tricks have multiple legitimate stopping depths. Players use the shortest folk name; analysts may unfold to deeper structural readings. Both arrive at the same ADD.',
-  'Historical evolution — the operator vocabulary has refined over time. Earlier conventions (rotational escalation, recursive atomic application) produce different totals than the modern post-pt10 + pt11 + Wave 1 conventions.',
+  'Positional vs additive: same-side, far, near, and reverse are positional cues in IFPA’s framing (Red 2026-05-11). Some external sources count them as ADD-additive.',
+  'Compression vs expansion: many tricks have multiple legitimate stopping depths. Players use the shortest folk name; analysts may unfold to deeper structural readings. Both arrive at the same ADD.',
+  'Historical evolution: the operator vocabulary has refined over time. Earlier conventions (rotational escalation, recursive atomic application) produce different totals than the modern post-pt10 + pt11 + Wave 1 conventions.',
 ];
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -377,7 +377,7 @@ export const contactRequestService = {
         '',
         'If you need further assistance, you can submit a new contact request from your profile edit page.',
         '',
-        '— International Footbag Players Association',
+        'International Footbag Players Association',
       ].join('\n');
 
       // Strict enqueue (R4 pattern): an outbox failure after the resolve

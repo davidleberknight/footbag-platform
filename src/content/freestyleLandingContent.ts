@@ -136,18 +136,18 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // blocked on unresolved doctrine); its numeric ADD value displays as
   // em-dash via the addPending path until the canonical row lands, while
   // the formula provides the structural reading.
-  { slug: 'toe-stall',        equivalences: ['core atom — foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: '[set] > toe' },
-  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > clipper' },
-  { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > hippy in dex > op toe' },
-  { slug: 'legover',          equivalences: ['core atom — dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy out dex > ss toe' },
-  { slug: 'pickup',           equivalences: ['core atom — dex catching from below',             'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy in dex > ss toe' },
-  { slug: 'illusion',         equivalences: ['core atom — dex with mid-flight rotation',        'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy out dex > op toe' },
-  { slug: 'whirl',            equivalences: ['core atom — rotational dex',                      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > leggy in dex > ss clipper' },
-  { slug: 'butterfly',        equivalences: ['core atom — rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > hippy out dex > ss clipper' },
-  { slug: 'swirl',            equivalences: ['core atom — reverse-direction rotational dex',    'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > leggy (xbd) out dex > ss clipper' },
-  { slug: 'osis',             equivalences: ['core atom — double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > (downtime) spin > ss clipper' },
-  { slug: 'around-the-world', equivalences: ['core atom — dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'toe > ss(midtime) in dex > ss toe' },
-  { slug: 'orbit',            equivalences: ['core atom — alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'toe > ss(midtime) out dex > ss toe' },
+  { slug: 'toe-stall',        equivalences: ['core atom: foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: '[set] > toe' },
+  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom: inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > clipper' },
+  { slug: 'mirage',           equivalences: ['core atom: cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > hippy in dex > op toe' },
+  { slug: 'legover',          equivalences: ['core atom: dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy out dex > ss toe' },
+  { slug: 'pickup',           equivalences: ['core atom: dex catching from below',             'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy in dex > ss toe' },
+  { slug: 'illusion',         equivalences: ['core atom: dex with mid-flight rotation',        'dex(1) + stall(1) = 2 ADD'], operationalNotation: '[set] > leggy out dex > op toe' },
+  { slug: 'whirl',            equivalences: ['core atom: rotational dex',                      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > leggy in dex > ss clipper' },
+  { slug: 'butterfly',        equivalences: ['core atom: rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > hippy out dex > ss clipper' },
+  { slug: 'swirl',            equivalences: ['core atom: reverse-direction rotational dex',    'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > leggy (xbd) out dex > ss clipper' },
+  { slug: 'osis',             equivalences: ['core atom: double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: '[set] > (downtime) spin > ss clipper' },
+  { slug: 'around-the-world', equivalences: ['core atom: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'toe > ss(midtime) in dex > ss toe' },
+  { slug: 'orbit',            equivalences: ['core atom: alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'toe > ss(midtime) out dex > ss toe' },
 ];
 
 // Demonstrations are a plain FreestyleDemonstration[] hardcoded in

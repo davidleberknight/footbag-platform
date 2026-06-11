@@ -13,7 +13,7 @@
  *      index also renders an active anchor for the same gallery.
  *   4. The glossary contains a dedicated Jobs notation section
  *      anchored at #jobs-notation, with an explicit reference to the
- *      historical-source archive at exploration/fborg/JobsNotation.txt.
+ *      historical Jobs notation source archive.
  *   5. The compound-description slot does not duplicate the JOB
  *      formula. For atomic-style tricks (cloud-kick) the operational
  *      notation string renders only once.

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
 // Slice 5 of the observational->canonical promotion: the remaining verified
-// PROMOTE_NOW bulk (28 depth-<=1 single-modifier compounds; notations in
-// DERIVED_NOTATION_PROMOTE_NOW.md). Self-contained: parse-valid + bracket count
+// PROMOTE_NOW bulk (28 depth-<=1 single-modifier compounds). Self-contained:
+// parse-valid + bracket count
 // == ADD. Family overrides: blender/torque->osis, drifter->clipper-stall.
 const APPROVED = [
   { slug: 'rev-swirl', add: 3, family: 'swirl', notation: 'CLIP > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]' },

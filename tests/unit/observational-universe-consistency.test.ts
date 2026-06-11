@@ -25,7 +25,7 @@ describe('observational universe snapshot internal consistency', () => {
     }
   });
 
-  // ---- Universe accounting guards (see exploration/count-sync/UNIVERSE_RECONCILIATION.md) ----
+  // ---- Universe accounting guards ----
   // The five sections partition the universe; Alias/Duplicate is a cross-cutting
   // layer inside those sections, never a sixth summable bucket. These guards stop
   // the double-count proven in the reconciliation (summing the buckets over-counts

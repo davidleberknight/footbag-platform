@@ -49,7 +49,7 @@ function nextId(prefix: string): { id: string; slug: string } {
 // Drift between Date.now() at fixture-insert and view-eval at predicate-call
 // is bounded by test duration (sub-millisecond), so a 30-day future offset
 // is robustly in the future under any realistic CI scheduler. The fragile
-// pattern that violates testing.md is asserting against ~10ms boundaries;
+// pattern to avoid is asserting against ~10ms boundaries;
 // see the 'tier0_ap_already_expired' case for the deterministic alternative.
 function isoOffsetDays(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();

@@ -38,7 +38,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'mirage',
     prose:
-      "Mirage anchors one of the dictionary's deepest family trees. The most productive descendants intensify directionality, escalate compositionality, or shift terminal surface. Paradox-mirage layers a hip-pivot topology onto the same in-to-out shape; blur adds a stepping multi-dex extension; fury extends with a third dex; sumo escalates with nuclear x-dex; drifter shifts the terminal from toe to clipper. Each descendant remains structurally recognizable as a mirage transformation — the persistence of the in-to-out dex template under composition is what made mirage productive.",
+      "Mirage anchors one of the dictionary's deepest family trees. The most productive descendants intensify directionality, escalate compositionality, or shift terminal surface. Paradox-mirage layers a hip-pivot topology onto the same in-to-out shape; blur adds a stepping multi-dex extension; fury extends with a third dex; sumo escalates with nuclear x-dex; drifter shifts the terminal from toe to clipper. Each descendant remains structurally recognizable as a mirage transformation: the persistence of the in-to-out dex template under composition is what made mirage productive.",
     productiveDescendants: [
       { slug: 'paradox-mirage', label: 'paradox-mirage', note: 'Adds paradox hip-pivot topology to the in-to-out dex.' },
       { slug: 'blur',           label: 'blur',           note: 'Stepping multi-dex extension over the paradox-mirage chassis.' },
@@ -52,7 +52,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'paradox-mirage',
     prose:
-      "Paradox-mirage anchors one of the dictionary's deepest compositional trees and became the gateway to several productive chains at once: blur and its blurriest / blurrage multi-dex extensions, the paradox-whirl family on the rotational side, the paradox-topology blender ecosystem, and a wide range of modern stepping/paradox hybrids. Blur in particular grew into one of the most culturally central advanced transition tricks in the language — its emergence from paradox-mirage is the clearest example of how this chassis seeds further canonical vocabulary. Paradox-mirage became generative because the underlying hip-pivot topology preserves recognizability under heavy modifier stacking — descendants two or three modifiers deep still read as paradox-mirage transformations rather than novel inventions.",
+      "Paradox-mirage anchors one of the dictionary's deepest compositional trees and became the gateway to several productive chains at once: blur and its blurriest / blurrage multi-dex extensions, the paradox-whirl family on the rotational side, the paradox-topology blender ecosystem, and a wide range of modern stepping/paradox hybrids. Blur in particular grew into one of the most culturally central advanced transition tricks in the language: its emergence from paradox-mirage is the clearest example of how this chassis seeds further canonical vocabulary. Paradox-mirage became generative because the underlying hip-pivot topology preserves recognizability under heavy modifier stacking: descendants two or three modifiers deep still read as paradox-mirage transformations rather than novel inventions.",
     productiveDescendants: [
       { slug: 'blur',     label: 'blur',     note: 'Stepping multi-dex on the paradox-mirage chassis; major productive anchor in its own right.' },
       { slug: 'fury',     label: 'fury',     note: 'Three-dex extension (furious paradox mirage).' },
@@ -69,7 +69,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'blur',
     prose:
-      "Blur is the cultural-canonical landmark for the stepping-paradox-mirage compound. Structurally, blur sits as a 4-ADD compound on the mirage chassis with a stepping-paradox modifier stack; few compounds build directly on top of it. Its productivity is naming-tradition rather than compositional anchorage — the \"stepping paradox\" shorthand often resolves to blur in player vocabulary, and the broader stepping-paradox lineage reads as kin even where the structural decompositions differ. Fury (furious-paradox-mirage at 5 ADD) extends the multi-dex depth on the same chassis; blurriest carries the blurry-naming tradition into a different chassis at the same 5-ADD bucket.",
+      "Blur is the cultural-canonical landmark for the stepping-paradox-mirage compound. Structurally, blur sits as a 4-ADD compound on the mirage chassis with a stepping-paradox modifier stack; few compounds build directly on top of it. Its productivity is naming-tradition rather than compositional anchorage: the \"stepping paradox\" shorthand often resolves to blur in player vocabulary, and the broader stepping-paradox lineage reads as kin even where the structural decompositions differ. Fury (furious-paradox-mirage at 5 ADD) extends the multi-dex depth on the same chassis; blurriest carries the blurry-naming tradition into a different chassis at the same 5-ADD bucket.",
     productiveDescendants: [
       { slug: 'fury',       label: 'fury',       note: 'Three-dex extension on the mirage chassis; furious-paradox-mirage at 5 ADD.' },
       { slug: 'blurriest',  label: 'blurriest',  note: 'Blurry-naming kin on a different chassis (5-ADD blurry-barfly).' },
@@ -79,7 +79,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'drifter',
     prose:
-      "Drifter anchors the shred lineage — a deep family of compounds built directly on the drifter chassis. The mirage-dex-into-clipper-terminal structural signature composes naturally with body modifiers (paradox-drifter), with rotational variants (vortex), with naming-driven extensions (smoke, lotus, tombstone, fume, quantum-drifter), and with surface-and-stepping siblings (high-plains-drifter on the same clipper-stall chassis). The drifter family is one of the dictionary's broader trees at the 4-ADD layer, and drifter's productivity derives from how cleanly the chassis tolerates further modifier layering while preserving the mirage-dex-into-clipper signature.",
+      "Drifter anchors the shred lineage: a deep family of compounds built directly on the drifter chassis. The mirage-dex-into-clipper-terminal structural signature composes naturally with body modifiers (paradox-drifter), with rotational variants (vortex), with naming-driven extensions (smoke, lotus, tombstone, fume, quantum-drifter), and with surface-and-stepping siblings (high-plains-drifter on the same clipper-stall chassis). The drifter family is one of the dictionary's broader trees at the 4-ADD layer, and drifter's productivity derives from how cleanly the chassis tolerates further modifier layering while preserving the mirage-dex-into-clipper signature.",
     productiveDescendants: [
       { slug: 'paradox-drifter', label: 'paradox-drifter', note: 'Paradox topology layered on the drifter chassis; 4 ADD.' },
       { slug: 'vortex',          label: 'vortex',          note: 'Rotational variant on the drifter chassis; 4 ADD.' },
@@ -92,7 +92,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'barrage',
     prose:
-      "Barrage is productive along two distinct axes. As a structural anchor, it carries direct descendants on its chassis (paradox-barrage, blurrage) — compounds that layer modifiers onto the doubled-dex pattern. As a naming root, the \"barraging\" modifier extends across the broader language, producing fury (barraging-paradox-mirage in earlier doctrine) and flurry (barraging-leg-over). The combined productivity — chassis descendants plus modifier-named operator instances — is what justifies barrage's standalone anchor status.",
+      "Barrage is productive along two distinct axes. As a structural anchor, it carries direct descendants on its chassis (paradox-barrage, blurrage): compounds that layer modifiers onto the doubled-dex pattern. As a naming root, the \"barraging\" modifier extends across the broader language, producing fury (barraging-paradox-mirage in earlier doctrine) and flurry (barraging-leg-over). The combined productivity (chassis descendants plus modifier-named operator instances) is what justifies barrage's standalone anchor status.",
     productiveDescendants: [
       { slug: 'paradox-barrage', label: 'paradox-barrage', note: 'Paradox layered on the doubled-dex chassis; 4 ADD.' },
       { slug: 'blurrage',        label: 'blurrage',        note: 'Stepping-paradox layered on barrage; 4 ADD.' },
@@ -142,7 +142,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'butterfly',
     prose:
-      "Butterfly is among the most productive anchors in the dictionary — its chassis carries more named modifier extensions than almost any other base. The leg-over-to-clipper structural signature composes naturally with body modifiers (atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly), with set treatments (dimwalk = pixie butterfly; tapdown), with stepping (ripwalk = stepping butterfly), with stepping-paradox (parkwalk), and with multi-modifier stacks (phoenix = pixie-ducking-butterfly; yoda; ripped-warrior; matador). The 4-ADD bucket on the butterfly chassis is the densest single-modifier population in the dictionary.",
+      "Butterfly is among the most productive anchors in the dictionary: its chassis carries more named modifier extensions than almost any other base. The leg-over-to-clipper structural signature composes naturally with body modifiers (atomic-butterfly, ducking-butterfly, gyro-butterfly, spinning-butterfly), with set treatments (dimwalk = pixie butterfly; tapdown), with stepping (ripwalk = stepping butterfly), with stepping-paradox (parkwalk), and with multi-modifier stacks (phoenix = pixie-ducking-butterfly; yoda; ripped-warrior; matador). The 4-ADD bucket on the butterfly chassis is the densest single-modifier population in the dictionary.",
     productiveDescendants: [
       { slug: 'ripwalk',           label: 'ripwalk',           note: 'Stepping butterfly compound; shred-vocabulary root.' },
       { slug: 'dimwalk',           label: 'dimwalk',           note: 'Pixie butterfly compound; 4 ADD.' },
@@ -170,12 +170,12 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'whirl',
     prose:
-      "Whirl is among the most generative anchors in the dictionary. The conserved cross-body-rotational-with-clipper-terminal pattern composes naturally with body modifiers (gyro, spinning, ducking), with suspension modifiers (symposium produces pogo), with terminal compounds (osis produces blender), and with topology modifiers (paradox produces paradox-whirl and surge). What makes whirl productive is the persistence of its rotational signature: descendants remain recognizably whirl-derived even under heavy modifier stacking. The cross-body rotational catch also supports fluid combo continuity — whirl-shaped transitions link naturally into spinning, paradox, ducking, symposium, and stepping systems alike, which is why whirl became one of the most productive transition anchors in advanced freestyle run architecture.",
+      "Whirl is among the most generative anchors in the dictionary. The conserved cross-body-rotational-with-clipper-terminal pattern composes naturally with body modifiers (gyro, spinning, ducking), with suspension modifiers (symposium produces pogo), with terminal compounds (osis produces blender), and with topology modifiers (paradox produces paradox-whirl and surge). What makes whirl productive is the persistence of its rotational signature: descendants remain recognizably whirl-derived even under heavy modifier stacking. The cross-body rotational catch also supports fluid combo continuity: whirl-shaped transitions link naturally into spinning, paradox, ducking, symposium, and stepping systems alike, which is why whirl became one of the most productive transition anchors in advanced freestyle run architecture.",
     productiveDescendants: [
-      { slug: 'blender',     label: 'blender',     note: 'Terminal compound — whirl-osis.' },
-      { slug: 'pogo',        label: 'pogo',        note: 'Suspension variant — whirl with no-plant constraint.' },
+      { slug: 'blender',     label: 'blender',     note: 'Terminal compound: whirl-osis.' },
+      { slug: 'pogo',        label: 'pogo',        note: 'Suspension variant: whirl with no-plant constraint.' },
       { slug: 'blistering',  label: 'blistering',  note: 'Gyro back-spin layered on whirl.' },
-      { slug: 'surreal',     label: 'surreal',     note: 'Surging-paradox-whirl — top of the rotational-topology ladder.' },
+      { slug: 'surreal',     label: 'surreal',     note: 'Surging-paradox-whirl, top of the rotational-topology ladder.' },
     ],
   },
 

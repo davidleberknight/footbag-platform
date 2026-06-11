@@ -10,7 +10,7 @@
  * Provenance:
  *   fb.org-derived / sibling-derived; NOT Red-confirmed. Tagged inline
  *   in the RESOLVED_FORMULAS_SPRINT_1 entries. Surfaces Red questions
- *   K-1..K-3 + B-1 in exploration/pre-red-cleanup-2026-05-25/CLEANUP_AUDIT.md.
+ *   K-1..K-3 + B-1.
  *
  * Contracts under test:
  *   - Each slug renders 200 on its trick-detail page

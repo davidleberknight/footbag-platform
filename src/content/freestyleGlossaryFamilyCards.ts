@@ -200,7 +200,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Whirl ↔ rev-whirl mirror pair',
-        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling example — same structural anchor, mirror terminal mechanics.',
+        body:  'Rev-whirl is the direction-mirror sibling of whirl: whirl uses an opposite-in dex, rev-whirl uses an opposite-out dex. The pair is the canonical sibling example: same structural anchor, mirror terminal mechanics.',
       },
     ],
   },

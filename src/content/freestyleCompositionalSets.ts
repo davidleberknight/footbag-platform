@@ -167,7 +167,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     key:   'single-dex-primitives',
     name:  'Single-dex primitives',
     intro:
-      'One set, one dex, terminate. The simplest grammar shapes — every member ' +
+      'One set, one dex, terminate. The simplest grammar shapes: every member ' +
       'is a single dexterity step layered over a toe or clip set. These are the ' +
       'building blocks the rest of the language composes from.',
     members: [
@@ -188,7 +188,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     name:  'Multi-dex compounds',
     intro:
       'Two or more dexterity steps chained over the same set. The compositional ' +
-      'core of the language — most named compound sets are a sequence of dex ' +
+      'core of the language: most named compound sets are a sequence of dex ' +
       'directions, and several have folk-name parenthetical equivalents.',
     members: [
       { name: 'Terraging',   notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',                          statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Double Pixie.' },
@@ -217,7 +217,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Peeking',            notation: 'SET > (BACK) SPIN [BOD] > (BACK) SPIN [BOD] >',                statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: double spinning (SET-led variant).' },
       { name: 'Leaning',            notation: 'CLIP > OP IN [DEX] > (FRONT) SPIN [BOD] >',                    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: stepping inspinning.' },
       { name: 'Go-Go',              notation: 'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >',                     statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: stepping backspinning.' },
-      { name: 'Surging',            notation: 'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',                statusHint: 'platform-tracked', structuralNote: 'Holden reads as: spinning miraging. See ladder §3 — platform documents a divergent reading.' },
+      { name: 'Surging',            notation: 'SET > (BACK/FRONT) SPIN [BOD] > OP IN [DEX] >',                statusHint: 'platform-tracked', structuralNote: 'Holden reads as: spinning miraging. See ladder §3, where the platform documents a divergent reading.' },
       { name: 'Twinspinning',       notation: 'CLIP > SAME OUT [DEX] > (FRONT) SPIN [BOD] >',                 statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: nuclear inspinning.' },
       { name: 'Neutron',            notation: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side component)', statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Atomic spin.' },
     ],
@@ -226,7 +226,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     key:   'whirl-swirl-family',
     name:  'Whirl / swirl family',
     intro:
-      'Sets that resolve into the whirl or swirl shape — cross-body rotational ' +
+      'Sets that resolve into the whirl or swirl shape: cross-body rotational ' +
       'sets ending on a clipper stall. Several family members are documented ' +
       'symposium or gyro variants of the base whirl pattern.',
     members: [
@@ -244,7 +244,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     key:   'uns-sets',
     name:  'Unusual non-standard (UNS) sets',
     intro:
-      'Sets whose initial contact is something other than toe or clip — a pinch, ' +
+      'Sets whose initial contact is something other than toe or clip: a pinch, ' +
       'a dragon, a frigidosis. The same dex grammar applies; the entry surface ' +
       'shifts. Holden tracks these as a deliberately separate family.',
     members: [
@@ -260,17 +260,17 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     name:  'Antisymposium & components',
     intro:
       'Two adjacent ideas Holden tracks alongside the set families: antisymposium ' +
-      '(the setting foot stays on the ground — the inverse discipline to ' +
+      '(the setting foot stays on the ground, the inverse discipline to ' +
       'symposium) and component modifiers that show up inside sets but rarely ' +
       'function as standalone set prefixes.',
     members: [
       { name: 'Rooting / Rooted', notation: 'The setting foot is on the ground (antisymposium discipline).',  statusHint: 'holden-only',       structuralNote: 'Movement constraint, not a literal grammar string.' },
       { name: 'Zoid',             notation: 'rooted toe clipper set',                                          statusHint: 'holden-only',       structuralNote: 'Set-name for the antisymposium toe-clip pattern.' },
-      { name: 'Ducking',          notation: 'SET > DUCK [BOD] >',                                              statusHint: 'platform-tracked', structuralNote: 'Component modifier — appears inside sets, rarely a standalone set prefix.' },
-      { name: 'Diving',           notation: 'SET > DIVE [BOD] >',                                              statusHint: 'platform-tracked', structuralNote: 'Component modifier — appears inside sets.' },
-      { name: 'Spinning',         notation: 'SET > (BACK) SPIN [BOD] >',                                       statusHint: 'platform-tracked', structuralNote: 'Component modifier — head of the spinning family above.' },
-      { name: 'Inspinning',       notation: 'SET > (FRONT) SPIN [BOD] >',                                      statusHint: 'platform-tracked', structuralNote: 'Component modifier — directional sibling of spinning.' },
-      { name: 'Gyro',             notation: 'CLIP > (BACK) SPIN [BOD] > (same dex component)',                 statusHint: 'platform-tracked', structuralNote: 'Component modifier — anchor of the torque-family lineage.' },
+      { name: 'Ducking',          notation: 'SET > DUCK [BOD] >',                                              statusHint: 'platform-tracked', structuralNote: 'Component modifier: appears inside sets, rarely a standalone set prefix.' },
+      { name: 'Diving',           notation: 'SET > DIVE [BOD] >',                                              statusHint: 'platform-tracked', structuralNote: 'Component modifier: appears inside sets.' },
+      { name: 'Spinning',         notation: 'SET > (BACK) SPIN [BOD] >',                                       statusHint: 'platform-tracked', structuralNote: 'Component modifier: head of the spinning family above.' },
+      { name: 'Inspinning',       notation: 'SET > (FRONT) SPIN [BOD] >',                                      statusHint: 'platform-tracked', structuralNote: 'Component modifier: directional sibling of spinning.' },
+      { name: 'Gyro',             notation: 'CLIP > (BACK) SPIN [BOD] > (same dex component)',                 statusHint: 'platform-tracked', structuralNote: 'Component modifier: anchor of the torque-family lineage.' },
     ],
   },
 ];
@@ -290,7 +290,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     steps: [
       'mirage   (atom)  =  SET > OP IN [DEX] > OP TOE [DEL]',
       'miraging (set)   =  SET > OP IN [DEX] >   (terminal delay omitted; the set continues into the next move)',
-      'Reading: the mirage shape compressed into an uptime set — the dex direction and side are preserved; the toe-stall terminal is replaced by the dex into the next move.',
+      'Reading: the mirage shape compressed into an uptime set. The dex direction and side are preserved; the toe-stall terminal is replaced by the dex into the next move.',
     ],
     sourceCitation:  'Per the platform\'s operational notation system; aligned with Holden\'s basic-set listing.',
     conflictNote:    null,
@@ -302,7 +302,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     steps: [
       'illusion    (atom) =  SET > OP OUT [DEX] > OP TOE [DEL]',
       'illusioning (set)  =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in Holden\'s compilation)',
-      'Reading: the illusion shape compressed into an uptime set form. Surfaced here as a structural symmetry — the platform tracks the trick, not the named uptime form.',
+      'Reading: the illusion shape compressed into an uptime set form. Surfaced here as a structural symmetry: the platform tracks the trick, not the named uptime form.',
     ],
     sourceCitation:  'Structural inference from the mirage/illusion direction-mirror sibling pair; not in Holden\'s compilation.',
     conflictNote:    'Named "illusioning" is not currently in Holden\'s list or the platform canonical. Surfaced as a structural pattern rather than a documented set name.',
@@ -327,7 +327,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
       'barraging  =  CLIP > OP IN [DEX] > SAME IN [DEX] >',
       '+ third dex (OP IN [DEX]) extending the chain',
       '=  furious   =  CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >',
-      'Holden parenthetical reads it as "Barraging Paradox Miraging" — barraging\'s two-dex open, then a paradox sense (the same-in→op-in flip), and a miraging-like terminal.',
+      'Holden parenthetical reads it as "Barraging Paradox Miraging": barraging\'s two-dex open, then a paradox sense (the same-in→op-in flip), and a miraging-like terminal.',
     ],
     sourceCitation:  'Per Holden\'s compilation; aligns with platform tracking of furious as a multi-dex chain.',
     conflictNote:    null,
@@ -398,7 +398,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
     holdenReading:   'CLIP > OP IN [DEX] > OP OUT [DEX] >; Holden parenthetical: Stepping Paradox.',
     platformReading: 'Same notation; platform tracks blurry = stepping paradox (the standing ruling on the compound).',
     status:          'aligned',
-    note:            'Strong alignment — Holden\'s parenthetical and the platform\'s decomposition match exactly.',
+    note:            'Strong alignment: Holden\'s parenthetical and the platform\'s decomposition match exactly.',
   },
   {
     holdenName:      'Barraging',
@@ -447,7 +447,7 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   {
     holdenName:      'Atomic',
     holdenReading:   'TOE > OP OUT [DEX] > (op side component); Holden parenthetical: Toe set Illusion.',
-    platformReading: 'Same notation; operator reference treats atomic as a primitive +1 set with x-dex character — not as a compressed toe + illusion-class decomposition.',
+    platformReading: 'Same notation; operator reference treats atomic as a primitive +1 set with x-dex character, not as a compressed toe + illusion-class decomposition.',
     status:          'partial',
     note:            'Notation agrees. Holden offers a deeper structural reading (atomic IS a toe set followed by an illusion-class dex); the platform does not formalize that decomposition.',
   },

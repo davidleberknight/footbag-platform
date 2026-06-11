@@ -45,13 +45,13 @@ export interface AddDisagreementRow {
 }
 
 export const PASSBACK_ADD_FRAMING_PROSE =
-  "PassBack records a trick's dex_count — the mechanical count of " +
-  "dexterities performed. IFPA records the canonical ADD — the " +
+  "PassBack records a trick's dex_count: the mechanical count of " +
+  "dexterities performed. IFPA records the canonical ADD: the " +
   "structural sum across stall, dex, cross-body traversal, rotation, " +
   "and operator weights. The two measurements answer different " +
   "questions: PB asks \"how many dexes?\", IFPA asks \"how much " +
   "compositional difficulty?\". Same trick name; two valid readings. " +
-  "Rows below show the divergence honestly — both numbers measure " +
+  "Rows below show the divergence honestly: both numbers measure " +
   "something real, just different things.";
 
 // Full 68 rows: rendered as a compact table on /freestyle/add-analysis.

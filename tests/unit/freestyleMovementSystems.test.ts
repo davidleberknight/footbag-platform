@@ -3,7 +3,7 @@
  *
  * Slice L1 of the 2026-05 dictionary/glossary normalization plan — the
  * content module is curator-authored and ontology-load-bearing, so the
- * pilot classification must match STABILIZATION_PLAN.md §1 exactly.
+ * pilot classification must match the ratified pilot list exactly.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -34,12 +34,11 @@ describe('freestyleMovementSystems content module', () => {
     }
   });
 
-  it('curator-confirmed modifiers are classified per STABILIZATION_PLAN + 2026-05-18 Phase B inheritance', () => {
-    // Original pilot scope (Slice L1, 2026-05-16): 11 modifiers.
-    // Phase B inheritance (2026-05-18): added quantum / nuclear to
-    // set-uptime + gyro to midtime-body per the
-    // consolidation plan. Total now 15. Still pending: barraging /
-    // blurry (Wave 2), tapping / furious (curator placement).
+  it('classifies each curator-confirmed modifier to its movement-system axis', () => {
+    // 15 curator-confirmed modifiers: quantum / nuclear classify under
+    // set-uptime, gyro under midtime-body, plus the original pilot set.
+    // Still pending: barraging / blurry (Wave 2 operator-class question),
+    // tapping / furious (curator placement).
     const expected: Record<string, string> = {
       pixie:     'set-uptime',
       fairy:     'set-uptime',
@@ -78,12 +77,10 @@ describe('freestyleMovementSystems content module', () => {
 
   it('returns null for modifiers still pending curator classification', () => {
     // These modifiers exist in freestyle_tricks (category='modifier') but
-    // are intentionally pending curator classification. Original pilot
-    // pending list (STABILIZATION_PLAN.md §1) was reduced 2026-05-18 by
-    // the Phase B inheritance: gyro is now classified under midtime-body;
-    // barraging stays pending (Wave 2 operator-class question). Blurry +
-    // tapping + furious + blazing + illusioning + terraging also stay
-    // pending per the consolidation plan.
+    // are intentionally pending curator classification. gyro is classified
+    // under midtime-body; barraging stays pending (Wave 2 operator-class
+    // question). Blurry + tapping + furious + blazing + illusioning +
+    // terraging also stay pending per the consolidation plan.
     for (const slug of ['blazing', 'illusioning', 'tapping', 'terraging', 'barraging', 'blurry', 'furious']) {
       expect(resolveAxisForModifier(slug), `${slug} should not be classified yet`).toBeNull();
     }

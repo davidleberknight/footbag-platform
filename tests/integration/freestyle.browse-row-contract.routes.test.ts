@@ -8,8 +8,7 @@
  * a future change can't silently regress one view to the old shared card.
  *
  * The soft-retired `category` / `component` views are intentionally excluded:
- * they may still use the legacy shared card until they are removed (see
- * VIEW_CATALOG §6 + IMPLEMENTATION_PLAN).
+ * they may still use the legacy shared card until they are removed.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

@@ -394,7 +394,7 @@ describe('removeGovernanceTier3', () => {
 });
 
 describe('applyAutoLinkRevertGrantInTx', () => {
-  it('preserves a paid tier when reverting a legacy-claim grant (regression: B12)', () => {
+  it('preserves a paid tier when reverting a legacy-claim grant', () => {
     const id = freshMember();
     // Paid Tier 1, then a legacy-claim grant (HoF honors) that lifted to Tier 2.
     mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
@@ -446,7 +446,7 @@ describe('applyAutoLinkRevertGrantInTx', () => {
 });
 
 describe('applyPurchaseGrantInTx downgrade guard', () => {
-  it('does not downgrade a Tier 3 member when a lower-tier purchase lands (regression: B15)', () => {
+  it('does not downgrade a Tier 3 member when a lower-tier purchase lands', () => {
     const id = freshMember();
     mts.setGovernanceTier3(ADMIN_ID, id); // tier3, underlying tier1
     const before = tierGrants(id).length;

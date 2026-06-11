@@ -382,7 +382,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
       },
       {
         baseSlug:     'torque',
-        baseOp:       '(pending — torque op_notation not yet authored)',
+        baseOp:       '(pending: torque op_notation not yet authored)',
         compoundSlug: 'big-apple',
         compoundOp:   'CLIP >> (back) SPIN [BOD] > (no plant while) SAME IN [DEX] [BOD] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',
       },
@@ -428,7 +428,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     confidence: 'high',
     decomposesTo: 'spinning + stepping',
     notes:
-      "Red pt2: Surging Modeling Rule. Surging decomposes informally as spinning + stepping but is NOT in the modifier table — it operates as its own primitive at 2 ADD (standalone) and as +1/+2 (modifier).",
+      "Red pt2: Surging Modeling Rule. Surging decomposes informally as spinning + stepping but is NOT in the modifier table: it operates as its own primitive at 2 ADD (standalone) and as +1/+2 (modifier).",
   },
 
   // ── furious ────────────────────────────────────────────────────────
@@ -500,7 +500,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     precedents: [
       {
         baseSlug:     'torque',
-        baseOp:       '(pending — torque op_notation not yet authored)',
+        baseOp:       '(pending: torque op_notation not yet authored)',
         compoundSlug: 'spinal-tap',
         compoundOp:   'TOE > OP OUT [DEX] >> SAME IN [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',
       },
