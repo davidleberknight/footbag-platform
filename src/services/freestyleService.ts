@@ -116,6 +116,7 @@ import {
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
+import { quantityLadderFor } from '../content/freestyleQuantityLadders';
 import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
@@ -1081,6 +1082,26 @@ function shapeTrickPathways(args: {
   return { learn, watch, family };
 }
 
+export interface FreestyleRelatedGroup {
+  key:       string;            // the underlying relating rule
+  label:     string;            // group heading (e.g. "Same family", "Swing elements")
+  rationale: string | null;     // optional one-line WHY for the whole group
+  tricks:    FreestyleRelatedTrick[];
+}
+
+export interface FreestyleQuantityLadderView {
+  ladderLabel: string;
+  rationale:   string;
+  steps: {
+    label:      string;
+    slug:       string | null;
+    detailHref: string | null;  // null for a missing rung
+    adds:       string;
+    isCurrent:  boolean;
+    present:    boolean;        // false = ladder member not active in the dictionary
+  }[];
+}
+
 export interface FreestyleTrickModifierMembership {
   name:        string;          // modifier display name (e.g. "Paradox")
   clusterLabel: string;         // "By modifier" browse-cluster label
@@ -1115,6 +1136,16 @@ export interface FreestyleTrickContent {
   // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
   // This is the CANONICAL (Layer 1) IFPA-family-based relating.
   relatedTricks: FreestyleRelatedTrick[];
+  // `relatedTricks` partitioned into the labeled relationship categories
+  // (Same family / Shares a modifier / Movement neighbours / Built on /
+  // Structural ancestor) by the existing per-row `rule`. Each group carries an
+  // optional one-line rationale; the movement-neighbour group is re-labeled
+  // "Swing elements" for the pendulum/rake pair. Empty groups are dropped.
+  relatedGroups: FreestyleRelatedGroup[];
+  // Quantity ladder this trick belongs to (same base, increasing repetition
+  // count) — a cross-family relationship, NOT a family. Null when not a ladder
+  // member. A ladder member slug absent from the dictionary renders missing.
+  quantityLadder: FreestyleQuantityLadderView | null;
   // "Modifiers on this trick" — one row per modifier link, carrying its
   // browse-cluster label, Movement System axis deep-link (when classified),
   // and optional composition gloss. Always shaped from the trick's modifier
@@ -6054,6 +6085,48 @@ export const freestyleService = {
           });
         })();
 
+        // Related tricks partitioned into labeled relationship groups by the
+        // existing per-row `rule`. Pendulum/rake re-label the movement-neighbour
+        // group as "Swing elements" (completed by the swing; open terminal).
+        const relatedList: FreestyleRelatedTrick[] = dictRow ? buildRelatedTricks(dictRow, allDictRows) : [];
+        const isSwingElement = slug === 'pendulum' || slug === 'rake';
+        const relatedGroups: FreestyleRelatedGroup[] = ([
+          { key: 'family',          label: 'Same family',         rationale: null },
+          { key: 'modifier-prefix', label: 'Shares a modifier',   rationale: null },
+          { key: 'neighborhood',    label: isSwingElement ? 'Swing elements' : 'Movement neighbours',
+            rationale: isSwingElement
+              ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
+              : null },
+          { key: 'parent',          label: 'Built on',            rationale: null },
+          { key: 'grandparent',     label: 'Structural ancestor', rationale: null },
+        ] as const).flatMap(g => {
+          const tricks = relatedList.filter(r => r.rule === g.key);
+          return tricks.length ? [{ key: g.key, label: g.label, rationale: g.rationale, tricks }] : [];
+        });
+
+        // Quantity ladder (same base, increasing repetition count). Cross-family;
+        // never re-homes trick_family. A member absent from the dictionary renders
+        // as a missing rung.
+        const quantityLadder: FreestyleQuantityLadderView | null = (() => {
+          const lad = quantityLadderFor(slug);
+          if (!lad) return null;
+          return {
+            ladderLabel: lad.label,
+            rationale:   lad.rationale,
+            steps: lad.members.map(m => {
+              const row = allDictRows.find(r => r.slug === m);
+              return {
+                label:      row ? row.canonical_name : m.replace(/-/g, ' '),
+                slug:       row ? m : null,
+                detailHref: row ? `/freestyle/tricks/${m}` : null,
+                adds:       row ? (row.adds ?? '') : '',
+                isCurrent:  m === slug,
+                present:    !!row,
+              };
+            }),
+          };
+        })();
+
         return {
           trickName,
           sortName,
@@ -6072,7 +6145,9 @@ export const freestyleService = {
             : null,
           familyTiers:      buildFamilyTiers(familyMembers),
           additionalFamilies,
-          relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
+          relatedTricks:    relatedList,
+          relatedGroups,
+          quantityLadder,
           modifierMemberships,
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),

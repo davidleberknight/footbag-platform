@@ -71,11 +71,12 @@ async function page(slug: string): Promise<string> {
   return res.text;
 }
 
-describe('W1 — Related Tricks carry a reason per row', () => {
-  it('labels a same-family neighbour and a shared-modifier neighbour', async () => {
+describe('W1 — Related Tricks split into labeled relationship groups', () => {
+  it('groups a same-family neighbour and a shared-modifier neighbour under their labels', async () => {
     const html = await page('paradox-torque');
-    expect(html).toContain('related-trick-reason');
-    // torque is the same family; paradox-whirl shares the paradox prefix.
+    expect(html).toContain('related-group-label');
+    // torque is the same family; paradox-whirl shares the paradox prefix —
+    // now rendered as labeled relationship groups, not per-row reasons.
     expect(html).toContain('Same family');
     expect(html).toContain('Shares a modifier');
   });

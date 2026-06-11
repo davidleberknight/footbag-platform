@@ -3378,6 +3378,45 @@ section.home-media { padding-top: 0; }
   color: var(--text-subtle);
 }
 
+/* Labeled relationship groups (Same family / Shares a modifier / Movement
+   neighbours or Swing elements / Built on / Structural ancestor). */
+.related-group { margin-bottom: 1rem; }
+.related-group-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--secondary);
+  margin: 0 0 0.25rem;
+}
+.relationship-why {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Quantity ladder: same base at increasing repetition count. */
+.trick-quantity-ladder .ladder-steps { margin-top: 0.25rem; }
+.ladder-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.ladder-step { font-size: 0.92rem; }
+.ladder-step:not(:last-child)::after {
+  content: "\2192";
+  margin-left: 0.5rem;
+  color: var(--text-subtle);
+}
+.ladder-step-current { font-weight: 700; }
+.ladder-step-here { font-size: 0.78rem; color: var(--text-subtle); }
+.ladder-step-add { font-size: 0.78rem; color: var(--text-muted); }
+.ladder-step-missing { color: var(--text-subtle); }
+.ladder-step-missing-label { font-style: italic; }
+
 /* "Modifiers on this trick" block: one row per modifier link with its
    browse-cluster label, Movement System axis deep-link, and optional gloss. */
 .trick-modifiers .trick-modifier-list { margin-top: 0.5rem; }

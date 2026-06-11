@@ -62,6 +62,9 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
 const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   ['toe-stall', 'inside-stall', 'outside-stall', 'clipper-stall', 'heel-stall', 'sole-stall', 'knee-clipper', 'cross-body-sole-stall'],
   ['head-stall', 'forehead-stall', 'neck-stall', 'shoulder-stall', 'knee-stall', 'cloud-stall'],
+  // Swing elements: completed by the swing action itself, with an open terminal
+  // (stall / kick / catch / follow-on). A movement neighbourhood, not a family.
+  ['pendulum', 'rake'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the

@@ -1,0 +1,30 @@
+{{!--
+  Quantity ladder: the same base action at increasing repetition count
+  (spin -> double-spin -> triple-spin). A cross-family progression, NOT a family
+  and NOT a difficulty list. A rung whose trick is not in the dictionary renders
+  as "missing".
+--}}
+{{#if content.quantityLadder}}
+<section class="content-section trick-quantity-ladder">
+  <div class="section-heading">
+    <h2>{{content.quantityLadder.ladderLabel}}</h2>
+  </div>
+  <ol class="ladder-steps">
+    {{#each content.quantityLadder.steps}}
+    <li class="ladder-step{{#if isCurrent}} ladder-step-current{{/if}}{{#unless present}} ladder-step-missing{{/unless}}">
+      {{#if present}}
+        {{#if isCurrent}}
+          <strong>{{label}}</strong> <span class="ladder-step-here">&larr; here</span>
+        {{else}}
+          <a href="{{detailHref}}">{{label}}</a>
+        {{/if}}
+        <span class="ladder-step-add">{{adds}} ADD</span>
+      {{else}}
+        <span class="ladder-step-missing-label">{{label}} (not yet in the dictionary)</span>
+      {{/if}}
+    </li>
+    {{/each}}
+  </ol>
+  <p class="relationship-why">{{content.quantityLadder.rationale}}</p>
+</section>
+{{/if}}
