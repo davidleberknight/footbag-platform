@@ -70,6 +70,12 @@ describe('GET /freestyle/sets — route + envelope', () => {
     expect(res.status).toBe(200);
     expect(res.status).not.toBe(301);
   });
+
+  it('explains why this surface is an encyclopedia rather than a dictionary', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets');
+    expect(res.text).toContain('Why an encyclopedia instead of a dictionary?');
+    expect(res.text).toContain('explores the movement systems that');
+  });
 });
 
 describe('GET /freestyle/sets — minimalist card contract', () => {

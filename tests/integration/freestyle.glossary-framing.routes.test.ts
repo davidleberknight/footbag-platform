@@ -431,3 +431,35 @@ describe('Glossary edge-case classification notes', () => {
     expect(html).toContain('no recognized kick variant');
   });
 });
+
+describe('Glossary foundational frame — Tricks / Sets / Modifiers + register notes', () => {
+  it('renders the Tricks/Sets/Modifiers orientation frame with the four-surface split', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="tricks-sets-modifiers"');
+    expect(html).toContain('<dt>Trick</dt>');
+    expect(html).toContain('<dt>Set</dt>');
+    expect(html).toContain('<dt>Modifier</dt>');
+    expect(html).toContain('href="/freestyle/operators"');   // transformations surface
+  });
+
+  it('makes the set-vs-trick contrast explicit and gives the modifier tell', async () => {
+    const html = await glossary();
+    expect(html).toContain('initiate movement rather than terminate it');
+    expect(html).toContain('Swirling is a modifier; Swirl is a trick');
+  });
+
+  it('frames Continuous-Control Lineage as an observational grouping, not a formal family', async () => {
+    const html = await glossary();
+    expect(html).toContain('Continuous-Control Lineage');
+    expect(html).toContain('observational grouping');
+    expect(html).toContain('closely related expressions');
+    expect(html).toContain('href="/freestyle/tricks/eclipse"');
+  });
+
+  it('introduces the educational-approximation register with Twirl as the first example', async () => {
+    const html = await glossary();
+    expect(html).toContain('intended to communicate movement feel');
+    expect(html).toContain('Swirl + Spin');
+    expect(html).toContain('Reverse Swirling Osis');
+  });
+});
