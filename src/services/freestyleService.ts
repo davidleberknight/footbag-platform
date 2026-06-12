@@ -7045,10 +7045,12 @@ export const freestyleService = {
 
     // Family-view bucketing is multi-membership-aware.
     // Resolution maps each raw label to the public family it renders under: the
-    // 24 families resolve to themselves; sub-labels fold to the family whose
-    // terminal they conserve; everything else (catch surfaces, modifier
+    // 24 roster families resolve to themselves; sub-labels fold to the family
+    // whose terminal they conserve; everything else (catch surfaces, modifier
     // ecosystems, sparse lineages) resolves to null and is skipped, so only the
-    // 24 families render. A derived branch is contained in its parent root
+    // 24 roster families enter the family view (later split by display tier into
+    // Family-Parent sections plus a Minor-Lineage band). A derived branch is
+    // contained in its parent root
     // (every torque member is also an osis member), so each membership expands
     // to include its ancestor root and the row appears in both sections.
     // No trick_family data is overwritten.
