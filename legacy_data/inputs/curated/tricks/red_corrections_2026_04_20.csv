@@ -1835,3 +1835,18 @@ atomic-ducking-blender,operational_notation,,TOE > OP OUT [DEX] > DUCK [BOD] > O
 diving-reverse-guay,operational_notation,,SET > DIVE [BOD] > SAME IN [DEX] > SAME INSIDE [DEL],op_notation backfill via chassis-mirror: diving chassis (SET > DIVE [BOD]) onto reverse-guay; mirrors published diving-guay with the reverse dex flip. Bracket-count == ADD.
 tapping-reverse-guay,operational_notation,,TOE > OP OUT [DEX] >> SAME IN [DEX] > SAME INSIDE [DEL],op_notation backfill via chassis-mirror: tapping chassis (TOE > OP OUT [DEX] >>) onto reverse-guay; mirrors published tapping-guay with the reverse dex flip. Bracket-count == ADD.
 symposium-blizzard,operational_notation,,SET > (no plant while) OP IN [BOD] [DEX] > OP OUT [DEX] > OP TOE [DEL],op_notation backfill (curator-released from the do-not-re-promote list; the prior 'base notation empty' reason is resolved now that blizzard carries op_notation). symposium fused onto blizzard's leading dex per the bare-symposium convention (mirrors symposium-double-leg-over / symposium-whirl). 4 brackets == 4 ADD.
+pixie-quantum-legover,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],pixie SAME IN dex + quantum OP IN dex + legover (OP OUT [DEX] > SAME TOE [DEL]); mirrors pixie-quantum-butterfly + quantum-legover. 4 brackets == 4 ADD.
+pixie-quantum-legover,notation,,PIXIE QUANTUM LEGOVER,JOB per mechanical uppercase rule.
+sailing,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX],"Sailing set chassis = pixie-illusion prefix (toe set, same-in pixie dex, op-out illusion dex). 2 brackets == 2 ADD. Extracted from the documented Railing Set (rooted sailing) expansion."
+sailing-double-leg-over,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Sailing chassis + double-leg-over (OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]). 5 brackets == 5 ADD.
+sailing-double-leg-over,notation,,SAILING DOUBLE LEG OVER,JOB per mechanical uppercase rule.
+sailing-butterfly,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Sailing chassis + butterfly. 5 brackets == 5 ADD.
+sailing-butterfly,notation,,SAILING BUTTERFLY,JOB per mechanical uppercase rule.
+sailing-mirage,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP TOE [DEL],Sailing chassis + mirage. 4 brackets == 4 ADD.
+sailing-mirage,notation,,SAILING MIRAGE,JOB per mechanical uppercase rule.
+sailing-legover,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Sailing chassis + legover. 4 brackets == 4 ADD.
+sailing-legover,notation,,SAILING LEGOVER,JOB per mechanical uppercase rule.
+sailing-eggbeater,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Sailing chassis + eggbeater (>> X-dex marker preserved). 5 brackets == 5 ADD.
+sailing-eggbeater,notation,,SAILING EGGBEATER,JOB per mechanical uppercase rule.
+sailing-whirl,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],Sailing chassis + whirl. 5 brackets == 5 ADD.
+sailing-whirl,notation,,SAILING WHIRL,JOB per mechanical uppercase rule.

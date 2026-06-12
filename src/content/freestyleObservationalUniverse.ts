@@ -837,7 +837,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Dimmier", "slug": "dimmier", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Dimmiest", "slug": "dimmiest", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Diving", "slug": "diving", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Dominatrix", "slug": "dominatrix", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Dorshatrix", "slug": "dorshatrix", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Double Bubba", "slug": "double-bubba", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Double Drifter", "slug": "double-drifter", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -880,12 +879,10 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Footbag Moves", "slug": "footbag-moves", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "FOOTBAG WORLDWIDE", "slug": "footbag-worldwide", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Forquelift", "slug": "forquelift", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Fracture", "slug": "fracture", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Frantic Butterfly", "slug": "frantic-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic Clipper", "slug": "frantic-clipper", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic Flail", "slug": "frantic-flail", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic Illusion", "slug": "frantic-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Frantic Legover", "slug": "frantic-legover", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic Mirage", "slug": "frantic-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic op Butterfly", "slug": "frantic-op-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Frantic Pickup", "slug": "frantic-pickup", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -959,7 +956,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Mama Curve", "slug": "mama-curve", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Massacre", "slug": "massacre", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Maverick", "slug": "maverick", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Merlin", "slug": "merlin", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Midtime Toe near Illusion", "slug": "midtime-toe-near-illusion", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Midtime Toe near Mirage", "slug": "midtime-toe-near-mirage", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Miraging", "slug": "miraging", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1021,10 +1017,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "S&M Smasher", "slug": "sandm-smasher", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sabotage", "slug": "sabotage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Saildown", "slug": "saildown", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Sailing Butterfly", "slug": "sailing-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Sailing Eggbeater", "slug": "sailing-eggbeater", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Sailing Legover", "slug": "sailing-legover", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Sailing Mirage", "slug": "sailing-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing Pickup", "slug": "sailing-pickup", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing ss Butterfly", "slug": "sailing-ss-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing ss Double Legover", "slug": "sailing-ss-double-legover", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1374,7 +1366,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Reverse Swirl Dragon", "slug": "reverse-swirl-dragon", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Ripwalk Swirl", "slug": "ripwalk-swirl", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing DLO", "slug": "sailing-dlo", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Sailing Whirl", "slug": "sailing-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Scattered Whirl", "slug": "scattered-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sidewalk Swirl", "slug": "sidewalk-swirl", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Slapping DLO", "slug": "slapping-dlo", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1413,7 +1404,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1338,
+    "total": 1329,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1421,8 +1412,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 178,
-    "lexicalArchive": 1154,
+    "promotionFrontier": 176,
+    "lexicalArchive": 1147,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 15,
@@ -1433,8 +1424,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 113
       },
       "unresolved_candidate": {
-        "names": 50,
-        "distinctStructures": 50
+        "names": 48,
+        "distinctStructures": 48
       },
       "alias": {
         "names": 425,
@@ -1449,8 +1440,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 4
       },
       "low_confidence": {
-        "names": 639,
-        "distinctStructures": 639
+        "names": 632,
+        "distinctStructures": 632
       },
       "doctrine_unresolved": {
         "names": 90,
@@ -1460,19 +1451,19 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "ready": 13,
     "frontier": 49,
     "doctrineBlocked": 203,
-    "folkUnresolved": 695,
-    "parserUnresolved": 378,
+    "folkUnresolved": 692,
+    "parserUnresolved": 372,
     "promotionReadyPct": 5,
     "doctrineBlockedPct": 15,
     "folkUnresolvedPct": 52,
     "parserUnresolvedPct": 28,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 582,
-      "FM": 379,
-      "PB": 258,
+      "SG": 580,
+      "FM": 375,
+      "PB": 257,
       "FB": 107,
-      "MULTI": 12
+      "MULTI": 10
     },
     "generatedOn": "2026-06-12"
   };

@@ -1,0 +1,167 @@
+trick_name,sort_name,record_type,records,status,canonical_target,matched_via
+Motion,Motion (op),trick_consecutive,3,orphan,,-
+Grifter,Grifter (ss),trick_consecutive,2,orphan,,-
+Locomotion,Stepping Motion (far),trick_consecutive,2,orphan,,-
+Blink,Swirling Toe (op) (rev),trick_consecutive,1,orphan,,-
+Fracture,Sailing DLO (ss),trick_consecutive,1,orphan,,-
+Frantic Legover,Pixie Quantum Legover (op),trick_consecutive,1,orphan,,-
+Gyro Toe,Gyro Toe (op),trick_consecutive,1,orphan,,-
+Merlin,Miraging Symp Mirage (op),trick_consecutive,1,orphan,,-
+Pixie DSO,Pixie DSO (op),trick_consecutive,1,orphan,,-
+Pixie DSO (ss),Pixie DSO (ss),trick_consecutive,1,orphan,,-
+Solestice,Osis Flapper,trick_consecutive,1,orphan,,-
+Spanishfly,Ducking Double Down (op),trick_consecutive,1,orphan,,-
+Toe Spinning Toe,Toe Spinning Toe (op),trick_consecutive,1,orphan,,-
+Unique Fearless,Unique 5-ADD,trick_consecutive_dex,5,scoring-category,(run-quality tier),-
+Drifter,Drifter (ss),trick_consecutive,3,canonical,drifter,trick_name
+Food Processor,Stepping Blender (op),trick_consecutive,3,canonical,food-processor,trick_name
+Spinning Whirl,Spinning Whirl (op),trick_consecutive,3,canonical,spinning-whirl,trick_name
+DSO,Legover (double) (op),trick_consecutive,2,alias,double-leg-over,trick_name
+Double Spinning Clipper,Double Spinning Clipper (op),trick_consecutive,2,canonical,double-spinning-clipper,trick_name
+Dyno,Blender (ss) (rev),trick_consecutive,2,canonical,dyno,trick_name
+Eclipse,Eclipse (op),trick_consecutive,2,canonical,eclipse,trick_name
+Gyro Clipper,Spinning Clipper (ss),trick_consecutive,2,canonical,gyro-clipper,trick_name
+Jani Walker,Barraging Butterfly (op),trick_consecutive,2,canonical,jani-walker,trick_name
+Mullet,Whirl (op) (ducking) (symp),trick_consecutive,2,canonical,mullet,trick_name
+Paradox Blender,Blender (op),trick_consecutive,2,canonical,paradox-blender,trick_name
+Paradox Drifter,Drifter (far),trick_consecutive,2,canonical,paradox-drifter,trick_name
+Paradox Symposium Whirl,Whirl (op) (symp),trick_consecutive,2,canonical,paradox-symposium-whirl,trick_name
+Paradox Torque,Torque (op),trick_consecutive,2,canonical,paradox-torque,trick_name
+Paste,Pixie Pickup (op),trick_consecutive,2,canonical,paste,trick_name
+Ripstein,Swirl (ss) (double),trick_consecutive,2,canonical,ripstein,trick_name
+Smog (ss),Pixie DLO (ss),trick_consecutive,2,canonical,smog,trick_name
+Spender,Spinning Blender (op),trick_consecutive,2,canonical,spender,trick_name
+Stepping Ducking Paste,Pixie Pickup (op) (ducking),trick_consecutive,2,canonical,pixie-pickup,sort_name
+Swifter,Stepping Swirl (op),trick_consecutive,2,alias,stepping-swirl,trick_name
+Swirl,Swirl (ss),trick_consecutive,2,canonical,swirl,trick_name
+Symposium Eggbeater,Eggbeater (op) (symp),trick_consecutive,2,canonical,symposium-eggbeater,trick_name
+Torque,Torque (ss),trick_consecutive,2,canonical,torque,trick_name
+Unique 3-Dex,Unique 3-Dex,trick_consecutive_dex,2,scoring-category,(run-quality tier),-
+Void,Spinning Drifter (op),trick_consecutive,2,alias,spinning-drifter,trick_name
+Whirr,Whirl (ss) (double),trick_consecutive,2,alias,double-whirl,trick_name
+Zulu Clipper,Diving Clipper (op),trick_consecutive,2,canonical,diving-clipper,sort_name
+2-Bag Juggle,Juggle (2-bag) (ss),trick_consecutive_juggle,1,alias,2-bag-juggling,trick_name
+Alpine PLO,Pixie Legover (op) (ducking),trick_consecutive,1,canonical,pixie-legover,sort_name
+Around The World,ATW (in),trick_consecutive,1,canonical,around-the-world,trick_name
+Assassin,Pixie Mirage (op) (ducking),trick_consecutive,1,canonical,assassin,trick_name
+Assassin (ss),Pixie Mirage (ss) (diving),trick_consecutive,1,canonical,assassin,trick_name
+Atom Smasher,Atomic Mirage (op),trick_consecutive,1,canonical,atom-smasher,trick_name
+Atomic Pickup,Atomic Pickup (op),trick_consecutive,1,canonical,atomic-pickup,trick_name
+Backside Magellan,Pixie Legover (ss) (symp),trick_consecutive,1,canonical,pixie-legover,sort_name
+Backside Paste,Pixie Pickup (op) (symp),trick_consecutive,1,canonical,pixie-pickup,sort_name
+Barfly,Double down (op),trick_consecutive,1,canonical,barfly,trick_name
+Barrage,Barrage (op),trick_consecutive,1,canonical,barrage,trick_name
+Bladerunner,Atomic Eggbeater (op),trick_consecutive,1,canonical,bladerunner,trick_name
+Blazing Butterfly,Whirling Butterfly (ss),trick_consecutive,1,canonical,blazing-butterfly,trick_name
+Blender,Blender (ss),trick_consecutive,1,canonical,blender,trick_name
+Blurriest,Stepping Double Down (op),trick_consecutive,1,canonical,blurriest,trick_name
+Blurry Drifter,Stepping Drifter (op),trick_consecutive,1,alias,tombstone,sort_name
+Blurry Whirl,Stepping Whirl (op),trick_consecutive,1,canonical,blurry-whirl,trick_name
+Butterfly,Butterfly (ss),trick_consecutive,1,canonical,butterfly,trick_name
+Butterfly Swirl,Butterfly Swirl (ss),trick_consecutive,1,canonical,butterfly-swirl,trick_name
+Clipper Stall,Clipper Stall,trick_consecutive,1,canonical,clipper-stall,trick_name
+Clipper Stall (ss),Clipper Stall (ss),trick_consecutive,1,canonical,clipper-stall,trick_name
+Cross-Body Sole Stall,Flapper (op),trick_consecutive,1,canonical,cross-body-sole-stall,trick_name
+DDD,Double down (ss),trick_consecutive,1,alias,down-double-down,trick_name
+Dada Curve,Dada Curve (ss),trick_consecutive,1,canonical,dada-curve,trick_name
+Diving Clipper,Diving Clipper (ss),trick_consecutive,1,canonical,diving-clipper,trick_name
+Diving Mirage,Mirage (diving) (ss),trick_consecutive,1,canonical,diving-mirage,trick_name
+Diving Osis,Osis (diving) (ss),trick_consecutive,1,canonical,diving-osis,trick_name
+Diving Smudge,Pixie Illusion (diving) (ss),trick_consecutive,1,canonical,diving-smudge,trick_name
+Double Around The World,ATW (in) (double),trick_consecutive,1,canonical,double-around-the-world,trick_name
+Double Dyno,Blender (ss) (rev) (double),trick_consecutive,1,canonical,blender,sort_name
+Double Fairy,Illusion (ss) (double),trick_consecutive,1,canonical,double-fairy,trick_name
+Double Leg Over,DLO (op),trick_consecutive,1,canonical,double-leg-over,trick_name
+Double Leg Over (ss),DLO (ss),trick_consecutive,1,canonical,double-leg-over,trick_name
+Double Orbit,ATW (out) (double),trick_consecutive,1,canonical,double-orbit,trick_name
+Double Spinning Butterfly,Double Spinning Butterfly (op),trick_consecutive,1,canonical,double-spinning-butterfly,trick_name
+Double Spinning Osis,Double Spinning Osis (op),trick_consecutive,1,canonical,double-spinning-osis,trick_name
+Double Whip,Whirl (rev) (ss) (double),trick_consecutive,1,canonical,whirl,sort_name
+Ducking Butterfly,Ducking Butterfly (op),trick_consecutive,1,canonical,ducking-butterfly,trick_name
+Ducking Clipper,Ducking Clipper (op),trick_consecutive,1,canonical,ducking-clipper,trick_name
+Ducking Osis,Ducking Osis (op),trick_consecutive,1,canonical,ducking-osis,trick_name
+Ducking Paradox Torque,Torque (ducking) (op),trick_consecutive,1,canonical,ducking-paradox-torque,trick_name
+Dyno (op),Blender (op) (rev),trick_consecutive,1,canonical,dyno,trick_name
+Eclipse (ss),Eclipse (ss),trick_consecutive,1,canonical,eclipse,trick_name
+Eggbeater,Atomic Legover (op),trick_consecutive,1,canonical,eggbeater,trick_name
+Eggbeater,Eggbeater (op),trick_consecutive,1,canonical,eggbeater,trick_name
+Eggbeater (ss),Eggbeater (ss),trick_consecutive,1,canonical,eggbeater,trick_name
+Enterrage,Terraging Legover (op),trick_consecutive,1,canonical,terraging-legover,sort_name
+Fairy Double Leg Over (ss),Fairy DLO (ss),trick_consecutive,1,canonical,fairy-double-leg-over,trick_name
+Fairy Legover (ss),Fairy Legover (ss),trick_consecutive,1,canonical,fairy-legover,trick_name
+Fairy Pickup (ss),Fairy Pickup (ss),trick_consecutive,1,canonical,fairy-pickup,trick_name
+Flail (ss),Illusion (ss) (symp),trick_consecutive,1,canonical,flail,trick_name
+Genesis,Barraging Whirl (op),trick_consecutive,1,canonical,genesis,trick_name
+Gyro Osis,Spinning Osis (ss),trick_consecutive,1,canonical,gyro-osis,trick_name
+Gyro Symp Swirl,Spinning Swirl (ss) (symp),trick_consecutive,1,canonical,spinning-swirl,sort_name
+Gyro Whirling Swirl,Spinning Whirling Swirl (ss),trick_consecutive,1,canonical,gyro-whirling-swirl,trick_name
+Hatchet,Diving Whirl (ss),trick_consecutive,1,canonical,hatchet,trick_name
+Infinity,Butterfly (op),trick_consecutive,1,canonical,butterfly,sort_name
+Infinity Swirl,Butterfly Swirl (op),trick_consecutive,1,canonical,butterfly-swirl,sort_name
+Inspinning Clipper,Inspinning Clipper (op),trick_consecutive,1,canonical,inspinning-clipper,trick_name
+Inspinning Osis,Inspinning Osis (op),trick_consecutive,1,canonical,inspinning-osis,trick_name
+Legover,Legover (op),trick_consecutive,1,canonical,legover,trick_name
+Magellan,Pixie Legover (ss),trick_consecutive,1,canonical,magellan,trick_name
+Matador,Nuclear Butterfly (op),trick_consecutive,1,canonical,matador,trick_name
+Mirage,Mirage (op),trick_consecutive,1,canonical,mirage,trick_name
+Mobius,Spinning Torque (ss),trick_consecutive,1,canonical,mobius,trick_name
+Montage,Spinning Whirl (op) (symp) (ducking),trick_consecutive,1,canonical,montage,trick_name
+Nemesis,Barraging Double Down (op),trick_consecutive,1,canonical,nemesis,trick_name
+Omelette,Atomic Illusion (op),trick_consecutive,1,canonical,omelette,trick_name
+Osis,Osis (ss),trick_consecutive,1,canonical,osis,trick_name
+PLO,Pixie Legover (op),trick_consecutive,1,alias,pixie-legover,trick_name
+Paste (ss),Pixie Pickup (ss),trick_consecutive,1,canonical,paste,trick_name
+Pickup (ss),Pickup (ss),trick_consecutive,1,canonical,pickup,trick_name
+Pigbeater,Pixie Eggbeater,trick_consecutive,1,canonical,pigbeater,trick_name
+Pigbeater (ss),Pixie Eggbeater (ss),trick_consecutive,1,canonical,pigbeater,trick_name
+Pixie Double Pickup (ss),Pixie Double Pickup (ss),trick_consecutive,1,canonical,pixie-double-pickup,trick_name
+Rev Whirl,Whirl (rev) (ss),trick_consecutive,1,canonical,rev-whirl,trick_name
+Rev Whirl (op),Whirl (rev) (op),trick_consecutive,1,canonical,rev-whirl,trick_name
+Reverse Swirl,Swirl (rev) (ss),trick_consecutive,1,alias,swirl,trick_name
+Ripped Warrior,Stepping Butterfly (ducking) (op),trick_consecutive,1,canonical,ripped-warrior,trick_name
+Ripwalk,Stepping Butterfly (op),trick_consecutive,1,canonical,ripwalk,trick_name
+Scorpion's Tail,Spinning Double Down (op),trick_consecutive,1,canonical,scorpions-tail,trick_name
+Sidewalk,Stepping Butterfly (ss),trick_consecutive,1,canonical,sidewalk,trick_name
+Smear,Pixie Mirage (op),trick_consecutive,1,canonical,smear,trick_name
+Smear (ss),Pixie Mirage (ss),trick_consecutive,1,canonical,smear,trick_name
+Smog,Pixie DLO (op),trick_consecutive,1,canonical,smog,trick_name
+Smudge,Pixie Illusion (op),trick_consecutive,1,canonical,smudge,trick_name
+Smudge (ss),Pixie Illusion (ss),trick_consecutive,1,canonical,smudge,trick_name
+Spinning Butterfly,Spinning Butterfly (op),trick_consecutive,1,canonical,spinning-butterfly,trick_name
+Spinning Clipper,Spinning Clipper (op),trick_consecutive,1,canonical,spinning-clipper,trick_name
+Spinning Ducking Butterfly,Spinning Butterfly (op) (ducking),trick_consecutive,1,canonical,spinning-ducking-butterfly,trick_name
+Spinning Ducking Osis,Spinning Osis (ducking) (op),trick_consecutive,1,canonical,spinning-ducking-osis,trick_name
+Spinning Osis,Spinning Osis (op),trick_consecutive,1,canonical,spinning-osis,trick_name
+Spinning Symp Swirl,Spinning Swirl (op) (symp),trick_consecutive,1,canonical,spinning-swirl,sort_name
+Spinning Symposium Whirl,Spinning Whirl (op) (symp),trick_consecutive,1,canonical,spinning-symposium-whirl,trick_name
+Stepping Clipper,Stepping Clipper (ss),trick_consecutive,1,canonical,stepping-clipper,trick_name
+Stepping Ducking Blurry Whirl,Stepping Whirl (op) (ducking),trick_consecutive,1,canonical,stepping-whirl,sort_name
+Stepping Ducking Magellan,Pixie Legover (ss) (diving),trick_consecutive,1,canonical,pixie-legover,sort_name
+Stepping Ducking Osis,Stepping Osis (op) (ducking),trick_consecutive,1,canonical,stepping-ducking-osis,trick_name
+Stepping Ducking Pigbeater,Pixie Eggbeater (ducking) (op),trick_consecutive,1,canonical,pixie-eggbeater,sort_name
+Stepping Ducking Smog,Pixie DLO (op) (ducking),trick_consecutive,1,alias,smog,sort_name
+Stepping Ducking Smudge,Pixie Illusion (ducking) (op),trick_consecutive,1,alias,smudge,sort_name
+Stepping Osis,Stepping Osis (ss),trick_consecutive,1,canonical,stepping-osis,trick_name
+Superfly,Double Down (op) (symp),trick_consecutive,1,canonical,superfly,trick_name
+Symposium Mirage,Mirage (op) (symp),trick_consecutive,1,canonical,symposium-mirage,trick_name
+Symposium Mirage (ss),Mirage (ss) (symp),trick_consecutive,1,canonical,symposium-mirage,trick_name
+Symposium Swirl (op),Swirl (symp) (op),trick_consecutive,1,canonical,symposium-swirl,trick_name
+Symposium Whirl,Whirl (ss) (symp),trick_consecutive,1,canonical,symposium-whirl,trick_name
+Symposium Whirling Swirl,Whirling Swirl (ss) (symp),trick_consecutive,1,canonical,symposium-whirling-swirl,trick_name
+Tap,Atomic Mirage (ss),trick_consecutive,1,canonical,tap,trick_name
+Tapping Legover,Atomic Legover (ss),trick_consecutive,1,canonical,tapping-legover,trick_name
+Tapping Pickup,Atomic Pickup (ss),trick_consecutive,1,canonical,tapping-pickup,trick_name
+Terrage,Terrage (ss),trick_consecutive,1,canonical,terrage,trick_name
+Toe Blur,Quantum Mirage (op),trick_consecutive,1,alias,quantum-mirage,trick_name
+Toe Ducking Legover,Toe Ducking Legover (op),trick_consecutive,1,canonical,toe-ducking-legover,trick_name
+Toe Gyro Mirage,Toe Spinning Mirage (ss),trick_consecutive,1,canonical,toe-gyro-mirage,trick_name
+Tomahawk,Whirl (op) (ducking),trick_consecutive,1,canonical,tomahawk,trick_name
+Tombstone,Stepping Drifter (ss),trick_consecutive,1,canonical,tombstone,trick_name
+Triple Orbit,ATW (out) (triple),trick_consecutive,1,canonical,triple-orbit,trick_name
+Unique Beastly,Unique 6-ADD,trick_consecutive_dex,1,scoring-category,(run-quality tier),-
+Vortex,Spinning Drifter (ss),trick_consecutive,1,canonical,vortex,trick_name
+Weaving Magellan,Pixie Legover (ducking) (ss),trick_consecutive,1,canonical,pixie-legover,sort_name
+Weaving Pigbeater,Pixie Eggbeater (ducking) (ss),trick_consecutive,1,canonical,pixie-eggbeater,sort_name
+Whirl,Whirl (ss),trick_consecutive,1,canonical,whirl,trick_name
+Whirling Swirl,Whirling Swirl (ss),trick_consecutive,1,canonical,whirling-swirl,trick_name
+Whirlygig,Stepping Whirl (op) (symp),trick_consecutive,1,alias,stepping-symposium-whirl,trick_name
