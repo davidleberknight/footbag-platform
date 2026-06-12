@@ -5188,10 +5188,10 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 // ---------------------------------------------------------------------------
 // Curator-authored prose backing the universal-shell template's single-page ordering.
 // Prose lives in freestyle_tricks columns (short_description / execution_summary
-// / learning_notes / prerequisite_notes / featured_media_id). Service shapes
-// the row into Ux2PilotData when ANY of the prose columns is populated. A row
-// with all five columns null falls through to the legacy ordering branch in
-// the shell. No service-layer allowlist; section presence is data-driven.
+// / learning_notes / prerequisite_notes). Service shapes the row into
+// Ux2PilotData when ANY of the prose columns is populated. A row with all four
+// columns null falls through to the legacy ordering branch in the shell. No
+// service-layer allowlist; section presence is data-driven.
 
 // Featured-media empty-state copy is derived from whether the trick has a
 // record holder. Rows with records steer the reader to the Passback Records

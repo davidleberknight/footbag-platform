@@ -1428,6 +1428,44 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
 
+    /**
+     * Sign the two presigned-PUT targets for one async curator video upload
+     * (source video + poster). The browser PUTs the bytes directly to storage
+     * with these URLs, so large source bytes never traverse nginx or
+     * CloudFront. Adapter access stays inside the service; the controller owns
+     * only request validation and the media-job row.
+     */
+    async signCuratorUploadTargets(input: {
+      sourceVideoKey: string;
+      videoContentType: string;
+      sourcePosterKey: string;
+      posterContentType: string;
+      ttlSeconds: number;
+    }): Promise<{ videoUrl: string; posterUrl: string }> {
+      const [videoUrl, posterUrl] = await Promise.all([
+        storage.generatePresignedPutUrl(input.sourceVideoKey, input.videoContentType, input.ttlSeconds),
+        storage.generatePresignedPutUrl(input.sourcePosterKey, input.posterContentType, input.ttlSeconds),
+      ]);
+      return { videoUrl, posterUrl };
+    },
+
+    /**
+     * Read the uploaded sizes of a curator video job's source video and poster
+     * objects (null when an object is not present yet). The presigned PUT
+     * cannot bind a size, so finalize measures the bytes actually uploaded
+     * against the per-type maxima; adapter access stays inside the service.
+     */
+    async headCuratorUploadSizes(input: {
+      sourceVideoKey: string;
+      sourcePosterKey: string;
+    }): Promise<{ videoSize: number | null; posterSize: number | null }> {
+      const [videoSize, posterSize] = await Promise.all([
+        storage.headSize(input.sourceVideoKey),
+        storage.headSize(input.sourcePosterKey),
+      ]);
+      return { videoSize, posterSize };
+    },
+
     async uploadUrlReference(
       input: CuratorUrlReferenceInput,
     ): Promise<CuratorUrlReferenceResult> {

@@ -181,26 +181,12 @@ beforeAll(async () => {
     confidence:    'probable',
   });
 
-  // Curator-reference media (separate from member-uploaded media_items).
-  // Seeds two coverage tiers so the trick-dictionary chip exercises all
-  // three states: 'tutorial' (whirl), 'demo' (legover), 'none' (everything else).
-  db.prepare(`
-    INSERT INTO freestyle_media_sources (source_id, source_name, source_type, url, creator)
-    VALUES ('tt_youtube', 'WorldFootbag YouTube — Tricks of the Trade', 'youtube', NULL, NULL),
-           ('footbag_finland', 'Footbag Finland', 'youtube', NULL, NULL)
-  `).run();
-  db.prepare(`
-    INSERT INTO freestyle_media_assets (id, media_type, url, title, source_id, review_status, is_active)
-    VALUES ('fma-tt-whirl',     'video', 'https://example.test/tt-whirl',     'TT — Whirl',    'tt_youtube',     'curated', 1),
-           ('fma-finland-lego', 'video', 'https://example.test/finland-lego', 'Legover demo',  'footbag_finland', 'curated', 1)
-  `).run();
-  db.prepare(`
-    INSERT INTO freestyle_media_links (media_id, entity_type, entity_id, is_primary)
-    VALUES ('fma-tt-whirl',     'trick', 'whirl',   1),
-           ('fma-finland-lego', 'trick', 'legover', 1)
-  `).run();
+  // Trick-dictionary media-coverage fixtures. Coverage comes from the
+  // curator-tagged channel (media_items + media_tags + tags); a clip's
+  // source_id sets its tier. The fixtures below seed tutorial-tier and
+  // demo-tier clips so the dictionary chip exercises all three states:
+  // 'tutorial', 'demo', and 'none' (every trick with no tagged clip).
 
-  // ── Phase 3 fixtures: trick-detail Reference Media wording cases ─────────
   // The trick-detail page reads `listMediaByTrickTag` (curator channel:
   // media_items + media_tags + tags). Three dedicated tricks with curator-
   // channel coverage exercise the three Reference Media heading states.
@@ -310,10 +296,9 @@ beforeAll(async () => {
     description: 'no notation populated', notation: null, sort_order: 65,
   });
 
-  // Curator-tagged channel — covers a trick that has NO legacy
-  // freestyle_media_links row but DOES have curator-tagged tutorial media
-  // via media_items + media_tags + tags. Exercises the Option-A UNION fix
-  // in `freestyleMediaLinks.listCoveredTrickSlugsWithSource` (db.ts).
+  // A trick whose tutorial-tier coverage comes from the curator-tagged
+  // channel (media_items + media_tags + tags). It must surface as
+  // 'tutorial' on the dictionary index media chip.
   insertFreestyleTrick(db, {
     slug:           'curator-only-trick',
     canonical_name: 'curator only trick',
@@ -321,7 +306,7 @@ beforeAll(async () => {
     base_trick:     'curator-only-trick',
     trick_family:   'curator-only-trick',
     category:       'compound',
-    description:    'curator-tagged tutorial coverage only; no legacy freestyle_media_links row',
+    description:    'curator-tagged tutorial coverage only',
     aliases_json:   '[]',
     sort_order:     200,
   });
@@ -952,14 +937,12 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Demo available');
   });
 
-  it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media (UNION fix)', async () => {
+  it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    // `curator-only-trick` has no row in freestyle_media_links; its only
-    // tutorial-tier coverage is via media_items + media_tags + tags
-    // (curator-tagged channel with source_id='tt_youtube'). Pre-fix this
-    // trick would render no media chip; post-fix the UNION'd
-    // listCoveredTrickSlugsWithSource query surfaces it as 'tutorial'.
+    // `curator-only-trick`'s tutorial-tier coverage comes from the curator
+    // channel: media_items + media_tags + tags with source_id='tt_youtube'.
+    // listCoveredTrickSlugsWithSource must surface it as 'tutorial'.
     const slugIdx = res.text.indexOf('data-trick-slug="curator-only-trick"');
     expect(slugIdx).toBeGreaterThan(-1);
     const cardClose = res.text.indexOf('</article>', slugIdx);

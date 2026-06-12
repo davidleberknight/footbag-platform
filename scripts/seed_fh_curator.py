@@ -635,47 +635,36 @@ def _url_ref_media_id(url: str, platform: str) -> str:
 
 def _bootstrap_media_sources(con: sqlite3.Connection) -> int:
     """Populate media_sources (FK target for freestyle_tricks sidecar
-    sourceId references). Reads the canonical CSV at
+    sourceId references). Reads the canonical committed CSV at
     legacy_data/inputs/curated/media/media_sources.csv directly so the
     seeder is self-sufficient on a fresh schema (does not require the
-    legacy data load to run first). INSERT OR IGNORE so re-runs and
-    coexistence with the legacy loader (script 21) are idempotent.
+    legacy data load to run first). INSERT OR IGNORE so re-runs are
+    idempotent.
 
-    Cross-tree dependency on legacy_data/ is acceptable as a temporary
-    measure: Phase E removes freestyle_media_sources entirely and
-    replaces this bootstrap with a sidecar-driven (or admin-UI-driven)
-    population path under /curated/.
-
-    Falls back to the legacy table if the CSV is missing (e.g. an
-    operator running against a checkout without the legacy_data
-    subtree populated).
+    The committed CSV is the sole source. Raises if it is missing rather
+    than seeding nothing, so a misconfigured checkout fails loudly instead
+    of leaving the sidecar sourceId FK target empty.
     """
     csv_path = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "media" / "media_sources.csv"
-    if csv_path.exists():
-        import csv as _csv
-        rows: list[dict] = []
-        with csv_path.open(newline="", encoding="utf-8") as f:
-            reader = _csv.DictReader(f)
-            for row in reader:
-                rows.append({
-                    "source_id":   row["source_id"].strip(),
-                    "source_name": row["source_name"].strip(),
-                    "source_type": row["source_type"].strip(),
-                    "url":         (row.get("url") or "").strip() or None,
-                    "creator":     (row.get("creator") or "").strip() or None,
-                })
-        cur = con.executemany(
-            "INSERT OR IGNORE INTO media_sources "
-            "(source_id, source_name, source_type, url, creator) "
-            "VALUES (:source_id, :source_name, :source_type, :url, :creator)",
-            rows,
-        )
-        return cur.rowcount
-    # Legacy fallback: copy from freestyle_media_sources (which itself was
-    # loaded from the same CSV by legacy_data script 21).
-    cur = con.execute(
-        "INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator) "
-        "SELECT source_id, source_name, source_type, url, creator FROM freestyle_media_sources"
+    if not csv_path.exists():
+        raise FileNotFoundError(f"media_sources bootstrap CSV not found: {csv_path}")
+    import csv as _csv
+    rows: list[dict] = []
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = _csv.DictReader(f)
+        for row in reader:
+            rows.append({
+                "source_id":   row["source_id"].strip(),
+                "source_name": row["source_name"].strip(),
+                "source_type": row["source_type"].strip(),
+                "url":         (row.get("url") or "").strip() or None,
+                "creator":     (row.get("creator") or "").strip() or None,
+            })
+    cur = con.executemany(
+        "INSERT OR IGNORE INTO media_sources "
+        "(source_id, source_name, source_type, url, creator) "
+        "VALUES (:source_id, :source_name, :source_type, :url, :creator)",
+        rows,
     )
     return cur.rowcount
 

@@ -2074,12 +2074,11 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
   add_formula_status:          string | null;
   operational_notation:        string | null;
   operational_notation_source: string | null;
-  // Editorial prose and featured-media columns.
+  // Editorial prose columns.
   short_description:           string | null;
   execution_summary:           string | null;
   learning_notes:              string | null;
   prerequisite_notes:          string | null;
-  featured_media_id:           string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -2098,10 +2097,6 @@ export interface FreestyleTrickRowWithStatus extends FreestyleTrickRow {
 export interface FreestyleTrickAliasRow {
   alias_text: string;
   trick_slug: string;
-}
-
-export interface FreestyleMediaCoveredSlugRow {
-  slug: string;
 }
 
 export interface FreestyleTrickModifierRow {
@@ -2170,7 +2165,7 @@ export const freestyleTricks = {
            computed_adds, add_formula_status,
            operational_notation, operational_notation_source,
            short_description, execution_summary, learning_notes,
-           prerequisite_notes, featured_media_id
+           prerequisite_notes
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },
@@ -2225,43 +2220,17 @@ export const freestyleTrickAliases = {
 };
 
 export const freestyleMediaLinks = {
-  // Distinct trick slugs with at least one media link. Used by the index
-  // page to compute the "Video available" / "No video yet" indicator
-  // without loading full media rows.
-  get listCoveredTrickSlugs() { return db.prepare(`
-    SELECT DISTINCT entity_id AS slug
-    FROM freestyle_media_links
-    WHERE entity_type = 'trick'
-  `); },
-
   // Per-trick media-coverage rows joined to source_id. One row per
   // (trick_slug, source_id) pair (deduped). Drives the tier-aware media
-  // chip on the trick-dictionary ADD view: service classifies each trick
-  // as 'tutorial' (any tutorial-tier source linked), 'demo' (only
-  // demo-/record-tier), or 'none' (no rows here at all).
-  // Drives the dictionary-index media-coverage chip ('Tutorial available' /
-  // 'Demo only' / 'No video yet'). Returns one row per (trick slug, source_id)
-  // pair across BOTH parallel media surfaces:
-  //   1. Legacy curated channel (freestyle_media_* tables; loaders 21/22/23
-  //      from inputs/curated/media/*.csv).
-  //   2. Curator-tagged channel (media_items + media_tags + tags; seeded
-  //      from curated/freestyle_tricks/*.json sidecars).
-  // The two channels are intentionally NOT merged at the storage layer per
-  // CURATED_MEDIA_PLAN (Option A separation). They ARE merged at this read
-  // surface so the dictionary index sees coverage from either source.
-  // Service-layer 'tutorial beats demo' precedence handles deduplication when
-  // the same slug surfaces from both channels.
+  // chip on the trick-dictionary ADD view and the dictionary-index
+  // media-coverage chip ('Tutorial available' / 'Demo only' / 'No video
+  // yet'): the service classifies each trick as 'tutorial' (any
+  // tutorial-tier source tagged), 'demo' (only demo-/record-tier), or
+  // 'none' (no rows here at all).
+  // Coverage comes from the curator-tagged channel: a media_items row
+  // tagged with a trick's '#slug' tag is coverage for that trick, and
+  // mi.source_id carries the tier the service classifies on.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
-    SELECT DISTINCT
-      l.entity_id   AS slug,
-      a.source_id   AS source_id
-    FROM freestyle_media_links AS l
-    INNER JOIN freestyle_media_assets AS a ON a.id = l.media_id
-    WHERE l.entity_type = 'trick'
-      AND a.source_id IS NOT NULL
-
-    UNION
-
     SELECT DISTINCT
       ft.slug       AS slug,
       mi.source_id  AS source_id

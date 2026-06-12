@@ -18,13 +18,10 @@
  *   - Purge eligibility orchestration (OperationsPlatformService decides which
  *     members qualify and calls into the row-level primitives)
  *
- * Current: the lifecycle entry points are unbuilt: nothing sets deleted_at or
- *   is_deceased yet (no self-service deletion, no admin deceased marking),
- *   and there is no data export here.
- * Target: member-facing deletion and admin deceased marking set the flags the
- *   purge-eligibility scan consumes; deceased or deleted leaders' club_leaders
- *   rows end so their clubs surface for admin remediation; exports deliver
- *   via emailed time-limited links.
+ * The entry points that set deleted_at / is_deceased (member-facing deletion,
+ * admin deceased marking) and member data export are separate surfaces, not
+ * part of this service; it owns only the row-level purge primitives those
+ * surfaces and the purge-eligibility scan invoke.
  *
  * Required patterns:
  *   - Member search uses the `members_searchable` view; never add WHERE clauses

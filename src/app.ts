@@ -358,6 +358,19 @@ export function createApp(): express.Application {
       res.status(429).type('text/plain').send(err.message);
       return;
     }
+    // Body-parser rejects an oversized request body with a PayloadTooLargeError
+    // (type 'entity.too.large', status 413). That is a client-input condition,
+    // not a server fault, so return the canonical 413 here rather than letting
+    // it fall through to the catch-all 500 (which would also emit a spurious
+    // unhandled-error alarm line).
+    if (
+      typeof err === 'object' && err !== null &&
+      ((err as { type?: unknown }).type === 'entity.too.large' ||
+        (err as { status?: unknown }).status === 413)
+    ) {
+      res.status(413).type('text/plain').send('Request entity too large');
+      return;
+    }
     next(err);
   });
 

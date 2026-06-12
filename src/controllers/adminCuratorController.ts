@@ -1,15 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
-// `getMediaStorageAdapter` is imported here for the two direct-storage call
-// sites (`generatePresignedPutUrl`, `exists`) used by the async video-upload
-// flow. Service wiring goes through `getDefaultCuratorMediaService` so the
-// controller does not own adapter selection for the main paths.
-// Current: two raw-adapter calls remain in the controller for the sign and
-//   finalize endpoints (presigned PUT URL generation and S3 existence check).
-// Target: wrap both in a curatorMediaService method so the controller touches
-//   no adapter directly.
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   getDefaultCuratorMediaService,
@@ -983,11 +974,13 @@ export const adminCuratorController = {
       const ttl = config.mediaPresignedPutTtlSeconds;
       const expiresAtIso = new Date(Date.now() + ttl * 1000).toISOString();
 
-      const storage = getMediaStorageAdapter();
-      const [videoUrl, posterUrl] = await Promise.all([
-        storage.generatePresignedPutUrl(sourceVideoKey, videoContentType, ttl),
-        storage.generatePresignedPutUrl(sourcePosterKey, posterContentType, ttl),
-      ]);
+      const { videoUrl, posterUrl } = await getDefaultCuratorMediaService().signCuratorUploadTargets({
+        sourceVideoKey,
+        videoContentType,
+        sourcePosterKey,
+        posterContentType,
+        ttlSeconds: ttl,
+      });
 
       getMediaJobService().createPendingUploadJob({
         jobId,
@@ -1041,11 +1034,10 @@ export const adminCuratorController = {
         return;
       }
 
-      const storage = getMediaStorageAdapter();
-      const [videoSize, posterSize] = await Promise.all([
-        storage.headSize(job.source_video_key),
-        storage.headSize(job.source_poster_key),
-      ]);
+      const { videoSize, posterSize } = await getDefaultCuratorMediaService().headCuratorUploadSizes({
+        sourceVideoKey: job.source_video_key,
+        sourcePosterKey: job.source_poster_key,
+      });
       if (videoSize === null || posterSize === null) {
         res.status(409).json({ error: 'source files have not been uploaded yet' });
         return;

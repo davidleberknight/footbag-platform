@@ -8,7 +8,6 @@
  *     token consumption)
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
@@ -116,8 +115,7 @@ describe('Oversized payloads', () => {
     expect(row).toBeUndefined();
   });
 
-  it('oversized request body is rejected; server stays responsive afterward', async () => {
-    expectLoggedError('unhandled error');
+  it('oversized request body is rejected with 413; server stays responsive afterward', async () => {
     const app = createApp();
     const huge = 'x'.repeat(200 * 1024); // 200KB, over Express default 100kb
     const res = await request(app)
@@ -125,10 +123,11 @@ describe('Oversized payloads', () => {
       .set('Cookie', ownCookie())
       .type('form')
       .send({ bio: huge, firstCompetitionYear: '', showCompetitiveResults: 'on' });
-    // Current: body-parser "request entity too large" surfaces as 500 instead
-    //   of the canonical 413 Payload Too Large.
-    // Target: error handler maps PayloadTooLargeError to 413.
-    expect([413, 500]).toContain(res.status);
+    // An oversized body is a client-input condition: the canonical 413 Payload
+    // Too Large, not a 500 server fault. A 500 here would also raise a spurious
+    // unhandled-error alarm, so the absence of a logged error is part of the
+    // contract (the global spy fails the test on any unexpected logger.error).
+    expect(res.status).toBe(413);
 
     // Process stayed up: a subsequent request succeeds.
     const followup = await request(app)

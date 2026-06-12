@@ -9,11 +9,10 @@
  * the supplied actorId, so the access record exists independent of how the
  * controller-side authorization is wired.
  *
- * Current: no roster routes are wired yet; admin/Tier2/Tier3 gating
- *   (requireTier2Plus, requireTier3 in src/middleware/requireTier.ts) is
- *   available for the controller layer to apply.
- * Target: roster controller binds the appropriate requireTier middleware to
- *   each route so authorization runs before this service is reached.
+ * Authorization runs in the controller layer, not here: a roster controller
+ * binds the appropriate requireTier middleware (requireTier2Plus / requireTier3
+ * in src/middleware/requireTier.ts) to each route so the tier gate runs before
+ * this service is reached.
  *
  * The roster view already excludes deceased and soft-deleted members
  * (members_active + is_deceased = 0), and Tier 0 members without current

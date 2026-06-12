@@ -65,9 +65,9 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
         # treats avatars/ as the avatar marker (no sidecar needed); other
         # categories require <stem>.meta.json sidecars. Sidecar-based
         # /curated/freestyle_tricks/ content has its own dedicated test
-        # below; including it here would also require seeding the legacy
-        # `freestyle_media_sources` table (a CSV-loader artefact) so the
-        # sidecar `sourceId` FK on media_sources resolves.
+        # below; including it here would also require bootstrapping the
+        # media_sources table from the committed CSV so the sidecar
+        # `sourceId` FK resolves.
         source_dir.mkdir()
         for subdir in ("avatars", "events", "galleries"):
             (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
