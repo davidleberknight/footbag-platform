@@ -53,6 +53,7 @@
       </tbody>
     </table>
 
+    <p class="add-analysis-callout add-analysis-callout--spin"><strong>What &ldquo;spin&rdquo; means.</strong> {{content.spinNote}}</p>
     <p class="add-analysis-callout"><strong>The editorial-truth rule.</strong> {{content.editorialTruthRule}}</p>
     <p class="add-analysis-callout add-analysis-callout--incompleteness"><strong>Honest incompleteness.</strong> {{content.incompletenessNote}}</p>
   </section>
@@ -78,13 +79,31 @@
     </ol>
   </section>
 
-  {{!-- Canonical Formula Resolution Sprint 1 — mechanical +1-stack
-       compositions where both operator and base are Red-settled. Compact
-       reference table; not a worked-examples expansion. --}}
+  {{#if content.osisBranch.length}}
+  <section id="osis-branch" class="content-section">
+    <div class="section-heading">
+      <h2>Reading a branch: the Osis family</h2>
+      <p class="section-intro">{{content.osisBranchFraming}}</p>
+    </div>
+    <ol class="add-analysis-osis-branch">
+      {{#each content.osisBranch}}
+      <li class="add-analysis-branch-step">
+        <a class="add-analysis-branch-name" href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>
+        <span class="add-analysis-branch-eq">=</span>
+        <code class="add-analysis-branch-reading">{{reading}}</code>
+        <span class="add-analysis-branch-total">{{total}}</span>
+      </li>
+      {{/each}}
+    </ol>
+  </section>
+  {{/if}}
+
+  {{!-- Compact reference table of mechanical +1-stack compositions; not a
+       worked-examples expansion. --}}
   {{#if content.resolvedFormulas.length}}
   <section id="resolved-formulas" class="content-section">
     <div class="section-heading">
-      <h2>Settled compound formula reference</h2>
+      <h2>Common formula patterns</h2>
       <p class="section-intro">{{content.resolvedFormulasFraming}}</p>
     </div>
     <table class="resolved-formulas-table">
@@ -159,7 +178,7 @@
     </ol>
 
     {{#if content.edgeCases.length}}
-    <h3 id="edge-cases" class="add-analysis-subheading">Edge cases mentioned briefly</h3>
+    <h3 id="edge-cases" class="add-analysis-subheading">Edge cases</h3>
     <ul class="add-analysis-edge-cases">
       {{#each content.edgeCases}}
       <li>

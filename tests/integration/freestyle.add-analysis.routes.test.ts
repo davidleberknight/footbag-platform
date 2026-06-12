@@ -226,7 +226,6 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
       'xbody(1) &#x3D; 1 ADD',
       'xbody(1) + stall(1) &#x3D; 2 ADD',
       'dex(1) + stall(1) &#x3D; 2 ADD',
-      'full-orbit dex(1) + stall(1) &#x3D; 2 ADD',
       'xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD',
       'dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
       'spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
@@ -249,14 +248,13 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
 });
 
 describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => {
-  it('Spin flag row disambiguates spin flag vs spinning operator vs rotational character', async () => {
+  it('a dedicated callout disambiguates spin flag vs spinning operator vs rotational character', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // Phase 1 restates the disambiguation here in accounting framing
-    // (redundancy with the glossary is pedagogically healthy).
-    expect(res.text).toMatch(/Spin flag/);
-    expect(res.text).toMatch(/spinning body operator/i);
-    expect(res.text).toMatch(/rotational-character/i);
-    expect(res.text).toMatch(/atomic \+2-rotational/i);
+    expect(res.text).toContain('add-analysis-callout--spin');
+    expect(res.text).toMatch(/spin flag is a rotational/i);
+    expect(res.text).toMatch(/spinning operator is a body modifier/i);
+    expect(res.text).toMatch(/rotational character is a property/i);
+    expect(res.text).toMatch(/\+2 instead of \+1/);
   });
 
   it('operator-axis rows are labeled as a pedagogical organizing convention, not an official grouping', async () => {
@@ -286,9 +284,15 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toContain('href="/freestyle/tricks/clipper-stall"');
   });
 
-  it('ATW worked-example surfaces the operational chain from atomic-flag decomposition', async () => {
+  it('ATW worked-example surfaces its operational chain and reads as dex + stall', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toMatch(/toe &gt; ss\(midtime\) in dex &gt; ss toe/);
+    const start = res.text.indexOf('Around-the-world');
+    expect(start).toBeGreaterThan(0);
+    const region = res.text.slice(start, start + 900);
+    expect(region).toMatch(/toe &gt; ss in dex &gt; ss toe/);
+    expect(region).toMatch(/dex\(1\) \+ stall\(1\) &#x3D; 2 ADD/);
+    // The worked example uses the standard dex primitive, not a one-off "full-orbit dex".
+    expect(region).not.toContain('full-orbit');
   });
 
   it('Whirl / Butterfly / Osis worked examples carry their operational chains', async () => {
@@ -300,12 +304,10 @@ describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => 
     expect(res.text).toMatch(/\(downtime\) spin &gt; ss clipper/);
   });
 
-  it('Blurry doctrine updated per Red 2026-05-20 (no longer implies paradox)', async () => {
+  it('blurry reads as +1 implying stepping, not paradox', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // The prior live page carried "Blurry — transitively expands to
-    // stepping paradox" which was retired by Red 2026-05-20.
-    expect(res.text).toMatch(/blurry \+1 implies stepping/i);
-    expect(res.text).toMatch(/prior paradox-implication retired/i);
+    expect(res.text).toMatch(/blurry \+1 \(implies stepping\)/i);
+    expect(res.text).not.toMatch(/blurry[^.]*implies[^.]*paradox/i);
   });
 
   it('Barraging surfaces as a Set/Uptime modifier with weight 2 (Red 2026-05-20)', async () => {
@@ -451,7 +453,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
   it('renders the §2b section heading + anchor', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('id="resolved-formulas"');
-    expect(res.text).toMatch(/Settled compound formula reference/);
+    expect(res.text).toMatch(/Common formula patterns/);
   });
 
   it('renders the framing prose', async () => {
@@ -628,5 +630,41 @@ describe('GET /freestyle/add-analysis — wording lexicon discipline (Slice X §
         `Forbidden phrase appeared: "${phrase}"`,
       ).toBe(false);
     }
+  });
+});
+
+describe('GET /freestyle/add-analysis — public pedagogy cleanup', () => {
+  it('renders the Osis-family compositional ladder', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('id="osis-branch"');
+    expect(res.text).toMatch(/Reading a branch: the Osis family/);
+    // The three operator steps, in order.
+    expect(res.text).toMatch(/miraging Osis/);
+    expect(res.text).toMatch(/whirling Osis/);
+    expect(res.text).toMatch(/gyro Torque/);
+    for (const slug of ['osis', 'torque', 'blender', 'mobius']) {
+      expect(res.text, `ladder link ${slug}`).toContain(`href="/freestyle/tricks/${slug}"`);
+    }
+  });
+
+  it('strips internal governance citations from the core pedagogy prose', async () => {
+    // Scope: the core pedagogy (component table, worked examples, interpretation
+    // notes). The deferred formula-table Provenance column still carries
+    // citations; that cleanup lands with the Part 7 reorganization.
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).not.toMatch(/TBD pending Wave 2/);
+    expect(res.text).not.toMatch(/prior paradox-implication retired/);
+    expect(res.text).not.toMatch(/prior paradox-atomic reading retired/);
+    // Worked-example why-notes no longer open with a ruling citation.
+    expect(res.text).not.toMatch(/Settled by pt11\./);
+    expect(res.text).not.toMatch(/Settled by Red 2026-05-15:/);
+  });
+
+  it('renames internal-sounding section titles', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('Common formula patterns');
+    expect(res.text).not.toContain('Settled compound formula reference');
+    expect(res.text).toContain('>Edge cases</h3>');
+    expect(res.text).not.toContain('Edge cases mentioned briefly');
   });
 });

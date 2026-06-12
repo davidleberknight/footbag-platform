@@ -9985,6 +9985,41 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .add-analysis-callout--incompleteness {
   border-left-color: var(--incomplete-gold);
 }
+.add-analysis-callout--spin {
+  border-left-color: var(--set-azure);
+}
+
+/* Osis-family compositional-grammar ladder: one atom, three operators. */
+.add-analysis-osis-branch {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.add-analysis-branch-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+}
+.add-analysis-branch-name {
+  font-weight: 600;
+  min-width: 5rem;
+}
+.add-analysis-branch-eq { color: var(--text-muted); }
+.add-analysis-branch-reading {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--secondary);
+}
+.add-analysis-branch-total {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
 .add-analysis-worked-examples,
 .add-analysis-discrepancy-cases {
   list-style: none;
