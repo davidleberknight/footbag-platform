@@ -93,7 +93,10 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   3. **crossbody/xbd register + xbd-rake base (~47).** Biggest authoring lever (already the headline item in `project_fm_promotion_arc`).
   4. Two unusual-base rows: spyro-gyro, backside-symposium-toe-blizzard.
   Cross-track: the `footbag-freestyle-dictionary` skill posture (surging chassis, same-operator-twice doctrine, and symposium-blizzard now released from the do-not-re-promote list, 8->7) needs a Dave-side refresh; fold into the Skill cleanup pass above.
-- **Glossary finalization roll-up (James-track).** Beyond the two specific glossary fixes already listed above (the five-kinds-of-object two-axis restructure and the family-card editorial pass): glossary V5 §12 is still deferred (`project_glossary_v5_synthesis`), and glossary <-> detail-page semantic alignment must stay lockstep on any doctrine change — no observational reading hardened into canonical (`feedback_glossary_detail_page_alignment`). Close these to declare the glossary finalized.
+- **Glossary finalization — pending (James-track).** Three items to close, separate from the five-kinds-of-object restructure and the family-card editorial pass already listed above:
+  1. **§6 anchor migration** — migrate the glossary §6 (Modifier Reference) per-term anchors. Coordinate with the semantic-token deep-link targets (`#term-{slug}`) so no live deep-link breaks.
+  2. **Modifier-reference de-duplication** — collapse the duplicated §6 modifier-reference content (the de-dup noted as independent in the five-kinds-of-object entry above).
+  3. **Advanced-reference consolidation** — consolidate the advanced-reference material.
 
 ---
 
