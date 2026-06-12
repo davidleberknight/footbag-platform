@@ -2309,6 +2309,18 @@ export const freestyleTrickModifiers = {
     WHERE l.trick_slug = ?
     ORDER BY l.apply_order ASC
   `); },
+
+  // Active canonical tricks that carry ONE modifier, lowest ADD first. Drives
+  // the "common tricks" list on the data-driven modifier detail (stub) page.
+  get listActiveTricksByModifierSlug() { return db.prepare(`
+    SELECT t.slug, t.canonical_name, t.adds, t.trick_family
+    FROM freestyle_trick_modifier_links l
+    INNER JOIN freestyle_tricks t ON t.slug = l.trick_slug
+    WHERE l.modifier_slug = ?
+      AND t.is_active = 1
+      AND (t.category IS NULL OR t.category != 'modifier')
+    ORDER BY t.adds ASC, t.canonical_name COLLATE NOCASE
+  `); },
 };
 
 // ---------------------------------------------------------------------------

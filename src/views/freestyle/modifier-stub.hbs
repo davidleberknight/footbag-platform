@@ -1,0 +1,60 @@
+{{!--
+  /freestyle/modifier/:slug — data-driven stub for a known modifier that has no
+  hand-authored teaching essay yet. Renders what-it-is / type / ADD / set-only
+  notation / common tricks / related modifiers from existing data, so no
+  modifier dead-ends while the rich page is pending.
+--}}
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{content.displayName}} <span class="hero-hashtag">{{content.hashtag}}</span></h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section class="content-section">
+    <p class="modifier-stub-meta">
+      <span class="operator-meta-chip">{{content.typeLabel}}</span>
+      {{#if content.addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{content.addLabel}}</span>{{/if}}
+      <span class="operator-status-pill operator-status-pill--{{content.statusKey}}">{{content.statusLabel}}</span>
+    </p>
+    {{#if content.whatItIs}}<p class="modifier-stub-what">{{content.whatItIs}}</p>{{/if}}
+    {{#if content.notation}}
+    <p class="modifier-stub-notation"><span class="dict-trick-row-label">SET</span> <code class="dict-trick-row-job-value">{{content.notation}}</code></p>
+    {{/if}}
+  </section>
+
+  {{#if content.commonTricks.length}}
+  <section class="content-section">
+    <h2 class="section-heading">Common tricks</h2>
+    <ul class="modifier-stub-trick-list">
+      {{#each content.commonTricks}}
+      <li><a href="/freestyle/tricks/{{slug}}">{{name}}</a> <span class="modifier-stub-trick-add">{{adds}}</span></li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.relatedModifiers.length}}
+  <section class="content-section">
+    <h2 class="section-heading">Related modifiers</h2>
+    <p class="modifier-stub-related">
+      {{#each content.relatedModifiers}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/modifier/{{slug}}">{{name}}</a>{{/each}}
+    </p>
+  </section>
+  {{/if}}
+
+  <section class="content-section">
+    <p class="detail-muted">
+      Browse the tricks that use {{content.displayName}} in the
+      <a href="/freestyle/tricks?view=movement-system#movement-{{content.slug}}">By Movement System</a>
+      view, or return to the <a href="/freestyle/operators">Operators &amp; Modifiers</a> index.
+    </p>
+  </section>
+</div>

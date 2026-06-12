@@ -527,11 +527,11 @@ describe('Set-notation reference cross-links', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/operators (Phase B promotion of glossary §6)', () => {
-  // 2026-05-18 sets_components_surface_recommendation Option C: pure URL
-  // promotion of the modifier-reference content from /freestyle/glossary §6.
-  // Both pages render the same `freestyle-modifier-reference` partial; the
-  // operators page wraps it with its own hero + breadcrumbs.
+describe('GET /freestyle/operators — compact modifier index + advanced reference', () => {
+  // The operators page is a compact, browseable index of the modifier
+  // vocabulary (in the shared dict-trick-row idiom) with the advanced
+  // decomposition reference retained below it via a shared sub-partial. The
+  // modifier feel cards now live only in glossary §6.
 
   it('returns 200 with page title', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
@@ -544,27 +544,24 @@ describe('GET /freestyle/operators (Phase B promotion of glossary §6)', () => {
     expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
   });
 
-  it('renders the modifier-reference partial content (same as glossary §6)', async () => {
-    // Key anchors from the partial: term-paradox, term-stepping,
-    // term-spinning, intermediate-operators dl, set-modifiers grid.
+  it('renders the compact index and retains the advanced decomposition reference', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
-    // Surface A modifier feel cards (any one slug)
-    expect(res.text).toContain('class="glossary-modifier-card"');
-    // Surface B advanced reference (paradox formula chip)
+    // Compact index rows (not the old feel-card scroll).
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).toContain('id="operator-paradox"');
+    expect(res.text).not.toContain('class="glossary-modifier-card"');
+    // Advanced reference retained below the index (shared sub-partial).
     expect(res.text).toContain('id="term-paradox"');
     expect(res.text).toContain('glossary-paradox-formula');
-    // Intermediate operators dl
     expect(res.text).toContain('id="intermediate-operators"');
-    // Execution mechanics dl
     expect(res.text).toContain('id="execution-mechanics"');
-    // Set modifiers grid
     expect(res.text).toContain('id="set-modifiers-tier-1"');
   });
 
-  it('renders cross-links to the dictionary movement-system view and ADD analysis', async () => {
+  it('cross-links the dictionary movement-system view and the set encyclopedia', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
-    expect(res.text).toContain('href="/freestyle/add-analysis"');
+    expect(res.text).toContain('href="/freestyle/sets"');
   });
 });
 
@@ -785,10 +782,10 @@ describe('GET /freestyle/operators — orientation lede', () => {
 });
 
 describe('GET /freestyle/glossary §6 partial reuse (same content as /freestyle/operators)', () => {
-  it('glossary §6 carries the same modifier feel cards as /freestyle/operators (shared partial)', async () => {
-    // The shared `freestyle-modifier-reference` partial guarantees both
-    // surfaces stay in sync. Spot-check that the partial-rendered fragments
-    // appear in both.
+  it('glossary §6 and /freestyle/operators share the advanced decomposition reference', async () => {
+    // The shared `freestyle-modifier-advanced-reference` sub-partial keeps the
+    // advanced reference in sync on both surfaces; the modifier feel cards now
+    // live only in glossary §6.
     const glossary  = await request(createApp()).get('/freestyle/glossary');
     const operators = await request(createApp()).get('/freestyle/operators');
     for (const anchor of [
@@ -796,11 +793,13 @@ describe('GET /freestyle/glossary §6 partial reuse (same content as /freestyle/
       'id="intermediate-operators"',
       'id="execution-mechanics"',
       'id="set-modifiers-tier-1"',
-      'class="glossary-modifier-card"',
     ]) {
       expect(glossary.text,  `glossary missing ${anchor}`).toContain(anchor);
       expect(operators.text, `operators missing ${anchor}`).toContain(anchor);
     }
+    // Feel cards are glossary-only now.
+    expect(glossary.text).toContain('class="glossary-modifier-card"');
+    expect(operators.text).not.toContain('class="glossary-modifier-card"');
   });
 
   it('glossary §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {

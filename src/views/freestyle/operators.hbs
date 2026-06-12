@@ -1,12 +1,11 @@
 {{!--
-  /freestyle/operators — standalone modifier vocabulary reference.
+  /freestyle/operators — compact, browseable index of the modifier vocabulary.
 
-  Pure URL promotion of the modifier-reference content that also lives
-  inside /freestyle/glossary §6. The same shared partial
-  `freestyle-modifier-reference` renders the body on both surfaces.
-
-  Zero new content; the dedicated URL exists purely to make the
-  modifier vocabulary discoverable outside the glossary.
+  Each transformation renders as a row in the same idiom as the trick dictionary
+  and set encyclopedia (identity + type/ADD + set-only notation + status pill +
+  click-throughs), grouped by movement-system axis. The Advanced Decomposition
+  reference is retained below the index (shared sub-partial); a dedicated theory
+  page is a later, separate decision.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -25,16 +24,49 @@
 <div class="wrapper">
   <section class="content-section">
     <p>
-      Modifiers are the movement ideas that transform one trick into many
-      &mdash; a spin, a duck, a paradox layered onto a base trick. Below: how
-      each common modifier feels, then a structural reference for how they
-      combine. To browse the tricks that use a given modifier, open the
+      Modifiers are the transformations that turn one trick into many: a spin, a
+      duck, a paradox layered onto a base. Each row below shows the modifier's
+      type, its ADD weight, and its status. To see the tricks a modifier
+      produces, follow <em>Browse tricks</em> into the
       <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
-      view in the trick dictionary. For set systems as first-class objects
-      (what is pixie / stepping / atomic as a system?), see the
+      view; for set systems as first-class objects, see the
       <a href="/freestyle/sets">Set Encyclopedia</a>.
     </p>
 
-    {{> freestyle-modifier-reference}}
+    {{#each content.indexAxes}}
+    <section class="operator-index-axis" id="axis-{{axisKey}}" aria-label="{{axisName}}">
+      <h2 class="section-heading">{{axisName}}</h2>
+      <div class="dict-trick-row-stack">
+        {{#each modifiers}}
+        <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
+          <div class="dict-trick-row-head">
+            <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
+            <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+            <span class="operator-meta-chip">{{typeLabel}}</span>
+            {{#if addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{addLabel}}</span>{{/if}}
+            <span class="operator-status-pill operator-status-pill--{{status.key}}">{{status.label}}</span>
+          </div>
+          {{#if notation}}
+          <div class="dict-trick-row-notation">
+            <span class="dict-trick-row-job">
+              <span class="dict-trick-row-label">SET</span>
+              <code class="dict-trick-row-job-value">{{notation}}</code>
+            </span>
+          </div>
+          {{/if}}
+          {{#if descriptor}}<p class="operator-row-descriptor">{{descriptor}}</p>{{/if}}
+          <p class="operator-row-links">
+            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details &rarr;</a>
+            <a class="operator-row-link" href="/freestyle/tricks?view=movement-system#movement-{{slug}}">Browse tricks &rarr;</a>
+          </p>
+        </article>
+        {{/each}}
+      </div>
+    </section>
+    {{/each}}
+  </section>
+
+  <section class="content-section">
+    {{> freestyle-modifier-advanced-reference}}
   </section>
 </div>

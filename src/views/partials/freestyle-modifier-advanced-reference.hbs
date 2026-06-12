@@ -1,0 +1,113 @@
+{{!--
+  freestyle-modifier-advanced-reference.hbs — the advanced decomposition /
+  operator-theory reference (body-modifier reference, intermediate operators,
+  execution mechanics, set modifiers). Rendered below the modifier vocabulary on
+  both surfaces that show it:
+    - /freestyle/glossary §6 (via the shared modifier-reference partial)
+    - /freestyle/operators (below the compact index)
+
+  Required view-model fields on parent `content`:
+    - intermediateOperators: OperatorReferenceEntry[]
+    - setModifiers: FreestyleSetModifierEntry[]
+
+  Anchors preserved verbatim (id="advanced-decomposition-operator-theory",
+  id="modifier-reference", id="intermediate-operators", id="execution-mechanics",
+  id="set-modifiers-tier-1", and per-entry `term-{slug}`).
+--}}
+<section class="glossary-advanced-reference-group">
+  <h3 class="section-heading" id="advanced-decomposition-operator-theory">
+    Advanced Decomposition &amp; Operator Theory
+    <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
+  </h3>
+  <p>
+    Optional reference layer. Structural readings of the modifiers
+    above plus the compositional vocabulary used in equivalence chains,
+    formula derivations, and operational-notation analysis.
+  </p>
+
+  <h4 class="section-heading" id="modifier-reference">Body modifier reference</h4>
+  <p>Structural definitions for the body-modifier cohort. The connective panels in &sect;9 surface each term's relationship to specific tricks.</p>
+  <dl>
+    <dt id="term-stepping">Stepping</dt>
+    <dd>A foot-relocation modifier. The kicking foot relocates mid-trick, producing a stepping effect. Stacks with most bases. Stepping + butterfly = ripwalk.</dd>
+    <dt id="term-paradox">Paradox</dt>
+    <dd>
+      A hip pivot between two dexes on the same set. +1 body modifier. The set leaves and returns to the same foot while the body changes sides in between.
+      <span class="glossary-paradox-formula">Formula: <code class="notation-display-tokens"><span class="notation-token notation-modifier">PDX</span> &rarr; <span class="notation-token">CLIP</span> &gt; <span class="notation-token">OP IN</span> <span class="notation-token">[DEX]</span></code>:clipper set, then a far in-out dex.</span>
+      <a href="#glossary-panel-paradox">See connective panel</a>.
+    </dd>
+    <dt id="term-spinning">Spinning</dt>
+    <dd>A full-body 360&deg; rotation carried through the dex moment. +1 body modifier. Pairs with gyro (180&deg;) for arbitrary degrees. <a href="#glossary-panel-spinning">See connective panel</a>.</dd>
+    <dt id="term-ducking">Ducking</dt>
+    <dd>A head dip that lets the bag pass around the neck. +1 body modifier; one member of a four-way family (ducking / weaving / diving / zulu) defined by head direction and the side the bag falls. <a href="#glossary-panel-ducking">See connective panel</a>.</dd>
+    <dt id="term-symposium">Symposium</dt>
+    <dd>A no-plant leg discipline: the support leg stays off the ground during the dex. +1 body modifier. Often stacks with paradox (the &ldquo;PS X&rdquo; shorthand).</dd>
+    <dt id="term-cross-body">Cross-body</dt>
+    <dd>A general descriptor for tricks (and components) where the active foot or dex crosses the body's center line. ADD category XBD covers cross-body components.</dd>
+  </dl>
+
+  <h4 class="section-heading" id="intermediate-operators">Intermediate operators:decomposition reference</h4>
+  <p>Operators that decompose into combinations of other operators and Tier-1 primitives. Each entry shows its one-line meaning, its semantic decomposition where known, and worked examples. Entries flagged <em>pending</em> are under curator review. See also the <a href="/freestyle/sets/reference">set notation reference</a> for the operational forms these operators produce.</p>
+<dl class="glossary-intermediate-operators">
+  {{#each content.intermediateOperators}}
+  <dt id="term-{{slug}}">
+    {{name}}
+    {{#if curatorConfirmPending}}<span class="glossary-operator-pending-flag">pending</span>{{/if}}
+  </dt>
+  <dd>
+    <p class="glossary-operator-meaning">{{oneLineMeaning}}</p>
+    {{#if decomposition}}
+    <p class="glossary-operator-decomposition"><span class="glossary-operator-decomposition-label">Decomposes as:</span> {{decomposition}}</p>
+    {{/if}}
+    {{#if pendingNote}}
+    <p class="glossary-operator-pending-note">{{pendingNote}}</p>
+    {{/if}}
+    {{#if workedExamples.length}}
+    <p class="glossary-operator-examples">{{#each workedExamples}}{{#unless @first}} &middot; {{/unless}}<em>{{this}}</em>{{/each}}</p>
+    {{/if}}
+    <p class="glossary-operator-lineage">{{lineageNote}}</p>
+  </dd>
+  {{/each}}
+</dl>
+
+<h3 class="section-heading" id="execution-mechanics">Execution mechanics</h3>
+<p class="freestyle-section-sub">Mechanical details that operator names alone don't capture.</p>
+<dl class="glossary-execution-mechanics">
+  <dt id="term-alpine">Alpine</dt>
+  <dd>Divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly.</dd>
+
+  <dt id="term-symposium-mech">Symposium (mechanic)</dt>
+  <dd>A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air.</dd>
+
+  <dt id="term-symple">Symple</dt>
+  <dd>Starts symposium, but mid-component the non-symple foot returns to the ground. Naturally suits some compositions (e.g., Symp Legover). The shorthand <em>symp</em> can refer to either symposium or symple, whichever the component would naturally be done as.</dd>
+
+  <dt id="term-muted">Muted</dt>
+  <dd>An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.</dd>
+</dl>
+
+<h3 class="section-heading" id="set-modifiers-tier-1">Set modifiers (not core tricks)</h3>
+<p>
+  Set modifiers are structural treatments applied <em>to</em> a base
+  trick, not bases themselves. See the
+  <a href="/freestyle/sets/reference">set notation reference</a> for the full
+  vocabulary.
+</p>
+<div class="glossary-set-modifiers-grid">
+  {{#each content.setModifiers}}
+  <article class="set-modifier-card" id="term-{{slug}}">
+    <p class="set-modifier-head">
+      <span class="set-modifier-name">{{name}}</span>
+      {{#if glyph}}<span class="set-modifier-glyph">{{glyph}}</span>{{/if}}
+    </p>
+    <p class="set-modifier-meaning">{{oneLineMeaning}}</p>
+    {{#if decomposition}}
+    <p class="set-modifier-decomposition"><span class="set-modifier-decomp-sigil">&equiv;</span> {{decomposition}}</p>
+    {{/if}}
+    {{#if href}}
+    <a class="set-modifier-deeplink" href="{{href}}" aria-label="Notation reference">&rarr;</a>
+    {{/if}}
+  </article>
+  {{/each}}
+</div>
+</section>

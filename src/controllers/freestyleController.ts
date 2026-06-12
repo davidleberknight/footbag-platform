@@ -277,11 +277,15 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/modifier/:slug — observational symbolic-grammar layer */
+  /** GET /freestyle/modifier/:slug — teaching page when authored, else a
+   *  data-driven stub; unknown modifiers 404. */
   modifierFamily(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = freestyleService.getModifierFamilyPage(req.params['slug'] ?? '');
-      res.render('freestyle/modifier-family', vm);
+      const detail = freestyleService.getModifierDetail(req.params['slug'] ?? '');
+      res.render(
+        detail.kind === 'teaching' ? 'freestyle/modifier-family' : 'freestyle/modifier-stub',
+        detail.vm,
+      );
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {

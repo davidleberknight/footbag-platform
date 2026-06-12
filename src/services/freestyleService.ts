@@ -67,7 +67,12 @@ import {
 import {
   OperatorReferenceEntry,
   OPERATOR_REFERENCE_ENTRIES,
+  getOperatorReferenceEntry,
 } from '../content/freestyleOperatorReference';
+import {
+  OPERATOR_INDEX_AXES,
+  OPERATOR_INDEX_SLUGS,
+} from '../content/freestyleOperatorIndex';
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
@@ -947,6 +952,83 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
   for (const e of tierEntries)         bySlug.set(e.slug, e);
   for (const e of intermediateEntries) bySlug.set(e.slug, e);
   return [...bySlug.values()];
+}
+
+// Operators index: compact rows grouped by movement-system axis. Per-row data is
+// composed from the modifier table (name + ADD weight), the canonical-set
+// formulas (set-only notation), the feel cards + operator reference (descriptor),
+// and the teaching-page + doctrine-pending flags (status pill). A row's notation
+// line appears only when the modifier exists as a canonical set, so body
+// modifiers never carry a fabricated notation.
+const operatorTitleCase = (slug: string): string =>
+  slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
+  return SET_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
+    ?? BODY_MODIFIER_FEEL_CARDS.find(c => c.slug === slug);
+}
+
+// Set-only notation: a modifier carries a notation line only when it exists as a
+// canonical set, so body modifiers never show a fabricated formula.
+function operatorNotation(slug: string): string | null {
+  return CANONICAL_SETS.find(s => s.slug === slug)?.formula ?? null;
+}
+
+function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | null {
+  if (!row) return null;
+  return row.add_bonus === row.add_bonus_rotational
+    ? `+${row.add_bonus}`
+    : `+${row.add_bonus} / +${row.add_bonus_rotational} rot`;
+}
+
+function operatorDescriptor(slug: string): string | null {
+  return operatorFeelCard(slug)?.feel ?? getOperatorReferenceEntry(slug)?.oneLineMeaning ?? null;
+}
+
+// Honest status pill: a hand-authored teaching page wins; otherwise a
+// curator-pending decomposition reads as doctrine-pending; everything tracked in
+// the modifier vocabulary reads as platform-tracked.
+function operatorStatus(slug: string): { key: string; label: string } {
+  if (hasModifierFamilyPage(slug)) return { key: 'teaching', label: 'Teaching page' };
+  if (getOperatorReferenceEntry(slug)?.curatorConfirmPending) {
+    return { key: 'doctrine-pending', label: 'Doctrine-pending' };
+  }
+  return { key: 'platform-tracked', label: 'Platform-tracked' };
+}
+
+// Short type label for modifiers outside the curated index (fallback for the
+// stub page); the curated index uses its axis's typeLabel directly.
+const MODIFIER_TYPE_LABEL: Readonly<Record<string, string>> = {
+  set: 'Set', body: 'Body', 'rotational-qualifier': 'Rotational',
+};
+
+// A slug is a known modifier (resolves to a detail page, not a 404) when it is
+// in the curated index, the modifier table, or the operator reference.
+function isKnownModifier(slug: string, row: FreestyleTrickModifierRow | undefined): boolean {
+  return OPERATOR_INDEX_SLUGS.has(slug) || row != null || getOperatorReferenceEntry(slug) != null;
+}
+
+function buildOperatorIndexAxes(
+  modifierRows: readonly FreestyleTrickModifierRow[],
+): OperatorIndexAxisGroup[] {
+  const rowBySlug = new Map(modifierRows.map(r => [r.slug, r]));
+  return OPERATOR_INDEX_AXES.map(axis => ({
+    axisKey:  axis.axisKey,
+    axisName: axis.axisName,
+    modifiers: axis.modifierSlugs.map((slug): OperatorIndexRow => {
+      const row = rowBySlug.get(slug);
+      return {
+        slug,
+        name:       row?.modifier_name ?? operatorFeelCard(slug)?.name ?? operatorTitleCase(slug),
+        hashtag:    `#${slug}`,
+        typeLabel:  axis.typeLabel,
+        addLabel:   operatorAddLabel(row),
+        notation:   operatorNotation(slug),
+        descriptor: operatorDescriptor(slug),
+        status:     operatorStatus(slug),
+      };
+    }),
+  }));
 }
 
 // §5 family-tree shaping. Curator-selected pilot families: the four
@@ -3438,11 +3520,55 @@ function shapeObservationalCard(
 // render the same shared partial `freestyle/partials/modifier-reference`;
 // the operators page wraps it with its own hero + breadcrumbs so it can
 // serve as a standalone discoverable destination.
+// One compact row in the operators index. Mirrors the trick-dictionary /
+// set-encyclopedia row contract: identity + a type/ADD pair + an optional
+// set-only notation line + a status pill + click-throughs. Notation is present
+// ONLY for set-structured modifiers (those with a canonical-set formula); body
+// modifiers never carry a fabricated notation line.
+export interface OperatorIndexRow {
+  slug:        string;
+  name:        string;
+  hashtag:     string;                       // '#paradox'
+  typeLabel:   string;                        // 'Set' | 'Entry' | 'Body' | 'No-plant'
+  addLabel:    string | null;                // '+1' | '+1 / +2 rot' | null when untracked
+  notation:    string | null;                // canonical-set formula; set modifiers only
+  descriptor:  string | null;                // one short movement line
+  status:      { key: string; label: string };
+  // Detail + browse hrefs are built in the template from `slug` (single-variable
+  // URLs) so the query-string '=' is not HTML-escaped.
+}
+
+export interface OperatorIndexAxisGroup {
+  axisKey:   string;
+  axisName:  string;
+  modifiers: OperatorIndexRow[];
+}
+
 export interface FreestyleOperatorsContent {
-  setModifierFeelCards:  readonly ModifierFeelCard[];
-  bodyModifierFeelCards: readonly ModifierFeelCard[];
+  // Compact, grouped index (the consistency layer).
+  indexAxes:             OperatorIndexAxisGroup[];
+  // Advanced-reference blocks retained below the index for now (theory split
+  // deferred); rendered by the shared advanced-reference partial.
   intermediateOperators: readonly OperatorReferenceEntry[];
   setModifiers:          FreestyleSetModifierEntry[];
+}
+
+// Data-driven detail page for a known modifier that has no hand-authored
+// teaching essay yet: what it is, its type + ADD + set-only notation, the tricks
+// that commonly use it, and its sibling modifiers. Keeps every modifier slug
+// from dead-ending while honestly signalling that the rich page is pending.
+export interface ModifierStubContent {
+  slug:        string;
+  displayName: string;
+  hashtag:     string;
+  typeLabel:   string;
+  addLabel:    string | null;
+  notation:    string | null;
+  whatItIs:    string | null;
+  statusKey:   string;
+  statusLabel: string;
+  commonTricks:     { slug: string; name: string; adds: string }[];
+  relatedModifiers: { slug: string; name: string }[];
 }
 
 export interface FreestyleHistoryEvolutionEntry {
@@ -8521,16 +8647,20 @@ export const freestyleService = {
   },
 
   getOperatorsPage(): PageViewModel<FreestyleOperatorsContent> {
-    // Pure URL promotion of /freestyle/glossary §6 — no new content.
-    // Same four shaped fields the glossary page already populates;
-    // the shared `freestyle/partials/modifier-reference` partial
-    // renders the visible content on both surfaces.
+    // Compact, browseable index of the modifier vocabulary, grouped by the
+    // movement-system axes, in the same row idiom as the trick dictionary and
+    // set encyclopedia. The advanced-reference blocks below the index are
+    // retained for now (theory split deferred) and render from the shared
+    // advanced-reference partial.
+    const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
+      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
+    );
     return {
       seo: {
         title: 'Freestyle Operators & Modifiers',
         description:
-          'Reference for the freestyle modifier vocabulary: feel cards, ' +
-          'intermediate operators, execution mechanics, and set modifiers.',
+          'Browseable index of the freestyle modifier vocabulary: each ' +
+          'transformation with its type, ADD weight, status, and the tricks it produces.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -8545,10 +8675,79 @@ export const freestyleService = {
         ],
       },
       content: {
-        setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
-        bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+        indexAxes:             buildOperatorIndexAxes(modifierRows),
         intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
         setModifiers:          shapeSetModifiers(this.getOperatorBoard('glossary')),
+      },
+    };
+  },
+
+  // Detail resolution for /freestyle/modifier/:slug. A hand-authored teaching
+  // page wins; any other known modifier falls back to a data-driven stub; an
+  // unknown slug throws NotFound (404). No modifier dead-ends.
+  getModifierDetail(slug: string):
+    | { kind: 'teaching'; vm: PageViewModel<ModifierFamilyPageContent> }
+    | { kind: 'stub';     vm: PageViewModel<ModifierStubContent> } {
+    if (hasModifierFamilyPage(slug)) {
+      return { kind: 'teaching', vm: this.getModifierFamilyPage(slug) };
+    }
+    return { kind: 'stub', vm: this.getModifierStubPage(slug) };
+  },
+
+  getModifierStubPage(slug: string): PageViewModel<ModifierStubContent> {
+    const row = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+      freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
+    );
+    if (!isKnownModifier(slug, row)) {
+      throw new NotFoundError(`No modifier "${slug}"`);
+    }
+    const trickRows = runSqliteRead('freestyleTrickModifiers.listActiveTricksByModifierSlug', () =>
+      freestyleTrickModifiers.listActiveTricksByModifierSlug.all(slug) as {
+        slug: string; canonical_name: string; adds: number | null; trick_family: string | null;
+      }[],
+    );
+    const displayName = row?.modifier_name ?? operatorFeelCard(slug)?.name ?? operatorTitleCase(slug);
+    const axis        = OPERATOR_INDEX_AXES.find(a => a.modifierSlugs.includes(slug));
+    const typeLabel   = axis?.typeLabel
+      ?? (row ? MODIFIER_TYPE_LABEL[row.modifier_type] ?? 'Modifier' : 'Modifier');
+    const status      = operatorStatus(slug);
+    const relatedModifiers = (axis?.modifierSlugs ?? [])
+      .filter(s => s !== slug)
+      .map(s => ({ slug: s, name: operatorFeelCard(s)?.name ?? operatorTitleCase(s) }));
+    const commonTricks = trickRows.slice(0, 12).map(t => ({
+      slug: t.slug,
+      name: t.canonical_name,
+      adds: t.adds != null ? String(t.adds) : '?',
+    }));
+    return {
+      seo: {
+        title:       `${displayName} (Freestyle modifier)`,
+        description: operatorDescriptor(slug) ?? `${displayName}: freestyle modifier reference.`,
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    `freestyle_modifier_${slug}`,
+        title:      displayName,
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Operators & Modifiers', href: '/freestyle/operators' },
+          { label: displayName },
+        ],
+      },
+      content: {
+        slug,
+        displayName,
+        hashtag:     `#${slug}`,
+        typeLabel,
+        addLabel:    operatorAddLabel(row),
+        notation:    operatorNotation(slug),
+        whatItIs:    operatorDescriptor(slug),
+        statusKey:   status.key,
+        statusLabel: status.label,
+        commonTricks,
+        relatedModifiers,
       },
     };
   },

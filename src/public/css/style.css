@@ -11104,6 +11104,75 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 500;
 }
 
+/* Operators & Modifiers index: compact modifier rows grouped by movement-system
+   axis, reusing the trick-dictionary row shell (.dict-trick-row) with a type
+   chip, ADD chip, and status pill in the same visual language as the encyclopedia. */
+.operator-index-axis { margin-top: 1.5rem; }
+.operator-index-axis:first-of-type { margin-top: 0.5rem; }
+.operator-meta-chip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: var(--radius-2xs);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.operator-meta-chip--add { color: var(--secondary); }
+.operator-status-pill {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: var(--radius-2xs);
+  white-space: nowrap;
+}
+.operator-status-pill--teaching         { background: var(--fern-100);  color: var(--fern-600); }
+.operator-status-pill--platform-tracked { background: var(--parch-250); color: var(--steel-600); }
+.operator-status-pill--doctrine-pending { background: var(--parch-250); color: var(--pending-umber); }
+.operator-row-descriptor {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0.3rem 0 0;
+}
+.operator-row-links {
+  margin: 0.35rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+.operator-row-link {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+/* Data-driven modifier stub detail page. */
+.modifier-stub-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+.modifier-stub-what {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 0.5rem;
+}
+.modifier-stub-notation { margin: 0; }
+.modifier-stub-trick-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+}
+.modifier-stub-trick-add { font-size: 0.78rem; color: var(--text-subtle); margin-left: 0.2rem; }
+.modifier-stub-related { font-size: 0.9rem; }
+
 /* ── Set detail page ────────────────────────── */
 .set-detail {
   max-width: 760px;
