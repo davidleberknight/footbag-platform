@@ -542,6 +542,7 @@ export interface FreestyleLandingContent {
   // Media-section gallery links, null when the gallery is not seeded.
   mediaRecordsHref: string | null;
   mediaCuratedHref: string | null;
+  mediaShredHref: string | null;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -9657,6 +9658,7 @@ export const freestyleService = {
         : null;
     const mediaRecordsHref = galleryHref('gallery_passback_records');
     const mediaCuratedHref = galleryHref('gallery_curated_freestyle_tricks');
+    const mediaShredHref = galleryHref('gallery_individual_shred_videos');
 
     return {
       seo: {
@@ -9764,6 +9766,7 @@ export const freestyleService = {
         byTheNumbersNote,
         mediaRecordsHref,
         mediaCuratedHref,
+        mediaShredHref,
       },
     };
   },

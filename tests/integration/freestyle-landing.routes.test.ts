@@ -65,6 +65,15 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(res.text).toContain('tricks-mosaic-section--placeholder');
   });
 
+  it('renders the Individual Shred Videos media tile, gated on its gallery being seeded', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('Individual Shred Videos');
+    // The gallery is not seeded in the test DB, so the tile shows the
+    // coming-soon state rather than a link to /media/gallery_individual_shred_videos.
+    const idx = res.text.indexOf('Individual Shred Videos');
+    expect(res.text.slice(idx, idx + 200)).toMatch(/Coming soon/);
+  });
+
   it('renders the Freestyle by the Numbers band with six gateway cards', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);

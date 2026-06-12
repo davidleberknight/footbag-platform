@@ -1,0 +1,12 @@
+{
+  "id": "gallery_individual_shred_videos",
+  "name": "Individual Shred Videos",
+  "description": "Curated individual-player shred footage from the Big Add Posse, the invite-only roster of elite freestyle shredders. One representative clip per legend. Distinct from tutorials, trick demonstrations, and competition routines.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#individual_shred_videos"
+  ],
+  "excludeTags": [],
+  "externalLinks": []
+}

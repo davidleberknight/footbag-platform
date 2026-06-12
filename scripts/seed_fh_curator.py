@@ -1125,7 +1125,7 @@ def ensure_fh_named_galleries(
     print(f"  → Ensured {len(galleries)} FH-owned named gallery row(s).")
 
 
-URL_REF_SIDECAR_SUBDIRS = ("freestyle_tricks", "freestyle_tutorials")
+URL_REF_SIDECAR_SUBDIRS = ("freestyle_tricks", "freestyle_tutorials", "individual_shred")
 
 
 def seed_freestyle_tricks_sidecars(

@@ -208,6 +208,17 @@
         <span class="banner-tile-soon">Coming soon</span>
       </span>
       {{/if}}
+      {{#if content.mediaShredHref}}
+      <a class="banner-tile" href="{{content.mediaShredHref}}">
+        <span class="banner-tile-title">Individual Shred Videos</span>
+        <span class="banner-tile-blurb">Representative shred clips from the Big Add Posse legends.</span>
+      </a>
+      {{else}}
+      <span class="banner-tile banner-tile--soon">
+        <span class="banner-tile-title">Individual Shred Videos</span>
+        <span class="banner-tile-soon">Coming soon</span>
+      </span>
+      {{/if}}
     </div>
   </section>
 
