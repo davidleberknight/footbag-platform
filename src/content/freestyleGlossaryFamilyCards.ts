@@ -171,9 +171,9 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
-// Descendant lineages & child sub-families. Each descends from a parent
-// via a chain reading; some fold under the parent as a sub-family, others
-// stand as productive descendant lineages. (kind = 'branch')
+// Branch and lineage families. Each descends from a root via a chain reading;
+// those above the first-class threshold are Family Parents (rendered as a branch
+// under their root), those below are Minor Lineages. (kind = 'branch')
 // ─────────────────────────────────────────────────────────────────────────
 
 export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
@@ -215,8 +215,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['mobius', 'fury', 'blurry torque'],
     observationalNotes: [
       {
-        title: 'Sub-family of osis',
-        body:  'Torque ≡ miraging osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque folds under osis as a sub-family while remaining a productive lineage in its own right.',
+        title: 'First-class branch of osis',
+        body:  'Torque ≡ miraging osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque is a Family Parent that descends from osis (it conserves the osis terminal), so it renders as a branch under osis while leading its own lineage.',
       },
     ],
   },
@@ -231,8 +231,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['food processor (≡ blurry blender)', 'pogo paradox blender'],
     observationalNotes: [
       {
-        title: 'Sub-family of osis',
-        body:  'Blender ≡ whirling osis. Same pattern as torque: a sub-family that folds under osis via a chain reading while staying productive in its own right. The whirling operator adds the back-spin component.',
+        title: 'First-class branch of osis',
+        body:  'Blender ≡ whirling osis. Same pattern as torque: a Family Parent that descends from osis via a chain reading while leading its own lineage. The whirling operator adds the back-spin component.',
       },
     ],
   },
@@ -247,8 +247,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['royale (≡ paradox reverse drifter)', 'vortex (≡ gyro drifter)'],
     observationalNotes: [
       {
-        title: 'Descendant lineage from clipper',
-        body:  'Drifter ≡ miraging clipper. The mirage operator transforms a clipper-set entry into the drifter terminal; this productive descendant lineage grows from the clipper-anchored set primitives.',
+        title: 'Family Parent from clipper',
+        body:  'Drifter ≡ miraging clipper. The mirage operator transforms a clipper-set entry into the drifter terminal; this first-class lineage grows from the clipper-anchored set primitives.',
       },
     ],
   },
@@ -400,8 +400,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['smog', 'haze', 'predator'],
     observationalNotes: [
       {
-        title: 'Sub-family of legover',
-        body:  'A two-dex legover variant: the leg passes over twice before the toe catch. It folds under legover as a sub-family while remaining a productive lineage in its own right.',
+        title: 'First-class branch of legover',
+        body:  'A two-dex legover variant: the leg passes over twice before the toe catch. A Family Parent that descends from legover, rendered as a branch while leading its own lineage.',
       },
     ],
   },
@@ -416,8 +416,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['bedwetter'],
     observationalNotes: [
       {
-        title: 'Sub-family of legover',
-        body:  'A double out-dex legover variant. Like double-leg-over it folds under legover as a sub-family while staying productive on its own.',
+        title: 'First-class branch of legover',
+        body:  'A double out-dex legover variant. Like double-leg-over, a Family Parent that descends from legover, rendered as a branch while leading its own lineage.',
       },
     ],
   },

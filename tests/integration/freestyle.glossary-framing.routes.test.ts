@@ -107,8 +107,8 @@ describe('Glossary framing — settled family-root test note', () => {
   it('renders the settled family-root rule inside the families section', async () => {
     const html = await glossary();
     expect(html).toMatch(/family-root test is settled/);
-    expect(html).toMatch(/more\s+than two active members/);
-    expect(html).toMatch(/derivative\s+micro-clusters \(minor &amp; derived\)/);
+    expect(html).toMatch(/more than 10 documented descendants/);
+    expect(html).toMatch(/<strong>Minor Lineages<\/strong>/);
     expect(html).toContain('id="section-families"');
     expect(html).toContain('First-class families');
   });
@@ -136,7 +136,7 @@ describe('Glossary framing — sidebar + non-regression', () => {
   it('§families uses the parent / descendant-lineage / sub-family model (root/branch retired)', async () => {
     const html = await glossary();
     expect(html).toContain('First-class families');
-    expect(html).toContain('Descendant lineages &amp; sub-families');
+    expect(html).toContain('Branch and lineage families');
     // The retired vocabulary no longer renders.
     expect(html).not.toContain('Root terminal families');
     expect(html).not.toContain('Branch families');
@@ -314,8 +314,9 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     // Derived branches render nested in parentheses after their root.
     expect(html).toMatch(/Osis<\/a> \([^)]*family=torque[^)]*family=blender[^)]*\)/);
     expect(html).toMatch(/Legover<\/a> \([^)]*family=double-leg-over[^)]*family=eggbeater[^)]*\)/);
-    // The empirical admission rule replaces the curator-selected framing.
-    expect(html).toMatch(/at least three recursive descendant tricks/);
+    // The first-class rule states the current editorial standard (>10 descendants).
+    expect(html).toMatch(/more than 10 documented descendants/);
+    expect(html).not.toMatch(/at least three recursive descendant tricks/);
     expect(html).not.toMatch(/curator-selected balance/);
     // The stale "swirl under whirl" sub-family caption is corrected.
     expect(html).not.toMatch(/swirl and rev-whirl under whirl/);
