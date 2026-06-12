@@ -2248,6 +2248,13 @@ export interface FreestyleMediaCoveredSourceRow {
   source_id: string;
 }
 
+export interface FreestyleModifierUsageRow {
+  modifier_slug: string;
+  modifier_name: string;
+  modifier_type: string;
+  trick_count:   number;
+}
+
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
@@ -2320,6 +2327,25 @@ export const freestyleTrickModifiers = {
       AND t.is_active = 1
       AND (t.category IS NULL OR t.category != 'modifier')
     ORDER BY t.adds ASC, t.canonical_name COLLATE NOCASE
+  `); },
+
+  // Modifier usage across the active dictionary: how many canonical tricks
+  // carry each modifier. Drives the live "most-used modifiers" vocabulary
+  // table (dictionary frequency, not competitive-sequence frequency).
+  get listModifierUsage() { return db.prepare(`
+    SELECT
+      m.slug          AS modifier_slug,
+      m.modifier_name AS modifier_name,
+      m.modifier_type AS modifier_type,
+      COUNT(*)        AS trick_count
+    FROM freestyle_trick_modifier_links l
+    INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug
+    INNER JOIN freestyle_tricks t          ON t.slug = l.trick_slug
+    WHERE t.is_active = 1
+      AND (t.category IS NULL OR t.category != 'modifier')
+    GROUP BY m.slug
+    ORDER BY trick_count DESC, m.modifier_name COLLATE NOCASE
+    LIMIT 12
   `); },
 };
 
@@ -2440,6 +2466,52 @@ export interface FreestyleRecentEventRow {
   tag_normalized: string;   // from tags.tag_normalized via events.hashtag_tag_id
 }
 
+export interface FreestyleMilestoneRow {
+  person_id:     string;
+  person_name:   string;
+  country:       string | null;
+  member_slug:   string | null;
+  golds:         number;
+  total_podiums: number;
+}
+
+export interface FreestyleCareerRow {
+  person_id:   string;
+  person_name: string;
+  country:     string | null;
+  member_slug: string | null;
+  first_year:  number;
+  last_year:   number;
+  span:        number;
+}
+
+export interface FreestyleNationRow {
+  country:     string;
+  podiums:     number;
+  competitors: number;
+  golds:       number;
+}
+
+export interface FreestyleWorldChampionRow {
+  person_id:    string;
+  person_name:  string;
+  country:      string | null;
+  member_slug:  string | null;
+  world_titles: number;
+}
+
+export interface FreestyleDecadeNationRow {
+  decade:      string;
+  country:     string;
+  podiums:     number;
+  competitors: number;
+}
+
+export interface FreestyleFormatEventRow {
+  event_id: string;
+  name:     string;   // lowercased discipline name
+}
+
 export const freestyleCompetition = {
   // Top freestyle singles competitors by gold medals, then total podiums
   get listTopCompetitors() { return db.prepare(`
@@ -2505,6 +2577,136 @@ export const freestyleCompetition = {
       AND lower(ed.name) NOT LIKE '%team%'
     ORDER BY e.start_date DESC
     LIMIT 10
+  `); },
+
+  // Per-person golds + total podiums (freestyle singles), top by podiums.
+  // Drives the "most golds" and "most podiums" milestone buckets in-service.
+  get listCompetitorMilestones() { return db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      MAX(m.slug)                                         AS member_slug,
+      SUM(CASE WHEN ere.placement = 1 THEN 1 ELSE 0 END)  AS golds,
+      COUNT(*)                                            AS total_podiums
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    LEFT JOIN members m ON m.historical_person_id = hp.person_id AND m.deleted_at IS NULL
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+      AND ere.placement BETWEEN 1 AND 3
+    GROUP BY hp.person_id
+    ORDER BY total_podiums DESC
+    LIMIT 60
+  `); },
+
+  // Longest documented competitive spans (freestyle, any placement).
+  get listLongestCareers() { return db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      MAX(m.slug)                                                  AS member_slug,
+      MIN(CAST(substr(e.start_date,1,4) AS INTEGER))               AS first_year,
+      MAX(CAST(substr(e.start_date,1,4) AS INTEGER))               AS last_year,
+      MAX(CAST(substr(e.start_date,1,4) AS INTEGER))
+        - MIN(CAST(substr(e.start_date,1,4) AS INTEGER))           AS span
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN events e ON e.id = ere.event_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    LEFT JOIN members m ON m.historical_person_id = hp.person_id AND m.deleted_at IS NULL
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+    GROUP BY hp.person_id
+    HAVING span > 0
+    ORDER BY span DESC, last_year DESC
+    LIMIT 10
+  `); },
+
+  // Podiums by medalist nationality (freestyle singles).
+  get listNationPodiums() { return db.prepare(`
+    SELECT
+      hp.country                                          AS country,
+      COUNT(*)                                            AS podiums,
+      COUNT(DISTINCT hp.person_id)                        AS competitors,
+      SUM(CASE WHEN ere.placement = 1 THEN 1 ELSE 0 END)  AS golds
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+      AND ere.placement BETWEEN 1 AND 3
+      AND hp.country IS NOT NULL AND hp.country <> ''
+    GROUP BY hp.country
+    ORDER BY podiums DESC
+    LIMIT 12
+  `); },
+
+  // Most freestyle-singles wins at events titled as World Championships.
+  get listWorldChampions() { return db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      MAX(m.slug)   AS member_slug,
+      COUNT(*)      AS world_titles
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN events e ON e.id = ere.event_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    LEFT JOIN members m ON m.historical_person_id = hp.person_id AND m.deleted_at IS NULL
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+      AND ere.placement = 1
+      AND lower(e.title) LIKE '%world%'
+    GROUP BY hp.person_id
+    ORDER BY world_titles DESC, hp.person_name ASC
+    LIMIT 10
+  `); },
+
+  // Podiums by medalist nationality and decade (the geographic-shift view).
+  get listPodiumsByDecadeNation() { return db.prepare(`
+    SELECT
+      (substr(e.start_date,1,3) || '0s')                  AS decade,
+      hp.country                                          AS country,
+      COUNT(*)                                            AS podiums,
+      COUNT(DISTINCT hp.person_id)                        AS competitors
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN events e ON e.id = ere.event_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+      AND ere.placement BETWEEN 1 AND 3
+      AND hp.country IS NOT NULL AND hp.country <> ''
+    GROUP BY decade, hp.country
+    ORDER BY decade ASC, podiums DESC
+  `); },
+
+  // Distinct (event, discipline-name) rows for any competition-format keyword,
+  // bucketed into formats in-service so prevalence stays live, not frozen.
+  get listFormatDisciplineEvents() { return db.prepare(`
+    SELECT DISTINCT ed.event_id AS event_id, lower(ed.name) AS name
+    FROM event_disciplines ed
+    WHERE lower(ed.name) LIKE '%routine%'
+       OR lower(ed.name) LIKE '%shred%'
+       OR lower(ed.name) LIKE '%sick%'
+       OR lower(ed.name) LIKE '%best trick%'
+       OR lower(ed.name) LIKE '%circle%'
+       OR lower(ed.name) LIKE '%battle%'
+       OR lower(ed.name) LIKE '%request%'
   `); },
 };
 

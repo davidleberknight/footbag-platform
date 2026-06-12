@@ -1168,41 +1168,50 @@ describe('GET /freestyle/insights', () => {
     expect(res.text).toContain('blurry whirl');
   });
 
-  it('shows hardest sequences section', async () => {
+  it('shows Notable Documented Sequences without claiming they are the hardest', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Hardest Documented Sequences');
+    expect(res.text).toContain('Notable Documented Sequences');
     expect(res.text).toContain('Greg Solis');
     expect(res.text).toContain('22'); // ADD total
+    expect(res.text).not.toContain('Hardest Documented Sequences');
   });
 
-  it('shows difficulty evolution section', async () => {
+  it('no longer presents the Evolution of Difficulty conclusion or the Analysis prose', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Evolution of Difficulty');
-    expect(res.text).toContain('2007');
+    expect(res.text).not.toContain('Evolution of Difficulty');
+    expect(res.text).not.toContain('<h2>Analysis</h2>');
   });
 
-  it('shows diverse players section', async () => {
+  it('restructures into the four labelled areas', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Most Diverse Players');
+    expect(res.text).toContain('Vocabulary');
+    expect(res.text).toContain('Sequence Structure');
+    expect(res.text).toContain('Player Diversity');
+    expect(res.text).toContain('Archive Notes');
+  });
+
+  it('shows diverse players under the Player Diversity area', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/insights');
+    expect(res.text).toContain('Player Diversity');
     expect(res.text).toContain('Mariusz Wilk');
   });
 
-  it('shows narrative analysis section', async () => {
+  it('shows the live Most Used Modifiers table, framed as dictionary usage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    expect(res.text).toContain('Analysis');
-    expect(res.text).toContain('blurry whirl');  // appears in narrative
+    expect(res.text).toContain('Most Used Modifiers');
+    expect(res.text).toContain('dictionary usage, not competitive frequency');
   });
 
-  it('shows source note with dataset attribution', async () => {
+  it('shows Archive Notes with honest dataset framing', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/insights');
-    // Correct framing: data-driven from competition events, not "based on Evolution Report"
-    expect(res.text).toContain('774 documented competitive events');
-    expect(res.text).toContain('Sick3');
+    expect(res.text).toContain('Archive Notes');
+    expect(res.text).toContain('395 Sick3 format sequences');
   });
 
   it('contains breadcrumb back to /freestyle', async () => {

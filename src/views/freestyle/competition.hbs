@@ -24,6 +24,37 @@
     <a href="/freestyle/glossary">freestyle glossary</a>.
   </p>
 
+  {{! ── Competition Formats — beginner intro + live event prevalence ────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Competition Formats</h2>
+    </div>
+    <p class="section-intro">
+      The judged formats you will see across documented freestyle results. Each is a
+      different test of skill, from choreographed routines to single best-trick contests.
+    </p>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>Format</th>
+            <th>What it is</th>
+            <th class="col-num">Documented events</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.formats}}
+          <tr>
+            <td class="fw-600">{{name}}</td>
+            <td class="detail-muted">{{blurb}}</td>
+            <td class="col-num">{{#if eventCount}}{{eventCount}}{{else}}&mdash;{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   {{! ── Competition Through the Years — events by era + recent events ───── }}
   <section class="content-section">
     <div class="section-heading">
@@ -118,6 +149,150 @@
       </table>
     </div>
   </section>
+
+  {{! ── Competition Milestones — golds / podiums / careers buckets ──────── }}
+  {{#if content.milestones}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Competition Milestones</h2>
+    </div>
+    <p class="section-intro">
+      Beyond a single leaderboard: who leads the documented archive on each measure.
+    </p>
+    {{#each content.milestones}}
+    <h3 class="content-subheading">{{title}}</h3>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th>Country</th>
+            <th class="col-num">{{valueLabel}}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each entries}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{#if profileHref}}<a href="{{profileHref}}">{{name}}</a>{{else}}{{name}}{{/if}}</td>
+            <td class="detail-muted">{{#if country}}{{country}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-num">{{value}}</td>
+            <td class="detail-muted">{{detail}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{! ── Most Successful Nations — podiums by medalist nationality ────────── }}
+  {{#if content.nations}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Successful Nations</h2>
+    </div>
+    <p class="section-intro">
+      Podium finishes by competitor nationality, where it is documented.
+    </p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Nation</th>
+            <th class="col-num">Podiums</th>
+            <th class="col-num">Gold</th>
+            <th class="col-num">Competitors</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.nations}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{country}}</td>
+            <td class="col-num">{{podiums}}</td>
+            <td class="col-num">{{golds}}</td>
+            <td class="col-num">{{competitors}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Most World Titles ────────────────────────────────────────────────── }}
+  {{#if content.worldChampions}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most World Titles</h2>
+    </div>
+    <p class="section-intro">
+      Wins at events documented as World Championships.
+    </p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th>Country</th>
+            <th class="col-num">World Titles</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.worldChampions}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{#if profileHref}}<a href="{{profileHref}}">{{name}}</a>{{else}}{{name}}{{/if}}</td>
+            <td class="detail-muted">{{#if country}}{{country}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-num">{{value}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Freestyle Around the World — podiums by nationality and decade ───── }}
+  {{#if content.geographyByDecade}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Freestyle Around the World</h2>
+    </div>
+    <p class="section-intro">
+      Where podium finishers came from, decade by decade. Early podiums were dominated by
+      North America; the documented record shows competitive depth spreading across Europe
+      over time.
+    </p>
+    {{#each content.geographyByDecade}}
+    <h3 class="content-subheading">{{decade}} <span class="detail-muted">({{nationCount}} nations)</span></h3>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Nation</th>
+            <th class="col-num">Podiums</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each nations}}
+          <tr>
+            <td>{{country}}</td>
+            <td class="col-num">{{podiums}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{/each}}
+  </section>
+  {{/if}}
 
   <p class="source-note">{{content.dataNote}}</p>
 

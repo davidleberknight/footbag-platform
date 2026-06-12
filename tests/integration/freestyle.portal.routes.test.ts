@@ -195,7 +195,35 @@ describe('GET /freestyle/competition', () => {
   it('shows source data note', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/competition');
-    expect(res.text).toContain('canonical event results');
+    expect(res.text).toContain('documented event results');
+  });
+
+  it('shows the Competition Formats section with beginner descriptions', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    expect(res.text).toContain('Competition Formats');
+    expect(res.text).toContain('Routines');
+    expect(res.text).toContain('Sick 3');
+  });
+
+  it('shows Competition Milestones with golds and podiums buckets', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    expect(res.text).toContain('Competition Milestones');
+    expect(res.text).toContain('Most Documented Golds');
+    expect(res.text).toContain('Most Documented Podiums');
+  });
+
+  it('shows Most Successful Nations by medalist nationality', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    expect(res.text).toContain('Most Successful Nations');
+  });
+
+  it('shows the Freestyle Around the World geographic section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/competition');
+    expect(res.text).toContain('Freestyle Around the World');
   });
 
   it('contains breadcrumb back to /freestyle', async () => {
