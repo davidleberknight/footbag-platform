@@ -1818,3 +1818,8 @@ illusioning-symposium-mirage,operational_notation,,SET > OP OUT [DEX] > (no plan
 illusioning-symposium-mirage,notation,,ILLUSIONING SYMPOSIUM MIRAGE,JOB per mechanical uppercase rule.
 illusioning-symposium-butterfly,operational_notation,,SET > OP OUT [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto butterfly dex; far = +0. 5 brackets == 5 ADD."
 illusioning-symposium-butterfly,notation,,ILLUSIONING SYMPOSIUM BUTTERFLY,JOB per mechanical uppercase rule.
+surging-ducking-torque,operational_notation,,CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],Surging chassis + ducking + torque; second (base) spin flipped to front per the surging-osis parity precedent. 7 brackets == 7 ADD.
+surging-ducking-torque,notation,,SURGING DUCKING TORQUE,JOB per mechanical uppercase rule.
+surging-ducking-blender,operational_notation,,CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > SAME CLIP [XBD] [DEL],Surging chassis + ducking + blender; second (base) spin flipped to front per the surging-osis parity precedent; far = +0. 7 brackets == 7 ADD.
+surging-ducking-blender,notation,,SURGING DUCKING BLENDER,JOB per mechanical uppercase rule.
+surging-ducking-paradox-torque,operational_notation,,CLIP > OP IN [PDX] [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],Backfill via the Surging chassis: paradox rides the surging stepping dex (per stepping-ducking-paradox-blender); second spin flipped to front per surging-osis. 8 brackets == 8 ADD.
