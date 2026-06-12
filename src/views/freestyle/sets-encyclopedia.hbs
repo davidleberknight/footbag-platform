@@ -57,33 +57,27 @@
     {{#if intro}}
     <p class="sets-encyclopedia-subtype-intro">{{intro}}</p>
     {{/if}}
-    <div class="sets-encyclopedia-grid">
+    {{! Compact rows that mirror the trick-dictionary row contract (reusing the
+        dict-trick-row structure + the SET notation slot). Long prose (Derived,
+        Common in, full explanation) lives on the set detail page. }}
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-      <article class="sets-encyclopedia-card" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
-        <header class="sets-encyclopedia-card-head">
-          <h3 class="sets-encyclopedia-card-name">
-            {{displayName}}
-            {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}">&#9733;</span>{{/if}}
-          </h3>
+      <article class="dict-trick-row" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
+        <div class="dict-trick-row-head">
+          <a class="dict-trick-row-title" href="{{detailHref}}">{{displayName}}</a>
+          {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}">&#9733;</span>{{/if}}
+          <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+          <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
           <span class="sets-encyclopedia-card-role-chip sets-encyclopedia-card-role-chip--{{roleKey}}">{{roleLabel}}</span>
-          <code class="sets-encyclopedia-card-hashtag">{{hashtag}}</code>
-        </header>
-        <code class="sets-encyclopedia-card-formula">{{formula}}</code>
+        </div>
+        <div class="dict-trick-row-notation">
+          <span class="dict-trick-row-job">
+            <span class="dict-trick-row-label">SET</span>
+            <code class="dict-trick-row-job-value">{{formula}}</code>
+          </span>
+          <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details &rarr;</a>
+        </div>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
-        <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
-        {{#if quickRelations.length}}
-        <p class="sets-encyclopedia-card-relations-row">
-          <span class="sets-encyclopedia-card-relations-label">Derived:</span>
-          {{#each quickRelations}}<a class="sets-encyclopedia-card-relation" href="{{href}}">{{label}}</a>{{#unless @last}} <span class="sets-encyclopedia-card-relation-sep">·</span> {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-        {{#if commonIn.length}}
-        <p class="sets-encyclopedia-card-common-in">
-          <span class="sets-encyclopedia-card-common-in-label">Common in:</span>
-          {{#each commonIn}}<a class="sets-encyclopedia-card-common-in-trick" href="{{href}}">{{label}}</a>{{#unless @last}}, {{/unless}}{{/each}}
-        </p>
-        {{/if}}
-        <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details &rarr;</a>
       </article>
       {{/each}}
     </div>

@@ -11050,30 +11050,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.45;
   max-width: 70ch;
 }
-.sets-encyclopedia-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
-}
-.sets-encyclopedia-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
-  padding: 9px 11px;
-  background: var(--bg-card);
-  display: flex;
-  flex-direction: column;
-}
-.sets-encyclopedia-card-head {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-bottom: 4px;
-}
-.sets-encyclopedia-card-name {
-  margin: 0;
-  font-size: 0.98rem;
-}
 .sets-encyclopedia-card-flagship {
   display: inline-block;
   margin-left: 4px;
@@ -11100,40 +11076,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .sets-encyclopedia-card-role-chip--whirl-swirl    { background: var(--fern-100); color: var(--fern-600); }
 .sets-encyclopedia-card-role-chip--uns-entry      { background: var(--parch-250); color: var(--steel-500); }
 .sets-encyclopedia-card-role-chip--rooted         { background: var(--parch-350); color: var(--earth-600); }
-.sets-encyclopedia-card-hashtag {
-  margin-left: auto;
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: 0.72rem;
-  color: var(--text-subtle);
-  background: var(--bg-subtle);
-  padding: 1px 5px;
-  border-radius: var(--radius-2xs);
-}
-.sets-encyclopedia-card-formula {
-  display: block;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.78rem;
-  color: var(--secondary);
-  background: var(--bg-subtle);
-  padding: 4px 6px;
-  border-radius: var(--radius-2xs);
-  margin: 3px 0 6px;
-  white-space: normal;
-  word-break: break-word;
-}
 .sets-encyclopedia-card-movement {
-  font-size: 0.86rem;
-  color: var(--text-primary);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
   line-height: 1.4;
-  margin: 4px 0 6px;
-}
-.sets-encyclopedia-card-provenance {
-  font-size: 0.74rem;
-  color: var(--text-subtle);
-  margin: 0 0 6px;
-  font-style: italic;
+  margin: 0.3rem 0 0;
 }
 .sets-encyclopedia-card-status {
   display: inline-block;
@@ -11142,59 +11089,15 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
   padding: 1px 7px;
   border-radius: var(--radius-2xs);
-  margin: 0 0 6px;
+  margin: 0;
   white-space: nowrap;
 }
 .sets-encyclopedia-card-status--platform-tracked { background: var(--fern-100); color: var(--fern-600); }
 .sets-encyclopedia-card-status--community-cited   { background: var(--parch-250); color: var(--steel-600); }
 .sets-encyclopedia-card-status--under-review      { background: var(--parch-250); color: var(--pending-umber); }
-.sets-encyclopedia-card-relations-row {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin: 0 0 4px;
-  line-height: 1.45;
-}
-.sets-encyclopedia-card-relations-label {
-  font-weight: 600;
-  color: var(--text-subtle);
-  margin-right: 4px;
-}
-.sets-encyclopedia-card-relation {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-.sets-encyclopedia-card-relation:hover,
-.sets-encyclopedia-card-relation:focus {
-  text-decoration: underline;
-  color: var(--text-primary);
-}
-.sets-encyclopedia-card-relation-sep {
-  color: var(--text-subtle);
-}
-.sets-encyclopedia-card-common-in {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin: 0 0 8px;
-  line-height: 1.45;
-}
-.sets-encyclopedia-card-common-in-label {
-  font-weight: 600;
-  color: var(--text-subtle);
-  margin-right: 4px;
-}
-.sets-encyclopedia-card-common-in-trick {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-.sets-encyclopedia-card-common-in-trick:hover,
-.sets-encyclopedia-card-common-in-trick:focus {
-  text-decoration: underline;
-  color: var(--text-primary);
-}
 .sets-encyclopedia-card-detail-link {
-  margin-top: auto;
-  align-self: flex-start;
-  font-size: 0.82rem;
+  margin-left: auto;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 .sets-alt-surfaces-cta {

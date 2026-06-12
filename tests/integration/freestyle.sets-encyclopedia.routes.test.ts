@@ -92,19 +92,19 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
     },
   );
 
-  it('every set card has a compact-movement sentence + status pill + formula block', async () => {
+  it('every set row carries a status pill, the SET notation line, and one descriptor', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
-    // Count cards by counting card detail-link occurrences (one per card)
+    // One row per set: count by detail-link, then confirm each required slot
+    // appears the same number of times. The rows reuse the trick-dictionary
+    // notation contract (.dict-trick-row-notation) for the SET formula line.
     const detailLinkMatches = res.text.match(/sets-encyclopedia-card-detail-link/g) ?? [];
     const movementMatches   = res.text.match(/sets-encyclopedia-card-movement/g) ?? [];
     const statusMatches     = res.text.match(/sets-encyclopedia-card-status /g) ?? [];
-    const formulaMatches    = res.text.match(/sets-encyclopedia-card-formula/g) ?? [];
-    // All four counts equal — every card has every required field. The status
-    // pill replaces the former source-naming provenance line.
+    const notationMatches   = res.text.match(/dict-trick-row-notation/g) ?? [];
     expect(detailLinkMatches.length).toBeGreaterThan(0);
     expect(movementMatches.length).toBe(detailLinkMatches.length);
     expect(statusMatches.length).toBe(detailLinkMatches.length);
-    expect(formulaMatches.length).toBe(detailLinkMatches.length);
+    expect(notationMatches.length).toBe(detailLinkMatches.length);
   });
 
   it('status pills use beginner-safe labels and never expose internal source names', async () => {
@@ -181,11 +181,14 @@ describe('GET /freestyle/sets — detail-page link resolution', () => {
 });
 
 describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
-  it('uses its own template classes (not the Set Hub view classes)', async () => {
+  it('renders compact trick-dictionary-style rows, not the Set Hub view cards', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
-    // Encyclopedia-specific classes
-    expect(res.text).toContain('sets-encyclopedia-card');
-    expect(res.text).toContain('sets-encyclopedia-grid');
+    // The index mirrors the trick-dictionary row contract (shared structure)
+    // while carrying the encyclopedia's own status pill + role chip.
+    expect(res.text).toContain('dict-trick-row-stack');
+    expect(res.text).toContain('class="dict-trick-row"');
+    expect(res.text).toContain('sets-encyclopedia-card-status');
+    expect(res.text).toContain('sets-encyclopedia-card-role-chip');
     // Set Hub view classes (from /freestyle/tricks?view=sets) are NOT here
     expect(res.text).not.toContain('class="set-card set-card--');
     expect(res.text).not.toContain('class="set-card-grid"');
@@ -287,45 +290,15 @@ describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets'
   });
 });
 
-describe('GET /freestyle/sets — S1 "Common in:" preview line', () => {
-  it('pixie card renders the Common in line with seeded tricks (lowest ADD first, alphabetical tiebreak)', async () => {
+describe('GET /freestyle/sets — index prose reduced (Derived / Common in moved to detail pages)', () => {
+  it('does not render the Derived or Common-in lines on the index rows', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
-    const cardIdx = res.text.indexOf('id="enc-set-pixie"');
-    expect(cardIdx).toBeGreaterThan(0);
-    const cardSlice = res.text.slice(cardIdx, cardIdx + 2500);
-    // Common-in label + line present
-    expect(cardSlice).toContain('class="sets-encyclopedia-card-common-in"');
-    expect(cardSlice).toContain('Common in:');
-    // The 3 seeded tricks linked, in lowest-ADD-first order:
-    // pixie-illusion(3), smear(3), dimwalk(4)
-    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/pixie-illusion"[^>]*>pixie illusion<\/a>/);
-    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/smear"[^>]*>smear<\/a>/);
-    expect(cardSlice).toMatch(/href="\/freestyle\/tricks\/dimwalk"[^>]*>dimwalk<\/a>/);
-    // pixie-illusion or smear (both 3 ADD) precede dimwalk (4 ADD)
-    const pixieIllIdx = cardSlice.indexOf('pixie-illusion"');
-    const dimwalkIdx  = cardSlice.indexOf('dimwalk"');
-    expect(pixieIllIdx).toBeLessThan(dimwalkIdx);
-  });
-
-  it('cards without modifier-link rows suppress the Common-in line (no empty markup)', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
-    // fairy has no seeded modifier_links, so its card must not render the
-    // common-in line.
-    const cardIdx = res.text.indexOf('id="enc-set-fairy"');
-    expect(cardIdx).toBeGreaterThan(0);
-    const cardSlice = res.text.slice(cardIdx, cardIdx + 2500);
-    expect(cardSlice).not.toContain('class="sets-encyclopedia-card-common-in"');
-    expect(cardSlice).not.toContain('Common in:');
-  });
-});
-
-describe('GET /freestyle/sets — S1 "Derived:" label on the relations row', () => {
-  it('cards with derivedSystems render the Derived: label prefix and the relations row class', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets');
-    expect(res.text).toContain('class="sets-encyclopedia-card-relations-row"');
-    expect(res.text).toContain('class="sets-encyclopedia-card-relations-label">Derived:</span>');
-    // Relation anchors point to set detail pages (not in-page anchors)
-    expect(res.text).toMatch(/<a class="sets-encyclopedia-card-relation" href="\/freestyle\/sets\/[a-z-]+">/);
+    // These relational previews now live on the set detail pages; the index
+    // rows carry at most one short descriptor (the compact movement line).
+    expect(res.text).not.toContain('class="sets-encyclopedia-card-common-in"');
+    expect(res.text).not.toContain('Common in:');
+    expect(res.text).not.toContain('class="sets-encyclopedia-card-relations-row"');
+    expect(res.text).not.toContain('Derived:');
   });
 });
 
