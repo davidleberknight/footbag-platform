@@ -197,8 +197,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pixie', hashtag: '#pixie-set', displayName: 'Pixie', subtype: 'true-core',
     formula: 'TOE > SAME IN [DEX] >',
     movementExplanation:
-      'Toe set, then a same-side inward dex. The simplest +1 uptime entry; the pre-base ' +
-      'motion echoes the around-the-world shape.',
+      'A toe set with a same-side inward dex; the basic uptime ATW-style entry and the ' +
+      'directional mirror of fairy.',
     equivalenceNotes: [],
     derivedSystems: [
       { slug: 'terraging', label: 'Terraging' },
@@ -220,8 +220,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'fairy', hashtag: '#fairy-set', displayName: 'Fairy', subtype: 'true-core',
     formula: 'TOE > SAME OUT [DEX] >',
     movementExplanation:
-      'Toe set, then a same-side outward dex. The directional mirror of pixie; the ' +
-      'pre-base motion echoes the orbit shape.',
+      'A toe set with a same-side outward dex; the basic uptime orbit-style entry and the ' +
+      'directional mirror of pixie.',
     equivalenceNotes: [],
     derivedSystems: [
       { slug: 'fairy-atomic',   label: 'Fairy Atomic' },
@@ -240,8 +240,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'stepping', hashtag: '#stepping-set', displayName: 'Stepping', subtype: 'true-core',
     formula: 'CLIP > OP IN [DEX] >',
     movementExplanation:
-      'Clipper set, then an opposite-side inward dex. Set-foot relocation rather than ' +
-      'a uptime compression; the open of a clipper-anchored chain.',
+      'A clipper set with an opposite-side inward dex; the set foot relocates as it opens ' +
+      'a clipper-anchored chain.',
     equivalenceNotes: [],
     derivedSystems: [
       { slug: 'barraging',  label: 'Barraging' },
@@ -283,8 +283,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'atomic', hashtag: '#atomic-set', displayName: 'Atomic', subtype: 'true-core',
     formula: 'TOE > OP OUT [DEX] > (op side component)',
     movementExplanation:
-      'Toe set, then an opposite-side outward dex resolving to an op-side terminal. The ' +
-      'uptime motion echoes the pickup crossing; Holden reads it as a Toe-set Illusion.',
+      'A toe set with an opposite-side outward dex landing on the far side; the uptime ' +
+      'motion echoes the pickup crossing.',
     equivalenceNotes: [
       { reading: 'Toe set Illusion', citation: 'Holden parenthetical' },
     ],
@@ -306,8 +306,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'bubba', hashtag: '#bubba-set', displayName: 'Bubba', subtype: 'true-core',
     formula: 'CLIP > OP OUT [DEX] >',
     movementExplanation:
-      'Clipper set, then an opposite-side outward dex. The reverse-direction sibling of ' +
-      'stepping; named in Holden\'s compilation but not currently a platform canonical.',
+      'A clipper set with an opposite-side outward dex; the reverse-direction mirror of ' +
+      'stepping. Named in Holden\'s compilation but not currently a platform canonical.',
     equivalenceNotes: [],
     derivedSystems: [],
     relatedSystems: [
@@ -395,8 +395,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'terraging', hashtag: '#terraging-set', displayName: 'Terraging', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Double Pixie. Two same-side inward dexes layered over a toe set, a literal ' +
-      'doubling of the pixie pattern.',
+      'Pixie doubled (folk name Double Pixie): two same-side inward dexes layered over a ' +
+      'toe set.',
     equivalenceNotes: [
       { reading: 'Double Pixie', citation: 'Holden parenthetical' },
     ],
@@ -413,8 +413,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'barraging', hashtag: '#barraging-set', displayName: 'Barraging', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'High Stepping. Two-dex chain over a clipper set: stepping\'s opening dex followed ' +
-      'by a same-side inward dex.',
+      'Stepping extended with a second inward dex (folk name High Stepping): stepping\'s ' +
+      'opening dex followed by a same-side inward dex.',
     equivalenceNotes: [
       { reading: 'High Stepping', citation: 'Holden parenthetical' },
     ],
@@ -433,8 +433,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'sailing', hashtag: '#sailing-set', displayName: 'Sailing', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
-      'Pixie Illusion. Pixie\'s opening dex followed by an illusion-class second dex. ' +
-      'Holden-cited; no current platform canonical.',
+      'Pixie extended with an illusion-style dex (folk name Pixie Illusion). Holden-cited; ' +
+      'no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Pixie Illusion', citation: 'Holden parenthetical' },
     ],
@@ -453,8 +453,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'blurry', hashtag: '#blurry-set', displayName: 'Blurry', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > OP OUT [DEX] >',
     movementExplanation:
-      'Stepping Paradox. Stepping\'s opening dex followed by a paradox-character second ' +
-      'dex (the same-in → op-out hip flip).',
+      'Stepping combined with a paradox-style orientation change.',
     equivalenceNotes: [
       { reading: 'Stepping Paradox', citation: 'Holden parenthetical' },
     ],
@@ -493,8 +492,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'frantic', hashtag: '#frantic-set', displayName: 'Frantic', subtype: 'composite-derived',
     formula: 'TOE > SAME IN [DEX] > OP IN [DEX] >',
     movementExplanation:
-      'Pixie-quantum. Pixie\'s opening dex followed by quantum\'s direction. Holden-cited; ' +
-      'no current platform canonical.',
+      'Pixie into quantum\'s direction: pixie\'s opening dex followed by an opposite-side ' +
+      'inward dex. Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'pixie-quantum', citation: 'Holden reading' },
     ],
@@ -529,8 +528,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'shooting', hashtag: '#shooting-set', displayName: 'Shooting', subtype: 'composite-derived',
     formula: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',
     movementExplanation:
-      'Stepping Paradox Illusion. Three-dex chain with an explicit paradox token in the ' +
-      'second dex. Holden-cited; no current platform canonical.',
+      'Stepping with a paradox-style orientation change, extended by an illusion-style dex ' +
+      '(folk name Stepping Paradox Illusion). Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Stepping Paradox Illusion', citation: 'Holden parenthetical' },
     ],
@@ -548,8 +547,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'flailing', hashtag: '#flailing-set', displayName: 'Flailing', subtype: 'composite-derived',
     formula: 'SET > (no plant while) OP OUT [BOD] [DEX] >',
     movementExplanation:
-      'Symposium Reverse Miraging. Miraging\'s opposite direction with an explicit no-plant ' +
-      'symposium constraint. Holden-cited; no current platform canonical.',
+      'Miraging reversed and performed off the ground (folk name Symposium Reverse ' +
+      'Miraging). Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Symposium Reverse Miraging', citation: 'Holden parenthetical' },
       { reading: 'Symposium Illusioning', citation: 'Curator-adjudicated' },
@@ -567,9 +566,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'nuclear', hashtag: '#nuclear-set', displayName: 'Nuclear', subtype: 'composite-derived',
     formula: 'CLIP > SAME OUT [DEX] >',
     movementExplanation:
-      'Platform reading: paradox + illusion compounded (paradox\'s hip pivot combined with ' +
-      'a downtime illusioning dex). Holden treats it as a basic single-dex set; the ' +
-      'platform tracks it as a +2 compound.',
+      'A clipper-based compound entry combining a paradox hip shift with an illusion-style ' +
+      'dex. Holden treats it as a basic single-dex set; the platform tracks it as a +2 ' +
+      'compound.',
     equivalenceNotes: [
       { reading: 'paradox + illusion compound', citation: 'Platform reading (pt14)' },
       { reading: 'basic single-dex set',        citation: 'Holden reading' },
@@ -648,8 +647,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'leaning', hashtag: '#leaning-set', displayName: 'Leaning', subtype: 'rotational',
     formula: 'CLIP > OP IN [DEX] > (FRONT) SPIN [BOD] >',
     movementExplanation:
-      'Stepping inspinning. Stepping\'s opening dex followed by a front-spin body token. ' +
-      'Holden-cited; no current platform canonical.',
+      'Stepping with a forward spin (folk name Stepping inspinning). Holden-cited; no ' +
+      'current platform canonical.',
     equivalenceNotes: [
       { reading: 'stepping inspinning', citation: 'Holden parenthetical' },
     ],
@@ -704,8 +703,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'neutron', hashtag: '#neutron-set', displayName: 'Neutron', subtype: 'rotational',
     formula: 'TOE > OP OUT [DEX] > (BACK) SPIN [BOD] > (op side component)',
     movementExplanation:
-      'Atomic spin. Atomic\'s opening dex followed by a back-spin body token, terminating ' +
-      'op-side. Holden-cited; no current platform canonical.',
+      'Atomic with an added back spin (folk name Atomic spin). Holden-cited; no current ' +
+      'platform canonical.',
     equivalenceNotes: [
       { reading: 'Atomic spin', citation: 'Holden parenthetical' },
     ],
@@ -852,8 +851,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pogo', hashtag: '#pogo-set', displayName: 'Pogo', subtype: 'whirl-swirl',
     formula: 'CLIP > (no plant while) OP IN [DEX] >',
     movementExplanation:
-      'Symposium Whirling. Whirling\'s shape with an explicit no-plant constraint: the ' +
-      'support leg does not contact the ground during the dex.',
+      'Whirling performed off the ground (folk name Symposium Whirling): the whirl shape ' +
+      'with no support-foot plant.',
     equivalenceNotes: [
       { reading: 'Symposium Whirling', citation: 'Holden parenthetical' },
     ],
@@ -870,8 +869,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'blistering', hashtag: '#blistering-set', displayName: 'Blistering', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (BACK) SPIN [BOD] >',
     movementExplanation:
-      'Whirling Gyro. Whirling\'s opening dex followed by a back-spin body token (the ' +
-      'gyro lineage anchor).',
+      'Whirling with an added back spin (folk name Whirling Gyro); the gyro-lineage ' +
+      'anchor.',
     equivalenceNotes: [
       { reading: 'Whirling Gyro', citation: 'Holden parenthetical' },
     ],
@@ -910,8 +909,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'finchy', hashtag: '#finchy-set', displayName: 'Finchy', subtype: 'uns',
     formula: 'PINCH > SAME OUT [DEX] >',
     movementExplanation:
-      'Pinching Fairy. Fairy\'s dex direction over a pinch entry surface instead of a toe ' +
-      'set. Holden-cited; no current platform canonical.',
+      'Fairy off a pinch entry (folk name Pinching Fairy): fairy\'s outward dex over a ' +
+      'pinch surface, not a toe set. Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'Pinching Fairy set', citation: 'Holden parenthetical' },
     ],
@@ -982,8 +981,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'arctic', hashtag: '#arctic-set', displayName: 'Arctic', subtype: 'uns',
     formula: 'FRIGIDOSIS > SAME IN [DEX] >',
     movementExplanation:
-      'Frigidosis Pixie. Pixie\'s dex direction over a frigidosis entry surface. ' +
-      'Holden-cited; no current platform canonical.',
+      'Pixie off a frigidosis entry (folk name Frigidosis Pixie): pixie\'s inward dex over ' +
+      'a frigidosis surface. Holden-cited; no current platform canonical.',
     equivalenceNotes: [
       { reading: 'frigidosis Pixie', citation: 'Holden parenthetical' },
     ],

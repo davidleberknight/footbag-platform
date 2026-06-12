@@ -78,7 +78,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 
   it('renders the movement explanation', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
-    expect(res.text).toMatch(/Toe set, then a same-side inward dex/);
+    expect(res.text).toMatch(/A toe set with a same-side inward dex/);
   });
 
   it('renders derived systems as anchor links to /freestyle/sets/<slug>', async () => {
