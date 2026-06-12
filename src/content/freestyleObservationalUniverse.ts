@@ -71,23 +71,6 @@ export interface ObservationalUniverseStats {
 }
 
 export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
-  {"name": "Blazing Illusion", "slug": "blazing-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "blazing(+1) + illusion(2) = 3", "semanticJob": "BLAZING ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Legover", "slug": "blazing-legover", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "blazing(+1) + legover(2) = 3", "semanticJob": "BLAZING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Mirage", "slug": "blazing-mirage", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "blazing(+1) + mirage(2) = 3", "semanticJob": "BLAZING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Diving Reverse Guay", "slug": "diving-reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "diving(+1) + guay(2) = 3", "semanticJob": "DIVING REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Tapping Reverse Guay", "slug": "tapping-reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "tapping(+1) + guay(2) = 3", "semanticJob": "TAPPING REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Butterfly", "slug": "blazing-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "blazing(+1) + butterfly(3) = 4", "semanticJob": "BLAZING BUTTERFLY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Drifter", "slug": "blazing-drifter", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "blazing(+1) + drifter(3) = 4", "semanticJob": "BLAZING DRIFTER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Terraging Illusion", "slug": "terraging-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + illusion(2) = 5", "semanticJob": "TERRAGING ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging ss Illusion"], "layer": "frontier"},
-  {"name": "Terraging Legover", "slug": "terraging-legover", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + legover(2) = 5", "semanticJob": "TERRAGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging ss Legover"], "layer": "frontier"},
-  {"name": "Terraging ss Illusion", "slug": "terraging-illusion", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + illusion(2) = 5", "semanticJob": "TERRAGING ILLUSION", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Terraging ss Legover", "slug": "terraging-legover", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + legover(2) = 5", "semanticJob": "TERRAGING LEGOVER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Terraging ss Mirage", "slug": "terraging-mirage", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "terraging(+3) + mirage(2) = 5", "semanticJob": "TERRAGING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Guay", "slug": "atomic-guay", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "atomic(+1) + guay(2) = 3", "semanticJob": "ATOMIC GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Pickup (same side)", "slug": "atomic-pickup", "source": "MULTI", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "atomic(+1) + pickup(2) = 3", "semanticJob": "ATOMIC PICKUP", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Reverse Guay", "slug": "atomic-reverse-guay", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "atomic(+1) + guay(2) = 3", "semanticJob": "ATOMIC REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Eggbeater", "slug": "atomic-eggbeater", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + eggbeater(3) = 4", "semanticJob": "ATOMIC EGGBEATER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic far Eggbeater"], "layer": "frontier"},
-  {"name": "Atomic far Eggbeater", "slug": "atomic-eggbeater", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + eggbeater(3) = 4", "semanticJob": "ATOMIC EGGBEATER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
   {"name": "Atomic Ducking far Mirage", "slug": "atomic-ducking-mirage", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Ducking Mirage", "Atomic Ducking Mirage (Rasmus) (Skull Smasher)"], "layer": "frontier"},
   {"name": "Atomic Ducking Mirage", "slug": "atomic-ducking-mirage", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
   {"name": "Atomic Ducking Mirage (Rasmus) (Skull Smasher)", "slug": "atomic-ducking-mirage", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
@@ -96,27 +79,14 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Atomic Swirl", "slug": "atomic-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + swirl(3) = 5", "semanticJob": "ATOMIC SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic Symposium Mirage", "slug": "atomic-symposium-mirage", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + symposium(+1) + mirage(2) = 5", "semanticJob": "ATOMIC SYMPOSIUM MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic Whirl", "slug": "atomic-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + whirl(3) = 5", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic Ducking Blender", "slug": "atomic-ducking-blender", "source": "MULTI", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+1) + ducking(+1) + blender(4) = 6", "semanticJob": "ATOMIC DUCKING BLENDER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Atomic far Symp. Whirl", "slug": "atomic-symposium-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+2 rot) + symposium(+1) + whirl(3) = 6", "semanticJob": "ATOMIC SYMPOSIUM. WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Symposium Whirl"], "layer": "frontier"},
   {"name": "Atomic Symposium Whirl", "slug": "atomic-symposium-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+2 rot) + symposium(+1) + whirl(3) = 6", "semanticJob": "ATOMIC SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
   {"name": "Atomic Gyro Torque", "slug": "atomic-gyro-torque", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "atomic(+2 rot) + gyro(+1) + torque(4) = 7", "semanticJob": "ATOMIC GYRO TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging Ducking far Blender", "slug": "surging-ducking-blender", "source": "PB", "ecosystem": "ducking", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + stepping(+1) + ducking(+1) + blender(4) = 7", "semanticJob": "SURGING DUCKING BLENDER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging Ducking Torque", "slug": "surging-ducking-torque", "source": "SG", "ecosystem": "ducking", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + stepping(+1) + ducking(+1) + torque(4) = 7", "semanticJob": "SURGING DUCKING TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Surging Ducking Paradox Symposium Whirling Rake", "slug": "surging-ducking-paradox-symposium-whirling-rake", "source": "FM", "ecosystem": "ducking", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "8", "decomposition": "spinning(+1) + whirling(+1) + stepping(+1) + ducking(+1) + paradox(+1) + symposium(+1) + rake(2) = 8", "semanticJob": "SURGING DUCKING PARADOX SYMPOSIUM WHIRLING RAKE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pixie Miraging Symposium Miraging Legover", "slug": "pixie-miraging-symposium-miraging-legover", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "pixie(+1) + miraging(+1) + symposium(+1) + miraging(+1) + legover(2) = 6", "semanticJob": "PIXIE MIRAGING SYMPOSIUM MIRAGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spinning far Miraging Symp. Miraging Refraction", "slug": "spinning-miraging-symposium-miraging-refraction", "source": "PB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + miraging(+1) + symposium(+1) + miraging(+1) + refraction(3) = 7", "semanticJob": "SPINNING MIRAGING SYMPOSIUM. MIRAGING REFRACTION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Symposium Mirage", "slug": "blazing-symposium-mirage", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "blazing(+1) + symposium(+1) + mirage(2) = 4", "semanticJob": "BLAZING SYMPOSIUM MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Paradox Whirl", "slug": "blazing-paradox-whirl", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "blazing(+1) + paradox(+1) + whirl(3) = 5", "semanticJob": "BLAZING PARADOX WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Blazing Torque", "slug": "blazing-torque", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "blazing(+1) + torque(4) = 5", "semanticJob": "BLAZING TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Reverse Swirling PS Whirl", "slug": "reverse-swirling-paradox-symposium-whirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "swirling(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6", "semanticJob": "REVERSE SWIRLING PARADOX SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Drifter", "slug": "atomic-drifter", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + drifter(3) = 4", "semanticJob": "ATOMIC DRIFTER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Backside Symposium Toe Blizzard", "slug": "backside-symposium-toe-blizzard", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "backside(+1) + symposium(+1) + blizzard(3) = 5", "semanticJob": "BACKSIDE SYMPOSIUM TOE BLIZZARD", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Paradox Blur", "slug": "paradox-blur", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "paradox(+1) + blur(4) = 5", "semanticJob": "PARADOX BLUR", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Symposium Blizzard", "slug": "symposium-blizzard", "source": "FB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "symposium(+1) + blizzard(3) = 4", "semanticJob": "SYMPOSIUM BLIZZARD", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Far Reverse Guay", "slug": "reverse-guay", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "guay(2) = 2", "semanticJob": "REVERSE GUAY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Sailing Clipper", "slug": "sailing-clipper", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "sailing(2) = 2", "semanticJob": "SAILING CLIPPER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Toe Mobius", "slug": "toe-mobius", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "mobius(5) = 5", "semanticJob": "TOE MOBIUS", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Toe near Barrage", "slug": "toe-barrage", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "barrage(3) = 3", "semanticJob": "TOE BARRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Terraging Opposite Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging Same Clipper", "Terraging Clipper"], "layer": "frontier"},
   {"name": "Terraging Same Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
@@ -539,7 +509,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "BS Blurriest", "slug": "bs-blurriest", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "doctrine", "cluster": "blurry", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Butterfly, Down", "slug": "butterfly-down", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Illusioning far Osis", "slug": "illusioning-far-osis", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning Flail", "slug": "illusioning-flail", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Illusioning Flail (Toe Massacre)", "slug": "illusioning-flail-toe-massacre", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Illusioning Legover", "slug": "illusioning-legover", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Illusioning Legover (Eggbeater)", "slug": "illusioning-legover-eggbeater", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -1444,7 +1413,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1369,
+    "total": 1338,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1452,20 +1421,20 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 206,
+    "promotionFrontier": 178,
     "lexicalArchive": 1154,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 42,
-        "distinctStructures": 42
+        "names": 15,
+        "distinctStructures": 15
       },
       "doctrine_pending": {
         "names": 113,
         "distinctStructures": 113
       },
       "unresolved_candidate": {
-        "names": 51,
-        "distinctStructures": 51
+        "names": 50,
+        "distinctStructures": 50
       },
       "alias": {
         "names": 425,
@@ -1476,8 +1445,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 0
       },
       "duplicate_variant": {
-        "names": 9,
-        "distinctStructures": 7
+        "names": 6,
+        "distinctStructures": 4
       },
       "low_confidence": {
         "names": 639,
@@ -1488,24 +1457,24 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 90
       }
     },
-    "ready": 38,
-    "frontier": 55,
+    "ready": 13,
+    "frontier": 49,
     "doctrineBlocked": 203,
     "folkUnresolved": 695,
     "parserUnresolved": 378,
-    "promotionReadyPct": 7,
+    "promotionReadyPct": 5,
     "doctrineBlockedPct": 15,
-    "folkUnresolvedPct": 51,
+    "folkUnresolvedPct": 52,
     "parserUnresolvedPct": 28,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 598,
-      "FM": 384,
-      "PB": 263,
-      "FB": 109,
-      "MULTI": 15
+      "SG": 582,
+      "FM": 379,
+      "PB": 258,
+      "FB": 107,
+      "MULTI": 12
     },
-    "generatedOn": "2026-06-10"
+    "generatedOn": "2026-06-12"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =
