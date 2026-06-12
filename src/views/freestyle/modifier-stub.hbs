@@ -30,6 +30,14 @@
     {{/if}}
   </section>
 
+  {{#if (or content.decomposition content.workedExamples.length)}}
+  <section class="content-section">
+    <h2 class="section-heading">Decomposition</h2>
+    {{#if content.decomposition}}<p class="modifier-stub-decomposition"><span class="modifier-stub-decomp-label">Decomposes as:</span> {{content.decomposition}}</p>{{/if}}
+    {{#if content.workedExamples.length}}<p class="modifier-stub-examples">{{#each content.workedExamples}}{{#unless @first}} &middot; {{/unless}}<em>{{this}}</em>{{/each}}</p>{{/if}}
+  </section>
+  {{/if}}
+
   {{#if content.commonTricks.length}}
   <section class="content-section">
     <h2 class="section-heading">Common tricks</h2>

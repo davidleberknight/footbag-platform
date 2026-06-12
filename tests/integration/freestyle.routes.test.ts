@@ -544,18 +544,21 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
   });
 
-  it('renders the compact index and retains the advanced decomposition reference', async () => {
+  it('renders the compact index and a minimal cross-cutting decomposition tail', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
     // Compact index rows (not the old feel-card scroll).
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
-    // Advanced reference retained below the index (shared sub-partial).
-    expect(res.text).toContain('id="term-paradox"');
-    expect(res.text).toContain('glossary-paradox-formula');
-    expect(res.text).toContain('id="intermediate-operators"');
+    // Tail keeps only the cross-cutting notes (decomposition concept + alpine +
+    // cross-body); per-modifier depth moved to the detail pages.
+    expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
     expect(res.text).toContain('id="execution-mechanics"');
-    expect(res.text).toContain('id="set-modifiers-tier-1"');
+    expect(res.text).toContain('id="cross-body"');
+    // The per-modifier reference dl/grid no longer renders on the operators page.
+    expect(res.text).not.toContain('id="intermediate-operators"');
+    expect(res.text).not.toContain('id="set-modifiers-tier-1"');
+    expect(res.text).not.toContain('class="glossary-intermediate-operators"');
   });
 
   it('cross-links the dictionary movement-system view and the set encyclopedia', async () => {
@@ -781,23 +784,24 @@ describe('GET /freestyle/operators — orientation lede', () => {
   });
 });
 
-describe('GET /freestyle/glossary §6 partial reuse (same content as /freestyle/operators)', () => {
-  it('glossary §6 and /freestyle/operators share the advanced decomposition reference', async () => {
-    // The shared `freestyle-modifier-advanced-reference` sub-partial keeps the
-    // advanced reference in sync on both surfaces; the modifier feel cards now
-    // live only in glossary §6.
+describe('GET /freestyle/glossary §6 is the per-modifier reference home (operators is the index)', () => {
+  it('glossary §6 keeps the full per-modifier reference + anchors; operators carries only the minimal tail', async () => {
     const glossary  = await request(createApp()).get('/freestyle/glossary');
     const operators = await request(createApp()).get('/freestyle/operators');
+    // The full per-modifier reference + its #term-{slug} anchors live in the
+    // glossary (the load-bearing anchor home that semantic tokens link to).
     for (const anchor of [
       'id="term-paradox"',
       'id="intermediate-operators"',
-      'id="execution-mechanics"',
       'id="set-modifiers-tier-1"',
     ]) {
       expect(glossary.text,  `glossary missing ${anchor}`).toContain(anchor);
-      expect(operators.text, `operators missing ${anchor}`).toContain(anchor);
+      expect(operators.text, `operators should not carry ${anchor}`).not.toContain(anchor);
     }
-    // Feel cards are glossary-only now.
+    // The operators page keeps only the cross-cutting tail.
+    expect(operators.text).toContain('id="advanced-decomposition-operator-theory"');
+    expect(operators.text).toContain('id="cross-body"');
+    // Feel cards are glossary-only.
     expect(glossary.text).toContain('class="glossary-modifier-card"');
     expect(operators.text).not.toContain('class="glossary-modifier-card"');
   });

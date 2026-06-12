@@ -981,8 +981,19 @@ function operatorAddLabel(row: FreestyleTrickModifierRow | undefined): string | 
     : `+${row.add_bonus} / +${row.add_bonus_rotational} rot`;
 }
 
+// Execution-mechanic definitions for the no-plant modifiers that have no feel
+// card or operator-reference entry, so their index row + stub still describe
+// themselves once the shared advanced-reference is off the operators page.
+const MODIFIER_EXECUTION_NOTES: Readonly<Record<string, string>> = {
+  symple: 'Starts as symposium, but mid-component the non-symple foot returns to the ground. The shorthand "symp" can mean symposium or symple, whichever the component naturally is.',
+  muted:  'An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.',
+};
+
 function operatorDescriptor(slug: string): string | null {
-  return operatorFeelCard(slug)?.feel ?? getOperatorReferenceEntry(slug)?.oneLineMeaning ?? null;
+  return operatorFeelCard(slug)?.feel
+    ?? getOperatorReferenceEntry(slug)?.oneLineMeaning
+    ?? MODIFIER_EXECUTION_NOTES[slug]
+    ?? null;
 }
 
 // Honest status pill: a hand-authored teaching page wins; otherwise a
@@ -3549,12 +3560,11 @@ export interface OperatorIndexAxisGroup {
 }
 
 export interface FreestyleOperatorsContent {
-  // Compact, grouped index (the consistency layer).
-  indexAxes:             OperatorIndexAxisGroup[];
-  // Advanced-reference blocks retained below the index for now (theory split
-  // deferred); rendered by the shared advanced-reference partial.
-  intermediateOperators: readonly OperatorReferenceEntry[];
-  setModifiers:          FreestyleSetModifierEntry[];
+  // Compact, grouped index (the consistency layer). Per-modifier depth lives on
+  // the detail/stub pages; the page tail carries only cross-cutting notes, so the
+  // operators surface no longer renders the per-modifier reference (that stays in
+  // the glossary's Modifiers & Operators section, the anchor home).
+  indexAxes: OperatorIndexAxisGroup[];
 }
 
 // Data-driven detail page for a known modifier that has no hand-authored
@@ -3569,6 +3579,10 @@ export interface ModifierStubContent {
   addLabel:    string | null;
   notation:    string | null;
   whatItIs:    string | null;
+  // Per-modifier depth, pulled from the operator reference (the detail page is
+  // now the canonical home for this content).
+  decomposition:    string | null;
+  workedExamples:   readonly string[];
   statusKey:   string;
   statusLabel: string;
   commonTricks:     { slug: string; name: string; adds: string }[];
@@ -8679,9 +8693,7 @@ export const freestyleService = {
         ],
       },
       content: {
-        indexAxes:             buildOperatorIndexAxes(modifierRows),
-        intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
-        setModifiers:          shapeSetModifiers(this.getOperatorBoard('glossary')),
+        indexAxes: buildOperatorIndexAxes(modifierRows),
       },
     };
   },
@@ -8748,6 +8760,8 @@ export const freestyleService = {
         addLabel:    operatorAddLabel(row),
         notation:    operatorNotation(slug),
         whatItIs:    operatorDescriptor(slug),
+        decomposition:  getOperatorReferenceEntry(slug)?.decomposition ?? null,
+        workedExamples: getOperatorReferenceEntry(slug)?.workedExamples ?? [],
         statusKey:   status.key,
         statusLabel: status.label,
         commonTricks,

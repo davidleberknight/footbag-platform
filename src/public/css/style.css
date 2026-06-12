@@ -11215,6 +11215,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .modifier-stub-trick-add { font-size: 0.78rem; color: var(--text-subtle); margin-left: 0.2rem; }
 .modifier-stub-related { font-size: 0.9rem; }
+.modifier-stub-decomposition { font-size: 0.9rem; margin: 0 0 0.35rem; }
+.modifier-stub-decomp-label { font-weight: 600; color: var(--text-subtle); margin-right: 0.3rem; }
+.modifier-stub-examples { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
 
 /* ── Set detail page ────────────────────────── */
 .set-detail {

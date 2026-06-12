@@ -153,4 +153,13 @@ describe('GET /freestyle/modifier/:slug — universal detail resolution', () => 
     const res = await request(await createApp()).get('/freestyle/modifier/not-a-real-modifier');
     expect(res.status).toBe(404);
   });
+
+  it('the stub surfaces the operator-reference decomposition + worked examples (now the canonical home)', async () => {
+    const res = await request(await createApp()).get('/freestyle/modifier/atomic');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Decomposition');
+    // Worked example from the operator reference (the '=' renders HTML-escaped).
+    expect(res.text).toContain('Atom Smasher');
+    expect(res.text).toContain('Atomic Mirage');
+  });
 });
