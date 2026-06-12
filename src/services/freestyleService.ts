@@ -7426,6 +7426,15 @@ export const freestyleService = {
       r => r.is_active === 1 && isTrickRow(r),
     ).length;
 
+    // The documented-name universe splits into unique tricks and the alias /
+    // duplicate-variant names that resolve to an already-counted trick. Both
+    // alias-class buckets are name-level duplicates of an existing structure.
+    const documentedAliasCount =
+      OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets.alias.names +
+      OBSERVATIONAL_UNIVERSE_STATS.intakeBuckets.duplicate_variant.names;
+    const uniqueDocumentedTrickCount =
+      OBSERVATIONAL_UNIVERSE_STATS.universeTotal - documentedAliasCount;
+
     // ---- View toggle --------------------------------------------------
     const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
@@ -8169,7 +8178,8 @@ export const freestyleService = {
           ],
         },
         dictionaryIntro:
-          `${fmtCount(OBSERVATIONAL_UNIVERSE_STATS.universeTotal)} officially documented trick names and aliases. ` +
+          `${fmtCount(uniqueDocumentedTrickCount)} unique officially documented tricks, plus ` +
+          `${fmtCount(documentedAliasCount)} documented aliases. ` +
           `${canonicalCount} first-class tricks are fully covered in this dictionary. ` +
           'The remaining documented names live in Emerging Vocabulary: observed, historical, alias, ' +
           'source-variant, or not-yet-promoted entries that are tracked but not yet treated as full ' +
@@ -9711,8 +9721,8 @@ export const freestyleService = {
           },
           {
             key:     'reese-1988',
-            title:   '1988 World Footbag Championships: Rick Reese Freestyle Routine',
-            caption: 'Representative of early freestyle.',
+            title:   '1988 World Footbag Championships: Freestyle Routine',
+            caption: 'Featuring Rick Reese (a representative of early freestyle).',
             media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese, Worlds 1988 Freestyle Routine'),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#footbag_hof_archive', '#worlds_1988'],
