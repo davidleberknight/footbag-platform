@@ -210,12 +210,16 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(res.text).toContain('dict-landing-card-chip-count');
   });
 
-  it('By family lists the 24 public families as ?family= jump-links', async () => {
+  it('By family lists the first-class Family Parents as ?family= jump-links', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">24<\/span> families/);
-    for (const slug of ['mirage', 'osis', 'eclipse', 'drifter']) {
+    // First-class Family Parents only (current editorial standard); minor
+    // lineages live in their own band inside the By-family view.
+    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">16<\/span> families/);
+    for (const slug of ['mirage', 'osis', 'drifter']) {
       expect(res.text, `family link ${slug}`).toMatch(new RegExp(`href="/freestyle/tricks\\?family[^"]*${slug}"`));
     }
+    // eclipse is a minor lineage, not a first-class landing-card chip.
+    expect(res.text).not.toMatch(/href="\/freestyle\/tricks\?family[^"]*eclipse"/);
   });
 
   it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {

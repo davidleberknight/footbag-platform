@@ -113,6 +113,11 @@ import {
   PUBLIC_FAMILY_LABEL,
   PUBLIC_FAMILY_PARENT_LABEL,
 } from '../content/freestylePublicFamilies';
+import {
+  familyTier,
+  FAMILY_DESCENDANT_COUNTS,
+  type FamilyTier,
+} from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
@@ -1127,7 +1132,7 @@ export interface FreestyleTrickContent {
   // Hero family chip — parent-resolved family; null when the trick's family is
   // a route-out (foundational surface / ecosystem / alt-surface / multi-bag).
   // The template builds the href from `slug` so the `?family=` stays literal.
-  familyChip: { label: string; slug: string } | null;
+  familyChip: { label: string; slug: string; isMinorLineage: boolean } | null;
   // Same family-member set as `familyMembers`, regrouped
   // by ADD value for tier-grouped rendering. Numeric tiers sort ascending;
   // non-numeric/null tier renders last as "Modifiers".
@@ -1156,7 +1161,7 @@ export interface FreestyleTrickContent {
   // of a branch family (branch->root containment) plus any curator
   // dual-memberships. The template builds the `?family=` href from `slug`
   // (single-variable URL). Empty for root-family and route-out tricks.
-  additionalFamilies: { label: string; slug: string }[];
+  additionalFamilies: { label: string; slug: string; isMinorLineage: boolean }[];
   // Observational symbolic-grammar topology panel (Layer 3). Null when:
   //   - slug is not in the flagship allow-list (8 flagship slugs)
   //   - slug has no topology-axis group membership in the staging CSVs
@@ -2728,7 +2733,10 @@ export interface FreestyleTricksIndexContent {
 
   // Existing category-grouped view, preserved for ?view=category.
   groups: FreestyleTrickGroup[];
-  familyGroups: FreestyleFamilyGroup[];  // compound tricks grouped by family (for family-browsing section)
+  familyGroups: FreestyleFamilyGroup[];  // first-class Family Parents, rendered as full sections
+  // Minor lineages: conserved-terminal families below the current first-class
+  // threshold, shown as a compact band rather than full sections.
+  minorLineages: FreestyleMinorLineage[];
   // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
   // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
   setGroups: FreestyleSetGroup[];
@@ -2823,6 +2831,13 @@ export interface SetsClusterView {
   label:  string;
   blurb:  string;
   groups: FreestyleSetGroup[];  // active modifier groups in this cluster
+}
+
+export interface FreestyleMinorLineage {
+  slug:  string;              // trick_family value; drives ?family={slug}
+  name:  string;              // display label (e.g. "Flurry")
+  count: number;              // documented descendant count
+  href:  string;              // /freestyle/tricks?family={slug}
 }
 
 export interface FreestyleFamilyGroup {
@@ -3234,6 +3249,9 @@ export interface FreestyleGlossaryContent {
   // glossary roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
   firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
+  // Minor lineages: conserved-terminal families below the current first-class
+  // threshold, shown as a compact list under the roster.
+  minorLineageRoster: readonly { slug: string; label: string; count: number }[];
   // Measured topology histograms (how tricks end / begin); widthBucket is a
   // quantized 5%-step width class so the bar carries no inline style.
   familyHistogram: readonly { label: string; count: number; tier: string; widthBucket: number }[];
@@ -6077,7 +6095,13 @@ export const freestyleService = {
         // dual-memberships. Lets a multi-family trick (e.g. a torque-family
         // trick, also an osis member) echo on its own page what By-family browse
         // already shows.
-        const additionalFamilies: { label: string; slug: string }[] = (() => {
+        // Family display tier (current editorial standard, reversible): a Minor
+        // Lineage is shown with a muted qualifier rather than as a first-class
+        // family. Derived live from descendant count; trick_family is untouched.
+        const familyIsMinorLineage = (fam: string): boolean =>
+          familyTier(fam) === 'minor-lineage';
+
+        const additionalFamilies: { label: string; slug: string; isMinorLineage: boolean }[] = (() => {
           if (!effectiveFamilySlug) return [];
           const extras = new Set<string>([
             ...familyWithAncestors(effectiveFamilySlug),
@@ -6088,7 +6112,7 @@ export const freestyleService = {
             const label = PUBLIC_FAMILY_LABEL.get(fam)
               ?? resolveFamilyDisplayName(fam)
               ?? (fam.charAt(0).toUpperCase() + fam.slice(1).replace(/-/g, ' '));
-            return { label: `${label} family`, slug: fam };
+            return { label: `${label} family`, slug: fam, isMinorLineage: familyIsMinorLineage(fam) };
           });
         })();
 
@@ -6148,7 +6172,7 @@ export const freestyleService = {
           familyMembers,
           hasFamilyMembers: familyMembers.length > 1,
           familyChip:       familySlug
-            ? { label: `${familyName} family`, slug: familySlug }
+            ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug) }
             : null,
           familyTiers:      buildFamilyTiers(familyMembers),
           additionalFamilies,
@@ -7680,6 +7704,26 @@ export const freestyleService = {
       if (f) familyTrickCounts.set(f, (familyTrickCounts.get(f) ?? 0) + 1);
     }
 
+    // Display tier (current editorial standard, reversible): split the rendered
+    // family groups into first-class Family Parents and a compact Minor-Lineage
+    // band. Derived live from the descendant count above; trick_family data is
+    // untouched. Branch families inherit their root's tier presentation but the
+    // count decides each one independently.
+    const familyParentGroups = familyGroups.filter(
+      g => familyTier(g.familySlug) === 'family-parent',
+    );
+    const minorLineages: FreestyleMinorLineage[] = familyGroups
+      .filter(g => familyTier(g.familySlug) === 'minor-lineage')
+      .map(g => ({
+        slug:  g.familySlug,
+        name:  g.familyName,
+        count: FAMILY_DESCENDANT_COUNTS.get(g.familySlug) ?? g.cards.length,
+        href:  `/freestyle/tricks?family=${g.familySlug}`,
+      }));
+    const familyParentRoster = PUBLIC_DISPLAY_FAMILIES.filter(
+      f => familyTier(f.slug) === 'family-parent',
+    );
+
     // Modifier clusters (organizational UX): bucket the active modifier setGroups
     // into curated higher-level clusters for the By-modifier jump menu + the
     // grouped sets page. Reversible content map; modifiers not listed in a
@@ -7723,13 +7767,14 @@ export const freestyleService = {
             {
               label:        'By family',
               href:         '/freestyle/tricks?view=family',
-              // The curated 24-family roster the By-family browse renders;
-              // distinct from the raw trick_family labels.
-              count:        PUBLIC_DISPLAY_FAMILIES.length,
-              countDisplay: fmtCount(PUBLIC_DISPLAY_FAMILIES.length),
+              // First-class Family Parents (current editorial standard). Minor
+              // lineages render in their own band inside the By-family view;
+              // every family stays reachable via ?family={slug} either way.
+              count:        familyParentRoster.length,
+              countDisplay: fmtCount(familyParentRoster.length),
               countSuffix:  'families',
               lensQuestion: 'What core movement pattern does the trick build on?',
-              chips:        PUBLIC_DISPLAY_FAMILIES.map(f => ({ label: f.label, href: `/freestyle/tricks?family=${f.slug}`, count: familyTrickCounts.get(f.slug) ?? 0 })),
+              chips:        familyParentRoster.map(f => ({ label: f.label, href: `/freestyle/tricks?family=${f.slug}`, count: familyTrickCounts.get(f.slug) ?? 0 })),
             },
             {
               label:        'By modifier',
@@ -7851,7 +7896,8 @@ export const freestyleService = {
         setsBrowseView,
         activeView,
         groups,
-        familyGroups,
+        familyGroups: familyParentGroups,
+        minorLineages,
         setGroups,
         setsClusterView,
         componentView,
@@ -8247,13 +8293,18 @@ export const freestyleService = {
           ]);
           return !familySlugs.has(t.slug);
         }),
-        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES.filter(f => !f.parent).map(root => ({
-          slug:  root.slug,
-          label: root.label,
-          branches: PUBLIC_DISPLAY_FAMILIES
-            .filter(b => b.parent === root.slug)
-            .map(b => ({ slug: b.slug, label: b.label })),
-        })),
+        firstClassFamilyRoster: PUBLIC_DISPLAY_FAMILIES
+          .filter(f => !f.parent && familyTier(f.slug) === 'family-parent')
+          .map(root => ({
+            slug:  root.slug,
+            label: root.label,
+            branches: PUBLIC_DISPLAY_FAMILIES
+              .filter(b => b.parent === root.slug)
+              .map(b => ({ slug: b.slug, label: b.label })),
+          })),
+        minorLineageRoster: PUBLIC_DISPLAY_FAMILIES
+          .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
+          .map(f => ({ slug: f.slug, label: f.label, count: FAMILY_DESCENDANT_COUNTS.get(f.slug) ?? 0 })),
         familyHistogram: topologyHistogramRows(FAMILY_HISTOGRAM),
         entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({

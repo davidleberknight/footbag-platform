@@ -3477,6 +3477,28 @@ section.home-media { padding-top: 0; }
   color: var(--secondary);
 }
 .trick-also-family-chip:hover { text-decoration: underline; }
+.trick-also-family-chip--minor { color: var(--text-subtle); }
+.trick-family-minor-tag { font-size: 0.78rem; color: var(--text-subtle); }
+.trick-hero-meta-chip-family--minor { opacity: 0.85; }
+
+/* Minor-lineage band in the By-family browse: conserved-terminal families below
+   the current first-class threshold, shown compactly rather than as sections. */
+.trick-minor-lineage-band { margin-top: 1.5rem; }
+.trick-minor-lineage-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+}
+.trick-minor-lineage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.trick-minor-lineage-list a { font-weight: 500; }
+.trick-minor-lineage-count { font-size: 0.78rem; color: var(--text-subtle); margin-left: 0.2rem; }
 
 .next-tricks-list {
   list-style: none;

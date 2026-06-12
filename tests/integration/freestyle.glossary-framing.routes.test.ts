@@ -471,3 +471,22 @@ describe('Glossary foundational frame — Tricks / Sets / Modifiers + register n
     expect(html).toContain('Reverse Swirling Osis');
   });
 });
+
+describe('Glossary family roster — three display tiers', () => {
+  it('splits the roster into Family Parents, Minor Lineages, and Foundational Terminal Surfaces', async () => {
+    const html = await glossary();
+    expect(html).toContain('First-class families');
+    expect(html).toContain('Minor lineages');
+    expect(html).toContain('Foundational terminal surfaces');
+    // Foundational surfaces are named as excluded (too broad), not as families.
+    expect(html).toContain('Clipper Stall');
+    expect(html).toContain('Toe Stall');
+  });
+
+  it('lists demoted families under Minor Lineages with their ?family= routes intact', async () => {
+    const html = await glossary();
+    for (const slug of ['flurry', 'eclipse', 'barrage']) {
+      expect(html, `minor lineage ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
+    }
+  });
+});

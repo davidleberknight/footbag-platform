@@ -299,6 +299,20 @@
   </section>
   {{/each}}
   {{/if}}
+  {{#if content.minorLineages.length}}
+  <section class="content-section trick-minor-lineage-band" id="minor-lineages" aria-label="Minor lineages">
+    <div class="section-heading">
+      <h2>Minor lineages</h2>
+      <span class="section-count">{{content.minorLineages.length}}</span>
+    </div>
+    <p class="trick-minor-lineage-intro">Conserved-terminal lineages below the current first-class threshold of documented descendants. Real and browsable, but not first-class families.</p>
+    <ul class="trick-minor-lineage-list">
+      {{#each content.minorLineages}}
+      <li><a href="/freestyle/tricks?family={{slug}}">{{name}}</a> <span class="trick-minor-lineage-count">{{count}}</span></li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
   {{/if}}
 
   {{! ── Component view — symbolic trick cards ──────────────────────────────

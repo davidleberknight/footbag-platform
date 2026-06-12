@@ -767,6 +767,17 @@
     <p class="detail-muted glossary-family-roster">
       {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
     </p>
+    <p class="detail-muted glossary-family-roster">
+      <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}): conserved terminal
+      identity, fewer than the current first-class threshold of documented descendants. Real and
+      browsable, but not first-class families.
+      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
+    </p>
+    <p class="detail-muted">
+      <strong>Foundational terminal surfaces.</strong> Clipper Stall and Toe Stall are excluded from
+      family status: nearly every trick resolves to one of them, so they are too broad to teach as a
+      lineage rather than because they are surfaces.
+    </p>
     <p class="detail-muted">
       Every first-class family now has an educational card: the terminal-anchor
       families directly below, and the productive descendant lineages in the next

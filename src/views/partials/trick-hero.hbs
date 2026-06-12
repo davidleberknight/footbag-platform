@@ -20,7 +20,7 @@
       <span class="trick-hero-meta-chip">{{content.trickTag}}</span>
       {{/if}}
       {{#if content.familyChip}}
-      <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}</a>
+      <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
       {{/if}}
       {{#if content.dictEntry}}
         {{#if content.dictEntry.isModifier}}

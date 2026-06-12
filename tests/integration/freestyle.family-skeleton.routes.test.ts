@@ -151,12 +151,16 @@ describe('Family skeleton — route-outs do not render as families', () => {
 });
 
 describe('Family skeleton — other public families render safely', () => {
-  it('renders eclipse and drifter as their own family sections', async () => {
+  it('renders drifter as a Family Parent section and eclipse in the Minor Lineages band', async () => {
     const html = await familyView();
-    expect(html).toContain('id="family-eclipse"');
+    // drifter (above the current first-class threshold) is a full section.
     expect(html).toContain('id="family-drifter"');
-    expect(html).toContain('data-trick-slug="lunar-eclipse"');
     expect(html).toContain('data-trick-slug="day-drifter"');
+    // eclipse (below the threshold) is demoted to the compact Minor Lineages
+    // band rather than a full section; its ?family= route is untouched.
+    expect(html).not.toContain('id="family-eclipse"');
+    expect(html).toContain('id="minor-lineages"');
+    expect(html).toContain('/freestyle/tricks?family=eclipse');
   });
 });
 
