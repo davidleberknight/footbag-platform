@@ -1807,3 +1807,4 @@ tapping-reverse-guay,trick_family,guay,inside-stall,"Family per the modal conven
 terraging-illusion,notation,,TERRAGING ILLUSION,Frontier cat-1 promotion: JOB = curator semantic notation.
 terraging-legover,notation,,TERRAGING LEGOVER,Frontier cat-1 promotion: JOB = curator semantic notation.
 terraging-mirage,notation,,TERRAGING MIRAGE,Frontier cat-1 promotion: JOB = curator semantic notation.
+guay,aliases_json,[],"[""far reverse guay"", ""reverse guay""]","Group B alias wiring: Far Reverse Guay / Reverse Guay = guay (far/reverse are +0 positional/directional qualifiers; folk variant names, not new tricks). guay is not in red_additions, so this sets aliases_json on the existing row (S3 display alias)."
