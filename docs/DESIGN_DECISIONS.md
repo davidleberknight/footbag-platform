@@ -374,7 +374,7 @@ Rationale:
 
 - **nginx** minimal allocation: handles origin HTTPS termination (CloudFront to origin) and reverse proxying; viewer TLS terminates at CloudFront. Reverse proxy performs simple request routing, and static file serving. Minimal memory footprint. 128MB provides adequate headroom for nginx process (approximately 50MB) plus connection buffers. 
 
-- **web** needs concurrency headroom: Node.js/Express application handles business logic and concurrent HTTP requests. 512MB accommodates runtime (approximately 50MB), dependencies (approximately 80MB), application code (approximately 30MB), and 20-30 concurrent requests (approximately 100MB) with approximately 200MB headroom for spikes. SQLite database file (size TBD, but will be small enough initialy and will grow slowly). 
+- **web** needs concurrency headroom: Node.js/Express application handles business logic and concurrent HTTP requests. 512MB accommodates runtime (approximately 50MB), dependencies (approximately 80MB), application code (approximately 30MB), and 20-30 concurrent requests (approximately 100MB) with approximately 200MB headroom for spikes. SQLite database file is small initially and grows slowly, so it adds little to the memory envelope.
 
 - **worker** is smaller due to asynchronous processing: Background jobs process sequentially or with limited concurrency. Email sending, nightly backups, do not require high memory. 384MB sufficient for runtime and job processing. 
 
@@ -1125,7 +1125,7 @@ Requirements:
 
 - The system-member row is exempt from member-erasure flows; the account-deletion service skips `WHERE is_system=1`.
 
-- The system-member row participates in all other public surfaces like any other member: search, member directory, `/hall-of-fame`, `/persons/{slug}`, avatar, gallery ownership.
+- The system-member row participates in the same public surfaces as any other member: authenticated member search, its member profile (`/members/{slug}`) and any linked historical-person page (`/history/{personId}`), avatar, and gallery/bookmark ownership on `/media`. No system-account-specific render rule exists.
 
 - Code never references the system account by literal display_name. All lookups go through `is_system=1` or the resolved member id. Display name is mutable via `A_Override_Member_Data`.
 
@@ -1135,9 +1135,9 @@ Trade-offs:
 
 - The admin-actor-of-record is not visible on individual `media_items` rows after upload. The audit log is the authoritative record.
 
-- An admin rename of the system account's display_name may break inbound links to the old `/persons/{slug}` URL if the slug regenerates. Volunteer-maintainability trade-off: admin reviews slug stability at rename time. This is a member-system property, not specific to the system account.
+- An admin rename of the system account's display_name may break inbound links to the old `/members/{slug}` URL if the slug regenerates. Volunteer-maintainability trade-off: admin reviews slug stability at rename time. This is a member-system property, not specific to the system account.
 
-- The system account appears in the member directory and on `/hall-of-fame` like any HoF member. This is intentional. Volunteers and visitors do not need to learn a system-account-specific render rule.
+- The system account appears on the same public surfaces as any member rather than via a special-cased render path. This is intentional: volunteers and visitors do not need to learn a system-account-specific render rule.
 
 Impact:
 
@@ -1913,7 +1913,7 @@ Requirements:
 - HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
 - The post-login redirect-path validator (`isSafePath` and equivalents) rejects any path containing a backslash character in addition to its existing scheme and prefix rules, closing the Windows-style path-confusion class that pure forward-slash checks miss.
 - Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4000 x 4000) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
-- nginx `client_max_body_size` is set to match the application-layer upload limits and is reduced once the upstream WAF lands. The perimeter never accepts a body larger than the application is willing to process.
+- nginx `client_max_body_size` is set to match the application-layer upload limits, so the perimeter never accepts a body larger than the application is willing to process.
 
 Trade-offs:
 
@@ -2891,7 +2891,7 @@ Rationale:
 Requirements:
 
 - Every CloudFront distribution pins viewer minimum TLS protocol to `TLSv1.2_2021` (or higher). The protocol version is set in Terraform; CloudFront viewer settings are not modified via the AWS Console.
-- A WAFv2 web ACL is attached to the public CloudFront distribution. The ACL covers the AWS managed common rule set and a rate-based rule sized to the platform's traffic profile, with override-counts and metrics scoped per rule for tuning.
+- Edge abuse prevention follows §8.3: AWS Shield Standard for volumetric DDoS, Turnstile at the form boundary, in-process rate limiting, and a CloudWatch origin-spike alarm. A WAFv2 web ACL with the AWS managed common rule set and a rate-based rule is a deferred lever, attached if observed abuse later warrants it.
 - CloudFront access logs and S3 server access logs (for OAC-fronted buckets) are enabled and shipped to a dedicated log bucket whose lifecycle matches the retention windows in §1.2.
 
 Trade-offs:
@@ -3866,7 +3866,7 @@ Rationale:
 
 - The CloudWatch origin-spike alarm is the detective backstop for general traffic floods that bypass form-based gates, such as unauthenticated GET storms. Application controls block; the alarm escalates anything that gets through.
 
-- Community scale doesn't justify a managed WAF.
+- A managed WAF is unnecessary here: Shield Standard, Turnstile, in-process rate limiting, and the structural app controls (parameterized queries, CSP, Helmet, origin-pin CSRF, anti-enumeration) already cover the threat model, and managed-rule false positives on legitimate long-form text would add recurring tuning burden for no real gap. WAFv2 stays a fast, low-cost lever to attach if observed abuse later warrants it.
 
 Requirements:
 

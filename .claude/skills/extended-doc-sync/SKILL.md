@@ -108,8 +108,14 @@ For a comprehensive audit, read (subset for a scoped ask per Scaling):
 5. `IMPLEMENTATION_PLAN.md`, `legacy_data/IMPLEMENTATION_PLAN.md`
 6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/SERVICE_CATALOG.md`,
    `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
-   `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`
+   `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`,
+   `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `docs/PROJECT_SUMMARY.md`
 7. `legacy_data/CLAUDE.md`, `README.md`, `SECURITY.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`
+
+`docs/DIAGRAMS.md` and `docs/GLOSSARY.md` are easy to skip and are exactly where stale
+"control X is present" claims hide. Read them, and reconcile every named control, service,
+component, edge protection, and term against the authoritative decision doc and infra in
+Phase 5. Diagrams (including ASCII-art boxes) and glossary entries are not decorative.
 
 Then inspect as evidence (only as needed to prove sync): `package.json`, test/CI config,
 `run_all_tests.sh`, `.github/workflows/**`, `database/schema.sql`, `src/app.ts`,
@@ -160,10 +166,21 @@ Compare every doc cluster where concepts overlap (USER_STORIES vs DD / DATA_MODE
 DATA_GOVERNANCE / SERVICE_CATALOG / VIEW_CATALOG / TESTING; DD vs DATA_MODEL / catalogs /
 DEVOPS_GUIDE / MIGRATION_PLAN; catalogs vs actual services/routes; TESTING vs scripts/CI;
 DEVOPS_GUIDE vs Terraform/Docker/deploy scripts; MIGRATION_PLAN vs onboarding/claim/club/
-email/DNS docs; PROJECT_SUMMARY_CONCISE and README vs current state). Look for: same term
+email/DNS docs; PROJECT_SUMMARY / PROJECT_SUMMARY_CONCISE and README vs current state;
+DIAGRAMS and GLOSSARY vs DD / DEVOPS_GUIDE / catalogs / Terraform). Look for: same term
 different meaning, same rule different default, same route different path, same service
 different owner, same page different visibility, same status different state machine,
 current-state language in canonical docs, permanent-design language in IP-only deviations.
+
+**Diagram and glossary reconciliation (mandatory).** Architecture diagrams (`DIAGRAMS.md`,
+including ASCII-art boxes and their captions) and glossary entries (`GLOSSARY.md`) routinely
+assert a control, service, worker, managed service, or edge protection as *present* that a
+decision doc has since deferred, removed, or never built (e.g. an edge firewall, a queue, a
+cache, a region). Enumerate every named element in each diagram and glossary entry and
+reconcile it against the authoritative decision doc (`DESIGN_DECISIONS.md`), the catalogs,
+and infra (`terraform/**`, `docker/**`). When a control's existence is decided one way in a
+decision doc and drawn/defined the other way in a diagram or glossary, that is a finding,
+not a stylistic nicety. The same fact stated in five places means five places to drift.
 
 ### Phase 6: Service and view catalog sync
 `SERVICE_CATALOG.md` vs `src/services/**`, `src/adapters/**`, controllers, `src/db/**`,

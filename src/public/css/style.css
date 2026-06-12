@@ -2984,18 +2984,6 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-.trick-media-chip {
-  font-size: 0.78rem;
-  padding: 1px 6px;
-  border-radius: var(--radius-2xs);
-}
-/* tier-aware: tutorial = strong green; demo = softer; missing = muted */
-.trick-media-chip--tutorial  { background-color: var(--success-bg); color: var(--green-deep); }
-.trick-media-chip--demo      { background-color: var(--sec-sandbox-bg); color: var(--medal-bronze); }
-.trick-media-chip--missing   { background-color: var(--gray-100); color: var(--text-muted); }
-/* legacy alias (kept for any consumer still rendering --available) */
-.trick-media-chip--available { background-color: var(--success-bg); color: var(--green-deep); }
-
 .trick-status-badge {
   font-size: 0.78rem;
   padding: 1px 6px;

@@ -228,7 +228,7 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
             NULL, NULL,
             :real_name, :display_name, :display_name_norm,
             :city, :region, :country, :first_comp_year,
-            1, 0, 1, 1, 2025,
+            1, 0, 1, 0, NULL,
             :ts, 'seed', :ts, 'seed', 1
         )
         """,
@@ -259,7 +259,7 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
               country, is_hof, is_bap, imported_at, version)
            VALUES
              (:lid, 'Footbag Hacky', 'Footbag Hacky', 'footbag hacky',
-              'USA', 1, 0, :ts, 1)""",
+              'USA', 0, 0, :ts, 1)""",
         {"lid": hacky_legacy_id, "ts": ts},
     )
     con.execute(

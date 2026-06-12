@@ -1060,7 +1060,7 @@ def test_fh_historical_person_link_converges_across_hp_reloads() -> None:
                 """INSERT INTO historical_persons
                      (person_id, person_name, country, event_count, placement_count,
                       bap_member, hof_member, hof_induction_year)
-                   VALUES (?, 'Footbag Hacky', 'USA', 1, 1, 0, 1, 2025)""",
+                   VALUES (?, 'Footbag Hacky', 'USA', 1, 1, 0, 0, NULL)""",
                 (person_id,),
             )
             con.commit()

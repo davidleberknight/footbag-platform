@@ -672,7 +672,7 @@ Customer-managed keys via AWS KMS were considered but rejected. Benefits (more c
 
 - Tier 0 members gain limited free access (acceptable for community building).
 - Single compute instance (mitigated by CloudFront error pages and rapid recovery procedures).
-- DDoS/abuse mitigation is layered but intentionally lightweight: AWS WAF at CloudFront plus application-level rate limiting; no complex multi-region active-active mitigation architecture.
+- DDoS/abuse mitigation is layered but intentionally lightweight: AWS Shield Standard at CloudFront plus application-level rate limiting (Turnstile and in-process limits), with a WAFv2 ACL as a deferred lever; no complex multi-region active-active mitigation architecture.
 
 **Secrets Management:**
 

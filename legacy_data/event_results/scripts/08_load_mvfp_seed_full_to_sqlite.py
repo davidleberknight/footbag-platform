@@ -515,7 +515,7 @@ def main() -> None:
         fx_member_id  = stable_id("member", "footbag-hacky")
         fx_person_id  = stable_id("person", "footbag-hacky")
 
-        # Historical person record for Footbag Hacky (HoF member). source_scope
+        # Historical person record for Footbag Hacky. source_scope
         # CANONICAL marks it as a real results-derived person, so it is searchable
         # and counted like any other competitor and the system member's
         # historical_person_id FK resolves to it.
@@ -525,7 +525,7 @@ def main() -> None:
               person_id, person_name, country, source_scope,
               event_count, placement_count,
               bap_member, hof_member, hof_induction_year
-            ) VALUES (?, ?, ?, 'CANONICAL', 1, 1, 0, 1, 2025)
+            ) VALUES (?, ?, ?, 'CANONICAL', 1, 1, 0, 0, NULL)
             """,
             (fx_person_id, "Footbag Hacky", "New Zealand"),
         )

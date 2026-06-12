@@ -53,6 +53,8 @@
   - [4.28 Name-matching utilities](#428-name-matching-utilities)
   - [4.29 Member Onboarding Tasks](#429-member-onboarding-tasks)
   - [4.30 Member Declared Anchors](#430-member-declared-anchors)
+  - [4.31 Staged Auto-Link Candidates](#431-staged-auto-link-candidates)
+  - [4.32 Pipeline-produced canonical content](#432-pipeline-produced-canonical-content-out-of-this-enumeration)
 - [5. View Reference](#5-view-reference)
   - [Computed views](#computed-views)
   - [Semantic filter views](#semantic-filter-views)
@@ -1314,6 +1316,10 @@ The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): batc
 - **`ux_auto_link_staged_open`**: partial UNIQUE on `(member_id, COALESCE(legacy_member_id,''), COALESCE(historical_person_id,''))` WHERE `status = 'staged'`; re-staging an open pair is a constraint no-op, making batch reruns idempotent. A declined pair is never re-staged (service-enforced against resolved rows).
 - **`source_pass = 'cross_source'`** rows are post-confirm offers for the member's other identity source; they share the stage/confirm/decline/expire lifecycle but emit the `legacy.cross_source_candidate_*` audit event family instead of `legacy.auto_link_candidate_*`.
 - Open candidates expire after `auto_link_staged_expiry_days` (default 365) via the worker's daily sweep.
+
+### 4.32 Pipeline-produced canonical content (out of this enumeration)
+
+The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`) are populated from the historical-data pipeline and read read-only by `FreestyleService`, `NetService`, and `RecordsService` for the public `/freestyle/*`, `/net/*`, and `/records` surfaces. Their schema semantics are owned by the legacy_data track (`legacy_data/CLAUDE.md`); the freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
 
 ---
 

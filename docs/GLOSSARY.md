@@ -224,7 +224,7 @@ Rationale
 
 **View Model**: A structured object that a controller passes to a template to render a page. The view model contains exactly the data and flags the template needs (member tier, role flags, labels) without exposing raw storage details such as S3 paths.
 
-**WAF (Web Application Firewall)**: AWS managed firewall service filtering malicious web traffic at the CloudFront edge before requests reach the origin server. Footbag.org uses WAF managed rules to mitigate DDoS attacks and known threat patterns, complementing in-process rate limiting on the Lightsail instance.
+**WAF (Web Application Firewall)**: AWS managed firewall service that can filter malicious web traffic at the CloudFront edge before requests reach the origin server. Footbag.org treats a WAFv2 web ACL as a deferred lever rather than a standing control: volumetric DDoS is handled by AWS Shield Standard, and application abuse by Turnstile plus in-process rate limiting on the Lightsail instance, with a WAF attached only if observed abuse warrants it.
 
 **Webhook**: HTTP callback allowing external services to notify applications of events. Footbag.org receives Stripe webhooks for payment events (payment succeeded, subscription canceled) validated using HMAC SHA-256 signatures. Webhook handlers process events asynchronously through outbox pattern ensuring reliable processing despite retries.
 

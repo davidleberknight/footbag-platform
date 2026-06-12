@@ -398,7 +398,7 @@ Important limitation: browsing traffic gets the maintenance page during origin f
 - Route 53 points public DNS at the CloudFront distribution when a real domain is attached
 - custom domains and certificates must be managed as infrastructure
 - origin exposure should be minimized; direct origin access is not the user-facing path
-- use WAF at CloudFront for basic managed-rule protection and IP-based emergency blocking when required
+- standing edge protection is AWS Shield Standard, with Turnstile and in-process rate limiting at the application; a WAFv2 web ACL is a deferred lever, attached only if observed abuse warrants it
 
 #### 4.2.1 ACM certificate for footbag.org runbook
 
