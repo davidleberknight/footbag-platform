@@ -262,8 +262,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'quantum', hashtag: '#quantum-set', displayName: 'Quantum', subtype: 'true-core',
     formula: 'TOE > OP IN [DEX] > (op side component)',
     movementExplanation:
-      'Toe set, then an opposite-side inward dex resolving to an op-side terminal. Reads ' +
-      'as a compressed atomic: the dex direction matches atomic, the terminal side flips.',
+      'Toe set, then an opposite-side inward dex resolving to an op-side terminal. The ' +
+      'inward-direction counterpart of atomic: both finish op-side, but quantum dexes ' +
+      'inward where atomic dexes outward.',
     equivalenceNotes: [
       { reading: 'compressed atomic', citation: 'Holden reading' },
     ],
@@ -271,7 +272,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'frantic', label: 'Frantic' },
     ],
     relatedSystems: [
-      { slug: 'atomic',   label: 'Atomic (same dex direction, op-side terminal)' },
+      { slug: 'atomic',   label: 'Atomic (outward counterpart, op-side terminal)' },
       { slug: 'slapping', label: 'Slapping (same-side-component sibling)' },
     ],
     source: 'platform-tracked',
@@ -294,7 +295,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'tapping',      label: 'Tapping' },
     ],
     relatedSystems: [
-      { slug: 'quantum', label: 'Quantum (same dex direction, op-side terminal)' },
+      { slug: 'quantum', label: 'Quantum (inward counterpart, op-side terminal)' },
       { slug: 'nuclear', label: 'Nuclear (platform reading: paradox + illusion)' },
     ],
     source: 'platform-tracked',
