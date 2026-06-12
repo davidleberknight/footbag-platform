@@ -6241,7 +6241,8 @@ section.home-media { padding-top: 0; }
   font-weight: 700;
   color: var(--earth-750);
 }
-.glossary-family-card-type-chip {
+.glossary-family-card-lineage-chip,
+.glossary-family-card-tier-chip {
   display: inline-block;
   padding: 1px 8px;
   font-size: 0.66rem;
@@ -6249,14 +6250,20 @@ section.home-media { padding-top: 0; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: var(--radius-2xs);
+}
+.glossary-family-card-lineage-chip {
   background: var(--parch-300);
   color: var(--earth-500);
 }
-.glossary-family-card-type-chip--root-terminal {
+.glossary-family-card-tier-chip--family-parent {
   background: var(--sec-border);
   color: var(--steel-600);
 }
-.glossary-family-card-type-chip--branch {
+.glossary-family-card-tier-chip--minor-lineage {
+  background: var(--parch-250);
+  color: var(--text-subtle);
+}
+.glossary-family-card-tier-chip--foundational-terminal-surface {
   background: var(--danger-border);
   color: var(--earth-bronze);
 }

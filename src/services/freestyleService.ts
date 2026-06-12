@@ -117,10 +117,12 @@ import {
   PUBLIC_FAMILY_ORDER,
   PUBLIC_FAMILY_LABEL,
   PUBLIC_FAMILY_PARENT_LABEL,
+  PUBLIC_FAMILY_PARENT_OF,
 } from '../content/freestylePublicFamilies';
 import {
   familyTier,
   FAMILY_DESCENDANT_COUNTS,
+  FAMILY_TIER_LABEL,
   type FamilyTier,
 } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
@@ -3281,6 +3283,37 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
 // notation explainers render with the same role-aware classification the
 // trick-detail page uses. Keeps the glossary's promise ("color-coded
 // structural roles") visible on the page itself.
+// A family card plus its two INDEPENDENT doctrine labels, so the card stops
+// collapsing ancestry and tier into one chip:
+//   - lineage position: Root lineage, or Branch lineage (<parent>), from the
+//     public roster's `parent` field;
+//   - tier: Family Parent / Minor Lineage / Foundational Terminal Surface, from
+//     freestyleFamilyTiers.
+// Reflects already-adopted doctrine; changes no roster membership.
+export interface GlossaryFamilyCardView extends GlossaryFamilyCard {
+  lineageLabel: string;
+  tierKey:      FamilyTier;
+  tierLabel:    string;
+}
+
+// Family cards that are not in the public roster carry an explicit lineage parent
+// + tier (they are sub-families/minor lineages, e.g. rev-whirl under whirl).
+const CARD_ONLY_FAMILY_LINEAGE: Readonly<Record<string, { parentSlug: string; tier: FamilyTier }>> = {
+  'rev-whirl': { parentSlug: 'whirl',     tier: 'minor-lineage' },
+  'blur':      { parentSlug: 'mirage',    tier: 'minor-lineage' },
+  'phoenix':   { parentSlug: 'butterfly', tier: 'minor-lineage' },
+};
+
+function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardView {
+  const override   = CARD_ONLY_FAMILY_LINEAGE[card.slug];
+  const parentSlug = override?.parentSlug ?? PUBLIC_FAMILY_PARENT_OF.get(card.slug) ?? null;
+  const tier       = override?.tier ?? familyTier(card.slug);
+  const lineageLabel = parentSlug
+    ? `Branch lineage (${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug})`
+    : 'Root lineage';
+  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier] };
+}
+
 export interface FreestyleGlossaryContent {
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
@@ -3330,8 +3363,8 @@ export interface FreestyleGlossaryContent {
   // that are themselves productive family anchors AND descend from a
   // root). Each card preserves its #term-{slug} anchor for the
   // anchor-preservation forever-rule.
-  rootTerminalFamilies: readonly GlossaryFamilyCard[];
-  branchFamilies:       readonly GlossaryFamilyCard[];
+  rootTerminalFamilies: readonly GlossaryFamilyCardView[];
+  branchFamilies:       readonly GlossaryFamilyCardView[];
   // Atoms not covered by the family-card cohorts above — clipper-stall,
   // legover, pickup, illusion, around-the-world, orbit. Same shape as
   // coreTricks; rendered under §5's "Other foundational atoms" subsection.
@@ -8430,8 +8463,8 @@ export const freestyleService = {
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
         bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
-        rootTerminalFamilies:  ROOT_TERMINAL_FAMILIES,
-        branchFamilies:        BRANCH_FAMILIES,
+        rootTerminalFamilies:  ROOT_TERMINAL_FAMILIES.map(shapeGlossaryFamilyCard),
+        branchFamilies:        BRANCH_FAMILIES.map(shapeGlossaryFamilyCard),
         otherFoundationalAtoms: coreTricks.filter(t => {
           const familySlugs = new Set([
             ...ROOT_TERMINAL_FAMILIES.map(f => f.slug),

@@ -491,3 +491,35 @@ describe('Glossary family roster — three display tiers', () => {
     }
   });
 });
+
+describe('Glossary family cards — lineage position and tier as independent labels', () => {
+  const cardSlice = (html: string, slug: string): string => {
+    const i = html.indexOf(`id="term-${slug}"`);
+    return i < 0 ? '' : html.slice(i, i + 400);
+  };
+
+  it('labels each card with a separate lineage chip and tier chip', async () => {
+    const html = await glossary();
+    // Root lineage + Family Parent.
+    expect(cardSlice(html, 'swirl')).toMatch(/Root lineage/);
+    expect(cardSlice(html, 'swirl')).toMatch(/Family Parent/);
+    // Branch lineage (Osis) + Family Parent.
+    expect(cardSlice(html, 'torque')).toMatch(/Branch lineage \(Osis\)/);
+    expect(cardSlice(html, 'torque')).toMatch(/Family Parent/);
+    // Branch lineage (Whirl) + Minor Lineage (card-only family, explicit override).
+    expect(cardSlice(html, 'rev-whirl')).toMatch(/Branch lineage \(Whirl\)/);
+    expect(cardSlice(html, 'rev-whirl')).toMatch(/Minor Lineage/);
+    // Root lineage + Minor Lineage.
+    expect(cardSlice(html, 'eclipse')).toMatch(/Root lineage/);
+    expect(cardSlice(html, 'eclipse')).toMatch(/Minor Lineage/);
+    // Root lineage + Family Parent.
+    expect(cardSlice(html, 'inside-stall')).toMatch(/Root lineage/);
+    expect(cardSlice(html, 'inside-stall')).toMatch(/Family Parent/);
+  });
+
+  it('retires the collapsed single chip that conflated ancestry and tier', async () => {
+    const html = await glossary();
+    expect(html).not.toContain('descendant lineage / sub-family');
+    expect(html).not.toContain('glossary-family-card-type-chip');
+  });
+});

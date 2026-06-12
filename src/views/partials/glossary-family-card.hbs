@@ -17,9 +17,8 @@
 <article class="glossary-family-card" id="term-{{slug}}">
   <header class="glossary-family-card-head">
     <h3 class="glossary-family-card-title">{{displayName}}</h3>
-    <span class="glossary-family-card-type-chip glossary-family-card-type-chip--{{kind}}">
-      {{#if (eq kind 'root-terminal')}}parent family{{else}}descendant lineage / sub-family{{/if}}
-    </span>
+    <span class="glossary-family-card-lineage-chip">{{lineageLabel}}</span>
+    <span class="glossary-family-card-tier-chip glossary-family-card-tier-chip--{{tierKey}}">{{tierLabel}}</span>
   </header>
   <dl class="glossary-family-card-fields">
     <dt>Canonical formula</dt>
