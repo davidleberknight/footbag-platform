@@ -157,8 +157,8 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   {
     slug:     'eggbeater',
-    readings: ['atomic legover'],
-    curatorConfirmPending: false,   // pt4-locked
+    readings: ['atomic legover', 'illusioning legover'],
+    curatorConfirmPending: false,   // pt4-locked (atomic legover); 'illusioning legover' is the same structure read through the illusioning operator (rev(0) miraging, +1), parallel to double-leg-over = miraging legover
   },
   {
     slug:     'omelette',

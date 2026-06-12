@@ -101,8 +101,10 @@ describe('S5 migration — preserved entries (kept after migration)', () => {
     expect(getSymbolicEquivalenceChain('atom-smasher')?.readings).toEqual(['atomic mirage']);
   });
 
-  it('eggbeater chain unchanged: ["atomic legover"] (atom-level)', () => {
-    expect(getSymbolicEquivalenceChain('eggbeater')?.readings).toEqual(['atomic legover']);
+  it('eggbeater chain carries both atom-level operator readings: ["atomic legover", "illusioning legover"]', () => {
+    // Same structure read through two equivalent +1 operators; illusioning legover
+    // is a structural reading in the SE chain (S5), not an aliases_json spelling alias.
+    expect(getSymbolicEquivalenceChain('eggbeater')?.readings).toEqual(['atomic legover', 'illusioning legover']);
   });
 
   it('mobius chain preserves full 3-depth ladder (pedagogical exemplar)', () => {

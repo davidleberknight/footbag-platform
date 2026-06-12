@@ -56,7 +56,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
     expect(getSymbolicEquivalenceChain('blender')?.readings).toEqual(['whirling osis']);
     expect(getSymbolicEquivalenceChain('drifter')?.readings).toEqual(['miraging clipper']);
     expect(getSymbolicEquivalenceChain('vortex')?.readings).toEqual(['gyro drifter']);
-    expect(getSymbolicEquivalenceChain('eggbeater')?.readings).toEqual(['atomic legover']);
+    expect(getSymbolicEquivalenceChain('eggbeater')?.readings).toEqual(['atomic legover', 'illusioning legover']);
     expect(getSymbolicEquivalenceChain('omelette')?.readings).toEqual(['atomic illusion']);
   });
 
