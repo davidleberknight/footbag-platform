@@ -1808,3 +1808,13 @@ terraging-illusion,notation,,TERRAGING ILLUSION,Frontier cat-1 promotion: JOB = 
 terraging-legover,notation,,TERRAGING LEGOVER,Frontier cat-1 promotion: JOB = curator semantic notation.
 terraging-mirage,notation,,TERRAGING MIRAGE,Frontier cat-1 promotion: JOB = curator semantic notation.
 guay,aliases_json,[],"[""far reverse guay"", ""reverse guay""]","Group B alias wiring: Far Reverse Guay / Reverse Guay = guay (far/reverse are +0 positional/directional qualifiers; folk variant names, not new tricks). guay is not in red_additions, so this sets aliases_json on the existing row (S3 display alias)."
+illusioning-flail,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],"Illusioning's downtime op-out dex prepended onto flail; 4 brackets == 4 ADD."
+illusioning-flail,notation,,ILLUSIONING FLAIL,JOB per mechanical uppercase rule.
+illusioning-osis,operational_notation,,SET > OP OUT [DEX] > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL],"Illusioning's downtime op-out dex prepended onto osis; 4 brackets == 4 ADD."
+illusioning-osis,notation,,ILLUSIONING OSIS,JOB per mechanical uppercase rule.
+illusioning-symposium-eggbeater,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto eggbeater's leading dex; mirrors miraging-symposium-eggbeater. 5 brackets == 5 ADD."
+illusioning-symposium-eggbeater,notation,,ILLUSIONING SYMPOSIUM EGGBEATER,JOB per mechanical uppercase rule.
+illusioning-symposium-mirage,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto mirage dex. 4 brackets == 4 ADD."
+illusioning-symposium-mirage,notation,,ILLUSIONING SYMPOSIUM MIRAGE,JOB per mechanical uppercase rule.
+illusioning-symposium-butterfly,operational_notation,,SET > OP OUT [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto butterfly dex; far = +0. 5 brackets == 5 ADD."
+illusioning-symposium-butterfly,notation,,ILLUSIONING SYMPOSIUM BUTTERFLY,JOB per mechanical uppercase rule.

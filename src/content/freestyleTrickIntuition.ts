@@ -63,6 +63,18 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     attribution: 'Curator description -- foundational 1-ADD delay surface.',
   },
   {
+    slug: 'illusioning-flail',
+    prose:
+      'Set the bag and circle an outward leg-swing under and then over it while the bag is on its way down rather than on its rise, so the swing rides the bag\'s downtime. Without replanting the support foot, immediately take a second outward swing with the body suspended in the air, and catch on a toe delay. It reads as two low, flowing outward circles, the second one stolen mid-float.',
+    attribution: 'Curator description -- illusioning (downtime) flail compound.',
+  },
+  {
+    slug: 'illusioning-osis',
+    prose:
+      'Open with a downtime outward leg-circle: swing under and over the bag as it falls. Flow straight out of it into a full body spin, carrying the bag wide of the body, and finish by catching it cross-body on a clipper delay. The feel is one continuous move, a downtime outward circle that unwinds directly into the rotation.',
+    attribution: 'Curator description -- illusioning (downtime) osis compound.',
+  },
+  {
     slug: 'mirage',
     prose:
       'From a toe delay or a clipper delay, set the bag straight up, and swing the support leg from in to out over the footbag, catching it with the setting leg on a toe delay. The set from a clipper delay is easier once you know how to do a clipper. With a toe-set mirage, the support leg has to first swing under, then back over the bag.',
