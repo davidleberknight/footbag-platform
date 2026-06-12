@@ -110,7 +110,7 @@ describe('Glossary framing — settled family-root test note', () => {
     expect(html).toMatch(/more than 10 documented descendants/);
     expect(html).toMatch(/<strong>Minor Lineages<\/strong>/);
     expect(html).toContain('id="section-families"');
-    expect(html).toContain('First-class families');
+    expect(html).toContain('Family Parents');
   });
 });
 
@@ -135,7 +135,7 @@ describe('Glossary framing — sidebar + non-regression', () => {
 
   it('§families uses the parent / descendant-lineage / sub-family model (root/branch retired)', async () => {
     const html = await glossary();
-    expect(html).toContain('First-class families');
+    expect(html).toContain('Family Parents');
     expect(html).toContain('Branch and lineage families');
     // The retired vocabulary no longer renders.
     expect(html).not.toContain('Root terminal families');
@@ -290,7 +290,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
 
   it('renders the first-class roster from the dictionary source, ATW excluded as a primitive', async () => {
     const html = await glossary();
-    expect(html).toContain('First-class families');
+    expect(html).toContain('Family Parents');
     // The ratified roster renders as ?family= links from the same source the
     // dictionary "By family" browse uses (freestylePublicFamilies.ts).
     for (const slug of ['mirage', 'whirl', 'drifter', 'butterfly-swirl']) {
@@ -302,8 +302,8 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     }
     // ATW is no longer a parent card; the retired framing is gone.
     expect(html).not.toMatch(/All eight recognized parents/);
-    // Card-coverage is decoupled from first-class status.
-    expect(html).toMatch(/Card coverage is complete/);
+    // Every Family Parent has a card (the implementation-status line was removed).
+    expect(html).toMatch(/Every Family Parent has an educational card/);
   });
 
   it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
@@ -476,7 +476,7 @@ describe('Glossary foundational frame — Tricks / Sets / Modifiers + register n
 describe('Glossary family roster — three display tiers', () => {
   it('splits the roster into Family Parents, Minor Lineages, and Foundational Terminal Surfaces', async () => {
     const html = await glossary();
-    expect(html).toContain('First-class families');
+    expect(html).toContain('Family Parents');
     expect(html).toContain('Minor lineages');
     expect(html).toContain('Foundational terminal surfaces');
     // Foundational surfaces are named as excluded (too broad), not as families.
