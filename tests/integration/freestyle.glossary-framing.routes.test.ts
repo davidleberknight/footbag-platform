@@ -133,11 +133,15 @@ describe('Glossary framing — sidebar + non-regression', () => {
     expect(html).toContain('href="#section-notation"');
   });
 
-  it('§families uses the parent / descendant-lineage / sub-family model (root/branch retired)', async () => {
+  it('§families groups the family cards by display tier, then lineage position', async () => {
     const html = await glossary();
     expect(html).toContain('Family Parents');
-    expect(html).toContain('Branch and lineage families');
-    // The retired vocabulary no longer renders.
+    expect(html).toContain('Minor Lineages');
+    // Within a tier the cards split by lineage position.
+    expect(html).toContain('glossary-family-subgroup-label');
+    expect(html).toContain('Root lineages');
+    // The retired single-axis grid vocabulary no longer renders.
+    expect(html).not.toContain('Branch and lineage families');
     expect(html).not.toContain('Root terminal families');
     expect(html).not.toContain('Branch families');
   });
@@ -178,8 +182,9 @@ describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', (
     expect(html).toMatch(/means a spinning <strong>kick<\/strong>/);
     expect(html).toMatch(/means a clipper <strong>stall<\/strong>/);
     expect(html).toMatch(/means a flying clipper <strong>kick<\/strong>/);
-    // knee clipper = surface substitution, not a new lineage.
-    expect(html).toMatch(/<strong>knee contact substitution<\/strong>/);
+    // toe clipper + knee clipper = surface substitution, not a new lineage.
+    expect(html).toMatch(/toe clipper and knee clipper/);
+    expect(html).toMatch(/<strong>contact substitution<\/strong>/);
   });
 
   it('advanced-reference adds a "tracking is not canonization" governance note', async () => {
@@ -308,8 +313,8 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     }
     // ATW is no longer a parent card; the retired framing is gone.
     expect(html).not.toMatch(/All eight recognized parents/);
-    // Every Family Parent has a card (the implementation-status line was removed).
-    expect(html).toMatch(/Every Family Parent has an educational card/);
+    // Every carded family carries an educational card (status line removed).
+    expect(html).toMatch(/Every family below has an educational card/);
   });
 
   it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
@@ -324,9 +329,6 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     expect(html).toMatch(/more than 10 documented descendants/);
     expect(html).not.toMatch(/at least three recursive descendant tricks/);
     expect(html).not.toMatch(/curator-selected balance/);
-    // The stale "swirl under whirl" sub-family caption is corrected.
-    expect(html).not.toMatch(/swirl and rev-whirl under whirl/);
-    expect(html).toMatch(/double-leg-over and eggbeater under legover/);
     // The three newly-carded families carry educational cards.
     for (const id of ['term-double-leg-over', 'term-eggbeater', 'term-inside-stall']) {
       expect(html, `card ${id}`).toContain(`id="${id}"`);

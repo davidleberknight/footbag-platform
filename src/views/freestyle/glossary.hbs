@@ -380,8 +380,8 @@
       <dd>means a clipper <strong>stall</strong>: a bare surface name defaults to a stall (which is why the dictionary reads a bare surface as a stall and makes kicks name themselves). Clipper stall became a foundational base, so the bare word resolves to the stall.</dd>
       <dt>flying clipper</dt>
       <dd>conventionally means a flying clipper <strong>kick</strong> &mdash; the opposite default &mdash; because flying clipper stayed associated with a kicking motion. <strong>Flying clipper stall</strong> states &ldquo;stall&rdquo; explicitly precisely because it has to contrast the implied kick.</dd>
-      <dt>knee clipper</dt>
-      <dd>reads not as a separate lineage but as a flying-clipper-style motion with a <strong>knee contact substitution</strong>: the motion architecture stays close to the flying clipper mechanic; only the contact surface changes.</dd>
+      <dt>toe clipper and knee clipper</dt>
+      <dd>read not as separate lineages but as flying-clipper-style motions with a <strong>contact substitution</strong>: the motion architecture stays close to the flying clipper mechanic, while the contact surface (toe or knee) changes.</dd>
     </dl>
     <p class="detail-muted">
       The rule: a bare surface defaults to a <strong>stall</strong>; a motion
@@ -729,7 +729,7 @@
       position; they are distinguished by the body movement around the support leg.
     </p>
 
-    <h3 class="section-heading">Family Parents</h3>
+    <h3 class="section-heading">Family roster</h3>
     <p class="detail-muted">
       The dictionary&rsquo;s Family Parents, admitted by one rule applied
       uniformly: a <strong>Family Parent</strong> conserves a recognizable terminal
@@ -782,23 +782,22 @@
       lineage rather than because they are surfaces.
     </p>
     <p class="detail-muted">
-      Every Family Parent has an educational card: the terminal-anchor
-      families directly below, and the productive descendant lineages in the next
-      section.
+      Every family below has an educational card, grouped by tier &mdash; Family
+      Parents first, then Minor Lineages &mdash; and within each tier by lineage
+      position (root lineages, then branches under their parent). The chips on each
+      card carry the same two facts.
     </p>
-    <div class="glossary-family-card-grid" aria-label="Family cards">
-      {{#each content.rootTerminalFamilies}}
+    {{#each content.familyCardGroups}}
+    <h3 class="section-heading">{{tierLabel}}</h3>
+    {{#each subGroups}}
+    <p class="glossary-family-subgroup-label">{{label}}</p>
+    <div class="glossary-family-card-grid" aria-label="{{../tierLabel}}: {{label}}">
+      {{#each cards}}
       {{> glossary-family-card}}
       {{/each}}
     </div>
-
-    <h3 class="section-heading">Branch and lineage families</h3>
-    <p class="detail-muted">Cards grouped by structure, not by tier. Some are derived branches that inherit a root&rsquo;s terminal identity and are themselves Family Parents (torque and blender under osis; double-leg-over and eggbeater under legover); others are root-level lineages, some Family Parents (swirl, drifter, barfly) and some Minor Lineages (barrage, eclipse, dyno, flurry, and the rest). A card&rsquo;s tier is set by the roster above, not by which grid it appears in.</p>
-    <div class="glossary-family-card-grid" aria-label="Branch and lineage families">
-      {{#each content.branchFamilies}}
-      {{> glossary-family-card}}
-      {{/each}}
-    </div>
+    {{/each}}
+    {{/each}}
 
     {{! Core atoms registry — preserved for #term-{slug} anchor stability
         on atom slugs that do not map 1:1 to a family card (clipper-stall /

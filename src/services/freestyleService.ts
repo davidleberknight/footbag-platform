@@ -3314,6 +3314,58 @@ function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardVi
   return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier] };
 }
 
+// A lineage sub-group within a tier ("Root lineages", "Branches of Osis").
+export interface FamilyCardSubGroup {
+  label: string;
+  cards: readonly GlossaryFamilyCardView[];
+}
+
+// Family cards grouped PRIMARILY by display tier, then by lineage position, so
+// every Family Parent reads as one tier whether it is a root or a branch. Reuses
+// the same tier classifier + roster `parent` data the chips use; changes no
+// roster membership or tier logic. Each card appears in exactly one group, so its
+// `#term-{slug}` anchor still renders once.
+export interface FamilyCardTierGroup {
+  tierKey:   string;
+  tierLabel: string;
+  subGroups: readonly FamilyCardSubGroup[];
+}
+
+function familyCardParentSlug(slug: string): string | null {
+  return CARD_ONLY_FAMILY_LINEAGE[slug]?.parentSlug ?? PUBLIC_FAMILY_PARENT_OF.get(slug) ?? null;
+}
+
+function buildFamilyCardTierGroups(): FamilyCardTierGroup[] {
+  const allCards = [...ROOT_TERMINAL_FAMILIES, ...BRANCH_FAMILIES].map(shapeGlossaryFamilyCard);
+  const tierOrder: { key: FamilyTier; label: string }[] = [
+    { key: 'family-parent',                 label: 'Family Parents' },
+    { key: 'minor-lineage',                 label: 'Minor Lineages' },
+    { key: 'foundational-terminal-surface', label: 'Foundational Terminal Surfaces' },
+  ];
+  const groups: FamilyCardTierGroup[] = [];
+  for (const { key, label } of tierOrder) {
+    const tierCards = allCards.filter(c => c.tierKey === key);
+    if (tierCards.length === 0) continue;
+    const subGroups: FamilyCardSubGroup[] = [];
+    const roots = tierCards.filter(c => familyCardParentSlug(c.slug) === null);
+    if (roots.length) subGroups.push({ label: 'Root lineages', cards: roots });
+    // Branches grouped by parent, in the order each parent first appears.
+    const byParent = new Map<string, GlossaryFamilyCardView[]>();
+    for (const c of tierCards) {
+      const parentSlug = familyCardParentSlug(c.slug);
+      if (parentSlug === null) continue;
+      const bucket = byParent.get(parentSlug) ?? [];
+      bucket.push(c);
+      byParent.set(parentSlug, bucket);
+    }
+    for (const [parentSlug, cards] of byParent) {
+      subGroups.push({ label: `Branches of ${PUBLIC_FAMILY_LABEL.get(parentSlug) ?? parentSlug}`, cards });
+    }
+    groups.push({ tierKey: key, tierLabel: label, subGroups });
+  }
+  return groups;
+}
+
 export interface FreestyleGlossaryContent {
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
@@ -3357,14 +3409,11 @@ export interface FreestyleGlossaryContent {
   // branching: 9 set cards, 4 body cards.
   setModifierFeelCards:  readonly ModifierFeelCard[];
   bodyModifierFeelCards: readonly ModifierFeelCard[];
-  // §5 family card grids (P2 IA refactor). Two cohorts rendered in the
-  // restructured §5 Core Trick Families section: root terminal families
-  // (foundational ontology anchors) + branch families (named compounds
-  // that are themselves productive family anchors AND descend from a
-  // root). Each card preserves its #term-{slug} anchor for the
-  // anchor-preservation forever-rule.
-  rootTerminalFamilies: readonly GlossaryFamilyCardView[];
-  branchFamilies:       readonly GlossaryFamilyCardView[];
+  // §5 family cards, grouped primarily by display tier (Family Parents, then
+  // Minor Lineages) and within each by lineage position (root lineages, then
+  // branches grouped under their parent). Each card preserves its #term-{slug}
+  // anchor and appears in exactly one group.
+  familyCardGroups: readonly FamilyCardTierGroup[];
   // Atoms not covered by the family-card cohorts above — clipper-stall,
   // legover, pickup, illusion, around-the-world, orbit. Same shape as
   // coreTricks; rendered under §5's "Other foundational atoms" subsection.
@@ -8463,8 +8512,7 @@ export const freestyleService = {
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
         bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
-        rootTerminalFamilies:  ROOT_TERMINAL_FAMILIES.map(shapeGlossaryFamilyCard),
-        branchFamilies:        BRANCH_FAMILIES.map(shapeGlossaryFamilyCard),
+        familyCardGroups: buildFamilyCardTierGroups(),
         otherFoundationalAtoms: coreTricks.filter(t => {
           const familySlugs = new Set([
             ...ROOT_TERMINAL_FAMILIES.map(f => f.slug),

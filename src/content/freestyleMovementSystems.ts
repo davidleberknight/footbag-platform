@@ -154,8 +154,8 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
     'Compounds: PIX + BUTTERFLY (dimwalk), PIX + MIRAGE (smear), PIX + DRIFTER (smoke).',
   ],
   ['fairy',
-    'FAIRY + base: an alternate uptime path; the bag travels with illusion-style mechanics ' +
-    'rather than the standard pixie compression. ' +
+    'FAIRY + base: an uptime orbit-style set; the bag is set from toe while the leg ' +
+    'circles in the outside direction before the next trick, rather than the standard pixie compression. ' +
     'Compounds: FAIRY + MIRAGE, FAIRY + BUTTERFLY.',
   ],
   ['surging',

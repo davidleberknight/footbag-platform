@@ -6210,10 +6210,18 @@ section.home-media { padding-top: 0; }
 /* §5 family-tree visual: anchor + branched compound members rendered
    as a compact registry-style list. Tree characters (├ └) provided by
    pseudo-elements so the markup stays semantic. */
-/* §5 family card primitives. Two grids (Root
-   Terminal Families + Branch Families), each rendering a bordered card
-   with title + type chip + 5 labeled fields + optional collapsed
-   observational panels. */
+/* §5 family card primitives. Cards are grouped by display tier, and within
+   each tier by lineage position (root lineages, then branches under their
+   parent); each group renders a labeled grid of bordered cards with title +
+   type chip + 5 labeled fields + optional collapsed observational panels. */
+.glossary-family-subgroup-label {
+  margin: 14px 0 6px 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .glossary-family-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
