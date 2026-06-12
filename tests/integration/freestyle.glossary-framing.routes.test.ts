@@ -155,10 +155,12 @@ describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', (
     expect(html).toContain('The same trick appears in several of these views at once');
   });
 
-  it('introduces the productive descendant-lineage middle tier without renaming the families taxonomy', async () => {
+  it('frames the family kind on two independent axes: lineage position and display tier', async () => {
     const html = await glossary();
-    expect(html).toMatch(/<strong>productive descendant lineage<\/strong>/);
-    expect(html).toMatch(/such as the drifter lineage/);
+    expect(html).toMatch(/lineage position/i);
+    expect(html).toMatch(/display tier/i);
+    // The stale drifter-as-descendant-lineage framing is gone (drifter is a Family Parent now).
+    expect(html).not.toMatch(/such as the drifter lineage/);
   });
 
   it('§surfaces frames foundational vs alternative surfaces with the movement-vs-surface WHY', async () => {
@@ -266,18 +268,22 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     const html = await glossary();
     expect(html).toContain('What makes a family?');
     expect(html).toMatch(/Whirl is the model/);
-    expect(html).toMatch(/Foundational surfaces<\/strong> \(toe, clipper\)/);
+    expect(html).toMatch(/Foundational Terminal Surfaces<\/strong> \(toe, clipper\)/);
     expect(html).toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/);
   });
 
-  it('teaches the five kinds of family-ish object (first-class / sub-family / atom / ecosystem / anchor)', async () => {
+  it('teaches the family-ish kinds with a two-axis Family entry (family / atom / ecosystem / anchor)', async () => {
     const html = await glossary();
-    expect(html).toContain('<dt>First-class family</dt>');
-    expect(html).toContain('<dt>Sub-family</dt>');
+    expect(html).toContain('<dt>Family</dt>');
     expect(html).toContain('<dt>Atom / primitive</dt>');
     expect(html).toContain('<dt>Modifier ecosystem</dt>');
     expect(html).toContain('<dt>Family anchor</dt>');
-    // The retired eight-parent / three-tier framing no longer renders.
+    // The Family entry carries both axes (lineage position + tier) with examples.
+    expect(html).toMatch(/lineage position/i);
+    expect(html).toMatch(/Family Parent[\s\S]*Minor Lineage/);
+    // The retired first-class / sub-family framing no longer renders.
+    expect(html).not.toContain('<dt>First-class family</dt>');
+    expect(html).not.toContain('<dt>Sub-family</dt>');
     expect(html).not.toMatch(/eight\s+recognized parents/);
   });
 

@@ -88,8 +88,8 @@ describe('GET /freestyle/glossary — Family-anchor terminology (§5)', () => {
 
   it('exemplifies family-anchor tricks and counter-examples', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Positive examples of first-class families from the five-kinds prose.
-    expect(res.text).toMatch(/Mirage, whirl, butterfly, and drifter/);
+    // Root-family examples from the two-axis Family entry.
+    expect(res.text).toMatch(/Mirage, Whirl, Swirl/);
     // Counter-examples (tricks that are NOT family-anchors)
     expect(res.text).toMatch(/flurry,\s+witchdoctor,\s+and\s+paradox-mirage/);
   });
