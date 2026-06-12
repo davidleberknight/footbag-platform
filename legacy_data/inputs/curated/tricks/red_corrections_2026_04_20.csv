@@ -1775,3 +1775,9 @@ nuclear-guay,trick_family,,inside-stall,"Loader-19 family override per no-transi
 nuclear-drifter,trick_family,,clipper-stall,"Loader-19 family override per no-transitive-inheritance forever-rule: trick_family = base's terminal family (clipper-stall), not the default base_trick slug."
 nuclear-double-leg-over,trick_family,,legover,"Loader-19 family override per no-transitive-inheritance forever-rule: trick_family = base's terminal family (legover), not the default base_trick slug."
 nuclear-torque,trick_family,,osis,"Loader-19 family override per no-transitive-inheritance forever-rule: trick_family = base's terminal family (osis), not the default base_trick slug."
+pixie-kick,operational_notation,,TOE > SAME IN [DEX],"One dex and no terminal stall; enables dex-count bucketing into the 1-dex group. 1 bracket matches 1 ADD."
+pixie-kick,notation,,PIXIE KICK,JOB per mechanical uppercase rule (kick-only dex atom).
+pixie-kick,trick_family,pixie,pixie-kick,"Kick self-families per sibling convention; pixie-kick has no terminal toe-stall [DEL] so it is not a pixie-family member. base_trick retained for derivation provenance."
+fairy-kick,operational_notation,,TOE > SAME OUT [DEX],"One dex and no terminal stall; enables dex-count bucketing into the 1-dex group. 1 bracket matches 1 ADD."
+fairy-kick,notation,,FAIRY KICK,JOB per mechanical uppercase rule (kick-only dex atom).
+fairy-kick,trick_family,fairy,fairy-kick,"Kick self-families per sibling convention; fairy-kick has no terminal toe-stall [DEL] so it is not a fairy-family member. base_trick retained for derivation provenance."
