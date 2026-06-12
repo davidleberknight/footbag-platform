@@ -8488,7 +8488,10 @@ export const freestyleService = {
         entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,
-          statusLabel: ex.status === 'pending-doctrine' ? 'pending doctrine' : ex.status,
+          statusLabel:
+            ex.status === 'pending-doctrine' ? 'pending doctrine'
+            : ex.status === 'doctrine-locked' ? 'settled'
+            : ex.status,
         })),
         derivationAtlas:   DERIVATION_PILOT_ENTRIES,
         // §1 Core trick atoms — beginner-facing pedagogical cards.

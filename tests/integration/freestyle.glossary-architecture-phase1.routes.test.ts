@@ -44,12 +44,14 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/glossary — How to read this glossary (§1)', () => {
+describe('GET /freestyle/glossary — Reading the layer labels section', () => {
   it('renders the subsection anchor and heading', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
+    // Anchor preserved; the heading was retitled off the duplicate "How to read
+    // this glossary" (that title now belongs only to the top intro card).
     expect(res.text).toMatch(/id="how-to-read"/);
-    expect(res.text).toMatch(/How to read this glossary/);
+    expect(res.text).toMatch(/Reading the layer labels/);
   });
 
   it('enumerates the six publication-state vocabulary terms', async () => {

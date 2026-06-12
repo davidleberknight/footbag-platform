@@ -47,15 +47,15 @@ describe('Glossary Vocabulary Relationships subsection', () => {
     expect(res.text).toContain('id="symbolic-compression-flow"');
   });
 
-  it('section 1 (Pure aliases) cites the toe-prefix examples and Red pt2 ruling', async () => {
+  it('section 1 (Pure aliases) cites the toe-prefix examples', async () => {
     const res = await request(await createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/Pure aliases/i);
     expect(res.text).toMatch(/toe blur[\s\S]*quantum mirage/i);
     expect(res.text).toMatch(/toe blizzard[\s\S]*quantum illusion/i);
     expect(res.text).toMatch(/toe ripwalk[\s\S]*quantum butterfly/i);
-    // Per feedback_no_individual_names_freestyle_views the rule citation
-    // does NOT name the curator. Pt2 attribution is to "the curator pt2 ruling".
-    expect(res.text).toMatch(/curator\s+pt2\s+ruling/i);
+    // The rule attribution no longer carries an internal ruling citation
+    // (the "curator pt2 ruling" governance phrasing was stripped).
+    expect(res.text).not.toMatch(/curator\s+pt2\s+ruling/i);
   });
 
   it('section 2 (Structural compression) cites smear / ripwalk / atom smasher / eggbeater / mobius examples', async () => {
@@ -96,7 +96,7 @@ describe('Glossary Vocabulary Relationships subsection', () => {
   it('section 3 carries the historical-readings note (toe-prefix, atomic symposium mirage, barrage-family)', async () => {
     const res = await request(await createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/historical reading/i);
-    expect(res.text).toMatch(/toe[\s\S]*prefixed naming retired by the curator/i);
+    expect(res.text).toMatch(/retired[\s\S]*?toe[\s\S]*?prefixed naming/i);
     expect(res.text).toMatch(/barrage-family/i);
   });
 

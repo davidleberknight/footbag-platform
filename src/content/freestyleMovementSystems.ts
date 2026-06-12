@@ -147,7 +147,7 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ],
   ['stepping',
     'STEP + base: a foot relocation during uptime that compresses or lengthens the set. ' +
-    'Per pt11: blurry = stepping paradox; compounds: STEP + WHIRL, STEP + OSIS.',
+    'Blurry = stepping paradox; compounds: STEP + WHIRL, STEP + OSIS.',
   ],
   ['pixie',
     'PIX + base: a compressed pre-base uptime set; tighter motion than stepping. ' +
