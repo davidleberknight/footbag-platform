@@ -36,19 +36,56 @@ create the permanent `freestyle_sequences` schema or re-point the Insights page 
 queries yet. Doing so would make the published numbers change (whirl 150 -> 99, etc.),
 which would be a truthfulness regression, not the intended improvement.
 
-## What unblocks C2
+## Comparison table (editorial vs located 375-chain corpus)
 
-One of:
+| Metric | Editorial | 375-chain | delta |
+|---|---|---|---|
+| Chains | 395 | 375 | -5% |
+| Whirl mentions | 150 | 99 | -34% |
+| Swirl mentions | 96 | 31 | -68% |
+| blurry whirl mentions | 89 | 70 | -21% |
+| Torque mentions | 78 | 40 | -49% |
+| Ripwalk mentions | 58 | 45 | -22% |
+| Butterfly mentions | 56 | 42 | -25% |
+| Wilk diversity | 30 | 21 | -30% |
+| Penske diversity | 18 | 9 | -50% |
 
-1. **Supply the corpus the editorial was actually computed from** (the fuller 395-sequence
-   run). The note that "the data can be brought over from another repo" likely refers to
-   this fuller export; the 375-chain file present looks like an earlier run. Re-run
-   `validate.py` against it; if magnitudes reproduce within tolerance, proceed to C2.
-2. **Or** confirm the exact normalization/decomposition methodology the offline pipeline
-   used (component vs exact, which compounds fold into which base) and re-derive the
-   editorial constants from the present corpus, accepting the new numbers as the live
-   baseline (a deliberate re-baselining of the page, not a silent change).
+The deltas are non-uniform (-5% to -68%). A simple "20 missing chains" would drop every
+metric by roughly the same -5%, so that is ruled out.
 
-Until then C2 (permanent schema + loader + live re-point) and E (dictionary injection)
-remain blocked. Phase B already reframed the page honestly using the existing constants,
-so the page is truthful in the meantime.
+## Diagnosis: broader source extraction, not missing chains or normalization
+
+The frozen editorial aggregate survives at `FOOTBAG_DATA/freestyle_insights.csv` (it carries
+the exact `freestyleEditorial.ts` numbers, including per-trick event coverage). The raw
+per-sequence corpus that produced it does NOT survive; the only raw export present is a
+leaner re-run, and FOOTBAG_DATA git history shows no fuller version.
+
+The decisive signal is COVERAGE, not counts:
+
+| | whirl mentions | whirl players | whirl events |
+|---|---|---|---|
+| editorial | 150 | 86 | 54 |
+| current corpus | 99 | 64 | 45 |
+
+Player and event coverage both dropped (86 -> 64 players, 54 -> 45 events). Normalization
+cannot reduce how many distinct players/events a trick spans; only a narrower source
+extraction can. So the editorial run **covered more events and players** (a broader
+extraction / additional sources merged in). The current corpus is a narrower re-run, which
+is why every count lands at roughly two thirds of editorial.
+
+## Decision (the raw 395 corpus is unrecoverable from the repos)
+
+C2 needs a raw corpus that reproduces the live page. Since that corpus is gone, the choices:
+
+1. **Recover or regenerate the fuller corpus** — re-run the FOOTBAG_DATA noise-mining
+   extraction at the original breadth (the ~54-event whirl coverage), or supply the export
+   from wherever the editorial run was actually computed. Then re-run `validate.py`; if it
+   reproduces, proceed to C2. Recommended if the broader source data still exists.
+2. **Re-baseline deliberately** — regenerate the constants from the present 375-chain corpus
+   and make those live via C2. The page numbers drop (whirl 150 -> 99), but become live,
+   reproducible, and honest. A visible, documented change, not a silent one.
+3. **Stop at Phase B** — keep the honest reframe already shipped; leave the constants frozen
+   with `freestyle_insights.csv` as their provenance. The page is truthful as-is; no C2/E.
+
+C2 (schema + loader + live re-point) and E (dictionary injection) remain blocked pending
+this call.

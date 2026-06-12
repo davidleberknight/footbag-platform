@@ -1212,6 +1212,7 @@ describe('GET /freestyle/insights', () => {
     const res = await request(app).get('/freestyle/insights');
     expect(res.text).toContain('Archive Notes');
     expect(res.text).toContain('395 Sick3 format sequences');
+    expect(res.text).toContain('no longer fully reproducible');
   });
 
   it('contains breadcrumb back to /freestyle', async () => {
