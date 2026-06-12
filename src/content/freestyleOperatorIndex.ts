@@ -22,6 +22,12 @@ export interface OperatorIndexAxis {
   /** Short chip shown on each row as the "type": Set / Entry / Body / No-plant. */
   typeLabel:     string;
   modifierSlugs: readonly string[];
+  /**
+   * Optional educational sub-groupings within the axis. Each entry labels the
+   * run of modifiers starting at `firstSlug` (in modifierSlugs order). Pure
+   * presentation grouping; changes no taxonomy.
+   */
+  subFamilies?:  readonly { label: string; firstSlug: string }[];
 }
 
 export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
@@ -29,9 +35,11 @@ export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
     axisKey:   'set-uptime',
     axisName:  'Set / Uptime Systems',
     typeLabel: 'Set',
+    // Furious is folded into Barraging (same operator, two names); it still
+    // resolves at /freestyle/modifier/furious.
     modifierSlugs: [
       'pixie', 'fairy', 'atomic', 'quantum', 'nuclear',
-      'barraging', 'furious', 'blurry', 'stepping', 'whirling',
+      'barraging', 'blurry', 'stepping', 'whirling',
     ],
   },
   {
@@ -45,8 +53,14 @@ export const OPERATOR_INDEX_AXES: readonly OperatorIndexAxis[] = [
     axisName:  'Midtime Body Modifiers',
     typeLabel: 'Body',
     modifierSlugs: [
-      'spinning', 'gyro', 'ducking', 'diving', 'weaving',
-      'inspinning', 'tapping', 'zulu',
+      'spinning', 'gyro', 'inspinning',
+      'ducking', 'diving', 'weaving', 'zulu',
+      'tapping',
+    ],
+    subFamilies: [
+      { label: 'Spin family',          firstSlug: 'spinning' },
+      { label: 'Head-movement family', firstSlug: 'ducking' },
+      { label: 'Other',                firstSlug: 'tapping' },
     ],
   },
   {

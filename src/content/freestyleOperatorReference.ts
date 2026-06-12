@@ -32,7 +32,7 @@ export type OperatorReferenceCategory =
                        //  body operators live on the operator board)
   | 'compound-set'     // a set treatment that decomposes into other operators
   | 'compound-body'    // a body operator that decomposes into other operators
-  | 'quantifier';      // a quantifier-style operator (double, high)
+  | 'quantifier';      // a quantifier-style operator (double)
 
 export interface OperatorReferenceEntry {
   slug:                  string;
@@ -70,7 +70,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  null,
     pendingNote:    'X-Dex fires on the following dex only when it is a far miraging/illusioning move (Atomic or Quantum set, identical trigger); legovers and pickups never carry it. The surface name is the dictionary headline (e.g. Atom Smasher = Atomic Mirage); the dex-by-dex breakdown is pedagogy, not the canonical key.',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
-    lineageNote:    'Operational form per the legacy notation reference; X-Dex trigger and presentation curator-adjudicated.',
+    lineageNote:    'Operational form from the historical moves reference.',
     curatorConfirmPending: false,
   },
   {
@@ -81,7 +81,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'stepping paradox',
     pendingNote:    null,
     workedExamples: ['Blurry (Stepping Paradox)'],
-    lineageNote:    'Decomposition per the legacy notation reference parenthetical equivalent.',
+    lineageNote:    'Decomposition from the historical moves reference.',
     curatorConfirmPending: false,
   },
   {
@@ -92,7 +92,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'compressed atomic',
     pendingNote:    'Historical name: Toe Blur.',
     workedExamples: ['Quantum Mirage = Toe Blur'],
-    lineageNote:    'Decomposition per curator editorial constants and historical community usage.',
+    lineageNote:    'Decomposition from historical community usage.',
     curatorConfirmPending: false,
   },
   {
@@ -103,29 +103,18 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'paradox + illusion',
     pendingNote:    null,
     workedExamples: ['Sumo = Nuclear Mirage', 'Matador = Nuclear Butterfly'],
-    lineageNote:    'Curator-adjudicated decomposition.',
+    lineageNote:    'A settled decomposition.',
     curatorConfirmPending: false,
   },
   {
     slug:           'barraging',
     name:           'Barraging',
     category:       'compound-set',
-    oneLineMeaning: 'A high-stepping treatment with two in-direction dexes. Operational form: CLIP > OP IN [DEX] > SAME IN [DEX] >.',
+    oneLineMeaning: 'A two-dex uptime set (+2 ADD) of two in-direction dexes. Also called furious; the historical name is high stepping. Operational form: CLIP > OP IN [DEX] > SAME IN [DEX] >.',
     decomposition:  'high stepping',
-    pendingNote:    'The same operator as furious (a two-dex uptime set, +2 ADD); "barraging" is the more explanative name. Worked example: barraging + osis = baroque = 5.',
-    workedExamples: ['Fury = Barraging Paradox Mirage', 'Baroque = Barraging Osis'],
-    lineageNote:    'Two-dex uptime set (+2 ADD), curator-adjudicated; legacy equivalent name "high stepping".',
-    curatorConfirmPending: false,
-  },
-  {
-    slug:           'furious',
-    name:           'Furious',
-    category:       'compound-set',
-    oneLineMeaning: 'A two-dex uptime set (+2 ADD); the same operator as barraging. Operational form: CLIP > OP IN [DEX] > SAME IN [DEX] >.',
-    decomposition:  'barraging (two-dex uptime set)',
-    pendingNote:    'The same operator as barraging (a two-dex uptime set, +2 ADD); barraging is the more explanative name.',
-    workedExamples: ['Fury = Furious Paradox Mirage'],
-    lineageNote:    'Two-dex uptime set (+2 ADD), curator-adjudicated; = barraging.',
+    pendingNote:    null,
+    workedExamples: ['Baroque = Barraging Osis', 'Fury = Barraging Paradox Mirage'],
+    lineageNote:    'A two-dex uptime set worth +2 ADD.',
     curatorConfirmPending: false,
   },
   {
@@ -147,34 +136,18 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  null,
     pendingNote:    null,
     workedExamples: ['Whirling Swirl', 'Double-Blender = Whirling Blender'],
-    lineageNote:    'A +1 body modifier, commonly seen in tricks such as Whirling Swirl; per the legacy notation reference Whirl / Swirl variants list.',
+    lineageNote:    'A +1 body modifier, seen in tricks such as Whirling Swirl.',
     curatorConfirmPending: false,
   },
   {
     slug:           'double',
     name:           'Double',
     category:       'quantifier',
-    oneLineMeaning: 'A quantifier operator. Per the legacy Terraging entry, applying a set twice in sequence.',
-    decomposition:  'X applied twice (per legacy: Terraging = Double Pixie = TOE > SAME IN [DEX] > SAME IN [DEX] >)',
-    pendingNote:    'Generalization across double-fairy = double illusion, double-blender = whirling blender, and double-spinning-osis = two spins to osis may not all follow the simple X-twice pattern. Per-compound community readings supersede the generalization where they differ.',
-    workedExamples: [
-      'Terraging = Double Pixie',
-      'Double-Fairy = Double Illusion',
-      'Double-Blender = Whirling Blender',
-      'Double-Spinning-Osis = Two Spins to Osis',
-    ],
-    lineageNote:    'Quantifier semantics per the legacy Terraging entry.',
-    curatorConfirmPending: true,
-  },
-  {
-    slug:           'high',
-    name:           'High',
-    category:       'quantifier',
-    oneLineMeaning: 'A quantifier-style operator surfaced in the legacy Barraging = High Stepping equivalence.',
+    oneLineMeaning: 'A quantifier: the set applied twice in sequence. Worked example: double pixie = terraging.',
     decomposition:  null,
-    pendingNote:    'Semantics under community review. Appears as the "high" prefix in "high stepping" as the legacy equivalent name for barraging.',
-    workedExamples: ['Barraging = High Stepping'],
-    lineageNote:    'Per the legacy notation reference parenthetical equivalent.',
+    pendingNote:    null,
+    workedExamples: ['Terraging = Double Pixie'],
+    lineageNote:    'Quantifier: the set applied twice.',
     curatorConfirmPending: true,
   },
 ];

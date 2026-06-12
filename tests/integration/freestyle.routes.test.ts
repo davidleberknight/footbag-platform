@@ -928,11 +928,14 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const res = await request(app).get('/freestyle/glossary');
     const expectedSlugs = [
       'atomic', 'blurry', 'quantum', 'nuclear',
-      'barraging', 'furious', 'inspinning', 'whirling', 'double', 'high',
+      'barraging', 'inspinning', 'whirling', 'double',
     ];
     for (const slug of expectedSlugs) {
       expect(res.text).toMatch(new RegExp(`<dt id="term-${slug}"`));
     }
+    // Furious folds into barraging; high folds into the barraging explanation.
+    expect(res.text).not.toMatch(/<dt id="term-furious"/);
+    expect(res.text).not.toMatch(/<dt id="term-high"/);
   });
 
   it('renders the locked decomposition strings on confirmed entries', async () => {
@@ -948,42 +951,38 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
-    // double, high — 2 pending entries; whirling now carries a curator-defined meaning
-    expect(pendingFlags.length).toBe(2);
+    // double is the one remaining pending entry (high folded into barraging).
+    expect(pendingFlags.length).toBe(1);
   });
 
-  it('surfaces a curator-adjudicated lineage line on the nuclear entry', async () => {
-    // V5 editorial sweep: individual / sprint references stripped from
-    // operator-reference prose. Lineage line now reads as institutional
-    // attribution.
+  it('renders a plain lineage line on the nuclear entry (no curator-workflow language)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('Curator-adjudicated decomposition.');
+    expect(res.text).toContain('A settled decomposition.');
+    expect(res.text).not.toContain('Curator-adjudicated');
   });
 
-  it('documents furious and barraging as the same operator on the furious entry', async () => {
-    // Furious and barraging are the same two-dex uptime set (+2 ADD); this
-    // resolves the earlier two-reading Fury ambiguity into one decomposition.
+  it('documents barraging and furious as the same operator on the barraging entry', async () => {
+    // Furious and barraging are the same two-dex uptime set (+2 ADD); furious is
+    // folded into the barraging entry rather than carrying its own.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    const furiousIdx = res.text.indexOf('id="term-furious"');
-    expect(furiousIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(furiousIdx, furiousIdx + 2000);
-    expect(slice).toMatch(/same operator as barraging/i);
+    const idx = res.text.indexOf('id="term-barraging"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = res.text.slice(idx, idx + 2000);
+    expect(slice).toMatch(/also called furious/i);
     expect(slice).toMatch(/two-dex uptime set/i);
   });
 
-  it('renders entries in pedagogical order: set-tier first, body next, quantifiers last', async () => {
+  it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const idxAtomic    = res.text.indexOf('id="term-atomic"');
     const idxWhirling  = res.text.indexOf('id="term-whirling"');
     const idxDouble    = res.text.indexOf('id="term-double"');
-    const idxHigh      = res.text.indexOf('id="term-high"');
     expect(idxAtomic).toBeGreaterThan(0);
     expect(idxWhirling).toBeGreaterThan(idxAtomic);
     expect(idxDouble).toBeGreaterThan(idxWhirling);
-    expect(idxHigh).toBeGreaterThan(idxDouble);
   });
 
   it('renders the inspinning term anchor inside the intermediate-operators block', async () => {
@@ -1947,7 +1946,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(gridSlice).not.toContain('id="term-fairy"');
   });
 
-  it('set-modifiers grid renders pixie/fairy/stepping (Tier-1) plus atomic/quantum/blurry/nuclear/barraging/furious (intermediate)', async () => {
+  it('set-modifiers grid renders pixie/fairy/stepping (Tier-1) plus atomic/quantum/blurry/nuclear/barraging (intermediate)', async () => {
     // Set-modifier registry grid projected from the Tier-1 operator board
     // plus OPERATOR_REFERENCE_ENTRIES set/compound-set entries.
     const res = await request(createApp()).get('/freestyle/glossary');
@@ -1955,8 +1954,8 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
     const afterSetMod = res.text.slice(setModSection);
     expect(afterSetMod).toContain('class="glossary-set-modifiers-grid"');
-    // All 9 entries surface as set-modifier-card tiles with #term-{slug} anchors.
-    for (const slug of ['pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'blurry', 'nuclear', 'barraging', 'furious']) {
+    // Set/compound-set entries surface as set-modifier-card tiles with #term-{slug} anchors.
+    for (const slug of ['pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'blurry', 'nuclear', 'barraging']) {
       expect(afterSetMod).toContain(`id="term-${slug}"`);
     }
     // Tier-1 entries carry a glyph chip (pixie → PIX); intermediate entries surface their decomposition.

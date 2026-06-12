@@ -111,6 +111,21 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('id="advanced-decomposition-operator-theory"');
     expect(res.text).toContain('id="execution-mechanics"');
   });
+
+  it('sub-labels the spin and head-movement families within the body axis', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    expect(res.text).toContain('>Spin family<');
+    expect(res.text).toContain('>Head-movement family<');
+    // The sub-label sits before its first member.
+    expect(res.text).toMatch(/>Spin family<[\s\S]*?id="operator-spinning"/);
+    expect(res.text).toMatch(/>Head-movement family<[\s\S]*?id="operator-ducking"/);
+  });
+
+  it('folds furious into barraging (no separate furious index row)', async () => {
+    const res = await request(await createApp()).get('/freestyle/operators');
+    expect(res.text).toContain('id="operator-barraging"');
+    expect(res.text).not.toContain('id="operator-furious"');
+  });
 });
 
 describe('GET /freestyle/modifier/:slug — universal detail resolution', () => {

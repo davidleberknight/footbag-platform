@@ -1026,6 +1026,7 @@ function buildOperatorIndexAxes(
         notation:   operatorNotation(slug),
         descriptor: operatorDescriptor(slug),
         status:     operatorStatus(slug),
+        subFamilyLabel: axis.subFamilies?.find(sf => sf.firstSlug === slug)?.label ?? null,
       };
     }),
   }));
@@ -3534,6 +3535,9 @@ export interface OperatorIndexRow {
   notation:    string | null;                // canonical-set formula; set modifiers only
   descriptor:  string | null;                // one short movement line
   status:      { key: string; label: string };
+  // Sub-family divider label, set on the first row of an educational
+  // sub-grouping within an axis (e.g. "Spin family"); null otherwise.
+  subFamilyLabel: string | null;
   // Detail + browse hrefs are built in the template from `slug` (single-variable
   // URLs) so the query-string '=' is not HTML-escaped.
 }

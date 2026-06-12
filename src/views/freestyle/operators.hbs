@@ -38,6 +38,7 @@
       <h2 class="section-heading">{{axisName}}</h2>
       <div class="dict-trick-row-stack">
         {{#each modifiers}}
+        {{#if subFamilyLabel}}<p class="operator-subfamily-label">{{subFamilyLabel}}</p>{{/if}}
         <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
           <div class="dict-trick-row-head">
             <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
