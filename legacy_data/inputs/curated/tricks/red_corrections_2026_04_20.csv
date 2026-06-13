@@ -149,7 +149,6 @@ spinal-tap,operational_notation_source,,Source: FootbagMoves.com.,Editorial clea
 tap,operational_notation_source,,Source: FootbagMoves.com.,Editorial cleanup 2026-05-11: simplified source-provenance line; removed process labels and dated curator-review string.
 tripwalk,operational_notation_source,,Source: FootbagMoves.com.,Editorial cleanup 2026-05-11: simplified source-provenance line; removed process labels and dated curator-review string.
 sumo,description,,Nuclear-modified mirage; 5 ADD via an X-Dex escalation on the mirage base. Named exception to the standard +2 nuclear rule (nuclear mirage would otherwise be 4 ADD).,Editorial cleanup 2026-05-11: replaced internal-process references with public-facing explanation.
-illusioning,description,,Body modifier underlying omelette. ADD contribution is an open question.,Editorial cleanup 2026-05-11: replaced internal-process references with public-facing explanation.
 sailing,description,,Sailing set. 2 ADD standalone. Equivalent to a Pixie Quantum set (1 + 1 = 2 ADD).,Editorial cleanup 2026-05-11: replaced internal-process references with public-facing explanation.
 montage,short_description,,"A 7-ADD whirl compound: ducking, paradox, symposium, and spinning all layered onto the whirl base in a single continuous rotation.",UX3b1 schema-backed prose backfill 2026-05-11: migrate from UX2_PILOT_RAW service-layer constant into freestyle_tricks columns.
 montage,execution_summary,,"Begin from a clipper set with the supporting leg planted under the bag. The whirl rotation carries the body around the planted leg while the body simultaneously holds the symposium body line, the paradox same-side reset, and the ducking head-low compression. The body-spin (spinning) completes the figure as the bag returns to the clipper position.
@@ -1705,8 +1704,8 @@ stepping-clipper,operational_notation,,CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL
 pixie-clipper,operational_notation,,TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL],James curator: promote generic pixie-clipper to direction-unspecified 3 ADD (no fborg generic precedent); pixie dex(1) + clipper-stall(2) = 3. 3 brackets matches 3 ADD.
 miraging-kick,notation,,MIRAGING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
 miraging-kick,operational_notation,,SET > OP IN [DEX],James curator ruling: curator-approved miraging-kick (kick-only dex atom). 1 bracket matches 1 ADD.
-illusioning-kick,notation,,ILLUSIONING KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
-illusioning-kick,operational_notation,,SET > OP OUT [DEX],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.
+atomic-kick,notation,,ATOMIC KICK,James curator fborg-reconciliation: JOB per mechanical uppercase rule.
+atomic-kick,operational_notation,,TOE > OP OUT [DEX],James curator ruling: curator-approved illusioning-kick (kick-only dex atom). 1 bracket matches 1 ADD.
 double-illusion,notation,,DOUBLE ILLUSION,James PassBack-reconciliation: JOB per mechanical uppercase rule.
 double-illusion,operational_notation,,SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL],James ruling: multiplicity of illusion. 3 brackets matches 3 ADD.
 double-whirl,notation,,DOUBLE WHIRL,James PassBack-reconciliation: JOB per mechanical uppercase rule.
@@ -1808,16 +1807,12 @@ terraging-illusion,notation,,TERRAGING ILLUSION,Frontier cat-1 promotion: JOB = 
 terraging-legover,notation,,TERRAGING LEGOVER,Frontier cat-1 promotion: JOB = curator semantic notation.
 terraging-mirage,notation,,TERRAGING MIRAGE,Frontier cat-1 promotion: JOB = curator semantic notation.
 guay,aliases_json,[],"[""far reverse guay"", ""reverse guay""]","Group B alias wiring: Far Reverse Guay / Reverse Guay = guay (far/reverse are +0 positional/directional qualifiers; folk variant names, not new tricks). guay is not in red_additions, so this sets aliases_json on the existing row (S3 display alias)."
-illusioning-flail,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],"Illusioning's downtime op-out dex prepended onto flail; 4 brackets == 4 ADD."
-illusioning-flail,notation,,ILLUSIONING FLAIL,JOB per mechanical uppercase rule.
-illusioning-osis,operational_notation,,SET > OP OUT [DEX] > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL],"Illusioning's downtime op-out dex prepended onto osis; 4 brackets == 4 ADD."
-illusioning-osis,notation,,ILLUSIONING OSIS,JOB per mechanical uppercase rule.
-illusioning-symposium-eggbeater,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto eggbeater's leading dex; mirrors miraging-symposium-eggbeater. 5 brackets == 5 ADD."
-illusioning-symposium-eggbeater,notation,,ILLUSIONING SYMPOSIUM EGGBEATER,JOB per mechanical uppercase rule.
-illusioning-symposium-mirage,operational_notation,,SET > OP OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto mirage dex. 4 brackets == 4 ADD."
-illusioning-symposium-mirage,notation,,ILLUSIONING SYMPOSIUM MIRAGE,JOB per mechanical uppercase rule.
-illusioning-symposium-butterfly,operational_notation,,SET > OP OUT [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],"Option A: illusioning op-out dex prepended; symposium fused onto butterfly dex; far = +0. 5 brackets == 5 ADD."
-illusioning-symposium-butterfly,notation,,ILLUSIONING SYMPOSIUM BUTTERFLY,JOB per mechanical uppercase rule.
+atomic-symposium-eggbeater,operational_notation,,TOE > OP OUT [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],Option A: illusioning op-out dex prepended; symposium fused onto eggbeater's leading dex; mirrors miraging-symposium-eggbeater. 5 brackets == 5 ADD.
+atomic-symposium-eggbeater,notation,,ATOMIC SYMPOSIUM EGGBEATER,JOB per mechanical uppercase rule.
+atomic-symposium-mirage,operational_notation,,TOE > OP OUT [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],Option A: illusioning op-out dex prepended; symposium fused onto mirage dex. 4 brackets == 4 ADD.
+atomic-symposium-mirage,notation,,ATOMIC SYMPOSIUM MIRAGE,JOB per mechanical uppercase rule.
+atomic-symposium-butterfly,operational_notation,,TOE > OP OUT [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],Option A: illusioning op-out dex prepended; symposium fused onto butterfly dex; far = +0. 5 brackets == 5 ADD.
+atomic-symposium-butterfly,notation,,ATOMIC SYMPOSIUM BUTTERFLY,JOB per mechanical uppercase rule.
 surging-ducking-torque,operational_notation,,CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL],Surging chassis + ducking + torque; second (base) spin flipped to front per the surging-osis parity precedent. 7 brackets == 7 ADD.
 surging-ducking-torque,notation,,SURGING DUCKING TORQUE,JOB per mechanical uppercase rule.
 surging-ducking-blender,operational_notation,,CLIP > OP IN [DEX] >> (back) SPIN [BOD] >> DUCK [BOD] >> OP IN [DEX] > (front) SPIN [BOD] > SAME CLIP [XBD] [DEL],Surging chassis + ducking + blender; second (base) spin flipped to front per the surging-osis parity precedent; far = +0. 7 brackets == 7 ADD.
