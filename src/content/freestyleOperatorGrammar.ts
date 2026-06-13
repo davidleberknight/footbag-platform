@@ -291,8 +291,8 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
   {
     slug: 'atomic',
     signature:
-      "Adds an outside-then-inside (X-Dex) sequence to the base pattern. Entry can be `TOE` or `CLIP` depending on chassis.",
-    addContribution: '+1 non-rotational / +2 rotational base',
+      "Adds a single outward uptime dex (`TOE > OP OUT [DEX]`). An X-Dex may fire separately on an eligible following dex; that is a distinct conditional event, not part of atomic.",
+    addContribution: '+1 (the outward dex). [XDEX], where it fires, is a separate +1.',
     precedents: [
       {
         baseSlug:     'pickup',
@@ -436,7 +436,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     slug: 'furious',
     signature:
       "Adds an extended multi-dex sequence; structurally similar to a stepping-paradox stack but operates as a single named operator. Resolved precedents combine forward/backward dex direction in a doubled-then-doubled pattern.",
-    addContribution: '+1 non-rotational / +2 rotational base (parallel to atomic)',
+    addContribution: '+1 non-rotational / +2 rotational base',
     precedents: [
       {
         baseSlug:     'barfly',

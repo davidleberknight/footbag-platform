@@ -71,17 +71,6 @@ export interface ObservationalUniverseStats {
 }
 
 export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
-  {"name": "Atomic Ducking far Mirage", "slug": "atomic-ducking-mirage", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Ducking Mirage", "Atomic Ducking Mirage (Rasmus) (Skull Smasher)"], "layer": "frontier"},
-  {"name": "Atomic Ducking Mirage", "slug": "atomic-ducking-mirage", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic Ducking Mirage (Rasmus) (Skull Smasher)", "slug": "atomic-ducking-mirage", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + ducking(+1) + mirage(2) = 5", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic far Whirl", "slug": "atomic-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + whirl(3) = 5", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Whirl"], "layer": "frontier"},
-  {"name": "Atomic Reverse Swirl", "slug": "atomic-reverse-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + swirl(3) = 5", "semanticJob": "ATOMIC REVERSE SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Swirl", "slug": "atomic-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + swirl(3) = 5", "semanticJob": "ATOMIC SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Symposium Mirage", "slug": "atomic-symposium-mirage", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + symposium(+1) + mirage(2) = 5", "semanticJob": "ATOMIC SYMPOSIUM MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Atomic Whirl", "slug": "atomic-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+2 rot) + whirl(3) = 5", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic far Symp. Whirl", "slug": "atomic-symposium-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+2 rot) + symposium(+1) + whirl(3) = 6", "semanticJob": "ATOMIC SYMPOSIUM. WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Symposium Whirl"], "layer": "frontier"},
-  {"name": "Atomic Symposium Whirl", "slug": "atomic-symposium-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+2 rot) + symposium(+1) + whirl(3) = 6", "semanticJob": "ATOMIC SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Atomic Gyro Torque", "slug": "atomic-gyro-torque", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "atomic(+2 rot) + gyro(+1) + torque(4) = 7", "semanticJob": "ATOMIC GYRO TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Pixie Miraging Symposium Miraging Legover", "slug": "pixie-miraging-symposium-miraging-legover", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "pixie(+1) + miraging(+1) + symposium(+1) + miraging(+1) + legover(2) = 6", "semanticJob": "PIXIE MIRAGING SYMPOSIUM MIRAGING LEGOVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spinning far Miraging Symp. Miraging Refraction", "slug": "spinning-miraging-symposium-miraging-refraction", "source": "PB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "7", "decomposition": "spinning(+1) + miraging(+1) + symposium(+1) + miraging(+1) + refraction(3) = 7", "semanticJob": "SPINNING MIRAGING SYMPOSIUM. MIRAGING REFRACTION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spyro Gyro", "slug": "spyro-gyro", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "2", "decomposition": "gyro(+1) + spyro(1) = 2", "semanticJob": "SPYRO GYRO", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
@@ -91,6 +80,16 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Terraging Opposite Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Terraging Same Clipper", "Terraging Clipper"], "layer": "frontier"},
   {"name": "Terraging Same Clipper", "slug": "terraging-clipper", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "TERRAGING CLIPPER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Leg Over", "slug": "pixie-leg-over", "source": "FB", "ecosystem": "pixie", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "low", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "PIXIE LEG OVER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Atomic Ducking far Mirage", "slug": "atomic-ducking-mirage", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + ducking(+1) + mirage(2) = 4", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Ducking Mirage", "Atomic Ducking Mirage (Rasmus) (Skull Smasher)"], "layer": "frontier"},
+  {"name": "Atomic Ducking Mirage", "slug": "atomic-ducking-mirage", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + ducking(+1) + mirage(2) = 4", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Atomic Ducking Mirage (Rasmus) (Skull Smasher)", "slug": "atomic-ducking-mirage", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + ducking(+1) + mirage(2) = 4", "semanticJob": "ATOMIC DUCKING MIRAGE", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Atomic far Whirl", "slug": "atomic-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + whirl(3) = 4", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Whirl"], "layer": "frontier"},
+  {"name": "Atomic Reverse Swirl", "slug": "atomic-reverse-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + swirl(3) = 4", "semanticJob": "ATOMIC REVERSE SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Atomic Swirl", "slug": "atomic-swirl", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + swirl(3) = 4", "semanticJob": "ATOMIC SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Atomic Whirl", "slug": "atomic-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + whirl(3) = 4", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Atomic far Symp. Whirl", "slug": "atomic-symposium-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+1) + symposium(+1) + whirl(3) = 5", "semanticJob": "ATOMIC SYMPOSIUM. WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Symposium Whirl"], "layer": "frontier"},
+  {"name": "Atomic Symposium Whirl", "slug": "atomic-symposium-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+1) + symposium(+1) + whirl(3) = 5", "semanticJob": "ATOMIC SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Atomic Gyro Torque", "slug": "atomic-gyro-torque", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+1) + gyro(+1) + torque(4) = 6", "semanticJob": "ATOMIC GYRO TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier"},
   {"name": "84 / Wiggle Walk", "slug": "84-wiggle-walk", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Aeon Flux / Nucleosis", "slug": "aeon-flux-nucleosis", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Arctic Butterfly (Arc Walk)", "slug": "arctic-butterfly-arc-walk", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -1404,7 +1403,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1329,
+    "total": 1328,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1412,12 +1411,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 176,
+    "promotionFrontier": 175,
     "lexicalArchive": 1147,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 15,
-        "distinctStructures": 15
+        "names": 14,
+        "distinctStructures": 14
       },
       "doctrine_pending": {
         "names": 113,
@@ -1448,8 +1447,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 90
       }
     },
-    "ready": 13,
-    "frontier": 49,
+    "ready": 2,
+    "frontier": 59,
     "doctrineBlocked": 203,
     "folkUnresolved": 692,
     "parserUnresolved": 372,
@@ -1460,12 +1459,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 580,
-      "FM": 375,
+      "FM": 374,
       "PB": 257,
       "FB": 107,
       "MULTI": 10
     },
-    "generatedOn": "2026-06-12"
+    "generatedOn": "2026-06-13"
   };
 
 export const DOCTRINE_BLOCKING_QUESTIONS: Record<string, string> =

@@ -587,9 +587,9 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operator:    'atomic',
     base:        'torque',
     baseAdd:     4,
-    totalAdd:    6,
-    derivation:  'atomic(+2 rotational) + torque(4) = 6 ADD',
-    provenance:  'atomic = +1 non-rotational / +2 rotational set modifier; torque = 4 ADD rotational compound base. Wave 1 audit derivation 2026-05-22.',
+    totalAdd:    5,
+    derivation:  'atomic(+1) + torque(4) = 5 ADD',
+    provenance:  'atomic = +1 (single outward uptime dex); the +2-rotational reading is retired. torque = 4 ADD compound base; no X-Dex (cf. atomic-drifter, the published atomic-miraging sibling at base+1).',
   },
   {
     slug:        'ducking-mirage',
