@@ -1850,3 +1850,9 @@ plasma,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] >
 pixie-spinning-paradox-whirl,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry (TOE > SAME IN [DEX]) prepended onto the published spinning-paradox-whirl. Bracket-count == ADD.
 pixie-spinning-paradox-blender,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry prepended onto the published spinning-paradox-blender. Bracket-count == ADD.
 pixie-spinning-paradox-symposium-whirl,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry prepended onto the published spinning-paradox-symposium-whirl. Bracket-count == ADD.
+double-switch-over,notation,,DOUBLE SWITCH OVER,JOB per mechanical rule (canonical_name uppercased).
+double-switch-over,operational_notation,,SET > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],footbag.org 3-ADD moves page (canonical-bracket form). Bracket-count 3 == 3 ADD.
+double-switch-over,operational_notation_source,,Source: footbag.org 3-ADD moves page.,Provenance citation for operational_notation.
+pixie-same-side-illusion,notation,,PIXIE SAME SIDE ILLUSION,JOB per mechanical rule (canonical_name uppercased).
+pixie-same-side-illusion,operational_notation,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL],Mirrors Magellan chassis with the opposite-toe terminal. Bracket-count 3 == 3 ADD.
+pixie-same-side-illusion,operational_notation_source,,Source: footbag.org 3-ADD moves page (sibling of Magellan).,Provenance citation for operational_notation.

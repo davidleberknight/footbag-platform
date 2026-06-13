@@ -915,6 +915,17 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'pixie = +1 set modifier; illusion = 2 ADD core atom. DB description "Pixie-modified illusion."',
   },
   {
+    slug:        'pixie-same-side-illusion',
+    name:        'pixie same side illusion',
+    operator:    'pixie',
+    base:        'illusion',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'pixie(+1) + illusion(2) = 3 ADD',
+    provenance:  'pixie = +1 set modifier; illusion = 2 ADD core atom. Same-side double-dexterity sibling of Magellan (pixie same legover), ending on the opposite toe instead of the same toe. footbag.org "Pixie Same Side Illusion".',
+    operationalNotation: 'TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL]',
+  },
+  {
     slug:        'assassin',
     name:        'assassin',
     operator:    'pixie + ducking',
