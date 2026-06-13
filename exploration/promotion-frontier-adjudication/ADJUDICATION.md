@@ -1,81 +1,72 @@
 # Promotion Frontier Adjudication
 
-Scope: **206 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
+Scope: **176 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
 
-Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact missing item. Missing-formula rows carry the formula question; doctrine-blocked rows carry the doctrine question; missing-authoring rows have **no doctrine work remaining**.
+Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact missing item. **Awaiting Ruling** rows carry a genuine doctrine question; **Derivable / Backfill Needed** rows have no doctrine work remaining (resolved operators + a published exemplar to mirror); **Derivable but ADD-Provisional** rows can be notated now but their ADD may move on a pending ruling; **Missing formula** rows still need a decomposition.
 
-Counts by blocker:
+Counts by bucket:
 
-- **1 Missing authoring**: 33
-- **2 Missing formula**: 17
-- **3 Missing ADD**: 0
-- **4 Missing classification**: 8
-- **5 Doctrine blocked**: 148
-- **6 Other**: 0
+- **Derivable / Backfill Needed**: 2
+- **Derivable but ADD-Provisional**: 7
+- **Missing formula**: 15
+- **Missing ADD**: 0
+- **Missing classification**: 7
+- **Awaiting Ruling**: 143
+- **Other**: 0
+- _dropped (already wired as aliases of a published row): 2 — Far Reverse Guay, Toe near Barrage_
 
-**Doctrine-blocked rollup** — the 5-category-5 rows collapse to a handful of rulings; resolving each unblocks the listed count:
+**Awaiting-Ruling rollup** — the genuine doctrine blockers collapse to a handful of rulings; resolving each unblocks the listed count:
 
 - **88** &mdash; Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling)
 - **41** &mdash; How do Double-Down and Double-Over-Down terminals score? (policy unruled)
-- **7** &mdash; ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final.
 - **7** &mdash; Operator weight or definition pending (fairy / pixie weight; folk operators).
 - **4** &mdash; Shooting is an undefined folk operator; structural reading unruled.
+- **2** &mdash; Repeats the **miraging** operator within one chain; no published or derived precedent for a same-operator-twice reading. Held pending a ruling.
 - **1** &mdash; How does the zero-ADD pogo set compose onto a base? (unruled)
 
+## Active curator packets
 
-## 1 Missing authoring  (33)
+Drafted rulings awaiting Red, indexed here so this rollup stays a complete picture of open governance work. Arguments live in the packet, not here.
+
+**Blazing / Terraging notation packet** — `exploration/curator-packet-blazing-terraging-notation/PACKET.md`
+- Scope: blazing operator status (+1 confirmation vs distinct operator) and terraging +3 notation layout.
+- Impact: 11 held op_notation backfills (8 blazing, 3 terraging) on already-published rows; tracked in the separate op_notation-backfill workstream, not in this frontier doc. ADD changes only if blazing is ruled distinct.
+
+
+## Derivable / Backfill Needed  (2)
 
 _No doctrine work remains for any row below — editorial authoring only._
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
-| Atomic Drifter | 4 | atomic(+1) + drifter(3) = 4 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Atomic Ducking Blender | 6 | atomic(+1) + ducking(+1) + blender(4) = 6 | — | MULTI | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Atomic Eggbeater | 4 | atomic(+1) + eggbeater(3) = 4 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Atomic Guay | 3 | atomic(+1) + guay(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Atomic Pickup (same side) | 3 | atomic(+1) + pickup(2) = 3 | — | MULTI | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Atomic Reverse Guay | 3 | atomic(+1) + guay(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
 | Backside Symposium Toe Blizzard | 5 | backside(+1) + symposium(+1) + blizzard(3) = 5 | — | FB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Butterfly | 4 | blazing(+1) + butterfly(3) = 4 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Drifter | 4 | blazing(+1) + drifter(3) = 4 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Illusion | 3 | blazing(+1) + illusion(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Legover | 3 | blazing(+1) + legover(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Mirage | 3 | blazing(+1) + mirage(2) = 3 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Paradox Whirl | 5 | blazing(+1) + paradox(+1) + whirl(3) = 5 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Symposium Mirage | 4 | blazing(+1) + symposium(+1) + mirage(2) = 4 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Blazing Torque | 5 | blazing(+1) + torque(4) = 5 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Diving Reverse Guay | 3 | diving(+1) + guay(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Far Reverse Guay | 2 | guay(2) = 2 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Paradox Blur | 5 | paradox(+1) + blur(4) = 5 | — | FB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Pixie Miraging Symposium Miraging Legover | 6 | pixie(+1) + miraging(+1) + symposium(+1) + miraging(+1) + legover(2) = 6 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Reverse Swirling PS Whirl | 6 | swirling(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Sailing Clipper | 2 | sailing(2) = 2 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Spinning far Miraging Symp. Miraging Refraction | 7 | spinning(+1) + miraging(+1) + symposium(+1) + miraging(+1) + refraction(3) = 7 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
 | Spyro Gyro | 2 | gyro(+1) + spyro(1) = 2 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Surging Ducking Paradox Symposium Whirling Rake | 8 | spinning(+1) + whirling(+1) + stepping(+1) + ducking(+1) + paradox(+1) + symposium(+1) + rake(2) = 8 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Surging Ducking Torque | 7 | spinning(+1) + stepping(+1) + ducking(+1) + torque(4) = 7 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Surging Ducking far Blender | 7 | spinning(+1) + stepping(+1) + ducking(+1) + blender(4) = 7 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Symposium Blizzard | 4 | symposium(+1) + blizzard(3) = 4 | — | FB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Tapping Reverse Guay | 3 | tapping(+1) + guay(2) = 3 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Terraging Illusion | 5 | terraging(+3) + illusion(2) = 5 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Terraging Legover | 5 | terraging(+3) + legover(2) = 5 | — | MULTI | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Terraging ss Mirage | 5 | terraging(+3) + mirage(2) = 5 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Toe Mobius | 5 | mobius(5) = 5 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-| Toe near Barrage | 3 | barrage(3) = 3 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
 
-## 2 Missing formula  (17)
+## Derivable but ADD-Provisional  (7)
+
+_Notation is derivable now (resolved chassis + settled base); these are NOT awaiting a ruling. The ADD value is provisional only because it sits in the held atomic-Q3 migration (atomic on a rotational base may drop from +2 to +1)._
+
+| Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
+|---|---|---|---|---|---|
+| Atomic Ducking far Mirage | 5 | atomic(+2 rot) + ducking(+1) + mirage(2) = 5 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic Gyro Torque | 7 | atomic(+2 rot) + gyro(+1) + torque(4) = 7 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic Reverse Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic Symposium Mirage | 5 | atomic(+2 rot) + symposium(+1) + mirage(2) = 5 | — | FM | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic far Symp. Whirl | 6 | atomic(+2 rot) + symposium(+1) + whirl(3) = 6 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+| Atomic far Whirl | 5 | atomic(+2 rot) + whirl(3) = 5 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
+
+## Missing formula  (15)
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
 | BS Blurriest | — | — | — | PB | Is "BS Blurriest" the compressed canonical reading, or does it expand to a longer chain? (which depth is canonical?) |
 | Enterrage | — | — | — | MULTI | Provide the decomposition/notation for "Enterrage" (currently none). |
-| Fracture | — | — | — | MULTI | Provide the decomposition/notation for "Fracture" (currently none). |
 | Furious Butterfly Swirl (Tsunami) | — | — | — | SG | Is "Furious Butterfly Swirl (Tsunami)" the compressed canonical reading, or does it expand to a longer chain? (which depth is canonical?) |
 | Furious Symposium Eggbeater (Walrus) | — | — | — | SG | Provide the decomposition/notation for "Furious Symposium Eggbeater (Walrus)" (currently none). |
 | Grifter | — | — | — | MULTI | Provide the decomposition/notation for "Grifter" (currently none). |
 | Gyro Torquescrew | — | — | — | MULTI | Which terminal/landing does "Gyro Torquescrew" resolve to, and how does that terminal score? |
 | Locomotion | — | — | — | MULTI | Provide the decomposition/notation for "Locomotion" (currently none). |
-| Merlin | — | — | — | MULTI | Provide the decomposition/notation for "Merlin" (currently none). |
 | Motion | — | — | — | MULTI | Provide the decomposition/notation for "Motion" (currently none). |
 | Nuclear ss Whirl | — | — | — | FM | Provide the decomposition/notation for "Nuclear ss Whirl" (currently none). |
 | Nuclear ss Whirl (Hurl) | — | — | — | SG | Provide the decomposition/notation for "Nuclear ss Whirl (Hurl)" (currently none). |
@@ -85,11 +76,10 @@ _No doctrine work remains for any row below — editorial authoring only._
 | Symposium Furious Legover | — | — | — | SG | Provide the decomposition/notation for "Symposium Furious Legover" (currently none). |
 | Terraging Opposite Clipper | — | TERRAGING CLIPPER | — | FB | Provide the decomposition/notation for "Terraging Opposite Clipper" (currently none). |
 
-## 4 Missing classification  (8)
+## Missing classification  (7)
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
-| Illusioning Flail | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning Flail" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 | Illusioning Flail (Toe Massacre) | — | — | — | SG | Operator **illusioning** is now resolved; verify whether "Illusioning Flail (Toe Massacre)" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 | Illusioning Legover | — | — | — | MULTI | Operator **illusioning** is now resolved; verify whether "Illusioning Legover" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 | Illusioning Symp. Eggbeater | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning Symp. Eggbeater" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
@@ -98,22 +88,15 @@ _No doctrine work remains for any row below — editorial authoring only._
 | Illusioning far Osis | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning far Osis" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 | Illusioning far Symp. Butterfly | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning far Symp. Butterfly" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 
-## 5 Doctrine blocked  (148)
+## Awaiting Ruling  (143)
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
 | Alpine Blurry Whirl | — | — | — | PB | Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling) |
 | Atomic Double Over Down | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Atomic Ducking far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
-| Atomic Ducking far Mirage | 5 | atomic(+2 rot) + ducking(+1) + mirage(2) = 5 | — | PB | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
-| Atomic Gyro Torque | 7 | atomic(+2 rot) + gyro(+1) + torque(4) = 7 | — | PB | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
-| Atomic Reverse Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
-| Atomic Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
-| Atomic Symposium Mirage | 5 | atomic(+2 rot) + symposium(+1) + mirage(2) = 5 | — | FM | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
 | Atomic far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Atomic far Symp. Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
-| Atomic far Symp. Whirl | 6 | atomic(+2 rot) + symposium(+1) + whirl(3) = 6 | — | PB | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
-| Atomic far Whirl | 5 | atomic(+2 rot) + whirl(3) = 5 | — | PB | ADD uses the +2-rotational atomic/quantum value, which Red superseded (atomic/quantum = +1) but is held pending the atomic-Q3 greenlight; the ADD is not final. |
 | Atomic os Symposium Double Over Down | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Barraging far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Barraging near Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
@@ -224,6 +207,7 @@ _No doctrine work remains for any row below — editorial authoring only._
 | Nuclear ss Reverse Guay | — | — | — | SG | Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling) |
 | Nuclear ss Reverse Whirl | — | — | — | SG | Operator weight or definition pending (fairy / pixie weight; folk operators). |
 | Paradox Blurry Whirl | — | — | — | FB | Does blurry carry +2 on rotational bases, or read as flat stepping-paradox? (open ruling) |
+| Pixie Miraging Symposium Miraging Legover | 6 | pixie(+1) + miraging(+1) + symposium(+1) + miraging(+1) + legover(2) = 6 | — | FM | Repeats the **miraging** operator within one chain; no published or derived precedent for a same-operator-twice reading. Held pending a ruling. |
 | Pixie Quantum Double Over Down Swirl | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Pixie Spinning Double Over Down | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Pixie far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
@@ -238,6 +222,7 @@ _No doctrine work remains for any row below — editorial authoring only._
 | Spinning Symposium Double Over Down | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Spinning Symposium Down Double Down | — | — | — | FB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Spinning far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
+| Spinning far Miraging Symp. Miraging Refraction | 7 | spinning(+1) + miraging(+1) + symposium(+1) + miraging(+1) + refraction(3) = 7 | — | PB | Repeats the **miraging** operator within one chain; no published or derived precedent for a same-operator-twice reading. Held pending a ruling. |
 | Spinning near Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Stepping Ducking Far Double Over Down | — | — | — | FM | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
 | Stepping Ducking far Double Down | — | — | — | PB | How do Double-Down and Double-Over-Down terminals score? (policy unruled) |
