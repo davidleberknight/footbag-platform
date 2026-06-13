@@ -166,19 +166,19 @@
       </fieldset>
 
       <fieldset class="form-fieldset">
-        <legend>Sex (competition eligibility)</legend>
-        <p class="text-muted fs-sm">Private: visible only to you and IFPA admins. Never shown on public pages, member search, or rosters. Used only for sex-based event-category eligibility.</p>
+        <legend>Gender (competition eligibility)</legend>
+        <p class="text-muted fs-sm">Private: visible only to you and IFPA admins. Never shown on public pages, member search, or rosters. Used only for gender-based event-category eligibility.</p>
         <div class="form-field">
           <label>
-            <input type="radio" name="sex" value="male" {{#if (eq content.sex "male")}}checked{{/if}} />
+            <input type="radio" name="gender" value="male" {{#if (eq content.gender "male")}}checked{{/if}} />
             Male
           </label>
           <label>
-            <input type="radio" name="sex" value="female" {{#if (eq content.sex "female")}}checked{{/if}} />
+            <input type="radio" name="gender" value="female" {{#if (eq content.gender "female")}}checked{{/if}} />
             Female
           </label>
           <label>
-            <input type="radio" name="sex" value="undisclosed" {{#if (eq content.sex "undisclosed")}}checked{{/if}} />
+            <input type="radio" name="gender" value="undisclosed" {{#if (eq content.gender "undisclosed")}}checked{{/if}} />
             Prefer not to say
           </label>
         </div>

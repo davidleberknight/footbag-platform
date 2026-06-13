@@ -32,13 +32,13 @@ function slugForEmail(email: string): string | undefined {
   }
 }
 
-function sexForEmail(email: string): string | null | undefined {
+function genderForEmail(email: string): string | null | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
     const row = db
-      .prepare('SELECT sex FROM members WHERE login_email = ?')
-      .get(email.toLowerCase().trim()) as { sex: string | null } | undefined;
-    return row ? row.sex : undefined;
+      .prepare('SELECT gender FROM members WHERE login_email = ?')
+      .get(email.toLowerCase().trim()) as { gender: string | null } | undefined;
+    return row ? row.gender : undefined;
   } finally {
     db.close();
   }
@@ -62,7 +62,6 @@ describe('registration validation boundaries', () => {
       email,
       password: 'a'.repeat(129),
       confirmPassword: 'a'.repeat(129),
-      sex: 'male',
     });
     expect(res.status, 'over-long password rejected').toBe(422);
     expect(res.text, 'error names the length limit').toMatch(/128|at most/i);
@@ -80,7 +79,6 @@ describe('registration validation boundaries', () => {
       email,
       password: 'a-valid-password',
       confirmPassword: 'a-valid-password',
-      sex: 'male',
     });
     expect(res.status, 'non-ASCII registration succeeds').toBe(303);
     const slug = slugForEmail(email);
@@ -89,50 +87,33 @@ describe('registration validation boundaries', () => {
   });
 });
 
-describe('registration sex field (competition eligibility)', () => {
-  it('rejects registration with no sex selected and creates no account', async () => {
-    const email = 'nosex@example.com';
+describe('registration gender field (competition eligibility)', () => {
+  it('does not collect gender and defaults a new member to undisclosed', async () => {
+    const email = 'newplayer@example.com';
     const res = await register({
-      realName: 'Nosex Player',
-      displayName: 'Nosex Player',
+      realName: 'New Player',
+      displayName: 'New Player',
       slug: '',
       email,
       password: 'a-valid-password',
       confirmPassword: 'a-valid-password',
-      sex: '',
     });
-    expect(res.status, 'missing sex rejected').toBe(422);
-    expect(res.text, 'error names the sex selection').toMatch(/sex/i);
-    expect(slugForEmail(email), 'no member row was created').toBeUndefined();
+    expect(res.status, 'registration without gender succeeds').toBe(303);
+    expect(genderForEmail(email), 'new member defaults to undisclosed').toBe('undisclosed');
   });
 
-  it('rejects an out-of-domain sex value and creates no account', async () => {
-    const email = 'badsex@example.com';
+  it('ignores any gender posted at registration and still defaults to undisclosed', async () => {
+    const email = 'posted-gender@example.com';
     const res = await register({
-      realName: 'Badsex Player',
-      displayName: 'Badsex Player',
+      realName: 'Posted Gender',
+      displayName: 'Posted Gender',
       slug: '',
       email,
       password: 'a-valid-password',
       confirmPassword: 'a-valid-password',
-      sex: 'other',
+      gender: 'female',
     });
-    expect(res.status, 'unrecognized sex rejected').toBe(422);
-    expect(slugForEmail(email), 'no member row was created').toBeUndefined();
-  });
-
-  it('stores the selected sex value on the new member', async () => {
-    const email = 'undisclosed@example.com';
-    const res = await register({
-      realName: 'Quiet Player',
-      displayName: 'Quiet Player',
-      slug: '',
-      email,
-      password: 'a-valid-password',
-      confirmPassword: 'a-valid-password',
-      sex: 'undisclosed',
-    });
-    expect(res.status, 'valid registration succeeds').toBe(303);
-    expect(sexForEmail(email), 'submitted sex is persisted').toBe('undisclosed');
+    expect(res.status, 'registration succeeds').toBe(303);
+    expect(genderForEmail(email), 'gender is collected in the wizard, not at registration').toBe('undisclosed');
   });
 });

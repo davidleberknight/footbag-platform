@@ -248,7 +248,7 @@ Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows
 
 `discipline_category` is an application-enforced taxonomy field (the DB requires only `TEXT NOT NULL`). Canonical top-level families are `net`, `freestyle`, `golf`, and `sideline` (legacy `other` values should be normalized to `sideline`). Variant/sub-discipline structure is managed in application logic, e.g., sideline-family formats such as 2-square, 4-square, consecutives, and one-pass, plus multiple freestyle and net variants.
 
-`team_type` encodes the participation format for each discipline: `'singles'` (default), `'doubles'`, or `'mixed_doubles'`. Used at registration time to enforce partner requirements: doubles requires partner info; mixed doubles additionally requires that both member partners have `members.sex` set to opposite binary values (`'male'` and `'female'`); an `'undisclosed'` value is ineligible.
+`team_type` encodes the participation format for each discipline: `'singles'` (default), `'doubles'`, or `'mixed_doubles'`. Used at registration time to enforce partner requirements: doubles requires partner info; mixed doubles additionally requires that both member partners have `members.gender` set to opposite binary values (`'male'` and `'female'`); an `'undisclosed'` value is ineligible.
 
 #### Event status lifecycle (application-managed)
 ```
@@ -699,9 +699,9 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 **Table:** `members`  
 **Views:** `members_active` (non-deleted), `members_all` (all including deleted), `members_searchable`
 
-#### Sex field
+#### Gender field
 
-`sex` (`TEXT`, nullable, `CHECK (sex IN ('male','female','undisclosed'))`): member's competition-eligibility sex. Collected as required at registration (UI: Male / Female / Prefer not to say; stored `'male'` / `'female'` / `'undisclosed'`) and editable on profile edit; the column stays nullable to accommodate the system-member row and imported/legacy accounts. Private (owner and admin only); never on public surfaces, member search, or rosters (see DATA_GOVERNANCE §3). Sex-gated event categories require a declared value: mixed doubles requires one `'male'` and one `'female'` partner, Women's net requires `'female'`; `'undisclosed'` is ineligible for sex-gated categories but eligible for Open. Validation is application-enforced at discipline-selection time (see APP-013).
+`gender` (`TEXT`, nullable, `CHECK (gender IN ('male','female','undisclosed'))`): member's competition-eligibility gender. Collected in the onboarding wizard's `personal_details` step alongside date of birth, defaulting to `'undisclosed'` (UI: Male / Female / Prefer not to say; stored `'male'` / `'female'` / `'undisclosed'`) and editable on profile edit; the column stays nullable to accommodate the system-member row and imported/legacy accounts. Private (owner and admin only); never on public surfaces, member search, or rosters (see DATA_GOVERNANCE §3). Gender-gated event categories require a declared value: mixed doubles requires one `'male'` and one `'female'` partner, Women's net requires `'female'`; `'undisclosed'` is ineligible for gender-gated categories but eligible for Open. Validation is application-enforced at discipline-selection time (see APP-013).
 
 #### Authentication columns
 - `password_version`: **session/JWT invalidation counter**. Increment on every password reset or change. All JWTs containing an older value are immediately invalid. Do not use for hash algorithm tracking.
@@ -758,7 +758,7 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 
 `ifpa_join_date` and `legacy_is_admin` may be retained post-purge as non-identifying administrative metadata.
 
-Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires it once credentials are NULL). The anonymized-stub requirement above describes the full account purge (`erasure_log` kind `account_pii_purge`). The deceased contact scrub (`deceased_contact_scrub`) clears credentials, contact channels (`phone`, `whatsapp`, `legacy_email`), private address lines (`street_address`, `postal_code`), and demographics (`sex`, `birth_date`) and deletes the member's declared anchors, while preserving identity, locale, honors, and both identity-linkage FKs; the legacy claim is not released. The `erasure_log` kind, not `personal_data_purged_at`, is the authority on which shapes a row has received; a contact-scrubbed row can still receive the full purge.
+Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires it once credentials are NULL). The anonymized-stub requirement above describes the full account purge (`erasure_log` kind `account_pii_purge`). The deceased contact scrub (`deceased_contact_scrub`) clears credentials, contact channels (`phone`, `whatsapp`, `legacy_email`), private address lines (`street_address`, `postal_code`), and demographics (`gender`, `birth_date`) and deletes the member's declared anchors, while preserving identity, locale, honors, and both identity-linkage FKs; the legacy claim is not released. The `erasure_log` kind, not `personal_data_purged_at`, is the authority on which shapes a row has received; a contact-scrubbed row can still receive the full purge.
 
 #### `avatar_media_id`
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.

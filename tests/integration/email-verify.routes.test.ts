@@ -59,7 +59,6 @@ describe('POST /register → check-email + outbox enqueue', () => {
         email: 'verify-one@example.com',
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
@@ -92,7 +91,6 @@ describe('POST /register → check-email + outbox enqueue', () => {
       email: 'verify-dup@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     // Re-register same email — same RealName rules (must differ from existing slug).
     await request(app).post('/register').type('form').send({
@@ -100,7 +98,6 @@ describe('POST /register → check-email + outbox enqueue', () => {
       email: 'verify-dup@example.com',
       password: 'anotherpass!2',
       confirmPassword: 'anotherpass!2',
-      sex: 'male',
     });
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const rows = db.prepare(
@@ -119,7 +116,6 @@ describe('GET /verify/:token', () => {
       email: 'verify-good@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     const token = tokenFromOutbox('verify-good@example.com');
     const res = await request(app).get(`/verify/${token}`);
@@ -152,7 +148,6 @@ describe('GET /verify/:token', () => {
       email: 'verify-twice@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     const token = tokenFromOutbox('verify-twice@example.com');
     const first = await request(app).get(`/verify/${token}`);
@@ -231,7 +226,6 @@ describe('GET /verify/:token — session reissue failure', () => {
       email: 'verify-kmsfail@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     const token = tokenFromOutbox('verify-kmsfail@example.com');
 
@@ -290,7 +284,6 @@ describe('Unverified login is rejected', () => {
       email: 'verify-blocked@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     const res = await request(app).post('/login').type('form').send({
       email: 'verify-blocked@example.com',
@@ -310,7 +303,6 @@ describe('POST /verify/resend', () => {
       email: 'resend@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     // First outbox row is the registration email.
     for (let i = 0; i < 3; i++) {
@@ -358,7 +350,6 @@ describe('POST /verify/resend', () => {
       email: 'resend-equiv-exists@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     const existsRes = await request(app).post('/verify/resend').type('form')
       .send({ email: 'resend-equiv-exists@example.com' });
@@ -393,7 +384,6 @@ describe('POST /verify/resend', () => {
         email: TUNE_EMAIL,
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
-        sex: 'male',
       });
       // 2 resends are allowed under the configured cap.
       for (let i = 0; i < 2; i++) {
@@ -469,7 +459,6 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       email: targetEmail,
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     expect(registerRes.status).toBe(303);
 
@@ -520,7 +509,6 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       email: targetEmail,
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
     expect(registerRes.status).toBe(303);
 
@@ -563,7 +551,6 @@ describe('Authenticated member search excludes unverified rows', () => {
       email: 'shadow-figure@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
-      sex: 'male',
     });
 
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: 'verify-searcher' })}`;
@@ -593,7 +580,6 @@ describe('email_verify token TTL honors system_config', () => {
         email,
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
-        sex: 'male',
       });
       expect(res.status).toBe(303);
 

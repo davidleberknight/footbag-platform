@@ -289,9 +289,9 @@ export interface ProfileEditContent extends OwnProfileContent {
   emailVisibilityLocked: boolean;
   legacyClaimCtaHref:  string | null;
   legacyClaimCtaLabel: string | null;
-  /** Current stored sex ('male'/'female'/'undisclosed'), or '' when unset, so
+  /** Current stored gender ('male'/'female'/'undisclosed'), or '' when unset, so
    *  the edit control preselects the existing value. */
-  sex: string;
+  gender: string;
   error?: string;
   avatarError?: string;
   avatarSuccess?: string;
@@ -342,7 +342,7 @@ export interface ProfileEditInput {
   showFirstCompetitionYear: string | string[];
   /** One of male / female / undisclosed when changing the stored value; blank
    *  or unrecognized leaves the current value untouched (no clear-to-null). */
-  sex: string;
+  gender: string;
   /** Label/URL pairs submitted by the edit form; blank pairs are dropped,
    *  non-blank pairs are validated before publication. */
   links: Array<{ label: string; url: string }>;
@@ -583,7 +583,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
  * historical-person links all stay. In one transaction:
  *
  *   - credentials, phone, whatsapp, legacy contact email, street address and
- *     postal code, sex, and birth date to NULL; personal_data_purged_at set
+ *     postal code, gender, and birth date to NULL; personal_data_purged_at set
  *     (the members credential CHECK requires it once credentials are NULL)
  *   - every declared identity anchor deleted (member-asserted personal data,
  *     including declared old emails)
@@ -800,7 +800,7 @@ export const memberService = {
         emailVisibilityLocked: clubLeaders.memberCoLeadsAnyClub.get(row.id) != null,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
-        sex: row.sex ?? '',
+        gender: row.gender ?? '',
         error,
         avatarError,
         avatarSuccess,
@@ -861,12 +861,12 @@ export const memberService = {
       ? input.showFirstCompetitionYear[input.showFirstCompetitionYear.length - 1]
       : input.showFirstCompetitionYear;
     const showYear = rawShowYear === '0' ? 0 : 1;
-    // Sex is editable to one of the three stored values. A blank or unrecognized
+    // Gender is editable to one of the three stored values. A blank or unrecognized
     // submission leaves the current value intact (COALESCE in the update), so a
     // save that does not touch the control never clears an existing value.
-    const postedSex = normalizeText(input.sex).toLowerCase();
-    const sexValue = postedSex === 'male' || postedSex === 'female' || postedSex === 'undisclosed'
-      ? postedSex
+    const postedGender = normalizeText(input.gender).toLowerCase();
+    const genderValue = postedGender === 'male' || postedGender === 'female' || postedGender === 'undisclosed'
+      ? postedGender
       : null;
 
     if (bio.length > MAX_BIO) {
@@ -892,7 +892,7 @@ export const memberService = {
         validYear,
         showResults,
         showYear,
-        sexValue,
+        genderValue,
         now,
         row.id,
       );
@@ -913,7 +913,7 @@ export const memberService = {
         'bio', 'city', 'region', 'country', 'phone', 'whatsapp', 'emailVisibility',
         'phoneVisible', 'whatsappVisible', 'searchable',
         'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
-        'sex',
+        'gender',
         'links',
       ]);
     });
@@ -934,7 +934,7 @@ export const memberService = {
   },
 
   getPersonalDetailsPrefill(memberId: string): {
-    city: string; region: string; country: string; birthDate: string;
+    city: string; region: string; country: string; birthDate: string; gender: string;
     firstCompetitionYear: number | null; showFirstCompetitionYear: boolean;
     showCompetitiveResults: boolean;
   } {
@@ -942,6 +942,7 @@ export const memberService = {
       account.findPersonalDetails.get(memberId),
     ) as {
       city: string | null; region: string | null; country: string | null; birth_date: string | null;
+      gender: string | null;
       first_competition_year: number | null; show_first_competition_year: number;
       show_competitive_results: number;
     } | undefined;
@@ -950,6 +951,9 @@ export const memberService = {
       region: row?.region ?? '',
       country: row?.country ?? '',
       birthDate: row?.birth_date ?? '',
+      // Defaults to undisclosed so the wizard control preselects a real value
+      // even before the member has made an explicit choice.
+      gender: row?.gender ?? 'undisclosed',
       firstCompetitionYear: row?.first_competition_year ?? null,
       showFirstCompetitionYear: (row?.show_first_competition_year ?? 0) !== 0,
       showCompetitiveResults: (row?.show_competitive_results ?? 1) !== 0,
@@ -958,13 +962,19 @@ export const memberService = {
 
   setPersonalDetails(memberId: string, input: {
     city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
-    yearValue?: unknown; showFirstCompetitionYear?: unknown;
+    gender?: unknown; yearValue?: unknown; showFirstCompetitionYear?: unknown;
     showCompetitiveResults?: unknown;
   }): void {
     const city = normalizeText(input.city) || null;
     const region = normalizeText(input.region) || null;
     const country = normalizeText(input.country) || null;
     const rawDob = normalizeText(input.birthDate);
+    // The wizard is the primary collection point for gender, so a blank or
+    // unrecognized submission stores 'undisclosed' rather than leaving the
+    // value untouched: the member who skips the choice is treated as not
+    // declaring, which keeps them eligible only for Open event categories.
+    const postedGender = normalizeText(input.gender).toLowerCase();
+    const genderValue = postedGender === 'male' || postedGender === 'female' ? postedGender : 'undisclosed';
 
     if (!city) {
       throw new ValidationError('City is required.');
@@ -1040,7 +1050,7 @@ export const memberService = {
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberPersonalDetails.run(
-        city, region, country, birthDate,
+        city, region, country, birthDate, genderValue,
         firstCompetitionYear, showFirstCompetitionYear,
         now, memberId,
       );
@@ -1048,7 +1058,7 @@ export const memberService = {
         account.updateMemberShowCompetitiveResults.run(showCompetitiveResults, now, memberId);
       }
       auditProfileUpdate(memberId, [
-        'city', 'region', 'country', 'birthDate',
+        'city', 'region', 'country', 'birthDate', 'gender',
         'firstCompetitionYear', 'showFirstCompetitionYear',
         ...(hasShowCompetitiveResults ? ['showCompetitiveResults'] : []),
       ]);

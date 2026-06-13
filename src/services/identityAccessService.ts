@@ -171,7 +171,6 @@ export interface RegisterContent {
   displayName?: string;
   slug?: string;
   email?: string;
-  sex?: string;
 }
 
 export interface CheckEmailContent {
@@ -562,7 +561,6 @@ async function registerMember(
   confirmPassword: string,
   realName: string,
   displayName: string,
-  sex: string,
   ip: string,
   requestedSlug?: string,
 ): Promise<RegisterResult> {
@@ -605,14 +603,6 @@ async function registerMember(
   }
   if (trimmedDisplayName !== trimmedRealName) {
     validateDisplayNameSurname(trimmedDisplayName, trimmedRealName);
-  }
-
-  // Sex is required at registration with no default: the registrant must pick
-  // one of the three stored values. It gates sex-based event-category
-  // eligibility later. Private field (owner and admin only).
-  const normalizedSex = sex.trim().toLowerCase();
-  if (normalizedSex !== 'male' && normalizedSex !== 'female' && normalizedSex !== 'undisclosed') {
-    throw new ValidationError('Please select your sex for competition eligibility.');
   }
 
   const trimmedSlug = requestedSlug?.trim().toLowerCase() ?? '';
@@ -666,7 +656,7 @@ async function registerMember(
         trimmedRealName,                    // real_name
         trimmedDisplayName,                 // display_name
         trimmedDisplayName.toLowerCase(),   // display_name_normalized
-        normalizedSex,                      // sex
+        'undisclosed',                      // gender: defaults to undisclosed; the member sets it later in the onboarding wizard's personal-details step
         now,   // created_at
         now,   // updated_at
       );

@@ -111,7 +111,6 @@ describe('POST /register', () => {
         email: 'newplayer@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
@@ -165,7 +164,6 @@ describe('POST /register', () => {
         email: 'existing@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('already exists');
@@ -182,7 +180,6 @@ describe('POST /register', () => {
         email: 'shortpass@example.com',
         password: 'short',
         confirmPassword: 'short',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('at least 8 characters');
@@ -198,7 +195,6 @@ describe('POST /register', () => {
         email: 'mismatch@example.com',
         password: 'securepass123',
         confirmPassword: 'differentpass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('do not match');
@@ -214,7 +210,6 @@ describe('POST /register', () => {
         email: 'noname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('Full legal name is required');
@@ -230,7 +225,6 @@ describe('POST /register', () => {
         email: '',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('Email address is required');
@@ -246,7 +240,6 @@ describe('POST /register', () => {
         email: 'trained@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('first name and last name');
@@ -262,7 +255,6 @@ describe('POST /register', () => {
         email: 'digits@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('must not contain digits');
@@ -279,7 +271,6 @@ describe('POST /register', () => {
         email: 'badsurname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('must include your last name');
@@ -296,7 +287,6 @@ describe('POST /register', () => {
         email: 'davemockingbird@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
@@ -313,7 +303,6 @@ describe('POST /register', () => {
         email: 'janefootbagger@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
@@ -329,7 +318,6 @@ describe('POST /register', () => {
         email: 'existinguser2@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
@@ -345,7 +333,6 @@ describe('POST /register', () => {
         email: 'slugtester@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: 'slug_tester',
       });
     expect(res.status).toBe(303);
@@ -370,7 +357,6 @@ describe('POST /register', () => {
         email: 'autoslugger@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: '',
       });
     expect(res.status).toBe(303);
@@ -394,7 +380,6 @@ describe('POST /register', () => {
         email: 'badformat@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: '_leading_underscore',
       });
     expect(res.status).toBe(422);
@@ -411,7 +396,6 @@ describe('POST /register', () => {
         email: 'shortslug@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: 'x',
       });
     expect(res.status).toBe(422);
@@ -428,7 +412,6 @@ describe('POST /register', () => {
         email: 'nosurname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: 'cool_handle',
       });
     expect(res.status).toBe(422);
@@ -445,7 +428,6 @@ describe('POST /register', () => {
         email: 'slugcollision@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: 'existing_user',
       });
     expect(res.status).toBe(422);
@@ -462,7 +444,6 @@ describe('POST /register', () => {
         email: 'echo@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
         slug: 'my_slug',
       });
     expect(res.status).toBe(422);
@@ -492,7 +473,6 @@ describe('POST /register — initial-admin bootstrap', () => {
           email: 'bootstrap-admin@example.com',
           password: 'securepass123',
           confirmPassword: 'securepass123',
-          sex: 'male',
         });
       expect(res.status).toBe(303);
       expect(res.headers.location).toBe('/register/check-email');
@@ -546,7 +526,6 @@ describe('POST /register — initial-admin bootstrap', () => {
           email: 'plain-member@example.com',
           password: 'securepass123',
           confirmPassword: 'securepass123',
-          sex: 'male',
         });
       expect(res.status).toBe(303);
 
@@ -578,7 +557,6 @@ describe('POST /register — initial-admin bootstrap', () => {
         email: 'no-file@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(res.status).toBe(303);
 
@@ -644,7 +622,6 @@ describe('POST /register — verify-email enqueue failure', () => {
         email: targetEmail,
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
 
     expect(res.status).toBe(503);
@@ -711,7 +688,6 @@ describe('POST /register → /register/check-email', () => {
         email: 'card-test@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
-        sex: 'male',
       });
     expect(post.status).toBe(303);
     expect(post.headers.location).toBe('/register/check-email');

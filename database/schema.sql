@@ -1791,7 +1791,7 @@ CREATE TABLE members (
   city                    TEXT,
   region                  TEXT,
   country                 TEXT,
-  sex                     TEXT CHECK (sex IN ('male', 'female', 'undisclosed')),
+  gender                  TEXT CHECK (gender IN ('male', 'female', 'undisclosed')),
   phone                   TEXT,
   whatsapp                TEXT,
 

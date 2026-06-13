@@ -4512,7 +4512,7 @@ export interface MemberProfileRow {
   phone_visible: number;
   whatsapp_visible: number;
   searchable: number;
-  sex: string | null;
+  gender: string | null;
   is_admin: number;
   is_hof: number;
   is_bap: number;
@@ -4582,7 +4582,7 @@ export const account = {
       m.phone_visible,
       m.whatsapp_visible,
       m.searchable,
-      m.sex,
+      m.gender,
       m.is_admin,
       m.is_hof,
       m.is_bap,
@@ -4803,7 +4803,7 @@ export const account = {
       first_competition_year     = ?,
       show_competitive_results   = ?,
       show_first_competition_year = ?,
-      sex                        = COALESCE(?, sex),
+      gender                     = COALESCE(?, gender),
       updated_at                 = ?,
       updated_by                 = 'member',
       version                    = version + 1
@@ -4830,6 +4830,7 @@ export const account = {
       region                      = ?,
       country                     = ?,
       birth_date                  = ?,
+      gender                      = ?,
       first_competition_year      = ?,
       show_first_competition_year = ?,
       updated_at                  = ?,
@@ -4839,7 +4840,7 @@ export const account = {
   `); },
 
   get findPersonalDetails() { return db.prepare(`
-    SELECT city, region, country, birth_date,
+    SELECT city, region, country, birth_date, gender,
            first_competition_year, show_first_competition_year,
            show_competitive_results
     FROM members_active WHERE id = ?
@@ -4886,7 +4887,7 @@ export const registration = {
       login_email, login_email_normalized, email_verified_at,
       password_hash, password_changed_at,
       real_name, display_name, display_name_normalized,
-      sex,
+      gender,
       searchable,
       created_at, created_by, updated_at, updated_by, version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
@@ -7035,7 +7036,7 @@ export const memberPurge = {
       password_changed_at     = NULL,
       phone                   = NULL,
       whatsapp                = NULL,
-      sex                     = NULL,
+      gender                  = NULL,
       birth_date              = NULL,
       street_address          = NULL,
       postal_code             = NULL,
@@ -7079,7 +7080,7 @@ export const memberPurge = {
       password_changed_at     = NULL,
       phone                   = NULL,
       whatsapp                = NULL,
-      sex                     = NULL,
+      gender                  = NULL,
       birth_date              = NULL,
       street_address          = NULL,
       postal_code             = NULL,

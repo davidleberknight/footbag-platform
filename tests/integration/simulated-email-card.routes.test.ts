@@ -48,7 +48,6 @@ async function registerFlash(
     email,
     password: 'simpass!1',
     confirmPassword: 'simpass!1',
-    sex: 'male',
   });
   expect(reg.status).toBe(303);
   const setCookie = (reg.headers['set-cookie'] ?? []) as string[];
@@ -96,7 +95,6 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
       email: 'sim-card-two@example.com',
       password: 'simpass!1',
       confirmPassword: 'simpass!1',
-      sex: 'male',
     });
     const resendRes = await request(app).post('/verify/resend').type('form').send({
       email: 'sim-card-two@example.com',

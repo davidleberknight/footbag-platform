@@ -42,7 +42,7 @@
 
 Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) until explicitly classified.
 
-**Demographic fields** (`sex`, `birth_date`) are private (Sensitivity 4: owner and admin only). They never appear on public surfaces, in member search, or in any cross-member listing. `sex` is used solely for sex-gated event-category eligibility; `birth_date` for age checks.
+**Demographic fields** (`gender`, `birth_date`) are private (Sensitivity 4: owner and admin only). They never appear on public surfaces, in member search, or in any cross-member listing. `gender` is used solely for gender-gated event-category eligibility; `birth_date` for age checks.
 
 **Contact fields** (`login_email`, `phone`, `whatsapp`) default to not-visible. A member opts in per field, and an opted-in contact field is shown to authenticated members only (Sensitivity 2), never on public surfaces. The exception is an operational contact role: holding a club co-leader or event organizer role exposes that member's contact email to authenticated members (the role is the consent, and the email cannot be hidden while the role is held). A role-holder's WhatsApp stays opt-in like any member's.
 

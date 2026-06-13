@@ -89,8 +89,8 @@ function getRegister(req: Request, res: Response): void {
 }
 
 async function postRegister(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { realName, displayName, slug, email, password, confirmPassword, sex } = req.body as {
-    realName?: string; displayName?: string; slug?: string; email?: string; password?: string; confirmPassword?: string; sex?: string;
+  const { realName, displayName, slug, email, password, confirmPassword } = req.body as {
+    realName?: string; displayName?: string; slug?: string; email?: string; password?: string; confirmPassword?: string;
   };
 
   const renderError = (msg: string, status = 422) => {
@@ -103,7 +103,6 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
         displayName: displayName ?? '',
         slug: slug ?? '',
         email: email ?? '',
-        sex: sex ?? '',
       },
     } satisfies PageViewModel<RegisterContent>);
   };
@@ -115,7 +114,6 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       confirmPassword ?? '',
       realName ?? '',
       displayName ?? '',
-      sex ?? '',
       req.ip ?? 'unknown',
       slug ?? '',
     );

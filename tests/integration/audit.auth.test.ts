@@ -96,7 +96,6 @@ describe('audit_entries — register', () => {
         email: 'newcomer@example.com',
         password: 'NewUser!1',
         confirmPassword: 'NewUser!1',
-        sex: 'male',
         realName: 'Newcomer Jones',
         displayName: 'Newcomer Jones',
       });
@@ -130,7 +129,6 @@ describe('audit_entries — register', () => {
         email: OWN_EMAIL,
         password: 'Something!1',
         confirmPassword: 'Something!1',
-        sex: 'male',
         realName: 'Someone Else',
         displayName: 'Someone Else',
       });
@@ -152,7 +150,6 @@ describe('audit_entries — password change', () => {
         oldPassword: OLD_PASSWORD,
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
-        sex: 'male',
       });
     expect(res.status).toBe(200);
 
@@ -179,7 +176,6 @@ describe('audit_entries — password change', () => {
         oldPassword: 'wrong-old-password',
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
-        sex: 'male',
       });
     expect(res.status).toBe(422);
     expect(readAudits({ action_type: 'auth.password_change' }).length).toBe(before);

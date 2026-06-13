@@ -68,7 +68,6 @@ describe('POST /register race against email UNIQUE constraint', () => {
           email: sharedEmail,
           password: 'TestPassword123!',
           confirmPassword: 'TestPassword123!',
-          sex: 'male',
           realName,
           displayName,
         });
@@ -99,7 +98,6 @@ describe('POST /register race against slug UNIQUE constraint', () => {
           email,
           password: 'TestPassword123!',
           confirmPassword: 'TestPassword123!',
-          sex: 'male',
           realName: 'John Slugrace',
           displayName: 'John Slugrace',
         });

@@ -70,6 +70,7 @@ interface PersonalDetailsContent {
   region: string;
   country: string;
   birthDate: string;
+  gender: string;
   yearValue: string;
   showFirstCompetitionYear: boolean;
   showCompetitiveResults: boolean;
@@ -283,7 +284,7 @@ function renderClubAffiliationsCard(
 function renderPersonalDetails(
   req: Request,
   res: Response,
-  opts: { city?: string; region?: string; country?: string; birthDate?: string; yearValue?: string; showFirstCompetitionYear?: boolean; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
+  opts: { city?: string; region?: string; country?: string; birthDate?: string; gender?: string; yearValue?: string; showFirstCompetitionYear?: boolean; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
 ): void {
   const prefill = memberService.getPersonalDetailsPrefill(req.user!.userId);
   const yearValue =
@@ -301,6 +302,7 @@ function renderPersonalDetails(
       region: opts.region ?? prefill.region,
       country: opts.country ?? prefill.country,
       birthDate: opts.birthDate ?? prefill.birthDate,
+      gender: opts.gender ?? prefill.gender,
       yearValue,
       showFirstCompetitionYear: opts.showFirstCompetitionYear ?? prefill.showFirstCompetitionYear,
       showCompetitiveResults: opts.showCompetitiveResults ?? prefill.showCompetitiveResults,
@@ -640,6 +642,7 @@ export const memberOnboardingController = {
     const region = String(req.body.region ?? '');
     const country = String(req.body.country ?? '');
     const birthDate = String(req.body.birthDate ?? '');
+    const gender = String(req.body.gender ?? '');
     const yearValue = String(req.body.year ?? '');
     const showFirstCompetitionYear =
       req.body.showFirstCompetitionYear === '1' || req.body.showFirstCompetitionYear === 'true';
@@ -647,13 +650,14 @@ export const memberOnboardingController = {
       req.body.showCompetitiveResults === '1' || req.body.showCompetitiveResults === 'true';
     await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
       action: () => memberOnboardingService.processPersonalDetailsSubmit(
-        req.user!.userId, city, region, country, birthDate, yearValue, showFirstCompetitionYear, showCompetitiveResults),
+        req.user!.userId, city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear, showCompetitiveResults),
       renderValidationError: (result) => {
         renderPersonalDetails(req, res, {
           city: result.formState.city,
           region: result.formState.region,
           country: result.formState.country,
           birthDate: result.formState.birthDate,
+          gender: result.formState.gender,
           yearValue: result.formState.yearValue,
           showFirstCompetitionYear: result.formState.showFirstCompetitionYear,
           showCompetitiveResults: result.formState.showCompetitiveResults,

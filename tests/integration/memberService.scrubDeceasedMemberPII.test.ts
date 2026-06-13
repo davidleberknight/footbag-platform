@@ -76,7 +76,7 @@ function seedDeceasedClaimedMember(id: string): { legacyId: string } {
   d.prepare(`
     UPDATE members SET
       bio = 'a bio', city = 'Boulder', region = 'CO', country = 'US',
-      birth_date = '1980-01-01', sex = 'male',
+      birth_date = '1980-01-01', gender = 'male',
       street_address = '1 Main St', postal_code = '80301',
       phone = '+1 555 0100', whatsapp = '+1 555 0100',
       legacy_email = ?, ifpa_join_date = '1999-05-01',
@@ -110,7 +110,7 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     for (const col of [
       'login_email', 'login_email_normalized', 'email_verified_at',
       'password_hash', 'password_changed_at',
-      'phone', 'whatsapp', 'sex', 'birth_date',
+      'phone', 'whatsapp', 'gender', 'birth_date',
       'street_address', 'postal_code', 'legacy_email',
     ]) {
       expect(m[col], col).toBeNull();

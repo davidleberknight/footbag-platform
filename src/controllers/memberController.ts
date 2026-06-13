@@ -176,7 +176,7 @@ export const memberController = {
         firstCompetitionYear: req.body.firstCompetitionYear ?? '',
         showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
         showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
-        sex:             req.body.sex            ?? '',
+        gender:          req.body.gender         ?? '',
         links,
       };
       try {

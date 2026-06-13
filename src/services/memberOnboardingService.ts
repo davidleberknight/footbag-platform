@@ -1031,7 +1031,7 @@ export type LegacyClaimAutoLinkConfirmFormState =
   | { personId: string; personName: string; confidence: 'high' | 'medium' }
   | null;
 export type LegacyClaimTokenConfirmFormState = null;
-export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDate: string; yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean };
+export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDate: string; gender: string; yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean };
 
 // Per-arm types so the discriminant union's non-formState arms can be
 // returned from helpers (e.g. advanceAfter) without binding to a
@@ -1294,6 +1294,7 @@ function processPersonalDetailsSubmit(
   region: string,
   country: string,
   birthDate: string,
+  gender: string,
   yearValue: string,
   showFirstCompetitionYear: boolean,
   showCompetitiveResults: boolean,
@@ -1303,7 +1304,7 @@ function processPersonalDetailsSubmit(
     // as the other fields, so a crash cannot complete the task while
     // silently losing the preference.
     submitTaskResponse(memberId, 'personal_details', {
-      city, region, country, birthDate, yearValue, showFirstCompetitionYear,
+      city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear,
       showCompetitiveResults,
     });
     return advanceAfter(memberId, 'personal_details');
@@ -1311,7 +1312,7 @@ function processPersonalDetailsSubmit(
     if (err instanceof ValidationError) {
       return {
         kind: 'validation_error',
-        formState: { city, region, country, birthDate, yearValue, showFirstCompetitionYear, showCompetitiveResults },
+        formState: { city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear, showCompetitiveResults },
         message: err.message,
       };
     }

@@ -430,41 +430,41 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
   });
 
-  // Sex is editable to one of the three stored values. A save that omits or
+  // Gender is editable to one of the three stored values. A save that omits or
   // sends an unrecognized value must leave the existing value intact rather
   // than clearing it (the control is not re-confirmed on every unrelated save).
-  function sexOf(id: string): string | null {
+  function genderOf(id: string): string | null {
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
-      const row = db.prepare('SELECT sex FROM members WHERE id = ?').get(id) as { sex: string | null } | undefined;
-      return row ? row.sex : null;
+      const row = db.prepare('SELECT gender FROM members WHERE id = ?').get(id) as { gender: string | null } | undefined;
+      return row ? row.gender : null;
     } finally {
       db.close();
     }
   }
-  function setSex(id: string, sex: string | null): void {
+  function setGender(id: string, gender: string | null): void {
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
-      db.prepare('UPDATE members SET sex = ? WHERE id = ?').run(sex, id);
+      db.prepare('UPDATE members SET gender = ? WHERE id = ?').run(gender, id);
     } finally {
       db.close();
     }
   }
 
-  it('saves a selected sex value', async () => {
-    setSex(OWN_ID, null);
+  it('saves a selected gender value', async () => {
+    setGender(OWN_ID, null);
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', sex: 'female' });
+      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'female' });
     expect(res.status).toBe(303);
-    expect(sexOf(OWN_ID)).toBe('female');
+    expect(genderOf(OWN_ID)).toBe('female');
   });
 
-  it('omitting sex leaves the stored value unchanged', async () => {
-    setSex(OWN_ID, 'male');
+  it('omitting gender leaves the stored value unchanged', async () => {
+    setGender(OWN_ID, 'male');
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
@@ -472,19 +472,19 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .type('form')
       .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(303);
-    expect(sexOf(OWN_ID)).toBe('male');
+    expect(genderOf(OWN_ID)).toBe('male');
   });
 
-  it('an unrecognized sex value leaves the stored value unchanged', async () => {
-    setSex(OWN_ID, 'undisclosed');
+  it('an unrecognized gender value leaves the stored value unchanged', async () => {
+    setGender(OWN_ID, 'undisclosed');
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', sex: 'nonsense' });
+      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'nonsense' });
     expect(res.status).toBe(303);
-    expect(sexOf(OWN_ID)).toBe('undisclosed');
+    expect(genderOf(OWN_ID)).toBe('undisclosed');
   });
 
   // Profile edit was unlimited per session, allowing DB
