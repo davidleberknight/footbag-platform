@@ -507,9 +507,9 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Whirling Reverse Whirl (Bling Blang)", "slug": "whirling-reverse-whirl-bling-blang", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "BS Blurriest", "slug": "bs-blurriest", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "doctrine", "cluster": "blurry", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Butterfly, Down", "slug": "butterfly-down", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning far Osis", "slug": "illusioning-far-osis", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning Flail (Toe Massacre)", "slug": "illusioning-flail-toe-massacre", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning Legover", "slug": "illusioning-legover", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Illusioning far Osis", "slug": "illusioning-far-osis", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Illusioning Flail (Toe Massacre)", "slug": "illusioning-flail-toe-massacre", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Illusioning Legover", "slug": "illusioning-legover", "source": "MULTI", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Illusioning Legover (Eggbeater)", "slug": "illusioning-legover-eggbeater", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Illusioning Osis (Flux)", "slug": "illusioning-osis-flux", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Sailing DOD", "slug": "sailing-dod", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
@@ -676,10 +676,10 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Flailing ss Symposium Double Over Down", "slug": "flailing-ss-symposium-double-over-down", "source": "FM", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Furious Symposium Eggbeater (Walrus)", "slug": "furious-symposium-eggbeater-walrus", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Furious Symposium Mirage (Rage)", "slug": "furious-symposium-mirage-rage", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Illusioning far Symp. Butterfly", "slug": "illusioning-far-symp-butterfly", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning Symp. Eggbeater", "slug": "illusioning-symp-eggbeater", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Illusioning far Symp. Butterfly", "slug": "illusioning-far-symp-butterfly", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
+  {"name": "Illusioning Symp. Eggbeater", "slug": "illusioning-symp-eggbeater", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Illusioning Symp. Illusioning Legover", "slug": "illusioning-symp-illusioning-legover", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Illusioning Symposium Mirage (Slaughter)", "slug": "illusioning-symposium-mirage-slaughter", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
+  {"name": "Illusioning Symposium Mirage (Slaughter)", "slug": "illusioning-symposium-mirage-slaughter", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Miraging far Symp. Double Down", "slug": "miraging-far-symp-double-down", "source": "PB", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Osis (Nucleosis) (Aeon Flux) (Paradox Flux)", "slug": "nuclear-osis-nucleosis-aeon-flux-paradox-flux", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Nuclear Symposium DLO (Oh Wheely)", "slug": "nuclear-symposium-dlo-oh-wheely", "source": "SG", "ecosystem": "symposium/paradox", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -1411,8 +1411,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 175,
-    "lexicalArchive": 1147,
+    "promotionFrontier": 169,
+    "lexicalArchive": 1153,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 14,
@@ -1423,12 +1423,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 113
       },
       "unresolved_candidate": {
-        "names": 48,
-        "distinctStructures": 48
+        "names": 42,
+        "distinctStructures": 42
       },
       "alias": {
-        "names": 425,
-        "distinctStructures": 425
+        "names": 431,
+        "distinctStructures": 431
       },
       "equivalence": {
         "names": 0,
@@ -1448,13 +1448,13 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "ready": 2,
-    "frontier": 59,
+    "frontier": 53,
     "doctrineBlocked": 203,
-    "folkUnresolved": 692,
+    "folkUnresolved": 698,
     "parserUnresolved": 372,
-    "promotionReadyPct": 5,
+    "promotionReadyPct": 4,
     "doctrineBlockedPct": 15,
-    "folkUnresolvedPct": 52,
+    "folkUnresolvedPct": 53,
     "parserUnresolvedPct": 28,
     "canonicalCoveragePct": 21,
     "sources": {

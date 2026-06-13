@@ -416,10 +416,10 @@
 "Whirling Reverse Whirl (Bling Blang)","whirling-reverse-whirl-bling-blang","stanford","whirl/osis/other","alias-collapse","","stable","Alias / compression candidate — collapse to canon, do not promote"
 "BS Blurriest","bs-blurriest","passback","(unclassified)","doctrine-sensitive","compression-ambiguity","blocked","Doctrine-blocked (other): curator/Red ruling pending"
 "Butterfly, Down","butterfly-down","passback","(unclassified)","doctrine-sensitive","unknown-modifier-token","policy-dependent","Doctrine-blocked ((unclassified)): curator/Red ruling pending"
-"Illusioning far Osis","illusioning-far-osis","passback","(unclassified)","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
-"Illusioning Flail","illusioning-flail","passback","(unclassified)","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
-"Illusioning Flail (Toe Massacre)","illusioning-flail-toe-massacre","stanford","(unclassified)","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
-"Illusioning Legover","illusioning-legover","multi","(unclassified)","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
+Illusioning far Osis,illusioning-far-osis,passback,(unclassified),alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-osis (illusioning = atomic; far = +0 positional).
+Illusioning Flail,illusioning-flail,passback,(unclassified),alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-flail (illusioning = atomic).
+Illusioning Flail (Toe Massacre),illusioning-flail-toe-massacre,stanford,(unclassified),alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-flail (Toe Massacre folk alias; illusioning = atomic).
+Illusioning Legover,illusioning-legover,multi,(unclassified),alias-collapse,unknown-modifier-token,blocked,Resolves to eggbeater (= atomic legover; illusioning = atomic).
 "Illusioning Legover (Eggbeater)","illusioning-legover-eggbeater","stanford","(unclassified)","alias-collapse","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
 "Illusioning Osis (Flux)","illusioning-osis-flux","stanford","(unclassified)","alias-collapse","unknown-modifier-token","blocked","Doctrine-blocked (other): curator/Red ruling pending"
 "Sailing DOD","sailing-dod","stanford","(unclassified)","doctrine-sensitive","unknown-modifier-token","policy-dependent","Doctrine-blocked ((unclassified)): curator/Red ruling pending"
@@ -593,10 +593,10 @@
 "Furious Symposium Eggbeater (Walrus)","furious-symposium-eggbeater-walrus","stanford","symposium/paradox","doctrine-sensitive","","blocked","Doctrine-blocked (blurry-furious): Red Q1.A — does `blurry`/`furious` carry +2 on rotational bases?"
 "Furious Symposium Mirage","furious-symposium-mirage","footbagmoves","symposium/paradox","doctrine-sensitive","","blocked","Doctrine-blocked (blurry-furious): Red Q1.A — does `blurry`/`furious` carry +2 on rotational bases?"
 "Furious Symposium Mirage (Rage)","furious-symposium-mirage-rage","stanford","symposium/paradox","alias-collapse","","blocked","Doctrine-blocked (blurry-furious): Red Q1.A — does `blurry`/`furious` carry +2 on rotational bases?"
-"Illusioning far Symp. Butterfly","illusioning-far-symp-butterfly","passback","symposium/paradox","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (symposium): curator/Red ruling pending"
-"Illusioning Symp. Eggbeater","illusioning-symp-eggbeater","passback","symposium/paradox","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (symposium): curator/Red ruling pending"
-"Illusioning Symp. Illusioning Legover","illusioning-symp-illusioning-legover","passback","symposium/paradox","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (symposium): curator/Red ruling pending"
-"Illusioning Symposium Mirage (Slaughter)","illusioning-symposium-mirage-slaughter","stanford","symposium/paradox","doctrine-sensitive","unknown-modifier-token","blocked","Doctrine-blocked (symposium): curator/Red ruling pending"
+Illusioning far Symp. Butterfly,illusioning-far-symp-butterfly,passback,symposium/paradox,alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-symposium-butterfly (illusioning = atomic; far = +0).
+Illusioning Symp. Eggbeater,illusioning-symp-eggbeater,passback,symposium/paradox,alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-symposium-eggbeater (illusioning = atomic).
+Illusioning Symp. Illusioning Legover,illusioning-symp-illusioning-legover,passback,symposium/paradox,doctrine-sensitive,unknown-modifier-token,blocked,"Double-illusioning = double-atomic: blocked by the same-operator-twice doctrine, not by illusioning (which is now atomic)."
+Illusioning Symposium Mirage (Slaughter),illusioning-symposium-mirage-slaughter,stanford,symposium/paradox,alias-collapse,unknown-modifier-token,blocked,Resolves to atomic-symposium-mirage (Slaughter folk alias; illusioning = atomic).
 "Miraging far Symp. Double Down","miraging-far-symp-double-down","passback","symposium/paradox","doctrine-sensitive","ambiguous-terminal-mechanic","policy-dependent","Doctrine-blocked (symposium/paradox): curator/Red ruling pending"
 "Nuclear Osis (Nucleosis) (Aeon Flux) (Paradox Flux)","nuclear-osis-nucleosis-aeon-flux-paradox-flux","stanford","symposium/paradox","doctrine-sensitive","compression-ambiguity","policy-dependent","Doctrine-blocked (blurry-furious): Red Q1.A — does `blurry`/`furious` carry +2 on rotational bases?"
 "Nuclear Symposium DLO (Oh Wheely)","nuclear-symposium-dlo-oh-wheely","stanford","symposium/paradox","alias-collapse","compression-ambiguity","policy-dependent","Doctrine-blocked (blurry-furious): Red Q1.A — does `blurry`/`furious` carry +2 on rotational bases?"

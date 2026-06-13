@@ -114,7 +114,7 @@ Atomsmasher and the other ~50 historically-resolved items are listed below so fu
 
 - Miraging +1 (pt11; = Mirage + base)
 - Whirling +1 (pt11; = Whirl + Osis when applied to compatible bases)
-- Illusioning +1 (by analogy; not formally ruled)
+- Illusioning is NOT a separate operator. It is the descriptive verb form of the atomic outward dex — "performing an atomic-style outward dex" — exactly as *orbiting* = "performing a fairy" and *atw-ing* = "performing a pixie". All illusioning compounds ARE atomic (+1); the operator is merged into atomic and the illusioning + folk names (Toe Massacre, Slaughter) are preserved as aliases. Glossary / set descriptions should frame illusioning as this descriptive form, never as its own operator.
 - Terraging +3 (pt6)
 - Barraging +2 two-dex set (Red 2026-05-20; reclassified body→set; two dex steps inside the set are each count-bearing. Worked examples: barraging + osis = baroque = 5; barraging + legover = flurry = 4. Supersedes prior +1 entry corrected 2026-05-12)
 - Furious +2 rotational (pt6 fury derivation requires this); non-rotational case TBD

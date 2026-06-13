@@ -1,6 +1,6 @@
 # Promotion Frontier Adjudication
 
-Scope: **175 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
+Scope: **169 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
 
 Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact missing item. **Awaiting Ruling** rows carry a genuine doctrine question; **Derivable / Backfill Needed** rows have no doctrine work remaining (resolved operators + a published exemplar to mirror); **Missing formula** rows still need a decomposition.
 
@@ -9,7 +9,7 @@ Counts by bucket:
 - **Derivable / Backfill Needed**: 8
 - **Missing formula**: 15
 - **Missing ADD**: 0
-- **Missing classification**: 7
+- **Missing classification**: 1
 - **Awaiting Ruling**: 143
 - **Other**: 0
 - _dropped (already wired as aliases of a published row): 2 — Far Reverse Guay, Toe near Barrage_
@@ -67,17 +67,11 @@ _No doctrine work remains for any row below — editorial authoring only._
 | Symposium Furious Legover | — | — | — | SG | Provide the decomposition/notation for "Symposium Furious Legover" (currently none). |
 | Terraging Opposite Clipper | — | TERRAGING CLIPPER | — | FB | Provide the decomposition/notation for "Terraging Opposite Clipper" (currently none). |
 
-## Missing classification  (7)
+## Missing classification  (1)
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
-| Illusioning Flail (Toe Massacre) | — | — | — | SG | Operator **illusioning** is now resolved; verify whether "Illusioning Flail (Toe Massacre)" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
-| Illusioning Legover | — | — | — | MULTI | Operator **illusioning** is now resolved; verify whether "Illusioning Legover" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
-| Illusioning Symp. Eggbeater | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning Symp. Eggbeater" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 | Illusioning Symp. Illusioning Legover | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning Symp. Illusioning Legover" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
-| Illusioning Symposium Mirage (Slaughter) | — | — | — | SG | Operator **illusioning** is now resolved; verify whether "Illusioning Symposium Mirage (Slaughter)" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
-| Illusioning far Osis | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning far Osis" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
-| Illusioning far Symp. Butterfly | — | — | — | PB | Operator **illusioning** is now resolved; verify whether "Illusioning far Symp. Butterfly" is an equivalence/alias of an already-published trick (cf. illusioning legover = eggbeater) before any promotion. |
 
 ## Awaiting Ruling  (143)
 
