@@ -4183,7 +4183,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // ── Audit-derived promotions. Each fully
   //    converges with official ADD via mechanical modifier × base
   //    derivation; no composite-modifier expansion, no doctrine block.
-  'atomic-torque',           // atomic(+2 rot) + torque(4) = 6 ADD
+  'atomic-torque',           // atomic(+1) + torque(4) = 5 ADD
   'ducking-mirage',          // ducking(+1) + mirage(2) = 3 ADD
   'paradox-drifter',         // paradox(+1) + drifter(3) = 4 ADD
   'spinning-pickup',         // spinning(+1) + pickup(2) = 3 ADD

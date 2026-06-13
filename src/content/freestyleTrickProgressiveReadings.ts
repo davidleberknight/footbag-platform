@@ -231,7 +231,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
       },
       {
         stage:   'Atomic operator',
-        reading: "Layering atomic onto mirage produces atom-smasher: atomic(+2) + mirage(2) = 4 ADD.",
+        reading: "Layering atomic onto mirage produces atom-smasher: atomic(+1) plus an explicit X-Dex(+1) on the following dex + mirage(2) = 4 ADD.",
       },
       {
         stage:   'Explicit vs implicit X-Dex',

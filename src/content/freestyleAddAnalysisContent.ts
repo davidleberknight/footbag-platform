@@ -184,7 +184,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   // single-valued taxonomy. Unresolved-doctrine weightings are marked TBD.
   {
     componentClass: 'Set / Uptime modifiers: pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not an official grouping)',
-    contribution:   'pixie / fairy / quantum +1; atomic +1 (or +2 on rotational bases); nuclear +2 (= paradox + illusion); blurry +1 (implies stepping); barraging +2 (a two-dex set).',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 (rotational bases may carry a separate +1 X-Dex on the following dex); nuclear +2 (= paradox + illusion); blurry +1 (implies stepping); barraging +2 (a two-dex set).',
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {

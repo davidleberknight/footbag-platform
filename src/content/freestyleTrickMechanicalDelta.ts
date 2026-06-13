@@ -131,7 +131,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     parentSlugs: ['mirage'],
     prose:
       "Relative to mirage, atom-smasher reverses and stretches the dex direction into an outside-then-inside sequence: the canonical X-Dex character. Where mirage swings the support leg under-and-over inside-then-outside, atom-smasher swings it in the opposite direction, producing a wider cross-body arc during the dex and recatching on the opposite toe.\n\n" +
-      "The atomic operator adds +2 ADD on the mirage chassis, yielding 4 ADD: atomic(+2) + mirage(2). Atom-smasher is the canonical exemplar of an EXPLICIT X-Dex pattern: the outside-then-inside dex is read directly in the canonical name (\"atomic mirage\"). Sumo, by contrast, is the implicit-X-Dex counterpart where the X-Dex character pushes ADD beyond the standard +2 nuclear rule but is not named in the canonical.",
+      "The atomic operator adds +1, and atom-smasher carries an explicit X-Dex(+1) on the following dex, yielding 4 ADD on the mirage chassis: atomic(+1) + X-Dex(+1) + mirage(2). Atom-smasher is the canonical exemplar of an EXPLICIT X-Dex pattern: the outside-then-inside dex is read directly in the canonical name (\"atomic mirage\"). Sumo, by contrast, is the implicit-X-Dex counterpart where the X-Dex character pushes ADD beyond the standard +2 nuclear rule but is not named in the canonical.",
     topologyKind: 'x-dex',
   },
 
