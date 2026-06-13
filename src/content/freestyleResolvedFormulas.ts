@@ -926,6 +926,17 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL]',
   },
   {
+    slug:        'pixie-double-switch-over',
+    name:        'pixie double switch-over',
+    operator:    'pixie',
+    base:        'double-switch-over',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'pixie(+1) + double-switch-over(3) = 4 ADD',
+    provenance:  'pixie = +1 set modifier; double-switch-over = 3 ADD base. Pixie entry-prefix on the double-switch-over body, mirroring pixie-double-leg-over. Record name "Pixie DSO".',
+    operationalNotation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]',
+  },
+  {
     slug:        'assassin',
     name:        'assassin',
     operator:    'pixie + ducking',

@@ -1175,8 +1175,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Pixie Blacula", "slug": "pixie-blacula", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Da Da Curve", "slug": "pixie-da-da-curve", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Double Legover", "slug": "pixie-double-legover", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Pixie Double Switchover", "slug": "pixie-double-switchover", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Pixie DSO", "slug": "pixie-dso", "source": "PB", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Ducking Double Legover", "slug": "pixie-ducking-double-legover", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Ducking Spinning Toe", "slug": "pixie-ducking-spinning-toe", "source": "FM", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pixie Grifter", "slug": "pixie-grifter", "source": "SG", "ecosystem": "pixie", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1399,7 +1397,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1324,
+    "total": 1322,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1408,7 +1406,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
     "promotionFrontier": 168,
-    "lexicalArchive": 1150,
+    "lexicalArchive": 1148,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 14,
@@ -1435,8 +1433,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 4
       },
       "low_confidence": {
-        "names": 629,
-        "distinctStructures": 629
+        "names": 627,
+        "distinctStructures": 627
       },
       "doctrine_unresolved": {
         "names": 90,
@@ -1447,16 +1445,16 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "frontier": 53,
     "doctrineBlocked": 203,
     "folkUnresolved": 694,
-    "parserUnresolved": 372,
+    "parserUnresolved": 370,
     "promotionReadyPct": 4,
     "doctrineBlockedPct": 15,
     "folkUnresolvedPct": 52,
     "parserUnresolvedPct": 28,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 580,
+      "SG": 579,
       "FM": 373,
-      "PB": 257,
+      "PB": 256,
       "FB": 105,
       "MULTI": 9
     },

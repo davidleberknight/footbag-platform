@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1550;
+export const TRACKED_UNPUBLISHED_TOTAL = 1548;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -349,7 +349,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie Diving Butterfly (Darkwalk)', slug: 'pixie-diving-butterfly-darkwalk' },
     { displayName: 'Pixie Diving Osis (Alpine Maverick)', slug: 'pixie-diving-osis-alpine-maverick' },
     { displayName: 'Pixie DLO (Smog)', slug: 'pixie-dlo-smog' },
-    { displayName: 'Pixie Double Switchover', slug: 'pixie-double-switchover' },
     { displayName: 'Pixie Drifter (Smoke)', slug: 'pixie-drifter-smoke' },
     { displayName: 'Pixie Ducking Butterfly (Phoenix)', slug: 'pixie-ducking-butterfly-phoenix' },
     { displayName: 'Pixie Ducking Butterfly Swirl (Phoenix Swirl)', slug: 'pixie-ducking-butterfly-swirl-phoenix-swirl' },
@@ -1279,7 +1278,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Pixie (archaic)', slug: 'pixie-archaic', operationalNotation: 'TOE > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Pixie Diving near Butterfly', slug: 'pixie-diving-near-butterfly' },
     { displayName: 'Pixie DOD', slug: 'pixie-dod' },
-    { displayName: 'Pixie DSO', slug: 'pixie-dso' },
     { displayName: 'Pixie Ducking far DLO', slug: 'pixie-ducking-far-dlo' },
     { displayName: 'Pixie Ducking far Mirage', slug: 'pixie-ducking-far-mirage' },
     { displayName: 'Pixie far Butterfly', slug: 'pixie-far-butterfly' },

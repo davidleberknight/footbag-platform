@@ -1856,3 +1856,6 @@ double-switch-over,operational_notation_source,,Source: footbag.org 3-ADD moves 
 pixie-same-side-illusion,notation,,PIXIE SAME SIDE ILLUSION,JOB per mechanical rule (canonical_name uppercased).
 pixie-same-side-illusion,operational_notation,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL],Mirrors Magellan chassis with the opposite-toe terminal. Bracket-count 3 == 3 ADD.
 pixie-same-side-illusion,operational_notation_source,,Source: footbag.org 3-ADD moves page (sibling of Magellan).,Provenance citation for operational_notation.
+pixie-double-switch-over,notation,,PIXIE DOUBLE SWITCH OVER,JOB per mechanical rule (canonical_name uppercased).
+pixie-double-switch-over,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],"Pixie entry-prefix on the double-switch-over body, mirroring pixie-double-leg-over. Bracket-count 4 == 4 ADD."
+pixie-double-switch-over,operational_notation_source,,Source: footbag.org double-switch-over base + pixie set entry.,Provenance citation for operational_notation.
