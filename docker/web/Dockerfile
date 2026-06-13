@@ -65,9 +65,15 @@ RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
 # Views path: process.cwd()/src/views  → /app/src/views
 # Static path: process.cwd()/src/public → /app/src/public
 # Rules content: process.cwd()/ifpa/rules → /app/ifpa/rules (loaded by rulesLoader)
+# Symbolic-grammar data: process.cwd()/exploration/symbolic-grammar-2 →
+#   /app/exploration/symbolic-grammar-2. symbolicGrammarService reads these
+#   committed CSVs at runtime to populate the observational symbolic-grammar
+#   panels on the freestyle trick-detail and glossary pages; without this copy
+#   the service's missing-file fail-safe leaves those panels silently empty.
 COPY src/views  ./src/views
 COPY src/public ./src/public
 COPY ifpa       ./ifpa
+COPY exploration/symbolic-grammar-2 ./exploration/symbolic-grammar-2
 
 # Runtime environment — all sensitive values must be injected at deploy time,
 # not baked into the image.
