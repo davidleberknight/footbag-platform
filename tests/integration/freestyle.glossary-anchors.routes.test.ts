@@ -117,15 +117,35 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('id="term-fairy"');
   });
 
+  it('every glossary deep-link anchor id is unique (no term-/modifier-/panel- shadow)', async () => {
+    // Each operator owns exactly one anchor across the Modifiers & Operators
+    // surfaces. A duplicated id="term-{slug}" (the set-primitive grid re-rendering
+    // an operator already carried by the intermediate-operators list or the
+    // body-modifier reference) is invalid HTML and makes the deep-link target
+    // ambiguous, so the link-target anchor families must each be collision-free.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.status).toBe(200);
+    const anchorIds = [...res.text.matchAll(/id="([^"]+)"/g)]
+      .map(m => m[1])
+      .filter(id => /^(term|modifier|glossary-panel)-/.test(id));
+    const counts = new Map<string, number>();
+    for (const id of anchorIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+    const duplicates = [...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+    expect(duplicates, `duplicate glossary anchor id(s): ${duplicates.join(', ')}`).toEqual([]);
+  });
+
   it('renders id="term-X" on the §3 modifier quick-reference subsection', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="modifier-reference"');
     expect(res.text).toContain('id="term-stepping"');
     expect(res.text).toContain('id="term-paradox"');
     expect(res.text).toContain('id="term-spinning"');
-    expect(res.text).toContain('id="term-ducking"');
     expect(res.text).toContain('id="term-symposium"');
     expect(res.text).toContain('id="term-cross-body"');
+    // Ducking's term-anchor lives with its foundational duck-direction family
+    // (ducking / weaving / diving / zulu); the §6 body-modifier entry delegates
+    // to the connective panel rather than carrying a second term-ducking anchor.
+    expect(res.text).toContain('id="term-ducking"');
   });
 
   it('§3 modifier quick-reference cross-links to §13 connective panels for paradox / spinning / ducking', async () => {

@@ -933,29 +933,27 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
 // `oneLineMeaning` + `decomposition` carry richer registry content).
 function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[] {
   const setTier = board.tiers.find(t => t.key === 'set');
-  const tierEntries: FreestyleSetModifierEntry[] = (setTier?.operators ?? []).map(op => ({
-    slug:           op.name.toLowerCase().replace(/\s+/g, '-'),
-    name:           op.name,
-    glyph:          op.glyph,
-    oneLineMeaning: op.action,
-    decomposition:  null,
-    href:           op.href,
-  }));
-  const intermediateEntries: FreestyleSetModifierEntry[] = OPERATOR_REFERENCE_ENTRIES
-    .filter(e => e.category === 'set' || e.category === 'compound-set')
-    .map(e => ({
-      slug:           e.slug,
-      name:           e.name,
-      glyph:          null,
-      oneLineMeaning: e.oneLineMeaning,
-      decomposition:  e.decomposition,
-      href:           null,
-    }));
-  // De-dup by slug, intermediate-wins (richer data).
-  const bySlug = new Map<string, FreestyleSetModifierEntry>();
-  for (const e of tierEntries)         bySlug.set(e.slug, e);
-  for (const e of intermediateEntries) bySlug.set(e.slug, e);
-  return [...bySlug.values()];
+  // The set-primitive grid is the glossary anchor home only for set primitives
+  // that no other Modifiers & Operators surface owns. Atomic / Quantum / Blurry /
+  // Nuclear / Barraging carry their full decomposition + worked examples in the
+  // intermediate-operators list, and Stepping is defined in the body-modifier
+  // reference; rendering them here too would duplicate each operator's
+  // term-{slug} anchor onto two elements. Excluding them leaves Pixie and Fairy,
+  // whose term-anchor link target lives nowhere else.
+  const ownedElsewhere = new Set<string>([
+    ...OPERATOR_REFERENCE_ENTRIES.map(e => e.slug),
+    'stepping',
+  ]);
+  return (setTier?.operators ?? [])
+    .map(op => ({
+      slug:           op.name.toLowerCase().replace(/\s+/g, '-'),
+      name:           op.name,
+      glyph:          op.glyph,
+      oneLineMeaning: op.action,
+      decomposition:  null,
+      href:           op.href,
+    }))
+    .filter(e => !ownedElsewhere.has(e.slug));
 }
 
 // Operators index: compact rows grouped by movement-system axis. Per-row data is
@@ -8640,12 +8638,11 @@ export const freestyleService = {
     // identically (registry-style readability).
     const coreTricks: FreestyleCoreTrickCard[] = shapeCoreTricks(allDictRows);
 
-    // Set-modifier registry grid shaped from the Tier-1
-    // operator-board set tier + OPERATOR_REFERENCE_ENTRIES set/compound-set
-    // categories. Pixie / Fairy / Stepping come from the board; Atomic /
-    // Quantum / Blurry / Nuclear / Barraging / Furious from the reference
-    // module. Tier-1 entries carry a `glyph` field; intermediate entries
-    // carry null `glyph` and surface their `decomposition` instead.
+    // Set-primitive grid for the Modifiers & Operators section. Pixie and Fairy
+    // are the set-tier primitives whose glossary term-anchor lives nowhere else;
+    // the decomposable set operators and Stepping are rendered by their own
+    // surfaces (intermediate-operators list, body-modifier reference) so each
+    // operator's anchor stays on a single element.
     const setModifiers: FreestyleSetModifierEntry[] = shapeSetModifiers(
       this.getOperatorBoard('glossary'),
     );

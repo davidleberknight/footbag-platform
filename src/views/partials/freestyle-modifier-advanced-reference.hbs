@@ -1,10 +1,14 @@
 {{!--
   freestyle-modifier-advanced-reference.hbs — the advanced decomposition /
   operator-theory reference (body-modifier reference, intermediate operators,
-  execution mechanics, set modifiers). Rendered below the modifier vocabulary on
-  both surfaces that show it:
-    - /freestyle/glossary §6 (via the shared modifier-reference partial)
-    - /freestyle/operators (below the compact index)
+  execution mechanics, set primitives). Rendered below the modifier feel cards in
+  /freestyle/glossary §6, via the shared modifier-reference partial.
+
+  Each operator appears on exactly one of these surfaces, so its term-{slug}
+  anchor resolves to a single element: body modifiers in the body-modifier
+  reference, decomposable set/compound operators in the intermediate-operators
+  list, and Pixie / Fairy in the set-primitive grid (the only primitives whose
+  term-anchor link target lives nowhere else).
 
   Required view-model fields on parent `content`:
     - intermediateOperators: OperatorReferenceEntry[]
@@ -38,7 +42,7 @@
     </dd>
     <dt id="term-spinning">Spinning</dt>
     <dd>A full-body 360&deg; rotation carried through the dex moment. +1 body modifier. Pairs with gyro (180&deg;) for arbitrary degrees. <a href="#glossary-panel-spinning">See connective panel</a>.</dd>
-    <dt id="term-ducking">Ducking</dt>
+    <dt>Ducking</dt>
     <dd>A head dip that lets the bag pass around the neck. +1 body modifier; one member of a four-way family (ducking / weaving / diving / zulu) defined by head direction and the side the bag falls. <a href="#glossary-panel-ducking">See connective panel</a>.</dd>
     <dt id="term-symposium">Symposium</dt>
     <dd>A no-plant leg discipline: the support leg stays off the ground during the dex. +1 body modifier. Often stacks with paradox (the &ldquo;PS X&rdquo; shorthand).</dd>

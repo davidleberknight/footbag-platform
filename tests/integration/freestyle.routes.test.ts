@@ -1950,23 +1950,30 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(gridSlice).not.toContain('id="term-fairy"');
   });
 
-  it('set-modifiers grid renders pixie/fairy/stepping (Tier-1) plus atomic/quantum/blurry/nuclear/barraging (intermediate)', async () => {
-    // Set-modifier registry grid projected from the Tier-1 operator board
-    // plus OPERATOR_REFERENCE_ENTRIES set/compound-set entries.
+  it('set-modifiers grid renders only the pixie/fairy set primitives; each operator owns a single anchor', async () => {
+    // The grid is the glossary anchor home only for the set primitives no other
+    // Modifiers & Operators surface owns. Pixie and Fairy qualify; the
+    // decomposable set/compound operators and Stepping are rendered by the
+    // intermediate-operators list and the body-modifier reference, so rendering
+    // them here too would put each operator's term-{slug} anchor on two elements.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
-    const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
-    const afterSetMod = res.text.slice(setModSection);
-    expect(afterSetMod).toContain('class="glossary-set-modifiers-grid"');
-    // Set/compound-set entries surface as set-modifier-card tiles with #term-{slug} anchors.
-    for (const slug of ['pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'blurry', 'nuclear', 'barraging']) {
-      expect(afterSetMod).toContain(`id="term-${slug}"`);
+    const gridStart = res.text.indexOf('class="glossary-set-modifiers-grid"');
+    expect(gridStart).toBeGreaterThan(0);
+    const grid = res.text.slice(gridStart, res.text.indexOf('</section>', gridStart));
+    expect(grid).toContain('id="term-pixie"');
+    expect(grid).toContain('id="term-fairy"');
+    // Tier-1 set primitives carry a glyph chip (pixie → PIX).
+    expect(grid).toMatch(/id="term-pixie"[\s\S]*?<span class="set-modifier-glyph">PIX<\/span>/);
+    // Decomposable operators and Stepping must not reappear as set-modifier cards.
+    for (const slug of ['atomic', 'quantum', 'blurry', 'nuclear', 'barraging', 'stepping']) {
+      expect(grid).not.toContain(`id="term-${slug}"`);
     }
-    // Tier-1 entries carry a glyph chip (pixie → PIX); intermediate entries surface their decomposition.
-    expect(afterSetMod).toMatch(/id="term-pixie"[\s\S]*?<span class="set-modifier-glyph">PIX<\/span>/);
-    expect(afterSetMod).toMatch(/id="term-blurry"[\s\S]*?<p class="set-modifier-decomposition">[\s\S]*?stepping paradox/);
     // The retired prose `<dl>` rendering must not survive.
-    expect(afterSetMod).not.toContain('<dl class="glossary-set-modifiers">');
+    expect(grid).not.toContain('<dl class="glossary-set-modifiers">');
+    // Blurry's decomposition is carried once, in the intermediate-operators list.
+    const interSection = res.text.slice(res.text.indexOf('id="intermediate-operators"'), gridStart);
+    expect(interSection).toMatch(/id="term-blurry"[\s\S]*?stepping paradox/);
   });
 
   it('structural-compression worked example renders as a four-depth equivalence ladder inside Vocabulary Relationships', async () => {
