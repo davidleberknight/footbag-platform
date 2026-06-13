@@ -1850,3 +1850,8 @@ sailing-eggbeater,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] >> OP
 sailing-eggbeater,notation,,SAILING EGGBEATER,JOB per mechanical uppercase rule.
 sailing-whirl,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],Sailing chassis + whirl. 5 brackets == 5 ADD.
 sailing-whirl,notation,,SAILING WHIRL,JOB per mechanical uppercase rule.
+omelette,operational_notation,,TOE > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL],op_notation backfill: omelette = atomic illusion; structural form already present in the JOB field. Bracket-count == ADD.
+plasma,operational_notation,,TOE > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],op_notation backfill: plasma = quantum double-over-down; curator structural form. Bracket-count == ADD.
+pixie-spinning-paradox-whirl,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry (TOE > SAME IN [DEX]) prepended onto the published spinning-paradox-whirl. Bracket-count == ADD.
+pixie-spinning-paradox-blender,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry prepended onto the published spinning-paradox-blender. Bracket-count == ADD.
+pixie-spinning-paradox-symposium-whirl,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP CLIP [XBD] [DEL],op_notation backfill via chassis-mirror: pixie entry prepended onto the published spinning-paradox-symposium-whirl. Bracket-count == ADD.
