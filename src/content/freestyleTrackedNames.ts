@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1548;
+export const TRACKED_UNPUBLISHED_TOTAL = 1544;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -902,7 +902,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Paradox Drifter XBD Rake', slug: 'paradox-drifter-xbd-rake' },
     { displayName: 'Paradox Merlin', slug: 'paradox-merlin' },
     { displayName: 'Paradox Toxic', slug: 'paradox-toxic' },
-    { displayName: 'Paratoxic', slug: 'paratoxic', operationalNotation: 'Clip >> Same In (DEX) > (no plant while) Op Front Whirl (DEX)(XDEX)(BOD)(PDX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Park Avenue', slug: 'park-avenue', operationalNotation: 'Toe > Same Out (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Pdx Dada Curve', slug: 'pdx-dada-curve' },
     { displayName: 'Pdx DLO', slug: 'pdx-dlo' },
@@ -1460,8 +1459,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Fairy Atomic', slug: 'fairy-atomic' },
     { displayName: 'Fairy Leg Over', slug: 'fairy-leg-over', operationalNotation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL].', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Merkon (Fairy Spinning Legover)', slug: 'fairy-merkon-fairy-spinning-legover', operationalNotation: 'TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Fairy Same Side Mirage', slug: 'fairy-same-side-mirage', operationalNotation: 'TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Fairy Same Side Whirl', slug: 'fairy-same-side-whirl', operationalNotation: 'TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Fairy Spinning', slug: 'fairy-spinning' },
     { displayName: 'Fairy Spyro Mirage', slug: 'fairy-spyro-mirage', operationalNotation: 'TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Fear (Fairy Mirage)', slug: 'fear-fairy-mirage', operationalNotation: 'Toe > Same Out (DEX) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -1485,7 +1482,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Haze (Stepping Double Legover)', slug: 'haze-stepping-double-legover', operationalNotation: 'Clip > Op In (DEX) >> Same In (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Infracting', slug: 'infracting' },
     { displayName: 'Inspinning', slug: 'inspinning' },
-    { displayName: 'Inspinning Same Side Butterfly', slug: 'inspinning-same-side-butterfly', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Inspinning Same Side Illusion', slug: 'inspinning-same-side-illusion', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Inspinning Same Side Mirage', slug: 'inspinning-same-side-mirage', operationalNotation: 'CLIP > (front) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Jani Walker (Barraging Butterfly)', slug: 'jani-walker-barraging-butterfly', operationalNotation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
@@ -1506,6 +1502,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Paradox Blurry Whirl', slug: 'paradox-blurry-whirl', operationalNotation: 'CLIP > SAME IN [DEX] [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paradox High Plains Drifter (Paradox Double Drifter)', slug: 'paradox-high-plains-drifter-paradox-double-drifter', operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Paralax (Spyro Legover)', slug: 'paralax-spyro-legover', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
+    { displayName: 'Paratoxic (Paradox Miraging Symposium Whirl)', slug: 'paratoxic-paradox-miraging-symposium-whirl', operationalNotation: 'Clip >> Same In (DEX) > (no plant while) Op Front Whirl (DEX)(XDEX)(BOD)(PDX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Parkwalk (Pixie Same Side Butterfly)', slug: 'parkwalk-pixie-same-side-butterfly', operationalNotation: 'Toe > Same In (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Peeking (double spinning)', slug: 'peeking-double-spinning' },
     { displayName: 'Pixie Inspinning', slug: 'pixie-inspinning' },
@@ -1556,7 +1553,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Spyro Mirage', slug: 'spyro-mirage', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spyro Whirl', slug: 'spyro-whirl', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Stepping Opposite Reaper', slug: 'stepping-opposite-reaper', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Stepping Opposite Side Reverse Whirl', slug: 'stepping-opposite-side-reverse-whirl', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Stepping P.S. Whirling x-body Rake', slug: 'stepping-ps-whirling-x-body-rake', operationalNotation: 'CLIP > OP IN [DEX] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP X-BODY RAKE [XBD] [DEL] [DEX]', formulaProvenance: 'footbag.org' },
     { displayName: 'Superfly (Symposium Barfly)', slug: 'superfly-symposium-barfly', operationalNotation: 'Clip >> (no plant while) Same Out (DEX)(BOD) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Surge (Surging Paradox Mirage)', slug: 'surge-surging-paradox-mirage', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> Op In (DEX)(PDX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

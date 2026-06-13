@@ -1859,3 +1859,12 @@ pixie-same-side-illusion,operational_notation_source,,Source: footbag.org 3-ADD 
 pixie-double-switch-over,notation,,PIXIE DOUBLE SWITCH OVER,JOB per mechanical rule (canonical_name uppercased).
 pixie-double-switch-over,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],"Pixie entry-prefix on the double-switch-over body, mirroring pixie-double-leg-over. Bracket-count 4 == 4 ADD."
 pixie-double-switch-over,operational_notation_source,,Source: footbag.org double-switch-over base + pixie set entry.,Provenance citation for operational_notation.
+fairy-same-side-whirl,notation,,FAIRY SAME SIDE WHIRL,JOB per mechanical rule (canonical_name uppercased).
+fairy-same-side-whirl,operational_notation,,TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP CLIP [XBD] [DEL],footbag.org 4-ADD moves page. Bracket-count 4 == 4 ADD.
+fairy-same-side-whirl,operational_notation_source,,Source: footbag.org 4-ADD moves page.,Provenance citation for operational_notation.
+fairy-same-side-mirage,notation,,FAIRY SAME SIDE MIRAGE,JOB per mechanical rule (canonical_name uppercased).
+fairy-same-side-mirage,operational_notation,,TOE > SAME OUT [DEX] (plant) > SAME IN [DEX] > OP TOE [DEL],footbag.org 3-ADD moves page. Bracket-count 3 == 3 ADD.
+fairy-same-side-mirage,operational_notation_source,,Source: footbag.org 3-ADD moves page.,Provenance citation for operational_notation.
+paratoxic,notation,,PARATOXIC,JOB per mechanical rule (canonical_name uppercased).
+paratoxic,operational_notation,,CLIP > SAME IN [PDX] [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],footbag.org 6-ADD moves page. Bracket-count 6 == 6 ADD.
+paratoxic,operational_notation_source,,Source: footbag.org 6-ADD moves page.,Provenance citation for operational_notation.

@@ -263,7 +263,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Fairy Legover / Toe ss Eggbeater", "slug": "fairy-legover-toe-ss-eggbeater", "source": "PB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Fairy Merkon (Fairy Spinning Legover)", "slug": "fairy-merkon-fairy-spinning-legover", "source": "FB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Fairy near Pickup", "slug": "fairy-near-pickup", "source": "PB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Fairy Same Side Mirage", "slug": "fairy-same-side-mirage", "source": "FB", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Fairy Spinning Double Down (Fairy Tail)", "slug": "fairy-spinning-double-down-fairy-tail", "source": "SG", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Fairy Spinning Legover (Fairy Merkon)", "slug": "fairy-spinning-legover-fairy-merkon", "source": "SG", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Fairy ss Barrage", "slug": "fairy-ss-barrage", "source": "SG", "ecosystem": "fairy", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -375,7 +374,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Gyro Symposium Torque Screw (Moirius)", "slug": "gyro-symposium-torque-screw-moirius", "source": "SG", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Gyro Torque (Mobius)", "slug": "gyro-torque-mobius", "source": "SG", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Gyro Torque Screw (Moby Dick)", "slug": "gyro-torque-screw-moby-dick", "source": "SG", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Inspinning Same Side Butterfly", "slug": "inspinning-same-side-butterfly", "source": "FB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Inspinning Same Side Illusion", "slug": "inspinning-same-side-illusion", "source": "FB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Inspinning Same Side Mirage", "slug": "inspinning-same-side-mirage", "source": "FB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
   {"name": "Inward Gyro Torque (Inward Mobius)", "slug": "inward-gyro-torque-inward-mobius", "source": "SG", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive"},
@@ -989,7 +987,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Out(-In) Dex", "slug": "out-in-dex", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pandora", "slug": "pandora", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pandora`s Box", "slug": "pandora`s-box", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Paratoxic", "slug": "paratoxic", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Park Avenue", "slug": "park-avenue", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pdx Dada Curve", "slug": "pdx-dada-curve", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Pdx. Merlin", "slug": "pdx-merlin", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1397,7 +1394,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1322,
+    "total": 1319,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1406,7 +1403,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
     "promotionFrontier": 168,
-    "lexicalArchive": 1148,
+    "lexicalArchive": 1145,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 14,
@@ -1421,8 +1418,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 41
       },
       "alias": {
-        "names": 431,
-        "distinctStructures": 431
+        "names": 429,
+        "distinctStructures": 429
       },
       "equivalence": {
         "names": 0,
@@ -1433,8 +1430,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 4
       },
       "low_confidence": {
-        "names": 627,
-        "distinctStructures": 627
+        "names": 626,
+        "distinctStructures": 626
       },
       "doctrine_unresolved": {
         "names": 90,
@@ -1444,7 +1441,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "ready": 2,
     "frontier": 53,
     "doctrineBlocked": 203,
-    "folkUnresolved": 694,
+    "folkUnresolved": 691,
     "parserUnresolved": 370,
     "promotionReadyPct": 4,
     "doctrineBlockedPct": 15,
@@ -1453,9 +1450,9 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "canonicalCoveragePct": 21,
     "sources": {
       "SG": 579,
-      "FM": 373,
+      "FM": 372,
       "PB": 256,
-      "FB": 105,
+      "FB": 103,
       "MULTI": 9
     },
     "generatedOn": "2026-06-13"
