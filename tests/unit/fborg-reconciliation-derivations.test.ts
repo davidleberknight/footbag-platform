@@ -21,7 +21,7 @@ const APPROVED = [
   { slug: 'diving-clipper', adds: 3, notation: 'SET > DIVE [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'gyro-clipper',   adds: 3, notation: 'SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
   // deferred batch: clipper kick notation, fborg 2-ADD gaps, stepping/pixie
-  // clipper stall corrections, miraging/illusioning kick atoms.
+  // clipper stall corrections, miraging/atomic kick atoms.
   { slug: 'clipper',          adds: 1, notation: 'CLIP [XBD]' },
   { slug: 'dragon',           adds: 2, notation: 'SET > SAME OUT [XBD] [DEL]' },
   { slug: 'probe',            adds: 2, notation: 'SET > OP CLIP [XBD] [DEL]' },
@@ -29,7 +29,7 @@ const APPROVED = [
   { slug: 'stepping-clipper', adds: 3, notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'pixie-clipper',    adds: 3, notation: 'TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-kick',    adds: 1, notation: 'SET > OP IN [DEX]' },
-  { slug: 'illusioning-kick', adds: 1, notation: 'SET > OP OUT [DEX]' },
+  { slug: 'atomic-kick', adds: 1, notation: 'TOE > OP OUT [DEX]' },
   // missing-canonical creations (PassBack reconciliation): multiplicity +
   // atomic-prefix compounds. atomic-whirl held (overlaps the X-Dex migration).
   { slug: 'double-illusion',        adds: 3, notation: 'SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
