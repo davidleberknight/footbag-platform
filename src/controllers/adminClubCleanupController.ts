@@ -46,6 +46,23 @@ export const adminClubCleanupController = {
     }
   },
 
+  contactMembers(req: Request, res: Response, next: NextFunction): void {
+    const clubId = req.params.clubId;
+    try {
+      clubCleanupService.contactMembersToVolunteer(req.user!.userId, clubId);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        res.status(404).render('errors/not-found', {
+          seo:  { title: 'Page Not Found' },
+          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
+        });
+        return;
+      }
+      next(err);
+    }
+  },
+
   async promote(req: Request, res: Response, next: NextFunction): Promise<void> {
     const candidateId = req.params.candidateId;
     const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()

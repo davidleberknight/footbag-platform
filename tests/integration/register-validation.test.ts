@@ -32,6 +32,18 @@ function slugForEmail(email: string): string | undefined {
   }
 }
 
+function sexForEmail(email: string): string | null | undefined {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    const row = db
+      .prepare('SELECT sex FROM members WHERE login_email = ?')
+      .get(email.toLowerCase().trim()) as { sex: string | null } | undefined;
+    return row ? row.sex : undefined;
+  } finally {
+    db.close();
+  }
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
@@ -50,6 +62,7 @@ describe('registration validation boundaries', () => {
       email,
       password: 'a'.repeat(129),
       confirmPassword: 'a'.repeat(129),
+      sex: 'male',
     });
     expect(res.status, 'over-long password rejected').toBe(422);
     expect(res.text, 'error names the length limit').toMatch(/128|at most/i);
@@ -67,10 +80,59 @@ describe('registration validation boundaries', () => {
       email,
       password: 'a-valid-password',
       confirmPassword: 'a-valid-password',
+      sex: 'male',
     });
     expect(res.status, 'non-ASCII registration succeeds').toBe(303);
     const slug = slugForEmail(email);
     expect(slug, 'a fallback slug was generated').toBeDefined();
     expect(slug, 'fallback slug is the unique member_<hex> form').toMatch(/^member_[0-9a-f]{8}$/);
+  });
+});
+
+describe('registration sex field (competition eligibility)', () => {
+  it('rejects registration with no sex selected and creates no account', async () => {
+    const email = 'nosex@example.com';
+    const res = await register({
+      realName: 'Nosex Player',
+      displayName: 'Nosex Player',
+      slug: '',
+      email,
+      password: 'a-valid-password',
+      confirmPassword: 'a-valid-password',
+      sex: '',
+    });
+    expect(res.status, 'missing sex rejected').toBe(422);
+    expect(res.text, 'error names the sex selection').toMatch(/sex/i);
+    expect(slugForEmail(email), 'no member row was created').toBeUndefined();
+  });
+
+  it('rejects an out-of-domain sex value and creates no account', async () => {
+    const email = 'badsex@example.com';
+    const res = await register({
+      realName: 'Badsex Player',
+      displayName: 'Badsex Player',
+      slug: '',
+      email,
+      password: 'a-valid-password',
+      confirmPassword: 'a-valid-password',
+      sex: 'other',
+    });
+    expect(res.status, 'unrecognized sex rejected').toBe(422);
+    expect(slugForEmail(email), 'no member row was created').toBeUndefined();
+  });
+
+  it('stores the selected sex value on the new member', async () => {
+    const email = 'undisclosed@example.com';
+    const res = await register({
+      realName: 'Quiet Player',
+      displayName: 'Quiet Player',
+      slug: '',
+      email,
+      password: 'a-valid-password',
+      confirmPassword: 'a-valid-password',
+      sex: 'undisclosed',
+    });
+    expect(res.status, 'valid registration succeeds').toBe(303);
+    expect(sexForEmail(email), 'submitted sex is persisted').toBe('undisclosed');
   });
 });

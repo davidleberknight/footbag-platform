@@ -164,10 +164,30 @@
           />
         </div>
       </fieldset>
+
+      <fieldset class="form-fieldset">
+        <legend>Sex (competition eligibility)</legend>
+        <p class="text-muted fs-sm">Private: visible only to you and IFPA admins. Never shown on public pages, member search, or rosters. Used only for sex-based event-category eligibility.</p>
+        <div class="form-field">
+          <label>
+            <input type="radio" name="sex" value="male" {{#if (eq content.sex "male")}}checked{{/if}} />
+            Male
+          </label>
+          <label>
+            <input type="radio" name="sex" value="female" {{#if (eq content.sex "female")}}checked{{/if}} />
+            Female
+          </label>
+          <label>
+            <input type="radio" name="sex" value="undisclosed" {{#if (eq content.sex "undisclosed")}}checked{{/if}} />
+            Prefer not to say
+          </label>
+        </div>
+      </fieldset>
     </form>
 
       <fieldset class="form-fieldset">
         <legend>Privacy &amp; Contact</legend>
+        <p class="text-muted fs-sm">Contact details are never shown to the public. When you opt in, they are visible to logged-in members only.</p>
 
         <div class="form-field">
           <label for="phone">Phone (optional)</label>
@@ -180,14 +200,51 @@
             form="profileEditForm"
           />
         </div>
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="phoneVisible" value="0" form="profileEditForm" />
+            <input type="checkbox" name="phoneVisible" value="1" form="profileEditForm" {{#if content.phoneVisible}}checked{{/if}} />
+            Show my phone to logged-in members
+          </label>
+        </div>
 
         <div class="form-field">
-          <label for="emailVisibility">Email visibility</label>
-          <select id="emailVisibility" name="emailVisibility" form="profileEditForm">
+          <label for="whatsapp">WhatsApp (optional)</label>
+          <input
+            type="tel"
+            id="whatsapp"
+            name="whatsapp"
+            value="{{content.whatsapp}}"
+            autocomplete="tel"
+            form="profileEditForm"
+          />
+        </div>
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="whatsappVisible" value="0" form="profileEditForm" />
+            <input type="checkbox" name="whatsappVisible" value="1" form="profileEditForm" {{#if content.whatsappVisible}}checked{{/if}} />
+            Show my WhatsApp to logged-in members
+          </label>
+        </div>
+
+        <div class="form-field">
+          <label for="emailVisibility">Contact email visibility</label>
+          <select id="emailVisibility" name="emailVisibility" form="profileEditForm" {{#if content.emailVisibilityLocked}}disabled{{/if}}>
             <option value="private"{{#if (eq content.emailVisibility 'private')}} selected{{/if}}>Private (only you)</option>
             <option value="members"{{#if (eq content.emailVisibility 'members')}} selected{{/if}}>Members only</option>
-            <option value="public"{{#if (eq content.emailVisibility 'public')}} selected{{/if}}>Public</option>
           </select>
+          {{#if content.emailVisibilityLocked}}
+            <small class="form-hint">Required at Members only while you co-lead a club.</small>
+          {{/if}}
+        </div>
+
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="searchable" value="0" form="profileEditForm" />
+            <input type="checkbox" name="searchable" value="1" form="profileEditForm" {{#if content.searchable}}checked{{/if}} />
+            Allow other members to find me in member search
+          </label>
+          <small class="form-hint">When on, other members can find you in member search. Your profile stays reachable by direct link and visible to club co-members either way.</small>
         </div>
       </fieldset>
 

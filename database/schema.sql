@@ -67,8 +67,6 @@ CREATE TABLE clubs (
   region      TEXT,
   country     TEXT NOT NULL,
 
-  contact_email             TEXT,
-  whatsapp                  TEXT,
   external_url              TEXT,
   external_url_validated_at TEXT,
   -- Non-NULL when the boot scan rejected the seeded URL (a Safe Browsing match
@@ -1793,12 +1791,14 @@ CREATE TABLE members (
   city                    TEXT,
   region                  TEXT,
   country                 TEXT,
-  sex                     TEXT CHECK (sex IN ('male', 'female')),
+  sex                     TEXT CHECK (sex IN ('male', 'female', 'undisclosed')),
   phone                   TEXT,
   whatsapp                TEXT,
 
   email_visibility TEXT NOT NULL DEFAULT 'private'
-    CHECK (email_visibility IN ('private','members','public')),
+    CHECK (email_visibility IN ('private','members')),
+  phone_visible    INTEGER NOT NULL DEFAULT 0 CHECK (phone_visible IN (0,1)),
+  whatsapp_visible INTEGER NOT NULL DEFAULT 0 CHECK (whatsapp_visible IN (0,1)),
   searchable INTEGER NOT NULL DEFAULT 1 CHECK (searchable IN (0,1)),
 
   -- ON DELETE SET NULL: see section header comment.
@@ -2071,6 +2071,7 @@ CREATE TABLE historical_persons (
   bap_induction_year   INTEGER,
   hof_member         INTEGER NOT NULL DEFAULT 0,
   hof_induction_year INTEGER,
+  is_deceased        INTEGER NOT NULL DEFAULT 0 CHECK (is_deceased IN (0,1)),
   freestyle_sequences      INTEGER,
   freestyle_max_add        REAL,
   freestyle_unique_tricks  INTEGER,
@@ -2386,12 +2387,11 @@ CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
 -- SECTION 18: CLUBS & EVENTS — LEADERS, ORGANIZERS, ROSTER ACCESS, REGISTRATIONS
 -- =============================================================================
 
--- Club leadership assignments: one leader and up to 4 co-leaders per club
--- (max 5 total; application-enforced). DB enforces that only one member holds
--- role='leader' per club and that a member leads at most one club.
+-- Club leadership assignments: a flat set of equal co-leaders per club (max 5
+-- total; application-enforced). There is no head-leader role; every row is
+-- role='co-leader'.
 -- Uniqueness invariants (DB-enforced):
---   ux_one_leader_per_club        → only one member may hold role='leader' per club
---   ux_one_club_leader_per_member → a member may be 'leader' of at most one club
+--   ux_one_club_leader_per_member → a member co-leads at most one club
 --   ux_club_leaders               → a member appears at most once per club
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
 -- club_id reassignments that would exceed 5 total rows per club.
@@ -2404,15 +2404,14 @@ CREATE TABLE club_leaders (
   version    INTEGER NOT NULL DEFAULT 1,
   club_id    TEXT NOT NULL REFERENCES clubs(id),
   member_id  TEXT NOT NULL REFERENCES members(id),
-  role TEXT NOT NULL DEFAULT 'leader' CHECK (role IN ('leader','co-leader')),
+  role TEXT NOT NULL DEFAULT 'co-leader' CHECK (role IN ('co-leader')),
   added_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX ux_club_leaders               ON club_leaders(club_id, member_id);
 -- idx_club_leaders_club dropped (left-prefix redundant with ux_club_leaders)
-CREATE INDEX        idx_club_leaders_member        ON club_leaders(member_id);
-CREATE UNIQUE INDEX ux_one_leader_per_club         ON club_leaders(club_id)   WHERE role = 'leader';
-CREATE UNIQUE INDEX ux_one_club_leader_per_member  ON club_leaders(member_id) WHERE role = 'leader';
+-- idx_club_leaders_member dropped (left-prefix redundant with the member_id unique below)
+CREATE UNIQUE INDEX ux_one_club_leader_per_member  ON club_leaders(member_id);
 
 -- Event organizer assignments: one organizer and up to 4 co-organizers per event
 -- (max 5 total; application-enforced). DB enforces that only one member holds

@@ -62,6 +62,9 @@ const HP_LM_TAKEN  = 'hp-lm-taken-001';
 const LM_TAKEN     = 'LM-TAKEN-001';
 const LM_TAKEN_OWNER_ID = 'hpc-lmtakenowner';
 
+// HP marked deceased: not self-claimable even on a surname match.
+const HP_DECEASED  = 'hp-deceased-001';
+
 function claimerCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: CLAIMER_ID })}`;
 }
@@ -142,6 +145,16 @@ beforeAll(async () => {
     country: 'NZ', hof_member: 0, bap_member: 0,
   });
 
+  // Deceased HP carrying the claimer's surname: surname reconciliation would
+  // otherwise pass, so this isolates the deceased gate.
+  insertHistoricalPerson(testDb, {
+    person_id: HP_DECEASED,
+    person_name: 'David Mockingbird',
+    legacy_member_id: null,
+    country: 'NZ', hof_member: 0, bap_member: 0,
+    is_deceased: 1,
+  });
+
   const mod = await import('../../src/app');
   createApp = mod.createApp;
 });
@@ -205,6 +218,13 @@ describe('GET /history/:personId/claim', () => {
   it('unknown HP -> uniform claim-unavailable page (anti-enumeration: same as ineligible-HP responses)', async () => {
     const app = createApp();
     const res = await request(app).get('/history/does-not-exist/claim').set('Cookie', claimerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
+  });
+
+  it('deceased HP (surname match) -> uniform claim-unavailable page (a living member cannot claim a deceased identity)', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/history/${HP_DECEASED}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Claim unavailable');
   });
@@ -359,5 +379,28 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
     expect(res.text).toContain('does not match');
+  });
+
+  it('surname-matching member cannot POST-confirm a deceased HP even if they bypass the suppressed CTA', async () => {
+    const deceasedAdvHp = 'hp-deceased-adv';
+    insertHistoricalPerson(testDb, {
+      person_id: deceasedAdvHp, person_name: 'Jamie Mockingbird',
+      hof_member: 0, bap_member: 0, is_deceased: 1,
+    });
+    const freshClaimerId = insertMember(testDb, {
+      slug: 'hpc_deceased_adv', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
+      login_email: 'hpc-deceased-adv@example.com',
+    });
+    const cookie = `footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
+    const app = createApp();
+    const res = await request(app)
+      .post(`/history/${deceasedAdvHp}/claim/confirm`)
+      .set('Cookie', cookie).type('form').send({});
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('no longer available');
+
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(freshClaimerId) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
   });
 });

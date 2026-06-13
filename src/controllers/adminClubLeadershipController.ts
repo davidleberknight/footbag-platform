@@ -38,7 +38,6 @@ export const adminClubLeadershipController = {
         req.user!.userId,
         clubId,
         String(req.body.member_key ?? ''),
-        req.body.role === 'leader' ? 'leader' : 'co-leader',
         String(req.body.reason ?? ''),
         String(req.body.cap_override_reason ?? ''),
       );
@@ -61,26 +60,6 @@ export const adminClubLeadershipController = {
         clubId,
         String(req.body.member_id ?? ''),
         req.body.mode === 'remove_affiliation' ? 'remove_affiliation' : 'to_member',
-        String(req.body.reason ?? ''),
-      );
-      res.redirect(303, `/admin/clubs/${clubId}/leadership`);
-    } catch (err) {
-      if (err instanceof ValidationError || err instanceof NotFoundError) {
-        renderDetailError(res, clubId, err);
-        return;
-      }
-      handleControllerError(err, res, next, 'admin club leadership controller');
-    }
-  },
-
-  /** POST /admin/clubs/:clubId/leadership/contact */
-  contact(req: Request, res: Response, next: NextFunction): void {
-    const clubId = req.params.clubId ?? '';
-    try {
-      adminClubLeadershipService.updateContactEmail(
-        req.user!.userId,
-        clubId,
-        String(req.body.contact_email ?? ''),
         String(req.body.reason ?? ''),
       );
       res.redirect(303, `/admin/clubs/${clubId}/leadership`);

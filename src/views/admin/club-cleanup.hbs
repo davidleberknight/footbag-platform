@@ -71,6 +71,12 @@
                   <td class="text-muted fs-sm">{{this.detail}}</td>
                   <td class="fs-sm">{{this.recommendedAction}}</td>
                   <td>
+                    {{#if (eq this.predicate 'leaderless_active')}}
+                    <a href="/admin/clubs/{{this.clubId}}/leadership" class="btn btn-primary btn-sm">Add a co-leader</a>
+                    <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/contact-members" class="cleanup-action-form mt-1">
+                      <button type="submit" class="btn btn-outline btn-sm">Contact members</button>
+                    </form>
+                    {{/if}}
                     <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
                       <input type="hidden" name="predicate" value="{{this.predicate}}" />
                       <select name="action" class="cleanup-action-select">

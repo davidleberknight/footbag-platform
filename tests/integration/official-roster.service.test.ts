@@ -53,7 +53,7 @@ beforeAll(async () => {
     id: 'm-t1', slug: 't1', display_name: 'Alice Tier1',
     login_email: 'alice@example.com', city: 'Austin', country: 'US',
   });
-  setEmailVisibility.run('public', 'm-t1');
+  setEmailVisibility.run('members', 'm-t1');
   insertMemberTierGrant(db, {
     member_id: 'm-t1', new_tier_status: 'tier1', reason_code: 'purchase.tier1',
   });
@@ -314,7 +314,7 @@ describe('exportCsv', () => {
       display_name: 'Sneaky, "Display"',
       login_email: 'sneaky@example.com',
     });
-    db.prepare(`UPDATE members SET email_visibility = 'public' WHERE id = ?`)
+    db.prepare(`UPDATE members SET email_visibility = 'members' WHERE id = ?`)
       .run('m-comma');
     insertMemberTierGrant(db, {
       member_id: 'm-comma', new_tier_status: 'tier1',

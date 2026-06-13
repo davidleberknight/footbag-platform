@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import {
   account,
-  clubs,
   clubBootstrapLeaders,
   clubLeaders,
   clubBootstrapLeaderSignals,
@@ -690,7 +689,6 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
 }
 
 type ClubAffiliationsBranch =
-  | 'promoted_leader'
   | 'promoted_co_leader'
   | 'affiliated_only'
   | 'idempotent'
@@ -701,9 +699,7 @@ type ClubAffiliationsBranch =
 interface ClubAffiliationsResult {
   branch: ClubAffiliationsBranch;
   classification: 'strong' | 'weak' | 'none';
-  actualRole: 'leader' | 'co-leader' | null;
-  attemptedRole?: 'leader' | 'co-leader';
-  downgradeReason?: 'leader_slot_taken' | 'member_already_leader' | 'both' | null;
+  actualRole: 'co-leader' | null;
   resolvedClubId?: string | null;
   taskState: 'in_progress' | 'completed';
 }
@@ -916,9 +912,10 @@ function submitLeadershipResponse(
   }
 
   // 'confirm' OR 'correct': auto-promote regardless of classification.
-  // claimLeadership handles role downgrade to co-leader and the cap-
-  // exceeded affiliate-only fall-through. Admins can later promote
-  // affiliate-only members or reshape leadership via A_* admin powers.
+  // claimLeadership inserts a flat co-leader row, or falls through to
+  // affiliate-only when the club is at the cap or the member already co-leads
+  // another club. Admins can later add affiliate-only members as co-leaders or
+  // reshape leadership via A_* admin powers.
   // The promote writes (status, club_leaders, affiliation) are atomic via
   // claimLeadership's internal transaction; the task-complete + audit
   // writes that follow are non-transactional but follow the same
@@ -940,8 +937,6 @@ function submitLeadershipResponse(
       user_decision:    userDecision,
       promote_branch:   promote.branch,
       actual_role:      promote.actualRole,
-      attempted_role:   promote.attemptedRole,
-      downgrade_reason: promote.downgradeReason,
       club_id:          promote.clubId,
       club_leader_id:   promote.clubLeaderId,
       affiliation_id:   promote.affiliationId,
@@ -953,8 +948,6 @@ function submitLeadershipResponse(
     branch:          promote.branch,
     classification:  result.classification,
     actualRole:      promote.actualRole,
-    attemptedRole:   promote.attemptedRole,
-    downgradeReason: promote.downgradeReason,
     taskState,
   };
 }
@@ -1598,6 +1591,9 @@ export interface PathTwoLeadershipOffer {
 
 function listPathTwoLeadershipOffers(memberId: string): PathTwoLeadershipOffer[] {
   if (!hasTier1Benefits(memberId)) return [];
+  // A member co-leads at most one club; one who already co-leads cannot accept
+  // a leadership offer, so the offer is suppressed entirely.
+  if (clubLeaders.memberCoLeadsAnyClub.get(memberId) != null) return [];
   const rows = clubLeaders.listLeaderlessCurrentClubsForMember.all(memberId) as Array<{
     id: string;
     name: string;
@@ -1622,7 +1618,6 @@ function resolvePathTwoLeadership(
   const eligible = listPathTwoLeadershipOffers(memberId).some((o) => o.clubId === clubId);
   if (!eligible) return { status: 'not_eligible' };
 
-  const now = new Date().toISOString();
   if (decision === 'decline') {
     appendAuditEntry({
       actionType:    'club.leadership_path2_declined',
@@ -1636,43 +1631,11 @@ function resolvePathTwoLeadership(
     return { status: 'declined' };
   }
 
-  transaction(() => {
-    clubLeaders.insertClubLeader.run(
-      `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
-      now, 'onboarding_service', now, 'onboarding_service',
-      clubId, memberId, 'co-leader', now,
-    );
-    appendAuditEntry({
-      actionType:    'club.leadership_path2_accepted',
-      category:      'club',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'club',
-      entityId:      clubId,
-      reasonText:    null,
-      metadata:      { role: 'co-leader' },
-    });
-
-    // Revival: stepping up as leader makes it a live club. Path 2 offers
-    // cover active and inactive clubs; an inactive club returns to 'active'
-    // in the same transaction so the new leader's club is visible.
-    const club = clubs.findById.get(clubId) as
-      | { club_id: string; status: string }
-      | undefined;
-    if (club && club.status !== 'active') {
-      clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
-      appendAuditEntry({
-        actionType:    'club.revived_by_leadership_claim',
-        category:      'club_lifecycle',
-        actorType:     'member',
-        actorMemberId: memberId,
-        entityType:    'club',
-        entityId:      clubId,
-        metadata:      { prior_status: club.status, path: 'path2_offer' },
-      });
-    }
-  });
-  return { status: 'accepted' };
+  // Accept routes through the single volunteer write: eligibility, the
+  // 5-co-leader cap, the one-club fence, co-leader notification, club revival,
+  // and the audit row all live in volunteerToCoLeadClub.
+  const result = clubService.volunteerToCoLeadClub(memberId, clubId);
+  return result.branch === 'volunteered' ? { status: 'accepted' } : { status: 'not_eligible' };
 }
 
 export const memberOnboardingService = {

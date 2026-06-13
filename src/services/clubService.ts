@@ -7,9 +7,10 @@
  *   - Candidate promotion: a legacy club candidate becomes a live clubs row
  *     (admin override or wizard confirmation; ClubCleanupService and
  *     MemberOnboardingService delegate here)
- *   - Leader and co-leader management (including step-down)
+ *   - Co-leader management: a flat, equal set of co-leaders (creator is the
+ *     first; self-volunteer and invite-accept add more; step-down and leave
+ *     remove one's own)
  *   - Roster management (self-service join, leave, swap primary)
- *   - Operability enforcement at creation (contact email required)
  *
  * Does not own:
  *   - Media (MediaGalleryService)
@@ -17,29 +18,29 @@
  *
  * Required patterns:
  *   - SA only: no `deleted_at` on `clubs`; use `clubs_all` for archived queries.
- *   - One `role='leader'` per club; a member can be leader of at most one club; max
- *     5 leaders per club; anti-self-removal (sole leader cannot remove themselves).
+ *   - Co-leaders are a flat equal set (`role='co-leader'`), max 5 per club; a
+ *     member co-leads at most one club (`ux_one_club_leader_per_member`). A
+ *     co-leader acts only on themselves (edit own contact, step down, leave);
+ *     removing another co-leader is admin-only. Zero co-leaders is a tolerated
+ *     leaderless state: the club persists, stays joinable, and stays listed.
  *   - Standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at
  *     creation; permanent (not HD).
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier.
- *   - Contact email is required at creation: every new club starts operable.
- *     WhatsApp is optional and never substitutes for the email. Promoted
- *     candidates are the exception: contact fields start empty and the
- *     hashtag derives from the pipeline-parity city-first cascade, with the
- *     club id derived deterministically from the legacy key so promotion is
- *     idempotent and concurrency-safe (PK collision resolves as
- *     already-promoted).
+ *   - A club has no club-level contact field; it is reachable through its
+ *     co-leaders' own contact. The creator's own contact serves the new club,
+ *     so creation requires no contact field. Promoted candidates derive their
+ *     hashtag from the pipeline-parity city-first cascade, with the club id
+ *     derived deterministically from the legacy key so promotion is idempotent
+ *     and concurrency-safe (PK collision resolves as already-promoted).
  *   - A successful leadership claim returns a club of any status to 'active'
  *     (revival); a new current affiliation revives an inactive club.
  *   - News items emitted via `NewsService.emitNewsItem` only.
- *   - Leader contact exposure (`showContact` on `ClubLeader`) is role-based
- *     and member-scoped: current (claimed/assigned) leaders' emails render to
- *     authenticated viewers only; provisional bootstrap entries never expose
- *     contact. Club contact email and WhatsApp follow the same
- *     member-visible rule. On the club detail page, leader identities are
- *     member-visible too: the view-model carries an empty leaders list for
- *     anonymous viewers.
+ *   - Co-leader contact exposure (`showContact` on `ClubLeader`) is role-based
+ *     and member-scoped: current co-leaders' emails render to authenticated
+ *     viewers only; provisional bootstrap entries never expose contact. On the
+ *     club detail page, leader identities are member-visible too: the
+ *     view-model carries an empty leaders list for anonymous viewers.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
  *     rendering path: it surfaces identity (display name, role, status), not
  *     authority. Claiming a `club_bootstrap_leaders` row links member identity
@@ -91,7 +92,8 @@ import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
-import { applyClubJoin as applyActivePlayerClubJoin } from './activePlayerService';
+import { applyClubJoin as applyActivePlayerClubJoin, getStatus as getActivePlayerStatus } from './activePlayerService';
+import { getTierStatus } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode } from './countryUtils';
@@ -162,6 +164,15 @@ type CreateClubResult =
   | { branch: 'exact_name_exists'; existingClubName: string; existingClubKey: string }
   | { branch: 'near_matches_found'; nearMatches: ClubNearMatch[] }
   | { branch: 'tag_conflict'; tagNormalized: string };
+
+type VolunteerResult =
+  | { branch: 'volunteered'; clubLeaderId: string }
+  | { branch: 'club_not_found' }
+  | { branch: 'not_member' }
+  | { branch: 'not_eligible' }
+  | { branch: 'already_coleader' }
+  | { branch: 'coleads_other_club' }
+  | { branch: 'cap_reached' };
 
 /**
  * Conservative name normalization for the near-match warning: lowercase,
@@ -318,14 +329,20 @@ export interface PublicClubDetail extends PublicClubSummary {
   countrySlug: string;
   members: ClubMemberSummary[]; // full roster: confirmed members plus 'pending' legacy affiliations labeled unconfirmed
   leaders: ClubLeader[];
-  // Club contact channels, member-visible by role: populated only for
-  // authenticated viewers; always null for the anonymous public.
-  contactEmail: string | null;
-  whatsapp: string | null;
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
-  /** Leaders edit club content directly; there is no suggestion loop. */
+  /** Co-leaders edit club content directly; there is no suggestion loop. */
   viewerIsLeader: boolean;
+  // No live co-leader: drives the "could use a co-leader" nudge above the
+  // standing volunteer affordance. Computed from live co-leaders only.
+  isLeaderless: boolean;
+  // Standing volunteer-to-co-lead affordance: true only for an authenticated
+  // viewer who passes the full volunteerToCoLeadClub eligibility gate.
+  viewerCanVolunteer: boolean;
+  volunteerHref: string | null;
+  // Invite-a-member-to-co-lead control: shown to a viewer who already co-leads
+  // this club. The invite is an email pointing at the volunteer affordance.
+  inviteHref: string | null;
   contentEditHref: string | null;
   joinHref: string | null;
   viewGalleryHref: string | null;
@@ -582,11 +599,13 @@ function toPublicClubDetail(
     description: row.description,
     countrySlug: slugifyCountry(row.country),
     members,
-    contactEmail: null,
-    whatsapp: null,
     viewerIsMember: false,
     viewerCanJoin: false,
     viewerIsLeader: false,
+    isLeaderless: false,
+    viewerCanVolunteer: false,
+    volunteerHref: null,
+    inviteHref: null,
     contentEditHref: null,
     joinHref: null,
     viewGalleryHref: null,
@@ -927,6 +946,46 @@ function enqueueClubMembershipEmails(opts: {
   }
 }
 
+// Notify a club's existing co-leaders that a member self-added to the
+// leadership team. Best-effort after the volunteer write commits.
+function enqueueVolunteerLeadershipEmails(opts: {
+  memberId: string;
+  clubId: string;
+  clubName: string;
+  clubLeaderId: string;
+}): void {
+  try {
+    const comms = getCommunicationService();
+    const member = account.findContactInfoById.get(opts.memberId) as
+      | { id: string; display_name: string; login_email: string | null }
+      | undefined;
+    const leaders = clubLeaders.listCurrentLeadersForClubPage.all(opts.clubId) as Array<{
+      member_id: string; display_name: string; login_email: string | null;
+    }>;
+    const joinerName = member?.display_name ?? 'A member';
+
+    for (const leader of leaders) {
+      if (!leader.login_email || leader.member_id === opts.memberId) continue;
+      comms.enqueueEmail({
+        idempotencyKey: `club-coleader-volunteered:${opts.clubLeaderId}:leader:${leader.member_id}`,
+        recipientEmail: leader.login_email,
+        recipientMemberId: leader.member_id,
+        subject: `${joinerName} is now a co-leader of ${opts.clubName}`,
+        bodyText:
+          `Hi ${leader.display_name},\n\n` +
+          `${joinerName} volunteered to co-lead your club "${opts.clubName}" and is now part of the leadership team.\n\n` +
+          `You can review the co-leaders on the club page.\n\n` +
+          `-- IFPA platform`,
+      });
+    }
+  } catch (err) {
+    logger.warn('club co-leader volunteer notification enqueue failed', {
+      clubId: opts.clubId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
   resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null): ClubRouteResult {
@@ -1230,12 +1289,10 @@ export class ClubService {
       // full leader set; its chips render only in the curator panel.
       const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : [], qcPanel);
 
-      // Club contact channels are member-visible by role: authenticated
-      // viewers see them; the anonymous public never does.
-      if (isAuthenticated) {
-        club.contactEmail = row.contact_email ?? null;
-        club.whatsapp = row.whatsapp ?? null;
-      }
+      // Leaderless = no live co-leader. Bootstrap/affiliation provisional
+      // entries are historical display, not operational leadership, so they do
+      // not count here.
+      club.isLeaderless = liveLeaders.length === 0;
 
       const tagRow = mediaTags.findTagByNormalized.get(row.tag_normalized) as { id: string } | undefined;
       if (tagRow) {
@@ -1257,13 +1314,30 @@ export class ClubService {
           club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
         }
 
-        // Leaders edit club content directly; other members reach club
-        // leadership out of band, so no suggestion affordance is shaped.
+        // Co-leaders edit club content directly and can invite a member to
+        // co-lead; other eligible members reach leadership via the volunteer
+        // affordance below.
         const viewerLeadership = clubLeaders.memberInClubLeadership.get(row.club_id, viewerMemberId) as
           | { id: string } | undefined;
         club.viewerIsLeader = viewerLeadership != null;
         if (club.viewerIsLeader) {
           club.contentEditHref = `/clubs/${encodeURIComponent(clubKey)}/content/edit`;
+          club.inviteHref = `/clubs/${encodeURIComponent(clubKey)}/invite`;
+        }
+
+        // Standing volunteer affordance: shown only to a current member who
+        // passes the full volunteerToCoLeadClub gate (Tier 1 benefits, not
+        // already co-leading another club, club under the 5-co-leader cap, and
+        // not already a co-leader here).
+        if (club.viewerIsMember && !club.viewerIsLeader && liveLeaders.length < 5) {
+          const tier = getTierStatus(viewerMemberId);
+          const ap = getActivePlayerStatus(viewerMemberId);
+          const hasTier1Benefits = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
+          const coLeadsElsewhere = !!(clubLeaders.memberCoLeadsAnyClub.get(viewerMemberId) as { x: number } | undefined);
+          if (hasTier1Benefits && !coLeadsElsewhere) {
+            club.viewerCanVolunteer = true;
+            club.volunteerHref = `/clubs/${encodeURIComponent(clubKey)}/volunteer`;
+          }
         }
       }
 
@@ -1290,26 +1364,25 @@ export class ClubService {
   }
 
   /**
-   * Promote a bootstrap leader candidate to live leadership and stamp the
+   * Promote a bootstrap leader candidate to a live co-leader and stamp the
    * member's affiliation. Called by the wizard's 'club_affiliations'
-   * confirm/correct branches.
+   * confirm/correct branches. This bootstrap claim is tier-exempt: a legacy
+   * leader reclaims their own club regardless of tier.
    *
    * Behavior:
    *   - Marks `club_bootstrap_leaders.status='claimed'` + stamps claimed_member_id.
    *   - Inserts `member_club_affiliations` (source='legacy_claim', is_current=1).
    *     Idempotent: existing affiliation is left in place.
-   *   - Inserts `club_leaders` row with the bootstrap row's role. Role downgrade
-   *     to 'co-leader' if the club already has a `role='leader'` row OR if this
-   *     member is already `role='leader'` of another club (schema partial-unique
-   *     `ux_one_leader_per_club` and `ux_one_club_leader_per_member`).
-   *   - Application cap: max 5 total leadership rows (leader + co-leaders) per
-   *     club. When the cap is reached, the affiliation still lands; the
-   *     club_leaders insert is skipped. Branch reports `affiliated_only` so the
-   *     caller can surface "you're a club member; an admin can grant leadership
-   *     later" in the wizard UX. Admins have full control via existing A_*
-   *     user stories to retroactively add the member as a leader.
-   *   - Idempotency: if this member is already in the club's leadership
-   *     (any role), the existing row is preserved; branch reports `idempotent`.
+   *   - Inserts a flat `club_leaders` co-leader row. A member co-leads at most
+   *     one club (`ux_one_club_leader_per_member`), so a member who already
+   *     co-leads another club is affiliated here but not made a co-leader;
+   *     branch reports `affiliated_only`. An admin can resolve the contention
+   *     via `A_Reassign_Club_Leader`.
+   *   - Application cap: max 5 co-leaders per club. At the cap the affiliation
+   *     still lands and the club_leaders insert is skipped; branch reports
+   *     `affiliated_only`.
+   *   - Idempotency: if this member already co-leads the club, the existing row
+   *     is preserved; branch reports `idempotent`.
    *
    * All writes happen in a single transaction so a partial failure rolls back.
    */
@@ -1317,13 +1390,11 @@ export class ClubService {
     bootstrapLeaderId: string,
     actorMemberId: string,
   ): {
-    branch: 'promoted_leader' | 'promoted_co_leader' | 'affiliated_only' | 'idempotent';
+    branch: 'promoted_co_leader' | 'affiliated_only' | 'idempotent';
     clubId: string;
     clubLeaderId: string | null;
     affiliationId: string | null;
-    actualRole: 'leader' | 'co-leader' | null;
-    attemptedRole: 'leader' | 'co-leader';
-    downgradeReason: 'leader_slot_taken' | 'member_already_leader' | 'both' | null;
+    actualRole: 'co-leader' | null;
   } {
     const leader = clubBootstrapLeaders.findById.get(bootstrapLeaderId) as
       | ClubBootstrapLeaderRow
@@ -1338,14 +1409,12 @@ export class ClubService {
     }
 
     const clubId = leader.club_id;
-    const attemptedRole: 'leader' | 'co-leader' = leader.role;
     const now = new Date().toISOString();
 
-    let branch:        'promoted_leader' | 'promoted_co_leader' | 'affiliated_only' | 'idempotent' = 'idempotent';
-    let actualRole:    'leader' | 'co-leader' | null = null;
+    let branch:        'promoted_co_leader' | 'affiliated_only' | 'idempotent' = 'idempotent';
+    let actualRole:    'co-leader' | null = null;
     let clubLeaderId:  string | null = null;
     let affiliationId: string | null = null;
-    let downgradeReason: 'leader_slot_taken' | 'member_already_leader' | 'both' | null = null;
 
     try {
       transaction(() => {
@@ -1360,16 +1429,16 @@ export class ClubService {
           );
         }
 
-        // Idempotency: member already in this club's leadership? Preserve existing row.
+        // Idempotency: member already co-leads this club? Preserve existing row.
         const existing = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-          | { id: string; role: 'leader' | 'co-leader' }
+          | { id: string; role: 'co-leader' }
           | undefined;
         if (existing) {
           branch = 'idempotent';
           actualRole = existing.role;
           clubLeaderId = existing.id;
         } else {
-          // App-level 5-leader cap. Best-effort under better-sqlite3's
+          // App-level 5-co-leader cap. Best-effort under better-sqlite3's
           // serialized writes; not schema-enforced. Two concurrent claims
           // could theoretically push count to 6, but BetterSqlite3 serializes
           // write transactions per process, so the race window only opens
@@ -1379,54 +1448,23 @@ export class ClubService {
             branch = 'affiliated_only';
             actualRole = null;
           } else {
-            // Pre-check downgrade (visible writes by this transaction): if the
-            // leader slot is already taken OR this member is already lead of
-            // another club, target co-leader from the start. Record which
-            // condition fired so audit metadata can distinguish "club already
-            // has a leader" from "you already lead elsewhere".
-            let targetRole: 'leader' | 'co-leader' = attemptedRole;
-            if (targetRole === 'leader') {
-              const slotTaken = clubLeaders.hasLeader.get(clubId) as { x: number } | undefined;
-              const memberLeads = clubLeaders.memberIsLeaderSomewhere.get(actorMemberId) as
-                | { x: number } | undefined;
-              if (slotTaken && memberLeads) {
-                targetRole = 'co-leader';
-                downgradeReason = 'both';
-              } else if (slotTaken) {
-                targetRole = 'co-leader';
-                downgradeReason = 'leader_slot_taken';
-              } else if (memberLeads) {
-                targetRole = 'co-leader';
-                downgradeReason = 'member_already_leader';
-              }
-            }
             clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
             try {
               clubLeaders.insertClubLeader.run(
                 clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
-                clubId, actorMemberId, targetRole, now,
+                clubId, actorMemberId, 'co-leader', now,
               );
+              actualRole = 'co-leader';
+              branch = 'promoted_co_leader';
             } catch (err) {
-              // Race-safe retry: if the leader slot was grabbed concurrently
-              // (ux_one_leader_per_club) OR this member became a leader of
-              // another club concurrently (ux_one_club_leader_per_member),
-              // downgrade to co-leader and re-insert. Only retry once and
-              // only when the original attempt was for 'leader'. The
-              // downgradeReason for race-retry is recorded as
-              // 'leader_slot_taken' since per-club slot races dominate;
-              // per-member races require a member to be claiming two clubs
-              // in the same instant, which is structurally rare.
-              if (!isUniqueViolation(err) || targetRole !== 'leader') throw err;
-              targetRole = 'co-leader';
-              downgradeReason ??= 'leader_slot_taken';
-              clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-              clubLeaders.insertClubLeader.run(
-                clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
-                clubId, actorMemberId, targetRole, now,
-              );
+              // A member co-leads at most one club (ux_one_club_leader_per_member).
+              // A member already co-leading another club cannot co-lead this one;
+              // they still become a club affiliate below.
+              if (!isUniqueViolation(err)) throw err;
+              clubLeaderId = null;
+              actualRole = null;
+              branch = 'affiliated_only';
             }
-            actualRole = targetRole;
-            branch = targetRole === 'leader' ? 'promoted_leader' : 'promoted_co_leader';
           }
         }
 
@@ -1476,9 +1514,27 @@ export class ClubService {
       throw err;
     }
 
+    if (affiliationId) {
+      try {
+        applyActivePlayerClubJoin(actorMemberId, actorMemberId, affiliationId);
+      } catch (err) {
+        // AP grant is best-effort and idempotent (once per member, lifetime);
+        // the bootstrap claim stands regardless. Record so a systematic break alarms.
+        recordOperationalError({
+          actionType: 'club.active_player_grant_failed',
+          category: 'club_membership',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'member_club_affiliation',
+          entityId: affiliationId,
+          reasonText: 'Active Player grant on bootstrap leadership claim failed; claim committed regardless.',
+          cause: err,
+        });
+      }
+    }
+
     return {
       branch, clubId, clubLeaderId, affiliationId, actualRole,
-      attemptedRole, downgradeReason,
     };
   }
 
@@ -1665,6 +1721,25 @@ export class ClubService {
       };
     }
 
+    if (newAffiliationId) {
+      try {
+        applyActivePlayerClubJoin(actorMemberId, actorMemberId, newAffiliationId);
+      } catch (err) {
+        // AP grant is best-effort and idempotent (once per member, lifetime);
+        // the affiliation stands regardless. Record so a systematic break alarms.
+        recordOperationalError({
+          actionType: 'club.active_player_grant_failed',
+          category: 'club_membership',
+          actorType: 'member',
+          actorMemberId,
+          entityType: 'member_club_affiliation',
+          entityId: newAffiliationId,
+          reasonText: 'Active Player grant on legacy-affiliation confirm failed; affiliation committed regardless.',
+          cause: err,
+        });
+      }
+    }
+
     return {
       branch:           'confirmed',
       affiliationRowId,
@@ -1760,7 +1835,7 @@ export class ClubService {
           clubId, now, 'club_service', now, 'club_service',
           candidate.display_name, candidate.description ?? '',
           candidate.city ?? '', candidate.region, candidate.country ?? '',
-          null, null, tagId,
+          tagId,
         );
         if (externalUrl) {
           clubContent.updateClubExternalUrl.run(externalUrl, now, now, 'club_service', clubId);
@@ -1836,8 +1911,6 @@ export class ClubService {
       city: string;
       region: string;
       country: string;
-      contactEmail: string;
-      whatsapp: string;
       slug: string;
       /** Set when the creator saw the near-match warning and chose to proceed. */
       confirmNearMatches?: boolean;
@@ -1848,19 +1921,12 @@ export class ClubService {
     const city = input.city.trim();
     const region = input.region.trim() || null;
     const country = input.country.trim();
-    const contactEmail = input.contactEmail.trim() || null;
-    const whatsapp = input.whatsapp.trim() || null;
 
     const fieldErrors: Record<string, string> = {};
     if (!name) fieldErrors.name = 'Club name is required.';
     else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
     if (!city) fieldErrors.city = 'City is required.';
     if (!country) fieldErrors.country = 'Country is required.';
-    if (!contactEmail) {
-      fieldErrors.contactEmail = 'Contact email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-      fieldErrors.contactEmail = 'Enter a valid email address.';
-    }
 
     let slug = input.slug.trim().toLowerCase();
     if (!slug) {
@@ -1889,10 +1955,11 @@ export class ClubService {
       });
     }
 
-    const leaderRow = clubLeaders.memberIsLeaderSomewhere.get(actorMemberId) as { x: number } | undefined;
-    if (leaderRow) {
-      const clubNameRow = clubLeaders.leaderClubNameForMember.get(actorMemberId) as { club_name: string } | undefined;
-      return { branch: 'already_leader', existingClubName: clubNameRow?.club_name ?? 'another club' };
+    // A member co-leads at most one club; the creator becomes the new club's
+    // first co-leader, so a member who already co-leads elsewhere cannot create.
+    const clubNameRow = clubLeaders.leaderClubNameForMember.get(actorMemberId) as { club_name: string } | undefined;
+    if (clubNameRow) {
+      return { branch: 'already_leader', existingClubName: clubNameRow.club_name };
     }
 
     const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
@@ -1937,11 +2004,11 @@ export class ClubService {
         clubs.insertClub.run(
           clubId, now, 'club_service', now, 'club_service',
           name, description, city, region, country,
-          contactEmail, whatsapp, tagId,
+          tagId,
         );
         clubLeaders.insertClubLeader.run(
           clubLeaderId, now, 'club_service', now, 'club_service',
-          clubId, actorMemberId, 'leader', now,
+          clubId, actorMemberId, 'co-leader', now,
         );
         memberClubAffiliations.insertAffiliation.run(
           affiliationId, now, 'club_service', now, 'club_service',
@@ -2127,7 +2194,7 @@ export class ClubService {
     actorMemberId: string,
     clubId: string,
   ): {
-    branch: 'left' | 'sole_leader_blocked' | 'not_member';
+    branch: 'left' | 'not_member';
     remainingClubName: string | null;
   } {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
@@ -2136,14 +2203,10 @@ export class ClubService {
       return { branch: 'not_member', remainingClubName: null };
     }
 
+    // A co-leader who leaves also vacates leadership; the last co-leader out
+    // leaves the club leaderless, a tolerated state (no sole-leader block).
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-      | { id: string; role: 'leader' | 'co-leader' } | undefined;
-    if (leadership && leadership.role === 'leader') {
-      const otherLeaders = (clubLeaders.countOtherLeadersByClub.get(clubId, actorMemberId) as { c: number }).c;
-      if (otherLeaders === 0) {
-        return { branch: 'sole_leader_blocked', remainingClubName: null };
-      }
-    }
+      | { id: string; role: 'co-leader' } | undefined;
 
     const now = new Date().toISOString();
     let remainingClubName: string | null = null;
@@ -2291,38 +2354,223 @@ export class ClubService {
     });
   }
 
+  /**
+   * A current member with Tier 1 benefits self-adds as a co-leader. Immediate,
+   * no approval step. This single write backs both the onboarding wizard's
+   * leadership-assumption offer and the standing club-page volunteer affordance.
+   *
+   * Eligibility (all required): the actor is a current confirmed member of the
+   * club; has Tier 1 benefits (Tier 1+ OR Active Player); does not already
+   * co-lead another club (a member co-leads at most one); the club is under the
+   * 5-co-leader cap; and the actor does not already co-lead this club.
+   *
+   * On a self-add to a club that already has co-leaders, the existing
+   * co-leaders are notified. A member stepping up is a positive viability
+   * signal: an inactive club returns to 'active' in the same transaction. The
+   * add is audit-logged.
+   */
+  volunteerToCoLeadClub(
+    actorMemberId: string,
+    clubId: string,
+  ): VolunteerResult {
+    const club = clubs.findById.get(clubId) as
+      | { club_id: string; name: string; status: string } | undefined;
+    if (!club || club.status === 'archived') {
+      return { branch: 'club_not_found' };
+    }
+
+    const affiliation = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+      | { id: string } | undefined;
+    if (!affiliation) {
+      return { branch: 'not_member' };
+    }
+
+    const here = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string } | undefined;
+    if (here) {
+      return { branch: 'already_coleader' };
+    }
+
+    // Tier 1 benefits = Tier 1+ OR an active Active-Player period.
+    const tier = getTierStatus(actorMemberId);
+    const ap = getActivePlayerStatus(actorMemberId);
+    const hasTier1Benefits = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
+    if (!hasTier1Benefits) {
+      return { branch: 'not_eligible' };
+    }
+
+    const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(actorMemberId) as
+      | { x: number } | undefined;
+    if (coLeadsElsewhere) {
+      return { branch: 'coleads_other_club' };
+    }
+
+    const existingCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+    if (existingCount >= 5) {
+      return { branch: 'cap_reached' };
+    }
+
+    const now = new Date().toISOString();
+    const clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    try {
+      transaction(() => {
+        clubLeaders.insertClubLeader.run(
+          clubLeaderId, now, 'club_service', now, 'club_service',
+          clubId, actorMemberId, 'co-leader', now,
+        );
+        appendAuditEntry({
+          actionType: 'club.coleader_volunteered',
+          category:   'club_leadership',
+          actorType:  'member',
+          actorMemberId,
+          entityType: 'club_leader',
+          entityId:   clubLeaderId,
+          metadata:   { club_id: clubId, club_name: club.name },
+        });
+        // A member stepping up to co-lead is a positive viability signal; an
+        // inactive club returns to 'active' in the same transaction.
+        if (club.status === 'inactive') {
+          clubs.updateStatus.run('active', now, 'club_service', clubId);
+          appendAuditEntry({
+            actionType: 'club.revived_by_leadership_claim',
+            category:   'club_lifecycle',
+            actorType:  'member',
+            actorMemberId,
+            entityType: 'club',
+            entityId:   clubId,
+            metadata:   { prior_status: 'inactive', club_leader_id: clubLeaderId },
+          });
+        }
+      });
+    } catch (err) {
+      // A member co-leads at most one club (ux_one_club_leader_per_member); a
+      // co-lead grabbed elsewhere between the pre-check and the insert lands here.
+      if (isUniqueViolation(err)) {
+        return { branch: 'coleads_other_club' };
+      }
+      throw err;
+    }
+
+    // Existing co-leaders are notified only when the club already had some.
+    if (existingCount > 0) {
+      enqueueVolunteerLeadershipEmails({
+        memberId: actorMemberId,
+        clubId,
+        clubName: club.name,
+        clubLeaderId,
+      });
+    }
+
+    return { branch: 'volunteered', clubLeaderId };
+  }
+
+  /**
+   * A co-leader invites a member to co-lead. The invite is an email, not a
+   * stored handshake: no pending row is written. The member accepts by logging
+   * in and using the standing volunteer affordance (volunteerToCoLeadClub),
+   * which is itself the consent and the one-club-cap enforcement point. The
+   * email carries no link (anti-phishing); it gives precise log-in-and-navigate
+   * instructions. The send is audit-logged.
+   */
+  inviteToCoLeadClub(
+    actorMemberId: string,
+    clubId: string,
+    inviteeKey: string,
+  ): { branch: 'sent' | 'not_leader' | 'member_not_found' | 'already_coleader' | 'no_email' } {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string } | undefined;
+    if (!leadership) {
+      return { branch: 'not_leader' };
+    }
+
+    const key = inviteeKey.trim();
+    const invitee = clubLeaders.findMemberByKeyForAdmin.get(key, key) as
+      | { id: string; display_name: string; slug: string } | undefined;
+    if (!invitee) {
+      return { branch: 'member_not_found' };
+    }
+
+    const already = clubLeaders.memberInClubLeadership.get(clubId, invitee.id) as
+      | { id: string } | undefined;
+    if (already) {
+      return { branch: 'already_coleader' };
+    }
+
+    const club = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
+    if (!club) {
+      return { branch: 'not_leader' };
+    }
+
+    const contact = account.findContactInfoById.get(invitee.id) as
+      | { login_email: string | null } | undefined;
+    if (!contact?.login_email) {
+      return { branch: 'no_email' };
+    }
+
+    const now = new Date().toISOString();
+    try {
+      const comms = getCommunicationService();
+      comms.enqueueEmail({
+        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}:${now}`,
+        recipientEmail: contact.login_email,
+        recipientMemberId: invitee.id,
+        subject: `You're invited to co-lead ${club.name}`,
+        bodyText:
+          `Hi ${invitee.display_name},\n\n` +
+          `A co-leader of the footbag club "${club.name}" invited you to join its leadership as a co-leader.\n\n` +
+          `Co-leaders share their contact email with other logged-in members and help keep the club's page up to date.\n\n` +
+          `To accept, log in to your account, open Clubs, find "${club.name}", and choose "Volunteer to co-lead". You must be a current member of the club with Tier 1 benefits, and a member can co-lead one club at a time.\n\n` +
+          `-- IFPA platform`,
+      });
+    } catch (err) {
+      logger.warn('club co-leader invite enqueue failed', {
+        clubId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    appendAuditEntry({
+      actionType: 'club.coleader_invited',
+      category:   'club_leadership',
+      actorType:  'member',
+      actorMemberId,
+      entityType: 'member',
+      entityId:   invitee.id,
+      metadata:   { club_id: clubId, club_name: club.name, invitee_member_id: invitee.id },
+    });
+
+    return { branch: 'sent' };
+  }
+
+  /**
+   * A co-leader steps down: their own `club_leaders` row is removed while their
+   * club affiliation is preserved (they remain a member). A co-leader acts only
+   * on themselves; the last co-leader stepping down leaves the club leaderless,
+   * a tolerated state. Removing another co-leader is admin-only.
+   */
   stepDownFromLeader(
     actorMemberId: string,
     clubId: string,
   ): {
-    branch: 'stepped_down' | 'sole_leader_blocked' | 'not_leader';
+    branch: 'stepped_down' | 'not_leader';
   } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+      | { id: string; role: 'co-leader' } | undefined;
     if (!leadership) {
       return { branch: 'not_leader' };
     }
-    if (leadership.role !== 'leader') {
-      return { branch: 'not_leader' };
-    }
 
-    const otherLeaders = (clubLeaders.countOtherLeadersByClub.get(clubId, actorMemberId) as { c: number }).c;
-    if (otherLeaders === 0) {
-      return { branch: 'sole_leader_blocked' };
-    }
-
-    const now = new Date().toISOString();
     transaction(() => {
-      clubLeaders.updateRole.run('co-leader', now, 'club_service', actorMemberId, clubId);
+      clubLeaders.removeByMemberAndClub.run(actorMemberId, clubId);
 
       appendAuditEntry({
-        actionType: 'club.leader_stepped_down',
+        actionType: 'club.coleader_stepped_down',
         category: 'club_leadership',
         actorType: 'member',
         actorMemberId,
         entityType: 'club_leader',
         entityId: leadership.id,
-        metadata: { club_id: clubId, old_role: 'leader', new_role: 'co-leader' },
+        metadata: { club_id: clubId },
       });
     });
 

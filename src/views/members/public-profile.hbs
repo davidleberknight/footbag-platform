@@ -24,10 +24,18 @@
     </div>
     {{/if}}
 
-    {{#if content.contactEmail}}
+    {{#if (or content.contactEmail (or content.contactPhone content.contactWhatsapp))}}
     <div class="profile-section">
       <h2 class="profile-section-heading">Contact</h2>
-      <p><a href="mailto:{{content.contactEmail}}">{{content.contactEmail}}</a></p>
+      {{#if content.contactEmail}}
+        <p><a href="mailto:{{content.contactEmail}}">{{content.contactEmail}}</a></p>
+      {{/if}}
+      {{#if content.contactPhone}}
+        <p>Phone: {{content.contactPhone}}</p>
+      {{/if}}
+      {{#if content.contactWhatsapp}}
+        <p>WhatsApp: {{content.contactWhatsapp}}</p>
+      {{/if}}
     </div>
     {{/if}}
 

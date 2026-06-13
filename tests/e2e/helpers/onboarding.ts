@@ -10,6 +10,7 @@ import {
   insertHistoricalPerson,
   insertTag,
   insertClub,
+  insertClubLeader,
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
   insertLegacyClubCandidate,
@@ -167,7 +168,7 @@ export function seedMemberWithHpMatch(
 
 export function seedMemberWithClubCards(
   db: BetterSqlite3.Database,
-  opts: { slug?: string; clubCount?: number } = {},
+  opts: { slug?: string; clubCount?: number; withCoLeader?: boolean } = {},
 ): Persona & { candidateIds: string[]; affiliationIds: string[]; clubIds: string[] } {
   const memberId = `clubs-${rand()}`;
   const slug = opts.slug ?? `clubs_${rand()}`;
@@ -192,9 +193,24 @@ export function seedMemberWithClubCards(
   const clubIds: string[] = [];
 
   for (let i = 0; i < count; i++) {
-    const tagId = insertTag(db, { tag_normalized: `#club_e2e_${rand()}`, standard_type: 'club' });
+    const tagId = insertTag(db, { id: `tag-mc-${rand()}`, tag_normalized: `#club_e2e_${rand()}`, standard_type: 'club' });
     const clubId = insertClub(db, { id: `club-mc-${rand()}`, hashtag_tag_id: tagId, name: `Test Club ${i + 1}`, city: `City${i + 1}` });
     clubIds.push(clubId);
+
+    // An existing co-leader keeps the club non-leaderless, so confirming
+    // membership (which grants the first-affiliation Active Player period, and
+    // with it Tier-1 benefits) does not surface a path-2 leadership offer. Lets
+    // a membership-confirm test isolate plain affiliation completion.
+    if (opts.withCoLeader) {
+      const coLeaderId = `clubs-cl-${rand()}`;
+      insertMember(db, {
+        id: coLeaderId,
+        slug: `clubs_cl_${rand()}`,
+        login_email: uniqueEmail('clubcl'),
+        real_name: 'Existing Co-leader',
+      });
+      insertClubLeader(db, { club_id: clubId, member_id: coLeaderId });
+    }
 
     const candidateId = insertLegacyClubCandidate(db, {
       id: `lcc-mc-${rand()}`,
@@ -244,7 +260,7 @@ export function seedMemberWithLeadershipCard(
   const slug = opts.slug ?? `ldr_${rand()}`;
   const legacyMemberId = `LM-LDR-${rand().toUpperCase()}`;
 
-  const ldrTagId = insertTag(db, { tag_normalized: `#club_e2e_ldr_${rand()}`, standard_type: 'club' });
+  const ldrTagId = insertTag(db, { id: `tag-ldr-${rand()}`, tag_normalized: `#club_e2e_ldr_${rand()}`, standard_type: 'club' });
   const clubId = insertClub(db, { id: `club-ldr-${rand()}`, hashtag_tag_id: ldrTagId, name: 'Leader Club' });
 
   createMemberAtTier(db, {

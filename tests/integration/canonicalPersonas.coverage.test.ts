@@ -106,16 +106,52 @@ describe('canonical persona catalog', () => {
     expect(member.is_admin, 'live member did NOT inherit admin').toBe(0);
   });
 
-  it('club-role personas seed live club_leaders rows, leader and adjacent in different clubs', () => {
+  it('club-role personas seed live club_leaders co-leader rows, in different clubs', () => {
     const leadership = db.prepare(`SELECT club_id, role FROM club_leaders WHERE member_id = ?`);
     const leaderA = leadership.get('member_persona_club_leader') as { club_id: string; role: string };
     const coleader = leadership.get('member_persona_club_coleader') as { club_id: string; role: string };
     const leaderB = leadership.get('member_persona_club_leader_b') as { club_id: string; role: string };
 
-    expect(leaderA?.role, 'club_leader is a live leader').toBe('leader');
+    expect(leaderA?.role, 'club_leader is a live co-leader').toBe('co-leader');
     expect(coleader?.role, 'club_coleader is a live co-leader').toBe('co-leader');
-    expect(leaderB?.role, 'club_leader_b is a live leader').toBe('leader');
-    // The adjacent-owner leads a different club than club_leader (the BOLA shape).
-    expect(leaderB.club_id, 'adjacent leader is in a different club').not.toBe(leaderA.club_id);
+    expect(leaderB?.role, 'club_leader_b is a live co-leader').toBe('co-leader');
+    // The adjacent-owner co-leads a different club than club_leader (the BOLA shape).
+    expect(leaderB.club_id, 'adjacent co-leader is in a different club').not.toBe(leaderA.club_id);
+  });
+
+  it('tier0 Active Player co-leader holds a live co-leader row on Active Player benefits alone', () => {
+    const memberId = 'member_persona_t0_ap_coleader';
+    const tier = db
+      .prepare(`SELECT tier_status FROM member_tier_current WHERE member_id = ?`)
+      .get(memberId) as { tier_status: string } | undefined;
+    expect(tier?.tier_status ?? 'tier0', 'no paid tier grant').toBe('tier0');
+
+    const ap = db
+      .prepare(`SELECT is_active_player FROM member_active_player_current WHERE member_id = ?`)
+      .get(memberId) as { is_active_player: number } | undefined;
+    expect(ap?.is_active_player, 'current Active Player grant is live').toBe(1);
+
+    const leader = db
+      .prepare(`SELECT role FROM club_leaders WHERE member_id = ?`)
+      .get(memberId) as { role: string } | undefined;
+    expect(leader?.role, 'live club_leaders co-leader row').toBe('co-leader');
+  });
+
+  it('tier0 bootstrap-leader holds a bootstrap claim with no live co-leader row', () => {
+    const memberId = 'member_persona_t0_bootstrap_leader';
+    const bootstrap = db
+      .prepare(`SELECT id FROM club_bootstrap_leaders WHERE claimed_member_id = ?`)
+      .get(memberId) as { id: string } | undefined;
+    expect(bootstrap?.id, 'club_bootstrap_leaders claim row exists').toBeTruthy();
+
+    const signal = db
+      .prepare(`SELECT COUNT(*) AS n FROM club_bootstrap_leader_signals WHERE bootstrap_leader_id = ?`)
+      .get(bootstrap!.id) as { n: number };
+    expect(signal.n, 'at least one leadership signal').toBeGreaterThan(0);
+
+    const live = db
+      .prepare(`SELECT id FROM club_leaders WHERE member_id = ?`)
+      .get(memberId) as { id: string } | undefined;
+    expect(live, 'no live club_leaders row until the claim is promoted').toBeUndefined();
   });
 });

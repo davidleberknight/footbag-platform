@@ -42,6 +42,10 @@
 
 Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) until explicitly classified.
 
+**Demographic fields** (`sex`, `birth_date`) are private (Sensitivity 4: owner and admin only). They never appear on public surfaces, in member search, or in any cross-member listing. `sex` is used solely for sex-gated event-category eligibility; `birth_date` for age checks.
+
+**Contact fields** (`login_email`, `phone`, `whatsapp`) default to not-visible. A member opts in per field, and an opted-in contact field is shown to authenticated members only (Sensitivity 2), never on public surfaces. The exception is an operational contact role: holding a club co-leader or event organizer role exposes that member's contact email to authenticated members (the role is the consent, and the email cannot be hidden while the role is held). A role-holder's WhatsApp stays opt-in like any member's.
+
 ---
 
 ## 4. Public historical record policy
@@ -114,7 +118,7 @@ Public routes must not expose any endpoint that allows enumeration of current me
 
 - Club rosters: visible to logged-in members only; role-scoped for leader/admin operational use.
 - Event participant lists: official published results are public; operational participant-management lists are organizer-role-scoped only.
-- Organizer and club-leader contact information: never public. Club leader/contact email and club WhatsApp are visible to logged-in members; holding the role is the consent. Organizer contact requires explicit consent. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged.
+- Organizer and club-leader contact information: never public. A club co-leader's or event organizer's own contact email is visible to logged-in members; holding the role is the consent, and the email cannot be hidden while the role is held. The role-holder's WhatsApp shows to logged-in members only when they opt in. A club is reachable through its co-leaders and an event through its organizers; there is no separate club-level contact field. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged.
 - Exports: member data exports are role-scoped (Sensitivity 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
 
 No contact field (email, phone, social handle) is visible on any public page or in any public API response.

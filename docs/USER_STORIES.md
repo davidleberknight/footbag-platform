@@ -504,6 +504,7 @@ Success Criteria:
   - **Slug selection:** The member's URL slug is generated from display name by default but the member can customize it during registration. The slug must contain their surname (same suffix-stripping rule). Two members may share the same display name; slug uniqueness is enforced. Slug is permanent after registration.
 - This registration MUST use the human’s real and full name, spelled out, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
 - This registration MUST use the human’s city, state, country. USA members must use the official two-letter state name (eg: CO, CA, NY).
+- **Sex (competition eligibility):** required at registration. Shown as **Male / Female / Prefer not to say**, stored as `male` / `female` / `undisclosed`. There is no default; the registrant picks one. Helper text on the form explains why it is collected: "Why we ask: IFPA runs sex-based competition categories. Mixed doubles needs one male and one female, and there are women's events. We collect this once so you can register for events later. Choosing 'Prefer not to say' is fine; you can still register for open categories, and you can record your sex anytime in your profile to enter women's or mixed-doubles draws." Sex is private (visible to the member and admins only) and never appears on public surfaces, member search, or rosters.
 - System sends verification email.
 - After clicking link, user can log in and create profile.
 - Email must be unique across all members including accounts in their deletion grace period (reuse only after the grace period completes and PII is cleared).
@@ -633,11 +634,11 @@ Success Criteria:
 - Financial and audit records anonymized after the configured grace period. Transaction IDs retained for a configurable compliance period (default: 7 years).
 - Audit logs retain for a configurable compliance period (default: 7 years) with no personal identifiers (except member id).
 - Attempts to access the profile of a member in the deletion grace period show "Account not found" message, but this would be an exceptional error case, as links to deleted members should not be shown.
-- Media uploaded by deleted member is deleted immediately (no soft delete for photo data).
+- Media uploaded by the deleted member (photos, videos, and galleries) is deleted immediately and permanently at the deletion request (no soft delete for photo data). This media is NOT restored if the member reactivates within the grace period; restore brings back the account, profile, and club affiliations only.
 - Member receives email confirmation of the deletion request and information about how to restore the account during the grace period.
-- Member sees clear confirmation message before deletion that includes the configured grace period value (for example, this might be: 90 days), e.g.: "You can restore it within {gracePeriodDays} days by logging in."
-- Member sees success message after deletion that includes the admin-configured grace period value, e.g.: "Account deleted. You have {gracePeriodDays} days to restore by logging in."
-- If the member was the only leader of a club or the only event organizer, the affected club/event is flagged for admin review and added to an admin work queue using the appropriate queue label: clubs use “Needs Leader” (and, if the club also lacks a contact email, “Needs Contact”), while events use “Needs Organizer”.
+- Member sees clear confirmation message before deletion that includes the configured grace period value (for example, this might be: 90 days), e.g.: "You can restore it within {gracePeriodDays} days by logging in. Your photos, videos, and galleries are permanently deleted now and are not restored if you reactivate."
+- Member sees success message after deletion that includes the admin-configured grace period value, e.g.: "Account deleted. You have {gracePeriodDays} days to restore by logging in. Your uploaded media has been permanently deleted and will not return if you restore."
+- If the member was the club's only co-leader, the club becomes leaderless, a tolerated state (see §5.1): the club persists and stays joinable, and surfaces on the low-priority "could use a leader" admin list (label "Needs Leader") as an opportunity, not a remediation obligation. If the member was the only event organizer, the event is added to the admin work queue with the "Needs Organizer" label for reassignment.
 - Photo deletion from S3 occurs synchronously during the account deletion request. If S3 deletion fails, the deletion request fails and the member account is NOT deleted (transactional consistency: the account is only marked deleted after all photos are confirmed removed from S3).
 - Named gallery records belonging to the deleted member are hard-deleted when the member's photos are deleted. Gallery rows have no downstream referential integrity concerns (they are leaf nodes). Gallery deletion is part of the same atomic operation as photo deletion.
 
@@ -654,6 +655,7 @@ Success Criteria:
 - If the member confirms restoration, the system clears deleted_at, reinstates the account to active status, and logs the restoration in the audit log with actor, timestamp, and action type.
 - If the member dismisses the screen without confirming, they are not logged in and the account remains in its deleted state.
 - After restoration, the member is redirected to the normal post-login destination and sees a success message: "Your account has been restored."
+- The restoration confirmation screen and the post-restore success message state that uploaded media (photos, videos, galleries) was permanently deleted at deletion time and is not recovered by restore; the account, profile, and club affiliations are restored.
 - Restoration is only available within the configured grace period (member_cleanup_grace_days). After that period expires and PII has been purged, login is permanently rejected.
 - Restoration is audit-logged with member ID and timestamp.
 
@@ -737,10 +739,11 @@ Optional mailbox-control upgrade:
 
 Direct historical-record claim:
 
-- Entry point: the historical detail page (`GET /history/:personId`). When the viewer's current real-name surname OR any declared former surname matches the historical record's surname and the record is unclaimed, the page surfaces a "Claim this identity" CTA.
+- Entry point: the historical detail page (`GET /history/:personId`). When the viewer's current real-name surname OR any declared former surname matches the historical record's surname, the record is unclaimed, and the record is not flagged deceased (`historical_persons.is_deceased = 0`), the page surfaces a "Claim this identity" CTA.
 - The confirmation page shows the record's country, honor status (HoF / BAP if any), and a first-name warning when the member's first name is a variant of the record's first name (per the `name_variants` table seeded from mirror-mined pairs).
 - On confirm, the system writes `members.historical_person_id`, carries forward `historical_persons`-sourced fields (country, honor flags, induction year, first competition year) under fill-if-empty merge semantics, and (in case E) transitively claims the back-linked legacy account, applying the full legacy-account claim effects in the same transaction, including the tier grant.
 - Honors-bearing direct claims apply without admin pre-screening (no platform gate); honors data is validated a priori against the public rosters and an admin can review such claims on demand and revert a wrong one (see `A_View_Honors_Oversight_Feed`).
+- A record flagged deceased (`historical_persons.is_deceased = 1`) is not self-claimable: the "Claim this identity" CTA is suppressed and the claim-confirm route (`/history/:personId/claim`) returns the standard non-claimable response, because a living member cannot claim a deceased person's identity as their own account. A member who believes a record was wrongly flagged uses the member-initiated admin help request (`A_Review_Member_Link_Help_Requests`).
 
 Cross-source candidate prompt:
 
@@ -775,7 +778,7 @@ Success Criteria:
 - The `club_affiliations` task content covers Stages 1A, 1B, and the wrap-up landing, plus a no-match exit that links to `M_Create_Club`. The wizard asks club questions only about the member's own mirror-suggested affiliations; a member with no suggested affiliation has no club to be asked about.
 - On submission, the underlying state is written via the owning service and the `member_onboarding_tasks` row transitions to `completed`.
 - Both `first_competition_year` and `show_competitive_results` are collected as fields within the `personal_details` task. The task itself is skippable, but on submission city, country, and date of birth are required; region is optional.
-- Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. A member who has claimed an HP record marked deceased (via direct-HP claim) still runs the wizard normally; the `is_deceased` attribute applies only to the HP / historical-persons rows, not to the living member's account.
+- Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. `members.is_deceased` and `historical_persons.is_deceased` are two independent fields: claiming a historical record never propagates the record's deceased flag to the living member's account, and the member runs the wizard normally.
 - Every task offers a `Skip for now` action that transitions the `member_onboarding_tasks` row to `skipped`. Skipping does not block sign-in or any otherwise-authenticated surface; each skip emits an `audit_entries` row.
 - The dashboard task widget (rendered on the personal-home view) queries `MemberOnboardingService.getTaskWidget(memberId)` and lists outstanding tasks (`pending` or `skipped`) ordered by catalog position, each with a `Resume` button that opens the same task UI used at registration (identical service contract regardless of entry point). Completing a task removes it from the widget. When no outstanding tasks remain, or when none are applicable, the widget renders nothing on the dashboard (no empty-state banner, no "all done" message). Skip-resume cycles emit one audit row per transition.
 
@@ -783,14 +786,14 @@ Club-affiliation task acceptance criteria:
 
 - When mirror-derived club affiliation, leadership, or candidate suggestions exist for the member, the `club_affiliations` task presents them.
 - Each suggestion shows the club name, city, country, and the member's inferred role (contact, member, leader, co-leader).
-- Stage 1A (listed contact) and Stage 1B (affiliated but not listed contact) present two orthogonal questions per card, each in its own clearly-labeled fieldset: (1) membership confirmation, asked as "Were you a member of {clubName}?" with Yes / No options, and (2) activity signal, asked as "Is {clubName} still active?" with Still active / Not active anymore / Not sure options. Both answers are required; either may be answered first. The card submits via a dedicated "Save answers" button at the end of the form. The card also surfaces a "Not the right club? Browse all clubs" link that lets the member leave the wizard, search the clubs browse or map for the correct club, and return; the dashboard widget's "Continue onboarding" entry returns the member to the same un-signaled card. The membership question determines affiliation; the activity question feeds the `crowdsource_club_viability` predicate (see `A_Periodic_Club_Cleanup`). "Not sure" on the activity question is a safe escape that records no activity evidence. Content-editing gates key off membership confirmation and contact status, not the activity signal: Stage 1A confirmed members (listed contacts) edit club metadata directly; other members report inaccuracies to club leadership out of band.
+- Stage 1A (listed contact) and Stage 1B (affiliated but not listed contact) present two orthogonal questions per card, each in its own clearly-labeled fieldset: (1) membership confirmation, asked as "Were you a member of {clubName}?" with Yes / No options, and (2) activity signal, asked as "Is {clubName} still active?" with Still active / Not active anymore / Not sure options. Both answers are required; either may be answered first. The card submits via a dedicated "Save answers" button at the end of the form. The card also surfaces a "Not the right club? Browse all clubs" link that lets the member leave the wizard, search the clubs browse or map for the correct club, and return; the dashboard widget's "Continue onboarding" entry returns the member to the same un-signaled card. The membership question determines affiliation; the activity question feeds the `crowdsource_club_viability` predicate (see `A_Periodic_Club_Cleanup`). "Not sure" on the activity question is a safe escape that records no activity evidence. Content-editing gates key off membership confirmation and contact status, not the activity signal: Stage 1A confirmed members (listed contacts) edit club metadata directly; other members report inaccuracies to a co-leader out of band.
 - The wizard does not offer in-wizard club search. After every Stage 1 card resolves, the task completes if a club affiliation was written during the run; otherwise it advances to the wrap-up landing. The wrap-up links to the clubs browse page filtered to the registrant's country (`/clubs/{countrySlug}`) where the member can browse clubs and use the regular join flow. The wizard never creates a `clubs` row except by promoting a confirmed candidate.
 - Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
 - Bootstrap leadership candidates carry a strong / weak / none classification derived at read time from structural signals recorded per (member, club): `listed_contact` (the legacy club page names the person as contact), `affiliation` (a legacy person-club affiliation row links them), `hosting` (the club hosted IFPA-registered events during the person's active competitive years), `roster` (the legacy member roster lists the person), and `mirror_text` (the club page narrative mentions the person by name or known alias). Strong requires `(listed_contact AND affiliation)` or `(hosting AND roster)` or `(listed_contact AND hosting)`; weak is any structural signal set that satisfies no strong gate; none is zero structural signals. Context modifiers (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside the signals but never change the classification. The classification is display-only: it labels the candidate badge and audit metadata and never gates promotion.
-- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of classification strength and regardless of registrant tier. Schema invariants enforce one `role='leader'` per club (`ux_one_leader_per_club`) and one `role='leader'` per member across all clubs (`ux_one_club_leader_per_member`); when either invariant would be violated the wizard transparently downgrades the new row to `role='co-leader'`. The application-level five-leader-per-club cap is enforced; cap-hit claims still affiliate the member but do not insert a `club_leaders` row, and an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants. Clubs may have multiple leaders. A leadership claim is never blocked by club status: a successful claim of an inactive or archived club returns the club to `'active'` in the same transaction, audit-logged as a revival.
+- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` co-leader row. Co-leaders are a flat equal set, capped at five per club; a member co-leads at most one club (`ux_one_club_leader_per_member`), so a registrant who already co-leads another club is affiliated to this club but not made a co-leader (an admin can resolve this via `A_Reassign_Club_Leader`). Cap-hit or already-co-leading claims still affiliate the member but insert no `club_leaders` row. The bootstrap claim is tier-exempt (a legacy leader reclaims their own club regardless of tier); confirming the affiliation grants the one-time club-join Active Player period, which gives a Tier 0 member Tier 1 benefits. Without a bootstrap row, co-leadership is offered to a registrant with Tier 1 benefits (Tier 1+ or Active Player) who confirms affiliation (the leadership-assumption offer; see `V_Volunteer_To_CoLead`). A leadership claim is never blocked by club status: a successful claim of an inactive or archived club returns the club to `'active'` in the same transaction, audit-logged as a revival.
 - Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the registrant already has two `is_current=1` affiliations, the cap is hit: no `member_club_affiliations` row is written, the legacy affiliation row is NOT marked `'confirmed_current'` (it stays actionable), and the card surfaces a cap message ("You are at the two current-club limit; mark one as former to add this"), mirroring the affiliated-only branch used when the five-leader cap is hit. Transferring current-affiliation status requires the explicit `M_Join_Club` / `M_Leave_Club` surface or admin remediation via `A_Reassign_Club_Leader`.
 - Members can detour out of any Stage 1 club card to `M_Join_Club` or `M_Create_Club` without resolving the current card. Unsignaled cards remain unsignaled and signaled cards retain their signals. On detour, the `club_affiliations` task transitions to `in_progress_paused` in `MemberOnboardingService`; the dashboard task widget surfaces "Resume onboarding" which returns the member to the same card. Detour decisions are audit-logged with member ID, target story, source wizard card, and timestamp.
-- On the wrap-up landing, members below Tier 1 see the create-club action replaced by a notice stating that creating a club requires IFPA Membership (Tier 1) because they become the club leader, with a pointer to the upgrade surface on their profile; after upgrading, the wrap-up renders the "Create a new club" action directly. Tier 1, Tier 2, and Tier 3 members route directly to `M_Create_Club`. The notice does not block; the member can browse clubs or skip regardless of tier.
+- On the wrap-up landing, members below Tier 1 see the create-club action replaced by a notice stating that creating a club requires IFPA Membership (Tier 1) because they become the club's first co-leader, with a pointer to the upgrade surface on their profile; after upgrading, the wrap-up renders the "Create a new club" action directly. Tier 1, Tier 2, and Tier 3 members route directly to `M_Create_Club`. The notice does not block; the member can browse clubs or skip regardless of tier.
 - At the end of the `club_affiliations` task, if no `member_club_affiliations` row was written during the wizard run, the wizard's final screen displays a "Find or create your club" landing with three options: "Join an existing club" routes to the clubs browse surface and `M_Join_Club`, "Create a new club" routes to `M_Create_Club` (members below Tier 1 see the tier-requirement notice above instead of the create action), and "Skip for now" completes the wizard with no club affiliation. The dashboard task widget surfaces "Continue onboarding" until the member explicitly dismisses or completes the task.
 - The dashboard task widget reflects the `club_affiliations` task state across the lifecycle: `in_progress` (one or more cards remain unsignaled) shows "Continue onboarding"; `in_progress_paused` (member detoured) shows "Resume onboarding" and returns to the same card on click; `skipped` shows "Continue onboarding" until explicit dismissal or completion; `completed` follows the existing completed-task pattern.
 - Promotion of onboarding-visible or dormant candidates to live `clubs` rows happens on member confirmation in the wizard.
@@ -816,6 +819,9 @@ Success Criteria:
 - Member profile creation and editing (photo, bio, contact preferences).
 - **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). Contact IFPA admin for corrections.
 - City, country, and email are mandatory fields; phone is optional.
+- **Contact fields and per-field visibility:** `phone` and `whatsapp` are optional, both editable here (`whatsapp` format-validated, rendered as a chat link). Each contact field (contact email, phone, WhatsApp) has its own visibility toggle, default off. When toggled on, the field is shown to authenticated members only (Sensitivity 2), never on public surfaces. Holding a club co-leader or event organizer role forces that member's contact email visible to authenticated members and locks its toggle on while the role is held (see DATA_GOVERNANCE §3). Changes are audit-logged.
+- **Sex (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Private (visible to the member and admins only); never shown on public surfaces, member search, or rosters. Used only for sex-gated event-category eligibility (see M_Register_For_Event). Changes are audit-logged.
+- **Discoverable in member search** (`searchable`, default on): a self-service toggle labeled "Allow other members to find me in member search." When off, the member is excluded from `M_Search_Members` results (enforced by the `members_active` view), but their profile remains reachable by direct link and they still appear to club co-members on rosters; the toggle governs search inclusion only. Changes are audit-logged.
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
   - `show_competitive_results` (default on): toggle controlling whether competition results appear on the member's public profile. The member's own profile view always shows their results regardless of toggle state.
@@ -826,7 +832,7 @@ Success Criteria:
 - Member search is authenticated members only, never public. Search results show display name and country only; email and contact fields are never exposed in search results.
 - Public visibility (visible to all including visitors): Events list, news feed, public galleries (if explicitly marked public).
 - Members-only visibility (visible to logged-in members): Member profiles, club rosters, event participant lists, member search results.
-- Private visibility (visible only to owner or admins): Email addresses (unless member opts in), payment history, audit records.
+- Private visibility (visible only to owner or admins): contact email, phone, and WhatsApp (each unless the member opts that field in to authenticated-member visibility, or a co-leader/organizer role forces the email visible), payment history, audit records.
 - Membership tier badges and current Active Player badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
 - Membership tier badges and Active Player badges NOT visible to anonymous visitors.
 - External URLs on profiles (maximum 3) are validated before publication and presented safely (e.g., clearly labeled and protected against malicious links).
@@ -863,7 +869,7 @@ Success Criteria:
 - Search by Display Name.
 - Support substring matching (e.g., "foot" matches "Jane Footbag").
 - Minimum 2-character query length; maximum 20 results per page.
-- Members may opt out via `searchable: false` profile flag. `searchable` means eligible for authenticated member lookup only; it does not mean publicly discoverable or contactable.
+- Members may opt out via `searchable: false` profile flag. `searchable` means eligible for authenticated member lookup only; it does not mean publicly discoverable or contactable. Members set this via the "Discoverable in member search" toggle in M_Edit_Profile.
 - Search results exclude: (a) members with `searchable: false`, (b) members currently in the deletion grace period (account deleted but not yet purged), and (c) deceased members. Only active members with `searchable: true` are returned.
 - Broad queries return a capped result set with a "refine your query" prompt; no exhaustive browse-all or full pagination.
 - This is the only member search feature. It is authenticated-only and deliberately narrowing; not a member directory.
@@ -901,8 +907,8 @@ Success Criteria:
 - Club member roster visible to all logged-in members (not visitors).
 - Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
-- Joining sends an email notification to the member, and all Club Leaders.
-- When joining a club, the member sees the club's current description and external URL. Listed contacts and club leaders edit these directly via `CL_Edit_Club` or wizard Stage 1A; other members report inaccuracies to club leadership out of band (leader contact email is visible to authenticated members). Club content has no in-app suggestion or review queue.
+- Joining sends an email notification to the member, and all current co-leaders.
+- When joining a club, the member sees the club's current description and external URL. Co-leaders edit these directly via `CL_Edit_Club` or wizard Stage 1A; other members report inaccuracies to a co-leader out of band (a co-leader's contact email is visible to authenticated members). Club content has no in-app suggestion or review queue.
 - If the joining member is Tier 0 and has never previously been an Active Player, the first IFPA club join grants one 730-day Active Player period.
 - The one-time club-join Active Player grant does not change membership tier.
 - Joining additional clubs does not grant additional Active Player periods.
@@ -918,26 +924,26 @@ Success Criteria:
 
 - Leaving sets `member_club_affiliations.is_current=0` and `is_primary=0` for the member-club pair.
 - If the member leaves their primary club and still has a secondary club, the UI reminds them they have a remaining club and prompts them to designate it as primary. The secondary club is not auto-promoted.
-- A member who is the sole `role='leader'` of the club cannot leave directly; the UI surfaces the constraint and routes the member to `CL_Manage_CoLeaders` to promote a successor first. The sole-leader rule mirrors the anti-self-removal invariant enforced by `ClubService`.
-- Leaving a club where the member also held a `club_leaders` row removes that leadership row in the same transaction.
-- Leaving sends an email notification to the leaving member and to all current club leaders.
+- A member who is the club's only co-leader is warned before leaving ("You are the only co-leader; the club will have no member-visible contact until someone steps up") and may invite a successor first via `CL_Manage_CoLeaders` or proceed. Leaving as the last co-leader leaves the club leaderless, a tolerated state per §5.1, not blocked.
+- Leaving a club where the member also held a `club_leaders` row removes that co-leader row in the same transaction.
+- Leaving sends an email notification to the leaving member and to all current co-leaders.
 - The leave action is audit-logged with actor identity, club id, before and after affiliation state, and timestamp.
 
 ### M_View_Club
 
 Access: Members can view full club details and rosters. Visitors see only public club information.
 
-Story: As a member, I can view club details and member roster so that I learn about clubs and see who belongs. Also I can find the contact information of the Club Leader(s).
+Story: As a member, I can view club details and member roster so that I learn about clubs and see who belongs. Also I can find the contact information of the club's co-leaders.
 
 Success Criteria:
 
-- Club page displays: club name, logo, description, city, country, contact email(s) for leader(s), external URL (if provided), standardized hashtag.
+- Club page displays: club name, logo, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
 - Member roster shows all members where clubId matches the club.
 - Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country.
 - Email addresses shown only if member has opted in to email visibility.
 - Roster sorted alphabetically by display name.
 - Club detail page includes a link to the club media gallery (for example, "View Club Gallery") when at least one media item exists, without showing image or video counts in the link text.
-- Leaders array displayed on club detail page showing all current leaders.
+- Co-leaders array displayed on club detail page showing all current co-leaders.
 
 ## 3.4 Event Participation
 
@@ -956,7 +962,7 @@ Success Criteria:
 - Registration includes a required selection of registration type: Competitor or Attendee/Supporter (if the organizer has enabled both; otherwise the single available type is implied).
 - If Competitor: member selects one or more organizer-defined event categories.
 - If a selected category is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
-- If a selected category is mixed doubles: both member profiles must have sex fields populated, one Male and one Female.  Other event categories also require sex fields, such as Women's net. Note that men and women can both play in the Open category.
+- Sex-gated categories require a declared sex to enter the gendered draw. Mixed doubles requires one member with sex Male and one with sex Female; women's categories (such as women's net) require sex Female. A member whose sex is "Prefer not to say" (stored as undisclosed) is not eligible for sex-gated categories but is eligible for Open, where men and women both play; that member can record a sex in their profile at any time to unlock the gendered draws. Sex validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in.
 - If Attendee/Supporter: no categories are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
 - Confirmation email includes registration type and selected categories and/or partners (if any).
 - Some events are free and others are paid.
@@ -1753,21 +1759,21 @@ Success Criteria:
 
 # 5. Club Leader Stories
 
-Club Leaders are members who create clubs. Leader can add up to 4 co-leaders who share club information editing permissions.
+Club leadership is a flat set of equal co-leaders (up to 5 per club), each with identical club-editing and member-visible-contact powers; there is no separate head-leader role. The member who creates a club becomes its first co-leader, and a member co-leads at most one club.
 
 ## 5.1 Club Lifecycle
 
-Club operability rule: A club is considered non-operable if it has no current leader and/or no club contact email. Non-operable clubs are flagged into the admin work queue for remediation. Admin remediation options include assigning/reassigning a leader, obtaining/updating a contact email, or archiving the club if it is defunct or unresolved.
+Club leadership rule: a club should have at least one co-leader, but a club with none is still a valid, persisting entity: it keeps its roster, stays joinable, and stays listed. A club is reachable through its co-leaders' member-visible contact emails; there is no separate club-level contact field, so a club with no co-leaders simply has no platform-surfaced contact and no platform-side editor until a member steps up. Such clubs surface on a single low-priority "could use a leader" admin list (an opportunity, not a remediation obligation, with no deadline and no escalation); a current member can volunteer to co-lead (see V_Volunteer_To_CoLead), an existing co-leader can invite one, or an admin can assign one. Governance groups are different: a committee with zero owners is genuinely adrift (see §3.10).
 
 ### M_Create_Club
 
-Access: Members with Tier 1 benefits who are not already a Club Leader can create a new club.
+Access: Members with Tier 1 benefits who do not already co-lead a club can create a new club.
 
-Story: As an eligible member, I can create a club so that I can become a Club Leader, and organize a local footbag community.
+Story: As an eligible member, I can create a club so that I can become its first co-leader, and organize a local footbag community.
 
 Success Criteria:
 
-- Club creation form includes: club name, description, city, country, contact email (required for all new clubs), WhatsApp (optional; format-validated only, rendered as a chat link). A club with no contact email is treated as non-operable and flagged for admin remediation.
+- Club creation form includes: club name, description, city, country. The creator becomes the club's first co-leader, and the club is reached through that co-leader's member-visible contact email; there is no separate club contact field. A club that later loses all co-leaders still persists and surfaces only on the low-priority "could use a leader" admin list (see §5.1).
 - Before creating a club, the form runs a duplicate-prevention check against live clubs, onboarding-visible candidates, and dormant candidates. Exact name plus same country blocks creation and surfaces the existing entry instead, with options to confirm affiliation (routing to the relevant club's join page) or report the match as a different club with the same name (which logs a flag and allows creation to proceed).
 - Near-match candidates (high name similarity in the same country, below the exact-match threshold) trigger a warning that lists the candidates with their location; the creator may proceed if confident the new club is distinct or pick an existing entry. Junk-flagged candidates are not surfaced as potential duplicates.
 
@@ -1775,41 +1781,41 @@ Success Criteria:
 - Only members with Tier 1 benefits can create clubs.
 - Leader sees a clear success message when club is created.
 - Leader sees clear error messages for validation failures.
-- Member gains Club Leader status for this club. A member may lead only one club at a time.
-- If the authenticated member already holds the Club Leader role for any active club, the create club option is not shown in the UI. If attempted via direct URL or API, the service returns a validation error: "You are already a Club Leader for [Club Name]. You must relinquish leadership before creating a new club."
+- Member becomes the club's first co-leader. A member may co-lead only one club at a time.
+- If the authenticated member already co-leads any club, the create-club option is not shown in the UI. If attempted via direct URL or API, the service returns a validation error: "You already co-lead [Club Name]. You must step down before creating a new club."
 - Club display names are not required to be globally unique (for example the name could be "Hacky Crew"). Two clubs may share the same display name. The standardised club hashtag (derived from the club name at creation and globally unique) is the canonical identifier. The UI makes the club hashtag visible at creation so leaders understand it is the persistent unique handle.
 
 ### CL_Edit_Club
 
 Access: Club leaders can edit their club's information and settings.
 
-Story: As a club leader, I can edit club information so that I can keep club details current.
+Story: As a co-leader, I can edit club information so that I can keep club details current.
 
 Success Criteria:
 
 - Co-leaders can edit all club information.
 - All edits audit-logged with leader ID, fields changed, old values, new values, timestamp.
-- Leaders see a clear success message when club is updated. If a club edit results in a blank contact email, the system reminds the leader that members will reach the club through the leaders' member-visible contact emails; the club surfaces for admin follow-up only if it later loses all leaders.
+- Co-leaders see a clear success message when the club is updated.
 
 ### CL_Mark_Club_Inactive
 
-Access: The club leader can mark the club inactive or reactivate it later.
+Access: A co-leader can mark the club inactive or reactivate it later.
 
-Story: As a club leader, I can mark my club as inactive so that it's hidden from active listings but preserved for history.
+Story: As a co-leader, I can mark my club as inactive so that it's hidden from active listings but preserved for history.
 
 Success Criteria:
 
 - Inactive clubs hidden from public club directory.
 - Inactive clubs still accessible via direct link.
 - Club members' `member_club_affiliations` rows are preserved with `is_current=1`; the club detail surface shows a warning that the club is inactive.
-- Club leader can reactivate club at any time.
+- A co-leader can reactivate the club at any time.
 - Inactive status change audit-logged.
 
 ### CL_Archive_Club
 
-Access: The club leader can archive the club if it is inactive.
+Access: A co-leader can archive the club if it is inactive.
 
-Story: As a club leader, I can delete my club from the active clubs so that I can remove defunct clubs.
+Story: As a co-leader, I can delete my club from the active clubs so that I can remove defunct clubs.
 
 Success Criteria:
 
@@ -1824,25 +1830,39 @@ Success Criteria:
 
 ### CL_Manage_CoLeaders
 
-Access: The club leader can add, view, and remove co-leaders for the club.
+Access: Any co-leader can invite a member to co-lead, view the current co-leaders, and step down. Co-leaders are equal; a co-leader cannot remove or modify another co-leader. Removing another co-leader is an admin action (see A_Reassign_Club_Leader).
 
-Story: As a club leader, I can add, view, and remove co-leaders so that I manage my club leadership team. A club leader cannot remove oneself if the only leader, but first must promote someone else.
+Story: As a co-leader, I can invite additional co-leaders, see the current co-leaders, and step down, so that I help maintain my club's leadership team.
 
 Success Criteria:
 
-- Any leader can add up to 4 co-leaders by member id.
-- Adding a co-leader who currently holds `role='leader'` at another club is permitted; the new `role='co-leader'` row at this club does not affect the member's existing `role='leader'` row at the other club. Only one `role='leader'` per member is enforced (`ux_one_club_leader_per_member`); co-leader roles are not constrained across clubs.
-- System sends email to new leader with key points: club name, responsibilities.
-- Upon acceptance, co-leader gains club information editing permissions.
-- Maximum 5 total leaders per club.
-- Any leader can view list of all current co-leaders.
-- List shows: co-leader name, date added. Email visible to fellow leaders (role-scoped) only.
-- Co-leader can opt out of leadership role via the member dashboard.
-- All leader actions are audit-logged.
-- Leader sees a clear success message when co-leader is added or removed.
-- Leaders array displayed on club detail page showing all current leaders (names only on public page). Each current leader's contact email, and the club's contact email and WhatsApp when present, are visible to authenticated members; accepting a leadership or club-contact role constitutes consent to this member-visible exposure, withdrawn by stepping down. Provisional (unclaimed) bootstrap entries never show contact information.
-- The user interface hides remove-self functionality (button or link) when the current authenticated user is the sole leader of the club.
-- After any leadership change, the system re-evaluates club operability: a club with at least one current leader is operable (leader contact is member-visible). A club with zero leaders surfaces in the admin Needs Leader queue; when it also has no club contact email it surfaces in the Needs Contact queue as well.
+- Any co-leader can invite a member to co-lead, up to a maximum of 5 co-leaders per club. Co-leadership requires Tier 1+ benefits.
+- An invited member must accept before the co-leader row is written; acceptance is the member's consent to having their contact email shown to authenticated members. An invitee who already co-leads another club cannot accept (a member co-leads at most one club).
+- The invite email states club name and responsibilities and directs the invitee to the standing "volunteer to co-lead" affordance on the club page; accepting is the invitee using it. The invitee must already be a current member of the club (a non-member joins first), and acceptance is their consent to contact-email exposure.
+- Upon acceptance, the new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members.
+- Any co-leader can view the list of current co-leaders (name, date added).
+- A co-leader can step down at any time via the member dashboard. Stepping down removes only the co-leader role, not club membership; if they were the last co-leader, the club becomes leaderless (a tolerated state per §5.1).
+- A co-leader cannot remove or modify another co-leader; that is an admin action (A_Reassign_Club_Leader).
+- All co-leader actions (invite, accept, step down, admin removal) are audit-logged, and the acting co-leader sees a clear success message.
+- All co-leaders are displayed on the club detail page (names only on the public page). Each co-leader's contact email is visible to authenticated members; holding the co-leader role is the consent and the email cannot be hidden while the role is held. A co-leader's WhatsApp shows to authenticated members only if that co-leader opts in. Provisional (unclaimed) bootstrap entries never show contact information.
+- After any co-leader change, a club with at least one co-leader is reachable through that co-leader's contact; a club with zero co-leaders is leaderless (tolerated per §5.1) and surfaces on the single low-priority "could use a leader" admin list under the "Needs Leader" label.
+
+### V_Volunteer_To_CoLead
+
+Access: A current member of a club with Tier 1 benefits (Tier 1+ or Active Player), who does not already co-lead another club, can volunteer to co-lead it.
+
+Story: As a current member of a club, I can volunteer to become a co-leader so that a club without one gains a co-leader and any club can grow its leadership without waiting for an invite.
+
+Success Criteria:
+
+- One service operation backs the volunteer write, reached via the onboarding wizard's leadership-assumption offer and the standing "volunteer to co-lead" affordance on the club detail page. The admin "contact members" action in the cleanup queue (A_Periodic_Club_Cleanup) sends an invitation that routes members to the standing affordance; it is not a separate write path.
+- Eligibility (all required): the member is a current, confirmed affiliate of the club; has Tier 1 benefits; does not already co-lead another club; the club has fewer than 5 co-leaders; the member is not already a co-leader of this club.
+- Volunteering is immediate: an eligible member self-adds as a co-leader of any club, at any time, whether the club is leaderless or already has co-leaders. There is no approval step.
+- On a self-add to a club that already has co-leaders, all existing co-leaders are notified that the member joined the leadership. Every volunteer add is audit-logged.
+- The new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members (holding the role is the consent; the email cannot be hidden while the role is held). The member may additionally opt their WhatsApp visible.
+- A member who already co-leads another club is shown the one-club rule and directed to step down there first; the standing affordance is not offered to them.
+- When a club becomes leaderless, it surfaces in the admin club-cleanup queue (A_Periodic_Club_Cleanup), where an admin can send the volunteer-to-co-lead invitation to the club's current members or defer; the standing affordance remains available for members to self-volunteer at any time.
+- The standing club-page affordance is shown only to a viewer who meets the eligibility rules above.
 
 # 6. Group Owner Stories
 
@@ -2067,21 +2087,19 @@ Success Criteria:
 
 ### A_Reassign_Club_Leader
 
-Access: Only admins can reassign club leadership and remediate non-operable clubs.  
+Access: Only admins can add or remove a club's co-leaders on a member's behalf, and help clubs that have no co-leader.  
 
-Story: As an Administrator, I have full control over club leadership rosters so that clubs remain operable when leadership or contactability breaks down, when the onboarding wizard auto-promotes the wrong member, or when the application-level cap blocks legitimate leadership growth.
+Story: As an Administrator, I have full control over club co-leader rosters so that a club can regain a co-leader when it has none, a mis-added or unwanted co-leader can be removed, and the 5-co-leader cap can be overridden for legitimate growth.
 
 Success Criteria:
 
-- Admin can assign a club leader from the member base (audit-logged).
-- Admin can demote a club leader or co-leader back to ordinary club member, or remove their affiliation entirely (audit-logged with mandatory reason text).
-- Admin can change a member's role between `leader` and `co-leader` within a club (subject to the one-`leader`-per-club schema invariant `ux_one_leader_per_club` and the one-`leader`-per-member schema invariant `ux_one_club_leader_per_member`; demoting the existing leader of the target club before promoting the replacement is a single admin transaction, and an admin must demote the member from any current `leader` role at another club before promoting them to `leader` at a different club).
-- Admin can override the application-level 5-leader cap when adding a new leader, with an explicit "cap-override" reason recorded in the audit row.
-- Admin can promote an affiliated-only member (one whose wizard claim was capped out) to leader or co-leader at any time.
-- Clubs with zero leaders are flagged "Needs Leader" and appear in an admin work queue.
-- Clubs with no contact email and no current leaders are flagged "Needs Contact" and appear in an admin work queue.  
-- Admin can resolve a "Needs Leader" item by assigning/reassigning a leader, or by archiving the club if defunct.  
-- Admin can resolve a "Needs Contact" item by updating the club contact email, or by archiving the club if defunct.  
+- Admin can add a co-leader from the member base (audit-logged); the added member becomes a current affiliate if not already.
+- Admin can remove a co-leader (returning them to ordinary club member), or remove their affiliation entirely (audit-logged with mandatory reason text). Admin removal is the only way to remove a co-leader other than the co-leader stepping down themselves.
+- A member co-leads at most one club; to make a member a co-leader of a different club, the admin first removes them from their current club's co-leader set (a single admin transaction).
+- Admin can override the 5-co-leader cap when adding a co-leader, with an explicit "cap-override" reason recorded in the audit row.
+- Admin can make an affiliated-only member (one whose wizard claim was capped out) a co-leader at any time.
+- Clubs with zero co-leaders are flagged "Needs Leader" and surface on the low-priority admin opportunity list (§5.1).
+- Admin can resolve a "Needs Leader" item by adding a co-leader, or by archiving the club only if it is confirmed defunct. Leaderless is a tolerated state (§5.1), so this is an opportunity, not an obligation.
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
 - When resolving leadership for a bootstrapped club, the system marks the relevant `club_bootstrap_leaders` row as superseded.
 - All admin leadership actions are audit-logged with actor identity, timestamp, before/after values, and reason text; the audit trail is the canonical history and cannot be edited by admins.
@@ -2123,6 +2141,7 @@ Success Criteria:
 
 - Admin can select a member and mark them as deceased via a dedicated action.
 - System adds a deceased: true flag and deceasedAt timestamp to the member record.
+- If the member has a linked `historical_person_id`, the same action sets `historical_persons.is_deceased = 1` on that record (cascade), audit-logged, so the member and historical surfaces stay consistent.
 - Deceased member accounts are immediately removed from active member search results, removed from club rosters, and unregistered from any upcoming events.
 - If member has HoF or BAP status, these honors remain visible with the member's name and brief bio to preserve community history.
 - Member's uploaded media (photos/videos) remains published with attribution preserved to honor their contributions.
@@ -2134,6 +2153,7 @@ Success Criteria:
 - All marking actions audit-logged with admin ID, member ID, reason, timestamp.
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
+- A parallel admin affordance can set or unset `historical_persons.is_deceased` on an unlinked historical record (a historical person with no member account), audit-logged with a reason and reversible. The `historical_persons.is_deceased` flag is affirmative-only (its presence marks a person recognized as deceased; its absence asserts nothing) and is consumed only to suppress the direct historical-record claim CTA (see M_Claim_Legacy_Account). No public memorial display is driven by this flag; an "In Memoriam" presentation on historical and HoF/BAP surfaces is deferred to its own future story.
 
 ### A_Review_Member_Link_Help_Requests
 
@@ -2174,10 +2194,10 @@ Story: As an admin, I work a single on-demand cleanup queue. When I open it, the
 Success Criteria; On-demand evaluation:
 
 - The queue runs no unattended background process. When an admin opens it, the platform evaluates the following predicates fresh against current data and surfaces only the clubs that need a human decision; each item carries a recommended one-click action and resolves without any automatic state change. Each admin action writes one `audit_entries` row with `actor_type='admin'`.
-  - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no `club_leaders` rows surfaces as a queue item recommending demote-to-inactive or finding a leader. Demote is reversible: any future leader claim or current-affiliation insert returns the club to `'active'`.
+  - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no `club_leaders` rows surfaces as a low-priority "could use a leader" opportunity item. Leaderless is a tolerated state (§5.1), so the recommended action is to add a co-leader (via `A_Reassign_Club_Leader`), not to demote; demotion to inactive is driven only by the `crowdsource_club_viability` inactivity signals below. The item offers two further one-click choices: **contact members** (sends the volunteer-to-co-lead invitation, see `V_Volunteer_To_CoLead`, to the club's current members, audit-logged) or **defer** (take no action now; while the club stays leaderless the item resurfaces on a later open). As soon as anyone becomes a co-leader (self-volunteer, invite-accept, or admin add), the club is no longer leaderless and the item drops from the queue automatically on the next evaluation (the predicate is computed fresh on each open). A member stepping up to co-lead is also a strong positive viability signal, equivalent to a member-reported "active" vote: it resets the club's inactivity staleness, so the `crowdsource_club_viability` gates do not recommend demotion. Any future co-leader claim or current-affiliation insert is recorded normally and the club stays `'active'`.
   - `stale_provisional_leader`: `club_bootstrap_leaders` rows still `status='provisional'`, grouped by club, surface as a review-or-dismiss item.
   - `crowdsource_club_viability`: weighs the activity signals members left in the onboarding wizard ("active" / "not active" / "not sure", where "not sure" counts for nothing) against the club's legacy classification and whether it still has any current leaders or members. Signals are counted one vote per member: a member's latest signal for a club supersedes their earlier ones, so re-submissions and changed answers never inflate the thresholds. The queue item names the members whose latest answer was negative, because negative votes are rare and the admin judges them by who cast them; authorship renders only on this admin surface. The first matching case wins:
-    - G1 (confirmed active): at least one member said the club is active. A positive signal wins outright, even if others said it was inactive. No queue item, and the club's leaderless-club staleness resets.
+    - G1 (confirmed active): at least one member said the club is active, or a member has stepped up as a co-leader. A positive signal wins outright, even if others said it was inactive. No queue item, and the club's leaderless-club staleness resets.
     - G2 (concordant inactive): two or more members said inactive, none said active, and the club has no current leaders or members. The queue recommends demoting it to inactive.
     - G3 (weak inactive): exactly one member said inactive, none said active, the club has no current leaders or members, and its legacy classification is weak (not `pre_populate`). The queue recommends demoting it to inactive.
     - G4 (needs review): exactly one member said inactive, none said active, the club has no current leaders or members, but its legacy classification is strong (`pre_populate`). Because that lone negative contradicts strong legacy evidence, the queue routes it for human review rather than recommending a demote.
@@ -2318,7 +2338,7 @@ Success Criteria:
 
 Access: Only admins can archive or mark clubs defunct beyond what club leaders can do.
 
-Story: As an admin, I can mark a club defunct/archived and notify members so that directories stay accurate. Archiving may be used to resolve non-operable club cases (for example, unresolved “Needs Leader” and/or “Needs Contact” queue items) after remediation attempts fail or the club is confirmed defunct.
+Story: As an admin, I can mark a club defunct/archived and notify members so that directories stay accurate. Archiving may be used for a club that has no co-leader (for example, a lingering “Needs Leader” item) when the club is confirmed defunct; a leaderless club is not archived merely for lacking a co-leader, since that state is tolerated per §5.1.
 
 Success Criteria:
 
@@ -2355,7 +2375,7 @@ Success Criteria:
 - Eligibility for candidates/options is enforced by the vote’s configured rules.
 - At ballot open, the set of options is locked.
 - Eligibility Changes: Members cannot gain or lose eligibility after vote opens, ensuring fairness.
-- Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot_base`. Members retain voting rights for the full voting window even if their tier, flags, or group membership change while the vote is open.
+- Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot`. Members retain voting rights for the full voting window even if their tier, flags, or group membership change while the vote is open.
 - Group-scoped votes follow the same encryption, receipt-token, decrypt-audit, and tally rules as all other votes; there is no lightweight or non-encrypted variant.
 - If the referenced group in a `members_of_group` rule is archived after the vote opens but before the vote closes, the open vote continues to completion using the frozen snapshot; the system creates an admin notification but does not cancel the vote automatically.
 - Members may request a vote via `M_Contact_IFPA_Admin` using the "Vote creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the vote through this story if approved.
@@ -2746,7 +2766,7 @@ Story: The system automatically opens votes at their configured open_datetime so
 Success Criteria:
 
 - System runs a job (at minimum hourly) that checks all votes in `draft` status with open_datetime <= now (UTC).
-- For each such vote, the job transitions vote.status to `open` and writes eligibility snapshot rows to `vote_eligibility_snapshot_base` (same logic as A_Open_Vote).
+- For each such vote, the job transitions vote.status to `open` and writes eligibility snapshot rows to `vote_eligibility_snapshot` (same logic as A_Open_Vote).
 - The system sends notification to all eligible members that the vote is now open (if configured).
 - Each transition is audit-logged: vote_id, old status, new status, eligible member count, job run timestamp.
 - An admin-alerts email is sent for each automatically opened vote.
@@ -2841,7 +2861,7 @@ Success Criteria:
 - Vote Ballot Preservation (7-year retention).
 - Clubs are NEVER hard deleted (historical record preservation); instead they are archived. 
 - Events with result rows are never hard-deleted once official event-result rows exist for that event (historical record preservation).
-- Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or club leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.
+- Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or co-leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.
 - Each run writes a comprehensive summary entry to application logs and audit trail including: job start/end timestamps, entity types processed (members, payments, ballots), counts per entity type (records eligible for cleanup, records anonymized, records preserved due to special rules, records skipped due to errors), errors encountered with entity IDs and error messages.
 
 ### SYS_Rebuild_Hashtag_Stats

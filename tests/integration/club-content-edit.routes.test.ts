@@ -53,7 +53,7 @@ function seedClubWithLeader(): { clubId: string; clubKey: string; leaderId: stri
   insertMember(db, { id: memberId, slug: `ccl_member_${_n}`, login_email: `${memberId}@example.com` });
   db.prepare(`
     INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-    VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+    VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
   `).run(`ccl-cl-${_n}`, clubId, leaderId);
   settleOnboarding(leaderId);
   settleOnboarding(memberId);

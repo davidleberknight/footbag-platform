@@ -177,8 +177,6 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
       expect(club.country).toBe('USA');
       expect(club.description).toBe('Austin freestyle crew since the nineties.');
       expect(club.status).toBe('active');
-      expect(club.contact_email).toBeNull();
-      expect(club.whatsapp).toBeNull();
       expect(club.external_url).toBeNull();
 
       const tag = db.prepare('SELECT tag_normalized FROM tags WHERE id = ?').get(club.hashtag_tag_id as string) as Record<string, unknown>;

@@ -257,6 +257,7 @@ export interface HistoricalPersonOverrides {
   source?: string | null;
   source_scope?: string;
   aliases?: string | null;
+  is_deceased?: 0 | 1;
 }
 
 export function insertHistoricalPerson(db: BetterSqlite3.Database, o: HistoricalPersonOverrides = {}): string {
@@ -272,9 +273,9 @@ export function insertHistoricalPerson(db: BetterSqlite3.Database, o: Historical
       person_id, person_name, legacy_member_id, country, first_year,
       event_count, placement_count,
       bap_member, bap_induction_year, hof_member, hof_induction_year,
-      source, source_scope, aliases
+      source, source_scope, aliases, is_deceased
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     o.person_name         ?? 'Test Person',
@@ -290,6 +291,7 @@ export function insertHistoricalPerson(db: BetterSqlite3.Database, o: Historical
     o.source              ?? null,
     o.source_scope        ?? 'CANONICAL',
     o.aliases             ?? null,
+    o.is_deceased         ?? 0,
   );
   return id;
 }
@@ -436,17 +438,16 @@ export function insertClubBootstrapLeaderSignal(
 // ── Club leader (live leadership row) ─────────────────────────────────────────
 //
 // The club_leaders table is what the club-content authorization gate reads: a
-// confirmed live leader, distinct from the migration-time club_bootstrap_leaders
-// claim. role defaults to 'leader'; 'co-leader' holds identical content-edit
-// rights but cannot perform the sole-leader-only actions (e.g. stepping down as
-// the only leader). Two leaders of different clubs is the adjacent-owner shape
-// that catches club-scoped authorization that checks only "any leadership row".
+// confirmed live co-leader, distinct from the migration-time
+// club_bootstrap_leaders claim. Co-leaders are a flat equal set (the only role
+// is 'co-leader'); a member co-leads at most one club. Two co-leaders of
+// different clubs is the adjacent-owner shape that catches club-scoped
+// authorization that checks only "any leadership row".
 
 export interface ClubLeaderOverrides {
   id?: string;
   club_id: string;   // required — FK to clubs(id)
   member_id: string; // required — FK to members(id)
-  role?: 'leader' | 'co-leader';
 }
 
 export function insertClubLeader(db: BetterSqlite3.Database, o: ClubLeaderOverrides): string {
@@ -456,7 +457,7 @@ export function insertClubLeader(db: BetterSqlite3.Database, o: ClubLeaderOverri
       id, created_at, created_by, updated_at, updated_by, version,
       club_id, member_id, role, added_at
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, o.club_id, o.member_id, o.role ?? 'leader', TS);
+  `).run(id, TS, SYS, TS, SYS, o.club_id, o.member_id, 'co-leader', TS);
   return id;
 }
 

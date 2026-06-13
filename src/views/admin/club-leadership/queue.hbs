@@ -11,11 +11,11 @@
 
   <section>
     <div class="section-heading">
-      <h2>Needs Leader</h2>
+      <h2>Could use a co-leader</h2>
       <span class="section-count">{{content.needsLeader.length}}</span>
     </div>
     {{#unless content.needsLeader.length}}
-      <p class="text-muted">Every active club has at least one leader.</p>
+      <p class="text-muted">Every active club has at least one co-leader.</p>
     {{/unless}}
     {{#each content.needsLeader}}
       <div class="card">
@@ -26,22 +26,5 @@
     {{/each}}
   </section>
 
-  <section>
-    <div class="section-heading">
-      <h2>Needs Contact</h2>
-      <span class="section-count">{{content.needsContact.length}}</span>
-    </div>
-    {{#unless content.needsContact.length}}
-      <p class="text-muted">Every active club has a contact email.</p>
-    {{/unless}}
-    {{#each content.needsContact}}
-      <div class="card">
-        <div class="card-title">{{name}}</div>
-        <p class="card-meta">{{location}}</p>
-        <a href="{{manageHref}}" class="btn btn-primary btn-sm">Manage leadership</a>
-      </div>
-    {{/each}}
-  </section>
-
-  <p class="mt-4 text-muted">Defunct clubs are archived from the <a href="/admin/club-cleanup">club cleanup queue</a>.</p>
+  <p class="mt-4 text-muted">A club is reachable through its co-leaders' contact, so a club with no co-leader simply has no platform-surfaced contact until a member steps up. This is an opportunity list, not a remediation obligation. Defunct clubs are archived from the <a href="/admin/club-cleanup">club cleanup queue</a>.</p>
 </div>

@@ -13,8 +13,7 @@
   {{/if}}
 
   <section>
-    {{#if content.club.needsLeader}}<p class="badge">Needs Leader</p>{{/if}}
-    {{#if content.club.needsContact}}<p class="badge">Needs Contact</p>{{/if}}
+    {{#if content.club.needsLeader}}<p class="badge">No co-leader yet</p>{{/if}}
 
     <div class="section-heading">
       <h2>Current leadership ({{content.club.leadershipCount}}/5)</h2>
@@ -45,18 +44,11 @@
   </section>
 
   <section>
-    <div class="section-heading"><h2>Assign a leader</h2></div>
+    <div class="section-heading"><h2>Assign a co-leader</h2></div>
     <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/assign" class="form-block">
       <div class="form-field">
         <label for="assign_member">Member id or slug</label>
         <input id="assign_member" name="member_key" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="assign_role">Role</label>
-        <select id="assign_role" name="role">
-          <option value="co-leader">Co-leader</option>
-          <option value="leader">Leader (demotes any current leader to co-leader)</option>
-        </select>
       </div>
       <div class="form-field">
         <label for="assign_reason">Reason (required)</label>
@@ -64,7 +56,7 @@
       </div>
       {{#if content.club.capReached}}
         <div class="form-field">
-          <label for="cap_override">Cap-override reason (club already at 5 leadership rows)</label>
+          <label for="cap_override">Cap-override reason (club already at 5 co-leaders)</label>
           <input id="cap_override" name="cap_override_reason" maxlength="500" />
         </div>
       {{/if}}
@@ -72,26 +64,10 @@
     </form>
 
     {{#if content.club.affiliatedMembers.length}}
-      <p class="mt-4 text-muted fs-sm">Affiliated members available for promotion:
+      <p class="mt-4 text-muted fs-sm">Affiliated members available to assign:
         {{#each content.club.affiliatedMembers}}{{displayName}} ({{slug}}){{#unless @last}}, {{/unless}}{{/each}}
       </p>
     {{/if}}
-  </section>
-
-  <section>
-    <div class="section-heading"><h2>Contact email</h2></div>
-    <p class="card-meta">Current: {{#if content.club.contactEmail}}{{content.club.contactEmail}}{{else}}none{{/if}}</p>
-    <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/contact" class="form-block">
-      <div class="form-field">
-        <label for="contact_email">New contact email</label>
-        <input id="contact_email" name="contact_email" type="email" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="contact_reason">Reason (required)</label>
-        <input id="contact_reason" name="reason" required maxlength="500" />
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">Update contact</button>
-    </form>
   </section>
 
   <p class="mt-4"><a href="/admin/clubs/leadership">Back to the remediation queue</a></p>

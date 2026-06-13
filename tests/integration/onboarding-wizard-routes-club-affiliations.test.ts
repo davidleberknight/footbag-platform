@@ -12,6 +12,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertClub,
+  insertClubLeader,
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
@@ -68,6 +69,11 @@ beforeAll(async () => {
     legacy_member_id: 'lm-wiz-membership',
   });
   membershipClubId = insertClub(db, { name: 'Membership Wizard Club' });
+  // Seed an existing co-leader so confirming membership (which now grants the
+  // member Active Player) does not surface a path-2 leadership offer; this test
+  // isolates pure membership-completion. The path-2 offer has its own coverage.
+  insertMember(db, { id: 'wiz-membership-coleader', slug: 'wiz_membership_coleader', login_email: 'wiz-mem-co@example.com' });
+  insertClubLeader(db, { club_id: membershipClubId, member_id: 'wiz-membership-coleader' });
   const membershipCand = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
     mapped_club_id: membershipClubId,
@@ -258,6 +264,23 @@ function readTaskState(memberId: string): string | null {
   return row?.state ?? null;
 }
 
+function clubJoinGrantCount(memberId: string): number {
+  const row = testDb
+    .prepare(
+      `SELECT COUNT(*) AS n FROM active_player_grants
+       WHERE member_id = ? AND reason_code = 'club_join_one_time_active_player_grant'`,
+    )
+    .get(memberId) as { n: number };
+  return row.n;
+}
+
+function isActivePlayer(memberId: string): number {
+  const row = testDb
+    .prepare(`SELECT is_active_player FROM member_active_player_current WHERE member_id = ?`)
+    .get(memberId) as { is_active_player: number } | undefined;
+  return row?.is_active_player ?? 0;
+}
+
 describe('GET /register/wizard/club_affiliations — card listing', () => {
   it('member with no candidates -> task auto-transitions to not_applicable and 303-redirects to next task', async () => {
     const res = await request(createApp())
@@ -344,6 +367,11 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');
+
+    // The first club affiliation fires the one-time club-join Active Player
+    // grant for a Tier 0 member, who now reads as a current Active Player.
+    expect(clubJoinGrantCount(MEMBER_MEMBERSHIP)).toBe(1);
+    expect(isActivePlayer(MEMBER_MEMBERSHIP)).toBe(1);
   });
 
   it('membership confirm at the two-current-club cap -> 303 retry_same; row stays pending; cap notice renders', async () => {
@@ -382,6 +410,11 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readBootstrapStatus(leadershipCblId)).toBe('claimed');
     expect(readTaskState(MEMBER_LEADERSHIP)).toBe('completed');
+
+    // Claiming bootstrap leadership creates the member's first club affiliation,
+    // which fires the one-time club-join Active Player grant for a Tier 0 member.
+    expect(clubJoinGrantCount(MEMBER_LEADERSHIP)).toBe(1);
+    expect(isActivePlayer(MEMBER_LEADERSHIP)).toBe(1);
   });
 
   it('multi-card flow: submit Beta leadership (Stage 1A) first -> 303 retry_same; second GET renders Alpha membership (Stage 1B); second submit advances', async () => {
@@ -412,6 +445,43 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe('/register/wizard/complete');
     expect(readTaskState(MEMBER_MULTI)).toBe('completed');
+  });
+
+  it('Tier 1+ member confirming a first affiliation gets no club-join grant (Active Player is a Tier 0 benefit)', async () => {
+    const TIER1_MEMBER = 'wiz-clubaff-tier1';
+    const TIER1_LM = 'lm-wiz-tier1';
+    insertMember(testDb, {
+      id: TIER1_MEMBER, slug: 'wiz_clubaff_tier1',
+      login_email: 'wiz-tier1@example.com', legacy_member_id: TIER1_LM,
+    });
+    testDb.prepare(`
+      INSERT INTO member_tier_grants
+        (id, created_at, created_by, member_id, actor_member_id, change_type,
+         old_tier_status, new_tier_status, old_underlying_tier_status, new_underlying_tier_status, reason_code)
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', ?, NULL, 'grant',
+              'tier0', 'tier1', NULL, NULL, 'test.tier_grant')
+    `).run('wiz-tier1-grant', TIER1_MEMBER);
+    const clubId = insertClub(testDb, { name: 'Tier1 Wizard Club' });
+    // Existing co-leader so the confirmed membership does not surface a path-2 offer.
+    insertMember(testDb, { id: 'wiz-tier1-coleader', slug: 'wiz_tier1_coleader', login_email: 'wiz-tier1-co@example.com' });
+    insertClubLeader(testDb, { club_id: clubId, member_id: 'wiz-tier1-coleader' });
+    const cand = insertLegacyClubCandidate(testDb, {
+      classification: 'pre_populate', mapped_club_id: clubId, display_name: 'Tier1 Wizard Club',
+    });
+    const affId = insertLegacyPersonClubAffiliation(testDb, {
+      legacy_member_id: TIER1_LM, legacy_club_candidate_id: cand, confidence_score: 0.9,
+    });
+
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(TIER1_MEMBER))
+      .type('form')
+      .send({ kind: 'membership', candidateId: affId, userDecision: 'confirm', activitySignal: 'active' });
+
+    expect(res.status).toBe(303);
+    expect(readAffiliationStatus(affId)).toBe('confirmed_current');
+    expect(clubJoinGrantCount(TIER1_MEMBER)).toBe(0);
+    expect(isActivePlayer(TIER1_MEMBER)).toBe(0);
   });
 });
 

@@ -129,7 +129,7 @@ describe('two-current-club cap: second current affiliation succeeds, third would
 // ── Tier 0 leadership gate ───────────────────────────────────────────────────
 
 describe('Tier 0 leadership: current implementation promotes regardless of tier', () => {
-  it('Tier 0 member confirming a leadership bootstrap candidate IS promoted to leader (no tier gate in wizard path)', async () => {
+  it('Tier 0 member confirming a leadership bootstrap candidate IS promoted to co-leader (no tier gate in wizard path)', async () => {
     const stamp = Date.now();
     const legacyId = `LM-T0L-${stamp}`;
     const memberId = `t0l-${stamp}`;
@@ -184,7 +184,7 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
     const leaders = getClubLeaders(club);
     const memberAsLeader = leaders.find((l) => l.member_id === memberId);
     expect(memberAsLeader).toBeDefined();
-    expect(memberAsLeader!.role).toBe('leader');
+    expect(memberAsLeader!.role).toBe('co-leader');
   });
 });
 

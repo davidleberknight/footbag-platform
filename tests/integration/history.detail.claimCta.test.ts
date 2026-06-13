@@ -31,6 +31,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const HP_HONOR     = 'hp-honor-cta-001';
 const HP_NON_HONOR = 'hp-nonhonor-cta-001';
+const HP_DECEASED  = 'hp-deceased-cta-001';
 
 const VIEWER_MATCH      = 'mem-viewer-match';
 const VIEWER_MISMATCH   = 'mem-viewer-mismatch';
@@ -51,6 +52,13 @@ beforeAll(async () => {
     hof_member: 0,
     bap_member: 0,
     country: 'US',
+  });
+  insertHistoricalPerson(db, {
+    person_id: HP_DECEASED,
+    person_name: 'Pat Smith',
+    hof_member: 1,
+    country: 'US',
+    is_deceased: 1,
   });
 
   insertMember(db, {
@@ -149,6 +157,15 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
       .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Claim this identity');
+  });
+
+  it('authenticated viewer with surname match on a deceased HP: no CTA (deceased records are not self-claimable)', async () => {
+    const res = await request(createApp())
+      .get(`/history/${HP_DECEASED}`)
+      .set('Cookie', cookieFor(VIEWER_MATCH));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Pat Smith');
+    expect(res.text).not.toContain('Claim this identity');
   });
 });
 

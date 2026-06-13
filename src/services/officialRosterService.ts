@@ -169,8 +169,8 @@ function compactDate(now: Date): string {
  * Export the Official IFPA Roster as CSV. Includes the prescribed header
  * comment line, a column header row, and one row per roster member.
  *
- * Email field is included only when the member's email_visibility is
- * 'members' or 'public' (opt-in); 'private' members appear with an empty
+ * Email field is included only when the member opted in (email_visibility
+ * 'members'); 'private' members appear with an empty
  * email column. Deceased and Tier 0-without-AP members are already
  * excluded by official_ifpa_roster_current.
  *

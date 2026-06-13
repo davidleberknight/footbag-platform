@@ -53,8 +53,7 @@ const TIER_LABELS: Record<string, string> = {
 function deriveRoles(spec: PersonaSpec): string[] {
   const roles: string[] = [];
   if (spec.isAdmin) roles.push('admin');
-  if (spec.club?.role === 'leader' || spec.club?.leader) roles.push('club leader');
-  if (spec.club?.role === 'co-leader') roles.push('club co-leader');
+  if (spec.club?.role === 'co-leader' || spec.club?.leader) roles.push('club co-leader');
   if (spec.honors?.hof) roles.push('HoF');
   if (spec.honors?.bap) roles.push('BAP');
   if (spec.honors?.board) roles.push('IFPA Board');

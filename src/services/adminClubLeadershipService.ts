@@ -1,35 +1,31 @@
 /**
  * AdminClubLeadershipService -- admin remediation of club leadership rosters.
  *
- * Owns: the Needs Leader / Needs Contact remediation queue (computed fresh
- * on open, never by background process), admin leader assignment from the
- * member base (creating or reactivating the affiliation when absent), role
- * changes between leader and co-leader (promoting to leader demotes the
- * incumbent in the same transaction; a member holding leader at another
- * club must be demoted there first), demotion back to ordinary member or
- * full affiliation removal (mandatory reason), the five-leader cap with an
- * explicit cap-override reason, and contact-email remediation. Resolving
- * leadership for a bootstrapped club supersedes its remaining provisional
- * club_bootstrap_leaders rows. Assigning a leader to an inactive or
- * archived club revives it to 'active' in the same transaction (staffing a
- * club makes it a live club).
+ * Owns: the single "could use a leader" remediation queue (clubs with no
+ * co-leaders, computed fresh on open, never by a background process), admin
+ * assignment of a co-leader from the member base (creating or reactivating the
+ * affiliation when absent), removal of a co-leader back to ordinary member or
+ * full affiliation removal (mandatory reason), and the five-co-leader cap with
+ * an explicit cap-override reason. Resolving leadership for a bootstrapped club
+ * supersedes its remaining provisional club_bootstrap_leaders rows. Assigning a
+ * co-leader to an inactive or archived club revives it to 'active' in the same
+ * transaction (staffing a club makes it a live club).
  *
  * Does not own: member-facing leadership flows (ClubService,
  * MemberOnboardingService path 1 / path 2) or club viability cleanup
  * (ClubCleanupService).
  *
  * Non-negotiable invariants:
- *   - Schema invariants stand: one role='leader' per club
- *     (ux_one_leader_per_club), one role='leader' per member across clubs
- *     (ux_one_club_leader_per_member). Promotions that would violate them
- *     either swap in-transaction (same club) or refuse with direction
- *     (other club).
+ *   - Schema invariants stand: a member co-leads at most one club
+ *     (ux_one_club_leader_per_member); a member appears at most once per club
+ *     (ux_club_leaders). Assigning a member who already co-leads another club
+ *     is refused with direction (remove them there first).
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text. The audit trail is the
  *     canonical history.
  *
- * Transaction discipline: every multi-row mutation (swap, assign +
- * affiliation + supersede) is one transaction(() => ...).
+ * Transaction discipline: every multi-row mutation (assign + affiliation +
+ * supersede) is one transaction(() => ...).
  *
  * Persistence: clubs, club_leaders, member_club_affiliations,
  * club_bootstrap_leaders, audit_entries.
@@ -51,12 +47,10 @@ interface QueueClubRow {
   name: string;
   city: string | null;
   country: string | null;
-  contact_email?: string | null;
 }
 
 export interface LeadershipQueueContent {
   needsLeader: Array<{ clubId: string; name: string; location: string; manageHref: string }>;
-  needsContact: Array<{ clubId: string; name: string; location: string; manageHref: string }>;
   notice: string | null;
   errorMessage: string | null;
 }
@@ -65,9 +59,7 @@ export interface ClubLeadershipContent {
   clubId: string;
   clubKey: string;
   name: string;
-  contactEmail: string | null;
   needsLeader: boolean;
-  needsContact: boolean;
   leaders: Array<{ memberId: string; displayName: string; slug: string; role: string; roleLabel: string }>;
   affiliatedMembers: Array<{ memberId: string; displayName: string; slug: string }>;
   leadershipCount: number;
@@ -84,24 +76,20 @@ function getLeadershipQueuePage(opts: { notice?: string; errorMessage?: string }
   const needsLeader = (clubLeaders.listClubsNeedingLeader.all() as QueueClubRow[]).map((r) => ({
     clubId: r.id, name: r.name, location: locationOf(r), manageHref: `/admin/clubs/${r.id}/leadership`,
   }));
-  const needsContact = (clubLeaders.listClubsNeedingContact.all() as QueueClubRow[]).map((r) => ({
-    clubId: r.id, name: r.name, location: locationOf(r), manageHref: `/admin/clubs/${r.id}/leadership`,
-  }));
   return {
     seo:  { title: 'Club leadership remediation' },
     page: { sectionKey: '', pageKey: 'admin_club_leadership_queue', title: 'Club leadership remediation' },
     content: {
       needsLeader,
-      needsContact,
       notice: opts.notice ?? null,
       errorMessage: opts.errorMessage ?? null,
     },
   };
 }
 
-function loadClub(clubId: string): { id: string; name: string; contact_email: string | null; status: string } {
+function loadClub(clubId: string): { id: string; name: string; status: string } {
   const row = clubLeaders.findClubForAdminLeadership.get(clubId) as
-    | { id: string; name: string; contact_email: string | null; status: string }
+    | { id: string; name: string; status: string }
     | undefined;
   if (!row) throw new NotFoundError('Club not found.');
   return row;
@@ -119,7 +107,7 @@ function getClubLeadershipPage(
     displayName: l.display_name,
     slug: l.slug,
     role: l.role,
-    roleLabel: l.role === 'leader' ? 'Leader' : 'Co-leader',
+    roleLabel: 'Co-leader',
   }));
   const affiliated = (clubLeaders.listAffiliatedMembersForAdmin.all(clubId) as Array<{
     member_id: string; display_name: string; slug: string; is_leader: number;
@@ -134,9 +122,7 @@ function getClubLeadershipPage(
         clubId: club.id,
         clubKey: club.id,
         name: club.name,
-        contactEmail: club.contact_email,
         needsLeader: leaders.length === 0,
-        needsContact: !club.contact_email,
         leaders,
         affiliatedMembers: affiliated,
         leadershipCount: leaders.length,
@@ -174,17 +160,16 @@ function audit(
 }
 
 /**
- * Assign a member from the member base as leader or co-leader. Creates or
- * reactivates the affiliation when absent. Promoting to 'leader' demotes
- * the incumbent leader to co-leader in the same transaction; a member
- * already holding 'leader' at another club is refused with direction.
- * Exceeding the five-row cap requires an explicit cap-override reason.
+ * Assign a member from the member base as a co-leader. Creates or reactivates
+ * the affiliation when absent. A member co-leads at most one club, so a member
+ * who already co-leads another club is refused with direction (remove them
+ * there first). Exceeding the five-co-leader cap requires an explicit
+ * cap-override reason.
  */
 function assignLeader(
   adminMemberId: string,
   clubId: string,
   memberKey: string,
-  role: 'leader' | 'co-leader',
   reason: string,
   capOverrideReason?: string,
 ): void {
@@ -198,53 +183,36 @@ function assignLeader(
   const existingRow = clubLeaders.findLeaderRow.get(clubId, member.id) as
     | { id: string; role: string }
     | undefined;
-  if (existingRow && existingRow.role === role) {
-    throw new ValidationError('That member already holds this role at this club.');
+  if (existingRow) {
+    throw new ValidationError('That member already co-leads this club.');
   }
 
-  if (role === 'leader') {
-    const elsewhere = clubLeaders.memberIsLeaderSomewhere.get(member.id) as { x: number } | undefined;
-    const hereAlready = existingRow?.role === 'leader';
-    if (elsewhere && !hereAlready) {
-      throw new ValidationError(
-        'That member is already the leader of another club. Demote them there before promoting them here.',
-      );
-    }
+  // A member co-leads at most one club; the existingRow check above already
+  // cleared this club, so any co-leadership is elsewhere.
+  const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(member.id) as { x: number } | undefined;
+  if (coLeadsElsewhere) {
+    throw new ValidationError(
+      'That member already co-leads another club. A member co-leads at most one club; remove them there before adding them here.',
+    );
   }
 
   const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-  const addsRow = !existingRow;
   const capOverride = (capOverrideReason ?? '').trim();
-  if (addsRow && count >= LEADERSHIP_CAP && !capOverride) {
+  if (count >= LEADERSHIP_CAP && !capOverride) {
     throw new ValidationError(
-      `This club already has ${count} leadership rows (cap ${LEADERSHIP_CAP}). Provide a cap-override reason to proceed.`,
+      `This club already has ${count} co-leaders (cap ${LEADERSHIP_CAP}). Provide a cap-override reason to proceed.`,
     );
   }
 
   const now = new Date().toISOString();
   transaction(() => {
-    // Same-club leader swap: demote the incumbent first, one transaction.
-    let demotedIncumbent: string | null = null;
-    if (role === 'leader') {
-      const incumbent = (clubLeaders.listLeadersWithNames.all(clubId) as Array<{ member_id: string; role: string }>)
-        .find((l) => l.role === 'leader' && l.member_id !== member.id);
-      if (incumbent) {
-        clubLeaders.updateLeaderRole.run('co-leader', now, adminMemberId, clubId, incumbent.member_id);
-        demotedIncumbent = incumbent.member_id;
-      }
-    }
+    clubLeaders.insertClubLeader.run(
+      `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      now, adminMemberId, now, adminMemberId,
+      clubId, member.id, 'co-leader', now,
+    );
 
-    if (existingRow) {
-      clubLeaders.updateLeaderRole.run(role, now, adminMemberId, clubId, member.id);
-    } else {
-      clubLeaders.insertClubLeader.run(
-        `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
-        now, adminMemberId, now, adminMemberId,
-        clubId, member.id, role, now,
-      );
-    }
-
-    // Ensure the assigned leader is on the roster.
+    // Ensure the assigned co-leader is on the roster.
     const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
       | { id: string; is_current: number }
       | undefined;
@@ -261,7 +229,7 @@ function assignLeader(
     clubLeaders.supersedeProvisionalForClub.run(now, adminMemberId, clubId);
 
     // Revival: staffing a club makes it a live club; an inactive or archived
-    // club returns to 'active' in the same transaction so the new leader's
+    // club returns to 'active' in the same transaction so the new co-leader's
     // club is visible in listings.
     if (club.status !== 'active') {
       clubsDb.updateStatus.run('active', now, adminMemberId, clubId);
@@ -272,17 +240,15 @@ function assignLeader(
     }
 
     audit(adminMemberId, 'club.admin_leader_assigned', clubId, trimmedReason, {
-      member_id:            member.id,
-      role,
-      previous_role:        existingRow?.role ?? null,
-      demoted_incumbent:    demotedIncumbent,
-      cap_override_reason:  capOverride || null,
+      member_id:               member.id,
+      role:                    'co-leader',
+      cap_override_reason:     capOverride || null,
       leadership_count_before: count,
     });
   });
 }
 
-/** Demote a leadership row back to ordinary member, or remove the member's
+/** Remove a co-leader row back to ordinary member, or remove the member's
  * affiliation entirely. Reason is mandatory. */
 function demoteLeader(
   adminMemberId: string,
@@ -310,35 +276,9 @@ function demoteLeader(
   });
 }
 
-/** Remediate a missing or wrong contact email. */
-function updateContactEmail(
-  adminMemberId: string,
-  clubId: string,
-  contactEmail: string,
-  reason: string,
-): void {
-  const trimmedReason = requireReason(reason);
-  const club = loadClub(clubId);
-  const email = contactEmail.trim();
-  // Minimal local@domain.tld shape check: a bare '@' or a missing domain
-  // would persist and break downstream club contact flows.
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new ValidationError('A valid contact email is required.');
-  }
-  const now = new Date().toISOString();
-  transaction(() => {
-    clubLeaders.updateClubContactEmail.run(email, now, adminMemberId, clubId);
-    audit(adminMemberId, 'club.admin_contact_updated', clubId, trimmedReason, {
-      before: club.contact_email,
-      after:  email,
-    });
-  });
-}
-
 export const adminClubLeadershipService = {
   getLeadershipQueuePage,
   getClubLeadershipPage,
   assignLeader,
   demoteLeader,
-  updateContactEmail,
 };

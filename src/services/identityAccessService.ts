@@ -171,6 +171,7 @@ export interface RegisterContent {
   displayName?: string;
   slug?: string;
   email?: string;
+  sex?: string;
 }
 
 export interface CheckEmailContent {
@@ -561,6 +562,7 @@ async function registerMember(
   confirmPassword: string,
   realName: string,
   displayName: string,
+  sex: string,
   ip: string,
   requestedSlug?: string,
 ): Promise<RegisterResult> {
@@ -603,6 +605,14 @@ async function registerMember(
   }
   if (trimmedDisplayName !== trimmedRealName) {
     validateDisplayNameSurname(trimmedDisplayName, trimmedRealName);
+  }
+
+  // Sex is required at registration with no default: the registrant must pick
+  // one of the three stored values. It gates sex-based event-category
+  // eligibility later. Private field (owner and admin only).
+  const normalizedSex = sex.trim().toLowerCase();
+  if (normalizedSex !== 'male' && normalizedSex !== 'female' && normalizedSex !== 'undisclosed') {
+    throw new ValidationError('Please select your sex for competition eligibility.');
   }
 
   const trimmedSlug = requestedSlug?.trim().toLowerCase() ?? '';
@@ -656,6 +666,7 @@ async function registerMember(
         trimmedRealName,                    // real_name
         trimmedDisplayName,                 // display_name
         trimmedDisplayName.toLowerCase(),   // display_name_normalized
+        normalizedSex,                      // sex
         now,   // created_at
         now,   // updated_at
       );
@@ -2404,6 +2415,12 @@ function lookupHistoricalPersonForClaim(
   const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
   if (!hp) return null;
 
+  // A record marked deceased is not self-claimable: a living member cannot
+  // claim a deceased person's identity as their own account. Collapse to the
+  // uniform unavailable response (same shape as not-found) so claim-status is
+  // not enumerable.
+  if (hp.is_deceased) return null;
+
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
     return { status: 'conflict' };
@@ -2495,6 +2512,13 @@ function claimHistoricalPersonInTxInner(
 
   const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
   if (!hp) {
+    throw new ValidationError('The historical record is no longer available for claim.');
+  }
+
+  // A record marked deceased is not self-claimable: a living member cannot
+  // claim a deceased person's identity. Gate the execution path too, so a
+  // direct POST cannot bypass the suppressed CTA and confirm-page preview.
+  if (hp.is_deceased) {
     throw new ValidationError('The historical record is no longer available for claim.');
   }
 

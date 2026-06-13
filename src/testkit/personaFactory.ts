@@ -161,11 +161,12 @@ export interface PersonaClubSpec {
    */
   leader?: boolean;
   /**
-   * Writes a live club_leaders row at this role — the table the club-content
-   * authorization gate reads. 'co-leader' edits content but cannot perform the
-   * sole-leader-only actions. Distinct from `leader` (the bootstrap claim).
+   * When set, writes a live club_leaders co-leader row — the table the
+   * club-content authorization gate reads. Co-leaders are a flat equal set
+   * (the only role); a member co-leads at most one club. Distinct from
+   * `leader` (the bootstrap claim).
    */
-  role?: 'leader' | 'co-leader';
+  role?: 'co-leader';
 }
 
 /**
@@ -502,7 +503,7 @@ export function seedPersona(
       });
     }
     if (spec.club.role) {
-      insertClubLeader(db, { club_id: clubId, member_id: memberId, role: spec.club.role });
+      insertClubLeader(db, { club_id: clubId, member_id: memberId });
     }
   }
 

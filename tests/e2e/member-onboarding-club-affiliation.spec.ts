@@ -39,7 +39,7 @@ test('membership card: renders club name, confirm/decline buttons', async ({ bro
 
 test('confirm membership card: resolves and advances', async ({ browser, baseURL }) => {
   const db = openLiveDb();
-  const persona = seedMemberWithClubCards(db, { slug: `ca_cfm_${Date.now()}`, clubCount: 1 });
+  const persona = seedMemberWithClubCards(db, { slug: `ca_cfm_${Date.now()}`, clubCount: 1, withCoLeader: true });
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

@@ -174,16 +174,16 @@ const MATRIX_CELLS: Array<{
   key: string;
   classification: 'strong' | 'weak' | 'none';
   userDecision: 'confirm' | 'correct' | 'decline';
-  expectedBranch: 'promoted_leader' | 'declined';
+  expectedBranch: 'promoted_co_leader' | 'declined';
 }> = [
-  { key: 'strong_confirm', classification: 'strong', userDecision: 'confirm', expectedBranch: 'promoted_leader' },
-  { key: 'strong_correct', classification: 'strong', userDecision: 'correct', expectedBranch: 'promoted_leader' },
+  { key: 'strong_confirm', classification: 'strong', userDecision: 'confirm', expectedBranch: 'promoted_co_leader' },
+  { key: 'strong_correct', classification: 'strong', userDecision: 'correct', expectedBranch: 'promoted_co_leader' },
   { key: 'strong_decline', classification: 'strong', userDecision: 'decline', expectedBranch: 'declined'         },
-  { key: 'weak_confirm',   classification: 'weak',   userDecision: 'confirm', expectedBranch: 'promoted_leader' },
-  { key: 'weak_correct',   classification: 'weak',   userDecision: 'correct', expectedBranch: 'promoted_leader' },
+  { key: 'weak_confirm',   classification: 'weak',   userDecision: 'confirm', expectedBranch: 'promoted_co_leader' },
+  { key: 'weak_correct',   classification: 'weak',   userDecision: 'correct', expectedBranch: 'promoted_co_leader' },
   { key: 'weak_decline',   classification: 'weak',   userDecision: 'decline', expectedBranch: 'declined'         },
-  { key: 'none_confirm',   classification: 'none',   userDecision: 'confirm', expectedBranch: 'promoted_leader' },
-  { key: 'none_correct',   classification: 'none',   userDecision: 'correct', expectedBranch: 'promoted_leader' },
+  { key: 'none_confirm',   classification: 'none',   userDecision: 'confirm', expectedBranch: 'promoted_co_leader' },
+  { key: 'none_correct',   classification: 'none',   userDecision: 'correct', expectedBranch: 'promoted_co_leader' },
   { key: 'none_decline',   classification: 'none',   userDecision: 'decline', expectedBranch: 'declined'         },
 ];
 
@@ -192,7 +192,7 @@ const cellState = new Map<
   { memberId: string; clubId: string; candidateId: string }
 >();
 
-// Five-member cohort sharing one club, exercising role-downgrade + cap.
+// Six-member cohort sharing one club, exercising the flat co-leader set + cap.
 const COHORT_MEMBERS = ['m-cohort-1', 'm-cohort-2', 'm-cohort-3', 'm-cohort-4', 'm-cohort-5', 'm-cohort-6'];
 let cohortClubId = '';
 const cohortCandidateByMember = new Map<string, string>();
@@ -202,7 +202,7 @@ const IDEMPOTENT_MEMBER = 'member-idempotent';
 let idempotentClubId = '';
 let idempotentCandidateId = '';
 
-// Cross-club leader: member already leader of one club; second club's claim downgrades.
+// One-club fence: member co-leads one club; a second club's claim affiliates only.
 const CROSS_CLUB_MEMBER = 'member-cross-club';
 let crossClubA = '';
 let crossClubB = '';
@@ -225,9 +225,8 @@ beforeAll(async () => {
     cellState.set(cell.key, { memberId, clubId, candidateId });
   }
 
-  // Cohort: one club, six bootstrap_leader rows (all role='leader' from
-  // pipeline perspective). Service downgrades after the first; cap kicks in
-  // for the sixth.
+  // Cohort: one club, six bootstrap_leader rows. Each claim becomes a flat
+  // co-leader; the cap kicks in for the sixth.
   cohortClubId = insertClub(db, { name: 'Cohort Club' });
   for (const mid of COHORT_MEMBERS) {
     insertMember(db, { id: mid, slug: mid.replace(/-/g, '_'), login_email: `${mid}@example.com` });
@@ -253,7 +252,7 @@ beforeAll(async () => {
     classification: 'strong',
   });
 
-  // Cross-club: member becomes leader of club A, then claims club B (downgrades to co-leader).
+  // One-club fence: member co-leads club A, then claims club B (affiliate only).
   insertMember(db, {
     id: CROSS_CLUB_MEMBER,
     slug: 'member_cross_club',
@@ -293,7 +292,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
       expect(result.classification).toBe(cell.classification);
 
       const task = readOnboardingTask(state.memberId, 'club_affiliations');
-      if (cell.expectedBranch === 'promoted_leader') {
+      if (cell.expectedBranch === 'promoted_co_leader') {
         // Confirm writes a club affiliation, so the task completes.
         expect(task?.state).toBe('completed');
         expect(task?.completed_at).toBeTruthy();
@@ -304,13 +303,13 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
       }
 
       const leader = readBootstrapLeader(state.candidateId);
-      if (cell.expectedBranch === 'promoted_leader') {
+      if (cell.expectedBranch === 'promoted_co_leader') {
         expect(leader.status).toBe('claimed');
         expect(leader.claimed_member_id).toBe(state.memberId);
-        expect(result.actualRole).toBe('leader');
+        expect(result.actualRole).toBe('co-leader');
         const cls = readClubLeaders(state.clubId);
         expect(cls).toHaveLength(1);
-        expect(cls[0]).toEqual({ club_id: state.clubId, member_id: state.memberId, role: 'leader' });
+        expect(cls[0]).toEqual({ club_id: state.clubId, member_id: state.memberId, role: 'co-leader' });
         const affs = readAffiliations(state.memberId);
         expect(affs).toHaveLength(1);
         expect(affs[0]).toMatchObject({
@@ -342,16 +341,16 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
 });
 
 describe('memberOnboardingService.submitClubAffiliationsResponse — multi-member cohort', () => {
-  it('first claimant becomes leader; subsequent claims become co-leaders up to cap; 6th is affiliated only', () => {
-    // Member 1: gets role='leader'.
+  it('each claimant becomes a co-leader up to the cap; the 6th is affiliated only', () => {
+    // Co-leaders are a flat equal set: every claimant of the same club becomes
+    // a co-leader, up to the 5-co-leader cap.
     const r1 = svc.submitClubAffiliationsResponse(COHORT_MEMBERS[0], {
       candidateId: cohortCandidateByMember.get(COHORT_MEMBERS[0])!,
       userDecision: 'confirm',
     });
-    expect(r1.branch).toBe('promoted_leader');
-    expect(r1.actualRole).toBe('leader');
+    expect(r1.branch).toBe('promoted_co_leader');
+    expect(r1.actualRole).toBe('co-leader');
 
-    // Members 2-5: downgraded to co-leader.
     for (const mid of COHORT_MEMBERS.slice(1, 5)) {
       const r = svc.submitClubAffiliationsResponse(mid, {
         candidateId: cohortCandidateByMember.get(mid)!,
@@ -361,14 +360,13 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
       expect(r.actualRole).toBe('co-leader');
     }
 
-    // After 5 claims: club has 1 leader + 4 co-leaders.
+    // After 5 claims: club has 5 co-leaders (no head-leader role).
     const leaders = readClubLeaders(cohortClubId);
     expect(leaders).toHaveLength(5);
-    expect(leaders.filter((l) => l.role === 'leader')).toHaveLength(1);
-    expect(leaders.filter((l) => l.role === 'co-leader')).toHaveLength(4);
+    expect(leaders.every((l) => l.role === 'co-leader')).toBe(true);
 
     // Member 6: cap hit. Bootstrap row is marked claimed; affiliation lands;
-    // no club_leaders row is added. Admins can later promote via A_* powers.
+    // no club_leaders row is added. Admins can later add via A_* powers.
     const r6 = svc.submitClubAffiliationsResponse(COHORT_MEMBERS[5], {
       candidateId: cohortCandidateByMember.get(COHORT_MEMBERS[5])!,
       userDecision: 'confirm',
@@ -386,38 +384,30 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
   });
 });
 
-describe('memberOnboardingService.submitClubAffiliationsResponse — cross-club downgrade', () => {
-  it('member already leader of club A claims club B → co-leader of B (ux_one_club_leader_per_member fence)', () => {
-    // Claim club A as leader.
+describe('memberOnboardingService.submitClubAffiliationsResponse — one-club co-leader fence', () => {
+  it('member already co-leading club A claims club B → affiliated only at B (ux_one_club_leader_per_member fence)', () => {
+    // Claim club A: becomes a co-leader.
     const a = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
       candidateId: crossCandidateA,
       userDecision: 'confirm',
     });
-    expect(a.branch).toBe('promoted_leader');
-    expect(a.actualRole).toBe('leader');
+    expect(a.branch).toBe('promoted_co_leader');
+    expect(a.actualRole).toBe('co-leader');
 
-    // Claim club B; service detects member already leads club A, downgrades to co-leader.
+    // Claim club B: a member co-leads at most one club, so B affiliates the
+    // member but writes no club_leaders row.
     const b = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
       candidateId: crossCandidateB,
       userDecision: 'confirm',
     });
-    expect(b.branch).toBe('promoted_co_leader');
-    expect(b.actualRole).toBe('co-leader');
-
-    // F2: the cross-club downgrade exposes attemptedRole + downgradeReason
-    // on the result (and the audit metadata) so post-cutover analytics can
-    // distinguish "club already has a leader" from "member already leads
-    // elsewhere". Club B's case is member-already-leader (member leads A;
-    // B's leader slot is empty when claimed).
-    expect(b.attemptedRole).toBe('leader');
-    expect(b.downgradeReason).toBe('member_already_leader');
+    expect(b.branch).toBe('affiliated_only');
+    expect(b.actualRole).toBeNull();
 
     const aLeaders = readClubLeaders(crossClubA);
     const bLeaders = readClubLeaders(crossClubB);
     expect(aLeaders).toHaveLength(1);
-    expect(aLeaders[0].role).toBe('leader');
-    expect(bLeaders).toHaveLength(1);
-    expect(bLeaders[0].role).toBe('co-leader');
+    expect(aLeaders[0].role).toBe('co-leader');
+    expect(bLeaders).toHaveLength(0);
 
     // Two-current-club cap: both affiliations land.
     const affs = readAffiliations(CROSS_CLUB_MEMBER);
@@ -425,14 +415,13 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — cross-club 
     expect(affs.map((a) => a.club_id).sort()).toEqual([crossClubA, crossClubB].sort());
     expect(affs.every((a) => a.is_current === 1)).toBe(true);
 
-    // F2 audit-metadata assertion: latest audit row for this member carries
-    // both fields under the expected snake_case keys.
+    // The B claim is recorded as a promotion attempt that fell through to
+    // affiliate-only.
     const audits = readClubAffiliationsAudits(CROSS_CLUB_MEMBER);
     const latest = audits[audits.length - 1];
     expect(latest.action_type).toBe('wizard.club_affiliations.promoted');
     const meta = JSON.parse(latest.metadata_json);
-    expect(meta.attempted_role).toBe('leader');
-    expect(meta.downgrade_reason).toBe('member_already_leader');
+    expect(meta.promote_branch).toBe('affiliated_only');
   });
 });
 
@@ -442,7 +431,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — idempotency
       candidateId: idempotentCandidateId,
       userDecision: 'confirm',
     });
-    expect(first.branch).toBe('promoted_leader');
+    expect(first.branch).toBe('promoted_co_leader');
 
     expect(readClubLeaders(idempotentClubId)).toHaveLength(1);
     expect(readAffiliations(IDEMPOTENT_MEMBER)).toHaveLength(1);
@@ -491,8 +480,8 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     });
 
     // Leadership claim succeeded at club Y.
-    expect(result.branch).toBe('promoted_leader');
-    expect(result.actualRole).toBe('leader');
+    expect(result.branch).toBe('promoted_co_leader');
+    expect(result.actualRole).toBe('co-leader');
     expect(readClubLeaders(clubY)).toHaveLength(1);
     expect(readClubLeaders(clubX)).toHaveLength(0);
 

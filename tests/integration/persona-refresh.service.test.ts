@@ -154,7 +154,7 @@ describe('refreshAllPersonas', () => {
     db.prepare(
       `INSERT INTO club_leaders
          (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
-       VALUES ('cl-real-1', ?, 'club_service', ?, 'club_service', 1, 'club-real-keep-1', ?, 'leader', ?)`,
+       VALUES ('cl-real-1', ?, 'club_service', ?, 'club_service', 1, 'club-real-keep-1', ?, 'co-leader', ?)`,
     ).run(TS, TS, T1, TS);
     db.prepare(
       `INSERT INTO club_viability_signals

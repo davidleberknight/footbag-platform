@@ -277,13 +277,13 @@ Bootstrap-eligible clubs are created with:
 
 **Leadership activation paths:**
 
-1. **Bootstrap leader registers and claims**: the onboarding wizard presents classified `(member, club)` candidates. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row in a silent audit-logged transaction, regardless of classification strength; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Schema invariants enforce that at most one `role='leader'` row exists per club (`ux_one_leader_per_club`) and at most one `role='leader'` row exists per member across all clubs (`ux_one_club_leader_per_member`); the wizard transparently downgrades the new row to `role='co-leader'` when either invariant would be violated, recording the downgrade reason in audit metadata. The application-level cap of five total leadership rows per club is enforced: when the cap is reached the new claim still affiliates the member (`member_club_affiliations`) but does not insert a `club_leaders` row; an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. A member declining a candidate sets `club_bootstrap_leaders.status='rejected'`; the row remains eligible for the other activation paths. When the same member matches signals for multiple clubs, the wizard presents all candidates and the member selects which clubs they led. See `M_Complete_Onboarding_Wizard` for the full user-facing acceptance criteria.
+1. **Bootstrap leader registers and claims**: the onboarding wizard presents classified `(member, club)` candidates. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row in a silent audit-logged transaction, regardless of classification strength; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. The schema invariant `ux_one_club_leader_per_member` enforces that a member co-leads at most one club; a registrant who already co-leads another club is affiliated to this club but not inserted as a co-leader, recorded in audit metadata. Co-leaders are a flat equal set (no head-leader role). The application-level cap of five total leadership rows per club is enforced: when the cap is reached the new claim still affiliates the member (`member_club_affiliations`) but does not insert a `club_leaders` row; an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. A member declining a candidate sets `club_bootstrap_leaders.status='rejected'`; the row remains eligible for the other activation paths. When the same member matches signals for multiple clubs, the wizard presents all candidates and the member selects which clubs they led. See `M_Complete_Onboarding_Wizard` for the full user-facing acceptance criteria.
 
-2. **First affiliated member accepts leadership**: if no bootstrap leader has yet registered, the first member who registers and confirms affiliation with that club is offered leadership during onboarding (if membership Tier 1+). On acceptance, the member is added as a co-leader. Any existing bootstrap leader candidates remain provisional until those candidates register and claim. Clubs may have multiple leaders.
+2. **First affiliated member accepts leadership**: if no bootstrap leader has yet registered, the first member who registers and confirms affiliation with that club is offered co-leadership during onboarding (if they have Tier 1 benefits, that is Tier 1+ or Active Player). On acceptance, the member is added as a co-leader. Any existing bootstrap leader candidates remain provisional until those candidates register and claim. Clubs may have multiple co-leaders.
 
 3. **Admin resolution**: admin can supersede bootstrap assignments and appoint any registered member as leader through the standard `club_leaders` workflow.
 
-A club without any `club_bootstrap_leaders` row at import remains leaderless until a Tier 1+ affiliated member accepts leadership via path 2 or an admin appoints via path 3.
+A club without any `club_bootstrap_leaders` row at import remains leaderless until an affiliated member with Tier 1 benefits accepts co-leadership via path 2 or an admin appoints via path 3.
 
 ---
 
@@ -727,9 +727,8 @@ For each pre-populated candidate, the live `clubs` row carries:
 - `hashtag_tag_id`: standardized hashtag generated deterministically from `name`.
 - `external_url`: carried from the candidate and verified at data-prep time per DD §3.17. The public club read shows the URL only once it is verified and not quarantined; an unverified or flagged URL is retained on the row but hidden from public render, and surfaced to the listed contact (and admin) for review.
 - `description`: published as-is from the legacy data.
-- `contact_email`, `whatsapp`: not pre-populated from legacy data.
 
-Description and URL on the live page are edited directly by the listed contact and the eventual club leader, with URL verification per §10.3 before publication. Other members report inaccuracies to club leadership out of band.
+A club carries no club-level contact field; it is reachable through its co-leaders' own contact. Description and URL on the live page are edited directly by the club's co-leaders, with URL verification per §10.3 before publication. Other members report inaccuracies to club leadership out of band.
 
 #### Promotion rules
 

@@ -35,11 +35,13 @@ export class RegisterPage {
     realName: string;
     email: string;
     password: string;
+    sex?: 'male' | 'female' | 'undisclosed';
   }): Promise<void> {
     await this.realNameInput.fill(opts.realName);
     await this.emailInput.fill(opts.email);
     await this.passwordInput.fill(opts.password);
     await this.confirmPasswordInput.fill(opts.password);
+    await this.page.locator(`input[name="sex"][value="${opts.sex ?? 'male'}"]`).check();
   }
 
   async submit(): Promise<void> {

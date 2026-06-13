@@ -77,7 +77,7 @@ export const clubController = {
       page: { sectionKey: 'clubs', pageKey: 'clubs_create', title: 'Create a Club' },
       formAction: '/clubs/create',
       cancelHref: '/clubs',
-      club: { name: '', description: '', city: '', region: '', country: '', contactEmail: '', whatsapp: '', slug: '' },
+      club: { name: '', description: '', city: '', region: '', country: '', slug: '' },
     });
   },
 
@@ -88,12 +88,10 @@ export const clubController = {
       const city = String(req.body?.city ?? '');
       const region = String(req.body?.region ?? '');
       const country = String(req.body?.country ?? '');
-      const contactEmail = String(req.body?.contactEmail ?? '');
-      const whatsapp = String(req.body?.whatsapp ?? '');
       const slug = String(req.body?.slug ?? '');
       const confirmNearMatches = req.body?.confirm_near_matches === '1';
 
-      const club = { name, description, city, region, country, contactEmail, whatsapp, slug, confirmNearMatches };
+      const club = { name, description, city, region, country, slug, confirmNearMatches };
 
       const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>) => {
         res.status(status).render('clubs/create', {
@@ -180,9 +178,7 @@ export const clubController = {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
       const result = clubService.leaveClub(req.user!.userId, clubId);
 
-      if (result.branch === 'sole_leader_blocked') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are the sole leader of this club. Promote a co-leader before leaving.');
-      } else if (result.branch === 'not_member') {
+      if (result.branch === 'not_member') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a member of this club.');
       } else {
         const msg = result.remainingClubName
@@ -216,14 +212,53 @@ export const clubController = {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
       const result = clubService.stepDownFromLeader(req.user!.userId, clubId);
 
-      if (result.branch === 'sole_leader_blocked') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are the sole leader. Promote a co-leader first.');
-      } else if (result.branch === 'not_leader') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not the leader of this club.');
+      if (result.branch === 'not_leader') {
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a co-leader of this club.');
       } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Stepped down to co-leader.');
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Stepped down from co-leading this club.');
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  postVolunteer(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      const result = clubService.volunteerToCoLeadClub(req.user!.userId, clubId);
+
+      const messages: Record<string, string> = {
+        volunteered:        'You are now a co-leader of this club.',
+        club_not_found:     'Club not found.',
+        not_member:         'Join this club before volunteering to co-lead it.',
+        not_eligible:       'Co-leading requires Tier 1 benefits (Tier 1+ or an active Active Player period).',
+        already_coleader:   'You already co-lead this club.',
+        coleads_other_club: 'You already co-lead another club. A member can co-lead one club at a time.',
+        cap_reached:        'This club already has the maximum of 5 co-leaders.',
+      };
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, messages[result.branch] ?? 'Could not volunteer.');
+      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  postInvite(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      const inviteeKey = String(req.body?.member_key ?? '');
+      const result = clubService.inviteToCoLeadClub(req.user!.userId, clubId, inviteeKey);
+
+      const messages: Record<string, string> = {
+        sent:             'Invitation sent.',
+        not_leader:       'Only a co-leader can invite members to co-lead.',
+        member_not_found: 'No member found with that id or username.',
+        already_coleader: 'That member already co-leads this club.',
+        no_email:         'That member has no contact email on file.',
+      };
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, messages[result.branch] ?? 'Could not send the invitation.');
+      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }

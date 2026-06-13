@@ -274,10 +274,10 @@ def main() -> None:
                 INSERT OR IGNORE INTO clubs
                   (id, created_at, created_by, updated_at, updated_by, version,
                    name, description, city, region, country,
-                   contact_email, external_url,
+                   external_url,
                    external_url_validated_at, external_url_quarantine_reason,
                    status, hashtag_tag_id)
-                VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
                 """,
                 (
                     club_id, ts, ts,
@@ -286,7 +286,6 @@ def main() -> None:
                     row["city"],
                     row["region"] or None,
                     row["country"],
-                    row["contact_email"] or None,
                     ext_url,
                     ext_validated_at,
                     ext_quarantine,

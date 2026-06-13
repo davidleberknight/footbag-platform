@@ -172,13 +172,13 @@ Authorization defects (a missing gate, an over-broad gate, a privilege that leak
 
 Deriving the persona suite:
 
-1. Enumerate the authorization dimensions from the `Access:` clause of every deployed user story. The dimensions are: authentication state (anonymous, authenticated); email-verified state (verified, or registered-unverified with login blocked until verification); the membership tier ladder (Tier 0, 1, 2, 3); per-resource ownership (owner of the target row); resource-scoped roles (event organizer and co-organizer, club leader and co-leader, group owner and co-owner, group member); the admin role (the curated-media curator surface is admin-operated, not a separate role); the system or internal-caller role (scheduled jobs, secret-gated webhooks); standing flags (Active Player status, Hall-of-Fame / Big-Add-Posse / IFPA-Board honors, vote-eligibility by inclusion list); migration and legacy-claim state (graded auto-link confidence high, medium, low, no-match, plus the claimed-legacy record whose legacy admin flag must not confer admin); and identity edge cases (homoglyph, RTL-override, and unicode display names, duplicate display names, surname collisions, deceased members, accounts inside the deletion grace period).
+1. Enumerate the authorization dimensions from the `Access:` clause of every deployed user story. The dimensions are: authentication state (anonymous, authenticated); email-verified state (verified, or registered-unverified with login blocked until verification); the membership tier ladder (Tier 0, 1, 2, 3); per-resource ownership (owner of the target row); resource-scoped roles (event organizer and co-organizer, club co-leader, group owner and co-owner, group member); the admin role (the curated-media curator surface is admin-operated, not a separate role); the system or internal-caller role (scheduled jobs, secret-gated webhooks); standing flags (Active Player status, Hall-of-Fame / Big-Add-Posse / IFPA-Board honors, vote-eligibility by inclusion list); migration and legacy-claim state (graded auto-link confidence high, medium, low, no-match, plus the claimed-legacy record whose legacy admin flag must not confer admin); and identity edge cases (homoglyph, RTL-override, and unicode display names, duplicate display names, surname collisions, deceased members, accounts inside the deletion grace period).
 
 2. Treat each dimension as an axis and apply equivalence partitioning to actors, the technique ISTQB defines for inputs: every distinct gate outcome is one equivalence class, and the suite carries one seedable persona per class. For ordered dimensions add boundary-value personas at the gate edges: the tier just below a route's requirement versus at or above it, an Active Player grant that is current versus one that just expired, a deletion grace period still open versus just elapsed.
 
 3. Derive negative personas explicitly. STRIDE Elevation-of-Privilege and abuser-story analysis require, for every privileged route, an authenticated actor who is authorized and an authenticated actor who is not, plus the adjacent-owner persona (a member who owns some resource of the same type but not this one). The adjacent-owner persona is what surfaces broken object-level and function-level authorization (OWASP API Security Top 10 BOLA and BFLA); without it, an owner-only route that silently serves any authenticated member passes every positive test.
 
-4. Map each class to a concrete, named, seedable persona. A dimension that combines with another to change a gate outcome yields a separate persona (a Tier 1 club leader and a Tier 1 non-leader are two personas), but combinations that never change an outcome are not multiplied out.
+4. Map each class to a concrete, named, seedable persona. A dimension that combines with another to change a gate outcome yields a separate persona (a Tier 1 club co-leader and a Tier 1 club member who is not a co-leader are two personas), but combinations that never change an outcome are not multiplied out.
 
 Controlling combinatorial growth: the axes are orthogonal, so the full cartesian product is large and most cells are uninteresting. Catastrophic and high-severity surfaces (auth, session, member privacy, payments, identity claim, per §3) are covered exhaustively across the relevant axes; the rest is sampled with pairwise (all-pairs) selection so every pair of axis values appears in at least one persona without enumerating every triple. Risk severity, not convenience, decides which surfaces are exhaustive.
 
@@ -920,7 +920,7 @@ A charter references these dimensions by number.
 2. Functional edge: zero, one, many, and N+1 rows; boundary values; optional-field permutations; draft or unpublished exclusion; route-ordering precedence.
 3. Input and adversarial: malformed, oversized, and wrong-type input; unicode mischief (RTL override, homoglyph, zero-width); SQL injection; XSS into Handlebars; every free-text field.
 4. Authentication: anonymous gate (redirect to login); registered-unverified, deceased, and soft-deleted accounts cannot act; session expiry and the sliding-refresh window; cookie attributes; logout invalidation; password-version bump invalidates other sessions.
-5. Authorization: allow for each authorized actor and deny for each unauthorized one; adjacent-owner object-level checks; tier-ladder boundary (just below versus at or above); resource roles (leader, co-leader, organizer, owner); admin; honor flags; legacy-admin-flag non-inheritance.
+5. Authorization: allow for each authorized actor and deny for each unauthorized one; adjacent-owner object-level checks; tier-ladder boundary (just below versus at or above); resource roles (co-leader, organizer, owner); admin; honor flags; legacy-admin-flag non-inheritance.
 6. Anti-enumeration: exists versus not-exists equivalence (status, body, timing) on login, reset, verify, claim, and owner-scoped 404s.
 7. CSRF and Origin-pin: every state-changing verb refuses a foreign or absent Origin.
 8. Rate-limit: boundary at the limit and limit-plus-one; 429 with `Retry-After`; window reset.
@@ -979,17 +979,17 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **V_Register_Account** (dims 1, 3, 6, 8, 13, 15). Registration creates an unverified account and issues a verification token; login is blocked until verification. Anti-enum: registering an already-registered email returns the same enumeration-safe UX as a fresh address. Rate-limit on repeated registration. Validation and adversarial input on every field (email shape, password policy, unicode display name). Audit on account creation.
 
-### 17.5 Charters: club and club leader
+### 17.5 Charters: club and club co-leader
 
 **M_View_Club** (dims 1, 2, 5, 14). Anyone views the public club page; member-only surfaces appear only to authenticated members. An unknown club key returns 404.
 
 **M_Join_Club** and **M_Leave_Club** (dims 1, 5, 7, 9, 11, 13, 15). Authenticated members join and leave; the onboarding gate redirects a not-yet-onboarded member off club paths. Business rules: the two-club affiliation cap, primary versus secondary, idempotent re-join. Concurrency: a double-submit join does not create duplicate affiliations. Audit on each transition.
 
-**M_Create_Club** (dims 1, 3, 5, 8, 13, 15). Authenticated Tier-1-benefits members only; a Tier-0 member without Active Player is denied at the gate. Validation: name, country, and near-match confirmation, with the duplicate-name, already-leader, and affiliation-cap branches. Audit on creation.
+**M_Create_Club** (dims 1, 3, 5, 8, 13, 15). Authenticated Tier-1-benefits members only; a Tier-0 member without Active Player is denied at the gate. Validation: name, country, and near-match confirmation, with the duplicate-name, already-co-leader, and affiliation-cap branches. Audit on creation.
 
-**CL_Edit_Club** (dims 1, 5, 7, 13, 15). Only a club's leader or co-leader edits its content; a leader of a different club is denied (adjacent-owner). External-URL changes are validated before persistence. Audit on the content edit.
+**CL_Edit_Club** (dims 1, 5, 7, 13, 15). Only a club's co-leader edits its content; a co-leader of a different club is denied (adjacent-owner). External-URL changes are validated before persistence. Audit on the content edit.
 
-**CL_Mark_Club_Inactive** and **CL_Archive_Club** (dims 1, 5, 9, 10, 15). Leader-scoped state transitions; the sole-leader-only actions are denied to a co-leader. The inactive and archived states gate public visibility. Audit on each transition.
+**CL_Mark_Club_Inactive** and **CL_Archive_Club** (dims 1, 5, 9, 10, 15). Co-leader-scoped state transitions (any co-leader can mark inactive or archive). The inactive and archived states gate public visibility. Audit on each transition.
 
 ### 17.6 Charters: member profile, account, and media
 

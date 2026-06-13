@@ -107,7 +107,7 @@ This schema is intentionally minimal for a volunteer-maintained SQLite project.
 
 **Core principle:** the database enforces structural integrity; the application enforces workflow, business rules, and limits.
 
-- **Declarative first.** Use `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, and `CHECK` constraints before reaching for triggers. Partial `UNIQUE` indexes encode important structural invariants (one leader per club, one avatar per member, etc.) declaratively.
+- **Declarative first.** Use `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, and `CHECK` constraints before reaching for triggers. Partial `UNIQUE` indexes encode important structural invariants (a member co-leads at most one club, one current avatar per member, etc.) declaratively.
 
 - **Triggers only for genuine integrity guards.** Triggers remain for append-only/immutability invariants on tables where a missed write or an accidental UPDATE/DELETE would corrupt auditable history that cannot be reconstructed (ballots, audit log, tier grants, transition ledgers, system config). The payment status state machine trigger is retained because multiple independent code paths mutate `payments.status`; a DB guard is the last line of defence regardless of which path runs.
 
@@ -183,7 +183,7 @@ Two actor column patterns are used and are intentionally distinct:
 |-----------|---------|
 | `PRIMARY KEY` | Row identity uniqueness |
 | `NOT NULL` | Required fields |
-| `UNIQUE` / partial `UNIQUE` index | One leader per club, one avatar per member, email uniqueness for un-purged members |
+| `UNIQUE` / partial `UNIQUE` index | A member co-leads at most one club, one avatar per member, email uniqueness for un-purged members |
 | `CHECK` | Enum values, boolean shape, conditional NOT NULL (PII purge invariant) |
 | `FOREIGN KEY` + `ON DELETE SET NULL` | Avatar/logo/gallery detachment on media delete |
 | `FOREIGN KEY` + `ON DELETE CASCADE` | Media flags/tags cascade-delete with media |
@@ -248,7 +248,7 @@ Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows
 
 `discipline_category` is an application-enforced taxonomy field (the DB requires only `TEXT NOT NULL`). Canonical top-level families are `net`, `freestyle`, `golf`, and `sideline` (legacy `other` values should be normalized to `sideline`). Variant/sub-discipline structure is managed in application logic, e.g., sideline-family formats such as 2-square, 4-square, consecutives, and one-pass, plus multiple freestyle and net variants.
 
-`team_type` encodes the participation format for each discipline: `'singles'` (default), `'doubles'`, or `'mixed_doubles'`. Used at registration time to enforce partner requirements: doubles requires partner info; mixed doubles additionally requires that both partners have `members.sex` populated with opposite values.
+`team_type` encodes the participation format for each discipline: `'singles'` (default), `'doubles'`, or `'mixed_doubles'`. Used at registration time to enforce partner requirements: doubles requires partner info; mixed doubles additionally requires that both member partners have `members.sex` set to opposite binary values (`'male'` and `'female'`); an `'undisclosed'` value is ineligible.
 
 #### Event status lifecycle (application-managed)
 ```
@@ -701,7 +701,7 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 #### Sex field
 
-`sex` (`TEXT`, nullable): member's biological sex. Required for sex-restricted event categories: mixed doubles requires one `'male'` and one `'female'` partner; Women's net requires `'female'`. Nullable to accommodate legacy and imported accounts. Validation of sex-field completeness for restricted categories is application-enforced at discipline-selection time (see APP-013).
+`sex` (`TEXT`, nullable, `CHECK (sex IN ('male','female','undisclosed'))`): member's competition-eligibility sex. Collected as required at registration (UI: Male / Female / Prefer not to say; stored `'male'` / `'female'` / `'undisclosed'`) and editable on profile edit; the column stays nullable to accommodate the system-member row and imported/legacy accounts. Private (owner and admin only); never on public surfaces, member search, or rosters (see DATA_GOVERNANCE §3). Sex-gated event categories require a declared value: mixed doubles requires one `'male'` and one `'female'` partner, Women's net requires `'female'`; `'undisclosed'` is ineligible for sex-gated categories but eligible for Open. Validation is application-enforced at discipline-selection time (see APP-013).
 
 #### Authentication columns
 - `password_version`: **session/JWT invalidation counter**. Increment on every password reset or change. All JWTs containing an older value are immediately invalid. Do not use for hash algorithm tracking.
@@ -826,6 +826,8 @@ Attendance never changes membership tier. For Tier 1, Tier 2, or Tier 3 attendee
 #### Historical imported people
 
 `historical_persons` stores imported read-only archival identity records sourced from event-data (competition results) and, going forward, mirror club-roster extraction. Rows are never deleted. A row may or may not correspond to a current `members` row and may or may not carry a `legacy_member_id` (populated only when the source data named the legacy account).
+
+`historical_persons.is_deceased` (`INTEGER NOT NULL DEFAULT 0`) is an admin-settable, affirmative-only flag (its presence marks a person recognized as deceased; its absence asserts nothing). It is independent of `members.is_deceased`; `A_Mark_Member_Deceased` cascades to it when the member has a linked `historical_person_id`. It is consumed only to suppress the direct historical-record claim CTA (a living member cannot self-claim a deceased person's identity); no public memorial display is driven by it (deferred to a future story).
 
 Three entity types form the identity model; see DD §2.4:
 
@@ -977,11 +979,10 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 **Tables:** `club_leaders`, `event_organizers`
 
 #### Club leaders
-1 leader + up to 4 co-leaders per club = **max 5 total** (US §5.2 CL_Manage_CoLeaders).
+A club's leadership is a flat set of equal co-leaders (all `role = 'co-leader'`), **max 5 per club** (US §5.2 CL_Manage_CoLeaders). There is no separate head-leader role.
 
 DB-enforced structural invariants:
-- `ux_one_leader_per_club`: only one `role = 'leader'` row per club.
-- `ux_one_club_leader_per_member`: a member can be `'leader'` of at most one club.
+- `ux_one_club_leader_per_member`: a member co-leads at most one club.
 - `ux_club_leaders (club_id, member_id)`: a member appears at most once per club.
 
 **Max-5 cap is application-enforced** (APP-010). The application must reject inserts and `club_id` reassignments that would exceed 5 total rows per club.
@@ -995,8 +996,8 @@ DB-enforced structural invariants:
 
 **Max-5 cap is application-enforced** (APP-011). The application must reject inserts and `event_id` reassignments that would exceed 5 total rows per event.
 
-#### Anti-self-removal
-The application must prevent an organizer/leader from removing themselves if they are the sole organizer/leader (UI hides the button; API validates before delete). DB does not enforce this.
+#### Anti-self-removal (event organizers only)
+The application must prevent an event organizer from removing themselves if they are the sole organizer (UI hides the button; API validates before delete). DB does not enforce this. Clubs are exempt: a co-leader may step down or leave even as the club's last co-leader, leaving the club leaderless (a tolerated state, US §5.1).
 
 #### Bootstrap leadership
 
@@ -1444,7 +1445,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ### APP-010 — Max 5 club leaders
 
-**Reject inserts and `club_id` reassignments on `club_leaders` that would result in more than 5 total rows per club.** Source: US §5.2 CL_Manage_CoLeaders ("Leader can add up to 4 co-leaders" = 5 total). The DB enforces structural uniqueness (one `role='leader'` per club; one leadership per member per club) but not the total count cap.
+**Reject inserts and `club_id` reassignments on `club_leaders` that would result in more than 5 total rows per club.** Source: US §5.2 CL_Manage_CoLeaders (a flat set of up to 5 co-leaders). The DB enforces structural uniqueness (a member co-leads at most one club; a member appears at most once per club) but not the total count cap.
 
 ---
 

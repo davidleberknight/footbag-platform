@@ -25,7 +25,12 @@
               {{/if}}
               {{#if this.canStepDown}}
                 <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Step down to co-leader</button>
+                  <button type="submit" class="btn-link text-muted fs-sm">Step down as co-leader</button>
+                </form>
+              {{/if}}
+              {{#if this.canVolunteer}}
+                <form method="POST" action="{{this.volunteerHref}}" class="inline-form">
+                  <button type="submit" class="btn-link fs-sm">{{#if this.clubIsLeaderless}}This club has no co-leader yet; become its first{{else}}Volunteer to co-lead{{/if}}</button>
                 </form>
               {{/if}}
             </div>
@@ -63,7 +68,7 @@
       {{/if}}
     </div>
     {{#if showCreateTierNote}}
-      <p class="text-muted fs-sm mt-2">If your club isn't listed, you can start a new one. Creating a club requires IFPA Membership (Tier 1) because you become the club leader.</p>
+      <p class="text-muted fs-sm mt-2">If your club isn't listed, you can start a new one. Creating a club requires IFPA Membership (Tier 1) because you become the club's first co-leader.</p>
     {{/if}}
   </div>
 </section>

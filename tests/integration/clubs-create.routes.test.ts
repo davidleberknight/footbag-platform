@@ -87,13 +87,13 @@ beforeAll(async () => {
     completeOnboarding(db, mid);
   }
 
-  // Already-a-leader member
+  // Member who already co-leads a club
   createMemberAtTier(db, { id: LEADER_ID, slug: LEADER_SLUG, tier: 'tier1' });
   completeOnboarding(db, LEADER_ID);
   const leaderClubId = insertClub(db, { name: 'Existing Leader Club', city: 'Portland', country: 'USA' });
   db.prepare(`
     INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, version, club_id, member_id, role, added_at)
-    VALUES ('cl-leader-test', ?, 'test', ?, 'test', 1, ?, ?, 'leader', ?)
+    VALUES ('cl-leader-test', ?, 'test', ?, 'test', 1, ?, ?, 'co-leader', ?)
   `).run('2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z', leaderClubId, LEADER_ID, '2024-01-01T00:00:00.000Z');
 
   // Capped member: already has 2 club affiliations
@@ -207,12 +207,11 @@ describe('POST /clubs/create', () => {
     expect(club.name).toBe('Mile High Footbag');
     expect(club.city).toBe('Denver');
     expect(club.country).toBe('United States');
-    expect(club.contact_email).toBe('info@milehigh.org');
     expect(club.status).toBe('active');
 
     const leader = db.prepare(`SELECT * FROM club_leaders WHERE club_id = ? AND member_id = ?`).get(club.id, HAPPY_ID) as Record<string, unknown>;
     expect(leader).toBeDefined();
-    expect(leader.role).toBe('leader');
+    expect(leader.role).toBe('co-leader');
 
     const aff = db.prepare(`SELECT * FROM member_club_affiliations WHERE club_id = ? AND member_id = ?`).get(club.id, HAPPY_ID) as Record<string, unknown>;
     expect(aff).toBeDefined();
@@ -336,37 +335,6 @@ describe('POST /clubs/create', () => {
       .send(formData({ name: 'Portland FC', city: 'Portland', slug: '', country: 'US' }));
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/clubs/club_portland');
-  });
-
-  it('rejects creation without a contact email: 422, no club row, no work-queue row', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post('/clubs/create')
-      .set('Cookie', authCookie(WQ_ID))
-      .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ name: 'No Contact Club', city: 'Nowhere', country: 'Neverland', slug: 'nowhere', contactEmail: '', whatsapp: '' }));
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Contact email is required.');
-
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const club = db.prepare(`SELECT id FROM clubs WHERE name = 'No Contact Club'`).get();
-    expect(club).toBeUndefined();
-    const wq = db.prepare(`
-      SELECT id FROM work_queue_items WHERE entity_type = 'club'
-    `).get();
-    expect(wq).toBeUndefined();
-    db.close();
-  });
-
-  it('WhatsApp does not substitute for the required contact email', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post('/clubs/create')
-      .set('Cookie', authCookie(WQ_ID))
-      .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ name: 'WhatsApp Only Club', city: 'Nowhere', country: 'Neverland', slug: 'wa_only', contactEmail: '', whatsapp: '+1 555 123 4567' }));
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Contact email is required.');
   });
 
   it('preserves form values on validation error', async () => {

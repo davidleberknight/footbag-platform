@@ -177,6 +177,7 @@ describe('POST /register — duplicate email returns 422 with actionable error',
         displayName: 'Fresh User',
         password: 'FreshPass1!',
         confirmPassword: 'FreshPass1!',
+        sex: 'male',
       });
     expect(fresh.status).toBe(303);
     expect(fresh.headers.location).toBe('/register/check-email');
@@ -190,6 +191,7 @@ describe('POST /register — duplicate email returns 422 with actionable error',
         displayName: 'Another User',
         password: 'AnotherPass1!',
         confirmPassword: 'AnotherPass1!',
+        sex: 'male',
       });
     expect(duplicate.status).toBe(422);
     expect(duplicate.text).toContain('already exists');

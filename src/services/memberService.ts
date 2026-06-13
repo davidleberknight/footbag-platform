@@ -38,8 +38,9 @@
  *     to the explicit HoF/BAP exception; authenticated members may view any
  *     member profile read-only. Contact fields never reach an anonymous page;
  *     the login email renders to authenticated viewers only when the owner
- *     opted in (email_visibility 'members'/'public'). Tier and Active Player
- *     badges are member-visible only.
+ *     opted in (email_visibility 'members'); phone and WhatsApp render the
+ *     same way, each gated by its own opt-in. Tier and Active Player badges
+ *     are member-visible only.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
@@ -169,7 +170,9 @@ export interface MemberWelcomeContent {
   /** Tier 0 → 3 in canonical order, with display labels, prices, and benefits. */
   tiers: ReadonlyArray<MemberWelcomeTier>;
 }
-const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
+// Contact-email visibility is off (private) or members-only; never public.
+// A held co-leader/organizer role forces 'members' (enforced in updateOwnProfile).
+const VALID_EMAIL_VISIBILITY = new Set(['private', 'members']);
 
 export interface MyClubsClubView {
   clubName: string;
@@ -181,6 +184,11 @@ export interface MyClubsClubView {
   leaveHref: string;
   canMarkInactive: boolean;
   canStepDown: boolean;
+  // Standing "volunteer to co-lead" affordance for an eligible member of this
+  // club; clubIsLeaderless flags the more-urgent no-co-leader case.
+  canVolunteer: boolean;
+  volunteerHref: string | null;
+  clubIsLeaderless: boolean;
 }
 
 export interface NearbyClubSuggestion {
@@ -215,7 +223,11 @@ export interface OwnProfileContent {
   region: string | null;
   country: string | null;
   phone: string | null;
+  whatsapp: string | null;
   emailVisibility: string;
+  phoneVisible: boolean;
+  whatsappVisible: boolean;
+  searchable: boolean;
   isAdmin: boolean;
   isHof: boolean;
   isBap: boolean;
@@ -272,8 +284,14 @@ export interface ProfileEditContent extends OwnProfileContent {
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
+  // True while the member holds a co-leader (or organizer) role: contact-email
+  // visibility is required at members-only and the control renders locked.
+  emailVisibilityLocked: boolean;
   legacyClaimCtaHref:  string | null;
   legacyClaimCtaLabel: string | null;
+  /** Current stored sex ('male'/'female'/'undisclosed'), or '' when unset, so
+   *  the edit control preselects the existing value. */
+  sex: string;
   error?: string;
   avatarError?: string;
   avatarSuccess?: string;
@@ -300,6 +318,8 @@ export interface PublicProfileContent {
   // 'public'; contact fields never reach an unauthenticated page), and the
   // tier / Active Player badges (visible to logged-in members only).
   contactEmail: string | null;
+  contactPhone: string | null;
+  contactWhatsapp: string | null;
   tierBadgeText: string | null;
   isActivePlayer: boolean;
   /** Validated external links (max 3), shown on the public profile. */
@@ -312,10 +332,17 @@ export interface ProfileEditInput {
   region: string;
   country: string;
   phone: string;
+  whatsapp: string;
   emailVisibility: string;
+  phoneVisible: string | string[];
+  whatsappVisible: string | string[];
+  searchable: string | string[];
   firstCompetitionYear: string;
   showCompetitiveResults: string | string[];
   showFirstCompetitionYear: string | string[];
+  /** One of male / female / undisclosed when changing the stored value; blank
+   *  or unrecognized leaves the current value untouched (no clear-to-null). */
+  sex: string;
   /** Label/URL pairs submitted by the edit form; blank pairs are dropped,
    *  non-blank pairs are validated before publication. */
   links: Array<{ label: string; url: string }>;
@@ -370,7 +397,11 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     region:          row.region,
     country:         row.country,
     phone:           row.phone,
+    whatsapp:        row.whatsapp,
     emailVisibility: row.email_visibility,
+    phoneVisible:    row.phone_visible === 1,
+    whatsappVisible: row.whatsapp_visible === 1,
+    searchable:      row.searchable === 1,
     isAdmin:         Boolean(row.is_admin),
     isHof:           Boolean(row.is_hof),
     isBap:           Boolean(row.is_bap),
@@ -684,7 +715,8 @@ export const memberService = {
    * see only the explicit HoF/BAP public exception; an authenticated
    * member may view any member profile. Per-field gates: the login email
    * appears only to authenticated viewers of members who opted in
-   * (email_visibility 'members'/'public'); tier and Active Player badges
+   * (email_visibility 'members'); phone and WhatsApp each render to
+   * authenticated viewers on their own opt-in; tier and Active Player badges
    * are member-visible only; competition results honor
    * show_competitive_results. No payment, audit, or edit surfaces.
    * Returns null when the viewer may not see this member (caller 404s or
@@ -706,6 +738,12 @@ export const memberService = {
       viewer.authenticated && row.email_visibility !== 'private'
         ? row.login_email
         : null;
+    // Phone and WhatsApp are opt-in per field and never reach an
+    // unauthenticated viewer.
+    const contactPhone =
+      viewer.authenticated && row.phone_visible === 1 ? row.phone : null;
+    const contactWhatsapp =
+      viewer.authenticated && row.whatsapp_visible === 1 ? row.whatsapp : null;
     const tierBadgeText = viewer.authenticated
       ? TIER_BADGE_TEXT[getTierStatus(row.id).tier_status]
       : null;
@@ -731,6 +769,8 @@ export const memberService = {
         heroData,
         eventGroups,
         contactEmail,
+        contactPhone,
+        contactWhatsapp,
         tierBadgeText,
         isActivePlayer,
         links:          buildMemberLinksView(row.id),
@@ -757,8 +797,10 @@ export const memberService = {
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
+        emailVisibilityLocked: clubLeaders.memberCoLeadsAnyClub.get(row.id) != null,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
+        sex: row.sex ?? '',
         error,
         avatarError,
         avatarSuccess,
@@ -786,9 +828,27 @@ export const memberService = {
     const region      = normalizeText(input.region) || null;
     const country     = normalizeText(input.country) || null;
     const phone       = normalizeText(input.phone) || null;
-    const emailVis    = VALID_EMAIL_VISIBILITY.has(input.emailVisibility)
+    const whatsapp    = normalizeText(input.whatsapp) || null;
+    let emailVis      = VALID_EMAIL_VISIBILITY.has(input.emailVisibility)
       ? input.emailVisibility
       : 'private';
+    // A held co-leader (or organizer) role requires contact-email visibility at
+    // members-only while the role is held; the form locks the control and this
+    // enforces it server-side regardless of what was posted.
+    const emailLocked = clubLeaders.memberCoLeadsAnyClub.get(row.id) != null;
+    if (emailLocked) emailVis = 'members';
+    const rawPhoneVis = Array.isArray(input.phoneVisible)
+      ? input.phoneVisible[input.phoneVisible.length - 1]
+      : input.phoneVisible;
+    const phoneVisible = rawPhoneVis === '1' ? 1 : 0;
+    const rawWhatsappVis = Array.isArray(input.whatsappVisible)
+      ? input.whatsappVisible[input.whatsappVisible.length - 1]
+      : input.whatsappVisible;
+    const whatsappVisible = rawWhatsappVis === '1' ? 1 : 0;
+    const rawSearchable = Array.isArray(input.searchable)
+      ? input.searchable[input.searchable.length - 1]
+      : input.searchable;
+    const searchable = rawSearchable === '1' ? 1 : 0;
     const rawYear = normalizeText(input.firstCompetitionYear);
     const firstCompYear = rawYear ? parseInt(rawYear, 10) : null;
     const validYear = firstCompYear && firstCompYear >= 1972 && firstCompYear <= new Date().getFullYear()
@@ -801,6 +861,13 @@ export const memberService = {
       ? input.showFirstCompetitionYear[input.showFirstCompetitionYear.length - 1]
       : input.showFirstCompetitionYear;
     const showYear = rawShowYear === '0' ? 0 : 1;
+    // Sex is editable to one of the three stored values. A blank or unrecognized
+    // submission leaves the current value intact (COALESCE in the update), so a
+    // save that does not touch the control never clears an existing value.
+    const postedSex = normalizeText(input.sex).toLowerCase();
+    const sexValue = postedSex === 'male' || postedSex === 'female' || postedSex === 'undisclosed'
+      ? postedSex
+      : null;
 
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
@@ -817,10 +884,15 @@ export const memberService = {
         region,
         country,
         phone,
+        whatsapp,
         emailVis,
+        phoneVisible,
+        whatsappVisible,
+        searchable,
         validYear,
         showResults,
         showYear,
+        sexValue,
         now,
         row.id,
       );
@@ -838,8 +910,10 @@ export const memberService = {
       });
       memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
       auditProfileUpdate(row.id, [
-        'bio', 'city', 'region', 'country', 'phone', 'emailVisibility',
+        'bio', 'city', 'region', 'country', 'phone', 'whatsapp', 'emailVisibility',
+        'phoneVisible', 'whatsappVisible', 'searchable',
         'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
+        'sex',
         'links',
       ]);
     });
@@ -1240,14 +1314,19 @@ function buildMyClubsView(memberId: string): MyClubsView {
   const rows = memberClubAffiliations.listCurrentWithClubName.all(memberId) as CurrentAffiliationRow[];
   const tier = getTierStatus(memberId);
   const hasTier1Benefits = tier != null && tier.tier_status !== 'tier0';
-  const isLeaderAnywhere = clubLeaders.memberIsLeaderSomewhere.get(memberId) as { x: number } | undefined;
+  // Volunteering to co-lead follows the Tier-1-benefits rule (Tier 1+ OR an
+  // active Active-Player period), which is broader than the tier-only gate
+  // used for club creation above.
+  const volunteerBenefits = hasTier1Benefits || getActivePlayerStatus(memberId).is_active_player === 1;
+  const coLeadsAnyClub = clubLeaders.memberCoLeadsAnyClub.get(memberId) != null;
 
   const clubViews: MyClubsClubView[] = rows.map((r) => {
     const leadership = clubLeaders.memberInClubLeadership.get(r.club_id, memberId) as
-      | { id: string; role: 'leader' | 'co-leader' } | undefined;
-    const otherLeaders = leadership
-      ? (clubLeaders.countOtherLeadersByClub.get(r.club_id, memberId) as { c: number }).c
-      : 0;
+      | { id: string; role: 'co-leader' } | undefined;
+    const coLeaderCount = (clubLeaders.countByClubId.get(r.club_id) as { c: number }).c;
+    // A member co-leads at most one club, edits content directly, and can step
+    // down at any time (the last co-leader out leaves the club leaderless).
+    const canVolunteer = leadership == null && volunteerBenefits && !coLeadsAnyClub && coLeaderCount < 5;
 
     return {
       clubName: r.club_name,
@@ -1255,10 +1334,13 @@ function buildMyClubsView(memberId: string): MyClubsView {
       isPrimary: r.is_primary === 1,
       designationLabel: r.is_primary === 1 ? 'Primary club' : 'Secondary club',
       isLeader: leadership != null,
-      leaderRole: leadership ? (leadership.role === 'leader' ? 'Leader' : 'Co-leader') : null,
+      leaderRole: leadership ? 'Co-leader' : null,
       leaveHref: `/clubs/${encodeURIComponent(r.club_key)}/leave`,
       canMarkInactive: leadership != null && r.club_status === 'active',
-      canStepDown: leadership?.role === 'leader' && otherLeaders > 0,
+      canStepDown: leadership != null,
+      canVolunteer,
+      volunteerHref: canVolunteer ? `/clubs/${encodeURIComponent(r.club_key)}/volunteer` : null,
+      clubIsLeaderless: coLeaderCount === 0,
     };
   });
 
@@ -1282,10 +1364,10 @@ function buildMyClubsView(memberId: string): MyClubsView {
   return {
     clubs: clubViews,
     canAddClub: rows.length < 2,
-    canCreateClub: hasTier1Benefits && !isLeaderAnywhere,
+    canCreateClub: hasTier1Benefits && !coLeadsAnyClub,
     canSwapPrimary: rows.length === 2,
     browseClubsHref: '/clubs',
-    createClubHref: hasTier1Benefits && !isLeaderAnywhere ? '/clubs/create' : null,
+    createClubHref: hasTier1Benefits && !coLeadsAnyClub ? '/clubs/create' : null,
     swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
     // A club-less member below Tier 1 cannot create a club; surface the
     // requirement instead of hiding the create path entirely.

@@ -212,10 +212,6 @@ export interface PublicClubRow {
   region: string | null;
   country: string;
   external_url: string | null;
-  // Contact columns are selected only by the detail query
-  // (getByTagNormalized); list queries omit them.
-  contact_email?: string | null;
-  whatsapp?: string | null;
   status: 'active' | 'inactive';   // 'archived' is filtered out of clubs_open
   tag_normalized: string;
   tag_display: string;
@@ -497,7 +493,8 @@ export const publicPlayers = {
       hp.bap_nickname,
       hp.bap_induction_year,
       hp.hof_member,
-      hp.hof_induction_year
+      hp.hof_induction_year,
+      hp.is_deceased
     FROM historical_persons AS hp
     LEFT JOIN event_result_entry_participants AS erp
       ON erp.historical_person_id = hp.person_id
@@ -507,7 +504,7 @@ export const publicPlayers = {
     GROUP BY
       hp.person_id, hp.person_name, hp.country,
       hp.bap_member, hp.bap_nickname, hp.bap_induction_year,
-      hp.hof_member, hp.hof_induction_year
+      hp.hof_member, hp.hof_induction_year, hp.is_deceased
   `); },
 
   get listResultsByPersonId() { return db.prepare(`
@@ -644,10 +641,10 @@ export const clubs = {
     INSERT INTO clubs (
       id, created_at, created_by, updated_at, updated_by, version,
       name, description, city, region, country,
-      contact_email, whatsapp, hashtag_tag_id
+      hashtag_tag_id
     ) VALUES (?, ?, ?, ?, ?, 1,
               ?, ?, ?, ?, ?,
-              ?, ?, ?)
+              ?)
   `); },
 
   get findByNameAndCountry() { return db.prepare(`
@@ -756,8 +753,6 @@ export const clubs = {
       CASE WHEN c.external_url_validated_at IS NOT NULL
             AND c.external_url_quarantine_reason IS NULL
            THEN c.external_url ELSE NULL END AS external_url,
-      c.contact_email,
-      c.whatsapp,
       c.status,
       t.tag_normalized,
       t.tag_display
@@ -1323,7 +1318,8 @@ export const clubBootstrapLeaderSignals = {
 // clubLeaders + memberClubAffiliations -- writes invoked by
 // ClubService.claimLeadership and ClubService.confirmAffiliation. Schema
 // uniques enforce:
-//   - club_leaders ux_one_leader_per_club, ux_one_club_leader_per_member
+//   - club_leaders ux_one_club_leader_per_member (a member co-leads at most
+//     one club), ux_club_leaders (a member appears at most once per club)
 //   - member_club_affiliations UNIQUE(member_id, club_id),
 //     ux_member_club_affiliations_one_primary (at most one primary)
 //     Two-current-club cap: service-enforced (count-before-insert, max 2)
@@ -1362,20 +1358,16 @@ export const clubLeaders = {
               ?, ?, ?, ?)
   `); },
 
-  // Total leadership headcount for a club (leader + co-leader). Used by the
-  // wizard's promote path to enforce the application-level 5-max cap.
+  // Total co-leader headcount for a club. Used by the volunteer/claim paths to
+  // enforce the application-level 5-max cap.
   get countByClubId() { return db.prepare(`
     SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ?
   `); },
 
-  // Does this club already have a role='leader' row?
-  get hasLeader() { return db.prepare(`
-    SELECT 1 AS x FROM club_leaders WHERE club_id = ? AND role = 'leader' LIMIT 1
-  `); },
-
-  // Is this member already role='leader' of any club?
-  get memberIsLeaderSomewhere() { return db.prepare(`
-    SELECT 1 AS x FROM club_leaders WHERE member_id = ? AND role = 'leader' LIMIT 1
+  // Does this member already co-lead any club? A member co-leads at most one
+  // club (ux_one_club_leader_per_member), so this gates a second co-leadership.
+  get memberCoLeadsAnyClub() { return db.prepare(`
+    SELECT 1 AS x FROM club_leaders WHERE member_id = ? LIMIT 1
   `); },
 
   // Path-2 leadership offers: the member's current clubs that have NO
@@ -1402,25 +1394,17 @@ export const clubLeaders = {
 
   // Admin leadership remediation lookups.
   get findClubForAdminLeadership() { return db.prepare(`
-    SELECT id, name, contact_email, status FROM clubs WHERE id = ?
+    SELECT id, name, status FROM clubs WHERE id = ?
   `); },
 
+  // A club is reachable through its co-leaders' member-visible contact emails;
+  // a club with zero co-leaders has no platform-surfaced contact, so the single
+  // "could use a leader" opportunity list keys solely off the absence of any
+  // club_leaders row.
   get listClubsNeedingLeader() { return db.prepare(`
-    SELECT c.id, c.name, c.city, c.country, c.contact_email
-    FROM clubs c
-    WHERE c.status = 'active'
-      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
-    ORDER BY c.name
-  `); },
-
-  // A led club is always reachable (leader contact is member-visible by
-  // role), so only leaderless clubs without a club contact email count as
-  // needing contact remediation.
-  get listClubsNeedingContact() { return db.prepare(`
     SELECT c.id, c.name, c.city, c.country
     FROM clubs c
     WHERE c.status = 'active'
-      AND (c.contact_email IS NULL OR c.contact_email = '')
       AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
     ORDER BY c.name
   `); },
@@ -1441,8 +1425,7 @@ export const clubLeaders = {
     FROM club_leaders l
     JOIN members_active m ON m.id = l.member_id
     WHERE l.club_id = ?
-    ORDER BY CASE l.role WHEN 'leader' THEN 0 ELSE 1 END,
-             m.display_name COLLATE NOCASE
+    ORDER BY m.display_name COLLATE NOCASE
   `); },
 
   get listAffiliatedMembersForAdmin() { return db.prepare(`
@@ -1454,13 +1437,18 @@ export const clubLeaders = {
     ORDER BY m.display_name
   `); },
 
-  get findLeaderRow() { return db.prepare(`
-    SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
+  // Current members of a club with contact email, for the admin "contact
+  // members" action that invites them to volunteer to co-lead a leaderless club.
+  get listCurrentMemberContactsForClub() { return db.prepare(`
+    SELECT m.id, m.display_name, m.login_email
+    FROM member_club_affiliations a
+    JOIN members_active m ON m.id = a.member_id
+    WHERE a.club_id = ? AND a.is_current = 1
+    ORDER BY m.display_name COLLATE NOCASE
   `); },
 
-  get updateLeaderRole() { return db.prepare(`
-    UPDATE club_leaders SET role = ?, updated_at = ?, updated_by = ?, version = version + 1
-    WHERE club_id = ? AND member_id = ?
+  get findLeaderRow() { return db.prepare(`
+    SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
   `); },
 
   get deleteLeaderRow() { return db.prepare(`
@@ -1499,16 +1487,11 @@ export const clubLeaders = {
     WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 
-  get updateClubContactEmail() { return db.prepare(`
-    UPDATE clubs SET contact_email = ?, updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ?
-  `); },
-
   get leaderClubNameForMember() { return db.prepare(`
     SELECT c.name AS club_name
       FROM club_leaders AS cl
       INNER JOIN clubs AS c ON c.id = cl.club_id
-     WHERE cl.member_id = ? AND cl.role = 'leader'
+     WHERE cl.member_id = ?
      LIMIT 1
   `); },
 
@@ -1519,16 +1502,6 @@ export const clubLeaders = {
 
   get removeByMemberAndClub() { return db.prepare(`
     DELETE FROM club_leaders WHERE member_id = ? AND club_id = ?
-  `); },
-
-  get updateRole() { return db.prepare(`
-    UPDATE club_leaders
-       SET role = ?, updated_at = ?, updated_by = ?, version = version + 1
-     WHERE member_id = ? AND club_id = ?
-  `); },
-
-  get countOtherLeadersByClub() { return db.prepare(`
-    SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ? AND member_id != ?
   `); },
 };
 
@@ -4534,7 +4507,12 @@ export interface MemberProfileRow {
   region: string | null;
   country: string | null;
   phone: string | null;
+  whatsapp: string | null;
   email_visibility: string;
+  phone_visible: number;
+  whatsapp_visible: number;
+  searchable: number;
+  sex: string | null;
   is_admin: number;
   is_hof: number;
   is_bap: number;
@@ -4599,7 +4577,12 @@ export const account = {
       m.region,
       m.country,
       m.phone,
+      m.whatsapp,
       m.email_visibility,
+      m.phone_visible,
+      m.whatsapp_visible,
+      m.searchable,
+      m.sex,
       m.is_admin,
       m.is_hof,
       m.is_bap,
@@ -4812,10 +4795,15 @@ export const account = {
       region                     = ?,
       country                    = ?,
       phone                      = ?,
+      whatsapp                   = ?,
       email_visibility           = ?,
+      phone_visible              = ?,
+      whatsapp_visible           = ?,
+      searchable                 = ?,
       first_competition_year     = ?,
       show_competitive_results   = ?,
       show_first_competition_year = ?,
+      sex                        = COALESCE(?, sex),
       updated_at                 = ?,
       updated_by                 = 'member',
       version                    = version + 1
@@ -4898,9 +4886,10 @@ export const registration = {
       login_email, login_email_normalized, email_verified_at,
       password_hash, password_changed_at,
       real_name, display_name, display_name_normalized,
+      sex,
       searchable,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
   `); },
 
   get setAdminFlagOnRegister() { return db.prepare(`
@@ -6467,12 +6456,13 @@ export interface HistoricalPersonClaimRow {
   hof_induction_year: number | null;
   bap_induction_year: number | null;
   first_year: number | null;
+  is_deceased: number;
 }
 
 export const legacyClaim = {
   get findHistoricalPersonByLegacyId() { return db.prepare(`
     SELECT person_id, person_name, aliases, legacy_member_id, country,
-           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
+           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year, is_deceased
     FROM historical_persons
     WHERE legacy_member_id = ?
     LIMIT 1
@@ -6480,7 +6470,7 @@ export const legacyClaim = {
 
   get findHistoricalPersonById() { return db.prepare(`
     SELECT person_id, person_name, aliases, legacy_member_id, country,
-           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
+           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year, is_deceased
     FROM historical_persons
     WHERE person_id = ?
     LIMIT 1
@@ -6488,7 +6478,7 @@ export const legacyClaim = {
 
   get findHistoricalPersonByAlias() { return db.prepare(`
     SELECT person_id, person_name, aliases, legacy_member_id, country,
-           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
+           hof_member, bap_member, hof_induction_year, bap_induction_year, first_year, is_deceased
     FROM historical_persons
     WHERE aliases LIKE '%' || ? || '%' ESCAPE '\\'
     LIMIT 1

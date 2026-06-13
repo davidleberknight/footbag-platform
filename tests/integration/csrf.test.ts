@@ -83,6 +83,7 @@ describe('CSRF — SameSite cookie attribute', () => {
         email: 'csrf-newcomer@example.com',
         password: 'CsrfNewcomer!1',
         confirmPassword: 'CsrfNewcomer!1',
+        sex: 'male',
       });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');

@@ -13,6 +13,10 @@
  *   - Admin-home backlog badge (open-item count plus oldest-item age,
  *     computed from the same queue assembly so badge and queue agree)
  *   - Admin club cleanup resolution (demote, archive, dismiss, defer)
+ *   - Contact-members action on a leaderless club: emails the club's current
+ *     members the volunteer-to-co-lead invitation (audit-logged, no link).
+ *     This sends only; it does not resolve the item, so the leaderless
+ *     opportunity resurfaces until a member volunteers
  *   - Candidate-flag queue group: wizard activity answers about unpromoted
  *     candidates (candidate-keyed signal rows, club_id NULL), grouped per
  *     candidate with one vote per member and admin-only negative-reporter
@@ -62,6 +66,9 @@
  *   legacy_club_candidates (read + classification/lifecycle cleanup writes),
  *   audit_entries (append).
  *
+ * Side effects: audit_entries append; outbox_emails enqueue (the
+ * contact-members action only), best-effort after the read.
+ *
  * Service shape: singleton object (no external adapters).
  */
 import {
@@ -80,6 +87,8 @@ import {
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { clubService } from './clubService';
+import { getCommunicationService } from './communicationService';
+import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
 // ---------------------------------------------------------------------------
@@ -537,8 +546,8 @@ function assembleQueue(): AssembledQueue {
       clubStatus: row.status,
       predicate: 'leaderless_active',
       predicateLabel: 'Leaderless active club',
-      detail: 'Active club with no leaders',
-      recommendedAction: 'Demote to inactive or find a leader',
+      detail: 'Active club with no co-leader',
+      recommendedAction: 'Add a co-leader (recommended), contact members, or defer',
       flagCount: 0,
       openSince: row.last_updated,
       claimLabel: claimLabelFrom(claims, 'club', row.club_id),
@@ -946,6 +955,63 @@ function resolveClub(
   });
 }
 
+// Contact-members action on a leaderless club: email the club's current
+// members the volunteer-to-co-lead invitation. This does not resolve the queue
+// item (the club stays leaderless until a member steps up); the item simply
+// resurfaces on the next open. The email carries no link (anti-phishing); it
+// gives precise log-in-and-navigate instructions. Audit-logged.
+function contactMembersToVolunteer(
+  adminMemberId: string,
+  clubId: string,
+): { recipientCount: number } {
+  const club = clubsDb.findById.get(clubId) as
+    | { club_id: string; name: string; status: string } | undefined;
+  if (!club) throw new NotFoundError('Club not found.');
+
+  const members = clubLeaders.listCurrentMemberContactsForClub.all(clubId) as Array<{
+    id: string; display_name: string; login_email: string | null;
+  }>;
+
+  const now = new Date().toISOString();
+  let recipientCount = 0;
+  try {
+    const comms = getCommunicationService();
+    for (const m of members) {
+      if (!m.login_email) continue;
+      comms.enqueueEmail({
+        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}:${now}`,
+        recipientEmail: m.login_email,
+        recipientMemberId: m.id,
+        subject: `${club.name} could use a co-leader`,
+        bodyText:
+          `Hi ${m.display_name},\n\n` +
+          `Your footbag club "${club.name}" currently has no co-leader. A co-leader keeps the club's page up to date and is the club's point of contact for other members.\n\n` +
+          `If you would like to step up, log in to your account, open Clubs, find "${club.name}", and choose "Volunteer to co-lead". You need Tier 1 benefits, and a member can co-lead one club at a time.\n\n` +
+          `-- IFPA platform`,
+      });
+      recipientCount++;
+    }
+  } catch (err) {
+    logger.warn('club leaderless contact-members enqueue failed', {
+      clubId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  appendAuditEntry({
+    actionType: 'admin.club_cleanup.contact_members',
+    category: 'admin',
+    actorType: 'admin',
+    actorMemberId: adminMemberId,
+    entityType: 'club',
+    entityId: clubId,
+    reasonText: null,
+    metadata: { recipient_count: recipientCount, club_name: club.name },
+  });
+
+  return { recipientCount };
+}
+
 // Claim a queue item for review: a non-blocking coordination hint shown to
 // other admins. Always succeeds for a live item (a re-claim refreshes the
 // marker); no audit row is written because a claim is a hint, not a
@@ -1267,6 +1333,7 @@ export const clubCleanupService = {
   getBacklogBadge,
   claimItem,
   resolveClub,
+  contactMembersToVolunteer,
   resolveCandidate,
   delistUnconfirmedResidue,
   bulkDeferGroup,

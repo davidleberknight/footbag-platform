@@ -58,7 +58,7 @@ function seed(opts: { tier1?: boolean; withLeader?: boolean } = {}): { memberId:
     insertMember(db, { id: `p2-other-${_n}`, slug: `p2_other_${_n}`, login_email: `other-${_n}@example.com` });
     db.prepare(`
       INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
     `).run(`p2-cl-${_n}`, clubId, `p2-other-${_n}`);
   }
   // Settle prior wizard tasks so the club task renders.
@@ -99,9 +99,10 @@ describe('leadership path 2', () => {
     expect(rows[0].member_id).toBe(memberId);
     expect(rows[0].role).toBe('co-leader');
 
+    // Accept routes through the single volunteer write, which audits the add.
     const audits = db.prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.leadership_path2_accepted' AND entity_id = ?`,
-    ).get(clubId) as { n: number };
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.coleader_volunteered' AND actor_member_id = ?`,
+    ).get(memberId) as { n: number };
     expect(audits.n).toBe(1);
 
     // The offer no longer renders.
@@ -144,7 +145,7 @@ describe('leadership path 2', () => {
     insertMember(db, { id: `p2-racer-${_n}`, slug: `p2_racer_${_n}`, login_email: `racer-${_n}@example.com` });
     db.prepare(`
       INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
     `).run(`p2-cl-race-${_n}`, clubId, `p2-racer-${_n}`);
 
     const res = await request(createApp())

@@ -84,11 +84,11 @@ describe('GET /dev/personas (staging boot)', () => {
     expect(res.text).toContain(CANONICAL_PERSONAS[0].coverageNotes[0]);
   });
 
-  it('renders an authorization role beyond admin/member (club leader reads as a leader)', async () => {
+  it('renders an authorization role beyond admin/member (club leader reads as a co-leader)', async () => {
     const res = await request(createApp()).get('/dev/personas');
     const leader = CANONICAL_PERSONAS.find((p) => p.club?.leader || p.club?.role);
     expect(leader, 'catalog should include at least one club-leader persona').toBeDefined();
-    expect(res.text).toContain('club leader');
+    expect(res.text).toContain('club co-leader');
   });
 
   it('groups personas under their authorization-axis headings', async () => {

@@ -261,8 +261,7 @@ describe('tier gate — POST /clubs/create (Tier-1 benefits)', () => {
     (p) =>
       canHoldSession(p) &&
       p.onboardingComplete === true &&
-      p.slug !== 'ap_active' &&
-      p.slug !== 'ap_expired',
+      !p.activePlayer,
   );
 
   it('lets Tier-1+ members past the gate and 403s under-tiered members', async () => {

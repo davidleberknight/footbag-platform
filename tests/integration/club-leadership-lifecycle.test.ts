@@ -6,14 +6,13 @@
  *     already-active club writes no revival audit.
  *   - A new current affiliation (self-service join) revives an inactive
  *     club; archived clubs are not joinable and revive only via a claim.
- *   - Leader contact is member-visible by role: the club page shows current
- *     leaders' emails and the club's contact email and WhatsApp to
- *     authenticated viewers only; provisional (unclaimed) entries never
- *     expose contact to anyone.
- *   - The admin Needs Contact queue lists only leaderless clubs without a
- *     club contact email: a led club is reachable through its leaders.
- *   - Leadership rows written by the wizard's step-up offer carry the
- *     onboarding-service provenance stamp, matching the claim path.
+ *   - Co-leader contact is member-visible by role: the club page shows
+ *     current co-leaders' emails to authenticated viewers only; provisional
+ *     (unclaimed) entries never expose contact to anyone.
+ *   - The admin could-use-a-co-leader queue lists only leaderless active
+ *     clubs: a club is reachable through its co-leaders.
+ *   - The wizard's step-up offer routes through the shared volunteer write,
+ *     which stamps the club_service provenance and revives the club.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -94,7 +93,7 @@ describe('revival on leadership claim', () => {
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
       candidateId, userDecision: 'confirm',
     });
-    expect(result.branch).toBe('promoted_leader');
+    expect(result.branch).toBe('promoted_co_leader');
     expect(clubStatus(clubId)).toBe('active');
     const audits = revivalAudits(clubId);
     expect(audits).toHaveLength(1);
@@ -112,7 +111,7 @@ describe('revival on leadership claim', () => {
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
       candidateId, userDecision: 'confirm',
     });
-    expect(result.branch).toBe('promoted_leader');
+    expect(result.branch).toBe('promoted_co_leader');
     expect(clubStatus(clubId)).toBe('active');
     expect(JSON.parse(revivalAudits(clubId)[0].metadata_json).prior_status).toBe('archived');
   });
@@ -182,7 +181,7 @@ describe('join/leave notification emails', () => {
     insertMember(db, { id: leaderId, slug: `cll_leader_${_n}`, login_email: `${leaderId}@example.com` });
     db.prepare(`
       INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
     `).run(`cll-cl-${_n}`, clubId, leaderId);
     return leaderId;
   }
@@ -284,17 +283,16 @@ describe('leader contact is member-visible by role', () => {
     clubKey = `club_visibility_${_n}`;
     const tagId = insertTag(db, { standard_type: 'club', tag_normalized: `#${clubKey}` });
     const clubId = insertClub(db, { id: `cll-vis-${_n}`, name: 'Visibility Club', hashtag_tag_id: tagId });
-    db.prepare(`UPDATE clubs SET contact_email = 'club@example.com', whatsapp = '+1 555 000 1111' WHERE id = ?`).run(clubId);
     db.prepare(`
       INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
     `).run(`cll-cl-${_n}`, clubId, leaderId);
     insertClubBootstrapLeader(db, {
       club_id: clubId, legacy_member_id: `lm-vis-${_n}`, role: 'co-leader', status: 'provisional',
     });
   });
 
-  it('authenticated viewers see the leader email and the club contact channels', async () => {
+  it('authenticated viewers see the co-leader email', async () => {
     const viewerId = seedMember();
     const res = await request(createApp())
       .get(`/clubs/${clubKey}`)
@@ -302,17 +300,13 @@ describe('leader contact is member-visible by role', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Visible Leader');
     expect(res.text).toContain(`mailto:${leaderEmail}`);
-    expect(res.text).toContain('club@example.com');
-    expect(res.text).toContain('+1 555 000 1111');
   });
 
-  it('the anonymous public sees no leader names and no contact channels', async () => {
+  it('the anonymous public sees no leader names and no contact', async () => {
     const res = await request(createApp()).get(`/clubs/${clubKey}`);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Visible Leader');
     expect(res.text).not.toContain(leaderEmail);
-    expect(res.text).not.toContain('club@example.com');
-    expect(res.text).not.toContain('+1 555 000 1111');
   });
 
   it('provisional entries never expose contact, even to authenticated viewers', async () => {
@@ -322,24 +316,24 @@ describe('leader contact is member-visible by role', () => {
       .set('Cookie', cookieFor(viewerId));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Provisional leader');
-    // The only mailto links on the page belong to the live leader and the
-    // club contact, never to a provisional entry.
+    // The only mailto link on the page belongs to the live co-leader, never to
+    // a provisional entry.
     const mailtos = res.text.match(/mailto:[^"]+/g) ?? [];
-    expect(mailtos.every((m) => m.includes(leaderEmail) || m.includes('club@example.com'))).toBe(true);
+    expect(mailtos.every((m) => m.includes(leaderEmail))).toBe(true);
   });
 });
 
-describe('Needs Contact queue lists only leaderless clubs without a club email', () => {
-  it('a led club with no club email is reachable and absent; a leaderless one is listed', () => {
+describe('the could-use-a-co-leader queue lists only leaderless active clubs', () => {
+  it('a club with a co-leader is reachable and absent; a leaderless one is listed', () => {
     const ledClubId = seedClub('active');
     const leaderId = seedMember();
     db.prepare(`
       INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'leader', '2026-01-01T00:00:00.000Z')
+      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
     `).run(`cll-nc-${_n}`, ledClubId, leaderId);
     const leaderlessClubId = seedClub('active');
 
-    const queue = leadershipSvc.getLeadershipQueuePage().content.needsContact.map((c) => c.clubId);
+    const queue = leadershipSvc.getLeadershipQueuePage().content.needsLeader.map((c) => c.clubId);
     expect(queue).not.toContain(ledClubId);
     expect(queue).toContain(leaderlessClubId);
   });
@@ -351,7 +345,7 @@ describe('revival on admin leader assignment', () => {
     const memberId = seedMember();
     const clubId = seedClub('inactive');
 
-    leadershipSvc.assignLeader(adminId, clubId, memberId, 'leader', 'Staffing a dormant club');
+    leadershipSvc.assignLeader(adminId, clubId, memberId, 'Staffing a dormant club');
     expect(clubStatus(clubId)).toBe('active');
     const audits = revivalAudits(clubId);
     expect(audits).toHaveLength(1);
@@ -365,13 +359,13 @@ describe('revival on admin leader assignment', () => {
     const memberId = seedMember();
     const clubId = seedClub('active');
 
-    leadershipSvc.assignLeader(adminId, clubId, memberId, 'leader', 'Routine assignment');
+    leadershipSvc.assignLeader(adminId, clubId, memberId, 'Routine assignment');
     expect(revivalAudits(clubId)).toHaveLength(0);
   });
 });
 
 describe('wizard step-up offer provenance', () => {
-  it('the accepted co-leader row is stamped by the onboarding service, matching the claim path', async () => {
+  it('the accepted co-leader row is written by the shared volunteer path and revives the club', async () => {
     _n += 1;
     const memberId = `cll-p2-${_n}`;
     insertMember(db, { id: memberId, slug: `cll_p2_${_n}`, login_email: `${memberId}@example.com` });
@@ -399,8 +393,8 @@ describe('wizard step-up offer provenance', () => {
     const row = db.prepare('SELECT created_by, updated_by, role FROM club_leaders WHERE club_id = ? AND member_id = ?')
       .get(clubId, memberId) as { created_by: string; updated_by: string; role: string };
     expect(row.role).toBe('co-leader');
-    expect(row.created_by).toBe('onboarding_service');
-    expect(row.updated_by).toBe('onboarding_service');
+    expect(row.created_by).toBe('club_service');
+    expect(row.updated_by).toBe('club_service');
 
     // Stepping up revives the inactive club in the same transaction.
     expect(clubStatus(clubId)).toBe('active');

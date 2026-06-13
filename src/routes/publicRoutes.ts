@@ -43,6 +43,8 @@ publicRouter.post('/clubs/create',          requireAuth, requireTier1Benefits(),
 publicRouter.get('/clubs/:key',             clubController.byKey);
 publicRouter.post('/clubs/:key/join',           requireAuth, clubController.postJoin);
 publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.postLeave);
+publicRouter.post('/clubs/:key/volunteer',      requireAuth, clubController.postVolunteer);
+publicRouter.post('/clubs/:key/invite',         requireAuth, clubController.postInvite);
 publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);

@@ -84,17 +84,6 @@
     {{/if}}
 
     {{#if isAuthenticated}}
-    {{#if (or content.club.contactEmail content.club.whatsapp)}}
-    <div class="club-contact-block mt-4">
-      <h2 class="club-contact-heading">Contact</h2>
-      {{#if content.club.contactEmail}}
-        <p><a class="club-contact-email" href="mailto:{{content.club.contactEmail}}">{{content.club.contactEmail}}</a></p>
-      {{/if}}
-      {{#if content.club.whatsapp}}
-        <p class="club-contact-whatsapp">WhatsApp: {{content.club.whatsapp}}</p>
-      {{/if}}
-    </div>
-    {{/if}}
     <div class="mt-4">
       {{#if content.club.viewerIsMember}}
         <p class="badge">You are a member of this club</p>
@@ -104,6 +93,29 @@
         </form>
       {{/if}}
     </div>
+
+    {{#if (or content.club.viewerCanVolunteer content.club.viewerIsLeader)}}
+    <section class="mt-4">
+      <div class="section-heading"><h2>Leadership</h2></div>
+      {{#if content.club.isLeaderless}}
+        <p class="text-muted">This club has no co-leader yet. If you are a member, you can step up.</p>
+      {{/if}}
+      {{#if content.club.viewerCanVolunteer}}
+        <form method="POST" action="{{content.club.volunteerHref}}">
+          <button type="submit" class="btn btn-primary">Volunteer to co-lead this club</button>
+        </form>
+      {{/if}}
+      {{#if content.club.viewerIsLeader}}
+        <form method="POST" action="{{content.club.inviteHref}}" class="mt-4">
+          <div class="form-field">
+            <label for="invite-member-key">Invite a member to co-lead</label>
+            <input type="text" id="invite-member-key" name="member_key" placeholder="member id or username" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Invite</button>
+        </form>
+      {{/if}}
+    </section>
+    {{/if}}
     {{/if}}
 
     {{#if isAuthenticated}}

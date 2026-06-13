@@ -180,9 +180,13 @@ export const historyService = {
     // Show the CTA when: viewer is signed in, viewer has no HP linked yet,
     // HP is unclaimed (the `linkedRow` above already redirected claimed HPs),
     // and the viewer's real_name surname matches the HP's person_name surname.
+    // A record marked deceased is not self-claimable: a living member cannot
+    // claim a deceased person's identity, so the CTA is suppressed regardless
+    // of surname match.
+    const hpIsDeceased = Boolean(p['is_deceased']);
     let canClaim = false;
     let claimHref: string | null = null;
-    if (viewerMemberId) {
+    if (viewerMemberId && !hpIsDeceased) {
       const viewerRow = runSqliteRead('findClaimingMemberForHpCta', () =>
         legacyClaim.findClaimingMember.get(viewerMemberId),
       ) as { id: string; real_name: string; historical_person_id: string | null } | undefined;

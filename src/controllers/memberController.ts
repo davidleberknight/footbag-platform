@@ -168,10 +168,15 @@ export const memberController = {
         region:          req.body.region         ?? '',
         country:         req.body.country        ?? '',
         phone:           req.body.phone          ?? '',
+        whatsapp:        req.body.whatsapp       ?? '',
         emailVisibility: req.body.emailVisibility ?? 'private',
+        phoneVisible:    req.body.phoneVisible    ?? '0',
+        whatsappVisible: req.body.whatsappVisible ?? '0',
+        searchable:      req.body.searchable      ?? '0',
         firstCompetitionYear: req.body.firstCompetitionYear ?? '',
         showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
         showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
+        sex:             req.body.sex            ?? '',
         links,
       };
       try {
