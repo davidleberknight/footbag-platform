@@ -89,6 +89,19 @@ describe('shapeFreestyleRecord', () => {
     const normal = shapeFreestyleRecord(makeRow({ trick_name: 'Gyro Symposium Swirl' }));
     expect(normal.trickHref).toBe('/freestyle/tricks/gyro-symposium-swirl');
   });
+
+  // With a resolvable set, a record whose trick is not in the dictionary must not
+  // link (no 404 badge). With no set, it links unconditionally (caller knows the
+  // trick resolves).
+  it('resolution-aware: suppresses the trick href for a slug absent from the resolvable set', () => {
+    const resolvable = new Set(['mirage', 'gyro-symposium-swirl']);
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), resolvable).trickHref)
+      .toBe('/freestyle/tricks/mirage');
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Enterrage' }), resolvable).trickHref)
+      .toBeNull();
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Enterrage' })).trickHref)
+      .toBe('/freestyle/tricks/enterrage');
+  });
 });
 
 describe('slugToHashtag', () => {

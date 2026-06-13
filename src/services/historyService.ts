@@ -7,6 +7,7 @@ import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
+import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
 import { surnameKey } from './nameUtils';
 
 interface HistoricalPlayer {
@@ -199,6 +200,7 @@ export const historyService = {
       }
     }
 
+    const resolvableSlugs = getResolvableTrickSlugs();
     return {
       action: 'render',
       vm: {
@@ -223,7 +225,7 @@ export const historyService = {
           hasCompetitionResults: player.eventGroups.length > 0,
           hasRecords:            freestyleRows.length > 0,
           eventGroups:           player.eventGroups,
-          freestyleRecords:      freestyleRows.map(shapeFreestyleRecord),
+          freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolvableSlugs)),
           partnerships,
           hasPartnerships:       partnerships.length > 0,
           canClaim,

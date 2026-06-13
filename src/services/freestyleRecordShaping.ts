@@ -69,15 +69,28 @@ function safeVideoUrl(raw: string | null): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
-export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordViewModel {
+/**
+ * The trick link for a record name. Null for record-only names. When a
+ * `resolvable` set is supplied (active trick slugs + slugified aliases), the
+ * link is also suppressed unless the slug actually resolves to a trick — so a
+ * record whose trick isn't in the dictionary doesn't badge to a 404 page. With
+ * no set, links unconditionally (used where the trick is known to resolve).
+ */
+function trickHrefFor(name: string | null, resolvable?: ReadonlySet<string>): string | null {
+  if (!name || isRecordOnlyTrickName(name)) return null;
+  const slug = trickNameToSlug(name);
+  if (resolvable && !resolvable.has(slug)) return null;
+  return `/freestyle/tricks/${slug}`;
+}
+
+export function shapeFreestyleRecord(row: FreestyleRecordRow, resolvableSlugs?: ReadonlySet<string>): FreestyleRecordViewModel {
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
   return {
     id:              row.id,
     holderName:      row.holder_name,
     holderHref:      personHref(row.holder_member_slug, row.person_id),
     trickName:       row.trick_name,
-    trickHref:       row.trick_name && !isRecordOnlyTrickName(row.trick_name)
-                       ? `/freestyle/tricks/${trickNameToSlug(row.trick_name)}` : null,
+    trickHref:       trickHrefFor(row.trick_name, resolvableSlugs),
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,

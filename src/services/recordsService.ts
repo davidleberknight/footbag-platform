@@ -1,5 +1,6 @@
 import { consecutiveKicksRecords, ConsecutiveKicksRow, freestyleRecords, FreestyleRecordRow } from '../db/db';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
+import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 
@@ -85,6 +86,7 @@ export const recordsService = {
     const passbackRows = runSqliteRead('freestyleRecords.listPublic', () =>
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],
     );
+    const resolvableSlugs = getResolvableTrickSlugs();
 
     return {
       seo:  { title: 'Records' },
@@ -99,7 +101,7 @@ export const recordsService = {
         highestScores:   groupBySubsection(highScoreRows),
         progression:     groupBySubsection(progressionRows),
         milestones:      groupBySubsection(milestoneRows),
-        passbackRecords: passbackRows.map(shapeFreestyleRecord),
+        passbackRecords: passbackRows.map(r => shapeFreestyleRecord(r, resolvableSlugs)),
         totalPassback:   passbackRows.length,
       },
     };

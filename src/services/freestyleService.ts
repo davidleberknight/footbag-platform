@@ -27,6 +27,7 @@ import {
   slugToHashtag,
   trickNameToSlug,
 } from './freestyleRecordShaping';
+import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
 import {
   NotationDisplay,
   shapeNotationDisplay,
@@ -3776,6 +3777,7 @@ export interface FreestyleHistoryContent {
 // ---------------------------------------------------------------------------
 
 function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
+  const resolvableSlugs = getResolvableTrickSlugs();
   const groupMap = new Map<string, FreestyleRecordRow[]>();
   for (const row of rows) {
     const bucket = groupMap.get(row.record_type) ?? [];
@@ -3785,7 +3787,7 @@ function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
   return Array.from(groupMap.entries()).map(([recordType, typeRows]) => ({
     recordType,
     label:   labelForType(recordType),
-    records: typeRows.map(shapeFreestyleRecord),
+    records: typeRows.map(r => shapeFreestyleRecord(r, resolvableSlugs)),
   }));
 }
 
@@ -6447,10 +6449,10 @@ export const freestyleService = {
           sortName,
           slug,
           trickTag,
-          records:          currentRows.map(shapeFreestyleRecord),
+          records:          currentRows.map(r => shapeFreestyleRecord(r)),
           recordCount:      currentRows.length,
           topValue,
-          progression:      allTrickRows.map(shapeFreestyleRecord),
+          progression:      allTrickRows.map(r => shapeFreestyleRecord(r)),
           hasProgression,
           dictEntry,
           familyMembers,
