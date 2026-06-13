@@ -376,20 +376,21 @@ describe('GET /freestyle/add-analysis — discrepancy case studies', () => {
     }
   });
 
-  it('renders Red-status attribution lines (settled by ...)', async () => {
+  it('renders IFPA status lines carrying the substantive note but no individual / date / ruling-number attribution', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toContain('settled by Red 2026-05-11');
-    expect(res.text).toContain('settled by pt11');
-    expect(res.text).toContain('settled by pt4');
-    expect(res.text).toContain('settled by Wave 1 2026-05-15');
-    expect(res.text).toContain('settled by Red 2026-05-15');
+    expect(res.text).toContain('settled (X-dex carry from a toe)');
+    expect(res.text).toContain('settled (Baroque named ruling)');
+    // The public status lines never name an individual, carry a date, or cite a ruling number.
+    expect(res.text).not.toMatch(/settled by Red/);
+    expect(res.text).not.toMatch(/settled by pt[0-9]/);
+    expect(res.text).not.toMatch(/settled by Wave/);
   });
 
   it('renders the 2 edge-case brief mentions', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('Sumo');
     expect(res.text).toContain('Genesis');
-    expect(res.text).toMatch(/pt9 exception/);
+    expect(res.text).toMatch(/named X-Dex exception/);
     expect(res.text).toMatch(/rotational-escalation/);
   });
 });

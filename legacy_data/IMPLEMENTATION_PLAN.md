@@ -92,11 +92,6 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
   3. **crossbody/xbd register + xbd-rake base (~47).** Biggest authoring lever (already the headline item in `project_fm_promotion_arc`).
   4. Two unusual-base rows: spyro-gyro, backside-symposium-toe-blizzard.
   Cross-track: the `footbag-freestyle-dictionary` skill posture (surging chassis, same-operator-twice doctrine, and symposium-blizzard now released from the do-not-re-promote list, 8->7) needs a Dave-side refresh; fold into the Skill cleanup pass above.
-- **Glossary finalization — pending (James-track).** Three items to close, separate from the family-card editorial pass already listed above:
-  1. **§6 anchor migration** — migrate the glossary §6 (Modifier Reference) per-term anchors. Coordinate with the semantic-token deep-link targets (`#term-{slug}`) so no live deep-link breaks.
-  2. **Modifier-reference de-duplication** — collapse the duplicated §6 modifier-reference content.
-  3. **Advanced-reference consolidation** — consolidate the advanced-reference material.
-
 ---
 
 ## BLOCKERS

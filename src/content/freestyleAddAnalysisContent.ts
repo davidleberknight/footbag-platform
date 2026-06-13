@@ -84,7 +84,7 @@ export interface AddAnalysisDiscrepancyCase {
   delta:                     string;   // "-1" / "0" / "+1"
   decompositionDifference:   string;
   pattern:                   string;   // "positional operator" etc.
-  ifpaStatusLine:            string;   // "settled by Red 2026-05-11"
+  ifpaStatusLine:            string;   // rendered IFPA status, e.g. "settled (SS=+0 universal)"
 }
 
 export interface AddAnalysisEdgeCase {
@@ -114,9 +114,9 @@ export interface AddAnalysisContent {
   passbackAddFraming:       string;
   /** 68 rows: PB name-matched + ADD-claim differs from IFPA canonical. */
   passbackAddDisagreements: readonly AddDisagreementRow[];
-  /** Sprint-1 Canonical Formula Resolution: framing prose. */
+  /** Canonical formula resolution: framing prose. */
   resolvedFormulasFraming:  string;
-  /** Sprint-1 Canonical Formula Resolution: 15 +1-stack compositions. */
+  /** Canonical formula resolution: the 15 +1-stack compositions. */
   resolvedFormulas:         readonly ResolvedFormula[];
   closingParagraphs:        readonly string[];
   crossLinks:               readonly AddAnalysisCrossLink[];
@@ -431,7 +431,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '−1',
     decompositionDifference: 'IFPA counts ss as +0; footbagmoves treats it as ADD-additive in some entries.',
     pattern:                 'positional operator',
-    ifpaStatusLine:          'settled by Red 2026-05-11 (SS=+0 universal)',
+    ifpaStatusLine:          'settled (SS=+0 universal)',
   },
   {
     caseId:                  'DC-02',
@@ -443,7 +443,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '−1',
     decompositionDifference: 'Same SS pattern as Hurl, applied to butterfly base.',
     pattern:                 'positional operator',
-    ifpaStatusLine:          'settled by Red 2026-05-11',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-03',
@@ -455,7 +455,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '−1',
     decompositionDifference: 'Same SS pattern as Hurl, applied to dyno base.',
     pattern:                 'positional operator',
-    ifpaStatusLine:          'settled by Red 2026-05-11',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-04',
@@ -467,7 +467,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'Two readings; one ADD. The compressed form ("blurry whirl") and the expanded form ("stepping paradox whirl") describe the same trick at different stopping depths.',
     pattern:                 'compression vs expansion',
-    ifpaStatusLine:          'settled by pt11 + Wave 1 2026-05-15',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-05',
@@ -479,7 +479,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'Same compression pattern as Blurry Whirl, applied to a compound base (torque = miraging osis).',
     pattern:                 'compression vs expansion (transitive across compound bases)',
-    ifpaStatusLine:          'settled by Wave 1 2026-05-15',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-06',
@@ -491,7 +491,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'The folk name is itself a compression. stepping (+1) + paradox (+1) + blender (4) = 6. Blender is itself a compound (whirling osis), so the compression cascades through.',
     pattern:                 'compression vs expansion on a compound base',
-    ifpaStatusLine:          'settled by Wave 1 2026-05-15',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-07',
@@ -503,7 +503,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'Two valid stopping depths reach the same total. Compact: gyro torque (+1 +4) = 5. Deep: spinning (+1) + ss (+0) + miraging (+1) + osis (3) = 5.',
     pattern:                 'stopping-depth ambiguity',
-    ifpaStatusLine:          'settled by pt11',
+    ifpaStatusLine:          'settled',
   },
   {
     caseId:                  'DC-08',
@@ -515,7 +515,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'The arithmetic-only reading would be atomic (+1 non-rotational on mirage) + mirage (2) = 3. But atom-smasher carries an implicit X-dex from a toe that adds +1, giving 4.',
     pattern:                 'hidden mechanism (X-dex preservation)',
-    ifpaStatusLine:          'settled by Red 2026-05-15 (X-dex carry from a toe)',
+    ifpaStatusLine:          'settled (X-dex carry from a toe)',
   },
   {
     caseId:                  'DC-09',
@@ -527,7 +527,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     delta:                   '0',
     decompositionDifference: 'Barraging’s contribution to Baroque is structural: it multiplies the dex count rather than adding as a body modifier. Two dexes (+2) + osis (3) = 5.',
     pattern:                 'operator class (structural dex-multiplier)',
-    ifpaStatusLine:          'settled by Wave 1 2026-05-15 (Baroque named ruling)',
+    ifpaStatusLine:          'settled (Baroque named ruling)',
   },
   {
     caseId:                  'DC-10',
@@ -537,9 +537,9 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     externalSourceLabel:     'footbagmoves',
     externalAdd:             '5',
     delta:                   '+1',
-    decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover (pt4); FM's name applies atomic recursively, IFPA's official math doesn't.",
+    decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover; FM's name applies atomic recursively, IFPA's official math doesn't.",
     pattern:                 'recursive operator application',
-    ifpaStatusLine:          'settled by pt4 (eggbeater = atomic legover)',
+    ifpaStatusLine:          'settled (eggbeater = atomic legover)',
   },
 ];
 
@@ -552,13 +552,13 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     trickName:  'Sumo (Nuclear Mirage)',
     trickSlug:  'sumo',
     ifpaAdd:    '5',
-    briefNote:  'Sumo’s 5 ADD comes via a named X-Dex pt9 exception: pt9 ruled that certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
+    briefNote:  'Sumo’s 5 ADD comes via a named X-Dex exception: certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
   },
   {
     trickName:  'Genesis (footbagmoves: Furious Whirl)',
     trickSlug:  null,
     ifpaAdd:    '5',
-    briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's official 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired in pt10 (rotational bases get a flat +1 per modifier rather than progressive scaling).",
+    briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's official 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired (rotational bases get a flat +1 per modifier rather than progressive scaling).",
   },
 ];
 
