@@ -1,23 +1,22 @@
 # Op-notation Backfill Tracker
 
-**50 active dictionary rows** carry an empty `operational_notation`. These are already-published canonical rows missing a structural notation — a separate workstream from the promotion frontier (which tracks *unpublished* candidates). Each row is classified by how actionable the backfill is.
+**48 active dictionary rows** carry an empty `operational_notation`. These are already-published canonical rows missing a structural notation — a separate workstream from the promotion frontier (which tracks *unpublished* candidates). Each row is classified by how actionable the backfill is.
 
 Counts by bucket:
 
-- **Clean-derivable**: 2
+- **Clean-derivable**: 1
 - **Packet-held**: 11
 - **Double-operator held**: 2
 - **Needs decomposition**: 14
-- **Operator/base definitional**: 21
+- **Operator/base definitional**: 20
 
 
-## Clean-derivable  (2)
+## Clean-derivable  (1)
 
 _Resolved operators + a published exemplar (or a notated canonical twin). Author the operational_notation now; bracket-count must equal ADD. No ruling needed._
 
 | Slug | ADD | Base | Note |
 |---|---|---|---|
-| `atomic-torque` | 6 | torque | Leading `atomic` resolved + `atomic-*` exemplar published; mirror it (bracket-count == ADD). |
 | `witchdoctor` | 5 | mirage | Canonical equivalence of `symposium-atomic-butterfly` (published); notation mirrors the twin. |
 
 ## Packet-held  (11)
@@ -68,7 +67,7 @@ _No derivation available yet — a folk/standalone name with no structural decom
 | `sole-survivor` | 5 | whirl | Folk / standalone name with no operator-prefixed derivation; needs a decomposition. |
 | `warp` | 5 | mirage | Folk / standalone name with no operator-prefixed derivation; needs a decomposition. |
 
-## Operator/base definitional  (21)
+## Operator/base definitional  (20)
 
 _The row defines an operator / atom / base rather than a compound; a structural notation is optional and low-priority._
 
@@ -82,7 +81,6 @@ _The row defines an operator / atom / base rather than a compound; a structural 
 | `furious` | 2 | furious | Row is an operator/atom/base definition; structural op_notation optional. |
 | `gyro` | — | gyro | Row is an operator/atom/base definition; structural op_notation optional. |
 | `hop-over` | 2 | hop-over | Row is an operator/atom/base definition; structural op_notation optional. |
-| `illusioning` | — | illusioning | Row is an operator/atom/base definition; structural op_notation optional. |
 | `paradox` | — | paradox | Row is an operator/atom/base definition; structural op_notation optional. |
 | `pogo` | 0 | pogo | Row is an operator/atom/base definition; structural op_notation optional. |
 | `quantum` | 2 | quantum | Row is an operator/atom/base definition; structural op_notation optional. |

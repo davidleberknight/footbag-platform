@@ -57,6 +57,23 @@ for m in re.finditer(r'\{"name":.*?\},?\s*$', src, re.M):
     except Exception: pass
 frontier = [r for r in rows if r.get("layer") == "frontier"]
 
+# Atomic = +1 (final): the +2-rotational reading is retired (atomic-Q3 resolved).
+# Rewrite any X(+2 rot) decomposition to X(+1) and drop the provisional ADD by
+# one. The X-Dex stays a separate conditional event whose eligibility is deferred,
+# so none is inferred here. This is the source observational universe still
+# carries the old +2 value; the correction is applied at adjudication-render time.
+for _r in frontier:
+    _dec = _r.get("decomposition", "")
+    if "+2 rot" in _dec.lower():
+        _dec = re.sub(r"\(\+2 rot\)", "(+1)", _dec)
+        _m = re.search(r"=\s*(\d+)\s*$", _dec)   # decrement the trailing "= N" total
+        if _m:
+            _dec = _dec[:_m.start()] + "= " + str(int(_m.group(1)) - 1)
+        _r["decomposition"] = _dec
+        _pa = _r.get("provisionalAdd", "")
+        if _pa.isdigit():
+            _r["provisionalAdd"] = str(int(_pa) - 1)
+
 # doctrine questions
 dq = {}
 mq = re.search(r'DOCTRINE_BLOCKING_QUESTIONS[^{]*\{(.*?)\};', src, re.S)
@@ -143,13 +160,9 @@ def classify(r):
     if k:
         return (AWAITING, f"depends on the {k} ruling", dq.get(k, dq.get("other", "")))
 
-    # 2. derivable but ADD-provisional — atomic rotational value sits in the held
-    #    atomic-Q3 migration; the structure is settled, only the value may move.
-    if "+2 rot" in dec.lower():
-        return (ADD_PROVISIONAL, "atomic-rotational ADD held (atomic-Q3)",
-                "Notation derivable now (resolved atomic chassis + settled base). ADD provisional: "
-                "the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1.")
-
+    # (atomic-Q3 RESOLVED: atomic = +1. The former +2-rotational ADD-provisional
+    # branch is retired; such rows are normalized to atomic(+1) upstream and fall
+    # through to the derivable/backfill path below.)
     if dc == "policy-dependent":
         return (AWAITING, "depends on an unresolved scoring policy", dq.get("other", ""))
 
@@ -183,7 +196,7 @@ def classify(r):
 
 # classify all; drop names already wired as aliases of a published row.
 groups = collections.OrderedDict((c, []) for c in
-    [DERIVABLE, ADD_PROVISIONAL, MISSING_FORMULA, MISSING_ADD, MISSING_CLASS, AWAITING, OTHER])
+    [DERIVABLE, MISSING_FORMULA, MISSING_ADD, MISSING_CLASS, AWAITING, OTHER])
 dropped_aliases = []
 for r in frontier:
     nm = r.get("name", "").strip().lower()
@@ -207,8 +220,7 @@ lines = ["# Promotion Frontier Adjudication\n",
          "Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact "
          "missing item. **Awaiting Ruling** rows carry a genuine doctrine question; **Derivable / Backfill "
          "Needed** rows have no doctrine work remaining (resolved operators + a published exemplar to "
-         "mirror); **Derivable but ADD-Provisional** rows can be notated now but their ADD may move on a "
-         "pending ruling; **Missing formula** rows still need a decomposition.\n",
+         "mirror); **Missing formula** rows still need a decomposition.\n",
          "Counts by bucket:\n"]
 for c, items in groups.items():
     lines.append(f"- **{c}**: {len(items)}")
@@ -232,10 +244,6 @@ for c, items in groups.items():
     lines.append(f"\n## {c}  ({len(items)})\n")
     if c == DERIVABLE:
         lines.append("_No doctrine work remains for any row below — editorial authoring only._\n")
-    if c == ADD_PROVISIONAL:
-        lines.append("_Notation is derivable now (resolved chassis + settled base); these are NOT awaiting "
-                     "a ruling. The ADD value is provisional only because it sits in the held atomic-Q3 "
-                     "migration (atomic on a rotational base may drop from +2 to +1)._\n")
     lines.append("| Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |")
     lines.append("|---|---|---|---|---|---|")
     for r, sub, detail in sorted(items, key=lambda x: x[0].get("name", "")):

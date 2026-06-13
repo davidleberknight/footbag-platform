@@ -1,13 +1,12 @@
 # Promotion Frontier Adjudication
 
-Scope: **176 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
+Scope: **175 candidates** with `layer=frontier` in the observational universe (the promotable set). The ~1,163 archive rows — folk-name opacity and aliases — are not one-by-one promotion candidates and are excluded.
 
-Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact missing item. **Awaiting Ruling** rows carry a genuine doctrine question; **Derivable / Backfill Needed** rows have no doctrine work remaining (resolved operators + a published exemplar to mirror); **Derivable but ADD-Provisional** rows can be notated now but their ADD may move on a pending ruling; **Missing formula** rows still need a decomposition.
+Each candidate shows: name | ADD | notation/decomposition | family | source, then the exact missing item. **Awaiting Ruling** rows carry a genuine doctrine question; **Derivable / Backfill Needed** rows have no doctrine work remaining (resolved operators + a published exemplar to mirror); **Missing formula** rows still need a decomposition.
 
 Counts by bucket:
 
-- **Derivable / Backfill Needed**: 2
-- **Derivable but ADD-Provisional**: 7
+- **Derivable / Backfill Needed**: 8
 - **Missing formula**: 15
 - **Missing ADD**: 0
 - **Missing classification**: 7
@@ -33,28 +32,20 @@ Drafted rulings awaiting Red, indexed here so this rollup stays a complete pictu
 - Impact: 11 held op_notation backfills (8 blazing, 3 terraging) on already-published rows; tracked in the separate op_notation-backfill workstream, not in this frontier doc. ADD changes only if blazing is ruled distinct.
 
 
-## Derivable / Backfill Needed  (2)
+## Derivable / Backfill Needed  (8)
 
 _No doctrine work remains for any row below — editorial authoring only._
 
 | Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
 |---|---|---|---|---|---|
+| Atomic Ducking far Mirage | 4 | atomic(+1) + ducking(+1) + mirage(2) = 4 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
+| Atomic Gyro Torque | 6 | atomic(+1) + gyro(+1) + torque(4) = 6 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
+| Atomic Reverse Swirl | 4 | atomic(+1) + swirl(3) = 4 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
+| Atomic Swirl | 4 | atomic(+1) + swirl(3) = 4 | — | SG | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
+| Atomic far Symp. Whirl | 5 | atomic(+1) + symposium(+1) + whirl(3) = 5 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
+| Atomic far Whirl | 4 | atomic(+1) + whirl(3) = 4 | — | PB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
 | Backside Symposium Toe Blizzard | 5 | backside(+1) + symposium(+1) + blizzard(3) = 5 | — | FB | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
 | Spyro Gyro | 2 | gyro(+1) + spyro(1) = 2 | — | FM | ADD, notation, and structure are settled — **no doctrine work remains**; needs editorial authoring only. |
-
-## Derivable but ADD-Provisional  (7)
-
-_Notation is derivable now (resolved chassis + settled base); these are NOT awaiting a ruling. The ADD value is provisional only because it sits in the held atomic-Q3 migration (atomic on a rotational base may drop from +2 to +1)._
-
-| Trick | ADD | Notation / decomposition | Family | Source | Exact missing item |
-|---|---|---|---|---|---|
-| Atomic Ducking far Mirage | 5 | atomic(+2 rot) + ducking(+1) + mirage(2) = 5 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic Gyro Torque | 7 | atomic(+2 rot) + gyro(+1) + torque(4) = 7 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic Reverse Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic Swirl | 5 | atomic(+2 rot) + swirl(3) = 5 | — | SG | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic Symposium Mirage | 5 | atomic(+2 rot) + symposium(+1) + mirage(2) = 5 | — | FM | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic far Symp. Whirl | 6 | atomic(+2 rot) + symposium(+1) + whirl(3) = 6 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
-| Atomic far Whirl | 5 | atomic(+2 rot) + whirl(3) = 5 | — | PB | Notation derivable now (resolved atomic chassis + settled base). ADD provisional: the atomic rotational value (+2) sits in the held atomic-Q3 migration and may drop to +1. |
 
 ## Missing formula  (15)
 
