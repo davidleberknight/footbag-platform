@@ -77,6 +77,18 @@ describe('shapeFreestyleRecord', () => {
   it('preserves a null video URL', () => {
     expect(shapeFreestyleRecord(makeRow({ video_url: null })).videoUrl).toBeNull();
   });
+
+  // "Unique <descriptor>" records are one-off competition entries, not dictionary
+  // tricks: the name displays but must not link to a trick page (record-only).
+  it('record-only "Unique *" names carry the name but no trick href; normal names link', () => {
+    for (const name of ['Unique Fearless', 'Unique 3-Dex', 'Unique Beastly']) {
+      const vm = shapeFreestyleRecord(makeRow({ trick_name: name }));
+      expect(vm.trickName, name).toBe(name);
+      expect(vm.trickHref, name).toBeNull();
+    }
+    const normal = shapeFreestyleRecord(makeRow({ trick_name: 'Gyro Symposium Swirl' }));
+    expect(normal.trickHref).toBe('/freestyle/tricks/gyro-symposium-swirl');
+  });
 });
 
 describe('slugToHashtag', () => {

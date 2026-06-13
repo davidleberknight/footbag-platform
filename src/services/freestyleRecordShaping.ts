@@ -16,6 +16,17 @@ export function slugToHashtag(slug: string): string {
   return '#' + slug.toLowerCase().replace(/-/g, '_');
 }
 
+/**
+ * A "Unique <descriptor>" record name (Unique 3-Dex, Unique Beastly, Unique
+ * Fearless) is a one-off competition entry — a "unique" trick performed in a
+ * given event — not a dictionary trick. It has no canonical trick and must not
+ * link to one (the slug would 404). Record-only: the name still displays, but
+ * carries no trick href.
+ */
+function isRecordOnlyTrickName(name: string): boolean {
+  return /^unique\b/i.test(name.trim());
+}
+
 export interface FreestyleRecordViewModel {
   id: string;
   holderName: string;
@@ -65,7 +76,8 @@ export function shapeFreestyleRecord(row: FreestyleRecordRow): FreestyleRecordVi
     holderName:      row.holder_name,
     holderHref:      personHref(row.holder_member_slug, row.person_id),
     trickName:       row.trick_name,
-    trickHref:       row.trick_name ? `/freestyle/tricks/${trickNameToSlug(row.trick_name)}` : null,
+    trickHref:       row.trick_name && !isRecordOnlyTrickName(row.trick_name)
+                       ? `/freestyle/tricks/${trickNameToSlug(row.trick_name)}` : null,
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,
