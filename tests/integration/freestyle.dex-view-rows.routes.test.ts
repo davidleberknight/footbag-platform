@@ -52,6 +52,14 @@ beforeAll(async () => {
     { slug: 'triple-dex-fixture', canonical_name: 'triple dex fixture', adds: '4', base_trick: 'triple-dex-fixture', trick_family: 'triple-dex-fixture', category: 'compound', notation: 'TRIPLE DEX', operational_notation: 'TOE > OP IN [DEX] > OP IN [DEX] > OP IN [DEX] > OP TOE [DEL]', review_status: 'expert_reviewed', is_active: 1 },
     // Unknown (no notation)
     { slug: 'mystery-trick', canonical_name: 'mystery trick', adds: '3', base_trick: 'mystery-trick', trick_family: 'mystery-trick', category: 'compound', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // Dex-less body atoms: a body primitive that is its own base (a hop, a standalone
+    // body element) has zero dexterity events even with no notation, so it buckets as
+    // 0 dex, not Unknown.
+    { slug: 'hop-over', canonical_name: 'hop over', adds: '2', base_trick: 'hop-over', trick_family: 'hop-over', category: 'body', notation: 'HOP OVER', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'spyro', canonical_name: 'spyro', adds: '1', base_trick: 'spyro', trick_family: 'spyro', category: 'body', notation: 'SPYRO', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // Boundary: body category but NOT its own base + no notation stays Unknown — it is a
+    // dex-bearing body compound pending notation, not a dex-less primitive.
+    { slug: 'body-compound-fixture', canonical_name: 'body compound fixture', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'body', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
@@ -74,6 +82,15 @@ function rowFor(html: string, slug: string): string {
   const m = html.match(new RegExp(`<article class="dict-trick-row[\\s\\S]*?data-trick-slug="${slug}"[\\s\\S]*?</article>`));
   expect(m, `dict-trick-row not found for ${slug}`).not.toBeNull();
   return m![0];
+}
+
+// HTML of one dex bucket: from its section anchor up to the next dex-bucket
+// anchor (buckets render in order 0/1/2/3+/unknown, so unknown runs to the end).
+function sectionFor(html: string, bucketId: string): string {
+  const start = html.indexOf(`id="${bucketId}"`);
+  expect(start, `section ${bucketId} not found`).toBeGreaterThanOrEqual(0);
+  const next = html.indexOf('id="dex-', start + 1);
+  return next === -1 ? html.slice(start) : html.slice(start, next);
 }
 
 describe('Dex view — two-line row contract', () => {
@@ -139,6 +156,27 @@ describe('Dex view — two-line row contract', () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(rowFor(res.text, 'ducking-guay')).toMatch(/ducking\(\+1\) \+ guay\(2\)/);
     expect(rowFor(res.text, 'fairy-legover')).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
+  });
+
+  it('hop-over (dex-less body atom) buckets as 0 dex, never Unknown', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const zero = sectionFor(res.text, 'dex-0');
+    const unknown = sectionFor(res.text, 'dex-unknown');
+    expect(zero, 'hop-over should sit in the 0-dex bucket').toContain('data-trick-slug="hop-over"');
+    expect(unknown, 'hop-over should not sit in the Unknown bucket').not.toContain('data-trick-slug="hop-over"');
+  });
+
+  it('spyro is modifier-kind, so it never appears in the trick browse (no dex bucket at all)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    expect(res.text).not.toContain('data-trick-slug="spyro"');
+  });
+
+  it('a body trick that is NOT its own base stays Unknown when unnotated', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const zero = sectionFor(res.text, 'dex-0');
+    const unknown = sectionFor(res.text, 'dex-unknown');
+    expect(unknown).toContain('data-trick-slug="body-compound-fixture"');
+    expect(zero).not.toContain('data-trick-slug="body-compound-fixture"');
   });
 
   it('operational notation appears ONLY inside the JOB slot (no loose bracket tokens)', async () => {

@@ -443,6 +443,14 @@ export interface FreestyleByNumbersCard {
 // Compute the six histogram cards from the already-loaded trick rows + the
 // modifier-link feed. Trick-kind population only (resolveTrickKind === 'trick'),
 // so the counts match the dictionary browse views the cards link into.
+// A body primitive that is its own base (the hop-over) is not a dex sequence, so
+// empty operational_notation means zero dexterity events, not an unknown/pending
+// count. Dex-bearing body compounds resolve to a different base, so they stay
+// Unknown until notated.
+function isDexlessBodyAtom(r: { category: string | null; base_trick: string | null; slug: string }): boolean {
+  return r.category === 'body' && r.base_trick === r.slug;
+}
+
 function buildFreestyleByNumbers(
   trickRows: readonly FreestyleTrickRow[],
   linkRows: readonly FreestyleTrickModifierLinkRow[],
@@ -468,8 +476,9 @@ function buildFreestyleByNumbers(
   const histTop = (hist: readonly TopologyHistogramRow[], n: number): FreestyleByNumbersBar[] =>
     hist.slice(0, n).map(h => bar(h.label, h.count));
 
-  const dexCount = (op: string | null): string => {
-    if (!op || !op.trim()) return 'Unknown';
+  const dexCount = (r: FreestyleTrickRow): string => {
+    const op = r.operational_notation;
+    if (!op || !op.trim()) return isDexlessBodyAtom(r) ? '0' : 'Unknown';
     const n = (op.match(/\[DEX\]/g) ?? []).length;
     return n >= 3 ? '3+' : String(n);
   };
@@ -485,7 +494,7 @@ function buildFreestyleByNumbers(
   const entry = new Map<string, number>();
   for (const r of tricks) {
     if (r.adds != null) inc(add, String(r.adds));
-    inc(dex, dexCount(r.operational_notation));
+    inc(dex, dexCount(r));
     const e = entrySurface(r.operational_notation);
     if (e) inc(entry, e);
   }
@@ -7597,8 +7606,9 @@ export const freestyleService = {
     // a separate "Unknown" bucket. The four-tier ladder (0 / 1 / 2 / 3+)
     // matches the dex-count distribution observed in the canonical DB:
     // most named tricks fall in 1- or 2-dex; 3+ is the deep-compound tail.
-    const countDexEvents = (opNotation: string | null | undefined): number | null => {
-      if (!opNotation) return null;
+    const countDexEvents = (row: FreestyleTrickRowWithStatus): number | null => {
+      const opNotation = row.operational_notation;
+      if (!opNotation) return isDexlessBodyAtom(row) ? 0 : null;
       const matches = opNotation.match(/\[DEX\]/g);
       return matches ? matches.length : 0;
     };
@@ -7606,7 +7616,7 @@ export const freestyleService = {
     for (const row of allRows) {
       if (!isTrickRow(row)) continue;
       if (row.is_active !== 1) continue;
-      const raw = countDexEvents(row.operational_notation);
+      const raw = countDexEvents(row);
       // Bucket 3 and 4+ together for the "3+ dex events" label.
       const bucketKey: number | null = raw === null ? null : raw >= 3 ? 3 : raw;
       const bucket = dexBuckets.get(bucketKey) ?? [];
