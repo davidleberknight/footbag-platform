@@ -1901,3 +1901,24 @@ spinning-symposium-down-double-down,operational_notation_source,,Source: footbag
 stepping-double-switch-over,notation,,STEPPING DOUBLE SWITCH OVER,JOB per mechanical rule.
 stepping-double-switch-over,operational_notation,,CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],footbag.org 4-ADD page (Stepping Opposite Reaper). stepping prefix + double-switch-over body. 4 brackets == 4 ADD.
 stepping-double-switch-over,operational_notation_source,,Source: footbag.org 4-ADD moves page.,Provenance citation.
+backside-magellan,notation,,BACKSIDE MAGELLAN,JOB per mechanical rule.
+backside-magellan,operational_notation,,TOE > BS [DEX] > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL],Chassis-derived; 4 brackets == 4 ADD. SAME/OP parity best-effort.
+backside-magellan,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+backside-paste,notation,,BACKSIDE PASTE,JOB per mechanical rule.
+backside-paste,operational_notation,,TOE > BS [DEX] > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],Chassis-derived; 4 brackets == 4 ADD. SAME/OP parity best-effort.
+backside-paste,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+stepping-ducking-magellan,notation,,STEPPING DUCKING MAGELLAN,JOB per mechanical rule.
+stepping-ducking-magellan,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL],Chassis-derived; 5 brackets == 5 ADD. SAME/OP parity best-effort.
+stepping-ducking-magellan,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+stepping-ducking-paste,notation,,STEPPING DUCKING PASTE,JOB per mechanical rule.
+stepping-ducking-paste,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP IN [DEX] > SAME TOE [DEL],Chassis-derived; 5 brackets == 5 ADD. SAME/OP parity best-effort.
+stepping-ducking-paste,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+stepping-ducking-smudge,notation,,STEPPING DUCKING SMUDGE,JOB per mechanical rule.
+stepping-ducking-smudge,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL],Chassis-derived; 5 brackets == 5 ADD. SAME/OP parity best-effort.
+stepping-ducking-smudge,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+stepping-ducking-smog,notation,,STEPPING DUCKING SMOG,JOB per mechanical rule.
+stepping-ducking-smog,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Chassis-derived; 6 brackets == 6 ADD. SAME/OP parity best-effort.
+stepping-ducking-smog,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
+stepping-ducking-pigbeater,notation,,STEPPING DUCKING PIGBEATER,JOB per mechanical rule.
+stepping-ducking-pigbeater,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Chassis-derived; 6 brackets == 6 ADD. SAME/OP parity best-effort.
+stepping-ducking-pigbeater,operational_notation_source,,Source: chassis-derived from canonical base + registered modifiers.,Provenance citation.
