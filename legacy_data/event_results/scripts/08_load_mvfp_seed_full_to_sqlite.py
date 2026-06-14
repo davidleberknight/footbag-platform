@@ -128,15 +128,24 @@ def main() -> None:
     system_user = "seed_loader"
 
     conn = sqlite3.connect(db_path)
-    # TEMPORARY: foreign keys disabled for the bulk reseed path.
-    # Current state: FK enforcement off during DELETE+INSERT of event/result
-    # data so cross-table references can be rebuilt in any order without
-    # tripping on transient dangling rows.
-    # Target state: complete the FK investigation and either reorder the
-    # DELETE/INSERT sequence so FK-on is safe, or document the specific
-    # constraints that require FK-off here.
-    # Re-enabled explicitly before commit (PRAGMA foreign_keys = ON below).
-    # Tracked as a Next Sprint item in the legacy pipeline plan.
+    # Current: foreign keys are disabled for the whole DELETE+INSERT reseed.
+    # SQLite's foreign_keys pragma is transaction-global (a no-op once DML has
+    # opened a transaction), and this reseed is a single transaction, so FK
+    # enforcement is all-or-nothing for the run. Two concrete constraints keep
+    # it OFF:
+    #   1. The delete sequence below removes historical_persons after
+    #      event_result_entry_participants, which holds a FK to it. The order is
+    #      now FK-safe (participants first), so this constraint is satisfied for
+    #      the delete phase.
+    #   2. The historical_persons insert binds legacy_member_id ->
+    #      legacy_members for the rows that carry a member id. That parent is
+    #      seeded before this loader only in the dev reset and CI loader paths;
+    #      run_pipeline.sh calls this loader without seeding legacy_members
+    #      first, so those references are dangling there and FK-on would reject
+    #      the insert.
+    # Target: wire load_legacy_members_seed.py before every call to this loader
+    # in run_pipeline.sh, then enable FK-on for the whole reseed. Tracked in
+    # legacy_data/IMPLEMENTATION_PLAN.md.
     conn.execute("PRAGMA foreign_keys = OFF;")
     conn.row_factory = sqlite3.Row
 
@@ -145,7 +154,10 @@ def main() -> None:
         # Clear existing result/event data only
         # ------------------------------------------------------------------
         print("Deleting existing event/result data...")
-        conn.execute("DELETE FROM historical_persons")
+        # Delete children before parents so the order is FK-safe even with
+        # enforcement on. event_result_entry_participants holds FKs to both
+        # event_result_entries and historical_persons, so it goes first;
+        # historical_persons and the event tags (parents) go last.
         conn.execute("DELETE FROM event_result_entry_participants")
         conn.execute("DELETE FROM event_result_entries")
         conn.execute("DELETE FROM event_results_uploads")
@@ -153,6 +165,7 @@ def main() -> None:
         conn.execute("DELETE FROM event_organizers")
         conn.execute("DELETE FROM registrations")
         conn.execute("DELETE FROM events")
+        conn.execute("DELETE FROM historical_persons")
 
         # delete only event tags created by this loader pattern
         conn.execute("DELETE FROM tags WHERE standard_type = 'event'")
