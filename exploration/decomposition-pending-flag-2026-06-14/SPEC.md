@@ -1,5 +1,31 @@
 # Spec — durable "decomposition pending" flag (visible, not hidden)
 
+> **SUPERSEDED — do not implement as written.** Implementation revealed the live
+> codebase already provides this pill via a **curator-only** module:
+> `src/content/freestyleUnresolvedCompounds.ts` → card field `pendingDecomposition`
+> → the `dict-trick-row-pending` pill ("decomposition under review"). That module's
+> authoring rule is explicit: *"Curator-only … tied to a specific structural
+> ambiguity … entries should NOT proliferate,"* and it even documents rows it
+> deliberately does **not** flag (`witchdoctor`, `tomahawk`) because their structure
+> later resolved.
+>
+> The auto-derived predicate below is **orthogonal** to that signal: of the curator's
+> 6 hand-picked entries (`rev-up`, `reaper`, `surreal`, `montage`, `fury`, `surgery`)
+> the predicate catches **0**. They measure different things — the pill marks
+> *structurally contested* tricks; the predicate marks *not-yet-decomposed* folk gaps
+> (a folk name with a known base is incomplete, not ambiguous). Per the project rule
+> that **live editorial truth overrides draft design**, the curator module governs.
+>
+> **Resolution:** the auto-derived flag is rejected (bulk-adding 60 entries would
+> violate "must-not-proliferate" and conflate two concepts). The rung-0 / Core
+> completeness gap is instead addressed by **completing `modifier_links`** (the
+> Tier-4 folk-decomposition worklist) — each decomposed trick moves to its true rung
+> with no pill. The predicate below is retained only as a potential **curator triage
+> aid**, never a bulk auto-insert. The text below is preserved as the rejected
+> proposal for the record.
+
+---
+
 Slice B of the dictionary-contract tightening. **Visible honest-incompleteness badge**,
 not a hide/move gate. Satisfies Canonical Trick Publication Contract Req 5
 ("pending states must render honestly") without amending the contract, changing
