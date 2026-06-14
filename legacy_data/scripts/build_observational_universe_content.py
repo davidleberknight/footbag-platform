@@ -91,8 +91,6 @@ def doctrine_blocker(name: str) -> str | None:
         return "pogo"
     if "weaving" in n:
         return "weaving"
-    if "shooting" in n:
-        return "shooting"
     if re.search(r"\bfairy\b|\bpixie\b", n):
         return "other"
     for folk in ("splicing", "floating", "warping", "flailing", "surfing",
@@ -166,14 +164,17 @@ def main() -> None:
         db = r["deferral_bucket"]
         fc = r["failure_class"]
         eco = r["ecosystem"]
+        dconf = r["doctrine_confidence"]
         if db == "doctrine-sensitive":
             blocker = doctrine_blocker(r["name"])
             if blocker is None:
                 # Resolved-only: every operator is shipped doctrine, so this is not a
                 # doctrine question — it is structurally understood and awaiting
-                # notation authoring. Route to the needs-authoring frontier.
+                # notation authoring. Route to the needs-authoring frontier and clear
+                # the stale blocked confidence carried from ingestion.
                 section, cluster = "frontier", ""
                 intake = "unresolved_candidate"
+                dconf = "stable"
             else:
                 section = "doctrine"
                 cluster = blocker
@@ -191,7 +192,7 @@ def main() -> None:
             section, cluster = "parser", ""
             intake = "unresolved_candidate" if corroborated(r["slug"]) else "low_confidence"
         rows.append(row(r["name"], r["slug"], r["source_corpus"], eco, "",
-                        section, cluster, "", r["doctrine_confidence"], "", "", "", fc, intake))
+                        section, cluster, "", dconf, "", "", "", fc, intake))
 
     # ── canonical dual-gate ── drop any row whose slug is now canonical-
     # published (loader 17 tricks.csv `trick_canon` or loader 19 red_additions
