@@ -12,6 +12,7 @@ PERSON_UNIVERSE_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "persons_enr
 
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
 OUT_CSV = OUT_DIR / "legacy_person_club_affiliations.csv"
+DUPLICATE_OVERRIDES_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_duplicates.csv"
 
 
 def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
@@ -55,6 +56,73 @@ def compute_affiliation_score(has_mirror_member_id: bool, matched_person_id: str
     if str(matched_person_id).strip():
         score += 0.20
     return min(score, 1.0)
+
+
+def load_duplicate_keep_map(path: Path = DUPLICATE_OVERRIDES_CSV) -> dict[str, str]:
+    """drop_club_key -> keep_club_key from overrides/club_duplicates.csv.
+
+    The curator-authoritative duplicate adjudication: a dropped club's roster is
+    absorbed by its keep club rather than discarded. Keys are normalized to match
+    the affiliation club_key. Missing file -> empty map.
+    """
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path, dtype=str).fillna("")
+    keep_map: dict[str, str] = {}
+    for _, r in df.iterrows():
+        drop = norm_text(r.get("drop_legacy_key", ""))
+        keep = norm_text(r.get("keep_legacy_key", ""))
+        if drop and keep:
+            keep_map[drop] = keep
+    return keep_map
+
+
+def repoint_duplicates(out: pd.DataFrame, keep_map: dict[str, str], valid_club_keys: set[str]) -> pd.DataFrame:
+    """Re-point each drop club_key's affiliation rows onto its keep club_key so the
+    keep club absorbs the dropped club's roster instead of discarding it. The
+    original drop key is preserved in merged_from_club_key for audit / reversibility.
+
+    Preflight: a drop key that carries affiliations but whose keep key is not a real
+    club (absent from legacy_club_candidates) would silently orphan the roster, so it
+    raises with an actionable message instead.
+    """
+    if "merged_from_club_key" not in out.columns:
+        out["merged_from_club_key"] = ""
+    if not keep_map:
+        return out
+    affiliated = set(out["club_key"])
+    dangling = [(d, k) for d, k in keep_map.items() if d in affiliated and k not in valid_club_keys]
+    if dangling:
+        detail = "; ".join(f"drop {d!r} -> keep {k!r} (keep absent from legacy_club_candidates)" for d, k in dangling)
+        raise ValueError(
+            "overrides/club_duplicates.csv has dangling override(s): " + detail
+            + ". keep_legacy_key must be a real club_key. Fix the override CSV, then re-run "
+            "clubs/scripts/02_build_legacy_club_candidates.py followed by "
+            "clubs/scripts/03_build_legacy_person_club_affiliations.py."
+        )
+    mask = out["club_key"].isin(keep_map.keys())
+    out.loc[mask, "merged_from_club_key"] = out.loc[mask, "club_key"]
+    out.loc[mask, "club_key"] = out.loc[mask, "club_key"].map(keep_map)
+    return out
+
+
+def dedupe_resolved(out: pd.DataFrame) -> pd.DataFrame:
+    """After a duplicate merge a resolved person can appear once per source club.
+    Collapse resolved persons to one row per (club_key, matched_person_id), keeping
+    the highest-confidence row. Unmatched / conflict rows (no matched_person_id) are
+    unioned untouched, never person-deduped.
+    """
+    pid = out["matched_person_id"].astype(str).str.strip()
+    resolved = out[pid != ""].copy()
+    unresolved = out[pid == ""].copy()
+    if not resolved.empty:
+        resolved["_score"] = pd.to_numeric(resolved["affiliation_confidence_score"], errors="coerce").fillna(0.0)
+        resolved = (
+            resolved.sort_values("_score", ascending=False, kind="stable")
+            .drop_duplicates(subset=["club_key", "matched_person_id"], keep="first")
+            .drop(columns=["_score"])
+        )
+    return pd.concat([resolved, unresolved], ignore_index=True)
 
 
 def main() -> None:
@@ -127,7 +195,14 @@ def main() -> None:
         })
 
     out = pd.DataFrame(rows)
+
+    # Duplicate-club merge: re-point a dropped club's roster onto its keep club
+    # (before the name join so re-pointed rows take the keep club's name), then
+    # collapse resolved persons duplicated across the two source clubs.
+    keep_map = load_duplicate_keep_map()
+    out = repoint_duplicates(out, keep_map, set(clubs_min["club_key"]))
     out = out.merge(clubs_min, on="club_key", how="left")
+    out = dedupe_resolved(out)
 
     out = out[
         [
@@ -144,14 +219,19 @@ def main() -> None:
             "match_status",
             "affiliation_confidence_score",
             "inferred_role",
+            "merged_from_club_key",
         ]
     ].copy()
 
     out.to_csv(OUT_CSV, index=False)
 
+    merged_rows = int((out["merged_from_club_key"].astype(str).str.strip() != "").sum())
+
     print(f"Wrote {len(out):,} rows to {OUT_CSV}")
     print()
     print("Summary:")
+    if keep_map:
+        print(f"  duplicate-merge: {merged_rows:,} roster row(s) absorbed from {len(keep_map)} drop key(s) into keep clubs")
     print(f"  matched:   {int((out['match_status'] == 'MATCHED').sum()):,}")
     print(f"  conflict:  {int((out['match_status'] == 'CONFLICT').sum()):,}")
     print(f"  no match:  {int((out['match_status'] == 'NO_MATCH').sum()):,}")
