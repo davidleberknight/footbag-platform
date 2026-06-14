@@ -763,7 +763,11 @@ CREATE TABLE work_queue_items (
   resolved_at           TEXT,
   resolved_by_member_id TEXT REFERENCES members(id),
   decision_label        TEXT,
-  reason_text           TEXT
+  reason_text           TEXT,
+  -- Full member-authored free text for the request (e.g. a contact request),
+  -- kept out of the append-only audit ledger so account erasure can clear it.
+  -- Scrubbed on PII purge and the deceased contact scrub.
+  detail_text           TEXT
 );
 
 CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);

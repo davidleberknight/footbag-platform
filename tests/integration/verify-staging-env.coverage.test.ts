@@ -80,9 +80,11 @@ function extractScriptCheckedVars(src: string): Set<string> {
  * work to add" delays.
  */
 const ALLOWLIST: Map<string, string> = new Map([
-  // No current exceptions — every required-in-prod env var has a check in
-  // verify-staging-env.sh today. If you need to allowlist one, add an entry:
-  //   ['FOO', 'rationale: implicitly covered by … check / verified out-of-band by …'],
+  // TURNSTILE_SITE_KEY is required only when CAPTCHA_ADAPTER=live, which is
+  // production-only. Staging runs the captcha stub (no Turnstile challenge), so
+  // the staging env check must not require it; it is verified out-of-band as part
+  // of the production-only live-captcha config.
+  ['TURNSTILE_SITE_KEY', 'rationale: required only under CAPTCHA_ADAPTER=live (production-only); staging uses the captcha stub'],
 ]);
 
 describe('verify-staging-env.sh ↔ env.ts coverage drift', () => {

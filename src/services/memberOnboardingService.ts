@@ -131,6 +131,15 @@ const TASK_TYPE_INDEX: Record<string, number> = Object.fromEntries(
   TASK_CATALOG.map((t, i) => [t, i]),
 );
 
+// Display order for the dashboard task widget, following the story sequence
+// (legacy account claim, club affiliations, optional metadata). Kept separate
+// from TASK_TYPE_INDEX, which the wizard's sequential advance depends on.
+const DASHBOARD_DISPLAY_ORDER: Record<string, number> = {
+  legacy_claim: 0,
+  club_affiliations: 1,
+  personal_details: 2,
+};
+
 function assertTaskType(taskType: string): asserts taskType is OnboardingTaskType {
   if (!(taskType in TASK_TYPE_INDEX)) {
     throw new ValidationError(`Unknown onboarding task type: ${taskType}`);
@@ -459,11 +468,14 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
     else if (state === 'pending')            widget.pending.push(item);
   }
 
-  const sortByCatalog = (a: DashboardTaskItem, b: DashboardTaskItem) =>
-    TASK_TYPE_INDEX[a.taskType] - TASK_TYPE_INDEX[b.taskType];
-  widget.pending.sort(sortByCatalog);
-  widget.paused.sort(sortByCatalog);
-  widget.skipped.sort(sortByCatalog);
+  // The dashboard lists outstanding tasks in the story order (legacy account
+  // claim, then club affiliations, then optional metadata), independent of the
+  // internal TASK_CATALOG index that the wizard's sequential advance relies on.
+  const sortByDisplayOrder = (a: DashboardTaskItem, b: DashboardTaskItem) =>
+    (DASHBOARD_DISPLAY_ORDER[a.taskType] ?? 99) - (DASHBOARD_DISPLAY_ORDER[b.taskType] ?? 99);
+  widget.pending.sort(sortByDisplayOrder);
+  widget.paused.sort(sortByDisplayOrder);
+  widget.skipped.sort(sortByDisplayOrder);
   widget.hasOutstanding =
     widget.pending.length + widget.paused.length + widget.skipped.length > 0;
   return widget;

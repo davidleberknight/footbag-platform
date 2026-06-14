@@ -783,7 +783,14 @@ export const clubs = {
       lpca.resolution_status AS resolution_status,
       ms.slug AS member_slug,
       ms.gender AS member_gender,
-      ms.show_gender AS member_show_gender
+      ms.show_gender AS member_show_gender,
+      ms.city AS member_city,
+      ms.country AS member_country,
+      ms.is_hof AS member_is_hof,
+      ms.is_bap AS member_is_bap,
+      ms.is_board AS member_is_board,
+      mtc.tier_status AS member_tier_status,
+      mapc.is_active_player AS member_is_active_player
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
@@ -791,6 +798,10 @@ export const clubs = {
       ON hp.person_id = lpca.historical_person_id
     LEFT JOIN members_searchable AS ms
       ON ms.historical_person_id = lpca.historical_person_id
+    LEFT JOIN member_tier_current AS mtc
+      ON mtc.member_id = ms.id
+    LEFT JOIN member_active_player_current AS mapc
+      ON mapc.member_id = ms.id
     WHERE
       lcc.mapped_club_id = ?
       AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
@@ -7498,6 +7509,24 @@ export const mailingListSubscriptions = {
       AND m.email_verified_at IS NOT NULL
       AND m.email_status = 'ok'
   `); },
+
+  // SES bounce/complaint feedback flips the subscriber's mailing-list rows so
+  // status stays consistent with deliverability. Only currently-subscribed rows
+  // are touched; admin-set 'unsubscribed'/'suppressed' states are never
+  // overwritten. Keyed on login_email_normalized to match the SES feedback path.
+  get markBouncedForEmail() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'bounced', status_updated_at = ?, bounce_detail = ?
+    WHERE status = 'subscribed'
+      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
+  `); },
+
+  get markComplainedForEmail() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'complained', status_updated_at = ?, complaint_detail = ?
+    WHERE status = 'subscribed'
+      AND member_id IN (SELECT id FROM members WHERE login_email_normalized = ? AND deleted_at IS NULL)
+  `); },
 };
 
 export const workQueue = {
@@ -7505,10 +7534,20 @@ export const workQueue = {
     INSERT INTO work_queue_items (
       id, created_at, created_by, updated_at, updated_by, version,
       queue_category, task_type, entity_type, entity_id,
-      status, priority, opened_at, reason_text
+      status, priority, opened_at, reason_text, detail_text
     ) VALUES (?, ?, ?, ?, ?, 1,
       ?, ?, ?, ?,
-      'open', ?, ?, ?)
+      'open', ?, ?, ?, ?)
+  `); },
+
+  // Clear member-authored free text on account erasure: the operational copy of
+  // a member's contact-request message lives here (not the append-only audit
+  // ledger), so the PII purge and deceased contact scrub must redact it.
+  get scrubContactTextForMember() { return db.prepare(`
+    UPDATE work_queue_items
+    SET reason_text = '(removed on account erasure)', detail_text = NULL,
+        updated_at = ?, updated_by = 'operations_purge', version = version + 1
+    WHERE entity_id = ? AND task_type = 'member_contact_request'
   `); },
 
   // De-dupe probe for the batch auto-link pass: skip emitting a second open
@@ -7529,7 +7568,7 @@ export const workQueue = {
   // Admin-side listing of open items, ordered by category then opened_at.
   get listOpenForAdmin() { return db.prepare(`
     SELECT id, created_at, opened_at, queue_category, task_type,
-           entity_type, entity_id, priority, reason_text
+           entity_type, entity_id, priority, reason_text, detail_text
     FROM work_queue_items
     WHERE status = 'open'
     ORDER BY queue_category, opened_at

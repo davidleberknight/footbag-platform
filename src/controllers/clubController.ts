@@ -254,6 +254,7 @@ export const clubController = {
         sent:             'Invitation sent.',
         not_leader:       'Only a co-leader can invite members to co-lead.',
         member_not_found: 'No member found with that id or username.',
+        not_member:       'That member must join the club before they can be invited to co-lead.',
         already_coleader: 'That member already co-leads this club.',
         no_email:         'That member has no contact email on file.',
       };

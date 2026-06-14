@@ -57,7 +57,7 @@
         {{> member-block-quick-actions content.quickActions}}
 
         <div class="profile-section">
-          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear}}
+          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showFirstCompetitionYear=content.showFirstCompetitionYear}}
           {{#unless content.showCompetitiveResults}}
             <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
           {{/unless}}

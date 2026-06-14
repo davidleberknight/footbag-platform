@@ -169,6 +169,25 @@ describe('POST /members/:slug/contact-admin', () => {
     db.close();
   });
 
+  it('stores the full message body in the purgeable detail_text column, with reason_text as the truncated preview', async () => {
+    const longMsg = 'B'.repeat(450);
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: longMsg });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db
+      .prepare(`SELECT reason_text, detail_text FROM work_queue_items WHERE entity_id = ?`)
+      .get(OWNER_ID) as { reason_text: string; detail_text: string };
+    db.close();
+    expect(row.detail_text).toBe(longMsg);
+    expect(row.reason_text.length).toBeLessThan(longMsg.length);
+  });
+
   it('invalid category → 422', async () => {
     const app = createApp();
     const res = await request(app)

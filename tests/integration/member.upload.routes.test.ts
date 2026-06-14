@@ -594,6 +594,19 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
     }
   });
 
+  it("video_platform='s3' is rejected at the member-upload boundary -> 422", async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 's3')
+      .field('videoUrl', 'https://example.com/clip.mp4')
+      .field('caption', 's3 attempt')
+      .field('tags', '');
+    expect(res.status).toBe(422);
+  });
+
   it('stores the canonical platform URL, never the member-typed string: a foreign-host wrapper URL carrying a valid id must not become the rendered href', async () => {
     const app = createApp();
     // The verifier stub accepts this (worst case: the platform oEmbed lets a

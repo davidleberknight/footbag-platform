@@ -110,6 +110,49 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     const { config } = await import('../../src/config/env');
     expect(config.sessionSecret).toBe('short-changeme-value');
   });
+
+  it('defaults CAPTCHA_ADAPTER=stub and turnstileSiteKey=null', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.CAPTCHA_ADAPTER;
+    delete process.env.TURNSTILE_SITE_KEY;
+    const { config } = await import('../../src/config/env');
+    expect(config.captchaAdapter).toBe('stub');
+    expect(config.turnstileSiteKey).toBeNull();
+  });
+
+  it('throws when CAPTCHA_ADAPTER has an invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CAPTCHA_ADAPTER = 'bogus';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /CAPTCHA_ADAPTER must be 'live' or 'stub', got: bogus/,
+    );
+  });
+
+  it('throws when CAPTCHA_ADAPTER=live but TURNSTILE_SITE_KEY is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CAPTCHA_ADAPTER = 'live';
+    delete process.env.TURNSTILE_SITE_KEY;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /TURNSTILE_SITE_KEY is required when CAPTCHA_ADAPTER=live/,
+    );
+  });
+
+  it('loads live captcha config when TURNSTILE_SITE_KEY is set', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CAPTCHA_ADAPTER = 'live';
+    process.env.TURNSTILE_SITE_KEY = '0xSITEKEY';
+    const { config } = await import('../../src/config/env');
+    expect(config.captchaAdapter).toBe('live');
+    expect(config.turnstileSiteKey).toBe('0xSITEKEY');
+  });
 });
 
 describe('env config: prod-mode fail-fast (staging runtime)', () => {

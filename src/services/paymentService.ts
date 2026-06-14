@@ -161,6 +161,9 @@ export interface PaymentHistoryRow {
   descriptor: string;
   amountDisplay: string;
   status: string;
+  /** Stable payment reference (the payment id) so support/admins can
+   *  correlate a member's history row with internal reconciliation tools. */
+  reference: string;
 }
 
 export interface PaymentHistoryContent {
@@ -936,6 +939,7 @@ function getPaymentHistoryPage(
     descriptor: p.descriptor,
     amountDisplay: formatAmount(p.amountCents, p.currency),
     status: p.status,
+    reference: p.id,
   }));
   return {
     seo:  { title: 'Payment history' },

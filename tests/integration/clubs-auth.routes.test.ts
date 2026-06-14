@@ -20,6 +20,7 @@ import {
   insertHistoricalPerson,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMemberTierGrant,
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
@@ -98,6 +99,11 @@ beforeAll(async () => {
   });
   db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
     .run(personId, 'member-zephyr');
+  // Roster-badge data for the claimed member: Tier 1, honor flags, location.
+  insertMemberTierGrant(db, { member_id: 'member-zephyr', new_tier_status: 'tier1' });
+  db.prepare(
+    "UPDATE members SET is_hof = 1, is_bap = 1, is_board = 1, city = 'Portland', country = 'CA' WHERE id = ?",
+  ).run('member-zephyr');
 
   // Confirmed person WITHOUT a claimed member account: roster entry links to
   // the historical-person page instead.
@@ -194,6 +200,22 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
     expect(res.text).not.toContain('Log in to see club members');
+  });
+
+  it('shows tier badge, honor flags, and location for a claimed roster member; unclaimed rows carry none', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.status).toBe(200);
+    // Claimed member (Zephyr, Tier 1 + HoF/BAP/Board, Portland CA) is enriched.
+    expect(res.text).toContain('Tier 1');
+    expect(res.text).toContain('HoF');
+    expect(res.text).toContain('BAP');
+    expect(res.text).toContain('Board');
+    expect(res.text).toContain('Portland, CA');
+    // The unclaimed historical row still renders, without member enrichment.
+    expect(res.text).toContain('Yara Unclaimed');
   });
 
   it('shows an opted-in member gender on the roster', async () => {

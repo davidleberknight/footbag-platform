@@ -164,6 +164,32 @@ describe('memberService.purgeAccountPII', () => {
     d.close();
   });
 
+  it('redacts member contact-request free text in work_queue_items on purge', () => {
+    seedClaimedMember('purge-contact');
+    const d = db();
+    d.prepare(`
+      INSERT INTO work_queue_items
+        (id, created_at, created_by, updated_at, updated_by, version,
+         queue_category, task_type, entity_type, entity_id,
+         status, priority, opened_at, reason_text, detail_text)
+      VALUES (?, ?, ?, ?, ?, 1, 'membership', 'member_contact_request', 'member', ?, 'open', 5, ?, ?, ?)
+    `).run(
+      'wq-purge-contact', '2026-01-01T00:00:00.000Z', 'purge-contact',
+      '2026-01-01T00:00:00.000Z', 'purge-contact', 'purge-contact',
+      '2026-01-01T00:00:00.000Z', 'Other: my secret message', 'my secret message in full',
+    );
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-contact').status).toBe('purged');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const row = r.prepare('SELECT reason_text, detail_text FROM work_queue_items WHERE id = ?')
+      .get('wq-purge-contact') as { reason_text: string; detail_text: string | null };
+    r.close();
+    expect(row.detail_text).toBeNull();
+    expect(row.reason_text).not.toContain('secret');
+  });
+
   it('is idempotent and anti-revealing on unknown ids', () => {
     seedClaimedMember('purge-idem');
     expect(memberService.purgeAccountPII('purge-idem').status).toBe('purged');

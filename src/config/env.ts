@@ -28,6 +28,13 @@ export interface AppConfig {
   sesAdapter: 'live' | 'stub';
   sesFromIdentity: string | undefined;
   safeBrowsingAdapter: 'live' | 'stub';
+  // CaptchaAdapter: server-side Cloudflare Turnstile verification on
+  // claim-initiation surfaces. 'live' calls Turnstile siteverify (secret via
+  // SecretsAdapter); 'stub' passes locally. Required to be explicit in prod.
+  captchaAdapter: 'live' | 'stub';
+  // Public Turnstile site key, rendered into the claim form widget. Null in
+  // stub/dev (no widget); required when captchaAdapter is 'live'.
+  turnstileSiteKey: string | null;
   // SecretsAdapter: Node consumers read SSM-stored third-party secrets
   // through this adapter. 'live' calls SSM GetParameter; 'stub' is an
   // in-memory map for tests; 'local' reads .local/secrets.json (gitignored
@@ -227,6 +234,26 @@ function loadConfig(): AppConfig {
     throw new Error('SAFE_BROWSING_ADAPTER must be set explicitly in production (no default)');
   } else {
     safeBrowsingAdapter = 'stub';
+  }
+
+  const rawCaptchaAdapter = process.env.CAPTCHA_ADAPTER;
+  let captchaAdapter: 'live' | 'stub';
+  if (rawCaptchaAdapter === 'live' || rawCaptchaAdapter === 'stub') {
+    captchaAdapter = rawCaptchaAdapter;
+  } else if (rawCaptchaAdapter) {
+    throw new Error(
+      `CAPTCHA_ADAPTER must be 'live' or 'stub', got: ${rawCaptchaAdapter}`,
+    );
+  } else {
+    // Default off (stub) everywhere, including prod-mode: dev and staging run the
+    // stub ("you are human"); production opts into the real Turnstile by setting
+    // CAPTCHA_ADAPTER=live explicitly. Not prod-required, because staging runs
+    // prod-mode yet must stay on the stub.
+    captchaAdapter = 'stub';
+  }
+  const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY ?? null;
+  if (captchaAdapter === 'live' && !turnstileSiteKey) {
+    throw new Error('TURNSTILE_SITE_KEY is required when CAPTCHA_ADAPTER=live');
   }
 
   const rawSecretsAdapter = process.env.SECRETS_ADAPTER;
@@ -657,6 +684,8 @@ function loadConfig(): AppConfig {
     sesAdapter,
     sesFromIdentity,
     safeBrowsingAdapter,
+    captchaAdapter,
+    turnstileSiteKey,
     secretsAdapter,
     footbagEnv,
     ssmPrefix,

@@ -121,6 +121,28 @@ describe('SES feedback webhook', () => {
     expect(meta.member_matched).toBe(true);
   });
 
+  it("a permanent bounce flips the member's subscribed mailing-list rows to bounced", async () => {
+    insertMember(db, { id: 'sf-sub', slug: 'sf_sub', login_email: 'subscriber@example.com' });
+    db.prepare(`
+      INSERT INTO mailing_list_subscriptions (
+        id, created_at, created_by, updated_at, updated_by, version,
+        mailing_list_id, member_id, status, status_updated_at
+      ) VALUES ('mls-sf-sub', '2026-01-01T00:00:00.000Z', 'system', '2026-01-01T00:00:00.000Z', 'system', 1,
+                'newsletter', 'sf-sub', 'subscribed', '2026-01-01T00:00:00.000Z')
+    `).run();
+
+    const res = await request(createApp())
+      .post(PATH_WITH_KEY())
+      .type('text/plain')
+      .send(bounceBody(['subscriber@example.com']));
+    expect(res.status).toBe(200);
+
+    const sub = db.prepare(
+      `SELECT status FROM mailing_list_subscriptions WHERE id = 'mls-sf-sub'`,
+    ).get() as { status: string };
+    expect(sub.status).toBe('bounced');
+  });
+
   it('a transient bounce changes nothing', async () => {
     const res = await request(createApp())
       .post(PATH_WITH_KEY())

@@ -130,6 +130,24 @@
           {{else}}
             <span>{{name}}</span>
           {{/if}}
+          {{#if tierBadge}}
+            <span class="badge badge-tier">{{tierBadge}}</span>
+          {{/if}}
+          {{#if isActivePlayer}}
+            <span class="badge badge-honor">Active Player</span>
+          {{/if}}
+          {{#if isHof}}
+            <span class="badge badge-honor">HoF</span>
+          {{/if}}
+          {{#if isBap}}
+            <span class="badge badge-honor">BAP</span>
+          {{/if}}
+          {{#if isBoard}}
+            <span class="badge badge-honor">Board</span>
+          {{/if}}
+          {{#if location}}
+            <span class="text-muted fs-sm">{{location}}</span>
+          {{/if}}
           {{#if genderLabel}}
             <span class="text-muted fs-sm">{{genderLabel}}</span>
           {{/if}}

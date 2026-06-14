@@ -126,6 +126,41 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
   });
 });
 
+describe('POST /register/wizard/personal_details/submit — collects details and completes the task', () => {
+  it('saves gender, first competition year, and show_competitive_results, then advances', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { slug: `wiz_pd_${stamp}`, login_email: `wiz-pd-${stamp}@example.com` });
+    // First GET bootstraps the task rows.
+    await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: 'Eugene',
+        region: 'Oregon',
+        country: 'USA',
+        birthDate: '1990-05-05',
+        gender: 'male',
+        year: '2010',
+        showFirstCompetitionYear: '1',
+        showCompetitiveResults: '1',
+      });
+    expect(res.status).toBe(303);
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
+
+    const row = testDb.prepare(
+      'SELECT gender, first_competition_year, show_competitive_results FROM members WHERE id = ?',
+    ).get(memberId) as { gender: string; first_competition_year: number | null; show_competitive_results: number };
+    expect(row.gender).toBe('male');
+    expect(row.first_competition_year).toBe(2010);
+    expect(row.show_competitive_results).toBe(1);
+  });
+});
+
 describe('POST /register/wizard/:taskType/skip — 303 advance to next task', () => {
   it('skipping legacy_claim transitions state and redirects 303 to club_affiliations', async () => {
     const stamp = Date.now();

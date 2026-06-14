@@ -8,7 +8,7 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';
-import { surnameKey } from './nameUtils';
+import { identityAccessService } from './identityAccessService';
 
 interface HistoricalPlayer {
   personId: string;
@@ -180,7 +180,8 @@ export const historyService = {
     // Claim eligibility for the authenticated viewer (scenarios D and E).
     // Show the CTA when: viewer is signed in, viewer has no HP linked yet,
     // HP is unclaimed (the `linkedRow` above already redirected claimed HPs),
-    // and the viewer's real_name surname matches the HP's person_name surname.
+    // and the viewer's current OR declared-former surname matches the HP's
+    // person_name surname (same predicate the claim execution gate uses).
     // A record marked deceased is not self-claimable: a living member cannot
     // claim a deceased person's identity, so the CTA is suppressed regardless
     // of surname match.
@@ -193,7 +194,7 @@ export const historyService = {
       ) as { id: string; real_name: string; historical_person_id: string | null } | undefined;
       if (viewerRow
         && !viewerRow.historical_person_id
-        && surnameKey(viewerRow.real_name) === surnameKey(player.personName)
+        && identityAccessService.surnameMatchesWithAnchors(viewerMemberId, viewerRow.real_name, player.personName)
       ) {
         canClaim = true;
         claimHref = `/history/${encodeURIComponent(player.personId)}/claim`;

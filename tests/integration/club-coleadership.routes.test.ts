@@ -172,6 +172,8 @@ describe('POST /clubs/:key/invite', () => {
     insertClubLeader(db, { club_id: clubId, member_id: leader });
     insertMemberClubAffiliation(db, leader, clubId);
     const invitee = insertMember(db, { id: `i-invitee-${_n}`, slug: `i_invitee_${_n}`, login_email: `i-invitee-${_n}@example.com` });
+    // The invitee must already be a current member of the club.
+    insertMemberClubAffiliation(db, invitee, clubId);
 
     const res = await request(createApp())
       .post(`/clubs/${clubKey}/invite`)
@@ -203,6 +205,72 @@ describe('POST /clubs/:key/invite', () => {
     expect(res.status).toBe(303);
     expect(emailCount(invitee)).toBe(0);
     void clubId;
+  });
+
+  it('cannot invite a member who is not a current member of the club: no email enqueued', async () => {
+    const { clubId, clubKey } = seedClub();
+    const leader = tier1Actor(`i-leader2-${_n}`, `i_leader2_${_n}`);
+    insertClubLeader(db, { club_id: clubId, member_id: leader });
+    insertMemberClubAffiliation(db, leader, clubId);
+    // Invitee has no affiliation with this club.
+    const invitee = insertMember(db, { id: `i-nonmem-${_n}`, slug: `i_nonmem_${_n}`, login_email: `i-nonmem-${_n}@example.com` });
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/invite`)
+      .set('Cookie', cookieFor(leader))
+      .type('form')
+      .send({ member_key: invitee });
+    expect(res.status).toBe(303);
+    expect(emailCount(invitee)).toBe(0);
+    expect(leaderRows(clubId).some((r) => r.member_id === invitee)).toBe(false);
+  });
+});
+
+describe('POST /clubs/:key/mark-inactive', () => {
+  it('a club leader marks the club inactive: status flips, affiliations preserved, audited', async () => {
+    const { clubId, clubKey } = seedClub();
+    const leader = tier1Actor(`mi-leader-${_n}`, `mi_leader_${_n}`);
+    insertClubLeader(db, { club_id: clubId, member_id: leader });
+    insertMemberClubAffiliation(db, leader, clubId);
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/mark-inactive`)
+      .set('Cookie', cookieFor(leader));
+    expect(res.status).toBe(303);
+
+    const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as { status: string };
+    expect(club.status).toBe('inactive');
+
+    // Deactivation must not drop member affiliations.
+    const aff = db.prepare(
+      'SELECT COUNT(*) AS n FROM member_club_affiliations WHERE club_id = ? AND member_id = ?',
+    ).get(clubId, leader) as { n: number };
+    expect(aff.n).toBe(1);
+
+    const audit = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.marked_inactive' AND entity_id = ?`,
+    ).get(clubId) as { n: number };
+    expect(audit.n).toBe(1);
+  });
+
+  it('a non-leader cannot mark the club inactive: status unchanged', async () => {
+    const { clubId, clubKey } = seedClub();
+    const notLeader = tier1Actor(`mi-notldr-${_n}`, `mi_notldr_${_n}`);
+    insertMemberClubAffiliation(db, notLeader, clubId);
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/mark-inactive`)
+      .set('Cookie', cookieFor(notLeader));
+    expect(res.status).toBe(303);
+    const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as { status: string };
+    expect(club.status).toBe('active');
+  });
+
+  it('unauthenticated request is redirected to login', async () => {
+    const { clubKey } = seedClub();
+    const res = await request(createApp()).post(`/clubs/${clubKey}/mark-inactive`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/^\/login/);
   });
 });
 

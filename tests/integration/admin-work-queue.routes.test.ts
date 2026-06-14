@@ -100,6 +100,21 @@ describe('GET /admin/work-queue', () => {
     expect(res.text).toContain('Display name correction');
     expect(res.text).toContain(`href="/members/${MEMBER_SLUG}"`);
   });
+
+  it('shows the full member message body, untruncated', async () => {
+    const app = createApp();
+    const longMsg = 'C'.repeat(450);
+    await request(app)
+      .post(`/members/${MEMBER_SLUG}/contact-admin`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ category: 'display_name_correction', message: longMsg });
+    const res = await request(app)
+      .get('/admin/work-queue')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(longMsg);
+  });
 });
 
 describe('POST /admin/work-queue/:id/resolve', () => {
@@ -144,6 +159,9 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(outboxRow!.recipient_email).toBe('wq-member@example.com');
     expect(outboxRow!.subject).toContain('Corrected');
     expect(outboxRow!.body_text).toContain('Fixed your display name.');
+    // Best practice: the templated resolution email does not echo the member's
+    // own message back; their free text stays in the operational store only.
+    expect(outboxRow!.body_text).not.toContain('please fix my name');
     expect(outboxRow!.idempotency_key).toBe(`contact-request-resolve:${queueId}`);
     db.close();
   });
@@ -170,6 +188,17 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .send({ decision_label: 'denied', resolution_note: '   ' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('Resolution note is required');
+  });
+
+  it('resolution_note longer than 500 chars → 422', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'denied', resolution_note: 'a'.repeat(501) });
+    expect(res.status).toBe(422);
   });
 
   it('unknown queue id → 404', async () => {

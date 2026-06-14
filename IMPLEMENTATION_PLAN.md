@@ -52,3 +52,118 @@ accessibility-only gate. To close the gap:
 
 Delete this entry when the `@a11y` axe gate runs green in CI and via
 `./run_all_tests.sh --axe`.
+
+## Audit-surfaced deployed-story gaps
+
+Verified gaps between deployed user stories and code. Each is a real deviation to close;
+delete the entry when its target ships with a test.
+
+### N1 — trick Reference Videos admit member uploads
+
+Current: `/freestyle/tricks/:slug` Reference Videos include member-uploaded videos tagged with a
+trick slug. `db.ts listMediaByTrickTag` has no provenance filter and `freestyleService` tier
+dispatch routes `tierOf(null)` (member uploads, no `source_id`) into the tutorial bucket.
+Target: the curated Reference Videos band requires curator source provenance (`source_id` /
+source-tier registry); member uploads are excluded from the curated band but remain discoverable
+via hashtag browse (`/media/browse`) and in the member's own gallery. Do NOT key the filter on the
+`#curated` tag.
+
+### N2 — public profile omits club affiliation
+
+Current: `PublicProfileContent` has no club field; `public-profile.hbs` renders none.
+Target: surface the member's club affiliation on the public profile (M_View_Profile).
+
+### N3 — profile omits the member media thumbnail grid
+
+Current: neither `profile.hbs` nor `public-profile.hbs` shows the member's uploaded photos/videos.
+Target: render a thumbnail grid of the member's media (M_View_Profile).
+
+### N5 — leaving as the only co-leader is not warned
+
+Current: `clubService.leaveClub` executes unconditionally; no last-co-leader signal reaches the UI.
+Target: warn before the leave completes when the member is the club's only co-leader (M_Leave_Club).
+
+### N6 — no club reactivation path
+
+Current: only `markClubInactive` exists; no reactivate route/service.
+Target: a co-leader can reactivate an inactive club at any time (CL_Mark_Club_Inactive).
+
+### N9 — member hashtags forced lowercase
+
+Current: the member upload path rejects mixed-case tags and stores `tag_display` lowercased; the
+schema's separate `tag_display` column exists to preserve capitalization.
+Target: preserve original capitalization in `tag_display` while normalizing `tag_normalized`
+(M_Upload_Photo).
+
+### N10 — no teaching-moment empty state on member upload
+
+Current: the gallery empty state is a bare string.
+Target: a My Content empty state showing example photos, clickable popular tags, and aggregated
+hashtag statistics (M_Upload_Photo, M_Submit_Video).
+
+### N11 — named-gallery empty state lacks popular-tag suggestions
+
+Current: the named-gallery empty state has corrected wording but no popular-tag suggestions; the
+content shape has no `popularTags` field.
+Target: show 5 platform-wide popular tags on the empty named-gallery state (V_View_Gallery).
+
+### N12 — daily hashtag-stats rebuild is not scheduled
+
+Current: `hashtagDiscoveryService.rebuildTagStats` exists and is tested but no worker /
+`OperationsPlatformService` invocation calls it; only incremental updates run.
+Target: schedule the daily rebuild via `OperationsPlatformService` + the worker, wrapped in
+`recordJobRun` (SYS_Rebuild_Hashtag_Stats, V_Browse_Hashtags).
+
+### N13 — reference videos lack creator + source link
+
+Current: `listMediaByTrickTag` does not join `media_sources`; `shapeReferenceMedia` produces only a
+hardcoded `sourceLabel`.
+Target: each reference video shows its creator and a link to the source URL when available
+(V_View_Trick_Reference_Videos).
+
+### N14 — admin dashboard lacks the work-queue summary panel
+
+Current: the dashboard renders static cards with no per-category counts or urgency.
+Target: a summarized work-queue panel with per-category counts linking to sub-queues, urgent
+categories highlighted (A_View_Dashboard).
+
+### N15 — soft-delete cleanup covers only members
+
+Current: `runPiiPurgeScan` processes only deleted/deceased members.
+Target: also run payment 7-year cleanup and ballot 7-year preservation, with per-entity-type
+counts in the run summary (SYS_Cleanup_Soft_Deleted_Records).
+
+### N16 — email templates are not DB-driven
+
+Current: email bodies are hardcoded inline; the `email_templates` table is seeded but never read;
+no admin editing surface.
+Target: load templates from the DB, admin-editable, with audit-logged changes (SYS_Send_Email).
+
+### N17 — continuous DB backup omits hardening steps
+
+Current: `scripts/backup-db.sh` does a single-attempt backup with a CloudWatch staleness metric.
+Target: add the WAL checkpoint, retry with exponential backoff, health-timestamp update,
+3-consecutive-failure alarm, and graceful-shutdown wait (SYS_Continuous_Database_Backup).
+
+### N18 — expired Active Player state lacks explanatory copy
+
+Current: an expired Active Player shows only a badge plus the generic Tier 0 blurb.
+Target: explain that Tier 1 benefits and Official IFPA Roster inclusion have ended
+(M_Active_Player_Expiry).
+
+### N20 — inactive clubs are not hidden from the directory
+
+Current: `clubs_open` is `status IN ('active','inactive')`, and the directory index and country
+list both read it, so inactive clubs still appear in the public directory.
+Target: hide inactive clubs from the public directory while keeping them reachable by direct link
+(CL_Mark_Club_Inactive).
+
+### N23 — CAPTCHA missing on the other anti-enumeration auth surfaces
+
+Current: the server-side Cloudflare Turnstile gate is enforced on legacy-claim initiation only.
+USER_STORIES requires the same CAPTCHA, verified server-side before any DB read, on registration
+(V_Register_Account), login (M_Login), verify-email resend (M_Verify_Email), and password reset
+(M_Reset_Password); those controllers have no captcha gate.
+Target: gate those four surfaces with `getCaptchaAdapter().verify` before any DB read and render the
+widget, reusing the `CaptchaAdapter` + form-widget pattern already built for legacy-claim (stub on
+dev/staging, live in production). Go-live security.

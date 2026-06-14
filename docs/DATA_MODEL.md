@@ -69,7 +69,7 @@
   - [APP-006 — Stripe success gating](#app-006--stripe-success-gating)
   - [APP-007 — Membership pricing config updates](#app-007--membership-pricing-config-updates)
   - [APP-008 — Max 3 member external links](#app-008--max-3-member-external-links)
-  - [APP-009 — Max 5 video embeds per gallery](#app-009--max-5-video-embeds-per-gallery)
+  - [APP-009 — Video embeds (no per-gallery cap)](#app-009--video-embeds-no-per-gallery-cap)
   - [APP-010 — Max 5 club leaders](#app-010--max-5-club-leaders)
   - [APP-011 — Max 5 event organizers](#app-011--max-5-event-organizers)
   - [APP-012 — Updated-at and updated-by stamping on FK-detached rows (optional)](#app-012--updated-at-and-updated-by-stamping-on-fk-detached-rows-optional)
@@ -393,7 +393,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 **Views:** `system_config_current`
 
 #### Work queue
-Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). When any task is added, the application sends a notification to the admin-alerts mailing list containing task type and entity ID only (no sensitive data).
+Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). When any task is added, the application sends a notification to the admin-alerts mailing list containing task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
 
 #### System config
 `system_config` is an append-only effective-dated key-value store. Each row represents the value of a config key from a given `effective_start_at` forward. The current effective value per key is provided by the `system_config_current` view (latest row with `effective_start_at <= now`). Changing a config value means inserting a new row; old rows are immutable (UPDATE and DELETE blocked by triggers).
@@ -899,8 +899,8 @@ Member-uploaded media survives gallery deletion: galleries are saved-search book
 
 `gallery_external_links.gallery_id ON DELETE CASCADE`: external link rows are removed when their gallery is deleted.
 
-#### Video cap (APP-009)
-Maximum 5 video embeds per named gallery (US §3.8 M_Organize_Media_Galleries). **Application-enforced.** The application must reject inserts and `gallery_id` reassignments that would exceed 5 `media_type = 'video'` rows per gallery.
+#### Video embeds (APP-009)
+No per-gallery video count is enforced. Video tiles render as click-to-play facades with lazy-loaded thumbnails (US §3.8 M_Organize_Media_Galleries), so a named gallery can mix any number of videos without a load-time penalty.
 
 #### Partial UNIQUE indexes
 - `ux_media_avatar_per_member ON media_items(uploader_member_id) WHERE is_avatar = 1`: at most one avatar photo per member (DB-enforced).
@@ -1438,9 +1438,9 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ---
 
-### APP-009 — Max 5 video embeds per gallery
+### APP-009 — Video embeds (no per-gallery cap)
 
-**Reject inserts and `gallery_id` reassignments on `media_items` where `media_type = 'video'` that would result in more than 5 video rows per gallery.** Source: US §3.8 M_Organize_Media_Galleries ("Maximum 5 video embeds per named gallery").
+**No per-gallery video count is enforced.** Video tiles render as click-to-play facades with lazy-loaded thumbnails, so a gallery's load time does not degrade with many videos. Source: US §3.8 M_Organize_Media_Galleries.
 
 ---
 

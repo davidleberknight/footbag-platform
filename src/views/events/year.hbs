@@ -30,10 +30,12 @@
             <div class="event-list-main">
               <span class="event-list-title">{{title}}</span>
               {{#if hostClub}}<span class="event-list-host">{{hostClub}}</span>{{/if}}
+              {{#if description}}<span class="text-muted fs-sm">{{description}}</span>{{/if}}
             </div>
             <div class="event-list-meta">
               <span class="event-list-date">{{formatDate startDate}}{{#unless (eq startDate endDate)}} – {{formatDate endDate}}{{/unless}}</span>
               <span class="event-list-location">{{formatLocation city region country}}</span>
+              {{#if standardTagDisplay}}<span class="text-muted fs-sm">{{standardTagDisplay}}</span>{{/if}}
             </div>
           </a>
         {{/each}}

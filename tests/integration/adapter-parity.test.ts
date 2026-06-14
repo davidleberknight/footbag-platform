@@ -35,6 +35,10 @@ import {
   createLiveSafeBrowsingAdapter,
 } from '../../src/adapters/safeBrowsingAdapter';
 import {
+  createStubCaptchaAdapter,
+  createLiveCaptchaAdapter,
+} from '../../src/adapters/captchaAdapter';
+import {
   createStubPaymentAdapter,
   createLivePaymentAdapter,
 } from '../../src/adapters/paymentAdapter';
@@ -430,6 +434,54 @@ describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', (
     // Second call recovers.
     const after = await stub.get('k');
     expect(after).toBe('v');
+  });
+});
+
+describe('adapter-parity: CaptchaAdapter (Stub vs. Live interface)', () => {
+  it('both return { ok: true } when the token verifies', async () => {
+    const stub = createStubCaptchaAdapter();
+    const fakeFetch = makeFakeSafeBrowsingFetch({ success: true });
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
+    const live = createLiveCaptchaAdapter({
+      secrets: secretsForLive,
+      fetchClient: fakeFetch.fetch,
+    });
+    for (const result of [await stub.verify('any-token'), await live.verify('any-token')]) {
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  it('both return { ok: false } when verification is rejected', async () => {
+    const stub = createStubCaptchaAdapter();
+    stub.addFailToken('bad-token');
+    const fakeFetch = makeFakeSafeBrowsingFetch({ success: false });
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
+    const live = createLiveCaptchaAdapter({
+      secrets: secretsForLive,
+      fetchClient: fakeFetch.fetch,
+    });
+    expect((await stub.verify('bad-token')).ok).toBe(false);
+    expect((await live.verify('bad-token')).ok).toBe(false);
+  });
+
+  it('live adapter posts the token + secret to the Turnstile siteverify endpoint', async () => {
+    const fakeFetch = makeFakeSafeBrowsingFetch({ success: true });
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
+    const live = createLiveCaptchaAdapter({
+      secrets: secretsForLive,
+      fetchClient: fakeFetch.fetch,
+    });
+    await live.verify('tok-123', '1.2.3.4');
+    expect(fakeFetch.captured).toHaveLength(1);
+    const call = fakeFetch.captured[0];
+    expect(call.url).toContain('challenges.cloudflare.com/turnstile/v0/siteverify');
+    expect(call.init?.method).toBe('POST');
+    const body = String(call.init?.body);
+    expect(body).toContain('response=tok-123');
+    expect(body).toContain('secret=test-secret');
   });
 });
 

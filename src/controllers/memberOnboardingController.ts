@@ -27,6 +27,8 @@ import {
   clearFlash,
 } from '../lib/flashCookie';
 import { getTierStatus } from '../services/membershipTieringService';
+import { config } from '../config/env';
+import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
 // Wizard surface: `/register/wizard/:taskType`. POST handlers are thin
 // HTTP glue per VIEW_CATALOG §8.4: parse input, call one service method
@@ -179,6 +181,7 @@ async function renderLegacyClaim(
     return;
   }
   data.dashboardHref = dashboardHrefFor(req);
+  data.turnstileSiteKey = config.turnstileSiteKey;
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
   data.helpRequestNotice = req.query.help_request === 'sent';
   const anchorVerification = req.query.anchor_verification;
@@ -462,6 +465,17 @@ export const memberOnboardingController = {
   },
 
   async postLegacyClaimFind(req: Request, res: Response, next: NextFunction): Promise<void> {
+    // Anti-enumeration: verify the Turnstile token server-side BEFORE any claim
+    // lookup. On failure the form re-renders with a generic message, identical
+    // to any other non-result, so a failed challenge reveals nothing. The stub
+    // (dev + staging) passes every real token, so this is transparent there.
+    const captchaToken = String(req.body['cf-turnstile-response'] ?? '');
+    const captcha = await getCaptchaAdapter().verify(captchaToken, req.ip);
+    if (!captcha.ok) {
+      await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422,
+        'Please complete the verification challenge and try again.');
+      return;
+    }
     const identifier = String(req.body.identifier ?? '').trim();
     await dispatch(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimSubmit(req.user!.userId, identifier, req.ip ?? 'unknown'),

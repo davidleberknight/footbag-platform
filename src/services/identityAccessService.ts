@@ -372,6 +372,9 @@ export interface LinkHistoryContent {
    */
   validationMessage?: string;
   declaredAnchors?: DeclaredAnchorView[];
+  /** Public Turnstile site key for the find-form CAPTCHA widget; null when the
+   *  captcha is stubbed (dev + staging), so no widget renders there. */
+  turnstileSiteKey?: string | null;
   /** Banner gate after a help-request submit redirected back to the task. */
   helpRequestNotice?: boolean;
   /** Mailbox-verification round-trip notice ('sent' | 'verified' | 'invalid'). */
@@ -3202,6 +3205,7 @@ function revertAutoLinkInTx(
       'member', memberId,
       1, now,
       `Auto-link revert reported by member. Original claim audit: ${originalClaimAuditId}.`,
+      null,
     );
 
     appendAuditEntry({
@@ -3846,6 +3850,7 @@ function submitLinkHelpRequest(
       5,
       now,
       JSON.stringify(payload),
+      null,
     );
     appendAuditEntry({
       actionType:    'support.help_request_submitted',
@@ -3982,4 +3987,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors };

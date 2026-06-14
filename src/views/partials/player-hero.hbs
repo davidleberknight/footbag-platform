@@ -1,6 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{heroData.displayName}}{{#if heroData.honorificNickname}} <span class="player-nickname">"{{heroData.honorificNickname}}"</span>{{/if}}</h1>
+    {{#if heroData.historicalPersonName}}<p class="hero-subtitle">Also known as {{heroData.historicalPersonName}} in competition records</p>{{/if}}
     {{#if heroData.isHof}}
       <p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if heroData.hofInductionYear}} ({{heroData.hofInductionYear}}){{/if}}{{#if heroData.isBap}} and the Big Add Posse{{#if heroData.bapInductionYear}} ({{heroData.bapInductionYear}}){{/if}}{{/if}}</p>
     {{else if heroData.isBap}}

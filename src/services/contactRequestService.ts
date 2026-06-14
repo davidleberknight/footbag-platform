@@ -16,9 +16,12 @@
  *   - Email delivery (CommunicationService outbox)
  *
  * Required patterns:
- *   - Member-authored free text never enters audit_entries metadata: the
- *     ledger is append-only and exempt from PII purge, so the mutable
- *     work_queue_items row holds the only copy of the member's message.
+ *   - Member-authored free text never enters audit_entries metadata (the ledger
+ *     is append-only and exempt from PII purge): audit carries only the category
+ *     and message length. The full message is held once in the mutable
+ *     work_queue_items.detail_text column, which the account-erasure purge and
+ *     the deceased contact scrub redact. The resolution email is templated and
+ *     does not echo the member's message back.
  *   - Work-queue UPDATE and the resolution audit row commit in one
  *     transaction; the member notification enqueue happens after commit and
  *     records an operational error on failure instead of rolling back.
@@ -104,6 +107,7 @@ export interface ContactRequestRow {
   entityHref: string | null;
   entityDisplayName: string | null;
   reasonText: string | null;
+  detailText: string | null;
 }
 
 function validateCategory(c: unknown): ContactCategory {
@@ -152,6 +156,9 @@ export interface WorkQueueViewItem {
   entityHref: string | null;
   entityDisplayName: string | null;
   reasonText: string | null;
+  /** Full member-authored message (e.g. a contact request), shown to the admin
+   *  so they can act on the whole request. Null for non-message task types. */
+  detailText: string | null;
   decisionLabels: Array<{ value: string; label: string }>;
   /** Member link-help requests render structured payload + approve/reject
    * forms instead of the generic resolve form. */
@@ -209,6 +216,7 @@ function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
     entityDisplayName: raw.entityDisplayName,
     // The link-help payload renders structured below; raw JSON would be noise.
     reasonText: isLinkHelpRequest ? null : raw.reasonText,
+    detailText: isLinkHelpRequest ? null : raw.detailText,
     decisionLabels: DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] })),
     isLinkHelpRequest,
     linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
@@ -264,6 +272,7 @@ export const contactRequestService = {
         5,
         nowIso,
         reasonText,
+        trimmed,
       );
       appendAuditEntry({
         actionType:    'support.contact_request_submitted',
@@ -373,8 +382,6 @@ export const contactRequestService = {
         'Admin note:',
         note,
         '',
-        `Original request: ${row.reason_text ?? ''}`,
-        '',
         'If you need further assistance, you can submit a new contact request from your profile edit page.',
         '',
         'International Footbag Players Association',
@@ -425,6 +432,7 @@ export const contactRequestService = {
       entity_type: string;
       entity_id: string;
       reason_text: string | null;
+      detail_text: string | null;
     }>;
     return rows.map((r) => {
       // Entity-display lookup belongs in the service (db.ts is the only SQL
@@ -451,6 +459,7 @@ export const contactRequestService = {
         entityHref,
         entityDisplayName,
         reasonText: r.reason_text,
+        detailText: r.detail_text,
       };
     });
   },

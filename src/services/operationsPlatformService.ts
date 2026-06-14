@@ -346,6 +346,7 @@ export class OperationsPlatformService {
               5,
               nowIso,
               `Batch auto-link match (low)`,
+              null,
             );
             getCommunicationService().enqueueMailingListEmail({
               mailingListSlug:      'admin-alerts',

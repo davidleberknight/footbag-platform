@@ -113,6 +113,9 @@
             {{else if (eq this.claimMode 'legacy_claim')}}
               <form method="POST" action="/register/wizard/legacy_claim/find" class="candidate-card-action">
                 <input type="hidden" name="identifier" value="{{this.legacyMemberId}}" />
+                {{#if @root.content.turnstileSiteKey}}
+                  <div class="cf-turnstile" data-sitekey="{{@root.content.turnstileSiteKey}}"></div>
+                {{/if}}
                 <button type="submit" class="btn btn-primary">This is me, link my history</button>
               </form>
             {{else if (eq this.claimMode 'hp_review_page')}}
@@ -177,6 +180,9 @@
         <label for="identifier">Old footbag.org member ID, username, or email, or historical-record ID</label>
         <input type="text" id="identifier" name="identifier" required />
       </div>
+      {{#if content.turnstileSiteKey}}
+        <div class="cf-turnstile" data-sitekey="{{content.turnstileSiteKey}}"></div>
+      {{/if}}
       <button type="submit" class="btn btn-outline">Find</button>
     </form>
 
@@ -208,3 +214,6 @@
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>
+{{#if content.turnstileSiteKey}}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+{{/if}}

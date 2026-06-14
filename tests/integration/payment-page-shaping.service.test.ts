@@ -149,4 +149,12 @@ describe('paymentService.getPaymentHistoryPage', () => {
     const vm = pay.paymentService.getPaymentHistoryPage('m_empty', 'empty_owner');
     expect(vm.content.rows).toEqual([]);
   });
+
+  it('includes a stable payment reference (the payment id) on each row', () => {
+    insertMember(db, { id: 'm_ref', slug: 'ref_owner' });
+    const payId = insertPayment(db, { member_id: 'm_ref', amount_cents: 1000, currency: 'usd', status: 'succeeded', descriptor: 'IFPA Tier 1 Membership' });
+    const vm = pay.paymentService.getPaymentHistoryPage('m_ref', 'ref_owner');
+    expect(vm.content.rows).toHaveLength(1);
+    expect(vm.content.rows[0].reference).toBe(payId);
+  });
 });

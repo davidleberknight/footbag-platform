@@ -851,12 +851,12 @@ Success Criteria:
 - The profile edit page surfaces a "Contact IFPA admin" link next to the read-only identity block.
 - The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Identity-link issue, Group creation request, Vote creation request, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
 - On submit, the member sees a confirmation banner: "Your request has been sent to the IFPA administrator. We will reply by email."
-- Submitting writes one `work_queue_items` row with `queue_category='membership'`, `task_type='member_contact_request'`, `entity_type='member'`, `entity_id=<requesting_member_id>`, `status='open'`, `priority=5`, and `reason_text=<category-label>: <first 200 chars of message>`.
-- Submitting writes one `audit_entries` row with `actor_type='member'`, `action_type='support.contact_request_submitted'`, `category='support'`, `reason_text=<category-label>`, and `metadata_json` carrying the full message body and the category enum value.
+- Submitting writes one `work_queue_items` row with `queue_category='membership'`, `task_type='member_contact_request'`, `entity_type='member'`, `entity_id=<requesting_member_id>`, `status='open'`, `priority=5`, `reason_text=<category-label>: <first 200 chars of message>` (operational summary), and `detail_text=<full message body>` (the admin reads the whole request from this purgeable column).
+- Submitting writes one `audit_entries` row with `actor_type='member'`, `action_type='support.contact_request_submitted'`, `category='support'`, `reason_text=<category-label>`, and `metadata_json` carrying the category enum value and the message length. The full message body is held in the purgeable `work_queue_items.detail_text` column (cleared on account erasure), keeping member-authored free text out of the append-only audit ledger.
 - A member can hold at most 3 `status='open'` contact requests at a time. A 4th submission returns HTTP 429 with a clear error message that points to the member's open requests.
 - Anonymous visitors do not see this form. The visitor-facing contact path remains the `admin@footbag.org` address surfaced on `/legal`.
 - The form is not exposed on any other member's profile: slug mismatch returns 404 (anti-enumeration), matching the owner-only-slug pattern used elsewhere.
-- HTML, unicode, and other adversarial input in the message body is stored verbatim in audit metadata and escaped when rendered on the admin queue view.
+- HTML, unicode, and other adversarial input in the message body is stored verbatim in the purgeable `work_queue_items.detail_text` operational copy and escaped when rendered on the admin queue view. The templated resolution email does not echo the member's message back.
 
 ### M_Search_Members
 
@@ -1311,7 +1311,7 @@ Success Criteria:
 - Media appears in personal galleries and event galleries via hashtag matching.
 - Personal Gallery is the default per-member named gallery, with `criteria_tags = [#by_{member_slug}]`. Items appear via the same tag-AND query that powers every named gallery, because every member upload automatically carries the uploader's `#by_<slug>` tag (per §1.1 Uploader hashtags). Avatars are excluded platform-wide via `is_avatar = 0` at the named-gallery query layer; the rule is not specific to Personal Gallery.
 - Club and Event galleries aggregate both content types by hashtag matching.
-- Maximum 5 video embeds per named gallery to maintain performance.
+- Video tiles render as click-to-play facades with lazy-loaded thumbnails, so a gallery can mix any number of videos without a performance penalty.
 - Gallery creation and rename controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see gallery creation or rearrangement controls.
 
 ### M_Delete_Own_Media
@@ -2602,7 +2602,7 @@ Success Criteria:
 - Each item carries an inline resolve form with a decision-label dropdown (Corrected, Denied, Duplicate, Out of scope) and a required free-text resolution note (up to 500 characters).
 - On resolve, `work_queue_items` is updated with `status='resolved'`, `resolved_at`, `resolved_by_member_id=<admin>`, `decision_label`, and `reason_text=<resolution note>`.
 - On resolve, one `audit_entries` row is written with `actor_type='admin'`, `action_type='support.contact_request_resolved'`, `category='support'`, `reason_text=<decision_label>`, and `metadata_json` carrying the resolution note and original queue item id.
-- On resolve, an email reply is dispatched to the member's `login_email` via the `SesAdapter` containing the decision label, the resolution note, the original request text, and instructions to submit a new request if further assistance is needed.
+- On resolve, an email reply is dispatched to the member's `login_email` via the `SesAdapter` containing the decision label, the resolution note, and instructions to submit a new request if further assistance is needed. The templated reply does not echo the member's original message back.
 - If the resolution requires changing a member field (display_name, slug, tier, identity link), the admin performs that change through the relevant admin tool. The contact-request resolution itself never mutates member rows; it only transitions queue state, writes audit, and sends email.
 - Resolving an item with an invalid decision label or empty resolution note returns 422 with a field-level error. Resolving an unknown or already-resolved queue id returns 404.
 - Non-admin authenticated users receive 403 from `/admin/work-queue` and the resolve action; unauthenticated traffic is redirected to login.

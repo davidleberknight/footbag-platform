@@ -137,6 +137,29 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
     expect(res.text).not.toContain('Claim this identity');
   });
 
+  it('authenticated viewer whose declared former surname matches (real name does not): CTA visible', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: 'mem-viewer-former',
+      slug: 'viewer_former',
+      real_name: 'Chris Jones',
+      display_name: 'Chris Jones',
+      login_email: 'former@example.com',
+    });
+    db.prepare(`
+      INSERT INTO member_declared_anchors
+        (id, created_at, created_by, updated_at, updated_by, member_id, anchor_type, anchor_value)
+      VALUES (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'former_surname', 'Smith')
+    `).run('anch-former-cta', 'mem-viewer-former', 'mem-viewer-former', 'mem-viewer-former');
+    db.close();
+
+    const res = await request(createApp())
+      .get(`/history/${HP_HONOR}`)
+      .set('Cookie', cookieFor('mem-viewer-former'));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim this identity');
+  });
+
   it('authenticated viewer who already has historical_person_id set: no CTA', async () => {
     const res = await request(createApp())
       .get(`/history/${HP_HONOR}`)

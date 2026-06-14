@@ -276,6 +276,33 @@ describe('GET /members/:memberKey — profile view', () => {
     expect(res.text).toContain(`href="/members/${OWN_SLUG}/edit/password"`);
     expect(res.text).toContain('Change Password');
   });
+
+  it('shows "Competing since {year}" on the profile when first_competition_year is set', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare('UPDATE members SET first_competition_year = 2010, show_first_competition_year = 1 WHERE id = ?').run(OWN_ID);
+    db.close();
+    try {
+      const app = createApp();
+      const res = await request(app)
+        .get(`/members/${OWN_SLUG}`)
+        .set('Cookie', ownCookie());
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('Competing since 2010');
+    } finally {
+      const restore = new BetterSqlite3(TEST_DB_PATH);
+      restore.prepare('UPDATE members SET first_competition_year = NULL, show_first_competition_year = 0 WHERE id = ?').run(OWN_ID);
+      restore.close();
+    }
+  });
+
+  it('shows the linked historical name as an "Also known as" line when it differs from the display name', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${LINKED_SLUG}`)
+      .set('Cookie', otherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Also known as Linked Historical in competition records');
+  });
 });
 
 // ── GET /members/:memberKey/edit ────────────────────────────────────────────────

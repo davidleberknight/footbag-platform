@@ -378,7 +378,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 
 ### 7.2 Adapter parity tests are mandatory
 
-The three-test contract from `.claude/rules/testing.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
+The three-test contract from `.claude/rules/testing.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `CaptchaAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
 
 - Boot-time config test (`tests/unit/env-config.test.ts`): module-load fails fast when required prod-mode env vars are absent.
 - Interface parity test (`tests/integration/adapter-parity.test.ts`): both implementations satisfy the TypeScript interface with identical observable output structure, exercised via an injected fake client.

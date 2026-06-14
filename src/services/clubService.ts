@@ -306,7 +306,25 @@ export interface ClubMemberSummary {
   /** 'Male' / 'Female' when the claimed member opted gender into public
    *  visibility, else null. The club detail roster is member-visible. */
   genderLabel: string | null;
+  /** Membership-tier badge ('Tier 1' / 'Tier 2' / 'Tier 3 Director') for a
+   *  claimed member; null for Tier 0 and for unclaimed historical rows. */
+  tierBadge: string | null;
+  /** True when the claimed member currently holds Active Player status. */
+  isActivePlayer: boolean;
+  isHof: boolean;
+  isBap: boolean;
+  isBoard: boolean;
+  /** City and country of the claimed member, joined for display; null when
+   *  neither is on file or the row is an unclaimed historical person. */
+  location: string | null;
 }
+
+// Concise tier badges for the club roster; Tier 0 carries no badge.
+const ROSTER_TIER_BADGE: Record<string, string> = {
+  tier1: 'Tier 1',
+  tier2: 'Tier 2',
+  tier3: 'Tier 3 Director',
+};
 
 export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
 
@@ -632,6 +650,13 @@ interface AffiliationRow {
   member_slug: string | null; // claimed, search-visible member account; NULL otherwise
   member_gender: string | null;
   member_show_gender: number | null;
+  member_city: string | null;
+  member_country: string | null;
+  member_is_hof: number | null;
+  member_is_bap: number | null;
+  member_is_board: number | null;
+  member_tier_status: string | null;
+  member_is_active_player: number | null;
 }
 
 // Shapes one roster entry for the club detail members list. Confirmed members
@@ -653,11 +678,21 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
     row.member_show_gender === 1 && (row.member_gender === 'male' || row.member_gender === 'female')
       ? (row.member_gender === 'male' ? 'Male' : 'Female')
       : null;
+  const tierBadge = row.member_tier_status ? (ROSTER_TIER_BADGE[row.member_tier_status] ?? null) : null;
+  const locationParts = [row.member_city, row.member_country].filter(
+    (p): p is string => typeof p === 'string' && p.trim() !== '',
+  );
   return {
     name: row.person_name,
     href,
     statusNote: isUnconfirmed ? '(historical member, unconfirmed current)' : null,
     genderLabel,
+    tierBadge,
+    isActivePlayer: row.member_is_active_player === 1,
+    isHof: row.member_is_hof === 1,
+    isBap: row.member_is_bap === 1,
+    isBoard: row.member_is_board === 1,
+    location: locationParts.length > 0 ? locationParts.join(', ') : null,
   };
 }
 
@@ -2488,7 +2523,7 @@ export class ClubService {
     actorMemberId: string,
     clubId: string,
     inviteeKey: string,
-  ): { branch: 'sent' | 'not_leader' | 'member_not_found' | 'already_coleader' | 'no_email' } {
+  ): { branch: 'sent' | 'not_leader' | 'member_not_found' | 'not_member' | 'already_coleader' | 'no_email' } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string } | undefined;
     if (!leadership) {
@@ -2500,6 +2535,14 @@ export class ClubService {
       | { id: string; display_name: string; slug: string } | undefined;
     if (!invitee) {
       return { branch: 'member_not_found' };
+    }
+
+    // The invitee must already be a current member of the club; a non-member
+    // joins first. Mirrors the membership gate on the volunteer path.
+    const inviteeAffiliation = memberClubAffiliations.findCurrentByMemberAndClub.get(invitee.id, clubId) as
+      | { id: string } | undefined;
+    if (!inviteeAffiliation) {
+      return { branch: 'not_member' };
     }
 
     const already = clubLeaders.memberInClubLeadership.get(clubId, invitee.id) as

@@ -3,7 +3,9 @@
  *
  * Owns the processing of SNS-delivered SES feedback notifications: permanent
  * bounces mark the matching member's email_status 'bounced', complaints mark
- * it 'complained', and every processed notification appends an audit row.
+ * it 'complained', the member's currently-subscribed mailing-list rows are
+ * flipped to the matching 'bounced'/'complained' status, and every processed
+ * notification appends an audit row.
  * Escalation-only writes: an admin-set 'suppressed' status is never
  * overwritten, and a complaint outranks a bounce. Subscription-confirmation
  * messages are recorded for the operator to confirm out-of-band (the
@@ -13,7 +15,7 @@
  * Transport auth (the shared-secret query key on the webhook URL) is the
  * IPC controller's concern, not this service's.
  */
-import { sesFeedback, transaction } from '../db/db';
+import { sesFeedback, mailingListSubscriptions, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { logger } from '../config/logger';
 
@@ -103,6 +105,11 @@ function applyStatus(kind: 'bounce' | 'complaint', recipients: string[]): SesFee
         ? sesFeedback.markBounced.run(now, normalized)
         : sesFeedback.markComplained.run(now, normalized);
       membersUpdated += res.changes;
+      if (kind === 'bounce') {
+        mailingListSubscriptions.markBouncedForEmail.run(now, 'SES hard bounce', normalized);
+      } else {
+        mailingListSubscriptions.markComplainedForEmail.run(now, 'SES complaint', normalized);
+      }
       appendAuditEntry({
         actionType:    kind === 'bounce' ? 'email.bounce_recorded' : 'email.complaint_recorded',
         category:      'system',

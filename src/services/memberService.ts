@@ -60,7 +60,7 @@
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
 import { randomUUID } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
@@ -315,6 +315,7 @@ export interface PublicProfileContent {
   historicalPersonName: string | null;
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
+  showFirstCompetitionYear: boolean;
   heroData: PlayerHeroData;
   eventGroups: PlayerEventGroup[];
   // Member-visible fields, null/false for the anonymous HoF/BAP render:
@@ -573,6 +574,9 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       legacyMembers.clearClaim.run(row.legacy_member_id);
     }
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+    // Member-authored contact-request free text lives in work_queue_items, not
+    // the audit ledger, so erasure must redact it here.
+    workQueue.scrubContactTextForMember.run(now, memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'account_pii_purge');
 
     appendAuditEntry({
@@ -633,6 +637,8 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     if (res.changes === 0) return { status: 'already_scrubbed' as const };
 
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
+    // Contact-request free text is contact PII; redact it on the deceased scrub.
+    workQueue.scrubContactTextForMember.run(now, memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'deceased_contact_scrub');
 
     appendAuditEntry({
@@ -791,6 +797,7 @@ export const memberService = {
         historicalPersonName: resolveHistoricalName(row),
         firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
         showCompetitiveResults: row.show_competitive_results !== 0,
+        showFirstCompetitionYear: row.show_first_competition_year !== 0,
         heroData,
         eventGroups,
         contactEmail,

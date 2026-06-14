@@ -422,6 +422,18 @@ describe('GET /events/year/:year', () => {
     expect(res.text).toContain('Corvallis');
   });
 
+  it('shows the event description on year-archive rows when present', async () => {
+    const app = createApp();
+    const res = await request(app).get('/events/year/2025');
+    expect(res.text).toContain('A test event.');
+  });
+
+  it('shows the standardized event hashtag on year-archive rows', async () => {
+    const app = createApp();
+    const res = await request(app).get('/events/year/2025');
+    expect(res.text).toContain('#Event_2025_Beaver_Open');
+  });
+
   it('does not expose draft events in year archive', async () => {
     const app = createApp();
     const res = await request(app).get('/events/year/2026');

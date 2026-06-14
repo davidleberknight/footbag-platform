@@ -65,6 +65,43 @@ function countAuditEntries(memberId: string, actionType: string): number {
   ).get(memberId, actionType) as { c: number }).c;
 }
 
+// ── Captcha gate on claim initiation ─────────────────────────────────────────
+
+describe('captcha gate on legacy_claim/find', () => {
+  it('rejects with a generic 422 and performs no lookup when the captcha token is invalid', async () => {
+    // Imported lazily: a top-level import of captchaAdapter would load
+    // src/config/env before setTestEnv runs, pinning the wrong origin.
+    const { STUB_CAPTCHA_FAIL_TOKEN } = await import('../../src/adapters/captchaAdapter');
+    const stamp = Date.now();
+    const email = `captcha-${stamp}@example.com`;
+    const legacyId = insertLegacyMember(db, {
+      legacy_member_id: `LM-CAP-${stamp}`,
+      legacy_email: email,
+      real_name: 'Captcha Probe',
+    });
+    const memberId = insertMember(db, {
+      slug: `cap_${stamp}`,
+      login_email: email,
+      real_name: 'Captcha Probe',
+    });
+
+    await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ identifier: email, 'cf-turnstile-response': STUB_CAPTCHA_FAIL_TOKEN });
+
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('verification');
+    // Anti-enumeration: a failed challenge runs no lookup, so the matching legacy
+    // account is neither linked nor claimed (identical to a no-result).
+    expect(getMember(memberId)!.legacy_member_id).toBeNull();
+    expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBeNull();
+    expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
+  });
+});
+
 // ── Email-equality fast path ─────────────────────────────────────────────────
 
 describe('email-equality fast path (login email == legacy_email)', () => {

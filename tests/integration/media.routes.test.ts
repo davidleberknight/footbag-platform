@@ -317,6 +317,32 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).not.toContain('Reference videos for freestyle footbag tricks');
   });
 
+  it('renders the tag-aware empty-state copy when the gallery matches no media', async () => {
+    const db = openDb();
+    const emptyTagId = 'tag-empty-state-001';
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(emptyTagId, '#emptygallerytag', '#emptygallerytag', TS, TS);
+    const galleryId = 'gallery_empty_state_test';
+    db.prepare(`
+      INSERT INTO member_galleries (
+        id, created_at, created_by, updated_at, updated_by, version,
+        owner_member_id, name, description, is_default
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Empty Gallery', '', 0)
+    `).run(galleryId, TS, TS, SYSTEM_ID);
+    db.prepare(`
+      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+      VALUES (?, ?, ?, 'admin-act-as')
+    `).run(galleryId, emptyTagId, TS);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${galleryId}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('No photos or videos found with this tag');
+  });
+
   it('renders external links as "External URL: <clickable url>" with no icon and no curator label', async () => {
     const db = openDb();
     db.prepare(`
