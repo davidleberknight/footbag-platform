@@ -24,6 +24,7 @@ Usage:
 """
 
 import csv
+import json
 import os
 import sys
 import unicodedata
@@ -45,6 +46,8 @@ CANONICAL_INPUT    = ROOT / "event_results" / "canonical_input"
 CANONICAL_UPSTREAM = ROOT / "out" / "canonical"   # for early-era person supplement
 QUARANTINE_CSV     = ROOT / "inputs" / "review_quarantine_events.csv"
 KNOWN_UNKNOWNS_CSV = ROOT / "out" / "known_unknowns.csv"
+RESULTS_FILE_OVERRIDES_CSV = ROOT / "overrides" / "results_file_overrides.csv"
+EVENTS_OVERRIDES_JSONL     = ROOT / "overrides" / "events_overrides.jsonl"
 CONSECUTIVE_CSV    = ROOT / "inputs" / "curated" / "records" / "consecutives_records.csv"
 OUTPUT_PATH        = ROOT / "out" / "Footbag_Results_Release.xlsx"
 
@@ -1040,6 +1043,7 @@ def build_readme(wb: Workbook, events: dict, persons: dict, n_parts: int) -> Non
             ("ERA LEADERS",          "Decade leaderboards (1980s – 2020s): top 10 podiums and wins per era."),
             ("PLAYER STATS",         "One row per identified competitor — career summary."),
             ("QC - EXCLUDED EVENTS", "Events excluded from year sheets (sparse or no results)."),
+            ("DATA NOTES - OVERRIDES", "Events whose canonical data was overridden by a curator file (results-file swap or field override), with source and note."),
             ("<year>",               "One sheet per year (1980 – present).  Each column is one event; "
                                      "rows show placements by division.  Non-sparse events only."),
         ]),
@@ -1586,6 +1590,89 @@ def build_excluded_events(wb: Workbook, events: dict, quarantine: set,
     print(f"  QC - EXCLUDED EVENTS: {len(excluded)} entries")
 
 
+def build_override_notes(wb: Workbook, events: dict, legacy_id_to_key: dict[str, str] | None = None,
+                         results_csv: Path = RESULTS_FILE_OVERRIDES_CSV,
+                         events_jsonl: Path = EVENTS_OVERRIDES_JSONL) -> None:
+    """DATA NOTES - OVERRIDES: every event whose canonical data was overridden by a
+    curator file, surfaced so the otherwise-silent overrides are visible to a human
+    reviewer. Reads results_file_overrides.csv (results-file swaps) and
+    events_overrides.jsonl (per-event field overrides) directly, cross-referencing
+    each override's event_id to the event index via legacy_event_id. Exclusions
+    (events_overrides exclude=true) are NOT listed here; they appear on the
+    QC - EXCLUDED EVENTS sheet."""
+    if legacy_id_to_key is None:
+        legacy_id_to_key = {
+            str(ev.get("legacy_event_id", "")).strip(): key
+            for key, ev in events.items()
+            if str(ev.get("legacy_event_id", "")).strip()
+        }
+    ws = wb.create_sheet("DATA NOTES - OVERRIDES")
+    headers = ["Year", "Event Name", "Override Kind", "Source", "Note"]
+    widths  = [6, 52, 16, 26, 60]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A3"
+
+    META_KEYS = {"event_id", "source", "confidence", "reason", "exclude"}
+
+    def _ev(eid: str) -> dict:
+        key = legacy_id_to_key.get(eid)
+        return events.get(key, {}) if key else (events.get(eid, {}) or {})
+
+    rows: list[tuple] = []
+
+    if results_csv.exists():
+        with open(results_csv, newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                eid = str(r.get("event_id", "")).strip()
+                if not eid:
+                    continue
+                ev = _ev(eid)
+                rows.append((
+                    ev.get("year", ""),
+                    ev.get("event_name", "") or f"(event {eid} not in index)",
+                    "results-file",
+                    "results_file_override",
+                    (r.get("notes", "") or "").strip(),
+                ))
+
+    if events_jsonl.exists():
+        with open(events_jsonl, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                ov = json.loads(line)
+                if ov.get("exclude") is True:
+                    continue   # exclusions are surfaced on QC - EXCLUDED EVENTS
+                eid = str(ov.get("event_id", "")).strip()
+                if not eid:
+                    continue
+                ev = _ev(eid)
+                fields = [k for k in ov if k not in META_KEYS]
+                note = ", ".join(sorted(fields))
+                if ov.get("reason"):
+                    note = f"{note} — {ov['reason']}" if note else str(ov["reason"])
+                rows.append((
+                    ev.get("year", "") or ov.get("year", ""),
+                    ev.get("event_name", "") or ov.get("event_name", "") or f"(event {eid} not in index)",
+                    "field",
+                    str(ov.get("source", "")),
+                    note,
+                ))
+
+    rows.sort(key=lambda x: (str(x[0]), str(x[1]).lower(), str(x[2])))
+
+    row = _title_row(ws, 1, "DATA NOTES — CURATOR OVERRIDES APPLIED", ncols=len(headers))
+    row = _hrow(ws, row, *headers)
+    for rec in rows:
+        for col, v in enumerate(rec, 1):
+            _w(ws, row, col, v, font=FONT_DATA, align=ALIGN_L)
+        row += 1
+
+    print(f"  DATA NOTES - OVERRIDES: {len(rows)} entries")
+
+
 # ── Year sheets ────────────────────────────────────────────────────────────────
 
 def _team_display(slot_rows: list[dict]) -> tuple[str, bool]:
@@ -1888,6 +1975,7 @@ def main() -> None:
 
     build_event_index(wb, events, discs, raw_results, quarantine, event_col_map)
     build_excluded_events(wb, events, quarantine, discs, raw_results)
+    build_override_notes(wb, events)
 
     # Reorder front-matter sheets before year sheets
     desired_front = ["README", "KNOWN UNKNOWNS", "EVENT INDEX",
@@ -1895,7 +1983,8 @@ def main() -> None:
                      "NET SINGLES STATS", "FREESTYLE SINGLES STATS",
                      "NET PARTNERSHIPS", "FREESTYLE PARTNERSHIPS",
                      "CONSECUTIVE RECORDS",
-                     "QC - EXCLUDED EVENTS"]
+                     "QC - EXCLUDED EVENTS",
+                     "DATA NOTES - OVERRIDES"]
     final_order = desired_front + [s for s in wb.sheetnames if s not in desired_front]
     for i, name in enumerate(final_order):
         if name in wb.sheetnames:
