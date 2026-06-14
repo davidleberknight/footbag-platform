@@ -75,6 +75,31 @@ beforeAll(async () => {
     trick_family:   'whirl',
     category:       'compound',
   });
+  // Whirl-family entries that exercise operator-rung ordering: a 1-operator
+  // form, an inspinning form (must rank as rung 1, not core), and a repeated-
+  // operator form (spinning x2 → rung 2, never collapsed to rung 1).
+  insertFreestyleTrickModifier(db, {
+    slug: 'spinning', modifier_name: 'spinning', add_bonus: 1, modifier_type: 'body',
+  });
+  insertFreestyleTrickModifier(db, {
+    slug: 'inspinning', modifier_name: 'inspinning', add_bonus: 1, modifier_type: 'body',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'spinning-whirl', canonical_name: 'spinning whirl', adds: '4',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'inspinning-whirl', canonical_name: 'inspinning whirl', adds: '4',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'double-spinning-whirl', canonical_name: 'double-spinning whirl', adds: '5',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+  });
+  insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning');
+  insertFreestyleTrickModifierLink(db, 'inspinning-whirl', 'inspinning');
+  insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 1);
+  insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 2);
 
   db.close();
   createApp = await importApp();
@@ -242,6 +267,26 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     // the chip targets the in-page anchor, not the ?family= detail page.
     expect(res.text).toMatch(/href="#family-whirl"/);
     expect(res.text).toContain('class="family-jump-count"');
+  });
+
+  it('orders family entries by operator rung: anchor, then 1-operator, then 2-operator', async () => {
+    const html = (await request(createApp()).get('/freestyle/tricks?view=family')).text;
+    const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
+    const iWhirl  = at('whirl');           // anchor, rung 0
+    const iSpin   = at('spinning-whirl');  // rung 1
+    const iInspin = at('inspinning-whirl');// rung 1 (must NOT rank as core/bare)
+    const iDouble = at('double-spinning-whirl'); // rung 2 (spinning x2, not collapsed)
+    expect(iWhirl).toBeGreaterThan(-1);
+    expect(iSpin).toBeGreaterThan(iWhirl);    // anchor before 1-operator forms
+    expect(iInspin).toBeGreaterThan(iWhirl);  // inspinning is rung 1, after the anchor/core band
+    expect(iDouble).toBeGreaterThan(iSpin);   // repeated-operator form is rung 2, after rung 1
+    expect(iDouble).toBeGreaterThan(iInspin);
+  });
+
+  it('renders operator-rung band headers when a family spans multiple rungs', async () => {
+    const html = (await request(createApp()).get('/freestyle/tricks?view=family')).text;
+    expect(html).toContain('class="family-rung-header"');
+    expect(html).toContain('2 operators');
   });
 
   it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {

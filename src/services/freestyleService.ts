@@ -2970,6 +2970,20 @@ export interface FreestyleFamilyGroup {
   // eggbeater under legover), the display name of its parent root family. Null
   // for a root family.
   branchParentName: string | null;
+  // The same cards, partitioned into operator-rung bands (Core / 1 operator /
+  // 2 operators / 3+ operators) so the section reads as a progression. Cards
+  // remain available flat above for non-rung consumers.
+  rungGroups: FreestyleFamilyRungGroup[];
+  // True when the family spans more than one rung band (so the template shows
+  // band headers); false for a family that is all one rung (no header noise).
+  showRungLabels: boolean;
+}
+
+// One operator-rung band within a family section.
+export interface FreestyleFamilyRungGroup {
+  rung: number;     // 0 = Core; 3 also covers 4+ (the "3+ operators" band)
+  label: string;    // "Core" | "1 operator" | "2 operators" | "3+ operators"
+  cards: DictionaryTrickCard[];
 }
 
 // One chip in the family-view jump index.
@@ -7489,20 +7503,38 @@ export const freestyleService = {
       butterfly: { label: 'Walking-family progression', href: '/freestyle/progression/walking-family' },
     };
 
+    // Operator rung per trick: the COUNT of modifier-link rows. Each link row
+    // is one (modifier, apply_order), so a repeated operator (double-spinning =
+    // spinning + spinning) counts twice — rung is the multiset depth, matching
+    // the adjacency prototype. A trick absent from the link rows has no links
+    // and is rung 0. Built from the listTricksByModifier rows already loaded.
+    const rungBySlug = new Map<string, number>();
+    for (const l of addFormulaLinkRows) {
+      rungBySlug.set(l.trick_slug, (rungBySlug.get(l.trick_slug) ?? 0) + 1);
+    }
+    const rungOf = (slug: string): number => rungBySlug.get(slug) ?? 0;
+
     const sortFamilyEntries = (
       familySlug: string,
       entries: FreestyleTrickRowWithStatus[],
     ): FreestyleTrickRowWithStatus[] => {
       return entries.slice().sort((a, b) => {
-        // Anchor first: the family base trick (slug === familySlug) ranks above all others.
+        // Anchor first: the family base trick (slug === familySlug) ranks above
+        // all others, even other rung-0 folk/compound entries.
         if (a.slug === familySlug && b.slug !== familySlug) return -1;
         if (b.slug === familySlug && a.slug !== familySlug) return 1;
+        // Then operator rung ascending (simplest forms first).
+        const ar = rungOf(a.slug);
+        const br = rungOf(b.slug);
+        if (ar !== br) return ar - br;
         // Then ADD ascending; rows without numeric ADD sink to the bottom.
-        const an = parseAddNumeric(a.adds);
-        const bn = parseAddNumeric(b.adds);
-        const ai = an ?? Number.POSITIVE_INFINITY;
-        const bi = bn ?? Number.POSITIVE_INFINITY;
+        const ai = parseAddNumeric(a.adds) ?? Number.POSITIVE_INFINITY;
+        const bi = parseAddNumeric(b.adds) ?? Number.POSITIVE_INFINITY;
         if (ai !== bi) return ai - bi;
+        // Then sub-lineage (immediate base trick), grouping siblings together.
+        const ab = a.base_trick ?? '';
+        const bb = b.base_trick ?? '';
+        if (ab !== bb) return ab.localeCompare(bb, undefined, { sensitivity: 'base' });
         // Then trick name alphabetical.
         return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
       });
@@ -7525,6 +7557,21 @@ export const freestyleService = {
         PUBLIC_FAMILY_LABEL.get(familySlug)
         ?? resolveFamilyDisplayName(familySlug)
         ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
+      // Partition the (already rung-sorted) cards into operator-rung bands.
+      // Cards are sorted rung-ascending, so each band is contiguous. The 3+
+      // band collects rung 3 and above. The anchor sits at the head of Core.
+      const rungBandOf = (n: number): { rung: number; label: string } =>
+        n <= 0 ? { rung: 0, label: 'Core' }
+        : n === 1 ? { rung: 1, label: '1 operator' }
+        : n === 2 ? { rung: 2, label: '2 operators' }
+        : { rung: 3, label: '3+ operators' };
+      const rungGroups: FreestyleFamilyRungGroup[] = [];
+      sorted.forEach((r, i) => {
+        const band = rungBandOf(rungOf(r.slug));
+        const last = rungGroups[rungGroups.length - 1];
+        if (last && last.rung === band.rung) last.cards.push(cards[i]!);
+        else rungGroups.push({ rung: band.rung, label: band.label, cards: [cards[i]!] });
+      });
       return {
         familySlug,
         familyName,
@@ -7533,6 +7580,8 @@ export const freestyleService = {
         crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
         sharedStructure: getFamilyInvariant(familySlug),
         branchParentName: PUBLIC_FAMILY_PARENT_LABEL.get(familySlug) ?? null,
+        rungGroups,
+        showRungLabels: rungGroups.length > 1,
       };
     };
 

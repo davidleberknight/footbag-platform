@@ -312,11 +312,19 @@
     {{#if crossLink}}
     <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
     {{/if}}
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
+    {{! Operator-rung bands: simplest/base forms first, then 1-, 2-, 3+-operator
+        forms. Band headers show only when a family spans more than one rung
+        (showRungLabels), so single-rung families stay header-free. }}
+    {{#each rungGroups}}
+    <div class="trick-family-rung">
+      {{#if ../showRungLabels}}<h3 class="family-rung-header">{{label}}</h3>{{/if}}
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
     </div>
+    {{/each}}
   </section>
   {{/each}}
   {{/if}}
