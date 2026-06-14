@@ -35,6 +35,7 @@ Notes on unresolved persons:
   display_name set to the raw name from stage2.
 """
 import csv
+import json
 import re
 import unicodedata
 from collections import Counter, defaultdict
@@ -46,6 +47,14 @@ CANONICAL = OUT / "canonical"
 OVERRIDES = ROOT / "overrides"
 
 csv.field_size_limit(10_000_000)
+
+# Consecutive-discipline kick-count recovery for score_text. PBP, the
+# identity-locked participant source, does not carry the count; it survives only
+# in the stage2 raw placement text, so it is recovered when emitting result rows.
+# The script runs with its own directory on sys.path, so the sibling import
+# resolves at runtime; the helper lives in a side-effect-free module so it stays
+# unit testable without importing this pipeline script.
+from score_extraction import CONSECUTIVE_DISCIPLINE_RE, extract_consecutive_count
 
 
 # ── Event identity overrides (loaded from overrides/) ─────────────────────────
@@ -1019,16 +1028,28 @@ for row in sorted_rows:
     # ── PBP rows for this event (authoritative: names, IDs, structure) ────────
     event_pbp = pbp_by_event.get(eid, [])
 
-    # When PBP has no rows for this event (e.g. pre-mirror magazine events),
-    # fall back to stage2 placements_json so their results appear in canonical CSVs.
-    stage2_placements: list[dict] = []
-    if not event_pbp:
-        import json as _json
-        _pj_raw = row.get("placements_json") or "[]"
-        try:
-            stage2_placements = _json.loads(_pj_raw)
-        except Exception:
-            stage2_placements = []
+    # Parse this event's stage2 placements once. They serve two purposes: the
+    # raw placement text (entry_raw) carries the consecutive kick count that PBP
+    # drops, and — only when PBP has no rows for this event (e.g. pre-mirror
+    # magazine events) — they are the fallback participant source so those
+    # results still appear in the canonical CSVs.
+    try:
+        _all_placements: list[dict] = json.loads(row.get("placements_json") or "[]")
+    except Exception:
+        _all_placements = []
+
+    # (division_canon, place) -> raw placement text, for recovering the kick count
+    # when emitting consecutive-discipline result rows below. First entry wins; a
+    # consecutive tie shares the same count, so the first is representative.
+    entry_raw_by_div_place: dict[tuple[str, str], str] = {}
+    for _p in _all_placements:
+        _d  = _p.get("division_canon") or ""
+        _pl = str(_p.get("place", "")).strip()
+        _er = (_p.get("entry_raw") or "").strip()
+        if _d and _pl and _er:
+            entry_raw_by_div_place.setdefault((_d, _pl), _er)
+
+    stage2_placements: list[dict] = _all_placements if not event_pbp else []
 
     # Ordered unique divisions from PBP (or stage2 fallback).
     # team_type uses majority vote: a division is "doubles" only when MORE THAN
@@ -1241,11 +1262,20 @@ for row in sorted_rows:
             seen_participants.add(dedup_key)
 
             if result_key not in emitted_results:
+                # Consecutive disciplines carry a meaningful kick count in the raw
+                # placement text; recover it for score_text. Non-consecutive
+                # disciplines leave score_text empty (their trailing numbers are
+                # generic point totals).
+                score_text = ""
+                if CONSECUTIVE_DISCIPLINE_RE.search(disc_key):
+                    score_text = extract_consecutive_count(
+                        entry_raw_by_div_place.get((div, place), "")
+                    ) or ""
                 results_out.append({
                     "event_key":      event_key,
                     "discipline_key": disc_key,
                     "placement":      place,
-                    "score_text":     "",
+                    "score_text":     score_text,
                     "notes":          "",
                     "source":         "",
                 })
