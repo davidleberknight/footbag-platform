@@ -8,9 +8,10 @@ non-idempotent change (a raw INSERT, an append-counter, a missing scoped DELETE)
 is caught instead of silently double-loading on the next pipeline run.
 
 Covered: the enrichment candidate loader, the freestyle-records loader, the
-name-variants seed loader, and the club cutover. All inputs are synthetic and
-written to a temp dir; the cutover reads the committed seed CSV read-only and is
-seeded with a candidate keyed to a real seed row.
+name-variants seed loader, the club cutover, the MVFP seed loader (08), the
+trick-dictionary loader (17), and the red-additions loader (19). All inputs are
+synthetic and written to a temp dir; the cutover reads the committed seed CSV
+read-only and is seeded with a candidate keyed to a real seed row.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_loader_idempotency.py -v
@@ -166,3 +167,152 @@ def test_cutover_loader_idempotent(tmp_path: Path) -> None:
     ]
     n = assert_idempotent(db, loader, "clubs")
     assert n == 1
+
+
+# A synthetic person id shared by the participant row and the persons row so the
+# participant resolves to a real person. member_id is left empty so the loader
+# does not bind historical_persons.legacy_member_id -> legacy_members (that FK
+# is not seeded here, and the loader runs with enforcement off anyway).
+SEED_PID = "11111111-1111-1111-1111-111111111111"
+
+
+def build_mvfp_seed(seed_dir: Path) -> Path:
+    """One coherent event -> discipline -> result -> participant -> person chain,
+    the minimum the MVFP seed loader needs to insert a non-empty event graph."""
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    write_csv(
+        seed_dir / "seed_events.csv",
+        ["event_key", "legacy_event_id", "year", "event_name", "event_slug",
+         "start_date", "end_date", "city", "region", "country", "host_club",
+         "status", "notes", "source"],
+        [{"event_key": "2000_idem_test", "legacy_event_id": "2000_idem_test",
+          "year": "2000", "event_name": "Idem Test Open",
+          "event_slug": "idem_test_open_2000", "start_date": "", "end_date": "",
+          "city": "Town", "region": "State", "country": "United States",
+          "host_club": "", "status": "completed", "notes": "", "source": "mirror"}],
+    )
+    write_csv(
+        seed_dir / "seed_event_disciplines.csv",
+        ["event_key", "discipline_key", "discipline_name", "discipline_category",
+         "team_type", "sort_order", "coverage_flag", "notes"],
+        [{"event_key": "2000_idem_test", "discipline_key": "open_singles_net",
+          "discipline_name": "Open Singles Net", "discipline_category": "net",
+          "team_type": "singles", "sort_order": "1", "coverage_flag": "partial",
+          "notes": ""}],
+    )
+    write_csv(
+        seed_dir / "seed_event_results.csv",
+        ["event_key", "discipline_key", "placement", "score_text", "notes", "source"],
+        [{"event_key": "2000_idem_test", "discipline_key": "open_singles_net",
+          "placement": "1", "score_text": "", "notes": "", "source": ""}],
+    )
+    write_csv(
+        seed_dir / "seed_event_result_participants.csv",
+        ["event_key", "discipline_key", "placement", "participant_order",
+         "display_name", "person_id", "notes"],
+        [{"event_key": "2000_idem_test", "discipline_key": "open_singles_net",
+          "placement": "1", "participant_order": "1", "display_name": "Idem Player",
+          "person_id": SEED_PID, "notes": ""}],
+    )
+    write_csv(
+        seed_dir / "seed_persons.csv",
+        ["person_id", "person_name", "member_id", "country", "first_year",
+         "last_year", "event_count", "placement_count", "bap_member",
+         "bap_nickname", "bap_induction_year", "hof_member", "hof_induction_year",
+         "freestyle_sequences", "freestyle_max_add", "freestyle_unique_tricks",
+         "freestyle_diversity_ratio", "signature_trick_1", "signature_trick_2",
+         "signature_trick_3", "source_scope"],
+        [{"person_id": SEED_PID, "person_name": "Idem Player", "member_id": "",
+          "country": "United States", "first_year": "", "last_year": "",
+          "event_count": "1", "placement_count": "1", "bap_member": "0",
+          "bap_nickname": "", "bap_induction_year": "", "hof_member": "0",
+          "hof_induction_year": "", "freestyle_sequences": "",
+          "freestyle_max_add": "", "freestyle_unique_tricks": "",
+          "freestyle_diversity_ratio": "", "signature_trick_1": "",
+          "signature_trick_2": "", "signature_trick_3": "",
+          "source_scope": "CANONICAL"}],
+    )
+    return seed_dir
+
+
+def test_mvfp_seed_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    loader = [
+        "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
+        "--db", str(db),
+        "--seed-dir", str(seed_dir),
+        "--no-backup",
+    ]
+    n = assert_idempotent(db, loader, "events")
+    assert n >= 1
+
+
+def _write_trick_dictionary_inputs(tmp_path: Path) -> list[str]:
+    """The 17-loader inputs: one base trick, one modifier, one alias pointing at
+    the base trick. Returns the loader arg flags for the three CSVs."""
+    tricks = write_csv(
+        tmp_path / "tricks.csv",
+        ["trick_canon", "adds", "base_trick", "category", "aliases", "notes"],
+        [{"trick_canon": "clipper", "adds": "1", "base_trick": "clipper",
+          "category": "body", "aliases": "", "notes": "Body kick into clipper."}],
+    )
+    mods = write_csv(
+        tmp_path / "trick_modifiers.csv",
+        ["modifier", "add_bonus", "add_bonus_rotational", "modifier_type", "notes"],
+        [{"modifier": "paradox", "add_bonus": "1", "add_bonus_rotational": "1",
+          "modifier_type": "body", "notes": ""}],
+    )
+    aliases = write_csv(
+        tmp_path / "trick_aliases.csv",
+        ["alias", "trick_canon"],
+        [{"alias": "clip", "trick_canon": "clipper"}],
+    )
+    return ["--tricks-csv", str(tricks), "--modifiers-csv", str(mods),
+            "--aliases-csv", str(aliases)]
+
+
+def test_trick_dictionary_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    loader = [
+        "legacy_data/event_results/scripts/17_load_trick_dictionary.py",
+        "--db", str(db),
+        *_write_trick_dictionary_inputs(tmp_path),
+    ]
+    n = assert_idempotent(db, loader, "freestyle_tricks")
+    assert n >= 1
+
+
+def test_red_additions_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    # The red-additions loader upserts onto the dictionary the 17-loader builds,
+    # so seed the base dictionary first (same order as the real pipeline).
+    setup = run([
+        "legacy_data/event_results/scripts/17_load_trick_dictionary.py",
+        "--db", str(db),
+        *_write_trick_dictionary_inputs(tmp_path),
+    ])
+    assert setup.returncode == 0, f"17 setup failed.\nstderr: {setup.stderr}"
+    base = count(db, "freestyle_tricks")
+
+    additions = write_csv(
+        tmp_path / "red_additions.csv",
+        ["canonical_name", "adds", "base_trick", "category", "aliases",
+         "modifier_links", "description", "review_status", "is_active", "review_note"],
+        [{"canonical_name": "idem-paradox-clipper", "adds": "2",
+          "base_trick": "clipper", "category": "body", "aliases": "",
+          "modifier_links": "", "description": "Paradox into clipper.",
+          "review_status": "approved", "is_active": "1", "review_note": ""}],
+    )
+    corrections = write_csv(
+        tmp_path / "red_corrections.csv",
+        ["slug", "field", "old_value", "new_value", "source_note"], [],
+    )
+    loader = [
+        "legacy_data/event_results/scripts/19_load_red_additions.py",
+        "--db", str(db),
+        "--additions-csv", str(additions),
+        "--corrections-csv", str(corrections),
+    ]
+    n = assert_idempotent(db, loader, "freestyle_tricks")
+    assert n == base + 1
