@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1544;
+export const TRACKED_UNPUBLISHED_TOTAL = 1541;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -1535,10 +1535,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Scrambled Eggbeater (Atomic Pickup)', slug: 'scrambled-eggbeater-atomic-pickup', operationalNotation: 'Toe > Op Out (DEX) >> Op In (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Shattered (Reverse Whirling)', slug: 'shattered-reverse-whirling' },
     { displayName: 'Shooting (Stepping Paradox Illusion)', slug: 'shooting-stepping-paradox-illusion' },
-    { displayName: 'Shooting Butterfly', slug: 'shooting-butterfly', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Shooting Mirage', slug: 'shooting-mirage', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Shooting Star', slug: 'shooting-star', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Shooting Torque', slug: 'shooting-torque', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
+    { displayName: 'Shooting Star (Shooting Double Over Down)', slug: 'shooting-star-shooting-double-over-down', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Sidewalk (Stepping Butterfly)', slug: 'sidewalk-stepping-butterfly', operationalNotation: 'Clip > Op In (DEX) >> Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Slapping', slug: 'slapping' },
     { displayName: 'Smear (Pixie Mirage)', slug: 'smear-pixie-mirage', operationalNotation: 'Toe > Same In (DEX) >> Op In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

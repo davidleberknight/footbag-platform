@@ -2,7 +2,6 @@
 
 Open doctrine packets:
 - Pogo ADD
-- Shooting operator
 - Spyro governance
 - Blurry transitivity
 

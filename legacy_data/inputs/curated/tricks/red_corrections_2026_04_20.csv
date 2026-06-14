@@ -1868,3 +1868,15 @@ fairy-same-side-mirage,operational_notation_source,,Source: footbag.org 3-ADD mo
 paratoxic,notation,,PARATOXIC,JOB per mechanical rule (canonical_name uppercased).
 paratoxic,operational_notation,,CLIP > SAME IN [PDX] [DEX] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],footbag.org 6-ADD moves page. Bracket-count 6 == 6 ADD.
 paratoxic,operational_notation_source,,Source: footbag.org 6-ADD moves page.,Provenance citation for operational_notation.
+shooting-mirage,notation,,SHOOTING MIRAGE,JOB per mechanical rule.
+shooting-mirage,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP TOE [DEL],footbag.org 5-ADD page. 5 brackets == 5 ADD.
+shooting-mirage,operational_notation_source,,Source: footbag.org 5-ADD moves page.,Provenance citation.
+shooting-butterfly,notation,,SHOOTING BUTTERFLY,JOB per mechanical rule.
+shooting-butterfly,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],footbag.org 6-ADD page. 6 brackets == 6 ADD.
+shooting-butterfly,operational_notation_source,,Source: footbag.org 6-ADD moves page.,Provenance citation.
+shooting-star,notation,,SHOOTING DOUBLE OVER DOWN,JOB = structural decomposition (folk-named set compound; mirrors redwetter).
+shooting-star,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],footbag.org 7-ADD page. 7 brackets == 7 ADD.
+shooting-star,operational_notation_source,,Source: footbag.org 7-ADD moves page.,Provenance citation.
+shooting-torque,notation,,SHOOTING TORQUE,JOB per mechanical rule.
+shooting-torque,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],footbag.org 7-ADD page. 7 brackets == 7 ADD.
+shooting-torque,operational_notation_source,,Source: footbag.org 7-ADD moves page.,Provenance citation.
