@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1541;
+export const TRACKED_UNPUBLISHED_TOTAL = 1538;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -471,10 +471,7 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Sailing Whirl (Juno Reactor)', slug: 'sailing-whirl-juno-reactor' },
     { displayName: 'Scattered Whirl', slug: 'scattered-whirl' },
     { displayName: 'Shooting Barfly (Porn Star)', slug: 'shooting-barfly-porn-star' },
-    { displayName: 'Shooting Clipper', slug: 'shooting-clipper' },
-    { displayName: 'Shooting Da Da Curve', slug: 'shooting-da-da-curve' },
     { displayName: 'Shooting DDD (Shooting Star)', slug: 'shooting-ddd-shooting-star' },
-    { displayName: 'Shooting DLO', slug: 'shooting-dlo' },
     { displayName: 'Shooting Ducking Butterfly', slug: 'shooting-ducking-butterfly' },
     { displayName: 'Shooting Eggbeater (Red Wetter)', slug: 'shooting-eggbeater-red-wetter' },
     { displayName: 'Shooting ss Clipper', slug: 'shooting-ss-clipper' },

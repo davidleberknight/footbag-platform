@@ -1880,3 +1880,15 @@ shooting-star,operational_notation_source,,Source: footbag.org 7-ADD moves page.
 shooting-torque,notation,,SHOOTING TORQUE,JOB per mechanical rule.
 shooting-torque,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],footbag.org 7-ADD page. 7 brackets == 7 ADD.
 shooting-torque,operational_notation_source,,Source: footbag.org 7-ADD moves page.,Provenance citation.
+shooting-clipper,notation,,SHOOTING CLIPPER,JOB per mechanical rule.
+shooting-clipper,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP CLIP [XBD] [DEL],shooting chassis + clipper terminal. 5 brackets == 5 ADD.
+shooting-clipper,operational_notation_source,,Source: derived via shooting chassis (PassBack/FootbagMoves corpus).,Provenance citation.
+shooting-barfly,notation,,SHOOTING BARFLY,JOB per mechanical rule.
+shooting-barfly,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],shooting chassis + barfly body. 7 brackets == 7 ADD.
+shooting-barfly,operational_notation_source,,Source: derived via shooting chassis (PassBack/FootbagMoves corpus).,Provenance citation.
+shooting-da-da-curve,notation,,SHOOTING DA DA CURVE,JOB per mechanical rule.
+shooting-da-da-curve,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > (no plant while) OP OUT [DEX] > OP CLIP [XBD] [DEL],shooting chassis + da-da-curve body. 7 brackets == 7 ADD.
+shooting-da-da-curve,operational_notation_source,,Source: derived via shooting chassis (PassBack/FootbagMoves corpus).,Provenance citation.
+shooting-double-leg-over,notation,,SHOOTING DOUBLE LEG OVER,JOB per mechanical rule.
+shooting-double-leg-over,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],shooting chassis + double-leg-over body. 6 brackets == 6 ADD.
+shooting-double-leg-over,operational_notation_source,,Source: derived via shooting chassis (PassBack/FootbagMoves corpus).,Provenance citation.
