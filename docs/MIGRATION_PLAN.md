@@ -1416,7 +1416,7 @@ Club extraction, name-variants seeding, and world records are built (§20). Outs
 
 ### Phase 3: Needs the legacy-account data (in progress)
 
-The delivered data is under validation (§25 gates). Outstanding code-side work: the optional mailbox-link-click upgrade (§7 item 1) and the stage-and-confirm batch auto-link rework with its staging table (§7 item 3, §15.20).
+The delivered data is under validation (§25 gates). The code-side surfaces are built (the optional mailbox-link-click upgrade per §7 item 1, and the stage-and-confirm batch auto-link staging job with its staging table and cutover runner per §7 item 3, §15.20); what remains is the legacy-account data load and the data-side gates that clear against it (§25).
 
 ### Phase 4: Go-live
 

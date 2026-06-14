@@ -6583,6 +6583,19 @@ export const legacyClaim = {
     LIMIT 1
   `); },
 
+  // A deceased member keeps their historical-person link through the contact
+  // scrub (the record goes on honoring their contributions), but the scrub sets
+  // personal_data_purged_at, which findMemberClaimingHp filters out. This
+  // companion lookup spots a deceased holder so the claim surfaces treat the
+  // record as taken rather than offering it for re-claim by someone else.
+  get findDeceasedMemberHoldingHp() { return db.prepare(`
+    SELECT id
+    FROM members
+    WHERE historical_person_id = ?
+      AND is_deceased = 1
+    LIMIT 1
+  `); },
+
   get checkMemberHasHp() { return db.prepare(`
     SELECT historical_person_id
     FROM members

@@ -133,7 +133,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Reassign_Event_Organizer](#a_reassign_event_organizer)
     - [A_Fix_Event_Results](#a_fix_event_results)
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
-    - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
@@ -743,6 +742,7 @@ Direct historical-record claim:
 - On confirm, the system writes `members.historical_person_id`, carries forward `historical_persons`-sourced fields (country, honor flags, induction year, first competition year) under fill-if-empty merge semantics, and (in case E) transitively claims the back-linked legacy account, applying the full legacy-account claim effects in the same transaction, including the tier grant.
 - Honors-bearing direct claims apply without admin pre-screening (no platform gate); honors data is validated a priori against the public rosters and an admin can review such claims on demand and revert a wrong one (see `A_View_Honors_Oversight_Feed`).
 - A record flagged deceased (`historical_persons.is_deceased = 1`) is not self-claimable: the "Claim this identity" CTA is suppressed and the claim-confirm route (`/history/:personId/claim`) returns the standard non-claimable response, because a living member cannot claim a deceased person's identity as their own account. A member who believes a record was wrongly flagged uses the member-initiated admin help request (`A_Review_Member_Link_Help_Requests`).
+- A historical record that is still linked to a deceased member is likewise not open for another member to claim: the deceased member keeps the historical-person link through the contact scrub (the record goes on honoring their contributions), so the record is treated as already held. The "Claim this identity" CTA is suppressed and the claim-confirm route returns the standard non-claimable response; a member who believes the record is genuinely theirs uses the member-initiated admin help request (`A_Review_Member_Link_Help_Requests`).
 
 Cross-source candidate prompt:
 

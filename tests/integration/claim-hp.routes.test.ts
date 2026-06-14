@@ -404,3 +404,58 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     expect(row.historical_person_id).toBeNull();
   });
 });
+
+// A deceased member keeps their historical-person link through the contact
+// scrub, which also sets personal_data_purged_at. That purge marker hides the
+// holder from findMemberClaimingHp, so without the dedicated deceased-holder
+// check the record would read as unclaimed and a same-surname living member
+// could take it over (inheriting its honors and tier). Both surfaces must treat
+// the record as taken.
+describe('claim of a record held by a deceased contact-scrubbed member', () => {
+  function seedDeceasedHeldHp(hpId: string, holderSlug: string, hof: 0 | 1): void {
+    insertHistoricalPerson(testDb, {
+      person_id: hpId, person_name: 'Robin Mockingbird', hof_member: hof, bap_member: 0,
+    });
+    const holderId = insertMember(testDb, {
+      slug: holderSlug, real_name: 'Robin Mockingbird', display_name: 'Robin Mockingbird',
+      is_deceased: 1, deceased_at: '2020-01-01T00:00:00.000Z',
+      personal_data_purged_at: '2020-02-01T00:00:00.000Z',
+    });
+    testDb.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(hpId, holderId);
+  }
+
+  it('GET suppresses the claim CTA (uniform unavailable response)', async () => {
+    const heldHp = 'hp-deceased-holder-get';
+    seedDeceasedHeldHp(heldHp, 'hpc_dec_holder_get', 0);
+    const claimantId = insertMember(testDb, {
+      slug: 'hpc_dec_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
+      login_email: 'hpc-dec-get@example.com',
+    });
+    const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const app = createApp();
+    const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).not.toContain('link the record');
+  });
+
+  it('POST rejects the claim (422) and leaves the claimant unlinked', async () => {
+    const heldHp = 'hp-deceased-holder-post';
+    seedDeceasedHeldHp(heldHp, 'hpc_dec_holder_post', 1);
+    const claimantId = insertMember(testDb, {
+      slug: 'hpc_dec_claimant_post', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
+      login_email: 'hpc-dec-post@example.com',
+    });
+    const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const app = createApp();
+    const res = await request(app)
+      .post(`/history/${heldHp}/claim/confirm`)
+      .set('Cookie', cookie).type('form').send({});
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already been claimed');
+
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(claimantId) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
+  });
+});

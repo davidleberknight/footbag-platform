@@ -2428,6 +2428,15 @@ function lookupHistoricalPersonForClaim(
     return { status: 'conflict' };
   }
 
+  // A deceased member who held this record keeps the link through the contact
+  // scrub, so the record stays theirs; it is not open for another member to
+  // take over (the scrub's purge marker otherwise hides them from the check
+  // above). Treat it as taken, same as a live claimant.
+  const deceasedHolder = legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
+  if (deceasedHolder) {
+    return { status: 'conflict' };
+  }
+
   // Surname reconciliation is required to proceed: the current real-name
   // surname or any declared former surname must match. Mismatch blocks the
   // claim entirely; callers should not render the confirm page.
@@ -2526,6 +2535,15 @@ function claimHistoricalPersonInTxInner(
 
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
+    throw new ValidationError('This historical record has already been claimed by another member.');
+  }
+
+  // A deceased member who held this record keeps the link through the contact
+  // scrub, so the record stays theirs and is not claimable by another member.
+  // The scrub's purge marker hides them from findMemberClaimingHp, so check for
+  // a deceased holder explicitly and gate the execution path the same way.
+  const deceasedHolder = legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
+  if (deceasedHolder) {
     throw new ValidationError('This historical record has already been claimed by another member.');
   }
 
