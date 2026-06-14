@@ -27,12 +27,12 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 LEGACY_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 SOURCE_CSV  = os.path.join(LEGACY_ROOT, 'inputs', 'curated', 'records', 'consecutives_records.csv')
 
-def load_records(db_path: str) -> None:
-    if not os.path.exists(SOURCE_CSV):
-        print(f"ERROR: source CSV not found: {SOURCE_CSV}", file=sys.stderr)
+def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
+    if not os.path.exists(source_csv):
+        print(f"ERROR: source CSV not found: {source_csv}", file=sys.stderr)
         sys.exit(1)
 
-    with open(SOURCE_CSV, newline='', encoding='utf-8') as f:
+    with open(source_csv, newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -92,6 +92,8 @@ def load_records(db_path: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description='Load consecutive kicks records into SQLite.')
     parser.add_argument('--db', required=True, help='Path to footbag.db')
+    parser.add_argument('--source-csv', default=SOURCE_CSV,
+                        help='Path to consecutives_records.csv source')
     args = parser.parse_args()
 
     db_path = os.path.expanduser(args.db)
@@ -99,7 +101,7 @@ def main() -> None:
         print(f"ERROR: database not found: {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    load_records(db_path)
+    load_records(db_path, os.path.expanduser(args.source_csv))
 
 
 if __name__ == '__main__':

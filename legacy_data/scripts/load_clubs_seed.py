@@ -183,6 +183,8 @@ def main() -> None:
         "--db",
         default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"),
     )
+    ap.add_argument("--clubs-csv", default=str(CSV_PATH))
+    ap.add_argument("--verdicts-csv", default=str(VERDICTS_PATH))
     args = ap.parse_args()
 
     db_path = Path(args.db)
@@ -190,13 +192,15 @@ def main() -> None:
         print(f"ERROR: database not found at {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    if not CSV_PATH.exists():
-        print(f"ERROR: clubs CSV not found at {CSV_PATH}", file=sys.stderr)
+    clubs_csv = Path(args.clubs_csv)
+    verdicts_csv = Path(args.verdicts_csv)
+    if not clubs_csv.exists():
+        print(f"ERROR: clubs CSV not found at {clubs_csv}", file=sys.stderr)
         print("Run legacy_data/scripts/extract_clubs.py first.", file=sys.stderr)
         sys.exit(1)
 
-    rows = load_csv(CSV_PATH)
-    verdicts = load_verdicts(VERDICTS_PATH)
+    rows = load_csv(clubs_csv)
+    verdicts = load_verdicts(verdicts_csv)
     ts = now_iso()
 
     con = sqlite3.connect(db_path)

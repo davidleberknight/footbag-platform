@@ -9,9 +9,11 @@ is caught instead of silently double-loading on the next pipeline run.
 
 Covered: the enrichment candidate loader, the freestyle-records loader, the
 name-variants seed loader, the club cutover, the MVFP seed loader (08), the
-trick-dictionary loader (17), and the red-additions loader (19). All inputs are
-synthetic and written to a temp dir; the cutover reads the committed seed CSV
-read-only and is seeded with a candidate keyed to a real seed row.
+trick-dictionary loader (17), the red-additions loader (19), the consecutive-
+records loader (11), and the three club/legacy seed loaders (clubs, club
+members, legacy members). All inputs are synthetic and written to a temp dir,
+fed through each loader's input-path flags; the cutover reads the committed seed
+CSV read-only and is seeded with a candidate keyed to a real seed row.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_loader_idempotency.py -v
@@ -316,3 +318,124 @@ def test_red_additions_loader_idempotent(tmp_path: Path) -> None:
     ]
     n = assert_idempotent(db, loader, "freestyle_tricks")
     assert n == base + 1
+
+
+# Synthetic-fixture cases for the seed loaders that previously hardcoded their
+# input paths; each now takes an input-path override flag (default unchanged), so
+# the loader reads a tmp_path fixture here and never a real-data tree.
+
+CLUBS_HEADER = ["legacy_club_key", "name", "city", "region", "country",
+                "contact_email", "contact_member_id", "external_url",
+                "description", "created", "last_updated"]
+CLUB_MEMBERS_HEADER = ["legacy_club_key", "mirror_member_id", "display_name", "alias"]
+
+
+def _one_club_row() -> dict:
+    return {"legacy_club_key": "idem-club-1", "name": "Idem Club", "city": "Town",
+            "region": "State", "country": "United States", "contact_email": "",
+            "contact_member_id": "", "external_url": "", "description": "A club.",
+            "created": "", "last_updated": ""}
+
+
+def test_consecutive_records_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    src = write_csv(
+        tmp_path / "consecutives.csv",
+        ["section", "subsection", "sort_order", "category", "division", "year",
+         "rank", "person_or_team", "partner", "score", "note", "event_date",
+         "event_name", "location"],
+        [{"section": "Singles", "subsection": "Open", "sort_order": "1",
+          "category": "consecutive", "division": "open", "year": "2010",
+          "rank": "1", "person_or_team": "Idem Player", "partner": "",
+          "score": "100", "note": "", "event_date": "2010-01-01",
+          "event_name": "Idem Open", "location": "Town"}],
+    )
+    loader = [
+        "legacy_data/event_results/scripts/11_load_consecutive_records_to_sqlite.py",
+        "--db", str(db),
+        "--source-csv", str(src),
+    ]
+    n = assert_idempotent(db, loader, "consecutive_kicks_records")
+    assert n >= 1
+
+
+def test_clubs_seed_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    clubs = write_csv(tmp_path / "clubs.csv", CLUBS_HEADER, [_one_club_row()])
+    # Empty verdicts file: no URL verdict for the club, which the loader handles.
+    verdicts = write_csv(
+        tmp_path / "verdicts.csv",
+        ["legacy_club_key", "external_url", "validated_at", "quarantine_reason"], [],
+    )
+    loader = [
+        "legacy_data/scripts/load_clubs_seed.py",
+        "--db", str(db),
+        "--clubs-csv", str(clubs),
+        "--verdicts-csv", str(verdicts),
+    ]
+    n = assert_idempotent(db, loader, "clubs")
+    assert n >= 1
+
+
+def test_club_members_seed_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    clubs = write_csv(tmp_path / "cm_clubs.csv", CLUBS_HEADER, [_one_club_row()])
+    verdicts = write_csv(
+        tmp_path / "cm_verdicts.csv",
+        ["legacy_club_key", "external_url", "validated_at", "quarantine_reason"], [],
+    )
+    members = write_csv(
+        tmp_path / "club_members.csv", CLUB_MEMBERS_HEADER,
+        [{"legacy_club_key": "idem-club-1", "mirror_member_id": "m-1",
+          "display_name": "Idem Player", "alias": ""}],
+    )
+    no_persons = write_csv(tmp_path / "cm_persons.csv",
+                           ["person_id", "person_name", "member_id"], [])
+    # Same order as the real pipeline: the candidate loader skips any club absent
+    # from the clubs table (and keys club_id off the same stable_id the clubs
+    # loader writes), and the unmatched-affiliation insert references
+    # legacy_members by mirror_member_id, so both must be seeded first.
+    for setup_args in (
+        ["legacy_data/scripts/load_clubs_seed.py", "--db", str(db),
+         "--clubs-csv", str(clubs), "--verdicts-csv", str(verdicts)],
+        ["legacy_data/scripts/load_legacy_members_seed.py", "--db", str(db),
+         "--club-members-csv", str(members), "--persons-csv", str(no_persons),
+         "--profiles-csv", str(tmp_path / "no_profiles.csv")],
+    ):
+        setup = run(setup_args)
+        assert setup.returncode == 0, f"setup failed: {setup_args[0]}\nstderr: {setup.stderr}"
+
+    loader = [
+        "legacy_data/scripts/load_club_members_seed.py",
+        "--db", str(db),
+        "--clubs-csv", str(clubs),
+        "--members-csv", str(members),
+    ]
+    n = assert_idempotent(db, loader, "legacy_club_candidates")
+    assert n >= 1
+
+
+def test_legacy_members_seed_loader_idempotent(tmp_path: Path) -> None:
+    db = make_db(tmp_path)
+    members = write_csv(
+        tmp_path / "lm_club_members.csv", CLUB_MEMBERS_HEADER,
+        [{"legacy_club_key": "idem-club-1", "mirror_member_id": "m-1",
+          "display_name": "Idem Player", "alias": ""}],
+    )
+    # Header-only persons file: the club_members rows alone yield legacy_members,
+    # so no person gap-fill is needed to get a non-empty target.
+    persons = write_csv(
+        tmp_path / "lm_persons.csv",
+        ["person_id", "person_name", "member_id"], [],
+    )
+    loader = [
+        "legacy_data/scripts/load_legacy_members_seed.py",
+        "--db", str(db),
+        "--club-members-csv", str(members),
+        "--persons-csv", str(persons),
+        # Point profiles at a nonexistent tmp path so the loader never reads the
+        # real seed tree (it logs an INFO skip when profiles are absent).
+        "--profiles-csv", str(tmp_path / "no_profiles.csv"),
+    ]
+    n = assert_idempotent(db, loader, "legacy_members")
+    assert n >= 1

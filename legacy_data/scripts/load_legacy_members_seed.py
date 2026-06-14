@@ -65,6 +65,9 @@ def main() -> None:
         "--db",
         default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"),
     )
+    ap.add_argument("--club-members-csv", default=str(CLUB_MEMBERS_CSV))
+    ap.add_argument("--persons-csv", default=str(PERSONS_CSV))
+    ap.add_argument("--profiles-csv", default=str(PROFILES_CSV))
     args = ap.parse_args()
 
     db_path = Path(args.db)
@@ -72,18 +75,21 @@ def main() -> None:
         print(f"ERROR: database not found at {db_path}", file=sys.stderr)
         sys.exit(1)
 
-    if not CLUB_MEMBERS_CSV.exists():
-        print(f"ERROR: {CLUB_MEMBERS_CSV} not found; "
+    club_members_csv = Path(args.club_members_csv)
+    persons_csv = Path(args.persons_csv)
+    profiles_csv = Path(args.profiles_csv)
+    if not club_members_csv.exists():
+        print(f"ERROR: {club_members_csv} not found; "
               f"run extract_club_members.py first.", file=sys.stderr)
         sys.exit(1)
 
-    if not PERSONS_CSV.exists():
-        print(f"ERROR: {PERSONS_CSV} not found; "
+    if not persons_csv.exists():
+        print(f"ERROR: {persons_csv} not found; "
               f"run the canonical pipeline export first.", file=sys.stderr)
         sys.exit(1)
 
-    club_rows = load_csv(CLUB_MEMBERS_CSV)
-    persons_rows = load_csv(PERSONS_CSV)
+    club_rows = load_csv(club_members_csv)
+    persons_rows = load_csv(persons_csv)
     ts = now_iso()
 
     # id -> display_name. First occurrence wins when an id appears in multiple clubs.
@@ -125,8 +131,8 @@ def main() -> None:
     # Phase 2: enrich existing rows with mirror profile data (bio, city, country,
     # ifpa_join_date). Fill-if-empty: only populate fields that are currently NULL.
     enriched = 0
-    if PROFILES_CSV.exists():
-        profile_rows = load_csv(PROFILES_CSV)
+    if profiles_csv.exists():
+        profile_rows = load_csv(profiles_csv)
         with con:
             for r in profile_rows:
                 mid = r.get("mirror_member_id", "").strip()
@@ -154,7 +160,7 @@ def main() -> None:
                 )
                 enriched += cur.rowcount
     else:
-        print(f"INFO: {PROFILES_CSV} not found; skipping profile enrichment. "
+        print(f"INFO: {profiles_csv} not found; skipping profile enrichment. "
               f"Run extract_member_profiles.py to generate it.")
 
     con.close()
@@ -163,7 +169,7 @@ def main() -> None:
         f"Done. legacy_members rows inserted: {inserted} "
         f"(sources considered: {len(rows_by_id)} unique IDs)"
     )
-    if PROFILES_CSV.exists():
+    if profiles_csv.exists():
         print(f"Profile enrichment: {enriched} rows updated with mirror profile data.")
 
 
