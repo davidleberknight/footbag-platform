@@ -1,3 +1,9 @@
+> **SUPERSEDED FOR REVIEW PURPOSES BY:**
+>
+> `exploration/red-frontier-doctrine-round-2026/PACKET.md`
+>
+> This packet remains as the detailed evidence dossier for this doctrine question.
+
 # Curator Packet — Pogo ADD Doctrine
 
 ## Why this packet exists

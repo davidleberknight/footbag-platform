@@ -1,9 +1,17 @@
 # Next doctrine round
 
-Open doctrine packets:
-- Pogo ADD
-- Spyro governance
-- Blurry transitivity
+**Primary entry point:** `exploration/red-frontier-doctrine-round-2026/PACKET.md`
+— the consolidated decision packet for the Red round. The individual packets below remain
+as detailed evidence dossiers it references.
+
+Open doctrine packets (dossiers under the consolidated packet):
+- Pogo ADD — `exploration/pogo-add-doctrine-packet/`
+- Spyro governance — `exploration/spyro-governance-packet/`
+- Blurry transitivity — `exploration/blurry-transitivity-packet/`
+- Down / DOD doctrine — covered in the consolidated packet (Section A1)
+- Weaving doctrine — covered in the consolidated packet (Section A2)
+- Atomic / Illusioning naming — covered in the consolidated packet (Section D1)
+- X-Dex eligibility follow-up — covered in the consolidated packet (Section E1)
 
 Known Class-B candidates:
 - Toe Whirr (toe-entry SAME/OP ambiguity vs double-whirl)
