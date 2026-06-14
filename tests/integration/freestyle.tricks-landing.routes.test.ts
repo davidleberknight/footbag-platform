@@ -65,6 +65,17 @@ beforeAll(async () => {
   });
   insertFreestyleTrickModifierLink(db, 'mirage', 'pixie');
 
+  // A second whirl-family trick so the By-family view renders a real family
+  // SECTION (sections need >1 member), which the jump index links to.
+  insertFreestyleTrick(db, {
+    slug:           'ducking-whirl',
+    canonical_name: 'ducking whirl',
+    adds:           '4',
+    base_trick:     'whirl',
+    trick_family:   'whirl',
+    category:       'compound',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -221,6 +232,16 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     }
     // eclipse is a minor lineage, not a first-class landing-card chip.
     expect(res.text).not.toMatch(/href="\/freestyle\/tricks\?family[^"]*eclipse"/);
+  });
+
+  it('By family view renders a jump index linking to in-page family-section anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toContain('class="family-jump"');
+    expect(res.text).toContain('Root families:');
+    // whirl has >1 member in the seed, so its family section + jump chip render;
+    // the chip targets the in-page anchor, not the ?family= detail page.
+    expect(res.text).toMatch(/href="#family-whirl"/);
+    expect(res.text).toContain('class="family-jump-count"');
   });
 
   it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {

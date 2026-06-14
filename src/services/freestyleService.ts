@@ -2843,6 +2843,10 @@ export interface FreestyleTricksIndexContent {
   // Minor lineages: conserved-terminal families below the current first-class
   // threshold, shown as a compact band rather than full sections.
   minorLineages: FreestyleMinorLineage[];
+  // In-page jump index for the family view: root families and derived branch
+  // families as anchor chips, so readers can skip between family sections
+  // without scrolling the full list. Derived purely from familyGroups.
+  familyJumpIndex: FreestyleFamilyJumpIndex;
   // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
   // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
   setGroups: FreestyleSetGroup[];
@@ -2966,6 +2970,22 @@ export interface FreestyleFamilyGroup {
   // eggbeater under legover), the display name of its parent root family. Null
   // for a root family.
   branchParentName: string | null;
+}
+
+// One chip in the family-view jump index.
+export interface FreestyleFamilyJumpChip {
+  slug: string;
+  name: string;
+  count: number;     // rendered trick count in that family section
+  anchor: string;    // in-page hash, e.g. "#family-whirl"
+}
+
+// Jump index for the family view: root families first, then derived branch
+// families; a single entry points at the minor-lineages band when present.
+export interface FreestyleFamilyJumpIndex {
+  roots: FreestyleFamilyJumpChip[];
+  branches: FreestyleFamilyJumpChip[];
+  hasMinorLineages: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -8118,6 +8138,22 @@ export const freestyleService = {
       f => familyTier(f.slug) === 'family-parent',
     );
 
+    // Family-view jump index: anchor chips for the first-class family sections,
+    // split into root vs derived-branch (branchParentName != null) so a reader
+    // can skip directly to a family without scrolling. Derived from the already
+    // rendered familyParentGroups; the minor-lineages band gets a single entry.
+    const familyJumpChip = (g: FreestyleFamilyGroup): FreestyleFamilyJumpChip => ({
+      slug: g.familySlug,
+      name: g.familyName,
+      count: g.cards.length,
+      anchor: `#family-${g.familySlug}`,
+    });
+    const familyJumpIndex: FreestyleFamilyJumpIndex = {
+      roots: familyParentGroups.filter(g => g.branchParentName === null).map(familyJumpChip),
+      branches: familyParentGroups.filter(g => g.branchParentName !== null).map(familyJumpChip),
+      hasMinorLineages: minorLineages.length > 0,
+    };
+
     // Modifier clusters (organizational UX): bucket the active modifier setGroups
     // into curated higher-level clusters for the By-modifier jump menu + the
     // grouped sets page. Reversible content map; modifiers not listed in a
@@ -8292,6 +8328,7 @@ export const freestyleService = {
         groups,
         familyGroups: familyParentGroups,
         minorLineages,
+        familyJumpIndex,
         setGroups,
         setsClusterView,
         componentView,

@@ -267,6 +267,27 @@
   {{/if}}
   <p class="family-view-ordering-note"><em>Families are listed in the dictionary's canonical order: the root families first, then the derived branch families (torque and blender under osis; double legover and eggbeater under legover).</em></p>
   {{#if content.familyScale}}<p class="browse-view-scale">{{content.familyScale}}</p>{{/if}}
+  {{! Family jump index. Static hash-anchor chips (no JS), grouped into root
+      families and derived branch families, plus a link to the minor-lineages
+      band. Lets readers skip between family sections without scrolling. }}
+  {{#if content.familyJumpIndex.roots.length}}
+  <nav class="family-jump" aria-label="Jump to family">
+    <span class="family-jump-label">Root families:</span>
+    {{#each content.familyJumpIndex.roots}}
+      <a href="{{anchor}}">{{name}} <span class="family-jump-count">{{count}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+    {{#if content.familyJumpIndex.branches.length}}
+    <span class="family-jump-label family-jump-label--branch">Derived / branch:</span>
+    {{#each content.familyJumpIndex.branches}}
+      <a href="{{anchor}}">{{name}} <span class="family-jump-count">{{count}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+    {{/if}}
+    {{#if content.familyJumpIndex.hasMinorLineages}}
+    <span class="family-jump-label family-jump-label--minor">Minor lineages:</span>
+    <a href="#minor-lineages">All minor lineages</a>
+    {{/if}}
+  </nav>
+  {{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
   <section class="content-section trick-family-group" id="family-{{familySlug}}" data-anchor-style="solid">
