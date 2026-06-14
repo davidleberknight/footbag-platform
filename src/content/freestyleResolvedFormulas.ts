@@ -926,6 +926,17 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operationalNotation: 'TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP TOE [DEL]',
   },
   {
+    slug:        'stepping-double-switch-over',
+    name:        'stepping double switch-over',
+    operator:    'stepping',
+    base:        'double-switch-over',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'stepping(+1) + double-switch-over(3) = 4 ADD',
+    provenance:  'stepping = +1 set modifier; double-switch-over = 3 ADD base. footbag.org "Stepping Opposite Reaper" — the opposite-reaper base is double-switch-over; stepping prefixes a leading OP IN dex.',
+    operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]',
+  },
+  {
     slug:        'pixie-double-switch-over',
     name:        'pixie double switch-over',
     operator:    'pixie',

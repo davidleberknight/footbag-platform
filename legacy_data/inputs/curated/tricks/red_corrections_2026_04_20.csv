@@ -1892,3 +1892,12 @@ shooting-da-da-curve,operational_notation_source,,Source: derived via shooting c
 shooting-double-leg-over,notation,,SHOOTING DOUBLE LEG OVER,JOB per mechanical rule.
 shooting-double-leg-over,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],shooting chassis + double-leg-over body. 6 brackets == 6 ADD.
 shooting-double-leg-over,operational_notation_source,,Source: derived via shooting chassis (PassBack/FootbagMoves corpus).,Provenance citation.
+double-blender,notation,,DOUBLE BLENDER,JOB per mechanical rule.
+double-blender,operational_notation,,SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],footbag.org 5-ADD page. 5 brackets == 5 ADD.
+double-blender,operational_notation_source,,Source: footbag.org 5-ADD moves page.,Provenance citation.
+spinning-symposium-down-double-down,notation,,SPINNING SYMPOSIUM DOWN DOUBLE DOWN,JOB per mechanical rule.
+spinning-symposium-down-double-down,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) OP OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],footbag.org 6-ADD page. 6 brackets == 6 ADD.
+spinning-symposium-down-double-down,operational_notation_source,,Source: footbag.org 6-ADD moves page.,Provenance citation.
+stepping-double-switch-over,notation,,STEPPING DOUBLE SWITCH OVER,JOB per mechanical rule.
+stepping-double-switch-over,operational_notation,,CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],footbag.org 4-ADD page (Stepping Opposite Reaper). stepping prefix + double-switch-over body. 4 brackets == 4 ADD.
+stepping-double-switch-over,operational_notation_source,,Source: footbag.org 4-ADD moves page.,Provenance citation.

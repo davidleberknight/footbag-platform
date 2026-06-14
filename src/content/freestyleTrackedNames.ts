@@ -38,7 +38,7 @@ export interface TrackedNameGroup {
 }
 
 /** Total tracked-but-unpublished names across all sources. */
-export const TRACKED_UNPUBLISHED_TOTAL = 1538;
+export const TRACKED_UNPUBLISHED_TOTAL = 1535;
 
 export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -1450,7 +1450,6 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Components of sets, but not neccesssarily sets', slug: 'components-of-sets-but-not-neccesssarily-sets' },
     { displayName: 'Dimwalk (Pixie Opposite Side Butterfly)', slug: 'dimwalk-pixie-opposite-side-butterfly', operationalNotation: 'Toe > Same In (DEX) >> Op Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Diving', slug: 'diving' },
-    { displayName: 'Double Blender', slug: 'double-blender', operationalNotation: 'SET > OP IN [DEX] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Down Diver (Diving Down Double-Down)', slug: 'down-diver-diving-down-double-down', operationalNotation: 'Clip >> Dive (BOD) >> Op Out (DEX) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Eggbeater (Atomic Legover)', slug: 'eggbeater-atomic-legover', operationalNotation: 'Toe >> Op Out (DEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Fairy Atomic', slug: 'fairy-atomic' },
@@ -1542,11 +1541,9 @@ export const TRACKED_UNPUBLISHED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Snapping (Dragon set Swirling)', slug: 'snapping-dragon-set-swirling' },
     { displayName: 'Sonic (double spinning)', slug: 'sonic-double-spinning' },
     { displayName: 'Spike Hammer (Stepping Ducking Paradox Mirage)', slug: 'spike-hammer-stepping-ducking-paradox-mirage', operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Spinning Symposium Down Double Down', slug: 'spinning-symposium-down-double-down', operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) > OP OUT [BOD] [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spyro Illusion', slug: 'spyro-illusion', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME OUT [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spyro Mirage', slug: 'spyro-mirage', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Spyro Whirl', slug: 'spyro-whirl', operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
-    { displayName: 'Stepping Opposite Reaper', slug: 'stepping-opposite-reaper', operationalNotation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]', formulaProvenance: 'footbag.org' },
     { displayName: 'Stepping P.S. Whirling x-body Rake', slug: 'stepping-ps-whirling-x-body-rake', operationalNotation: 'CLIP > OP IN [DEX] > (no plant while) OP IN [PDX] [BOD] [DEX] > OP X-BODY RAKE [XBD] [DEL] [DEX]', formulaProvenance: 'footbag.org' },
     { displayName: 'Superfly (Symposium Barfly)', slug: 'superfly-symposium-barfly', operationalNotation: 'Clip >> (no plant while) Same Out (DEX)(BOD) > Same Out (DEX) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Surge (Surging Paradox Mirage)', slug: 'surge-surging-paradox-mirage', operationalNotation: 'Clip > (back) Spin (BOD) > Same In (DEX) >> Op In (DEX)(PDX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },

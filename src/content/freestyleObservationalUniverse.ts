@@ -642,7 +642,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Spinning far Double Down", "slug": "spinning-far-double-down", "source": "PB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spinning near Double Down", "slug": "spinning-near-double-down", "source": "PB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Spinning Symposium Double Over Down", "slug": "spinning-symposium-double-over-down", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
-  {"name": "Spinning Symposium Down Double Down", "slug": "spinning-symposium-down-double-down", "source": "FB", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Toe set Spinning Double Over Down", "slug": "toe-set-spinning-double-over-down", "source": "FM", "ecosystem": "spinning/gyro", "parentFamily": "", "section": "doctrine", "cluster": "dod-ddd", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "ambiguous-terminal-mechanic", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry (Stepping Paradox)", "slug": "blurry-stepping-paradox", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "doctrine", "cluster": "blurry", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
   {"name": "Blurry Drifter (Stepping Paradox Drifter)", "slug": "blurry-drifter-stepping-paradox-drifter", "source": "FB", "ecosystem": "stepping", "parentFamily": "", "section": "doctrine", "cluster": "blurry", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "doctrine_pending", "lexicalVariants": [], "layer": "frontier"},
@@ -1305,7 +1304,6 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Clipper set ss Double Over Down", "slug": "clipper-set-ss-double-over-down", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Da Da Curve Swirl", "slug": "da-da-curve-swirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Da Da Curve XBD Rake", "slug": "da-da-curve-xbd-rake", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
-  {"name": "Double Blender", "slug": "double-blender", "source": "FB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Double Down", "slug": "double-down", "source": "PB", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "policy-dependent", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Double Over Downing Osis", "slug": "double-over-downing-osis", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
   {"name": "Double Reverse Swirl", "slug": "double-reverse-swirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "parser", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "low_confidence", "lexicalVariants": [], "layer": "archive"},
@@ -1387,7 +1385,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 1312,
+    "total": 1310,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1395,16 +1393,16 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 168,
-    "lexicalArchive": 1138,
+    "promotionFrontier": 167,
+    "lexicalArchive": 1137,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 14,
         "distinctStructures": 14
       },
       "doctrine_pending": {
-        "names": 113,
-        "distinctStructures": 113
+        "names": 112,
+        "distinctStructures": 112
       },
       "unresolved_candidate": {
         "names": 41,
@@ -1423,8 +1421,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 4
       },
       "low_confidence": {
-        "names": 626,
-        "distinctStructures": 626
+        "names": 625,
+        "distinctStructures": 625
       },
       "doctrine_unresolved": {
         "names": 83,
@@ -1433,9 +1431,9 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     },
     "ready": 2,
     "frontier": 53,
-    "doctrineBlocked": 196,
+    "doctrineBlocked": 195,
     "folkUnresolved": 691,
-    "parserUnresolved": 370,
+    "parserUnresolved": 369,
     "promotionReadyPct": 4,
     "doctrineBlockedPct": 15,
     "folkUnresolvedPct": 53,
@@ -1445,7 +1443,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "SG": 576,
       "FM": 372,
       "PB": 256,
-      "FB": 99,
+      "FB": 97,
       "MULTI": 9
     },
     "generatedOn": "2026-06-13"

@@ -6,12 +6,9 @@ Open doctrine packets:
 - Blurry transitivity
 
 Known Class-B candidates:
-- Double Blender
-- Toe Whirr
-- Toe Double Drifter
-- Stepping Opposite Reaper
-- Leg-Over Flapper Stall
-- Spinning Symposium Down Double Down
+- Toe Whirr (toe-entry SAME/OP ambiguity vs double-whirl)
+- Toe Double Drifter (toe-entry + double ambiguity)
+- Leg-Over Flapper Stall (Class C: leg-over into a cross-body sole stall)
 
 Shooting compounds pending curator notation:
 - ss-variants: Shooting ss Clipper / Illusion / Legover / Mirage / Pickup (no same-side exemplar; distinct-vs-collapse unresolved)
