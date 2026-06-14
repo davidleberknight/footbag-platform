@@ -105,6 +105,8 @@ export interface MemberSearchEntry {
   isBap: boolean;
   isBoard: boolean;
   isHistorical: boolean;
+  /** 'Male' / 'Female' when the member opted gender into public visibility, else null. */
+  genderLabel: string | null;
 }
 
 export interface MemberSearchResult {
@@ -289,9 +291,11 @@ export interface ProfileEditContent extends OwnProfileContent {
   emailVisibilityLocked: boolean;
   legacyClaimCtaHref:  string | null;
   legacyClaimCtaLabel: string | null;
-  /** Current stored gender ('male'/'female'/'undisclosed'), or '' when unset, so
-   *  the edit control preselects the existing value. */
+  /** Current stored gender ('male'/'female'/'undisclosed'); falls back to
+   *  'undisclosed' when unset, so the edit control always preselects a value. */
   gender: string;
+  /** Whether the member opted gender into public visibility (checkbox state). */
+  showGender: boolean;
   error?: string;
   avatarError?: string;
   avatarSuccess?: string;
@@ -322,6 +326,9 @@ export interface PublicProfileContent {
   contactWhatsapp: string | null;
   tierBadgeText: string | null;
   isActivePlayer: boolean;
+  /** 'Male' / 'Female' when the member opted gender into public visibility and
+   *  the viewer is authenticated, else null. */
+  genderLabel: string | null;
   /** Validated external links (max 3), shown on the public profile. */
   links: MemberLinkView[];
 }
@@ -340,6 +347,9 @@ export interface ProfileEditInput {
   firstCompetitionYear: string;
   showCompetitiveResults: string | string[];
   showFirstCompetitionYear: string | string[];
+  /** Opt-in: when set, gender is shown to signed-in members on the profile,
+   *  member search, and club rosters. */
+  showGender: string | string[];
   /** One of male / female / undisclosed when changing the stored value; blank
    *  or unrecognized leaves the current value untouched (no clear-to-null). */
   gender: string;
@@ -350,6 +360,21 @@ export interface ProfileEditInput {
 
 function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+// Gender appears on cross-member surfaces (profile, search, roster) only when
+// the member opted in (show_gender = 1) and a binary value is stored;
+// 'undisclosed' publishes nothing. It is member-visible (Sensitivity 2), so an
+// unauthenticated viewer never sees it, mirroring the opt-in contact fields.
+function genderPublicLabel(
+  gender: string | null,
+  showGender: number,
+  viewerAuthenticated: boolean,
+): string | null {
+  if (!viewerAuthenticated || showGender !== 1) return null;
+  if (gender === 'male') return 'Male';
+  if (gender === 'female') return 'Female';
+  return null;
 }
 
 function resolveHistoricalName(row: MemberProfileRow): string | null {
@@ -773,6 +798,7 @@ export const memberService = {
         contactWhatsapp,
         tierBadgeText,
         isActivePlayer,
+        genderLabel:    genderPublicLabel(row.gender, row.show_gender, viewer.authenticated),
         links:          buildMemberLinksView(row.id),
       },
     };
@@ -800,7 +826,10 @@ export const memberService = {
         emailVisibilityLocked: clubLeaders.memberCoLeadsAnyClub.get(row.id) != null,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
-        gender: row.gender ?? '',
+        // Defaults to undisclosed so the edit control preselects a real value
+        // even before the member has made an explicit choice.
+        gender: row.gender ?? 'undisclosed',
+        showGender: row.show_gender !== 0,
         error,
         avatarError,
         avatarSuccess,
@@ -861,6 +890,12 @@ export const memberService = {
       ? input.showFirstCompetitionYear[input.showFirstCompetitionYear.length - 1]
       : input.showFirstCompetitionYear;
     const showYear = rawShowYear === '0' ? 0 : 1;
+    // Gender public visibility defaults off: only an explicit '1' (the checked
+    // box) opts in; absent or '0' stays private.
+    const rawShowGender = Array.isArray(input.showGender)
+      ? input.showGender[input.showGender.length - 1]
+      : input.showGender;
+    const showGender = rawShowGender === '1' ? 1 : 0;
     // Gender is editable to one of the three stored values. A blank or unrecognized
     // submission leaves the current value intact (COALESCE in the update), so a
     // save that does not touch the control never clears an existing value.
@@ -892,6 +927,7 @@ export const memberService = {
         validYear,
         showResults,
         showYear,
+        showGender,
         genderValue,
         now,
         row.id,
@@ -913,7 +949,7 @@ export const memberService = {
         'bio', 'city', 'region', 'country', 'phone', 'whatsapp', 'emailVisibility',
         'phoneVisible', 'whatsappVisible', 'searchable',
         'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
-        'gender',
+        'gender', 'showGender',
         'links',
       ]);
     });
@@ -1136,6 +1172,8 @@ export const memberService = {
         isBap: Boolean(r.is_bap),
         isBoard: Boolean(r.is_board),
         isHistorical: false,
+        // Member search is authenticated-only, so the opted-in label is visible here.
+        genderLabel: genderPublicLabel(r.gender, r.show_gender, true),
       });
     }
 
@@ -1152,6 +1190,7 @@ export const memberService = {
         isBap: Boolean(r.bap_member),
         isBoard: false,
         isHistorical: !isClaimed,
+        genderLabel: null,
       });
     }
 

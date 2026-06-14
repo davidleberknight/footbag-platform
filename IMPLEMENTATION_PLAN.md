@@ -34,3 +34,21 @@ exist, not on the harness:
 Add each persona (plus its adjacent-owner negative where the route is ownership-scoped)
 in the change that lands its feature. The system / internal-caller actor is not a catalog
 persona: it is exercised by the secret-gated `/ipc` request, not a `/dev/switch` session.
+
+### Accessibility (`@a11y`) axe checks specified but not wired
+
+`docs/TESTING.md` §14.1 specifies automated accessibility checks via
+`@axe-core/playwright`, tagged `@a11y`, on every business-critical surface
+against WCAG 2.1 AA, with a `@smoke @a11y` subset on high-traffic public pages.
+The dependency is installed, but no `@a11y` test exists and the runner has no
+accessibility-only gate. To close the gap:
+
+- Add `@a11y` axe assertions (`new AxeBuilder({ page }).analyze()` against the
+  WCAG 2.1 AA ruleset, failing on new violations) to the lightweight Playwright
+  suite, one per business-critical surface; tag the high-traffic public subset
+  `@smoke @a11y`.
+- Add an `--axe` flag to `run_all_tests.sh` that runs only the `@a11y`-tagged
+  Playwright tests, and ensure `--full` exercises them.
+
+Delete this entry when the `@a11y` axe gate runs green in CI and via
+`./run_all_tests.sh --axe`.

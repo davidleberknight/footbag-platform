@@ -24,14 +24,6 @@ export function isoDaysFromNow(days: number): string {
   return isoFromNow(days * DAY_MS);
 }
 
-export function isoDaysAgo(days: number): string {
-  return isoFromNow(-days * DAY_MS);
-}
-
-export function isoHoursFromNow(hours: number): string {
-  return isoFromNow(hours * HOUR_MS);
-}
-
 export function isoHoursAgo(hours: number): string {
   return isoFromNow(-hours * HOUR_MS);
 }

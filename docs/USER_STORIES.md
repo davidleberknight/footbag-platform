@@ -804,7 +804,7 @@ Optional metadata task acceptance criteria:
 
 - `first_competition_year`: collected as a field within the `personal_details` task alongside city, region, country, and date of birth. Prefilled from `historical_persons.first_year` when a legacy claim has linked an HP record, otherwise blank. The value is editable later via M_Edit_Profile.
 - `show_competitive_results`: collected as a checkbox within the `personal_details` task. Default on. The toggle is editable later via M_Edit_Profile.
-- `gender` (competition eligibility): collected as a Male / Female / Prefer-not-to-say field within the `personal_details` task, alongside date of birth, stored as `male` / `female` / `undisclosed` and defaulting to `undisclosed`. Private (visible to the member and admins only); never shown on public surfaces, member search, or rosters. Used only for gender-gated event-category eligibility. Editable later via M_Edit_Profile.
+- `gender` (competition eligibility): collected as a Male / Female / Prefer-not-to-say field within the `personal_details` task, alongside date of birth, stored as `male` / `female` / `undisclosed` and defaulting to `undisclosed`. Owner-and-admin by default; a member may later opt in (via M_Edit_Profile) to show it to signed-in members on the profile, in member search, and on club rosters. Used only for gender-gated event-category eligibility. The value and its visibility are editable later via M_Edit_Profile.
 
 ## 3.2 Profile Management
 
@@ -820,7 +820,7 @@ Success Criteria:
 - **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). Contact IFPA admin for corrections.
 - City, country, and email are mandatory fields; phone is optional.
 - **Contact fields and per-field visibility:** `phone` and `whatsapp` are optional, both editable here (`whatsapp` format-validated, rendered as a chat link). Each contact field (contact email, phone, WhatsApp) has its own visibility toggle, default off. When toggled on, the field is shown to authenticated members only (Sensitivity 2), never on public surfaces. Holding a club co-leader or event organizer role forces that member's contact email visible to authenticated members and locks its toggle on while the role is held (see DATA_GOVERNANCE §3). Changes are audit-logged.
-- **Gender (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Private (visible to the member and admins only); never shown on public surfaces, member search, or rosters. Used only for gender-gated event-category eligibility (see M_Register_For_Event). Changes are audit-logged.
+- **Gender (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Owner-and-admin by default; a member may opt in via a "Show my gender on my public profile" toggle (default off) to make it visible to signed-in members on the member profile, in member search, and on club rosters. Only Male / Female render when opted in (Prefer not to say stays hidden), and it is never shown to an unauthenticated visitor. Used only for gender-gated event-category eligibility (see M_Register_For_Event). The value and the visibility toggle are both editable here; changes are audit-logged.
 - **Discoverable in member search** (`searchable`, default on): a self-service toggle labeled "Allow other members to find me in member search." When off, the member is excluded from `M_Search_Members` results (enforced by the `members_active` view), but their profile remains reachable by direct link and they still appear to club co-members on rosters; the toggle governs search inclusion only. Changes are audit-logged.
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
@@ -829,7 +829,7 @@ Success Criteria:
   - `former_surnames` (optional, multi-valued): zero or more surnames the member previously used (e.g. before marriage). Participates in legacy-claim matching alongside the current real-name surname. Never displayed on public surfaces, member search, or any cross-member listing. Visible only to the member and to admin.
   - Declared old emails (optional, multi-valued): email addresses the member previously controlled. Participate in legacy-claim matching against every email a legacy account carried (the primary `legacy_email` plus up to two secondary addresses). Each declared address may optionally be promoted to mailbox-verified evidence via a confirmation-link round-trip (see the umbrella legacy-claim story). Never displayed on public surfaces. Visible only to the member and to admin.
   - Declared anchors are cleared along with claim back-links during PII purge (see M_Delete_Account).
-- Member search is authenticated members only, never public. Search results show display name and country only; email and contact fields are never exposed in search results.
+- Member search is authenticated members only, never public. Search results show display name and country, plus gender when the member has opted in to gender visibility; email and contact fields are never exposed in search results.
 - Public visibility (visible to all including visitors): Events list, news feed, public galleries (if explicitly marked public).
 - Members-only visibility (visible to logged-in members): Member profiles, club rosters, event participant lists, member search results.
 - Private visibility (visible only to owner or admins): contact email, phone, and WhatsApp (each unless the member opts that field in to authenticated-member visibility, or a co-leader/organizer role forces the email visible), payment history, audit records.
@@ -883,7 +883,7 @@ Story: As a member, I can view member profiles so that I learn about other membe
 Success Criteria:
 
 - Member can view any member profile (own or others).
-- Profile displays: photo, display name, city, country, bio, tier badge, external URLs, club affiliation (if any).
+- Profile displays: photo, display name, city, country, bio, tier badge, external URLs, club affiliation (if any), and gender when the member has opted in to gender visibility (shown to signed-in members only).
 - **Historical name:** When a member has a linked historical person whose name differs from the member's current display name, the historical name is shown on the profile (e.g., "Also known as {historical name} in competition records").
 - **Competition history:** If `first_competition_year` is set, display "Competing since {year}" on the profile. If `show_competitive_results` is on (or the viewer is the profile owner), display the member's competition results section. Results section includes the caveat text: "Published event results only. Historical records may be incomplete."
 - Email address shown only if: (viewer is profile owner) OR (profile owner opted in to email visibility).
@@ -939,7 +939,7 @@ Success Criteria:
 
 - Club page displays: club name, logo, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
 - Member roster shows all members where clubId matches the club.
-- Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country.
+- Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country, and gender when the member has opted in to gender visibility.
 - Email addresses shown only if member has opted in to email visibility.
 - Roster sorted alphabetically by display name.
 - Club detail page includes a link to the club media gallery (for example, "View Club Gallery") when at least one media item exists, without showing image or video counts in the link text.

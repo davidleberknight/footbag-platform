@@ -234,8 +234,3 @@ export function getSecretsAdapter(): SecretsAdapter {
 export function getStubSecretsAdapterForTests(): StubSecretsAdapter | null {
   return stubSingleton;
 }
-
-export function resetSecretsAdapterForTests(): void {
-  singleton = null;
-  stubSingleton = null;
-}

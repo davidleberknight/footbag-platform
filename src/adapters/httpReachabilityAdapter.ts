@@ -257,12 +257,3 @@ export function getHttpReachabilityAdapter(): HttpReachabilityAdapter {
   }
   return singleton;
 }
-
-export function getStubHttpReachabilityAdapterForTests(): StubHttpReachabilityAdapter | null {
-  return stubSingleton;
-}
-
-export function resetHttpReachabilityAdapterForTests(): void {
-  singleton = null;
-  stubSingleton = null;
-}

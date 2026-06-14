@@ -2046,6 +2046,7 @@ Domain validation:
 
 - Reject private IP ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16.
 - Reject loopback addresses: 127.0.0.0/8.
+- Reject the unspecified address range: 0.0.0.0/8 (a literal 0.0.0.0 connects to the local host, reaching loopback services).
 - Reject link-local addresses: 169.254.0.0/16.
 - Resolution runs at submit time. The check is a snapshot, not an ongoing guarantee against later DNS changes.
 

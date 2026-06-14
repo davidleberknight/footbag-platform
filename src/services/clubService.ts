@@ -303,6 +303,9 @@ export interface ClubMemberSummary {
   name: string;
   href: string | null;
   statusNote: string | null;
+  /** 'Male' / 'Female' when the claimed member opted gender into public
+   *  visibility, else null. The club detail roster is member-visible. */
+  genderLabel: string | null;
 }
 
 export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
@@ -627,6 +630,8 @@ interface AffiliationRow {
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
   resolution_status: 'confirmed_current' | 'promoted' | 'pending';
   member_slug: string | null; // claimed, search-visible member account; NULL otherwise
+  member_gender: string | null;
+  member_show_gender: number | null;
 }
 
 // Shapes one roster entry for the club detail members list. Confirmed members
@@ -642,10 +647,17 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
   } else if (row.person_id) {
     href = `/history/${row.person_id}`;
   }
+  // The roster renders only for authenticated viewers (gated by the caller), so
+  // an opted-in member's gender is shown here; 'undisclosed' publishes nothing.
+  const genderLabel =
+    row.member_show_gender === 1 && (row.member_gender === 'male' || row.member_gender === 'female')
+      ? (row.member_gender === 'male' ? 'Male' : 'Female')
+      : null;
   return {
     name: row.person_name,
     href,
     statusNote: isUnconfirmed ? '(historical member, unconfirmed current)' : null,
+    genderLabel,
   };
 }
 

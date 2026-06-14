@@ -781,7 +781,9 @@ export const clubs = {
       COALESCE(hp.person_name, lpca.display_name) AS person_name,
       lpca.inferred_role AS inferred_role,
       lpca.resolution_status AS resolution_status,
-      ms.slug AS member_slug
+      ms.slug AS member_slug,
+      ms.gender AS member_gender,
+      ms.show_gender AS member_show_gender
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
@@ -4519,6 +4521,7 @@ export interface MemberProfileRow {
   first_competition_year: number | null;
   show_competitive_results: number;
   show_first_competition_year: number;
+  show_gender: number;
   legacy_member_id: string | null;
   historical_person_id: string | null;
   login_email: string;
@@ -4557,6 +4560,8 @@ export interface MemberSearchRow {
   is_hof: number;
   is_bap: number;
   is_board: number;
+  gender: string | null;
+  show_gender: number;
 }
 
 export interface IdentityLinksRow {
@@ -4589,6 +4594,7 @@ export const account = {
       m.first_competition_year,
       m.show_competitive_results,
       m.show_first_competition_year,
+      m.show_gender,
       m.legacy_member_id,
       m.historical_person_id,
       m.login_email,
@@ -4780,7 +4786,7 @@ export const account = {
   `); },
 
   get searchMembers() { return db.prepare(`
-    SELECT slug, display_name, country, is_hof, is_bap, is_board
+    SELECT slug, display_name, country, is_hof, is_bap, is_board, gender, show_gender
     FROM members_searchable
     WHERE display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
     ORDER BY display_name_normalized
@@ -4803,6 +4809,7 @@ export const account = {
       first_competition_year     = ?,
       show_competitive_results   = ?,
       show_first_competition_year = ?,
+      show_gender                = ?,
       gender                     = COALESCE(?, gender),
       updated_at                 = ?,
       updated_by                 = 'member',

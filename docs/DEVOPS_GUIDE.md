@@ -1878,6 +1878,14 @@ Operator workflow:
 3. Record the decision per the audit rules in `A_Review_Member_Link_Help_Requests`: audit-logged with actor, original claim audit id, decision, optional reason, timestamp.
 4. Notify the disputing member of the outcome by email, with a contact path for follow-up.
 
+### 13.12 Heavyweight pentest harness
+
+The operator-invoked pentest harness runs black-box probes against a throwaway local stack. It boots its own ephemeral database and server, seeds the canonical personas, and writes all reports to a temp directory outside the working tree, so it is safe to run on a workstation.
+
+- Default run: `npm run test:pentest:heavy`. Runs the scriptable probes (security headers, internal-surface gating, upload abuse, origin-pin CSRF, open redirect, login rate-limit, SSRF input, session-cookie attributes) plus a report-only OWASP ZAP passive baseline, then prints a per-probe summary. A non-zero exit means a probe found a regression; triage it into a fix plus a regression test per `docs/TESTING.md` §9.6.
+- Opt-in heavy legs pass through npm with `--`: `-- --zap-active` runs the ZAP full active scan (attacks the target, minutes-long), `-- --deps` runs the dependency / supply-chain scan (`npm audit`, plus Snyk when `SNYK_TOKEN` is set), and `-- --all` runs both. These legs are report-only.
+- The ZAP legs require Docker; without it they skip with a message and the scriptable probes still run. Point the active scan only at the local stack or an environment explicitly authorized for active scanning, never at production.
+
 ---
 
 ## 14. Staging Refresh and Anonymization

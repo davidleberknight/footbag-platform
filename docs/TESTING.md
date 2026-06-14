@@ -309,7 +309,7 @@ See §9.
 
 ### 6.1 One suite, with operator escape valve
 
-Playwright is the project's browser automation toolchain. It serves one strategically scoped purpose: a lightweight suite that runs on every CI PR (small, fast, business-critical). The configuration file is `tests/playwright.config.ts`. Any browser-based test work beyond the lightweight suite (multi-browser parity, full navigation crawls, attack-flow exploration, role-matrix walkthroughs, multi-viewport regression, deeper accessibility audit beyond the automated `@a11y` coverage) is operator-invoked via the `browser-qa` skill (`.claude/skills/browser-qa/SKILL.md`), not via a standing test suite.
+Playwright is the project's browser automation toolchain. It serves one strategically scoped purpose: a lightweight suite that runs in CI on every push (small, fast, business-critical). The configuration file is `tests/playwright.config.ts`. Any browser-based test work beyond the lightweight suite (multi-browser parity, full navigation crawls, attack-flow exploration, role-matrix walkthroughs, multi-viewport regression, deeper accessibility audit beyond the automated `@a11y` coverage) is operator-invoked via the `browser-qa` skill (`.claude/skills/browser-qa/SKILL.md`), not via a standing test suite.
 
 ### 6.2 Lightweight suite (the only Playwright suite)
 
@@ -347,7 +347,7 @@ A test may carry zero or more tags. Tags are how gates select within the suite (
 
 - `@smoke`. Subset that also runs in the post-deploy staging smoke gate. Smallest, fastest, read-only-ish.
 - `@security`. Security regression sub-class.
-- `@a11y`. Accessibility regression via axe-core; runs on every PR against business-critical surfaces.
+- `@a11y`. Accessibility regression via axe-core against business-critical surfaces; runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`).
 - `@migration`. Migration and onboarding regression. May live in integration or e2e; cuts across.
 - `@quarantined`. Time-bounded flake quarantine; see §11.3.
 
@@ -529,14 +529,18 @@ Probes:
 
 ### 9.3 Heavyweight human-invoked pentest
 
-Invoked via `npm run test:pentest:heavy`. Browser-driven attack flow exploration (credential stuffing under rate limit, CSRF bypass attempts, file-upload abuse, path traversal probes, SSRF attempts, open-redirect probes, role-escalation attempts, session-fixation attempts, token-replay attempts, login-rate-limit bypass via header spoofing) is operator-invoked via the `browser-qa` skill, not via a standing Playwright suite. May include:
+Invoked via `npm run test:pentest:heavy`, which boots a throwaway local stack and runs black-box HTTP probes against it over the same network surface an attacker reaches. Attack flows that require a real browser session (role-escalation through the UI, session-fixation, token-replay, login-rate-limit bypass via header spoofing) are operator-invoked via the `browser-qa` skill rather than a standing Playwright suite. The scriptable probe set covers:
 
-- OWASP ZAP automated baseline scan against the local stack or a dedicated pentest staging environment.
-- Dependency and supply-chain vulnerability scanning (`npm audit` plus equivalent third-party tooling).
-- Header check across every route (a script that walks the route table and asserts security headers).
-- Upload-abuse probes (avatar, media, freestyle music) targeting MIME confusion, polyglot files, oversize, and path traversal.
-- Internal-surface probing: the `/internal/*` admin tooling redirects an unauthenticated request to login and returns 403 to an authenticated non-admin; the shared-secret `/ipc/*` channel returns 401 to a missing or a wrong secret alike, so the two are indistinguishable.
+- A security-header walk across every deployed route (walks the route table and asserts the defensive header set on every reachable response, including redirects and 404s).
+- Origin-pin CSRF coverage: every state-changing route refuses a foreign Origin and a forged Referer, while a same-origin request reaches the handler.
+- Open-redirect coverage on the login returnTo parameter: an off-site target is neither echoed into the page nor turned into an off-origin redirect, while a safe site-relative path is preserved.
+- Login rate-limit coverage: a burst of failed logins draws a 429 with Retry-After, while an early attempt still receives the ordinary failure response.
+- SSRF coverage on member-supplied external URLs: loopback, unspecified-address, cloud-metadata, private-range, and link-local targets are refused, while a benign public link is accepted.
+- Upload-abuse probes (avatar, media, freestyle music) targeting MIME confusion, polyglot files, oversize bodies, and path-traversal filenames.
+- Session-cookie attribute coverage: the session cookie is HttpOnly, sets SameSite, and is Secure under https.
+- Internal-surface probing: the `/internal/*` admin tooling redirects an unauthenticated request to login and returns 403 to an authenticated non-admin; the shared-secret `/ipc/*` channel rejects a missing and a wrong secret alike, so the two are indistinguishable.
 - Audit of any reachable dev-only scaffolding callsite (persona harness / dev-bootstrap) from staging or production (the audit script in §9.5 is the canonical mechanism).
+- Report-only legs for maintainer triage rather than pass/fail gates: an OWASP ZAP passive baseline against the local stack or a dedicated pentest staging environment, an opt-in OWASP ZAP active scan, and an opt-in dependency / supply-chain scan (`npm audit` plus an equivalent third-party scanner). Findings feed regression tests per §9.6.
 
 Heavyweight pentest:
 
@@ -647,7 +651,7 @@ The db-load smoke gate is a canonical example of class-specific gating within th
 
 - *Test impact analysis* for the local fast loop. `vitest --changed` plus git-diff-driven file selection. The fast loop runs only tests that touch changed code paths.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`, `@quarantined`) drives which tests run at each gate.
-- *Risk-severity-based selection* for nightly and on-demand gates. Catastrophic and high surfaces (per §3) run on every PR. Medium surfaces run nightly or when the surface changes. Low surfaces run weekly or when the surface changes.
+- *Risk-severity-based selection* for nightly and on-demand gates. Catastrophic and high surfaces (per §3) run in CI on every push. Medium surfaces run nightly or when the surface changes. Low surfaces run weekly or when the surface changes.
 - *Parallel sharding* where the test runner supports it. Vitest workers for unit and integration; Playwright workers are constrained to 1 by SQLite WAL serialization, so Playwright sharding happens via separate processes against separate ephemeral databases.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
@@ -749,7 +753,7 @@ The platform targets WCAG 2.1 AA as the baseline accessibility conformance level
 
 Accessibility testing is a named test layer, not an afterthought. The layer combines:
 
-- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs on every PR; catches automated-detectable regressions before merge.
+- *Automated checks* via `@axe-core/playwright` (per §15.3.1) in the lightweight Playwright suite, tagged `@a11y`. Every business-critical surface in the suite carries an axe assertion against the WCAG 2.1 AA rule set. Runs in CI on every push and in the full local suite (`./run_all_tests.sh --full`); catches automated-detectable regressions early.
 - *Smoke-tagged automated checks* (`@smoke @a11y`) on a small subset of high-traffic public pages (home, member dashboard, login, register, public event detail, results page) that also runs in the post-deploy staging smoke gate.
 - *Manual audit* by the maintainer or an external accessibility reviewer periodically and before major launches. The third-party periodic pentest engagement (§9.4) may include accessibility scope.
 - *Deeper audit beyond automated coverage* (full keyboard-only journey, screen-reader flow validation, cognitive accessibility) is operator-invoked via the `browser-qa` skill.
@@ -1057,6 +1061,6 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked `IMPLEMENTATION_PLAN.md` deviation. The audit records which tiers are wired.
 8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every `MIGRATION_PLAN.md` validation gate has a test.
 9. **Admin operational surfaces.** Work-queue resolution, club cleanup, leadership reassignment, curator media, audit-log view, and system-config each have allow and deny authorization cells (the matrix, §4.6) and audit-emission assertions. Pass: no admin state-changing route lacks a deny cell or an audit assertion.
-10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs on every PR.
+10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs in CI on every push and in the full local suite.
 11. **Cross-cutting generative sweeps.** CSRF Origin-pin over the live route table, the route-by-persona authorization matrix (allow, deny, and adjacent-owner), ledger-immutability triggers, anti-enumeration equivalence, and session and token temporal contracts. Pass: each sweep enumerates from the live route table or schema, so a newly added surface is covered by construction rather than by memory.
 12. **Coverage floor (§12).** The `vitest.config.ts` thresholds hold, and catastrophic surfaces are verified by inspection of the tests, not by the number alone. Pass: thresholds are met, or the shortfall is a tracked `IMPLEMENTATION_PLAN.md` item.

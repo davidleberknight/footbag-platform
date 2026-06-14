@@ -196,6 +196,29 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Log in to see club members');
   });
 
+  it('shows an opted-in member gender on the roster', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare("UPDATE members SET gender = 'male', show_gender = 1 WHERE id = 'member-zephyr'").run();
+    db.close();
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).toContain('Zephyr Kickflip');
+    expect(res.text).toContain('Male');
+  });
+
+  it('hides roster gender when the member has not opted in', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare("UPDATE members SET gender = 'male', show_gender = 0 WHERE id = 'member-zephyr'").run();
+    db.close();
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/club_evergreen')
+      .set('Cookie', authCookie());
+    expect(res.text).not.toContain('Male');
+  });
+
   it('does not expose a hashtag-edit form on the public club hero', async () => {
     const app = createApp();
     const res = await request(app)

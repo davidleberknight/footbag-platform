@@ -1833,6 +1833,7 @@ CREATE TABLE members (
   first_competition_year INTEGER,
   show_competitive_results INTEGER NOT NULL DEFAULT 1 CHECK (show_competitive_results IN (0,1)),
   show_first_competition_year INTEGER NOT NULL DEFAULT 0 CHECK (show_first_competition_year IN (0,1)),
+  show_gender INTEGER NOT NULL DEFAULT 0 CHECK (show_gender IN (0,1)),
 
   legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
   legacy_user_id   TEXT,

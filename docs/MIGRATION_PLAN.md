@@ -843,7 +843,7 @@ Every member has an ordered task list. Tasks at cutover:
 
 | Task type | Source flow | Owning service for the underlying logic |
 |---|---|---|
-| `personal_details` | Location, date of birth, first competition year, show competitive results | `MemberService` |
+| `personal_details` | Location, date of birth, gender, first competition year, show competitive results | `MemberService` |
 | `legacy_claim` | §7 auto-link or §8 self-serve claim | `IdentityAccessService` |
 | `club_affiliations` | §10.3 club flow (stage-1 cards plus wrap-up) | clubs service |
 

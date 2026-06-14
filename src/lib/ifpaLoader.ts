@@ -77,7 +77,3 @@ export function getIfpaDocs(): ParsedIfpaDoc[] {
 export function getIfpaDoc(slug: string): ParsedIfpaDoc | undefined {
   return loadIfpaDocs().get(slug);
 }
-
-export function _resetIfpaCache(): void {
-  cache = null;
-}

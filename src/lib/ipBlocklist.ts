@@ -5,7 +5,7 @@
 // predicate in one place prevents drift.
 //
 // Blocks the IP ranges enumerated in DD §3.17 plus IPv6 equivalents:
-//   IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16
+//   IPv4: 0.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16
 //   IPv6: ::1, fc00::/7, fe80::/10, and IPv4-mapped ::ffff:a.b.c.d that
 //         re-enters an IPv4 blocked range.
 
@@ -32,6 +32,10 @@ export function isBlockedIpv4(address: string): boolean {
   const octets = address.split('.').map(o => Number.parseInt(o, 10));
   if (octets.length !== 4 || octets.some(o => Number.isNaN(o))) return false;
   const [a, b] = octets;
+  // 0.0.0.0/8 ("this host on this network"): a literal 0.0.0.0 connects to the
+  // local host, so it reaches loopback services exactly as 127.0.0.0/8 does and
+  // must be blocked to close that SSRF path.
+  if (a === 0) return true;
   if (a === 10) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;

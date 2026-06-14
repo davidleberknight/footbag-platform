@@ -298,6 +298,16 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).not.toContain('name="displayName"');
   });
 
+  it('a member with no gender set sees the gender control default to undisclosed', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text, 'undisclosed is preselected').toMatch(/name="gender" value="undisclosed"[^>]*checked/);
+    expect(res.text, 'male is not preselected').not.toMatch(/name="gender" value="male"[^>]*checked/);
+  });
+
   it("another member's edit page → 404", async () => {
     const app = createApp();
     const res = await request(app)
@@ -521,6 +531,87 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     } finally {
       rlMod.resetRateLimitForTests();
     }
+  });
+});
+
+// ── Gender public visibility (opt-in) ───────────────────────────────────────
+
+describe('gender public visibility', () => {
+  function setGenderCols(id: string, gender: string | null, showGender: 0 | 1): void {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      db.prepare('UPDATE members SET gender = ?, show_gender = ? WHERE id = ?').run(gender, showGender, id);
+    } finally {
+      db.close();
+    }
+  }
+
+  it('shows an opted-in member gender to an authenticated viewer', async () => {
+    setGenderCols(OTHER_ID, 'female', 1);
+    const app = createApp();
+    const res = await request(app).get(`/members/${OTHER_SLUG}`).set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Gender: Female');
+  });
+
+  it('hides gender when the member has not opted in', async () => {
+    setGenderCols(OTHER_ID, 'female', 0);
+    const app = createApp();
+    const res = await request(app).get(`/members/${OTHER_SLUG}`).set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Gender:');
+  });
+
+  it('shows nothing when opted in but the value is undisclosed', async () => {
+    setGenderCols(OTHER_ID, 'undisclosed', 1);
+    const app = createApp();
+    const res = await request(app).get(`/members/${OTHER_SLUG}`).set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Gender:');
+  });
+
+  it('hides an opted-in gender from an unauthenticated viewer but shows it to a signed-in one', async () => {
+    // A HoF member profile is reachable anonymously; gender stays member-only.
+    const hofId = 'member-gender-hof';
+    const hofSlug = 'gender_hof_member';
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      insertMember(db, {
+        id: hofId, slug: hofSlug, display_name: 'Gender Hof',
+        login_email: 'genderhof@example.com', is_hof: 1, gender: 'male', show_gender: 1,
+      });
+    } finally {
+      db.close();
+    }
+    const app = createApp();
+    const anon = await request(app).get(`/members/${hofSlug}`);
+    expect(anon.status).toBe(200);
+    expect(anon.text).not.toContain('Gender:');
+    const authed = await request(app).get(`/members/${hofSlug}`).set('Cookie', ownCookie());
+    expect(authed.text).toContain('Gender: Male');
+  });
+
+  it('persists the show_gender toggle from profile edit', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const row = db.prepare('SELECT gender, show_gender FROM members WHERE id = ?').get(OWN_ID) as { gender: string; show_gender: number };
+    db.close();
+    expect(row.gender).toBe('male');
+    expect(row.show_gender).toBe(1);
+  });
+
+  it('shows an opted-in member gender in search results', async () => {
+    setGenderCols(OTHER_ID, 'female', 1);
+    const app = createApp();
+    const res = await request(app).get(`/members/${OWN_SLUG}?q=Other`).set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Female');
   });
 });
 

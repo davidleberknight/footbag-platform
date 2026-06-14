@@ -227,7 +227,3 @@ export function getMediaJobService(): MediaJobService {
   if (!singleton) singleton = createMediaJobService();
   return singleton;
 }
-
-export function resetMediaJobServiceForTests(): void {
-  singleton = null;
-}

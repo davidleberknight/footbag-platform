@@ -40,6 +40,10 @@ describe('ipBlocklist', () => {
   });
 
   describe('isBlockedIpv4', () => {
+    it('blocks 0.0.0.0/8 because the this-host range reaches loopback', () => {
+      expect(isBlockedIpv4('0.0.0.0')).toBe(true);
+      expect(isBlockedIpv4('0.1.2.3')).toBe(true);
+    });
     it('blocks 10.0.0.0/8', () => {
       expect(isBlockedIpv4('10.0.0.1')).toBe(true);
       expect(isBlockedIpv4('10.255.255.255')).toBe(true);

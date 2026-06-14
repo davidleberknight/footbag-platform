@@ -210,11 +210,6 @@ export function getSafeBrowsingAdapter(): SafeBrowsingAdapter {
   return singleton;
 }
 
-/** Exposes the in-memory stub for test inspection. Null unless SAFE_BROWSING_ADAPTER=stub. */
-export function getStubSafeBrowsingAdapterForTests(): StubSafeBrowsingAdapter | null {
-  return stubSingleton;
-}
-
 export function resetSafeBrowsingAdapterForTests(): void {
   singleton = null;
   stubSingleton = null;
