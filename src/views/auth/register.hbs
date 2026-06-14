@@ -118,6 +118,7 @@
         </ul>
       </div>
 
+      {{> captcha-field content}}
       <button type="submit" class="btn btn-primary">Create account</button>
     </form>
 
@@ -126,3 +127,6 @@
 
 </div>
 <script src="/js/register-defaults.js" defer></script>
+{{#if content.turnstileSiteKey}}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+{{/if}}

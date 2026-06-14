@@ -163,6 +163,8 @@ export interface LoginContent {
   returnTo?: string;
   authReason?: string;
   error?: string;
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
 }
 
 export interface RegisterContent {
@@ -171,11 +173,16 @@ export interface RegisterContent {
   displayName?: string;
   slug?: string;
   email?: string;
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
 }
 
 export interface CheckEmailContent {
   resent?: boolean;
   emailPreview?: SimulatedEmailPreview;
+  error?: string;
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
 }
 
 export interface VerifyResultContent {
@@ -199,6 +206,8 @@ export interface PasswordForgotSentContent {
 export interface PasswordResetContent {
   token: string | undefined;
   error?: string;
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
 }
 
 export interface ClaimFormContent {

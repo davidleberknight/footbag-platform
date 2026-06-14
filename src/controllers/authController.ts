@@ -20,6 +20,13 @@ import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { isSafePath } from '../lib/safePath';
+import { getCaptchaAdapter } from '../adapters/captchaAdapter';
+
+// Shown when the Turnstile challenge fails. Kept generic and identical across
+// every gated surface so a failed challenge reveals nothing about whether an
+// account exists (anti-enumeration). The stub adapter on dev and staging passes
+// every real token, so this never appears there.
+const CAPTCHA_FAILED_MESSAGE = 'Please complete the verification challenge and try again.';
 
 function getLogin(req: Request, res: Response): void {
   if (req.isAuthenticated) {
@@ -33,6 +40,7 @@ function getLogin(req: Request, res: Response): void {
     content: {
       returnTo,
       authReason: returnTo ? 'The content you are trying to reach requires an IFPA Member account.' : undefined,
+      turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
     },
   } satisfies PageViewModel<LoginContent>);
 }
@@ -44,9 +52,19 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
     res.status(status).render('auth/login', {
       seo: { title: 'Login' },
       page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
-      content: { error: msg, returnTo: isSafePath(returnTo) ? returnTo : undefined },
+      content: {
+        error: msg,
+        returnTo: isSafePath(returnTo) ? returnTo : undefined,
+        turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
+      },
     } satisfies PageViewModel<LoginContent>);
   };
+
+  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha.ok) {
+    renderError(CAPTCHA_FAILED_MESSAGE, 422);
+    return;
+  }
 
   const ip = req.ip ?? 'unknown';
 
@@ -84,7 +102,7 @@ function getRegister(req: Request, res: Response): void {
   res.render('auth/register', {
     seo: { title: 'Register' },
     page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
-    content: {},
+    content: { turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<RegisterContent>);
 }
 
@@ -103,9 +121,16 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
         displayName: displayName ?? '',
         slug: slug ?? '',
         email: email ?? '',
+        turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub',
       },
     } satisfies PageViewModel<RegisterContent>);
   };
+
+  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha.ok) {
+    renderError(CAPTCHA_FAILED_MESSAGE);
+    return;
+  }
 
   try {
     await identityAccessService.registerMember(
@@ -176,7 +201,7 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email' },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
-      content: { emailPreview },
+      content: { emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
   } catch (err) {
     next(err);
@@ -231,6 +256,17 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
 
 async function postVerifyResend(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
+
+  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha.ok) {
+    res.status(422).render('auth/check-email', {
+      seo: { title: 'Check Your Email' },
+      page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
+      content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    } satisfies PageViewModel<CheckEmailContent>);
+    return;
+  }
+
   // Service rate-limits internally and no-ops when the bucket is exceeded or
   // no unverified member matches; response is identical either way for
   // anti-enumeration.
@@ -247,7 +283,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email' },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
-      content: { resent: true, emailPreview },
+      content: { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {
@@ -330,7 +366,7 @@ function getPasswordReset(req: Request, res: Response): void {
   res.render('auth/password-reset', {
     seo: { title: 'Set a New Password' },
     page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
-    content: { token: req.params.token },
+    content: { token: req.params.token, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordResetContent>);
 }
 
@@ -339,6 +375,18 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     newPassword?: string; confirmPassword?: string;
   };
   const token = req.params.token;
+
+  const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+  if (!captcha.ok) {
+    setNoStore(res);
+    res.status(422).render('auth/password-reset', {
+      seo: { title: 'Set a New Password' },
+      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+      content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    } satisfies PageViewModel<PasswordResetContent>);
+    return;
+  }
+
   try {
     const result = await identityAccessService.completePasswordReset(
       token,
@@ -383,7 +431,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       res.status(422).render('auth/password-reset', {
         seo: { title: 'Set a New Password' },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
-        content: { token, error: err.message },
+        content: { token, error: err.message, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       } satisfies PageViewModel<PasswordResetContent>);
       return;
     }

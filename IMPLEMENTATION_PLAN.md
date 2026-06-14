@@ -157,13 +157,3 @@ Current: `clubs_open` is `status IN ('active','inactive')`, and the directory in
 list both read it, so inactive clubs still appear in the public directory.
 Target: hide inactive clubs from the public directory while keeping them reachable by direct link
 (CL_Mark_Club_Inactive).
-
-### N23 — CAPTCHA missing on the other anti-enumeration auth surfaces
-
-Current: the server-side Cloudflare Turnstile gate is enforced on legacy-claim initiation only.
-USER_STORIES requires the same CAPTCHA, verified server-side before any DB read, on registration
-(V_Register_Account), login (M_Login), verify-email resend (M_Verify_Email), and password reset
-(M_Reset_Password); those controllers have no captcha gate.
-Target: gate those four surfaces with `getCaptchaAdapter().verify` before any DB read and render the
-widget, reusing the `CaptchaAdapter` + form-widget pattern already built for legacy-claim (stub on
-dev/staging, live in production). Go-live security.

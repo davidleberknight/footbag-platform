@@ -6,6 +6,11 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.error}}
+      <div class="form-error-banner" role="alert">
+        {{content.error}}
+      </div>
+    {{/if}}
     {{#if content.resent}}
       <div class="form-success-banner" role="status">
         If an unverified account exists for that email, a new verification link has been sent.
@@ -22,6 +27,7 @@
         <label for="email">Didn't get the email? Enter your address to resend:</label>
         <input type="email" id="email" name="email" autocomplete="email" required />
       </div>
+      {{> captcha-field content}}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Resend verification email</button>
       </div>
@@ -32,3 +38,6 @@
     {{/if}}
   </section>
 </div>
+{{#if content.turnstileSiteKey}}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+{{/if}}

@@ -29,6 +29,7 @@
         <label for="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required />
       </div>
+      {{> captcha-field content}}
       <button type="submit" class="btn btn-primary">Log in</button>
     </form>
 
@@ -41,3 +42,6 @@
   </section>
 
 </div>
+{{#if content.turnstileSiteKey}}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+{{/if}}
