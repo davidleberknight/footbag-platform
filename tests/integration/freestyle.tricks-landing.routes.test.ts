@@ -100,6 +100,16 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'inspinning-whirl', 'inspinning');
   insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 1);
   insertFreestyleTrickModifierLink(db, 'double-spinning-whirl', 'spinning', 2);
+  // Two mirage-family ADD-4 tricks so the ADD-4 bucket spans two lineages
+  // (whirl + mirage) and the By-ADD lineage sub-bands render headers.
+  insertFreestyleTrick(db, {
+    slug: 'ducking-paradox-mirage', canonical_name: 'ducking-paradox mirage', adds: '4',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'spinning-paradox-mirage', canonical_name: 'spinning-paradox mirage', adds: '4',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+  });
 
   db.close();
   createApp = await importApp();
@@ -287,6 +297,33 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     const html = (await request(createApp()).get('/freestyle/tricks?view=family')).text;
     expect(html).toContain('class="family-rung-header"');
     expect(html).toContain('2 operators');
+  });
+
+  it('By dex-count view renders an in-view jump nav into dex-bucket anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+    expect(res.text).toContain('aria-label="Jump to dex bucket"');
+    expect(res.text).toMatch(/href="#dex-/);
+  });
+
+  it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
+    const html = (await request(createApp()).get('/freestyle/tricks')).text; // default = By ADD
+    // ADD-4 spans two lineages in the seed (whirl x3 + mirage x2), so both bands
+    // render headers; single-lineage buckets (ADD-2, ADD-3) stay header-free.
+    expect(html).toContain('class="add-lineage-header"');
+    expect(html).toMatch(/Whirl-derived/);
+    expect(html).toMatch(/Mirage-derived/);
+    // the mirage ADD-4 tricks sit in the Mirage-derived band of the ADD-4 bucket
+    expect(html).toContain('data-trick-slug="ducking-paradox-mirage"');
+  });
+
+  it('By dex-count sorts entries structurally (ADD ascending) within a bucket', async () => {
+    const html = (await request(createApp()).get('/freestyle/tricks?view=dex-count')).text;
+    const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
+    // Seed tricks have no operational notation -> all in the dex-unknown bucket,
+    // ordered by ADD asc: mirage(2) before whirl(3) before double-spinning-whirl(5).
+    expect(at('mirage')).toBeGreaterThan(-1);
+    expect(at('whirl')).toBeGreaterThan(at('mirage'));
+    expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));
   });
 
   it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {

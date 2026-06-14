@@ -2330,6 +2330,22 @@ export interface FreestyleTrickAddGroup {
   // `tricks` rows so views not yet on the dictionary-trick-card partial
   // can continue rendering inline markup.
   cards: DictionaryTrickCard[];
+  // The same cards partitioned into lineage-root sub-bands (Mirage-derived,
+  // Osis-derived with torque/blender folded in, ...) so a large ADD bucket
+  // reads as lineage groups instead of one flat alphabetical list. Roots align
+  // with the Family view (via familyWithAncestors). Single-trick lineages fold
+  // into a trailing "Other lineages" band.
+  lineageBands: FreestyleAddLineageBand[];
+  // True when the bucket spans more than one band (so the template shows band
+  // headers); false for a small bucket that is all one lineage.
+  showLineageBands: boolean;
+}
+
+// One lineage-root sub-band within an ADD bucket.
+export interface FreestyleAddLineageBand {
+  rootSlug: string;
+  rootLabel: string;   // e.g. "Mirage" -> rendered as "Mirage-derived"
+  cards: DictionaryTrickCard[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -7617,12 +7633,56 @@ export const freestyleService = {
       entries: AddBucketEntry[],
     ): FreestyleTrickAddGroup => {
       const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
+      const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx);
+      // Lineage root for each entry, resolved the same way the Family view does:
+      // its display family walked to the top public ancestor (torque/blender ->
+      // osis). Tricks outside a public family band under their own family slug.
+      const rootOf = (row: FreestyleTrickRowWithStatus): { slug: string; label: string } => {
+        const df = (resolveDisplayFamily(row.trick_family ?? '') ?? row.trick_family ?? '').trim();
+        if (!df) return { slug: 'other', label: 'Other lineages' };
+        const anc = familyWithAncestors(df);
+        const root = anc.length ? anc[anc.length - 1]! : df;
+        const label = PUBLIC_FAMILY_LABEL.get(root)
+          ?? resolveFamilyDisplayName(root)
+          ?? (root.charAt(0).toUpperCase() + root.slice(1));
+        return { slug: root, label };
+      };
+      const bandMap = new Map<string, { label: string; entries: AddBucketEntry[] }>();
+      for (const e of sorted) {
+        const { slug, label } = rootOf(e.row);
+        const band = bandMap.get(slug) ?? { label, entries: [] };
+        band.entries.push(e);
+        bandMap.set(slug, band);
+      }
+      // Multi-trick lineages first (largest first, then label); single-trick
+      // lineages collapse into a trailing "Other lineages" band to avoid a wall
+      // of one-row headers. Within a band: operator rung then name.
+      const byRungName = (a: AddBucketEntry, b: AddBucketEntry) =>
+        (rungOf(a.row.slug) - rungOf(b.row.slug)) || byCanonicalNameAlpha(a.indexRow, b.indexRow);
+      const multi = [...bandMap.entries()].filter(([, b]) => b.entries.length >= 2);
+      const singles = [...bandMap.entries()].filter(([, b]) => b.entries.length === 1)
+        .flatMap(([, b]) => b.entries);
+      multi.sort((a, b) => (b[1].entries.length - a[1].entries.length) || a[1].label.localeCompare(b[1].label));
+      const lineageBands: FreestyleAddLineageBand[] = multi.map(([slug, b]) => ({
+        rootSlug: slug,
+        rootLabel: b.label,
+        cards: b.entries.slice().sort(byRungName).map(cardOf),
+      }));
+      if (singles.length) {
+        lineageBands.push({
+          rootSlug: 'other',
+          rootLabel: 'Other lineages',
+          cards: singles.slice().sort(byRungName).map(cardOf),
+        });
+      }
       return {
         addNumeric,
         addLabel,
         anchorId: addNumeric != null ? `add-${addNumeric}` : 'add-unrated',
         tricks: sorted.map(e => e.indexRow),
-        cards:  sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx)),
+        cards:  sorted.map(cardOf),
+        lineageBands,
+        showLineageBands: lineageBands.length > 1,
       };
     };
     const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
@@ -7700,7 +7760,21 @@ export const freestyleService = {
       dexLabel: string,
       entries: AddBucketEntry[],
     ): FreestyleTrickDexCountGroup => {
-      const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
+      // Structural ordering within a dex bucket (was pure alphabetical): ADD
+      // ascending, then structural anchor (family), then operator rung, then
+      // name — so same-dex tricks group by lineage instead of feeling random.
+      const sorted = entries.slice().sort((a, b) => {
+        const aa = parseAddNumeric(a.row.adds) ?? Number.POSITIVE_INFINITY;
+        const ba = parseAddNumeric(b.row.adds) ?? Number.POSITIVE_INFINITY;
+        if (aa !== ba) return aa - ba;
+        const af = a.row.trick_family ?? '';
+        const bf = b.row.trick_family ?? '';
+        if (af !== bf) return af.localeCompare(bf, undefined, { sensitivity: 'base' });
+        const ar = rungOf(a.row.slug);
+        const br = rungOf(b.row.slug);
+        if (ar !== br) return ar - br;
+        return byCanonicalNameAlpha(a.indexRow, b.indexRow);
+      });
       const bucketId = dexCount === null ? 'dex-unknown' : `dex-${dexCount}`;
       return {
         dexCount,
@@ -7779,10 +7853,20 @@ export const freestyleService = {
       // surface the full standardized JOB block + linked title + ADD chip
       // + media chip, consistent with by-ADD / by-family / by-movement-
       // system views.
+      // Structural ordering within a modifier group (was ADD-then-slug): base
+      // family first, then ADD ascending, then operator rung, then name — so the
+      // tricks that share a structural anchor sit together inside the modifier.
       const sorted = [...b.tricks].sort((x, y) => {
-        const ax = Number(x.adds ?? Number.POSITIVE_INFINITY);
-        const ay = Number(y.adds ?? Number.POSITIVE_INFINITY);
-        return ax - ay || x.slug.localeCompare(y.slug);
+        const xf = x.trick_family ?? '';
+        const yf = y.trick_family ?? '';
+        if (xf !== yf) return xf.localeCompare(yf, undefined, { sensitivity: 'base' });
+        const xa = parseAddNumeric(x.adds) ?? Number.POSITIVE_INFINITY;
+        const ya = parseAddNumeric(y.adds) ?? Number.POSITIVE_INFINITY;
+        if (xa !== ya) return xa - ya;
+        const xr = rungOf(x.slug);
+        const yr = rungOf(y.slug);
+        if (xr !== yr) return xr - yr;
+        return x.canonical_name.localeCompare(y.canonical_name, undefined, { sensitivity: 'base' });
       });
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
       const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, null, ctx));

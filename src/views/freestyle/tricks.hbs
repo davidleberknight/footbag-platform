@@ -168,11 +168,18 @@
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
+    {{! Lineage sub-bands within the ADD bucket (Mirage-derived, Osis-derived,
+        …). Headers show only when the bucket spans more than one lineage. }}
+    {{#each lineageBands}}
+    <div class="trick-add-lineage">
+      {{#if ../showLineageBands}}<h3 class="add-lineage-header">{{rootLabel}}-derived</h3>{{/if}}
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
     </div>
+    {{/each}}
   </section>
   {{/each}}
   {{/if}}
@@ -184,6 +191,15 @@
   {{#if (eq content.activeView "dex-count")}}
   <p class="browse-view-intro">Tricks grouped by how many dexterity moves they involve, where you circle a leg around the bag.</p>
   {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
+  {{! In-view jump nav (mirrors By ADD). Static hash anchors into each dex bucket. }}
+  {{#if content.dexCountGroups.length}}
+  <nav class="add-jump" aria-label="Jump to dex bucket">
+    <span class="add-jump-label">Jump to:</span>
+    {{#each content.dexCountGroups}}
+      <a href="#{{bucketId}}">{{dexLabel}} <span class="family-jump-count">{{cards.length}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+  {{/if}}
   {{#each content.dexCountGroups}}
   <section class="content-section trick-dex-count-group" id="{{bucketId}}">
     <div class="section-heading">
