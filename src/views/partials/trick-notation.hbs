@@ -17,8 +17,8 @@
        comparative-row card under the hero). --}}
   {{#if content.operationalNotation}}{{#unless content.isFirstClass}}
   <div class="operational-notation-display">
-    <div class="section-heading"><h3>Set arc</h3></div>
-    <p class="section-intro">Execution mechanics -- the set-arc form showing how the body performs the trick.</p>
+    <div class="section-heading"><h3>Execution notation</h3></div>
+    <p class="section-intro">How the body performs the trick, step by step.</p>
     <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
     {{#if content.operationalNotation.sourceNote}}
     <p class="operational-notation-source-note">{{content.operationalNotation.sourceNote}}</p>

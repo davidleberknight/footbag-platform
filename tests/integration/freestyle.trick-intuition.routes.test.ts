@@ -82,11 +82,15 @@ describe('Movement intuition — flagship pages render the section', () => {
     expect(res.text).toMatch(/a reverse miraging motion/);
   });
 
-  it('mobius renders the section with compositional reading attribution', async () => {
+  it('mobius renders the physical prose and the fb.org attribution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mobius');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/spin into a right-leg mirage/);
-    expect(res.text).toMatch(/compositional reading per pt11/);
+    expect(res.text).toMatch(/Per fb\.org \/newmoves description/);
+    // The verbose "structural reading is gyro torque" restatement is no longer
+    // carried in the intuition prose (About and Equivalent readings own the
+    // structure; the parent-delta relocation is covered in the doctrine suite).
+    expect(res.text).not.toMatch(/structural reading is/);
   });
 });
 

@@ -6583,6 +6583,7 @@ export const freestyleService = {
             modsBySlug.set(l.trick_slug, arr);
           }
           const nameOf = (s: string): string => rowBySlug.get(s)?.canonical_name ?? s.replace(/-/g, ' ');
+          const cap = (n: string): string => (n ? n.charAt(0).toUpperCase() + n.slice(1) : n);
           const thisMods = modsBySlug.get(dictRow.slug) ?? [];
           const parentMods = [...(modsBySlug.get(dictRow.base_trick) ?? [])];
           // Modifiers this trick adds over its immediate parent (multiset diff).
@@ -6607,7 +6608,7 @@ export const freestyleService = {
               ? `Compared with ${nameOf(dictRow.base_trick)}, ${thisName} adds ${addedMods.join(' and ')}.`
               : null,
             derivedBuildPath: (thisMods.length && ancestors.length)
-              ? `Built from ${ancestors.join(' → ')} → + ${thisMods.join(' + ')} = ${thisName}.`
+              ? `${ancestors.map(cap).join(' → ')} → + ${thisMods.join(' + ')} = ${cap(thisName)}`
               : null,
           };
         })();

@@ -36,9 +36,16 @@
 
   <dl>
 
+    {{!-- One "How it's built" row: the ADD composition when present, else the
+         derived base-chain build path (which already names the parent), else a
+         bare base-trick link. The build path supersedes the separate Base trick
+         row so the lineage is stated once. --}}
     {{#if content.dictEntry.addComposition}}
     <dt>How it's built</dt>
     <dd>{{content.dictEntry.addComposition}}</dd>
+    {{else if content.buildPath}}
+    <dt>How it's built</dt>
+    <dd data-build-path>{{content.buildPath}}</dd>
     {{else if content.dictEntry.baseTrick}}
       {{#unless content.modifierLayering}}
       <dt>Base trick</dt>
@@ -51,12 +58,6 @@
         {{#if content.dictEntry.baseTrickAdds}} ({{content.dictEntry.baseTrickAdds}} ADD){{/if}}
       </dd>
       {{/unless}}
-    {{/if}}
-
-    {{!-- Build path, relocated from the retired Progressive Readings section. --}}
-    {{#if content.buildPath}}
-    <dt>Built from</dt>
-    <dd data-build-path>{{content.buildPath}}</dd>
     {{/if}}
 
     {{#if content.dictEntry.aliases.length}}

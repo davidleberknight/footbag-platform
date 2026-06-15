@@ -107,8 +107,8 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'mobius',
     prose:
-      'From a right clipper set, turn so the bag passes behind your back (clockwise), then without planting your right foot, spin into a right-leg mirage and catch the footbag on a left Osis. The structural reading is "gyro torque": the spinning body modifier carries through a miraging-osis terminal.',
-    attribution: 'Per fb.org /newmoves description (5-ADD canonical reference); compositional reading per pt11.',
+      'From a right clipper set, turn so the bag passes behind your back (clockwise), then without planting your right foot, spin into a right-leg mirage and catch the footbag on a left Osis.',
+    attribution: 'Per fb.org /newmoves description (5-ADD canonical reference).',
   },
   {
     slug: 'paradox-mirage',

@@ -315,8 +315,9 @@ describe('Relocated delta + build-path', () => {
   it('blur renders the build-path line inside the About section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
     expect(res.text).toContain('data-build-path');
-    // The trailing "= blur." renders with the HTML-escaped equals sign.
-    expect(res.text).toMatch(/Built from mirage .* \+ blurry &#x3D; blur\./);
+    // Title-cased base chain, no "Built from" prefix (the dt provides the label);
+    // the equals sign renders HTML-escaped.
+    expect(res.text).toMatch(/Mirage .* \+ blurry &#x3D; Blur/);
   });
 
   it('mirage (atom, no modifier links) renders neither the delta nor the build-path line', async () => {
