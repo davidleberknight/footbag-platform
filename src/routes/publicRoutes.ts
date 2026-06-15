@@ -65,6 +65,9 @@ publicRouter.get('/bap',   bapController.index);
 // IMPORTANT: literal sub-routes registered before param routes (/freestyle/tricks/:slug)
 // and before /freestyle itself.
 publicRouter.get('/freestyle/records',     freestyleController.records);
+// Freestyle Media section; built by mediaService and also reached from the
+// /media hub's Freestyle card, so both surfaces share one structure.
+publicRouter.get('/freestyle/media',       mediaController.freestyleMedia);
 publicRouter.get('/freestyle/leaders',     freestyleController.leaders);
 publicRouter.get('/freestyle/competition',   freestyleController.competition);
 publicRouter.get('/freestyle/partnerships',  freestyleController.partnerships);

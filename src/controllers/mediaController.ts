@@ -41,13 +41,19 @@ export const mediaController = {
     }
   },
 
-  freestyleTutorials(_req: Request, res: Response, next: NextFunction): void {
+  freestyleMedia(_req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = mediaService.getFreestyleTutorialsPage();
-      res.render('media/freestyle-tutorials', vm);
+      const vm = mediaService.getFreestyleMediaSection();
+      res.render('freestyle/media', vm);
     } catch (err) {
-      handleControllerError(err, res, next, 'media controller (freestyle tutorials)');
+      handleControllerError(err, res, next, 'media controller (freestyle media)');
     }
+  },
+
+  // The former tutorials index folded into the Freestyle Media section; keep the
+  // old path working by sending it to the consolidated page.
+  freestyleTutorials(_req: Request, res: Response): void {
+    res.redirect(301, '/freestyle/media');
   },
 };
 
