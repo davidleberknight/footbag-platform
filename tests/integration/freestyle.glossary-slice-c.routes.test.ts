@@ -219,10 +219,10 @@ describe('Landing page — Watch & Learn card (Slice C lineage)', () => {
     expect(res.text).not.toContain('Educational pathways &rarr;');
   });
 
-  it('routes tutorials to the media-side index instead of an inline gallery card', async () => {
+  it('routes tutorials to the Freestyle Media section instead of an inline gallery card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).not.toContain('<div class="card-title">Watch &amp; Learn</div>');
-    expect(res.text).toContain('href="/media/freestyle-tutorials"');
+    expect(res.text).toContain('href="/freestyle/media"');
   });
 });

@@ -246,18 +246,19 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders six equal-size media cards, browse-by-hashtag leading with a green accent', async () => {
+  it('renders five equal-size media cards, browse-by-hashtag leading with a green accent', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Media');
     const cardCount = (res.text.match(/class="media-hub-card/g) || []).length;
-    expect(cardCount).toBe(6);
-    for (const title of ['Browse by hashtag', 'Freestyle Tutorials &amp; Demos', 'Freestyle Records', 'Net', 'Sideline', 'Related Sports']) {
+    expect(cardCount).toBe(5);
+    for (const title of ['Browse by hashtag', 'Freestyle', 'Net', 'Sideline', 'Related Sports']) {
       expect(res.text).toContain(title);
     }
     expect(res.text).toContain('href="/media/browse"');
-    expect(res.text).toContain('href="/media/freestyle-tutorials"');
+    // The freestyle cards collapse into one card opening the shared section.
+    expect(res.text).toContain('href="/freestyle/media"');
     // The browse-by-hashtag card is the same size as its siblings but carries a
     // distinct green accent and leads the grid.
     expect(res.text).toContain('media-hub-card--browse');
@@ -290,14 +291,67 @@ describe('GET /media (hub)', () => {
   });
 });
 
-describe('GET /media/freestyle-tutorials', () => {
-  it('lists the seeded freestyle tutorial galleries', async () => {
+describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
+  beforeAll(() => {
+    // Seed the Beginner PassBack gallery with one item so that folder resolves
+    // to a live, linked gallery. Use a gallery other than the curated-tricks
+    // one, whose exact item count later named-gallery tests assert on.
+    const db = openDb();
+    const pbbTagId = 'tag-test-passback-beginner';
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#passback_beginner', '#passback_beginner', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(pbbTagId, TS, TS);
+    insertNamedGallery(db, {
+      id: 'gallery_passback_beginner',
+      ownerId: SYSTEM_ID,
+      name: 'Beginner PassBack Tutorials',
+      description: 'Foundational PassBack tutorials.',
+    });
+    insertGalleryCriteria(db, 'gallery_passback_beginner', [CURATED_TAG_ID, pbbTagId]);
+    const vid = insertVideo(db, { id: 'media_video_pbb01', platform: 'youtube', caption: 'How to Learn a Footbag Trick' });
+    attachTag(db, vid, CURATED_TAG_ID, '#curated');
+    attachTag(db, vid, pbbTagId, '#passback_beginner');
+    db.close();
+  });
+
+  it('renders the shared folder structure including the PassBack beginner/advanced split', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/media');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Freestyle Media');
+    expect(res.text).toContain('Tutorials &amp; Demos');
+    for (const label of [
+      'How to Footbag Freestyle',
+      'Beginner PassBack Tutorials',
+      'Advanced PassBack Tutorials',
+      'Tricks of the Trade',
+      'Anz Trikz',
+      'Shred Global',
+      'Footbag Finland',
+      'Footbag.org',
+      'Freestyle Records',
+      'Curated Trick Videos',
+      'Individual Shred Videos',
+    ]) {
+      expect(res.text).toContain(label);
+    }
+  });
+
+  it('links folders whose gallery has items and marks unseeded folders coming soon', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/media');
+    expect(res.text).toContain('href="/media/gallery_passback_beginner"');
+    expect(res.text).toContain('Coming soon');
+  });
+});
+
+describe('GET /media/freestyle-tutorials (legacy path)', () => {
+  it('permanently redirects to the consolidated Freestyle Media section', async () => {
     const app = createApp();
     const res = await request(app).get('/media/freestyle-tutorials');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Freestyle Tutorials &amp; Demos');
-    // the curated aggregate is seeded in the fixture and linked from the index
-    expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/media');
   });
 });
 

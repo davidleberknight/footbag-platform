@@ -59,6 +59,7 @@ import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
+import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
 
 export const PAGE_SIZE = 24;
 
@@ -229,11 +230,29 @@ export interface MediaHubContent {
   memberGalleries: MediaHubGallerySummary[];
 }
 
-// The /media/freestyle-tutorials index: the freestyle tutorial/demo video
-// galleries gathered in one media-side place (so the hub's Tutorials & Demos
-// card reaches every gallery without sending users to the Freestyle landing).
-export interface FreestyleTutorialsContent {
-  galleries: { name: string; description: string; href: string }[];
+// One folder in the Freestyle Media section. A null href is a folder whose
+// backing gallery has no items yet, shown as "coming soon" rather than dropped
+// so the structure stays stable as content is curated.
+export interface FreestyleMediaFolderView {
+  label: string;
+  description: string;
+  itemCount: number;
+  href: string | null;
+  available: boolean;
+}
+
+// One section of the Freestyle Media page: an optional heading plus its folders.
+// A null heading renders the folders as top-level cards.
+export interface FreestyleMediaSectionView {
+  heading: string | null;
+  folders: FreestyleMediaFolderView[];
+}
+
+// The Freestyle Media content model, rendered identically by /freestyle/media
+// and reached from the /media hub's single Freestyle card. Both read the shared
+// FREESTYLE_MEDIA_STRUCTURE definition, so the two surfaces never diverge.
+export interface FreestyleMediaContent {
+  sections: FreestyleMediaSectionView[];
 }
 
 
@@ -429,9 +448,10 @@ export const mediaService = {
       const memberGalleries = summaries.filter((s) => !s.owner.isSystem);
 
       // The browse-by-hashtag card leads the grid with a distinct green treatment.
-      // Tutorials & Demos absorbs the per-source freestyle galleries and the
-      // curated-tricks aggregate; Related Sports absorbs chinlone and (future)
-      // sepak takraw.
+      // A single Freestyle card opens into the shared Freestyle Media section
+      // (tutorials and demos, records, curated trick videos, shred clips), so
+      // the hub and /freestyle/media present one structure. Related Sports
+      // absorbs chinlone and (future) sepak takraw.
       const cards: MediaHubCard[] = [
         {
           title: 'Browse by hashtag',
@@ -441,16 +461,10 @@ export const mediaService = {
           accent: true,
         },
         {
-          title: 'Freestyle Tutorials & Demos',
-          description: 'Instructional and demonstration footage from the freestyle community.',
-          href: '/media/freestyle-tutorials',
-          cta: 'Browse tutorials',
-        },
-        {
-          title: 'Freestyle Records',
-          description: 'World records, record attempts, and historical achievement footage.',
-          href: '/freestyle/records',
-          cta: 'View records',
+          title: 'Freestyle',
+          description: 'Tutorials and demos, records footage, and curated freestyle videos.',
+          href: '/freestyle/media',
+          cta: 'Browse freestyle',
         },
         {
           title: 'Net',
@@ -485,34 +499,46 @@ export const mediaService = {
     });
   },
 
-  getFreestyleTutorialsPage(): PageViewModel<FreestyleTutorialsContent> {
-    return runSqliteRead('mediaService.getFreestyleTutorialsPage', () => {
+  getFreestyleMediaSection(): PageViewModel<FreestyleMediaContent> {
+    return runSqliteRead('mediaService.getFreestyleMediaSection', () => {
       const byId = new Map(
         (media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[]).map((g) => [g.id, g]),
       );
-      // Ordered tutorial sources; the curated aggregate trails the named ones.
-      const TUTORIAL_GALLERY_IDS = [
-        'gallery_tricks_of_the_trade',
-        'gallery_passback_tutorials',
-        'gallery_anz_trikz',
-        'gallery_shred_global',
-        'gallery_footbag_finland',
-        'gallery_footbag_org',
-        'gallery_curated_freestyle_tricks',
-      ];
-      const galleries = TUTORIAL_GALLERY_IDS
-        .map((id) => byId.get(id))
-        .filter((g): g is NamedGalleryWithOwnerRow => g != null)
-        .map((g) => ({ name: g.name, description: g.description, href: `/media/${g.id}` }));
+      const sections: FreestyleMediaSectionView[] = FREESTYLE_MEDIA_STRUCTURE.map((section) => ({
+        heading: section.heading,
+        folders: section.folders.map((f) => {
+          const g = byId.get(f.galleryId);
+          if (g == null) {
+            // Gallery not seeded yet: keep the folder visible as a
+            // forward-looking entry so the structure does not silently shrink.
+            return { label: f.label, description: '', itemCount: 0, href: null, available: false };
+          }
+          const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map(
+            (t) => t.id,
+          );
+          const excludeTagIds = (
+            media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[]
+          ).map((t) => t.id);
+          const itemCount = countGalleryItemsByCriteria(tagIds, excludeTagIds);
+          return {
+            label: f.label,
+            description: g.description,
+            itemCount,
+            href: itemCount > 0 ? `/media/${g.id}` : null,
+            available: itemCount > 0,
+          };
+        }),
+      }));
       return {
-        seo: { title: 'Freestyle Tutorials & Demos' },
+        seo: { title: 'Freestyle Media' },
         page: {
-          sectionKey: 'media',
-          pageKey: 'media_freestyle_tutorials',
-          title: 'Freestyle Tutorials & Demos',
-          intro: 'Instructional and demonstration video galleries from across the freestyle community.',
+          sectionKey: 'freestyle',
+          pageKey: 'freestyle_media',
+          title: 'Freestyle Media',
+          intro:
+            'Tutorials and demos, records footage, curated trick videos, and individual shred clips.',
         },
-        content: { galleries },
+        content: { sections },
       };
     });
   },

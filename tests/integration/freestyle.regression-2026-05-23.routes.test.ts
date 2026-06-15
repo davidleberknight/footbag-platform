@@ -214,29 +214,27 @@ describe('Item 1: dictionary landing browse strip — no Observed Tricks tab', (
   });
 });
 
-// ── Item 3 — PassBack tutorial link active on freestyle landing + media ──
-describe('Item 3: PassBack tutorial link active on both entry points', () => {
-  it('freestyle landing routes tutorials through the media-side index that gathers the PassBack gallery', async () => {
+// ── Item 3 — Freestyle Media section reachable from both entry points ──
+describe('Item 3: Freestyle Media section reachable from landing and media hub', () => {
+  it('freestyle landing links the consolidated Freestyle Media section', async () => {
     const app = await createApp();
     const land = await request(app).get('/freestyle');
     expect(land.status).toBe(200);
-    // The landing's Media section links the tutorials index rather than re-listing
-    // each per-source gallery inline.
-    expect(land.text).toContain('href="/media/freestyle-tutorials"');
-    const index = await request(app).get('/media/freestyle-tutorials');
-    expect(index.status).toBe(200);
+    // The landing's Media section links the shared section page rather than
+    // re-listing each per-source gallery inline.
+    expect(land.text).toContain('href="/freestyle/media"');
+    const section = await request(app).get('/freestyle/media');
+    expect(section.status).toBe(200);
   });
 
-  it('media hub Tutorials card routes to the media-side tutorials index, which gathers the source galleries', async () => {
+  it('media hub Freestyle card opens the same Freestyle Media section', async () => {
     const app = await createApp();
     const hub = await request(app).get('/media');
     expect(hub.status).toBe(200);
-    // The hub no longer re-lists per-source galleries; its Tutorials & Demos card
-    // links to the media-side index that gathers them (PassBack included).
-    expect(hub.text).toContain('Freestyle Tutorials &amp; Demos');
-    expect(hub.text).toContain('href="/media/freestyle-tutorials"');
-    const index = await request(app).get('/media/freestyle-tutorials');
-    expect(index.status).toBe(200);
+    // One Freestyle card on the hub opens the same shared section the landing links.
+    expect(hub.text).toContain('href="/freestyle/media"');
+    const section = await request(app).get('/freestyle/media');
+    expect(section.status).toBe(200);
   });
 });
 

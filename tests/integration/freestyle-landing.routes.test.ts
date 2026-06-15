@@ -56,7 +56,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     // supporting sections moved below the educational core
     expect(res.text).toContain('Freestyle Media');
     expect(res.text).toContain('History of Freestyle');
-    expect(res.text).toContain('href="/media/freestyle-tutorials"');
+    expect(res.text).toContain('href="/freestyle/media"');
   });
 
   it('falls back to quiet empty-state cells when no clip is loaded', async () => {
@@ -65,13 +65,14 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     expect(res.text).toContain('tricks-mosaic-section--placeholder');
   });
 
-  it('renders the Individual Shred Videos media tile, gated on its gallery being seeded', async () => {
+  it('Freestyle Media section is a single invite into the consolidated media page', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Individual Shred Videos');
-    // The gallery is not seeded in the test DB, so the tile shows the
-    // coming-soon state rather than a link to /media/gallery_individual_shred_videos.
-    const idx = res.text.indexOf('Individual Shred Videos');
-    expect(res.text.slice(idx, idx + 200)).toMatch(/Coming soon/);
+    expect(res.text).toContain('Browse Freestyle Media');
+    expect(res.text).toContain('href="/freestyle/media"');
+    // The per-collection sub-tiles live on /freestyle/media now; the landing no
+    // longer lists them separately (they previously duplicated the section).
+    expect(res.text).not.toContain('Freestyle Records Videos');
+    expect(res.text).not.toContain('Individual Shred Videos');
   });
 
   it('renders the Freestyle by the Numbers band with six gateway cards', async () => {

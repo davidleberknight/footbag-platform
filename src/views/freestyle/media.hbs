@@ -6,21 +6,26 @@
 </div>
 
 <div class="wrapper">
+  {{#each content.sections}}
   <section class="content-section">
-    {{#if content.galleries.length}}
+    {{#if heading}}
+    <div class="section-heading"><h2>{{heading}}</h2></div>
+    {{/if}}
     <div class="card-grid card-grid-2col">
-      {{#each content.galleries}}
+      {{#each folders}}
       <div class="card">
-        <div class="card-title">{{name}}</div>
+        <div class="card-title">{{label}}</div>
         {{#if description}}<p>{{description}}</p>{{/if}}
         <div class="card-actions">
+          {{#if available}}
           <a href="{{href}}" class="btn btn-outline">Watch &rarr;</a>
+          {{else}}
+          <span class="media-hub-soon">Coming soon</span>
+          {{/if}}
         </div>
       </div>
       {{/each}}
     </div>
-    {{else}}
-    <p class="text-muted">Tutorial galleries are coming soon.</p>
-    {{/if}}
   </section>
+  {{/each}}
 </div>
