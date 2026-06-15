@@ -71,14 +71,15 @@ async function page(slug: string): Promise<string> {
   return res.text;
 }
 
-describe('W1 — Related Tricks split into labeled relationship groups', () => {
-  it('groups a same-family neighbour and a shared-modifier neighbour under their labels', async () => {
+describe('W1 — same-family and shared-modifier relating owned by the Family ladder', () => {
+  it('does not render Same-family / Shares-a-modifier groups in Related Tricks', async () => {
     const html = await page('paradox-torque');
-    expect(html).toContain('related-group-label');
-    // torque is the same family; paradox-whirl shares the paradox prefix —
-    // now rendered as labeled relationship groups, not per-row reasons.
-    expect(html).toContain('Same family');
-    expect(html).toContain('Shares a modifier');
+    // Same-family relating is owned by the Family ladder; the shared-modifier
+    // and same-family groups no longer appear in the Related Tricks section.
+    expect(html).not.toContain('Same family');
+    expect(html).not.toContain('Shares a modifier');
+    // The canonical same-family relating still surfaces via the Family ladder.
+    expect(html).toContain('content-section trick-family-lineage');
   });
 });
 

@@ -46,6 +46,7 @@ import {
   FreestyleTrickRowWithStatus, FreestyleTrickRowWithParse,
   FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow, FreestyleTrickModifierLinkDetailRow,
+  FreestyleModifierLinkPairRow,
   FreestyleModifierUsageRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestyleMilestoneRow, FreestyleCareerRow, FreestyleNationRow,
@@ -92,6 +93,7 @@ import {
   buildNextTricks,
   buildPreviousTricks,
 } from './freestyleRelatedTricks';
+import { StructuralNeighbors, buildStructuralNeighbors } from './freestyleAdjacency';
 import {
   SymbolicRelatedTopologyPanel,
   SymbolicEducationCta,
@@ -1292,6 +1294,19 @@ export interface FreestyleTrickContent {
   // optional one-line rationale; the movement-neighbour group is re-labeled
   // "Swing elements" for the pendulum/rake pair. Empty groups are dropped.
   relatedGroups: FreestyleRelatedGroup[];
+  // Structural Neighbors (Layer 1 operator-adjacency): the ±1-operator relation
+  // built from this trick's base_trick + modifier-link multiset (built on /
+  // swap the operator / extend / same operator other base / same structure).
+  // Distinct from relatedGroups, which relate by IFPA family; this relates by
+  // operator structure. Null when no bucket has members, so the block is hidden
+  // rather than rendered empty.
+  structuralNeighbors: StructuralNeighbors | null;
+  // Derived one-line relocations of the retired Mechanical Delta and Progressive
+  // Readings sections. intuitionDelta ("Compared with X, this adds Y") renders in
+  // Movement Intuition; buildPath ("Built from A -> B -> + mod = this") renders in
+  // About. Null when the trick is not a modifier-composed compound.
+  intuitionDelta: string | null;
+  buildPath:      string | null;
   // Quantity ladder this trick belongs to (same base, increasing repetition
   // count) — a cross-family relationship, NOT a family. Null when not a ladder
   // member. A ladder member slug absent from the dictionary renders missing.
@@ -3937,7 +3952,7 @@ const FAMILY_NOTES: Record<string, string> = {
   torque:
     'Torque is the most important intermediate base in advanced freestyle. Canonically ' +
     'Miraging Osis, it sits at 4 ADD and supports a dense cluster of high-difficulty ' +
-    'derivatives: paradox torque and mobius (Spinning Torque) at 5 ADD, atomic torque ' +
+    'derivatives: paradox torque and mobius (Gyro Torque) at 5 ADD, atomic torque ' +
     'at 6 ADD, and several 6-7 ADD compounds.',
   blender:
     'Blender is the other major 4-ADD osis compound (canonically Whirling Osis). ' +
@@ -6238,6 +6253,18 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * Build the trick-detail page view-model.
+   *
+   * Relationship sections follow a single-owner rule, so no trick appears in two
+   * relationship sections: the Family ladder owns same-family progression;
+   * Related Tricks owns conceptual movement-neighbour / swing-element links only;
+   * Structural Neighbors owns cross-base composition only (the same operators on
+   * another base, plus same-structure twins). There is no standalone Mechanical
+   * Delta or Progressive Readings section: their useful content is relocated to
+   * two derived one-liners, `intuitionDelta` (rendered in Movement Intuition) and
+   * `buildPath` (rendered in About), both null for atoms and link-less tricks.
+   */
   getTrickDetailPage(rawSlug: string): PageViewModel<FreestyleTrickContent> {
     // A record or media link may address a trick by an alias slug; resolve it
     // to the canonical trick so the alias URL renders the canonical page.
@@ -6291,6 +6318,12 @@ export const freestyleService = {
     );
     const allModifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
       freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
+    );
+    // Every modifier link across the active dictionary, for the structural-
+    // neighbors adjacency layer (it reconstructs each trick's operator multiset
+    // from these triples to compute the ±1-operator relation).
+    const allModifierLinks = runSqliteRead('freestyleTrickModifiers.listAllModifierLinks', () =>
+      freestyleTrickModifiers.listAllModifierLinks.all() as FreestyleModifierLinkPairRow[],
     );
 
     const dictEntry = dictRow ? shapeDictEntry(dictRow, allDictRows, allModifierRows) : null;
@@ -6491,20 +6524,20 @@ export const freestyleService = {
           });
         })();
 
-        // Related tricks partitioned into labeled relationship groups by the
-        // existing per-row `rule`. Pendulum/rake re-label the movement-neighbour
-        // group as "Swing elements" (completed by the swing; open terminal).
+        // Related Tricks owns CONCEPTUAL relationships only: curated movement
+        // neighbourhoods (kick/stall pairs, dex-kick variants, surface stalls)
+        // and the swing-element pair. Same-family progression is owned by the
+        // Family ladder; compositional and same-base structural relationships
+        // are owned by Structural Neighbors. So only the curated `neighborhood`
+        // rule surfaces here; the family / modifier-prefix / parent / grandparent
+        // rules are not rendered as related groups.
         const relatedList: FreestyleRelatedTrick[] = dictRow ? buildRelatedTricks(dictRow, allDictRows) : [];
         const isSwingElement = slug === 'pendulum' || slug === 'rake';
         const relatedGroups: FreestyleRelatedGroup[] = ([
-          { key: 'family',          label: 'Same family',         rationale: null },
-          { key: 'modifier-prefix', label: 'Shares a modifier',   rationale: null },
           { key: 'neighborhood',    label: isSwingElement ? 'Swing elements' : 'Movement neighbours',
             rationale: isSwingElement
               ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
               : null },
-          { key: 'parent',          label: 'Built on',            rationale: null },
-          { key: 'grandparent',     label: 'Structural ancestor', rationale: null },
         ] as const).flatMap(g => {
           const tricks = relatedList.filter(r => r.rule === g.key);
           return tricks.length ? [{ key: g.key, label: g.label, rationale: g.rationale, tricks }] : [];
@@ -6533,6 +6566,52 @@ export const freestyleService = {
           };
         })();
 
+        // Derived relocations of the retired Mechanical Delta + Progressive
+        // Readings sections: a compact parent-delta line (rendered in Movement
+        // Intuition) and a base-chain build path (rendered in About). Both are
+        // derived from base_trick + modifier links, so they cover every
+        // modifier-composed compound, not only curated flagship pages.
+        const { derivedDelta, derivedBuildPath } = ((): { derivedDelta: string | null; derivedBuildPath: string | null } => {
+          if (!dictRow || !dictRow.base_trick || dictRow.base_trick === dictRow.slug) {
+            return { derivedDelta: null, derivedBuildPath: null };
+          }
+          const rowBySlug = new Map(allDictRows.map(r => [r.slug, r] as const));
+          const modsBySlug = new Map<string, string[]>();
+          for (const l of allModifierLinks) {
+            const arr = modsBySlug.get(l.trick_slug) ?? [];
+            arr.push(l.modifier_slug);
+            modsBySlug.set(l.trick_slug, arr);
+          }
+          const nameOf = (s: string): string => rowBySlug.get(s)?.canonical_name ?? s.replace(/-/g, ' ');
+          const thisMods = modsBySlug.get(dictRow.slug) ?? [];
+          const parentMods = [...(modsBySlug.get(dictRow.base_trick) ?? [])];
+          // Modifiers this trick adds over its immediate parent (multiset diff).
+          const addedMods = thisMods.filter(m => {
+            const i = parentMods.indexOf(m);
+            if (i >= 0) { parentMods.splice(i, 1); return false; }
+            return true;
+          });
+          // Base chain, root-first, excluding self.
+          const ancestors: string[] = [];
+          const seen = new Set<string>([dictRow.slug]);
+          let cur: string | null = dictRow.base_trick;
+          while (cur && !seen.has(cur) && rowBySlug.has(cur)) {
+            seen.add(cur);
+            ancestors.unshift(nameOf(cur));
+            const next: string | null = rowBySlug.get(cur)!.base_trick;
+            cur = next && next !== cur ? next : null;
+          }
+          const thisName = dictRow.canonical_name;
+          return {
+            derivedDelta: addedMods.length
+              ? `Compared with ${nameOf(dictRow.base_trick)}, ${thisName} adds ${addedMods.join(' and ')}.`
+              : null,
+            derivedBuildPath: (thisMods.length && ancestors.length)
+              ? `Built from ${ancestors.join(' → ')} → + ${thisMods.join(' + ')} = ${thisName}.`
+              : null,
+          };
+        })();
+
         return {
           trickName,
           sortName,
@@ -6553,6 +6632,20 @@ export const freestyleService = {
           additionalFamilies,
           relatedTricks:    relatedList,
           relatedGroups,
+          // Structural Neighbors owns ONLY cross-base compositional relationships:
+          // the same modifier multiset applied to a different base (operator_kin)
+          // and other names for the same structure (twins). The same-base buckets
+          // (built-on / swap / extend) are owned by the Family ladder, so they are
+          // filtered out here even though the engine still computes them.
+          structuralNeighbors: (() => {
+            if (!dictRow) return null;
+            const full = buildStructuralNeighbors(dictRow, allDictRows, allModifierLinks);
+            if (!full) return null;
+            const buckets = full.buckets.filter(b => b.key === 'operator_kin' || b.key === 'twins');
+            return buckets.length ? { ...full, buckets } : null;
+          })(),
+          intuitionDelta: derivedDelta,
+          buildPath:      derivedBuildPath,
           quantityLadder,
           modifierMemberships,
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),

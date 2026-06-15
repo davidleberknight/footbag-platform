@@ -125,14 +125,15 @@ describe('symbolic Related Topology panel — allow-listed slugs', () => {
     expect(itemCount).toBeGreaterThan(0);
   });
 
-  it('canonical Related Tricks section still renders separately from symbolic panel', async () => {
+  it('canonical family relating renders separately from the symbolic panel', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
-    // Both sections present and distinct
-    expect(res.text).toMatch(/<h2>Related Tricks<\/h2>/);
+    // Canonical same-family relating is owned by the Family ladder; the
+    // observational symbolic panel is a distinct, later section.
+    expect(res.text).toContain('content-section trick-family-lineage');
     expect(res.text).toMatch(/<h3>\s*Related topology tricks/);
-    // Symbolic section comes after canonical section
-    expect(res.text.indexOf('Related Tricks')).toBeLessThan(
+    // Symbolic section comes after the canonical family-lineage section
+    expect(res.text.indexOf('trick-family-lineage')).toBeLessThan(
       res.text.indexOf('Related topology tricks'),
     );
   });

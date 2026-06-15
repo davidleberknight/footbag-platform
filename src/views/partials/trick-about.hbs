@@ -53,6 +53,12 @@
       {{/unless}}
     {{/if}}
 
+    {{!-- Build path, relocated from the retired Progressive Readings section. --}}
+    {{#if content.buildPath}}
+    <dt>Built from</dt>
+    <dd data-build-path>{{content.buildPath}}</dd>
+    {{/if}}
+
     {{#if content.dictEntry.aliases.length}}
     <dt>Also known as</dt>
     <dd>{{#each content.dictEntry.aliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</dd>

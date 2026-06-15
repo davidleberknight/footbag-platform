@@ -2,17 +2,17 @@
  * Integration tests for reverse semantic linkage on trick-detail pages.
  *
  * Verifies:
- *   - Trick-detail pages surface topology + component memberships when present
+ *   - Trick-detail pages surface topology memberships when present
  *   - Memberships link to the correct browse-view group anchors
  *   - Topology predicates fire for the right tricks (hippy-downtime-dex for
  *     butterfly + mirage compounds; ducking-clipper-structures for
  *     clipper-landing ducking compounds)
- *   - Component memberships include the trick's body + set modifier links
- *   - Memberships are sorted deterministically (body axis first, then set)
- *   - Empty memberships hide both panels
- *   - Observational badge rendered on each panel heading
- *   - Card-uniformity / discovery loop: every membership link is a valid
- *     browse-view URL
+ *   - The standalone Component-memberships panel is retired; per-modifier
+ *     linkage is owned by the Modifiers section
+ *   - Empty topology memberships hide the panel
+ *   - Observational badge rendered on the topology panel heading
+ *   - Card-uniformity / discovery loop: every topology membership link is a
+ *     valid browse-view URL
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -179,45 +179,37 @@ describe('trick-detail — topology memberships', () => {
 // 2. Component memberships
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('trick-detail — component memberships', () => {
-  it('mirage shows no component memberships (no modifier links)', async () => {
+// The standalone Component-memberships panel is retired; per-modifier
+// linkage is owned by the Modifiers section. The trick-detail page no longer
+// renders a Component-memberships panel or ?view=component deep-links.
+describe('trick-detail — component-memberships panel retired', () => {
+  it('mirage renders no Component-memberships panel', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
-    // No component panel for a base trick without modifier links
     expect(res.text).not.toContain('Component memberships');
   });
 
-  it('ducking-whirl shows a single component membership (ducking, body axis)', async () => {
+  it('ducking-whirl renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ducking-whirl');
-    expect(res.text).toContain('Component memberships');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-ducking"');
+    expect(res.text).not.toContain('Component memberships');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-ducking"');
+    // The modifier is surfaced via the Modifiers section instead.
+    expect(res.text).toContain('Modifiers on this trick');
   });
 
-  it('phoenix shows component memberships for pixie (set) + ducking (body)', async () => {
+  it('phoenix renders no Component-memberships panel; modifiers owned by the Modifiers section', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/phoenix');
-    expect(res.text).toContain('Component memberships');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-pixie"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-ducking"');
+    expect(res.text).not.toContain('Component memberships');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-pixie"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-ducking"');
+    expect(res.text).toContain('Modifiers on this trick');
   });
 
-  it('montage shows all four component memberships (paradox, symposium, spinning, ducking)', async () => {
+  it('montage surfaces no ?view=component deep-links', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/montage');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-paradox"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-symposium"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-spinning"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component#component-ducking"');
-  });
-
-  it('body-axis memberships render before set-axis memberships in the rendered list', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/phoenix');
-    // phoenix has body=ducking + set=pixie. Body should come first.
-    const componentPanelStart = res.text.indexOf('Component memberships');
-    expect(componentPanelStart).toBeGreaterThan(-1);
-    const componentPanelEnd = res.text.indexOf('</aside>', componentPanelStart);
-    const region = res.text.slice(componentPanelStart, componentPanelEnd);
-    const duckingIdx = region.indexOf('component-ducking');
-    const pixieIdx   = region.indexOf('component-pixie');
-    expect(duckingIdx).toBeGreaterThan(-1);
-    expect(pixieIdx).toBeGreaterThan(duckingIdx);
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-paradox"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-symposium"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-spinning"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component#component-ducking"');
   });
 });
 
@@ -247,16 +239,16 @@ describe('trick-detail — empty memberships', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('trick-detail — observational badge + visual contract', () => {
-  it('each panel heading carries the observational symbolic-layer badge', async () => {
+  it('the topology panel heading carries the observational symbolic-layer badge', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/montage');
     // Count badge occurrences inside the trick-semantic-memberships aside.
     const asideStart = res.text.indexOf('class="trick-semantic-memberships"');
     expect(asideStart).toBeGreaterThan(-1);
     const asideEnd = res.text.indexOf('</aside>', asideStart);
     const region = res.text.slice(asideStart, asideEnd);
-    // Both panels render — both carry a badge
+    // Only the topology panel renders now — exactly one badge.
     const badgeMatches = region.match(/class="symbolic-layer-badge"/g) ?? [];
-    expect(badgeMatches.length).toBe(2);
+    expect(badgeMatches.length).toBe(1);
   });
 
   it('panels render as a single <aside class="trick-semantic-memberships">', async () => {
@@ -277,10 +269,10 @@ describe('trick-detail — discovery loop integrity', () => {
     expect(links.length).toBe(4);
   });
 
-  it('component membership links use the canonical ?view=component URL pattern', async () => {
+  it('surfaces no ?view=component deep-links (component panel retired)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/montage');
     const links = res.text.match(/href="\/freestyle\/tricks\?view=component#component-[a-z-]+"/g) ?? [];
-    expect(links.length).toBe(4);
+    expect(links.length).toBe(0);
   });
 
   it('each topology-membership link target exists on the topology browse page (round-trip)', async () => {
@@ -293,19 +285,6 @@ describe('trick-detail — discovery loop integrity', () => {
     for (const slug of linkSlugs) {
       expect(topologyRes.text, `topology page must render id="topology-${slug}"`)
         .toContain(`id="topology-${slug}"`);
-    }
-  });
-
-  it('each component-membership link target exists on the component browse page (round-trip)', async () => {
-    const detailRes = await request(createApp()).get('/freestyle/tricks/phoenix');
-    const linkSlugs = (detailRes.text.match(/#component-([a-z-]+)/g) ?? [])
-      .map(s => s.replace('#component-', ''));
-    expect(linkSlugs.length).toBeGreaterThan(0);
-
-    const componentRes = await request(createApp()).get('/freestyle/tricks?view=component');
-    for (const slug of linkSlugs) {
-      expect(componentRes.text, `component page must render id="component-${slug}"`)
-        .toContain(`id="component-${slug}"`);
     }
   });
 });

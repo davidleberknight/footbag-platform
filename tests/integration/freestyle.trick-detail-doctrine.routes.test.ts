@@ -1,24 +1,22 @@
 /**
- * Trick-detail ontology doctrine — Phase A + B tests (2026-05-25).
+ * Trick-detail ontology doctrine tests.
  *
  * Pins:
- *   - Tier A flagship pages render L2-L6 sections (mechanical delta,
- *     ontology role, productivity, family evolution, progressive
- *     readings) when content is authored
- *   - Tier B / Tier C pages do NOT render L2-L4 or L6 sections
- *   - Interpretive-traditions block renders for paradox-mirage (two
- *     readings, neither promoted to canonical)
- *   - Atom pages (mirage, whirl) render the "Atom — defining mechanical
- *     pattern" topology label
+ *   - Flagship pages render the surviving ontology sections (Movement
+ *     Intuition, Productivity, Family Evolution) when content is authored
+ *   - The standalone Mechanical Delta, Ontology Role, and Progressive
+ *     Readings sections, plus the interpretive-traditions block, are retired;
+ *     the "vs parent" idea is a one-line delta inside Movement Intuition and
+ *     the build-path is a line inside the About section
+ *   - Leaf-class compounds suppress Productivity + Family Evolution
  *   - Productive-descendant links render with /freestyle/tricks/<slug> hrefs
  *   - Family-evolution sections render numbered narrative steps
- *   - Progressive-readings sections render numbered stages
  *   - Placeholder-description suppressor: literal "X-modified Y."
  *     description suppressed; structured decomposition pill renders instead
  *   - DB description rows NOT mutated (verified by absence of regex
  *     match in raw description on rendered page when literal differs
  *     from displayed)
- *   - Shell ordering: L1-L6 sections appear BEFORE trick-about
+ *   - Shell ordering: surviving sections appear BEFORE trick-about
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -29,7 +27,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3222');
 
@@ -199,59 +201,26 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
+  // Modifier links so the relocated "vs parent" delta (inside Movement
+  // Intuition) and build-path (inside About) render for modifier-composed
+  // compounds. blur = mirage + blurry; torque = osis + miraging.
+  insertFreestyleTrickModifier(db, { slug: 'blurry',   modifier_name: 'blurry',   modifier_type: 'body' });
+  insertFreestyleTrickModifier(db, { slug: 'miraging', modifier_name: 'miraging', modifier_type: 'body' });
+  insertFreestyleTrickModifierLink(db, 'blur', 'blurry');
+  insertFreestyleTrickModifierLink(db, 'torque', 'miraging');
+
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Tier A flagship pages — L2-L6 ontology sections render', () => {
-  it('mirage renders the mechanical-delta section with atom topology label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('>Mechanical delta<');
-    expect(res.text).toContain('Atom: defining mechanical pattern');
-    // Stable substring from mirage's L2 prose
-    expect(res.text).toMatch(/in-to-out dex/);
-  });
-
-  it('paradox-mirage renders the mechanical-delta section with paradox topology label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Paradox topology');
-    expect(res.text).toContain('class="trick-mechanical-delta-parents"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mirage"/);
-  });
-
-  it('paradox-mirage renders BOTH interpretive traditions (neither promoted to canonical)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(res.text).toContain('class="trick-interpretive-traditions"');
-    expect(res.text).toContain('Both readings preserved; neither promoted to canonical doctrine');
-    expect(res.text).toMatch(/Op-side dex from a clipper entry/);
-    expect(res.text).toMatch(/Older shorthand tradition/);
-    expect(res.text).toMatch(/Additional cross-body hip-pivot transition/);
-    expect(res.text).toMatch(/Newer pedagogical reading/);
-  });
-
-  it('whirl renders the mechanical-delta section with rotational topology label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/whirl');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('>Rotational<');
-  });
-
-  it('mirage renders the ontology-role section with the role eyebrow', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    expect(res.text).toContain('class="content-section trick-ontology-role"');
-    expect(res.text).toContain('Movement-language entry point');
-  });
-
-  it('paradox-mirage renders the ontology-role section as "Paradox topology root"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(res.text).toContain('Paradox topology root');
-  });
-
+// The standalone Mechanical Delta (L2), Ontology Role (L3), and Progressive
+// Readings (L6) sections, plus the interpretive-traditions block, are retired.
+// The Movement Intuition (L1), Productivity (L4), and Family Evolution (L5)
+// sections remain. The "vs parent" idea moves to a one-line delta inside
+// Movement Intuition; the build-path moves into the About section.
+describe('Tier A flagship pages — surviving ontology sections render', () => {
   it('mirage renders the productivity section with productive-descendant links', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
     expect(res.text).toContain('class="content-section trick-productivity"');
@@ -271,23 +240,6 @@ describe('Tier A flagship pages — L2-L6 ontology sections render', () => {
     expect(res.text).toContain('Terminal surface shift');
   });
 
-  it('mirage renders the progressive-readings staircase with numbered stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Progressive readings');
-    expect(res.text).toContain('Simple atom');
-    expect(res.text).toContain('Topology transformation');
-    expect(res.text).toContain('Compositional extension');
-  });
-
-  it('paradox-mirage renders the progressive-readings staircase with both paradox readings', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(res.text).toContain('Mirage atom');
-    expect(res.text).toContain('Paradox layer: older reading');
-    expect(res.text).toContain('Paradox layer: interpretive reading');
-    expect(res.text).toContain('ADD accounting');
-    expect(res.text).toContain('Productive descendants');
-  });
 });
 
 describe('Placeholder-description suppressor', () => {
@@ -323,61 +275,85 @@ describe('Pages with no curated L1-L6 content suppress those sections', () => {
   });
 });
 
-describe('Shell ordering — L1-L6 sections render BEFORE trick-about', () => {
-  it('on mirage, mechanical-delta appears before the About-this-trick heading', async () => {
+describe('Shell ordering — surviving ontology sections render BEFORE trick-about', () => {
+  it('on mirage, the intuition section appears before the About-this-trick heading', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    const deltaIdx = res.text.indexOf('class="content-section trick-mechanical-delta"');
+    const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
     const aboutIdx = res.text.indexOf('>About this trick<');
-    expect(deltaIdx).toBeGreaterThan(-1);
+    expect(intuitionIdx).toBeGreaterThan(-1);
     expect(aboutIdx).toBeGreaterThan(-1);
-    expect(deltaIdx).toBeLessThan(aboutIdx);
+    expect(intuitionIdx).toBeLessThan(aboutIdx);
   });
 
-  it('on mirage, the L1-L6 sections render in canonical order (intuition → delta → role → productivity → family-evolution → progressive-readings)', async () => {
+  it('on mirage, the surviving sections render in canonical order (intuition → productivity → family-evolution → about)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    const intuitionIdx           = res.text.indexOf('class="content-section trick-intuition"');
-    const deltaIdx               = res.text.indexOf('class="content-section trick-mechanical-delta"');
-    const roleIdx                = res.text.indexOf('class="content-section trick-ontology-role"');
-    const productivityIdx        = res.text.indexOf('class="content-section trick-productivity"');
-    const familyEvolutionIdx     = res.text.indexOf('class="content-section trick-family-evolution"');
-    const progressiveReadingsIdx = res.text.indexOf('class="content-section trick-progressive-readings"');
+    const intuitionIdx       = res.text.indexOf('class="content-section trick-intuition"');
+    const productivityIdx    = res.text.indexOf('class="content-section trick-productivity"');
+    const familyEvolutionIdx = res.text.indexOf('class="content-section trick-family-evolution"');
+    const aboutIdx           = res.text.indexOf('>About this trick<');
     expect(intuitionIdx).toBeGreaterThan(-1);
-    expect(deltaIdx).toBeGreaterThan(intuitionIdx);
-    expect(roleIdx).toBeGreaterThan(deltaIdx);
-    expect(productivityIdx).toBeGreaterThan(roleIdx);
+    expect(productivityIdx).toBeGreaterThan(intuitionIdx);
     expect(familyEvolutionIdx).toBeGreaterThan(productivityIdx);
-    expect(progressiveReadingsIdx).toBeGreaterThan(familyEvolutionIdx);
+    expect(aboutIdx).toBeGreaterThan(familyEvolutionIdx);
   });
 });
 
+
+// Relocated content: the "vs parent" delta moves into Movement Intuition as a
+// single data-intuition-delta line, and the build-path moves into the About
+// section as a data-build-path line. Both render only for modifier-composed
+// compounds (a trick with a base trick and at least one modifier link); atoms
+// and link-less tricks carry neither.
+describe('Relocated delta + build-path', () => {
+  it('blur (mirage + blurry) renders the parent-delta line inside Movement Intuition naming parent + modifier', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/blur');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('data-intuition-delta');
+    expect(res.text).toMatch(/Compared with mirage, blur adds blurry\./);
+  });
+
+  it('blur renders the build-path line inside the About section', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/blur');
+    expect(res.text).toContain('data-build-path');
+    // The trailing "= blur." renders with the HTML-escaped equals sign.
+    expect(res.text).toMatch(/Built from mirage .* \+ blurry &#x3D; blur\./);
+  });
+
+  it('mirage (atom, no modifier links) renders neither the delta nor the build-path line', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/mirage');
+    expect(res.text).not.toContain('data-intuition-delta');
+    expect(res.text).not.toContain('data-build-path');
+  });
+});
+
+// The standalone Mechanical Delta, Ontology Role, and Progressive Readings
+// sections, plus the interpretive-traditions block, are retired everywhere.
+describe('Retired ontology sections are absent on every trick page', () => {
+  for (const slug of ['mirage', 'paradox-mirage', 'whirl', 'blur', 'fury', 'sumo', 'torque', 'ripstein']) {
+    it(`${slug} renders no mechanical-delta / ontology-role / progressive-readings / interpretive-traditions section`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+      expect(res.status).toBe(200);
+      expect(res.text).not.toContain('class="content-section trick-mechanical-delta"');
+      expect(res.text).not.toContain('class="content-section trick-ontology-role"');
+      expect(res.text).not.toContain('class="content-section trick-progressive-readings"');
+      expect(res.text).not.toContain('class="trick-interpretive-traditions"');
+    });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────
-// Phase C — C1 mirage-descendant batch (blur / fury / sumo)
+// mirage-descendant batch (blur / fury / sumo)
 // ─────────────────────────────────────────────────────────────────────────
 //
-// blur renders all six L1-L6 layers.
-// fury + sumo are leaf-class compounds; L4 (productivity) and L5
-// (family evolution) are intentionally suppressed per the Phase B lock
-// §2 rule 7 (suppression > filler).
+// fury + sumo are leaf-class compounds; Productivity and Family Evolution are
+// intentionally suppressed (suppression beats filler).
 
-describe('Phase C — blur renders all six L1-L6 layers', () => {
+describe('blur renders intuition + productivity + family-evolution', () => {
   it('blur renders L1 intuition with the 4-ADD coach prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/Blur stretches a paradox-mirage/);
-  });
-
-  it('blur renders L2 mechanical-delta with paradox topology + parent link to paradox-mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blur');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Paradox topology');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-mirage"/);
-  });
-
-  it('blur renders L3 ontology-role as "Stepping-paradox-mirage root"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blur');
-    expect(res.text).toContain('class="content-section trick-ontology-role"');
-    expect(res.text).toContain('Stepping-paradox-mirage root');
   });
 
   it('blur renders L4 productivity with fury + blurriest descendant links', async () => {
@@ -393,19 +369,9 @@ describe('Phase C — blur renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Three-dex extension');
     expect(res.text).toContain('Cultural-canonical shorthand');
   });
-
-  it('blur renders L6 progressive-readings staircase with the mirage → paradox → stepping → shorthand → fury chain', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blur');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Mirage atom');
-    expect(res.text).toContain('Paradox layer');
-    expect(res.text).toContain('Stepping multi-dex extension');
-    expect(res.text).toContain('Compressed shorthand');
-    expect(res.text).toContain('Further extension');
-  });
 });
 
-describe('Phase C — fury renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('fury renders intuition only (productivity + family-evolution suppress)', () => {
   it('fury renders L1 intuition with the 5-ADD furious multi-dex prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/fury');
     expect(res.status).toBe(200);
@@ -413,35 +379,14 @@ describe('Phase C — fury renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
     expect(res.text).toMatch(/Fury extends the paradox-mirage chassis/);
   });
 
-  it('fury renders L2 mechanical-delta with paradox topology + parent link to paradox-mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/fury');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Paradox topology');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-mirage"/);
-  });
-
-  it('fury renders L3 ontology-role as "Multi-dex paradox extension"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/fury');
-    expect(res.text).toContain('Multi-dex paradox extension');
-  });
-
   it('fury SUPPRESSES L4 productivity and L5 family-evolution (leaf-class compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/fury');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('fury renders L6 progressive-readings with ADD-accounting + doctrine-evolution stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/fury');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Paradox-mirage chassis');
-    expect(res.text).toContain('Furious multi-dex extension');
-    expect(res.text).toContain('ADD accounting');
-    expect(res.text).toContain('Doctrine evolution');
-  });
 });
 
-describe('Phase C — sumo renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('sumo renders intuition only (productivity + family-evolution suppress)', () => {
   it('sumo renders L1 intuition with the nuclear-stance prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/sumo');
     expect(res.status).toBe(200);
@@ -449,53 +394,19 @@ describe('Phase C — sumo renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
     expect(res.text).toMatch(/wider-armed nuclear stance/);
   });
 
-  it('sumo renders L2 mechanical-delta with X-dex topology + parent link to mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/sumo');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('X-dex escalation');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mirage"/);
-  });
-
-  it('sumo renders L3 ontology-role as "X-dex escalation locus"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/sumo');
-    expect(res.text).toContain('X-dex escalation locus');
-  });
-
   it('sumo SUPPRESSES L4 productivity and L5 family-evolution (doctrinal-landmark compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/sumo');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('sumo renders L6 progressive-readings with named-exception + operational-notation stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/sumo');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Mirage atom');
-    expect(res.text).toContain('Nuclear modifier');
-    expect(res.text).toContain('X-Dex escalation');
-    expect(res.text).toContain('Operational notation');
-  });
 });
 
-describe('Phase C — drifter renders all six L1-L6 layers', () => {
+describe('drifter renders intuition + productivity + family-evolution', () => {
   it('drifter renders L1 intuition with the mirage-dex-into-clipper prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/drifter');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/Drifter holds the same in-to-out dex pattern/);
-  });
-
-  it('drifter renders L2 mechanical-delta with cross-body topology + parent links to mirage and clipper-stall', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/drifter');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Cross-body');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mirage"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/clipper-stall"/);
-  });
-
-  it('drifter renders L3 ontology-role as "Terminal-surface-shift exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/drifter');
-    expect(res.text).toContain('Terminal-surface-shift exemplar');
   });
 
   it('drifter renders L4 productivity with paradox-drifter + vortex + smoke + lotus descendants', async () => {
@@ -515,17 +426,9 @@ describe('Phase C — drifter renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Naming-driven extensions');
     expect(res.text).toContain('Clipper-stall sibling branch');
   });
-
-  it('drifter renders L6 progressive-readings staircase with terminal-shift + family-branch stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/drifter');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Mirage chassis');
-    expect(res.text).toContain('Terminal-surface shift');
-    expect(res.text).toContain('Family-branch entry');
-  });
 });
 
-describe('Phase C — atom-smasher renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('atom-smasher renders intuition only (productivity + family-evolution suppress)', () => {
   it('atom-smasher renders L1 intuition with the X-Dex reversal prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
     expect(res.status).toBe(200);
@@ -533,50 +436,19 @@ describe('Phase C — atom-smasher renders L1/L2/L3/L6 only (L4 + L5 suppress)',
     expect(res.text).toMatch(/dex direction reversed/);
   });
 
-  it('atom-smasher renders L2 mechanical-delta with x-dex topology + parent link to mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('X-dex escalation');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mirage"/);
-  });
-
-  it('atom-smasher renders L3 ontology-role as "Explicit X-Dex exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
-    expect(res.text).toContain('Explicit X-Dex exemplar');
-  });
-
   it('atom-smasher SUPPRESSES L4 productivity and L5 family-evolution (leaf-class compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('atom-smasher renders L6 progressive-readings with X-Dex reversal + explicit-vs-implicit stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/atom-smasher');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('X-Dex reversal');
-    expect(res.text).toContain('Atomic operator');
-    expect(res.text).toContain('Explicit vs implicit X-Dex');
-  });
 });
 
-describe('Phase C — barrage renders all six L1-L6 layers', () => {
+describe('barrage renders intuition + productivity + family-evolution', () => {
   it('barrage renders L1 intuition with the doubled-dex prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/barrage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/two complete same-side inside dexes/);
-  });
-
-  it('barrage renders L2 mechanical-delta as an atom-class anchor (no parent)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/barrage');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom: defining mechanical pattern');
-  });
-
-  it('barrage renders L3 ontology-role as "Naming-disambiguation exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/barrage');
-    expect(res.text).toContain('Naming-disambiguation exemplar');
   });
 
   it('barrage renders L4 productivity with paradox-barrage + blurrage descendants + fury operator-path', async () => {
@@ -594,17 +466,9 @@ describe('Phase C — barrage renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Stepping-paradox extension');
     expect(res.text).toContain('Operator-path productivity');
   });
-
-  it('barrage renders L6 progressive-readings with naming-disambiguation + operator-productivity stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/barrage');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Doubled-dex anchor');
-    expect(res.text).toContain('Naming-disambiguation');
-    expect(res.text).toContain('Operator productivity');
-  });
 });
 
-describe('Phase C — blurriest renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('blurriest renders intuition only (productivity + family-evolution suppress)', () => {
   it('blurriest renders L1 intuition with the deepest-blurry-character prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blurriest');
     expect(res.status).toBe(200);
@@ -612,52 +476,19 @@ describe('Phase C — blurriest renders L1/L2/L3/L6 only (L4 + L5 suppress)', ()
     expect(res.text).toMatch(/deepest blurry-character extension/);
   });
 
-  it('blurriest renders L2 mechanical-delta with compound topology + parent link to barfly', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blurriest');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/barfly"/);
-  });
-
-  it('blurriest renders L3 ontology-role as "Blurry-naming superlative"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blurriest');
-    expect(res.text).toContain('Blurry-naming superlative');
-  });
-
   it('blurriest SUPPRESSES L4 productivity and L5 family-evolution (leaf-class compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blurriest');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('blurriest renders L6 progressive-readings with cross-chassis-kin stage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blurriest');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Barfly chassis');
-    expect(res.text).toContain('Blurry layer');
-    expect(res.text).toContain('Cross-chassis kin');
-  });
 });
 
-describe('Phase C — blender renders all six L1-L6 layers', () => {
+describe('blender renders intuition + productivity + family-evolution', () => {
   it('blender renders L1 intuition with the whirl-into-osis compound prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blender');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/Blender stitches a whirl/);
-  });
-
-  it('blender renders L2 mechanical-delta with compound topology + parent links to whirl and osis', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blender');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/whirl"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/osis"/);
-  });
-
-  it('blender renders L3 ontology-role as "Compound-of-canonicals exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blender');
-    expect(res.text).toContain('Compound-of-canonicals exemplar');
   });
 
   it('blender renders L4 productivity with paradox-blender + food-processor + spender + mind-bender descendants', async () => {
@@ -677,18 +508,9 @@ describe('Phase C — blender renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Multi-modifier extension');
     expect(res.text).toContain('Operator-path productivity');
   });
-
-  it('blender renders L6 progressive-readings with whirl-atom + osis-atom + compound-of-canonicals stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/blender');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Whirl atom');
-    expect(res.text).toContain('Osis atom');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toContain('Compound name as anchor');
-  });
 });
 
-describe('Phase C — surreal renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('surreal renders intuition only (productivity + family-evolution suppress)', () => {
   it('surreal renders L1 intuition with the surging-paradox-whirl prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/surreal');
     expect(res.status).toBe(200);
@@ -696,35 +518,14 @@ describe('Phase C — surreal renders L1/L2/L3/L6 only (L4 + L5 suppress)', () =
     expect(res.text).toMatch(/Surreal stacks a surging rotational system/);
   });
 
-  it('surreal renders L2 mechanical-delta with rotational topology + parent links to paradox-whirl and whirl', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/surreal');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('>Rotational<');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-whirl"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/whirl"/);
-  });
-
-  it('surreal renders L3 ontology-role as "Top-of-rotational-ladder exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/surreal');
-    expect(res.text).toContain('Top-of-rotational-ladder exemplar');
-  });
-
   it('surreal SUPPRESSES L4 productivity and L5 family-evolution (top-of-ladder leaf)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/surreal');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('surreal renders L6 progressive-readings with whirl-paradox-surging staircase', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/surreal');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Whirl atom');
-    expect(res.text).toContain('Paradox layer');
-    expect(res.text).toContain('Surging layer');
-  });
 });
 
-describe('Phase C — phoenix renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('phoenix renders intuition only (productivity + family-evolution suppress)', () => {
   it('phoenix renders L1 intuition with the pixie-ducking-butterfly prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/phoenix');
     expect(res.status).toBe(200);
@@ -732,50 +533,17 @@ describe('Phase C — phoenix renders L1/L2/L3/L6 only (L4 + L5 suppress)', () =
     expect(res.text).toMatch(/Phoenix layers two distinct modifiers/);
   });
 
-  it('phoenix renders L2 mechanical-delta with compound topology + parent link to butterfly', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/phoenix');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/butterfly"/);
-  });
-
-  it('phoenix renders L3 ontology-role as "Multi-modifier butterfly compound"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/phoenix');
-    expect(res.text).toContain('Multi-modifier butterfly compound');
-  });
-
   it('phoenix SUPPRESSES L4 productivity and L5 family-evolution (multi-modifier leaf)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/phoenix');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('phoenix renders L6 progressive-readings with butterfly + pixie + ducking + multi-axis stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/phoenix');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Butterfly atom');
-    expect(res.text).toContain('Pixie layer');
-    expect(res.text).toContain('Ducking layer');
-    expect(res.text).toContain('Multi-axis stacking');
-  });
 });
 
-describe('Phase C — osis renders all six L1-L6 layers', () => {
-  it('osis renders L2 mechanical-delta with atom topology (no parent)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/osis');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom: defining mechanical pattern');
-    expect(res.text).toMatch(/core movement atom/);
-  });
-
-  it('osis renders L3 ontology-role as "Spin-into-clipper canonical"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/osis');
-    expect(res.text).toContain('Spin-into-clipper canonical');
-  });
-
+describe('osis renders productivity + family-evolution', () => {
   it('osis renders L4 productivity with torque + blender + ducking-osis + pixie-osis descendants', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/osis');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-productivity"');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/torque"/);
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/blender"/);
@@ -791,32 +559,12 @@ describe('Phase C — osis renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Body-modifier branch');
     expect(res.text).toContain('Set-treatment branch');
   });
-
-  it('osis renders L6 progressive-readings with core-atom + canonical-trio + modifier-axis stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/osis');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Core atom anchor');
-    expect(res.text).toContain('Position in the canonical trio');
-    expect(res.text).toContain('Compound-of-canonicals productivity');
-  });
 });
 
-describe('Phase C — butterfly renders all six L1-L6 layers', () => {
-  it('butterfly renders L2 mechanical-delta with atom topology (no parent)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom: defining mechanical pattern');
-    expect(res.text).toMatch(/core movement atom/);
-  });
-
-  it('butterfly renders L3 ontology-role as "Leg-over canonical with clipper terminal"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
-    expect(res.text).toContain('Leg-over canonical with clipper terminal');
-  });
-
+describe('butterfly renders productivity + family-evolution', () => {
   it('butterfly renders L4 productivity with ripwalk + dimwalk + parkwalk + phoenix descendants', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-productivity"');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/ripwalk"/);
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/dimwalk"/);
@@ -832,37 +580,14 @@ describe('Phase C — butterfly renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Stepping-paradox branch');
     expect(res.text).toContain('Multi-modifier extension');
   });
-
-  it('butterfly renders L6 progressive-readings with core-atom + position-among-atoms + densest-bucket stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Core atom anchor');
-    expect(res.text).toContain('Position among atoms');
-    expect(res.text).toContain('Single-modifier productivity');
-    expect(res.text).toContain('Multi-modifier productivity');
-  });
 });
 
-describe('Phase C — torque renders all six L1-L6 layers', () => {
+describe('torque renders intuition + productivity + family-evolution', () => {
   it('torque renders L1 intuition with the miraging-osis compound prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/dex pattern stitched into an osis/);
-  });
-
-  it('torque renders L2 mechanical-delta with compound topology + parent links to osis and mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/torque');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/osis"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mirage"/);
-  });
-
-  it('torque renders L3 ontology-role as "Mirage-osis compound; intermediate-base anchor"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/torque');
-    expect(res.text).toContain('Mirage-osis compound');
-    expect(res.text).toContain('intermediate-base anchor');
   });
 
   it('torque renders L4 productivity with mobius + paradox-torque + atomic-torque + gauntlet descendants', async () => {
@@ -882,48 +607,18 @@ describe('Phase C — torque renders all six L1-L6 layers', () => {
     expect(res.text).toContain('Atomic / nuclear extension');
     expect(res.text).toContain('Highest-ADD reach');
   });
-
-  it('torque renders L6 progressive-readings with mirage + osis + compound-of-canonicals + sibling-compound stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/torque');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Mirage atom');
-    expect(res.text).toContain('Osis atom');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toContain('Sibling compound');
-    expect(res.text).toContain('Sub-family anchor');
-  });
 });
 
-describe('Phase C — mobius renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
-  it('mobius renders L2 mechanical-delta with rotational topology + parent link to torque', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mobius');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('>Rotational<');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/torque"/);
-  });
-
-  it('mobius renders L3 ontology-role as "Gyro-torque compound exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mobius');
-    expect(res.text).toContain('Gyro-torque compound exemplar');
-  });
-
+describe('mobius renders intuition only (productivity + family-evolution suppress)', () => {
   it('mobius SUPPRESSES L4 productivity and L5 family-evolution (leaf compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mobius');
+    expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('mobius renders L6 progressive-readings with torque-chassis + gyro-layer stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/mobius');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Torque chassis');
-    expect(res.text).toContain('Gyro layer');
-    expect(res.text).toContain('Compound name as anchor');
-  });
 });
 
-describe('Phase C — ripwalk renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('ripwalk renders intuition only (productivity + family-evolution suppress)', () => {
   it('ripwalk renders L1 intuition with the stepping-multi-dex prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.status).toBe(200);
@@ -931,35 +626,14 @@ describe('Phase C — ripwalk renders L1/L2/L3/L6 only (L4 + L5 suppress)', () =
     expect(res.text).toMatch(/Ripwalk extends a butterfly/);
   });
 
-  it('ripwalk renders L2 mechanical-delta with paradox topology + parent link to butterfly', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Paradox topology');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/butterfly"/);
-  });
-
-  it('ripwalk renders L3 ontology-role as "Shred-vocabulary root on butterfly chassis"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
-    expect(res.text).toContain('Shred-vocabulary root on butterfly chassis');
-  });
-
   it('ripwalk SUPPRESSES L4 productivity and L5 family-evolution (naming-tradition leaf)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('ripwalk renders L6 progressive-readings with stepping-layer + folk-name-encoding stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripwalk');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Butterfly atom');
-    expect(res.text).toContain('Stepping layer');
-    expect(res.text).toContain('Folk-name encoding');
-    expect(res.text).toContain('Naming-tradition root');
-  });
 });
 
-describe('Phase C — food-processor renders L1/L2/L3/L6 only (L4 + L5 suppress)', () => {
+describe('food-processor renders intuition only (productivity + family-evolution suppress)', () => {
   it('food-processor renders L1 intuition with the blurry-blender prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
     expect(res.status).toBe(200);
@@ -967,45 +641,23 @@ describe('Phase C — food-processor renders L1/L2/L3/L6 only (L4 + L5 suppress)
     expect(res.text).toMatch(/Food-processor stitches a blurry-stepping pattern/);
   });
 
-  it('food-processor renders L2 mechanical-delta with compound topology + parent link to blender', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Compound-of-canonicals');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/blender"/);
-  });
-
-  it('food-processor renders L3 ontology-role as "Blurry-naming on compound-of-canonicals"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
-    expect(res.text).toContain('Blurry-naming on compound-of-canonicals');
-  });
-
   it('food-processor SUPPRESSES L4 productivity and L5 family-evolution (leaf compound)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
-
-  it('food-processor renders L6 progressive-readings with naming-tradition-reach + visually-distinctive stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/food-processor');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Blender chassis');
-    expect(res.text).toContain('Blurry layer');
-    expect(res.text).toContain('Naming-tradition reach');
-    expect(res.text).toContain('Visually distinctive folk name');
-  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Phase C — C4 folk-name rescue (ripstein)
+// Folk-name rescue (ripstein)
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Ripstein is the doctrine's worst-offending placeholder demonstration.
-// Before the doctrine, the DB description "Popular freestyle trick." was
-// the only public-facing content; after the doctrine, the placeholder is
-// suppressed AND the L1-L6 layers carry the structural reading derived
-// from the operational notation.
+// Ripstein is the worst-offending placeholder demonstration. The DB
+// description "Popular freestyle trick." is suppressed and the Movement
+// Intuition prose carries the structural reading derived from the
+// operational notation.
 
-describe('Phase C — ripstein folk-name rescue (L1/L2/L3/L6 + placeholder suppression)', () => {
+describe('ripstein folk-name rescue (intuition + placeholder suppression)', () => {
   it('ripstein SUPPRESSES the "Popular freestyle trick." DB placeholder', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
     expect(res.status).toBe(200);
@@ -1018,30 +670,9 @@ describe('Phase C — ripstein folk-name rescue (L1/L2/L3/L6 + placeholder suppr
     expect(res.text).toMatch(/Ripstein stacks two same-side back-swirl dexes/);
   });
 
-  it('ripstein renders L2 mechanical-delta with atom topology (no parent; structural reading from op notation)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
-    expect(res.text).toContain('class="content-section trick-mechanical-delta"');
-    expect(res.text).toContain('Atom: defining mechanical pattern');
-    expect(res.text).toMatch(/doubled same-side back-swirl/);
-  });
-
-  it('ripstein renders L3 ontology-role as "Folk-name rescue exemplar"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
-    expect(res.text).toContain('Folk-name rescue exemplar');
-  });
-
   it('ripstein SUPPRESSES L4 productivity and L5 family-evolution (leaf compound; rescue case)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
     expect(res.text).not.toContain('class="content-section trick-productivity"');
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
-  });
-
-  it('ripstein renders L6 progressive-readings with placeholder-DB-row + op-notation-evidence + folk-name-rescue stages', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/ripstein');
-    expect(res.text).toContain('class="content-section trick-progressive-readings"');
-    expect(res.text).toContain('Placeholder DB row');
-    expect(res.text).toContain('Operational notation as evidence');
-    expect(res.text).toContain('Folk-name rescue pattern');
-    expect(res.text).toContain('Demonstration case');
   });
 });

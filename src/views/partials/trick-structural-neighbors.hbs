@@ -1,0 +1,28 @@
+{{!--
+  Structural Neighbors: the operator-adjacency block. Buckets (built on / swap
+  the operator / extend / same operator, other base / same structure) are
+  shaped by the service from this trick's base and operator multiset. Each group
+  is one or more equivalent names joined by the equivalence mark; a folk name
+  whose tokens hide operators carries a bracketed structural gloss.
+--}}
+{{#if content.structuralNeighbors}}
+<section class="content-section" data-section="structural-neighbors">
+  <div class="section-heading">
+    <h2>Structural Neighbors</h2>
+    <p class="section-intro">The same modifiers applied to a different base, and other names for the same structure. Same-family variations live in the family ladder above.</p>
+  </div>
+  {{#each content.structuralNeighbors.buckets}}
+  <div class="related-group" data-bucket="{{key}}">
+    <h3 class="related-group-label">{{label}}</h3>
+    <ul class="related-tricks-list">
+      {{#each groups}}
+      <li>
+        {{#each entries}}{{#unless @first}} <span class="text-muted">&equiv;</span> {{/unless}}<a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}} <span class="text-muted fs-sm">({{adds}})</span>{{/if}}{{#if gloss}} <span class="text-muted fs-sm">[= {{gloss}}]</span>{{/if}}{{/each}}
+      </li>
+      {{/each}}
+    </ul>
+    {{#if moreCount}}<p class="text-muted fs-sm">(+{{moreCount}} more)</p>{{/if}}
+  </div>
+  {{/each}}
+</section>
+{{/if}}

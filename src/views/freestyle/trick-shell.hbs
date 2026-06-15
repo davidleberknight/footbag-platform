@@ -24,25 +24,21 @@
   {{/if}}
 
   {{!--
-    Trick-detail ontology doctrine.
-    One universal trick-detail architecture with variable depth: any
-    trick with curated L1-L6 content renders the relevant sections,
-    movement-language-first → structure-second. Tier is an authoring
-    priority signal (TIER_A_SLUGS / TIER_B_SLUGS), NOT a structural
-    gate. Sections suppress themselves cleanly when content is
-    unauthored.
+    Trick-detail architecture: one universal shell with variable depth,
+    movement-language-first → structure-second. Curated movement-language
+    prose suppresses cleanly when unauthored. Relationship sections follow
+    a single-owner rule so nothing is shown twice: the Family ladder owns
+    same-family progression, Related Tricks owns conceptual movement
+    neighbours, and Structural Neighbors owns cross-base composition only.
+    The parent-delta line lives in Movement Intuition and the build path in
+    About, so no standalone mechanical-delta or progressive-readings
+    section is needed.
   --}}
   {{> trick-intuition}}
-
-  {{> trick-mechanical-delta}}
-
-  {{> trick-ontology-role}}
 
   {{> trick-productivity}}
 
   {{> trick-family-evolution}}
-
-  {{> trick-progressive-readings}}
 
   {{> trick-about}}
 
@@ -53,8 +49,6 @@
   {{> trick-notation}}
 
   {{> trick-transform}}
-
-  {{> trick-operational}}
 
   {{> trick-modifiers}}
 
@@ -95,13 +89,11 @@
 
   {{> trick-related}}
 
+  {{> trick-structural-neighbors}}
+
   {{> symbolic-related-topology}}
 
   {{> trick-semantic-memberships}}
-
-  {{> trick-parallels}}
-
-  {{> trick-substitutions}}
 
   {{#if content.hasMediaBlock}}
   <section id="media" class="content-section trick-media-block" aria-label="Media">
@@ -137,10 +129,6 @@
   {{/if}}
 
   {{> trick-pathways}}
-
-  {{> trick-previous}}
-
-  {{> trick-next}}
 
   {{> trick-records}}
 

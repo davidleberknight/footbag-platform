@@ -96,11 +96,12 @@ describe('Swing elements (movement neighbours, not a family)', () => {
 });
 
 describe('Related groups + regressions', () => {
-  it('renders labeled relationship groups (Same family) rather than per-row reasons', async () => {
+  it('Related Tricks carries no Same-family group and no per-row reasons', async () => {
     const html = await page('spin');
-    expect(html).toContain('related-group-label');
-    expect(html).toContain('Same family');           // spin <-> triple-spin
-    expect(html).not.toContain('related-trick-reason'); // per-row reason retired
+    // Same-family relating is owned by the Family ladder; Related Tricks no
+    // longer carries a Same-family group, and per-row reasons are retired.
+    expect(html).not.toContain('Same family');
+    expect(html).not.toContain('related-trick-reason');
   });
 });
 

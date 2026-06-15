@@ -2120,6 +2120,17 @@ export interface FreestyleTrickModifierLinkDetailRow {
   apply_order:          number;
 }
 
+// Bare (trick, modifier, order) triple for the whole active dictionary, with no
+// join to the modifier table. The structural-neighbors layer reconstructs each
+// trick's operator multiset from these triples (a repeated modifier at distinct
+// apply_order is repeated structure, e.g. double-spinning = spinning twice), so
+// it needs every link in one fetch, ordered so multiplicity is preserved.
+export interface FreestyleModifierLinkPairRow {
+  trick_slug:    string;
+  modifier_slug: string;
+  apply_order:   number;
+}
+
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
@@ -2301,6 +2312,21 @@ export const freestyleTrickModifiers = {
     INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug
     WHERE l.trick_slug = ?
     ORDER BY l.apply_order ASC
+  `); },
+
+  // Every modifier link across the active dictionary, as bare
+  // (trick, modifier, apply_order) triples. Ordered by trick then apply_order
+  // so a consumer rebuilding each trick's operator multiset keeps repeated
+  // modifiers (distinct apply_order) as distinct instances. Drives the
+  // structural-neighbors adjacency layer, which keys on the multiset.
+  get listAllModifierLinks() { return db.prepare(`
+    SELECT l.trick_slug    AS trick_slug,
+           l.modifier_slug AS modifier_slug,
+           l.apply_order   AS apply_order
+    FROM freestyle_trick_modifier_links l
+    INNER JOIN freestyle_tricks t ON t.slug = l.trick_slug
+    WHERE t.is_active = 1
+    ORDER BY l.trick_slug, l.apply_order ASC
   `); },
 
   // Active canonical tricks that carry ONE modifier, lowest ADD first. Drives

@@ -9,12 +9,18 @@
   (compositional reading) and trick-notation (symbolic structure)
   so the page reads movement-first → structure-second.
 --}}
-{{#if content.intuition}}
+{{#if (or content.intuition content.intuitionDelta)}}
 <section class="content-section trick-intuition" aria-label="Movement intuition">
   <div class="section-heading">
     <h2>Movement intuition</h2>
   </div>
+  {{#if content.intuition}}
   <p class="trick-intuition-prose">{{content.intuition.prose}}</p>
   <p class="trick-intuition-attribution">{{content.intuition.attribution}}</p>
+  {{/if}}
+  {{!-- Parent-delta line, relocated from the retired Mechanical Delta section. --}}
+  {{#if content.intuitionDelta}}
+  <p class="text-muted" data-intuition-delta>{{content.intuitionDelta}}</p>
+  {{/if}}
 </section>
 {{/if}}
