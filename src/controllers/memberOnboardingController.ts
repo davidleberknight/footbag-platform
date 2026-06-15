@@ -31,8 +31,8 @@ import { config } from '../config/env';
 import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
 // Wizard surface: `/register/wizard/:taskType`. POST handlers are thin
-// HTTP glue per VIEW_CATALOG §8.4: parse input, call one service method
-// returning a WizardActionResult, switch on the discriminant. Success
+// HTTP glue: parse input, call one service method returning a
+// WizardActionResult, switch on the discriminant. Success
 // outcomes 303 to the next task (or /register/wizard/complete);
 // transient-notice outcomes 303 to the same task with a flash cookie
 // carrying the next GET's banner state; validation errors re-render

@@ -1,3 +1,18 @@
+/**
+ * IfpaService -- public IFPA governance document pages (read-only).
+ *
+ * Serves (all public):
+ *   - GET /ifpa: index of IFPA governance documents.
+ *   - GET /ifpa/:docSlug: a single governance document; unknown slug throws NotFoundError (404).
+ *
+ * Rendering contract:
+ *   - getIfpaIndexPage() / getIfpaDocPage() return PageViewModel<IfpaIndexContent | IfpaDocContent>.
+ *   - Documents render from the committed IFPA markdown via the ifpa loader.
+ *
+ * Governance:
+ *   - IFPA governance documents are authoritative IFPA-owned content; their disposition is an IFPA
+ *     decision, never operator or maintainer discretion.
+ */
 import { PageViewModel } from '../types/page';
 import { NotFoundError } from './serviceErrors';
 import { getIfpaDoc, getIfpaDocs, ParsedIfpaDoc } from '../lib/ifpaLoader';

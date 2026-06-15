@@ -1,3 +1,20 @@
+/**
+ * BapService -- public Big Add Posse landing page (read-only).
+ *
+ * Serves:
+ *   - GET /bap (public): canonical Big Add Posse section entry.
+ *
+ * Rendering contract:
+ *   - getBapLandingPage() returns PageViewModel<BapContent>, service-shaped with no DB
+ *     queries.
+ *   - Provides content.externalLink so the template never constructs the standalone BAP URL.
+ *   - Current target is the editorial landing page only; in-site roster pages, induction-year
+ *     pages, and member-linked records are out of scope by design (future curation).
+ *
+ * Visibility:
+ *   - Public official honor. BAP status is a permanent public historical record, preserved even
+ *     through PII purge or deceased flows.
+ */
 import { PageViewModel } from '../types/page';
 
 interface BapSection {

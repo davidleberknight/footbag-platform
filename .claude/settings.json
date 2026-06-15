@@ -10,16 +10,8 @@
       "Bash(jq:*)",
       "Bash(pgrep:*)",
       "Bash(date:*)",
-      "Bash(sqlite3 database/footbag.db \"SELECT *)",
-      "Bash(sqlite3 database/footbag.db \"PRAGMA *)",
-      "Bash(sqlite3 database/footbag.db \".schema*)",
-      "Bash(sqlite3 database/footbag.db \".tables*)",
       "Bash(sqlite3:*)",
       "Bash(curl:*)",
-      "Bash(curl -I:*)",
-      "Bash(curl --head:*)",
-      "Bash(curl -sI:*)",
-      "Bash(curl -Is:*)",
       "Bash(npm test*)",
       "Bash(npm run test*)",
       "Bash(npm run build*)",
@@ -194,7 +186,10 @@
       "Bash(git gc --aggressive*)",
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
-      "Bash(git worktree remove*)"
+      "Bash(git worktree remove*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git pull*)"
     ]
   },
   "enabledMcpjsonServers": ["playwright"],

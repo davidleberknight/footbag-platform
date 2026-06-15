@@ -93,7 +93,7 @@ fi
 #
 # Permitted exceptions (filtered by the grep below):
 #   - <script src="..." defer></script>             external JS loaded from /public/js
-#   - <script type="application/json" id="...">     non-executable JSON data island per VC §4.4
+#   - <script type="application/json" id="...">     non-executable JSON data island (the one permitted inline-script form)
 echo "[conventions] check: inline style/script in src/views/**"
 # Regex anchored to attribute boundary: `style=` must be at line-start or
 # preceded by whitespace. Prevents false positives on attribute NAMES that
@@ -164,8 +164,8 @@ fi
 
 # Rule: every static form-* class token in a template has a defining rule in
 # src/public/css/style.css.
-# Reason: VC §4.3 mandates one canonical form vocabulary and §4.4 makes it a
-# hard rule that no template uses an undefined CSS class. An undefined form-*
+# Reason: the project mandates one canonical form vocabulary and a hard rule
+# that no template uses an undefined CSS class. An undefined form-*
 # class renders unstyled in production while route tests still pass. This gate
 # scans class="..." attributes for tokens beginning with `form-`, skipping
 # Handlebars-interpolated tokens (containing `{` or `}`) and BEM modifier
@@ -194,7 +194,7 @@ form_class_hits=$(grep -rnoE --include='*.hbs' 'class="[^"]*"' src/views/ \
 rm -f "$form_defined_file"
 if [ -n "$form_class_hits" ]; then
   echo "$form_class_hits" >&2
-  echo "  FAIL: template uses a form-* class with no rule in src/public/css/style.css; define it and document in VC §4.3" >&2
+  echo "  FAIL: template uses a form-* class with no rule in src/public/css/style.css; define it there" >&2
   violations=$((violations + 1))
 fi
 

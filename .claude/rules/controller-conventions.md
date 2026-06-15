@@ -21,15 +21,15 @@ Templates branch only on pre-shaped fields. Controllers do not mutate service ou
 
 ## HTTP status conventions
 
-Controllers emit these statuses by convention. Service errors route through `handleControllerError(err, req, res)` from `src/lib/controllerErrors.ts`; controllers MAY catch a specific error class locally to re-render a form (e.g., validation on login/register) instead of delegating.
+Controllers emit these statuses by convention. Service errors route through `handleControllerError(err, res, next, context)` from `src/lib/controllerErrors.ts`; controllers MAY catch a specific error class locally to re-render a form (e.g., validation on login/register) instead of delegating.
 
 | Status | When | Trigger |
 |---|---|---|
 | 200 | Form re-render with inline errors on the same page (validation / conflict caught locally) | Controller renders the form template with `formErrors` injected |
 | 303 | Post-redirect-get on state-changing POST/PUT/DELETE (success path) | Controller `res.redirect(303, ...)` after a successful write |
-| 404 | Resource not found, OR anti-enumeration (owner-only routes where slug mismatches authenticated user) | `NotFoundError` from service; or explicit controller-side ownership check |
-| 422 | Validation or conflict error (canonical error response, not form re-render) | `ValidationError` or `ConflictError` from service |
-| 429 | Rate-limit exceeded; `Retry-After` header set from `retryAfterSeconds` | `RateLimitedError` from service |
+| 404 | Resource not found; anti-enumeration (owner-only routes where slug mismatches authenticated user); OR any `ValidationError` delegated to `handleControllerError` (validation detail is never leaked to public visitors) | `NotFoundError`, or a delegated `ValidationError`, from service; or explicit controller-side ownership check |
+| 422 | Controller-emitted validation/conflict re-render with submitted values preserved (the discriminated-union `validation_error` result, or a locally-caught `ConflictError`). A thrown `ValidationError` *delegated* to `handleControllerError` renders 404, not 422. | Controller renders the form at 422; or `ConflictError` caught locally |
+| 429 | Rate-limit exceeded; `Retry-After` header set from `retryAfterSeconds` | `RateLimitedError` caught locally by the controller; `handleControllerError` does not handle it (delegating would 500) |
 | 503 | Service-layer unavailability (SQLite busy/locked, adapter down) | `ServiceUnavailableError` from service |
 
 ## Cookies

@@ -9,7 +9,7 @@ Templates are logic-light Handlebars. The service layer hands them a fully-shape
 
 ## What templates receive
 
-Every public page (except Home, per VC §3.5) receives a `PageViewModel<TContent>` from `src/types/page.ts`:
+Every public page (except Home, the one composition-page exception) receives a `PageViewModel<TContent>` from `src/types/page.ts` (full page contract and primitives in `.claude/rules/view-layer.md`):
 
     interface PageViewModel<TContent> {
       seo: SeoMeta;       // { title, fullTitle?, description? }
@@ -39,6 +39,7 @@ Templates may use these registered helpers from `src/app.ts`:
 - `countryFlag(country)` -- flag emoji or unicode for a country code.
 - `externalLink(url, label, class)` -- renders an external `<a>` with `rel="noopener noreferrer"`.
 - `formatLocation(city, region, country)` -- joins location parts with commas.
+- `splitParagraphs(text)` -- splits curator prose on blank lines into an array of paragraph strings (trick-detail ontology partials render each as a `<p>`).
 - `eq(a, b)`, `gt(a, b)`, `add(a, b)`, `not(a)`, `or(a, b)` -- equality, comparison, arithmetic. Use `eq` for pre-shaped enum branching (e.g., `{{#if (eq activeView 'add')}}`); do NOT use `eq` to derive labels from raw domain codes -- the service shapes labels.
 
 ## CSS class vocabulary
@@ -51,7 +52,7 @@ Class names live in `src/public/css/style.css`. Every class used in a template m
 - Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.
 - Text utilities: `.text-muted`, `.text-secondary`, `.text-center`, `.fs-sm`, `.fw-600`.
 
-Per-section vocabularies (clubs, members, events, freestyle, etc.) live in `src/public/css/style.css` and are documented in VC §4.3.
+Per-section vocabularies (clubs, members, events, freestyle, etc.) live in `src/public/css/style.css`, the source of truth for class definitions; `.claude/rules/view-layer.md` covers the vocabulary structure.
 
 ## Pre-shaped boolean discipline
 

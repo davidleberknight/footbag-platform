@@ -5,7 +5,7 @@ paths:
   - "legacy_data/tools/**"
 ---
 
-# Skill: db-write-safety
+# DB write safety rules
 
 ## When to Use
 - Any DB mutation

@@ -27,7 +27,6 @@
  *   - Max 5 organizers per event; one `role='organizer'` per event; anti-self-removal.
  *   - Standard tag reserved at creation via `HashtagDiscoveryService.reserveStandardTag()`;
  *     permanent (not HD).
- *   - News items emitted via `NewsService.emitNewsItem` only.
  *   - Public archive year derives from `events.start_date`; year archives are not paginated.
  *   - `participantHref` set via `personHref(participant_member_slug,
  *     participant_historical_person_id)`; templates render plain name when null.
@@ -38,14 +37,13 @@
  *
  * Persistence:
  *   events, event_disciplines, event_organizers, event_results_uploads,
- *   event_result_entries, event_result_entry_participants, tags, news_items,
+ *   event_result_entries, event_result_entry_participants, tags,
  *   audit_entries, outbox_emails, work_queue_items.
  *
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (organizer confirmations, participant notices, sanction
  *     decisions)
- *   - news_items emission via NewsService (`event_published`, `event_results`)
  *   - work_queue_items insert with admin-alerts mailing-list notification
  *
  * Service shape: singleton object (no external adapters).

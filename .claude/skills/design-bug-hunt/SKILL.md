@@ -1,6 +1,6 @@
 ---
 name: design-bug-hunt
-description: Run a disciplined adversarial design bug hunt across canonical docs, all user stories, design decisions, service/view catalogs, migration/go-live design, testing/DevOps standards, and environment parity artifacts. Invoke ONLY when the user explicitly asks for a "design bug hunt" or "design bug sweep" by name. Do NOT infer it from "adversarial review", "design review", "review the docs", or any general review phrasing - those mean the plan-mode findings-only review workflow, not this skill. This complements bug-hunt: it focuses on bugs in the intended design and specifications, not primarily implementation bugs.
+description: Run a disciplined adversarial design bug hunt across canonical docs, all user stories, design decisions, service and view-layer contracts (file-header JSDoc and the view-layer rule), migration/go-live design, testing/DevOps standards, and environment parity artifacts. Invoke ONLY when the user explicitly asks for a "design bug hunt" or "design bug sweep" by name. Do NOT infer it from "adversarial review", "design review", "review the docs", or any general review phrasing - those mean the plan-mode findings-only review workflow, not this skill. This complements bug-hunt: it focuses on bugs in the intended design and specifications, not primarily implementation bugs.
 ---
 
 # Design Bug Hunt Skill
@@ -79,23 +79,20 @@ Start with the repo guidance and source-of-truth rules.
 Read:
 
 1. `CLAUDE.md`
-2. `.claude/rules/doc-governance.md`
-3. `.claude/rules/testing.md`
-4. `.claude/rules/service-layer.md`
-5. `.claude/skills/bug-hunt/SKILL.md`
-6. `PROJECT_SUMMARY_CONCISE.md`
-7. `IMPLEMENTATION_PLAN.md`
-8. `docs/USER_STORIES.md`
-9. `docs/DESIGN_DECISIONS.md`
-10. `docs/DATA_GOVERNANCE.md`
-11. `docs/DATA_MODEL.md`
-12. per-service file-header JSDoc (the service contracts)
-13. `docs/VIEW_CATALOG.md`
-14. `docs/TESTING.md`
-15. `docs/DEVOPS_GUIDE.md`
-16. `docs/MIGRATION_PLAN.md`
-17. `legacy_data/CLAUDE.md`
-18. `legacy_data/IMPLEMENTATION_PLAN.md`
+2. all path-scoped rules in `.claude/rules/*.md` (doc-governance, testing, service-layer, controller-conventions, template-conventions, view-layer, db-layer, db-write-safety, adapter-conventions, comments, memory)
+3. the `.claude/skills/*` procedures (this skill, `bug-hunt`, and any domain skill bearing on the area under review)
+4. `PROJECT_SUMMARY_CONCISE.md`
+5. `IMPLEMENTATION_PLAN.md`
+6. `docs/USER_STORIES.md`
+7. `docs/DESIGN_DECISIONS.md`
+8. `docs/DATA_GOVERNANCE.md`
+9. `docs/DATA_MODEL.md`
+10. per-service file-header JSDoc (the service contracts)
+11. `docs/TESTING.md`
+12. `docs/DEVOPS_GUIDE.md`
+13. `docs/MIGRATION_PLAN.md`
+14. `legacy_data/CLAUDE.md`
+15. `legacy_data/IMPLEMENTATION_PLAN.md`
 
 This full read-order applies to a comprehensive design audit. For a scoped ask, read only the subset that bears on the request (see Scaling and budget).
 
@@ -113,7 +110,7 @@ Then inspect parity and deployment artifacts as design evidence:
 * database schema
 * seed data contracts
 * adapter interfaces
-* service/view catalogs
+* service and view-layer contracts (JSDoc + view-layer rule)
 * route catalogs or route discovery scripts
 * test scripts and CI commands
 
@@ -147,7 +144,7 @@ In scope:
 * design decisions and settled rationale
 * contradictions between design decisions and user stories
 * contradictions between migration plan and design decisions
-* contradictions between view catalog and user stories
+* contradictions between the page services' JSDoc or view-layer rule and user stories
 * contradictions between service contracts (JSDoc) and user stories
 * contradictions between data governance and data model
 * missing service contracts for required user-story behavior
@@ -198,7 +195,7 @@ A design bug exists when at least one is true:
 7. A state transition is missing, ambiguous, or unsafe.
 8. A lifecycle lacks failure, retry, cancellation, expiry, rollback, or dispute behavior.
 9. A privacy or data-governance rule is missing for PII, legacy data, exports, logs, notifications, audit trails, public pages, search, or admin views.
-10. A service/view catalog entry omits behavior required by the stories.
+10. A service JSDoc or view-layer contract omits behavior required by the stories.
 11. A design assumes data quality that the migration plan does not prove.
 12. A migration rule has no validation gate.
 13. A go-live rule has no rollback or freeze rule.
@@ -251,7 +248,7 @@ Examples:
 
 * unclear edge case for dormant clubs
 * missing negative test requirement
-* incomplete view catalog entry for a future page
+* incomplete page contract (service JSDoc) for a future page
 * missing operational owner for a low-frequency admin workflow
 
 ### P3
@@ -266,7 +263,7 @@ Examples:
 
 ## Source-of-truth hierarchy
 
-Use the repo's canonical order; do not restate a competing one. The authority order is `CLAUDE.md`'s "Source-of-truth order for active work": explicit current human decision, then `CLAUDE.md` and `.claude/rules/*`, then the active-slice block in `IMPLEMENTATION_PLAN.md`, then current code (implemented behavior, not design authority), then the auto-attached path-scoped rules and service JSDoc, then targeted sections of `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, `docs/VIEW_CATALOG.md`, and `docs/TESTING.md`, then `docs/DESIGN_DECISIONS.md` for long-term rationale. `docs/DATA_GOVERNANCE.md` is mandatory before any finding touching members, historical persons, search, auth, contact fields, exports, stats, or privacy. Treat legacy data and pipeline outputs as migration evidence, never as authority.
+Use the repo's canonical order; do not restate a competing one. The authority order is `CLAUDE.md`'s "Source-of-truth order for active work": explicit current human decision, then `CLAUDE.md` and `.claude/rules/*`, then the active-slice block in `IMPLEMENTATION_PLAN.md`, then current code (implemented behavior, not design authority), then the auto-attached path-scoped rules and service JSDoc, then targeted sections of `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, and `docs/TESTING.md`, then `docs/DESIGN_DECISIONS.md` for long-term rationale. `docs/DATA_GOVERNANCE.md` is mandatory before any finding touching members, historical persons, search, auth, contact fields, exports, stats, or privacy. Treat legacy data and pipeline outputs as migration evidence, never as authority.
 
 When two sources conflict, classify the conflict as a finding rather than silently choosing one.
 
@@ -297,7 +294,7 @@ At minimum include:
 * major feature domains
 * design decision sections
 * service-contract JSDoc entries
-* view catalog entries
+* page contracts in service JSDoc and the view-layer rule
 * data model areas
 * data governance rules
 * test/verification standards
@@ -418,9 +415,9 @@ Look for:
 
 If a service is intentionally partial, do not mark incompleteness as a bug unless the missing contract would force guessing or create production risk.
 
-### Phase 6: View catalog sweep
+### Phase 6: View-layer sweep
 
-Review `docs/VIEW_CATALOG.md` against all user stories and design decisions.
+Review `.claude/rules/view-layer.md` and the page services' file-header JSDoc page contracts against all user stories and design decisions.
 
 Look for:
 
@@ -676,11 +673,11 @@ Search for contradictions across:
 * user stories vs design decisions
 * user stories vs data model
 * user stories vs service contracts (JSDoc)
-* user stories vs view catalog
+* user stories vs page contracts (service JSDoc / view-layer rule)
 * user stories vs testing standards
 * migration plan vs data governance
 * migration plan vs design decisions
-* service contracts (JSDoc) vs view catalog
+* service contracts (JSDoc) vs the view-layer rule
 * data model vs schema
 * DevOps guide vs Terraform/Docker/scripts
 * testing docs vs CI/package scripts
@@ -717,7 +714,7 @@ For each candidate finding:
 2. Check whether `IMPLEMENTATION_PLAN.md` records it as current deviation or known gap.
 3. Check whether the user story explicitly defers it.
 4. Check whether a design decision intentionally excludes it.
-5. Check whether the view catalog or a service's JSDoc says the area is intentionally partial.
+5. Check whether the view-layer rule or a service's JSDoc says the area is intentionally partial.
 6. Check whether it is only an implementation bug better handled by `bug-hunt`.
 7. Check whether it is only Python legacy pipeline behavior outside this skill's scope.
 8. Check whether it matters after go-live.
@@ -797,7 +794,7 @@ Each finding must use this format:
 - Category: <one category>
 - Owner: Steve / IFPA / Dave / Technical design / Testing / DevOps / Migration / Bug-hunt follow-up
 - Status: New | Confirmed | Contradicted | Needs human decision | Needs validation
-- Scope: User story | Design decision | Service catalog | View catalog | Data model | Migration | DevOps | Testing | Cross-doc
+- Scope: User story | Design decision | Service contract | View-layer | Data model | Migration | DevOps | Testing | Cross-doc
 - Evidence:
   - `<path>`: <section/line/function/table/artifact summary>
   - `<path>`: <section/line/function/table/artifact summary>

@@ -38,7 +38,6 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 5. When needed, targeted sections of:
   - `docs/USER_STORIES.md` — intended behavior
   - `docs/DATA_MODEL.md` — schema semantics; verify against `database/schema.sql`
-  - `docs/VIEW_CATALOG.md` — public-rendering standard and sensitive-route rules; per-route detail is in path-scoped rules + JSDoc
   - `docs/TESTING.md` — how to derive, layer, and verify tests for any surface; mandatory before writing or extending tests
 6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area, or to understand the design details about a technical topic in the code, as required; do not read unless you have a good reason to save tokens.
 

@@ -1,3 +1,24 @@
+/**
+ * NetService -- public footbag-net section pages (read-only).
+ *
+ * Serves (all public):
+ *   - GET /net: portal landing (hero/mascot, narrative, Singles/Doubles competition-format cards,
+ *     data-driven Explore-card grey-out, notable teams, notable players, recent events).
+ *   - GET /net/teams: doubles teams ordered by appearance count descending.
+ *   - GET /net/teams/:teamId: team detail; appearances grouped by year descending; unknown id
+ *     throws NotFoundError (renders 404).
+ *   - GET /net/events: net events ordered by recency with team and appearance counts.
+ *
+ * Rendering contract:
+ *   - Page methods return PageViewModel<NetHomeContent | NetTeamsContent | NetTeamDetailContent |
+ *     NetEventsContent>.
+ *   - Team identities are algorithmically constructed from placement data; every team-data page
+ *     renders the disclaimer that they may not reflect official partnerships.
+ *
+ * Visibility:
+ *   - Statistics firewall: only canonical_only appearance evidence reaches public net routes;
+ *     other evidence classes never render.
+ */
 import {
   netTeams,      NetTeamSummaryRow, NetTeamAppearanceRow,
                  NetTeamStatsRow, NetDivisionOptionRow,

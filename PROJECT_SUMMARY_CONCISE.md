@@ -13,7 +13,7 @@ Current code is the source of truth for implemented behavior.
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
-- For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
+- For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `.claude/rules/view-layer.md` and the owning service's file-header JSDoc.
 - For required service-layer ownership and patterns, read the service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
@@ -75,7 +75,7 @@ Auth architecture: `docs/DESIGN_DECISIONS.md` §3 (session model, CSRF, password
 - DB transactions are architecture, not an implementation convenience.
 - Multi-step workflows that change related state must preserve transactional consistency.
 - Historical/audit/ledger-style records that are append-only or immutable must remain so.
-- Effective membership tier / eligibility must use the project’s canonical read-model logic, not ad hoc derivation in feature code.
+- Effective membership tier / eligibility must use the project's canonical read-model logic, not ad hoc derivation in feature code.
 
 ### Operational invariants
 - Dev/prod parity matters for infrastructure adapters and workflows.
@@ -106,8 +106,11 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
 ### Standards and contracts
-- **View Catalog** - target public-rendering standard, public page overview matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
-- **Service-layer rules** - ownership and required patterns live in each service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; non-negotiable invariants in DESIGN_DECISIONS.md §3–§4 and schema triggers.
+
+Implementation-level contracts live at their enforcement site: durable design intent in **Design Decisions**, per-service and per-page contract in each service's file-header JSDoc, cross-cutting AI coding rules in `.claude/rules/*`, and repeatable procedures in `.claude/skills/*`.
+
+- **View-layer rules** - the public-rendering standard (page contract, reusable primitives, CSS-vocabulary discipline, visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the route list lives in `src/routes/publicRoutes.ts`; durable view design intent lives in DESIGN_DECISIONS.md §4.
+- **Service-layer rules** - ownership and required patterns live in each service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; non-negotiable invariants in DESIGN_DECISIONS.md §3-§4 and schema triggers.
 - **Testing Strategy** - how to derive, layer, and verify tests.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
@@ -121,8 +124,8 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 
 ## Document routing heuristics (what to read next)
 
-- Need exact feature behavior or acceptance criteria -> **User Stories** (+ **View Catalog** when flow/UI context matters)
-- Need required rendering patterns, route audience/auth, view-model contracts, or sensitive-page invariants -> **View Catalog**
+- Need exact feature behavior or acceptance criteria -> **User Stories** (+ the owning service's JSDoc when flow/UI context matters)
+- Need required rendering patterns, route audience/auth, view-model contracts, or sensitive-page invariants -> `.claude/rules/view-layer.md` + the owning service's file-header JSDoc
 - Need service ownership, required service-layer patterns, or service-level error semantics -> the service's file-header JSDoc and `.claude/rules/service-layer.md`
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**

@@ -1,3 +1,20 @@
+/**
+ * HofService -- public Hall of Fame landing page (read-only).
+ *
+ * Serves:
+ *   - GET /hof (public): canonical Hall of Fame section entry.
+ *
+ * Rendering contract:
+ *   - getHofLandingPage() returns PageViewModel<HofContent>, service-shaped with no DB
+ *     queries.
+ *   - Provides content.externalLink so the template never constructs the standalone HoF URL.
+ *   - Current target is the editorial landing page only; in-site inductee pages, member-linked
+ *     records, and richer history are out of scope by design (future curation).
+ *
+ * Visibility:
+ *   - Public official honor. HoF status is a permanent public historical record, preserved even
+ *     through PII purge or deceased flows.
+ */
 import { PageViewModel } from '../types/page';
 
 interface HofSection {

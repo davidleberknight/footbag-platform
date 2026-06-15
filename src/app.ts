@@ -288,8 +288,8 @@ export function createApp(): express.Application {
     }));
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
-    // Pre-shaped boolean so templates do not branch on the raw `role`
-    // field per VC §4.4 (`{{#if isAdmin}}` over `{{#if (eq role 'admin')}}`).
+    // Pre-shaped boolean so templates branch on `isAdmin` rather than the raw
+    // `role` field (`{{#if isAdmin}}` over `{{#if (eq role 'admin')}}`).
     res.locals.isAdmin = req.user?.role === 'admin';
     const flash = readFlash(req);
     if (flash?.kind === FLASH_KIND.LOGOUT) {

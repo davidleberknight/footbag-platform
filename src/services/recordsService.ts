@@ -1,3 +1,19 @@
+/**
+ * RecordsService -- public cross-sport records page (read-only).
+ *
+ * Serves:
+ *   - GET /records (public): canonical records section entry; the single page in the section.
+ *
+ * Rendering contract:
+ *   - getRecordsPage() returns PageViewModel<RecordsContent>.
+ *   - Aggregates consecutive-kicks world records, highest scores, progression, milestones, and
+ *     freestyle passback records into one view-model.
+ *
+ * Visibility:
+ *   - Public official historical records only. Derived aggregates carry a scope caveat or are
+ *     suppressed when source coverage is partial; official results and record listings outrank
+ *     inferred aggregates.
+ */
 import { consecutiveKicksRecords, ConsecutiveKicksRow, freestyleRecords, FreestyleRecordRow } from '../db/db';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { getResolvableTrickSlugs } from './freestyleResolvableSlugs';

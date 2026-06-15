@@ -1,3 +1,26 @@
+/**
+ * RulesService -- public IFPA rules pages (read-only).
+ *
+ * Serves (all public):
+ *   - GET /rules: rules index; rule pages grouped by discipline ordered sideline, net, golf,
+ *     freestyle.
+ *   - GET /rules/:disciplineSlug/:ruleSlug: rule detail; unknown discipline or slug throws
+ *     NotFoundError (renders 404).
+ *
+ * Rendering contract:
+ *   - getRulesIndexPage() / getRulePage() return PageViewModel<RulesIndexContent | RulesDetailContent>.
+ *   - Content renders from the committed IFPA rules markdown via marked, cached in memory. Rule
+ *     detail: title hero, optional cross-language toggle (alternateLanguageHref +
+ *     alternateLanguageLabel frontmatter), authority and effective-date meta line, optional
+ *     on-this-page TOC, markdown bodyHtml; the H1 becomes the page and each H2 gets a slugified
+ *     anchor id.
+ *   - Rule pages render zero offsite hyperlinks.
+ *
+ * Governance:
+ *   - Rules content is IFPA-governed. A rule page carries a reference-currency notice (it may not
+ *     reflect the latest IFPA changes; IFPA maintains the authoritative current rules) until IFPA
+ *     ratifies it as current, at which point the notice is omitted.
+ */
 import { PageViewModel } from '../types/page';
 import { NotFoundError } from './serviceErrors';
 import {

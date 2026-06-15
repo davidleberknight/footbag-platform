@@ -3,7 +3,7 @@
 ## Source precedence
 
 Follow root CLAUDE.md source-of-truth order. Additionally:
-- When `docs/VIEW_CATALOG.md` or `docs/TESTING.md` disagrees with current code, the canonical doc describes the target pattern and the code describes current behavior; the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not canonical drift.
+- When `docs/TESTING.md`, `.claude/rules/view-layer.md`, or a service's file-header JSDoc disagrees with current code, the canonical source describes the target pattern and the code describes current behavior; the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not canonical drift.
 - Surface conflicts explicitly; do not silently blend incompatible sources.
 
 ## Documentation rules

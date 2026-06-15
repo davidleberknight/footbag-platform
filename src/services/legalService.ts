@@ -1,3 +1,17 @@
+/**
+ * LegalService -- public legal page (read-only).
+ *
+ * Serves:
+ *   - GET /legal (public, unauthenticated): canonical single legal page.
+ *
+ * Rendering contract:
+ *   - getLegalPage() returns PageViewModel<LegalContent>.
+ *   - Composes Privacy, Terms of Use, and Copyright and Trademarks as three sections in fixed
+ *     order with stable anchor ids `privacy`, `terms`, `copyright`. Footer links across the site
+ *     deep-link to these anchors, so the ids are a stable contract.
+ *   - Each section's bodyHtml is pre-shaped by the service; the template renders it. The
+ *     lastUpdated ISO date is rendered.
+ */
 import { PageViewModel } from '../types/page';
 
 // ---------------------------------------------------------------------------

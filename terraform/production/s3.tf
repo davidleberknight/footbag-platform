@@ -114,7 +114,7 @@ resource "aws_s3_bucket_policy" "media" {
 # DR side to honor member-account-erasure (DD §1.5 "When member deletes
 # account: member's photos automatically hard-deleted"). Operator-recovery
 # headroom comes from versioning + 30-day noncurrent expiration on both
-# source and destination. Region per AWS_PROJECT_SPECIFICS backup region.
+# source and destination. Backup region: us-west-2.
 
 resource "aws_s3_bucket" "media_dr" {
   provider = aws.us_west_2

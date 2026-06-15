@@ -42,7 +42,7 @@ For multi-condition filters, define a SQL view and select from it. Services read
 - `net_team_appearance_canonical` -- the only public Net appearance surface (filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes).
 - `system_config_current` -- latest effective value per key (the bare `system_config` table is queried only by audit-style admin tooling).
 
-`news_items` and `events` are hard-delete domains: query the base table directly; there is no `_all` alias.
+`news_items` and `events` are hard-delete domains: query the base table directly; it is their only read surface (deleted rows are gone permanently).
 
 ## Transactions
 

@@ -2,14 +2,11 @@
 paths:
   - "docs/**"
   - "IMPLEMENTATION_PLAN.md"
-  - "MIGRATION_PLAN.md"
   - "README.md"
   - "CONTRIBUTING.md"
   - "CODE_OF_CONDUCT.md"
   - "GOVERNANCE.md"
   - "PROJECT_SUMMARY*.md"
-  - "GLOSSARY.md"
-  - "DIAGRAMS.md"
 ---
 
 # Doc governance rules
@@ -18,12 +15,14 @@ paths:
 
 Long-term canonical docs describe **design intent**, not implementation status:
 
-- `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
+- `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
 - `docs/DEV_ONBOARDING.md`, `docs/DEVOPS_GUIDE.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
 
 Never add current-slice notes, deviation qualifiers, shortcut descriptions, completion status, "Last updated" dates, or sprint tracking to any of these.
 
 All implementation-state language belongs exclusively in `IMPLEMENTATION_PLAN.md`.
+
+**Where implementation detail lives.** Durable design intent and rationale live in `docs/DESIGN_DECISIONS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
 
 ## Temporary deviations live in IP only
 
@@ -40,9 +39,10 @@ Rule of thumb: if deferral points to another section/path/doc as the home for th
 
 ## References
 
-- **No refs to gitignored / local-only files** from any committed doc. State the underlying fact inline. Local files include `AWS_PROJECT_SPECIFICS.md` (operator secrets + Lightsail constraints) and `approval_fatigue.md` (personal permission-setup notes).
+- **No refs to gitignored / local-only files** from any committed doc, code comment, script, or Terraform. State the underlying fact inline; name the fact, never the local-only file (the operator's AWS specifics such as account IDs, IPs, secrets, and Lightsail constraints; personal permission-setup notes).
 - **No refs to temporary / sprint-scoped files** from canonical docs, even when both are committed. Temp files have short lifespans; pointing canonical docs at them creates broken references.
 - **No dedicated "Cross-references" sections** or trailing "Cross-references:" bullets in DD, DATA_MODEL, MIGRATION_PLAN, or other long-term docs. Inline refs in prose are fine when they're load-bearing for comprehension. AI routing between docs is handled via CLAUDE.md + skill triggers + memory, not in-doc navigation.
+- **Refs to committed `.claude/rules/*` and `.claude/skills/*` are allowed** as sources of truth, and preferred over restating their content. Pointing a canonical doc (or a service JSDoc) at the committed, stable rule, skill, or contract that owns a detail is more AI-efficient and drift-resistant than duplicating it.
 
 ## Sensitive content
 
@@ -75,13 +75,13 @@ When a drift-fix surfaces disagreement between a doc and another source:
 
 ## Bootstrap code is not a design signal
 
-Current code includes bootstrap stubs (e.g. `src/middleware/authStub.ts`) that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, DATA_MODEL, and per-service file-header JSDoc. Current-sprint implementation reality lives in IP.
+Current code includes bootstrap stubs that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, DATA_MODEL, and per-service file-header JSDoc. Current-sprint implementation reality lives in IP.
 
 When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 
 ## Team-member names
 
-Do not reference internal team members by name in **technical / design project docs**: MIGRATION_PLAN, DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, VIEW_CATALOG, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. Use role-based labels.
+Do not reference internal team members by name in **technical / design project docs**: MIGRATION_PLAN, DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. Use role-based labels.
 
 - "James" / "James Leberknight" → "the historical-pipeline maintainer".
 - "Dave" / "David" / "David Leberknight" → "the primary maintainer" / "the project maintainer".

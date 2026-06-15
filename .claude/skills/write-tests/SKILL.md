@@ -42,7 +42,7 @@ Non-exported pure functions are tested indirectly through integration tests. Do 
 
 Read:
 1. Acceptance criteria from `docs/USER_STORIES.md` (targeted sections)
-2. Required rendering pattern from `docs/VIEW_CATALOG.md` for the affected route (matrix row plus any sensitive-page subsection that applies)
+2. Required rendering pattern from the owning service's file-header JSDoc and `.claude/rules/view-layer.md` for the affected route (including any sensitive-page invariants that apply)
 3. Required service-layer pattern from the affected service's file-header JSDoc (boundary, required patterns, side effects)
 4. Current method shape from TypeScript and tests at the cited source path
 5. Known deviations from `IMPLEMENTATION_PLAN.md` that the test must accept
@@ -96,10 +96,9 @@ Use the shared helper from `tests/fixtures/testDb.ts` for new test files:
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertEvent } from '../fixtures/factories';
-import { createSessionCookie } from '../../src/middleware/authStub';
+import { insertMember, insertEvent, createTestSessionJwt } from '../fixtures/factories';
 
-const { dbPath, sessionSecret } = setTestEnv('3050');
+const { dbPath } = setTestEnv('3050');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -116,7 +115,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function authCookie(): string {
-  return `footbag_session=${createSessionCookie('test-001', 'member', sessionSecret, 'Test User', 'test_user')}`;
+  return `footbag_session=${createTestSessionJwt({ memberId: 'test-001', role: 'member' })}`;
 }
 
 describe('GET /events', () => {

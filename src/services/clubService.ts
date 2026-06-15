@@ -35,12 +35,20 @@
  *     and concurrency-safe (PK collision resolves as already-promoted).
  *   - A successful leadership claim returns a club of any status to 'active'
  *     (revival); a new current affiliation revives an inactive club.
- *   - News items emitted via `NewsService.emitNewsItem` only.
  *   - Co-leader contact exposure (`showContact` on `ClubLeader`) is role-based
  *     and member-scoped: current co-leaders' emails render to authenticated
  *     viewers only; provisional bootstrap entries never expose contact. On the
  *     club detail page, leader identities are member-visible too: the
  *     view-model carries an empty leaders list for anonymous viewers.
+ *   - When showContact is false the contact email is absent from the rendered HTML in
+ *     every form: no mailto anchor, no email class attribute, no copy-paste fallback.
+ *     The template branches on showContact alone, never on status; tests assert the
+ *     absence of contact artifacts in the HTML. Leaders with a non-renderable status are
+ *     filtered out in the service before rendering, not in the template. Unauthenticated visitors see
+ *     neither the leaders section nor the club member roster; a bounded login prompt
+ *     renders in place of the roster.
+ *   - showContact fails closed for unknown or newly-introduced leader statuses: a new status maps
+ *     to false unless its mapping explicitly chooses true with documented justification.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
  *     rendering path: it surfaces identity (display name, role, status), not
  *     authority. Claiming a `club_bootstrap_leaders` row links member identity
@@ -56,13 +64,12 @@
  *   legacy_club_candidates, legacy_person_club_affiliations,
  *   member_club_affiliations, club_viability_signals (promotion stamps the
  *   new club id onto the candidate's wizard flags), members, tags,
- *   news_items, audit_entries, outbox_emails.
+ *   audit_entries, outbox_emails.
  *
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (join/leave notifications to the member and
  *     current club leaders; best-effort after the affiliation commit)
- *   - news_items emission via NewsService (`club_created`, `club_archived`)
  *
  * Service shape: singleton object (no external adapters).
  */

@@ -489,14 +489,14 @@ Impact:
 ## 1.10 Code-primary Rule Home with Markdown Overview
 
 Decision:
-Rules for page rendering and service ownership live at their strongest enforcement site. The view catalog carries the page-rendering rules that have no code anchor.
+Rules for page rendering and service ownership live at their strongest enforcement site. Page-rendering rules with no mechanical anchor live in the path-scoped view-layer rule and in each page service's file-header JSDoc; cross-cutting view design intent lives in §4.
 
 Rule home precedence:
 
 1. Mechanical enforcement (drift-impossible): TypeScript types in `src/types/` and `src/services/serviceErrors.ts`; DB triggers, CHECK constraints, and named UNIQUE indexes in `database/schema.sql`; CI convention gates in `scripts/ci/assert_conventions.sh`; test factories with coverage thresholds; PreToolUse hooks in `.claude/hooks/`.
-2. Code-adjacent rule docs: file-header JSDoc on every high-stakes write-path service stating Owns / Does not own / Required patterns / Persistence / Side effects / Service shape, updated in the same change as the code; path-scoped `.claude/rules/*.md` files auto-attached to Claude when working in matching paths; per-subtree `CLAUDE.md` files.
+2. Code-adjacent rule docs: file-header JSDoc on every high-stakes write-path service (Owns / Does not own / Required patterns / Persistence / Side effects / Service shape) and on every public-page service (audience, rendering contract, and sensitive-page invariants for the routes it serves), updated in the same change as the code; path-scoped `.claude/rules/*.md` files auto-attached to Claude when working in matching paths (including `view-layer.md` for view and stylesheet work); per-subtree `CLAUDE.md` files.
 3. DESIGN_DECISIONS.md: design intent and cross-cutting invariants with no code anchor (anti-enumeration, member-vs-historical-person distinction, audit append-only, this decision).
-4. VIEW_CATALOG.md: surface-level overview of the public-rendering standard, page contract, primitives, page matrix, sensitive-page rules, and per-route rules (the route list itself lives in `src/routes/publicRoutes.ts`). Service-layer rules live at their enforcement site: global service-layer rules in the path-scoped `.claude/rules/*.md` files, non-negotiable invariants in DESIGN_DECISIONS.md §3–§4 and `database/schema.sql` triggers, and each service's ownership, required patterns, persistence, and side-effects in its file-header JSDoc.
+4. Distributed public-rendering homes (no standalone catalog): the cross-cutting view standard (page contract, reusable primitives, CSS-vocabulary structure, visual standard) in path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants in the owning service's file-header JSDoc; the route list in `src/routes/publicRoutes.ts`; durable view design intent in DESIGN_DECISIONS.md §4; non-negotiable privacy invariants in DATA_GOVERNANCE.md and `database/schema.sql` triggers.
 
 Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer. Home is the one intentional composition-page exception to the generic public page contract.
 
@@ -515,7 +515,7 @@ Trade-offs:
 Impact:
 - New mechanical rules go into `scripts/ci/assert_conventions.sh` as grep gates.
 - Per-service rules live in each service's file-header JSDoc; cross-cutting invariants live in DESIGN_DECISIONS.md §3–§4, the path-scoped rule files, or schema triggers.
-- High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the file-header JSDoc convention; read-only services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) do not require it.
+- High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the full ownership file-header JSDoc. Read-only page services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) carry a page-contract file-header JSDoc stating the audience, rendering contract, and sensitive-page invariants for the routes they serve.
 
 ## 1.11 Configuration Model
 
@@ -2135,7 +2135,7 @@ Rationale:
 
 - Handlebars templates with vanilla TypeScript for interactivity provides optimal balance of simplicity, maintainability, and sufficiently meets all requirements for the use cases.
 
-- Service-shaped page models keep templates cleaner and make page contracts easier to document in the View Catalog.
+- Service-shaped page models keep templates cleaner and make page contracts easy to express as typed view models.
 
 Alternatives Considered:
 
@@ -2379,6 +2379,33 @@ Impact:
 
 - Stylesheet changes that introduce raw hex, raw-px radius, or non-canonical breakpoints fail CI and must be expressed through the token system.
 
+## 4.9 One Public Rendering Standard
+
+Decision:
+
+The public site has a single reusable rendering standard that every public page consumes: the page contract (`PageViewModel<TContent>` in `src/types/page.ts`), a small set of reusable primitives (site frame, hero, content section, cards, result sections, year navigation, metadata rows, empty state, notice), and a shared CSS vocabulary. A page composes from these; it does not define its own structure or chrome. Home is the one composition-page exception (§4.1).
+
+Rationale:
+
+- A single standard keeps the site coherent as sections are added; per-section structure fragments the product into parallel design languages and multiplies maintenance.
+- Reuse is enforceable through shared code (thin controllers, service-shaped page view-models, one layout, shared partials, shared CSS tokens, logic-light templates), not convention alone.
+- Volunteer contributors extend an established vocabulary rather than inventing one per page.
+
+Requirements:
+
+- Every public page except Home renders from `PageViewModel<TContent>`.
+- A new public page joins the standard only if it can be expressed through the existing primitives and CSS vocabulary; a genuinely new reusable primitive is added to the standard first, then reused.
+- No section introduces its own chrome system or a parallel design language; section-specific vocabulary inherits the shared tokens and primitives.
+- Look-and-feel consistency is a forward requirement: it constrains every new surface, not only the current page set.
+
+Trade-offs:
+
+- A page that wants bespoke structure must instead extend the shared standard, which is slower than a one-off but keeps the system coherent.
+
+Impact:
+
+- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced by `scripts/ci/assert_conventions.sh` (§4.8).
+
 # 5. Back-End Services and Patterns
 
 ## 5.1 Node.js with TypeScript
@@ -2417,7 +2444,7 @@ Rationale:
 
 - Express is mainstream, well-documented, and already present in the Node + TypeScript stack. Introducing a second routing framework would create parallel routing concepts for no comparable gain.
 - Routing, headers, and status codes are HTTP-layer concerns; service-layer code never touches `req` or `res`. The separation lets the service layer stay testable without an HTTP fixture.
-- Thin controllers keep the service contracts and the view catalog stable: a controller change does not ripple into either unless the underlying service contract or view contract changes.
+- Thin controllers keep the service contracts and the page view contracts stable: a controller change does not ripple into either unless the underlying service contract or view contract changes.
 
 Trade-offs:
 
@@ -2497,7 +2524,7 @@ State-changing service methods return a discriminated union. The canonical arms 
 | `not_found`         | 404           | (empty, or `reason: string` for log-only diagnostics)                                              |
 | `forbidden`         | 403           | (empty, or `reason: string` for log-only diagnostics)                                              |
 
-`validation_error.formState` is typed per method, never `unknown`. The controller renders the error response without a second service call; the service is the single source of the form-state payload (see VC §4.4 for the template-side consumption).
+`validation_error.formState` is typed per method, never `unknown`. The controller renders the error response without a second service call; the service is the single source of the form-state payload.
 
 A service method that surfaces only a subset of these arms declares its return type as a narrower union (e.g. `advance | validation_error` for a non-rate-limited mutation). Controllers exhaustively switch via a TypeScript `switch (result.kind)` with the compiler verifying every arm is handled.
 

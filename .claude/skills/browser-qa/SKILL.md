@@ -13,7 +13,7 @@ This skill is for ad-hoc human-driven browser review. The standing Playwright te
 
 **Visual layout review**: human wants to see how a page looks and give feedback.
 - Navigate to the named page, take one screenshot, report what is rendered.
-- Do not run assertions or check the full VIEW_CATALOG target rendering invariants unless asked.
+- Do not run assertions or check the full target rendering invariants (the view-layer standard and the page's service-JSDoc contract) unless asked.
 
 **QA verification**: human wants to confirm specific behavior is correct.
 - State exactly what will be checked before running anything.
@@ -61,7 +61,7 @@ Minimal call sequence for content/behavior check:
 
 2. Run only what was confirmed. Do not add pages or checks.
 
-3. For QA verification, check against the VIEW_CATALOG target rendering invariants only for the named page(s).
+3. For QA verification, check against the target rendering invariants (the view-layer standard and the page's service-JSDoc contract) only for the named page(s).
 
 4. Do not claim browser verification unless it was actually executed.
 

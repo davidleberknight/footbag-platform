@@ -47,7 +47,7 @@ When an AI agent runs this file, treat it as a prompt with explicit role, succes
 
 **Non-goals:** do not run a browser QA pass, do not redesign the application, do not write fixes, do not create a test plan, and do not record speculative issues as bugs.
 
-**Operating rule for uncertainty:** when code and user stories disagree, do not assume the user story is right. The bug may be in the code, the user story, the service JSDoc, the view catalog, the migration plan, or the prompt. Step back and reason from the platform goal, domain invariants, deployed route behavior, and source-of-truth order. If a human decision is required, ask exactly one question with enough context for the maintainer to answer.
+**Operating rule for uncertainty:** when code and user stories disagree, do not assume the user story is right. The bug may be in the code, the user story, the service JSDoc, the view-layer rule, the migration plan, or the prompt. Step back and reason from the platform goal, domain invariants, deployed route behavior, and source-of-truth order. If a human decision is required, ask exactly one question with enough context for the maintainer to answer.
 
 ### 0.1 Read order by role
 
@@ -115,7 +115,7 @@ Do not batch questions. Ask the highest-leverage blocking question first, then c
 
 The deployed surface below is the current seed inventory for §3 through §5. Re-derive it from the repo before relying on it:
 
-- **Freestyle**: the `/freestyle/*` public surface — ~28 GET routes in `src/routes/publicRoutes.ts` served by `src/controllers/freestyleController.ts`, backed by `freestyleService` / `freestyleRecordShaping` / `freestyleRecordVisibility` / `freestyleRelatedTricks`, rendered from `src/views/freestyle/**`, with the mechanically-tested dictionary-trick-card uniformity contract. GET-only/public: the stressed categories are §4.4.8 (XSS), §4.4.1 (logic), §4.4.6 (anti-enumeration on slug lookups), and §4.4B (design/comment divergence).
+- **Freestyle**: the `/freestyle/*` public surface — its GET routes in `src/routes/publicRoutes.ts` served by `src/controllers/freestyleController.ts`, backed by `freestyleService` / `freestyleRecordShaping` / `freestyleRecordVisibility` / `freestyleRelatedTricks`, rendered from `src/views/freestyle/**`, with the mechanically-tested dictionary-trick-card uniformity contract. GET-only/public: the stressed categories are §4.4.8 (XSS), §4.4.1 (logic), §4.4.6 (anti-enumeration on slug lookups), and §4.4B (design/comment divergence).
 
 - **V_*** (8): V_Browse_Static_Content, V_Browse_Clubs, V_Browse_Upcoming_Events (partial — TEMP-DEVIATION on upcoming region), V_Browse_Past_Events, V_View_Gallery, V_Access_Denied, V_Not_Found, V_Error_or_Maintenance_Mode, V_Register_Account
 - **M_*** (15): M_Login, M_Verify_Email, M_Reset_Password, M_Change_Password, M_Logout, M_Browse_Legacy_Archive (edge-only — not exercisable from Express), M_Claim_Legacy_Account, M_Confirm_Auto_Linked_Identity, M_Complete_Onboarding_Wizard, M_Edit_Profile, M_Contact_IFPA_Admin, M_Search_Members, M_View_Profile, M_Active_Player_Expiry, M_Upload_Photo, M_Organize_Media_Galleries, M_Delete_Own_Media
@@ -181,7 +181,7 @@ Before scanning any source file, load these into context:
 2. `/home/footbag/GITHUB/footbag-platform/CLAUDE.md` — project-wide rules + source-of-truth order.
 3. `/home/footbag/GITHUB/footbag-platform/docs/TESTING.md` §15.2 strategic anti-patterns.
 4. `/home/footbag/GITHUB/footbag-platform/IMPLEMENTATION_PLAN.md` AND `/home/footbag/GITHUB/footbag-platform/legacy_data/IMPLEMENTATION_PLAN.md` — the accepted-deviation blocks of BOTH plans. A behavior that looks like a bug may be an explicitly documented deviation; cross-check before flagging. The legacy plan is mandatory even though the `legacy_data/` pipeline is out of scope, because its documented deviations can surface in deployed routes.
-5. `/home/footbag/GITHUB/footbag-platform/.claude/rules/testing.md`, `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, `db-layer.md`, `doc-governance.md` — the operational rules every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
+5. **All path-scoped rules in `/home/footbag/GITHUB/footbag-platform/.claude/rules/*.md`** (the full set: `testing`, `service-layer`, `controller-conventions`, `template-conventions`, `view-layer`, `db-layer`, `db-write-safety`, `adapter-conventions`, `comments`, `doc-governance`, `memory`) and the relevant `.claude/skills/*` procedures — the operational rules and workflows every finding must respect (the layer-boundary rules are the canonical patterns the §4.4B design-divergence sweep checks against).
 6. `/home/footbag/GITHUB/footbag-platform/docs/DATA_GOVERNANCE.md` (mandatory before any finding that touches members, historical persons, search, contact fields, exports, stats, or privacy boundaries).
 
 The user memory directory at `/home/footbag/.claude/projects/-home-footbag-GITHUB-footbag-platform/memory/MEMORY.md` autoloads. Respect every behavioral rule documented there.
@@ -623,7 +623,7 @@ A service that reads a file or directory at runtime is correct only if the deplo
 
 This is a **separate, lower-priority sweep** run after the §4.4 security/correctness sweep. Its findings go in their own `BUGS.md` group (see §4.6) so they never drown the security findings. **Severity**: most §4.4B findings are **Low** or **Medium**. Escalate to **High** only when the divergence produces an actual behavioral or security failure (for example, a template that branches on a raw `role` value and thereby exposes an admin-only control to a non-admin viewer — that is an authorization leak, not a style nit).
 
-Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,service-layer,db-layer}.md`, service file-header JSDoc, `docs/VIEW_CATALOG.md`. Cite the rule.
+Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,view-layer,service-layer,db-layer}.md`, service file-header JSDoc. Cite the rule.
 
 #### 4.4B.1 Controller-layer divergence
 
@@ -731,7 +731,7 @@ Report service-JSDoc findings under `Design-divergence and hygiene` unless the i
 7. **Sweep `src/middleware/*.ts`** for auth, CSRF, rate-limit, cookie, and password-version-check logic. These are catastrophic-severity surfaces.
 8. **Sweep `src/services/*.ts`** for the patterns in §4.4.13 (transactions), §4.4.14 (best-effort swallows), §4.4.15 (dev-shortcut reads outside `src/testkit/` / `src/dev-bootstrap/`), plus the service-contract patterns in §4.4B.8.
 9. **Run the dedicated service-JSDoc consistency sweep** (§4.4B.8): compare every service file-header/exported-contract JSDoc to actual code, side effects, errors, transaction behavior, dependency shape, and security/privacy invariants.
-10. **Sweep `src/adapters/*.ts`** for error-handling holes. Verify all 8 adapters' error surfaces are correctly classified at every call site.
+10. **Sweep `src/adapters/*.ts`** for error-handling holes. Verify every adapter in `src/adapters/` has its error surfaces correctly classified at every call site.
 11. **Sweep `src/lib/*.ts`** for shared helpers (cookies, flash, redactTokenPaths, externalLink, etc.). A bug in a helper is multiplied by every call site.
 12. **Sweep `src/views/**/*.hbs`** (including `src/views/freestyle/**`) for `{{{ }}}` triple-stashes and any inline `<script>` (CSP forbids inline scripts; verify CSP nonces or hashes are correctly attached when present).
 13. **Review deterministic verification coverage** (§4.4.38 and §5): inspect `package.json`, `scripts/`, `.github/workflows/` when present, CI scripts, test commands, lint/typecheck commands, security scanners, custom convention checkers, and repo-level gates. Record missing obvious checks as Testing and CI/CD verification gaps.
@@ -890,7 +890,7 @@ Reducing missed bugs (false negatives) is a first-class goal of exhaustion, not 
 The checklist below is a minimum coverage floor, necessary but never sufficient; completing it does not end the sweep, only the exhaustion conditions above do. Minimum floor:
 
 - You have rebuilt the deployed surface and completed the scratch deployed-story traceability pass.
-- You have audited the deployed-US controllers (including `freestyleController`) + their services + the shared middleware + the 8 adapters + the shared lib helpers.
+- You have audited the deployed-US controllers (including `freestyleController`) + their services + the shared middleware + the adapters in `src/adapters/` + the shared lib helpers.
 - You have threat-modeled the high-risk flows named in §4.5.
 - You have grep-swept for the expanded bug categories in §4.4.1-§4.4.39.
 - You have run the §4.4B design/hygiene secondary sweep across the files read.

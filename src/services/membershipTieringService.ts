@@ -39,16 +39,14 @@
  *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
  *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
  *     or `endOnTier3Grant`).
- *   - News items emitted via `NewsService.emitNewsItem` only.
  *
  * Persistence:
  *   member_tier_grants, member_tier_current, members (flag and role fields),
- *   mailing_list_subscriptions, news_items, audit_entries, outbox_emails.
+ *   mailing_list_subscriptions, audit_entries, outbox_emails.
  *
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP)
- *   - news_items emission via NewsService (`member_honor`)
  *
  * Service shape: singleton object (no external adapters).
  */

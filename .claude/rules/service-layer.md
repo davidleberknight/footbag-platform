@@ -76,7 +76,7 @@ calling the service, but must not short-circuit around the service's existence c
 
 ## Auth-conditional shaping
 
-General policy: services return a complete shape; controllers gate access (404 / 403) before invoking. The one current exception is media-gallery surfaces: `MediaGalleryService` accepts a `viewer: ViewerContext` parameter so it can null out per-item href fields when the viewer cannot reach the linked profile. Other services do not take `viewer`; they return full shapes and trust the controller's auth gate.
+General policy: services return a complete shape; controllers gate access (404 / 403) before invoking. The one current exception is media-gallery surfaces: `mediaService` accepts a `viewer: ViewerContext` parameter so it can null out per-item href fields when the viewer cannot reach the linked profile. Other services do not take `viewer`; they return full shapes and trust the controller's auth gate.
 
 ## File-header JSDoc
 

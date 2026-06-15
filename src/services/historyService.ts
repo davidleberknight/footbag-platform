@@ -1,3 +1,27 @@
+/**
+ * HistoryService -- public historical-person detail page (read-only).
+ *
+ * Serves:
+ *   - GET /history/:personId: historical player detail. Public for HoF/BAP persons; auth required
+ *     otherwise (the controller loads the person, checks honor flags, and redirects an
+ *     unauthenticated visitor to /login?returnTo=... for non-honored persons). There is no bare
+ *     /history route.
+ *
+ * Rendering contract:
+ *   - getHistoricalPlayerPage() returns a discriminated HistoryDetailResult
+ *     ({action:'redirect'} | {action:'requireAuth'} | {action:'render', vm:
+ *     PageViewModel<HistoryDetailContent>}); the controller acts on the discriminant. A
+ *     non-honored person viewed unauthenticated yields requireAuth (controller redirects to
+ *     /login?returnTo=...); an unknown person throws NotFoundError (404).
+ *   - Result and partner links are pre-shaped in the service via personHref() (resolves to
+ *     /members/{slug} for a claimed member, /history/{personId} otherwise, null when neither);
+ *     templates render plain text when no link exists.
+ *
+ * Visibility:
+ *   - A historical person is a public historical identity, not a current-member account. The page
+ *     renders name, country, official honors, and official result/event links only; it carries no
+ *     contact fields and must not imply current-member capabilities or contactability.
+ */
 import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerPartnerRow,
          publicPlayers, freestyleRecords, legacyClaim } from '../db/db';
 import { NotFoundError } from './serviceErrors';

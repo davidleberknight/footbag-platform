@@ -41,6 +41,12 @@
  *     opted in (email_visibility 'members'); phone and WhatsApp render the
  *     same way, each gated by its own opt-in. Tier and Active Player badges
  *     are member-visible only.
+ *   - Privacy gate is fail-closed: getMemberProfilePage returns null only for an
+ *     unauthenticated visitor viewing a non-HoF/BAP member, which the controller maps
+ *     to 404. HoF and BAP profiles stay publicly visible; any authenticated member may
+ *     view any profile read-only. The 404 carries no "this profile is private" message,
+ *     which would itself leak existence. Owner-only sub-routes (edit, edit/password,
+ *     galleries, media upload, account :section) return 404 on slug mismatch, not 403.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to

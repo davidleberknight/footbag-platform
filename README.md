@@ -23,13 +23,15 @@ A lot of functionality is done and deployed on AWS. This is the baseline for ong
 Sneak Preview on AWS staging: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
 - The legacy-data pipeline (from a mirror of live site) is done, including major clean up of historical event results data.
-- We just received the initial data dump from the live footbag.org webmaster, processing in progress...
+- We hsave received the initial data dump from the live footbag.org webmaster, processing in progress...
 - Technical and Functional requirements specs are complete, refer to User Stories and Design Decisions.
 - The Freestyle Dictionary is done, and that's a big deal. Check it out.
 - The Media sharing system works.
 - The Onboarding Wizard works, used to clean up dirty club data, and link up legacy member data to new logins.
 - We have Stripe payment adapters invoking Stripe directly (but no real-money tests yet).
-- We can seed personas and access them on staging for robust testing.
+- We can seed th efull range of user personas and access them on staging for robust testing.
+- Test suites are robust and include pen tests, e2e, and more.
+- Claude Code skills, rules, hooks and md files efficiently guide AI coding and documentation tasks, but of course, the human in the loop is essential to get the job done correctly. 
 
 ## Contributing
 
@@ -80,7 +82,6 @@ Each bug fix lands with a regression test in the same PR; the issue closes when 
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
-- [docs/VIEW_CATALOG.md](docs/VIEW_CATALOG.md): route and web-page contracts.
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md): current sprint scope, dependency analysis, and planning.
 
 ## Technology Stack

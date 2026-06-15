@@ -1,3 +1,17 @@
+/**
+ * SidelineService -- public sideline games landing page (read-only).
+ *
+ * Serves:
+ *   - GET /sideline (public): canonical sideline section entry.
+ *
+ * Rendering contract:
+ *   - getSidelineLandingPage() returns PageViewModel<SidelineLandingContent>.
+ *   - Static hero plus a fixed per-game list (Circle Kicking, 2-Square, 4-Square, Consecutive
+ *     Kicks, Footbag Golf), each with optional cartoon icon and optional demo .webm clip.
+ *   - Each game may carry an optional internal "MORE INFO" link (its rules page, e.g.
+ *     /rules/sideline/2-square, or another internal page such as /records); the page renders zero
+ *     offsite links.
+ */
 import { PageViewModel } from '../types/page';
 
 interface SidelineMoreInfoLink {

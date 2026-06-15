@@ -1,3 +1,49 @@
+/**
+ * MemberOnboardingService -- post-verification onboarding wizard and dashboard task widget.
+ *
+ * Owns:
+ *   - The onboarding task list and its lifecycle: idempotent startTaskList on first wizard GET,
+ *     per-task state (pending / in_progress_paused / skipped / completed / not_applicable), and the
+ *     sequential advance order that the wizard and the dashboard Resume target both follow.
+ *   - The three current tasks: personal_details, legacy_claim, and club_affiliations. Each renders
+ *     a single page and resolves via submit (save-and-advance) or skip. The results-visibility
+ *     preference (show_competitive_results) is collected within the personal_details task, not as a
+ *     separate task.
+ *   - The dashboard task widget (getTaskWidget): one row per outstanding task with a Resume target;
+ *     hidden when no outstanding tasks remain.
+ *
+ * Does not own:
+ *   - Legacy-account claim and historical-person matching (IdentityAccessService; the legacy_claim
+ *     task delegates to it).
+ *   - Member profile field writes (MemberService; e.g. setShowCompetitiveResults).
+ *   - Club promotion and leadership confirmation (ClubService).
+ *
+ * Serves (all auth-required; an unauthenticated request redirects to /login?returnTo=...):
+ *   - GET /register/wizard/:taskType and the per-action POST sub-paths (/submit, /skip, and the
+ *     legacy_claim sub-actions). Unknown :taskType renders 404. GET /register/wizard/complete is
+ *     the terminal page.
+ *
+ * Required patterns:
+ *   - State-changing wizard POSTs follow post-redirect-get: a 303 to the next-task GET or to
+ *     /register/wizard/complete on advance; a 303 to the same step with a signed flash cookie for a
+ *     transient notice; a 422 re-render on validation error; a 429 with Retry-After on rate-limit.
+ *   - The wizard never reveals whether the member has a plausible legacy match beyond the existing
+ *     anti-enumeration contract; a task the server determines is not_applicable is simply not
+ *     rendered.
+ *   - Per-task answers persist on submit; completing a task advances the sequence.
+ *   - State-changing wizard POSTs are subject to the global Origin-pin CSRF middleware; a wizard
+ *     POST is never added to that middleware's exemption list.
+ *   - Every task page renders through the shared wizard layout primitive so all tasks present the
+ *     same chrome.
+ *
+ * Persistence:
+ *   member_onboarding_tasks (and the tables the delegated services own).
+ *
+ * Side effects:
+ *   - audit_entries append.
+ *
+ * Service shape: singleton object.
+ */
 import { randomUUID } from 'crypto';
 import {
   account,

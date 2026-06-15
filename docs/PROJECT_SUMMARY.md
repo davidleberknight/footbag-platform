@@ -51,11 +51,13 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 The project documentation suite consists of the following documents:
 
-**View Catalog:** Target public-rendering standard for public pages. Defines the `PageViewModel<TContent>` contract every page must consume, the reusable primitives, the public page overview matrix with audience and authorization, and the sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary).
+**View-layer standard:** The public-rendering standard (the `PageViewModel<TContent>` contract every page consumes, the reusable primitives, the CSS-vocabulary discipline, and the visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary) live in the owning service's file-header JSDoc; durable view design intent lives in DESIGN_DECISIONS.md §4.
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Service-layer design:** Ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others) live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Read-only services' page contracts live in VIEW_CATALOG.md. Pair with code, tests, and TypeScript types for current method shapes.
+**Service-layer design:** Ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others) live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Read-only page services carry a page-contract file-header JSDoc stating audience, rendering contract, and sensitive-page invariants for the routes they serve. Pair with code, tests, and TypeScript types for current method shapes.
+
+**Where implementation detail lives:** durable design intent and rationale in Design Decisions; per-service and per-page contract in service file-header JSDoc; cross-cutting AI coding rules in `.claude/rules/*`; repeatable procedures in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a JSDoc, rule, or skill already owns.
 
 **Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
 
@@ -303,7 +305,7 @@ Browser-side TypeScript/JavaScript attaches to specific pages for usability enha
 
 **Page Navigation:**
 
-On the site, each meaningful URL corresponds to a real server-rendered page. There is no client-side router that intercepts links and simulates navigation. When the user clicks a link or submits a form, the browser performs a normal HTTP request and receives an HTML response. Some pages may use JavaScript-driven interactions (for example filters or "Load more" controls) where explicitly implemented, but core navigation remains normal link/form HTTP requests to server-rendered pages (no client-side router).
+On the site, each meaningful URL corresponds to a real server-rendered page. When the user clicks a link or submits a form, the browser performs a normal HTTP request and receives an HTML response. Some pages may use JavaScript-driven interactions (for example filters or "Load more" controls) where explicitly implemented, but core navigation remains normal link/form HTTP requests to server-rendered pages.
 
 **Static Assets and CDN:**
 
@@ -459,7 +461,7 @@ The Solution: When action requires email, write an outbox record (in the databas
 
 The Problem: Single compute instance means site unavailability during failures.
 
-The Solution: CloudFront serves a custom maintenance page from S3 when the origin is down. Users see a clear message: "Footbag.org is temporarily unavailable. Please try again in a few minutes." Automatic recovery occurs when the origin returns to health---CloudFront resumes serving live content within 10 seconds (error page cache TTL).
+The Solution: CloudFront serves a custom maintenance page from S3 when the origin is down. Users see a clear message: "Footbag.org is temporarily unavailable. Please try again in a few minutes." Automatic recovery occurs when the origin returns to health; CloudFront resumes serving live content within 10 seconds (error page cache TTL).
 
 Limitations: This design accepts brief downtime (estimated 52 minutes per year based on AWS Lightsail 99.99% SLA) in exchange for operational simplicity appropriate to volunteer maintenance.
 
@@ -642,7 +644,7 @@ This policy supports GDPR privacy requirements while retaining required financia
 
 **What Gets Logged:** Authentication events, profile changes, club membership, event operations, photo and video actions, payment transactions, admin decisions, event-organizer/club-leader additions and acceptances, URL validation results, membership tier changes, price edits and price change events, Board add and remove, election creation, ballot tallying operations, results publication, cancellation, event sanction approvals and denials, administrator overrides and batch operations, announce-list sends, event results publication, login failures over threshold, price configuration reads and exports, email template edits, election settings edits after creation, organizer assignment or removal on events, ClubLeader set or unset, archive access policy changes, payment gateway keys and webhook URL changes, ballot encryption key rotations.
 
-Administrators may edit member data (as permitted by rules) and all such actions must have a reason, and will be audit-logged, the point being that the admin can manually apply BAP and HoF flags, fix Tier status or other data problems. Note that this includes the case where a member dies; we will add a special flag for deceased, and the admin can set this.
+Administrators may edit member data (as permitted by rules) and all such actions must have a reason, and will be audit-logged, the point being that the admin can manually apply BAP and HoF flags, fix Tier status or other data problems. Note that this includes the case where a member dies; the admin can set a deceased flag for the member.
 
 Each log entry includes: timestamp (ISO-8601 UTC), event type, actor ID, resource affected, action details, result, request correlation ID. Audit logs are privacy-safe, so they do not store IP addresses or network identifiers.
 
@@ -721,7 +723,7 @@ CloudFront exit from maintenance is automatic. When Lightsail origin returns to 
 
 **Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email and SMS. Documented recovery procedures enable rapid restoration (typically 15-30 minutes for application issues, up to 2 hours for complete infrastructure restore).
 
-**Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from cross-region backup bucket (us-east-1) to new Lightsail instance in any available region using documented procedures (2-4 hours). No pre-planned regional failover maintained---probability too low to justify ongoing complexity.
+**Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from cross-region backup bucket (us-east-1) to new Lightsail instance in any available region using documented procedures (2-4 hours). No pre-planned regional failover is maintained; the probability is too low to justify ongoing complexity.
 
 This approach provides high availability appropriate to community scale: reliable infrastructure, rapid recovery, transparent failure modes. NOT achieved through redundant compute instances, multi-region failover, or 24/7 operations.
 
@@ -801,7 +803,7 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 - Preserved complete directory structure and file organization, modified only to eliminate the database and javascript used in the legacy system.
 - Maintained relative links between pages so navigation works.
 - Generated pure HTML output with no JavaScript or database dependencies.
-- There is no search feature in the archive.
+- The archive is browse-only.
 - Note: this backup contains some member's details such as contact info, and so therefore access is limited to logged-in members only.
 
 **Data Migration:**

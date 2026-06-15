@@ -1,3 +1,46 @@
+/**
+ * FreestyleService -- public freestyle section pages (read-only). All routes are public and
+ * unauthenticated. Each page method returns PageViewModel<...Content>.
+ *
+ * Serves:
+ *   - Landing: GET /freestyle (getLandingPage).
+ *   - Trick dictionary: GET /freestyle/tricks (getFreestyleTricksIndexPage),
+ *     GET /freestyle/tricks/:slug (getTrickDetailPage).
+ *   - Reference: GET /freestyle/glossary (getGlossaryPage), /freestyle/operators
+ *     (getOperatorsPage), /freestyle/modifier/:slug (getModifierDetail -> teaching | stub),
+ *     /freestyle/notation-article (getJobsNotationArticlePage), /freestyle/observational
+ *     (getObservationalLayerPage).
+ *   - Sets: /freestyle/sets (getSetsEncyclopediaPage), /freestyle/sets/:slug
+ *     (getCanonicalSetDetailPage), /freestyle/sets/reference (getMovesPage),
+ *     /freestyle/compositional-sets (getCompositionalSetsPage).
+ *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
+ *     /freestyle/competition, /freestyle/partnerships, /freestyle/insights, /freestyle/add-analysis
+ *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage).
+ *   - Pedagogy: /freestyle/learn (getSymbolicLearnPage), /freestyle/progression/walking-family,
+ *     /freestyle/about, /freestyle/history.
+ *
+ * Rendering contract:
+ *   - Every trick-dictionary browse view renders the same shared two-line trick row; the
+ *     card-uniformity contract is mechanically tested across all browse views.
+ *   - Detail routes for trick and modifier throw NotFoundError on an unknown slug, which renders
+ *     404 (anti-enumeration); getCanonicalSetDetailPage instead returns null for an unknown slug
+ *     (the controller maps null to 404).
+ *   - Tier-4 executable-accounting notation surfaces render only on sanctioned places (the
+ *     trick-detail Notation summary, first-class pilot browse cards, and ADD Analysis); the
+ *     Tier-3 absence contract holds everywhere else.
+ *
+ * Ontology layering (load-bearing, never collapsed):
+ *   - Canonical curated tricks are the only first-class structures. The observational / emerging-
+ *     vocabulary layer is overlap-safe by construction, never inlines into canonical surfaces, and
+ *     its entries carry a distinct tracked tag rather than a canonical hashtag chip, so a visible
+ *     tag never implies official status.
+ *   - The public family browse layer and modifier clusters are navigation/display layers only and
+ *     carry no canonical-ontology weight.
+ *   - The deep family / topology / modifier / set doctrine and the curator-content authoring rules
+ *     are owned by the freestyle dictionary, topology-governance, and dictionary-surface skills and
+ *     the committed content modules; current editorial pilots and allow-lists live in the code and
+ *     IMPLEMENTATION_PLAN, not in this contract.
+ */
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
   FreestyleTrickRowWithStatus, FreestyleTrickRowWithParse,

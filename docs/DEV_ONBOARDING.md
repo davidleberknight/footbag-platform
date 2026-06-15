@@ -787,14 +787,13 @@ Read these first when working on code:
 
 - `PROJECT_SUMMARY.md`
 - `USER_STORIES.md`
-- `VIEW_CATALOG.md`
 - `DESIGN_DECISIONS.md`
 - `DATA_MODEL.md`
 
 How they relate:
 
 - user stories define what the website must do
-- view catalog defines what pages must exist and what they must communicate
+- the view-layer rule (`.claude/rules/view-layer.md`) defines the shared rendering standard every public page follows
 - each service's file-header JSDoc defines its responsibilities and contract
 - design decisions define what architectural shortcuts are intentional and what is forbidden
 - The data mode / schema sql is the executable truth for the current data baseline

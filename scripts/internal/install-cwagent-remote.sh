@@ -155,7 +155,7 @@ sleep 5
 tail -n 50 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log || true
 
 echo
-echo "=== Capture for AWS_PROJECT_SPECIFICS.md ==="
+echo "=== Capture for your local operator AWS specifics ==="
 echo "  Root fstype:       ${fstype}"
 echo "  IMDS instance-id:  ${imds_id}"
 echo

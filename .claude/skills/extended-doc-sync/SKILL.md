@@ -31,7 +31,7 @@ a pure doc-to-doc pass.
 ## Purpose
 
 Produce a results-only audit of whether project documentation, canonical design intent,
-implementation-state plan, deployed code, tests, schema, service/view catalogs, and
+implementation-state plan, deployed code, tests, schema, service and view-layer contracts (JSDoc + view-layer rule), and
 operational/migration artifacts are internally consistent and mutually synchronized.
 
 This skill reports synchronization facts so the maintainer can perform downstream analysis.
@@ -54,7 +54,7 @@ documented authority order; it does not refuse to.
   which side is canonical and which has drifted.
 - **Long-term canonical design docs** describe durable design intent, not status:
   `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
-  `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
+  `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
   `docs/PROJECT_SUMMARY.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DEV_ONBOARDING.md`,
   `docs/DEVOPS_GUIDE.md`, `docs/TESTING.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
@@ -107,7 +107,7 @@ For a comprehensive audit, read (subset for a scoped ask per Scaling):
 4. `PROJECT_SUMMARY_CONCISE.md`
 5. `IMPLEMENTATION_PLAN.md`, `legacy_data/IMPLEMENTATION_PLAN.md`
 6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
-   `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
+   `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
    `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`,
    `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `docs/PROJECT_SUMMARY.md`
 7. `legacy_data/CLAUDE.md`, `README.md`, `SECURITY.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`
@@ -150,7 +150,7 @@ a mismatch only when a doc, README, plan, test, or route name implies it is depl
 
 ### Phase 3: Deployed-story conformance (docs vs code)
 For each complete- or partial-deployed story, check each success criterion against code,
-tests, schema, and the service/view catalogs. Check whether `IMPLEMENTATION_PLAN.md`
+tests, schema, and the service and view-layer contracts (JSDoc + view-layer rule). Check whether `IMPLEMENTATION_PLAN.md`
 records an accepted deviation. Record any mismatch with its drift direction; do not assert
 a fix.
 
@@ -163,11 +163,11 @@ style-only issues unless a canonical style rule is itself violated.
 
 ### Phase 5: Cross-document consistency
 Compare every doc cluster where concepts overlap (USER_STORIES vs DD / DATA_MODEL /
-DATA_GOVERNANCE / VIEW_CATALOG / TESTING; DD vs DATA_MODEL / catalogs /
-DEVOPS_GUIDE / MIGRATION_PLAN; catalogs vs actual services/routes; TESTING vs scripts/CI;
+DATA_GOVERNANCE / TESTING; DD vs DATA_MODEL / `.claude/rules` /
+DEVOPS_GUIDE / MIGRATION_PLAN; `.claude/rules` + service JSDoc vs actual services/routes; TESTING vs scripts/CI;
 DEVOPS_GUIDE vs Terraform/Docker/deploy scripts; MIGRATION_PLAN vs onboarding/claim/club/
 email/DNS docs; PROJECT_SUMMARY / PROJECT_SUMMARY_CONCISE and README vs current state;
-DIAGRAMS and GLOSSARY vs DD / DEVOPS_GUIDE / catalogs / Terraform). Look for: same term
+DIAGRAMS and GLOSSARY vs DD / DEVOPS_GUIDE / service JSDoc / Terraform). Look for: same term
 different meaning, same rule different default, same route different path, same service
 different owner, same page different visibility, same status different state machine,
 current-state language in canonical docs, permanent-design language in IP-only deviations.
@@ -177,19 +177,19 @@ including ASCII-art boxes and their captions) and glossary entries (`GLOSSARY.md
 assert a control, service, worker, managed service, or edge protection as *present* that a
 decision doc has since deferred, removed, or never built (e.g. an edge firewall, a queue, a
 cache, a region). Enumerate every named element in each diagram and glossary entry and
-reconcile it against the authoritative decision doc (`DESIGN_DECISIONS.md`), the catalogs,
-and infra (`terraform/**`, `docker/**`). When a control's existence is decided one way in a
+reconcile it against the authoritative decision doc (`DESIGN_DECISIONS.md`), the service JSDoc
+and `.claude/rules`, and infra (`terraform/**`, `docker/**`). When a control's existence is decided one way in a
 decision doc and drawn/defined the other way in a diagram or glossary, that is a finding,
 not a stylistic nicety. The same fact stated in five places means five places to drift.
 
-### Phase 6: Service contract and view catalog sync
+### Phase 6: Service contract and view-layer sync
 Per-service file-header JSDoc vs `src/services/**`, `src/adapters/**`, controllers, `src/db/**`,
 schema, tests: JSDoc ownership / required-pattern / invariant / side-effect claims that no
 longer match the service, controller business logic where the JSDoc says service-owned, a
-service whose contract has drifted from its JSDoc. `VIEW_CATALOG.md` vs `src/routes/**`, controllers,
-`src/views/**`, public-route tests: route/path/page-key mismatch, missing view-model shape
-where required, template deriving domain logic, sensitive-page rendering rule missing from
-code/tests, target-only catalog text treated as current elsewhere.
+service whose contract has drifted from its JSDoc. `.claude/rules/view-layer.md` and each page service's JSDoc page contract vs `src/routes/**`,
+controllers, `src/views/**`, public-route tests: route/path/page-key mismatch, missing view-model
+shape where required, template deriving domain logic, sensitive-page rendering rule missing from
+code/tests. Also `.claude/skills/*` procedures vs the current code and conventions they describe.
 
 ### Phase 7: Data model and data governance sync
 `DATA_MODEL.md` / `DATA_GOVERNANCE.md` vs `database/schema.sql`, `src/db/**`, sensitive
@@ -256,7 +256,7 @@ Deployed-story mismatch; partial-deployment ambiguity; story without deployed ev
 deployed feature without story; success-criteria untestable; missing traceability;
 cross-document contradiction; intra-document contradiction; source-of-truth ambiguity;
 canonical/current-state leakage; stale implementation claim; stale design claim; service
-catalog drift; view catalog drift; data model drift; data governance drift; testing-doc
+service-contract drift; view-layer drift; data model drift; data governance drift; testing-doc
 drift; CI/script drift; DevOps-doc drift; Docker/Terraform parity drift; migration/go-live
 drift; post-go-live source-of-truth ambiguity; terminology/identifier drift; broken internal
 reference; forbidden reference pattern; sensitive-content governance issue; missing

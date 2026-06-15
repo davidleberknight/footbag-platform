@@ -52,7 +52,7 @@ provider "aws" {
 }
 
 # us-west-2 alias for the DR bucket (cross-region replication target).
-# Per AWS_PROJECT_SPECIFICS backup region: us-west-2.
+# Backup region: us-west-2.
 provider "aws" {
   alias  = "us_west_2"
   region = "us-west-2"
