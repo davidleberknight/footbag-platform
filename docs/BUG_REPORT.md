@@ -69,8 +69,7 @@ If you need to share sensitive material, request the private path in the issue t
 
 **Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](../SECURITY.md):
 
-- [GitHub private vulnerability reporting](https://github.com/davidleberknight/footbag-platform/security/advisories/new) (preferred)
-- Or email: `davidleberknight@gmail.com` with subject `[SECURITY] footbag-platform: <description>`
+- [GitHub private vulnerability reporting](https://github.com/davidleberknight/footbag-platform/security/advisories/new)
 
 ## What happens after you submit
 

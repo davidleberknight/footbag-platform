@@ -2755,6 +2755,8 @@ VALUES
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
 --   media_flag_rate_limit_per_hour  Max media flags per member per hour
+--   profile_edit_rate_limit_per_hour Max profile edits per member per hour
+--   purchase_tier_rate_limit_per_hour Max tier-purchase attempts per member per hour
 --   reconciliation_summary_interval_days Cadence for reconciliation digest email
 --   primary_snapshot_version_days   S3 versioning retention for primary bucket
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
@@ -3040,6 +3042,24 @@ VALUES
    'photo_upload_rate_limit_per_hour', '10',
    '2000-01-01T00:00:00.000Z',
    'Max photo uploads per member per hour (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-profile-edit-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'profile_edit_rate_limit_per_hour', '20',
+   '2000-01-01T00:00:00.000Z',
+   'Max profile edits per member per hour (default: 20).',
+   NULL
+  ),
+
+  (
+   'seed-purchase-tier-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'purchase_tier_rate_limit_per_hour', '20',
+   '2000-01-01T00:00:00.000Z',
+   'Max tier-purchase attempts per member per hour (default: 20).',
    NULL
   ),
 

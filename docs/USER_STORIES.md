@@ -198,7 +198,7 @@ Input validation and sanitization: All user-entered text (names, bios, captions,
 
 Payment Processing Guarantees: The system does not grant paid access unless Stripe confirms success. Local payment state transitions are monotonic and keyed by Stripe object IDs; duplicates and reordering do not cause double-application. This ordering ensures the system never grants paid features without successful payment. Webhook event processing is idempotent: duplicate webhook deliveries with the same event_id are safely ignored and return 200 OK without reprocessing. This prevents double-processing when Stripe automatically retries webhook delivery. Two payment models are used and each has its own state machine keyed to the appropriate Stripe object:
 
-- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to failed on payment_intent.payment_failed; completed to refunded on charge.refunded. Each state transition is recorded in audit logs with timestamp and Stripe event_id. No action is taken on refunds for Phase 1 in any case, so the refund concern is theoretical.
+- One-time payments (membership dues, event registrations, one-time donations): State transitions are keyed by Stripe's payment_intent_id. The enforced state machine is: pending to completed on payment_intent.succeeded; pending to failed on payment_intent.payment_failed; completed to refunded on charge.refunded. Each state transition is recorded in audit logs with timestamp and Stripe event_id. No action is taken on refunds at launch in any case, so the refund concern is theoretical.
 
 - Recurring donations (Stripe Subscriptions): State transitions are keyed by the Stripe subscription_id and invoice_id. The enforced state machine is: active on customer.subscription.created; active (new payment record created) on invoice.payment_succeeded; past_due on invoice.payment_failed (increments a failure counter; Stripe's configured dunning schedule governs retries); canceled on customer.subscription.deleted (triggered after Stripe exhausts all retries, or when canceled by member or admin). Each subscription event is recorded in audit logs with timestamp and Stripe event_id. All webhook event types are deduplicated via the stripe_events table (keyed on Stripe event_id) regardless of payment model.
 
@@ -220,7 +220,7 @@ Unless explicitly stated otherwise, all numeric limits (counts, sizes), time win
 
 Default values and source of truth: Unless explicitly labeled as Example, numeric values in this document are Default values. Defaults for Administrator-configurable system parameters are defined in this User Stories document and must be seeded into the corresponding database-backed configuration data store during initial database creation. The Design Decisions document may describe parameterization, ranges, and ownership, but does not define normative numeric defaults.
 
-All UI labels and system-generated messages are English-only in Phase 1. User-entered club and event descriptions and other club or event details may be authored in any language.
+All UI labels and system-generated messages are English-only at launch. User-entered club and event descriptions and other club or event details may be authored in any language.
 
 Reporting scope: Any dashboards/metrics described here are operational metrics (health, payment volume, job success/failure), not advanced BI or custom analytics.
 
@@ -973,7 +973,7 @@ Success Criteria:
 - If the registrant selects a category where the event organizer has set `requires_routine_music=true` (a new boolean on event categories, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
 - If the registrant has not uploaded the required routine music by the event registration deadline, the registration remains incomplete and is treated as not-confirmed for participant counts, exports, and check-in.
 - Registrants receive an email reminder at admin-configurable offsets before the deadline (`routine_music_reminder_days_1` default 7 days, `routine_music_reminder_days_2` default 1 day) when a required upload is missing.
-- For doubles or team routine categories, the registering member uploads on behalf of the entire entry; partners do not have independent upload access in Phase 1.
+- For doubles or team routine categories, the registering member uploads on behalf of the entire entry; partners do not have independent upload access at launch.
 
 ### M_Upload_Routine_Music
 
@@ -985,9 +985,9 @@ Success Criteria:
 
 - The form is available to members with a registration in a category where `requires_routine_music=true`, and only before the event's registration deadline.
 - The form offers two paths: (a) upload a new mp3 file, or (b) attach an existing file from the member's personal routine-music library on S3 without re-uploading.
-- Accepted format (Phase 1): mp3 only. Other audio formats are rejected with a clear error message. Future-phase support for additional formats is admin-configurable.
+- Accepted format at launch: mp3 only. Other audio formats are rejected with a clear error message. Support for additional formats is a future addition, admin-configurable when added.
 - Sanitization (per §1 file upload safety model): the audio is processed through FFmpeg with arguments `-map 0:a:0 -map_metadata -1 -c:a libmp3lame -b:a 128k -ar 44100`, which selects only the audio stream, drops all metadata and embedded album art, and re-encodes to a normalized 128 kbps / 44.1 kHz mp3. The re-encoded output is stored; the original upload is discarded. This eliminates any non-audio payload (id3-tag malware, trailers, polyglot tricks) by construction.
-- Future scope (proposed, not Phase 1): screen uploaded tracks against third-party copyright-block matchers (for example YouTube Content ID) and warn or reject uploads likely to trigger blocks when event video is later published.
+- Future scope (proposed, not at launch): screen uploaded tracks against third-party copyright-block matchers (for example YouTube Content ID) and warn or reject uploads likely to trigger blocks when event video is later published.
 - Maximum file size is admin-configurable (`routine_music_max_size_mb`, default 20 MB), measured against the original upload before transcoding. Oversized files are rejected with a clear error message.
 - Files are stored in private object storage (S3) as durable member-owned media, on the same storage pipeline as member-uploaded photos. Files persist permanently in the member's library; there is no auto-purge.
 - Files are served via short-lived signed URLs only to (a) the uploading competitor at any time, (b) the non-uploading partner(s) on any joint registration the file is attached to, and (c) the event organizer(s) of any event the file is currently attached to via a registration entry, through and after event end. Files are never publicly accessible.
@@ -1469,7 +1469,7 @@ Story: As a group member, I can upload a file to my group so that I share docume
 Success Criteria:
 
 - Upload form is available only to current group members on the group page.
-- Accepted formats (Phase 1): PDF, TXT, MD, PNG, JPEG. Office formats (DOCX, XLSX, PPTX) and other unlisted formats are rejected with a clear error message. Members convert Word and Excel documents to PDF before upload. Office formats are excluded because no free-tool transcoding pipeline preserves their editability while sanitizing macros; the platform keeps its malware-by-design posture by accepting only formats it can sanitize by construction.
+- Accepted formats at launch: PDF, TXT, MD, PNG, JPEG. Office formats (DOCX, XLSX, PPTX) and other unlisted formats are rejected with a clear error message. Members convert Word and Excel documents to PDF before upload. Office formats are excluded because no free-tool transcoding pipeline preserves their editability while sanitizing macros; the platform keeps its malware-by-design posture by accepting only formats it can sanitize by construction.
 - Sanitization (per §1 file upload safety model):
   - PDF: re-rendered through Ghostscript two-pass (PDF → PostScript 2 → PDF). PostScript 2 cannot carry JavaScript, embedded files, or launch actions, so the round-trip eliminates them by construction. Re-rendered PDF stored; original discarded.
   - PNG / JPEG: re-encoded via the `sharp` library, which strips EXIF and embedded metadata by default. Re-encoded image stored; original discarded.
@@ -1740,7 +1740,7 @@ For events officially registered through the IFPA website (including sanctioned 
 
 ## 4.5 Music Operations
 
-Organizer-side audio operations during events. Phase 1 scope is routine-music playback; the subsection's scope is expected to broaden over time to cover other tournament operations (bracket draws, judging sheets, live scoring, projection control) when those features are added.
+Organizer-side audio operations during events. The initial scope is routine-music playback; the subsection's scope is expected to broaden over time to cover other tournament operations (bracket draws, judging sheets, live scoring, projection control) when those features are added.
 
 ### EO_Play_Routine_Music
 
@@ -2632,7 +2632,7 @@ Success Criteria:
 - Audit log view lists entries with at least: timestamp, actor (admin, system, or member), action type, affected entity (such as member, event, media, payment, election), and a short description or reason where available.
 - Entries are sorted by timestamp, newest first by default.
 - Admin can filter logs by: date range (from/to); topic/category (for example: membership changes, pricing changes, elections, content moderation, payments, system alarms, configuration changes); actor type (admin vs system vs member).
-- Admin cannot search logs via the app in Phase One but must instead use an external tool if searching logs is required operationally.
+- Admin cannot search logs via the app at launch but must instead use an external tool if searching logs is required operationally.
 - Audit coverage includes at least: membership tier changes, pricing updates, event sanction approvals, media takedown decisions, election operations (create, publish, decrypt), admin role changes, alarm acknowledgments, and system cleanup or reconciliation processes.
 - Monthly summary view shows counts per category (for example: number of tier changes, number of event approvals, number of takedowns) to support lightweight reporting.
 - Logs retain limited identifiers necessary for traceability (IDs, not email addresses), consistent with privacy rules in Global Behaviors and Technical Requirements.

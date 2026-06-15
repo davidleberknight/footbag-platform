@@ -374,7 +374,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 - *Local development.* Runs on the maintainer workstation via `./run_dev.sh`. SQLite at `./database/footbag.db`. Local stub adapters (JWT signing stub, SES outbox stub, media storage local-disk stub). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=development`.
 - *CI.* Runs every test job (typecheck, lint, dependency audit, secret scan, conventions, unit, integration, db-load smoke, e2e, terraform) against ephemeral SQLite. No real AWS. Adapters are the same local stubs the workstation uses.
 - *Staging.* The real AWS staging account (KMS, SES, S3, SSM, Lightsail). The `src/testkit/` test scaffolding and the `src/dev-bootstrap/` conveniences are active under `FOOTBAG_ENV=staging`. The staging smoke suite (`tests/smoke/`) runs here, gated by `RUN_STAGING_SMOKE=1`.
-- *Production.* The real AWS production account. Both `src/testkit/` and `src/dev-bootstrap/` are excluded from the production image at build time (the Dockerfile strips both subtrees when `INCLUDE_DEV_SHORTCUTS=0`); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is the removable set deleted at cutover.
+- *Production.* The real AWS production account. `src/testkit/`, `src/dev-bootstrap/`, and the `src/internal-qc/` QC subsystem are excluded from the production image at build time (when `INCLUDE_DEV_SHORTCUTS=0` the Dockerfile strips all three subtrees and replaces `dist/routes/internalRoutes.js` with a null stub); boot-time guards in `src/config/env.ts` fail-fast if any `FOOTBAG_DEV_*` env var is set; `scripts/audit-dev-shortcuts.sh` returns zero against the production DB. `src/testkit/` is permanent in source (build-excluded from prod, not deleted); `src/dev-bootstrap/` is deleted at cutover, and `src/internal-qc/` is build-excluded now with its source subtree removed at QC retirement.
 
 ### 7.2 Adapter parity tests are mandatory
 
@@ -703,7 +703,7 @@ CI logs, CI artifacts, Playwright reports, traces, screenshots, and failure outp
 
 Coverage thresholds set in `vitest.config.ts` are floors per `.claude/rules/testing.md`. They are a leading indicator of test absence, not of test quality. A surface at one hundred percent line coverage with no adversarial tests is still under-tested.
 
-Target: 80% line/branch floor enforced in CI with ratchet (fail on drop). Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are verified by inspection of the tests themselves, not just by the coverage number. 100% coverage is not a target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
+Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the enforced ratchet floor (fail-on-drop) lives in `vitest.config.ts`. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100% coverage and are verified by inspection of the tests themselves, not just by the coverage number. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
 
 Quarantine count (§11.3) is a separate signal; sustained growth is a maintenance issue.
 

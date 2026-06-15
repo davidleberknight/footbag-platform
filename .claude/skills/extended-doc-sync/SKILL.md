@@ -79,6 +79,18 @@ documented authority order; it does not refuse to.
    IS in scope where it manifests in deployed behavior.
 6. No browser QA.
 7. One question at a time, only when blocked after read-only investigation.
+8. **Not-yet-built is not a gap.** A canonical doc describing intended behavior that is not
+   yet implemented is design intent, not drift. A `designed-not-deployed`, `future`, or
+   `documented-deferred` classification is a status fact for the classification table only,
+   never a finding. Report a not-yet-built feature ONLY when a doc, README, plan, test, or
+   route name CLAIMS it is already deployed — and then the finding is the false deployment
+   claim, not the missing feature. Never record "feature X is documented but not built" as
+   drift; that is the project's normal forward design, tracked outside this audit.
+9. **Code-verify every finding in this run.** Before recording any finding, open the actual
+   file and confirm the exact path, line, and current text yourself. Never record a finding
+   that rests only on a subagent's paraphrase or summary: if a delegated search surfaced a
+   candidate, re-read the cited location and confirm it verbatim, or drop it. A candidate
+   whose evidence cannot be reproduced by direct inspection is not recorded.
 
 ## Scaling and budget
 
@@ -146,7 +158,9 @@ For each story in `docs/USER_STORIES.md` (and any deployed technical feature wit
 story id), classify: complete-and-deployed, partial-and-deployed, runtime-feature-without-
 story-id, designed-not-deployed, future, documented-deferred, ambiguous, source-of-truth
 conflict, or not-inspected. A future story is not a mismatch merely for lacking code; it is
-a mismatch only when a doc, README, plan, test, or route name implies it is deployed.
+a mismatch only when a doc, README, plan, test, or route name implies it is deployed. The
+`designed-not-deployed`, `future`, and `documented-deferred` buckets are status facts for the
+classification table; they never become findings (Hard constraint 8).
 
 ### Phase 3: Deployed-story conformance (docs vs code)
 For each complete- or partial-deployed story, check each success criterion against code,
@@ -239,8 +253,11 @@ names. Check `IMPLEMENTATION_PLAN.md` for an accepted deviation, doc-governance 
 whether the doc is design-intent vs status, whether the story is future/not-deployed, whether
 the code is a bootstrap stub, whether the issue is purely an implementation defect (belongs
 to `bug-hunt`) or a design-spec defect with a needed fix (belongs to `design-bug-hunt`) or a
-narrow surgical doc-sync case, and whether it is already documented as unresolved. Record only
-survivors.
+narrow surgical doc-sync case, and whether it is already documented as unresolved. For every
+survivor, re-open the cited file(s) and confirm the exact current text by direct inspection in
+this run (Hard constraint 9); a candidate that cannot be reproduced from the file itself is
+dropped, not recorded. Discard any candidate whose only substance is a not-yet-built feature
+(Hard constraint 8). Record only confirmed survivors.
 
 ### Phase 13: Second pass and dryness loop (comprehensive mode)
 Re-read finding titles by perspective (requirements engineer, doc maintainer, backend/view
@@ -352,4 +369,5 @@ Be comprehensive, evidence-grounded, and conservative. Do not fix. Do not recomm
 Apply the documented source-of-truth order to report drift direction; classify-without-
 resolving only where the repo leaves authority undefined. Write nothing to disk. Start by
 declaring scope, re-deriving the deployed surface, and classifying every user story before
-recording any finding.
+recording any finding. Never report a not-yet-built feature as a gap, and record only findings
+you have confirmed by direct file inspection in this run.

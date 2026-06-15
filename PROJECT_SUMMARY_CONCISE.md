@@ -2,14 +2,9 @@
 
 ## Purpose
 
-Use this file for quick orientation and document routing.
-
-## Current-state rule
-
-Current code is the source of truth for implemented behavior.
+Use this file for quick orientation and document routing. For implemented behavior, current code is the source of truth; this file points to the canonical documents that define intended design and requirements.
 
 ## Fast routing
-- Use this file for contextual refresh and document routing only.
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/DATA_GOVERNANCE.md` first.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
@@ -42,17 +37,25 @@ Current code is the source of truth for implemented behavior.
 - **Single DB access module/pattern** (`db.ts` style) using prepared statements and transaction helpers.
 - **Authenticated sessions with per-request DB validation** (session token is not sole authority).
 - **Email outbox + worker pattern** (core writes are not coupled to direct send success).
+- **Isolated media-processing workers** for image variant generation and video transcoding, separate from the web container.
 - **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable.
 
 ## Project scope snapshot (AI useful summary)
 
-This project is building a community website with member functionality, admin tools, and operational flows. 
+This project modernizes footbag.org into the sport's community hub, organized by discipline (freestyle, net, sideline), with member functionality, admin tools, and operational flows.
 Major areas include:
 
 - members and authentication
-- membership tiers/dues and eligibility-related state
-- clubs and events
+- authenticated member search (anti-enumeration, non-directory)
+- membership tiers/dues and eligibility-related state (including Active Player status)
+- clubs and events (creation, leadership, registration, year archives)
+- discipline content sections: freestyle, net, sideline
+- freestyle trick dictionary (tricks, sets, modifiers, glossary, notation, add/combo analysis)
 - media galleries/photos/video links/tags
+- curated freestyle tutorial media (separate intake from member uploads)
+- public historical surfaces: competition results, world records, Hall of Fame, Big Add Posse, historical-person pages
+- official rules and IFPA governance documents
+- news feed
 - payments, donations, subscriptions, and reconciliation
 - email delivery via outbox/worker
 - voting/elections with ballot confidentiality and auditability
@@ -91,7 +94,7 @@ Use this as a reasoning map; exact structure may differ in the repo:
 - **services** - business logic, authorization, orchestration, domain invariants
 - **infrastructure adapters** - Stripe and AWS integrations
 - **database access module** - prepared SQL, transactions, connection helpers
-- **workers / background jobs** - outbox sending, reconciliation, maintenance tasks
+- **workers / background jobs** - outbox sending, reconciliation, maintenance tasks, isolated image/video media processing
 - **docs** - project documentation suite (specs, decisions, diagrams, DevOps, onboarding)
 - **infrastructure-as-code** - deployment/infrastructure configuration (Terraform)
 
@@ -99,20 +102,18 @@ Use this as a reasoning map; exact structure may differ in the repo:
 
 This project uses a documentation suite. The AI should treat it as a modular knowledge base and load documents selectively.
 
-### Core requirements and architecture documents
+### Canonical documents
 - **User Stories** - functional scope and acceptance criteria (what must exist / what users must be able to do).
-- **Project Summary** - human-oriented big picture, solution architecture, and overall context.
+- **Project Summary** - human-oriented big picture and solution architecture; its §1 maps the full document suite.
 - **Design Decisions** - rationale and non-negotiable design commitments / trade-offs.
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
-### Standards and contracts
+### Implementation contracts (enforcement-site)
 
-Implementation-level contracts live at their enforcement site: durable design intent in **Design Decisions**, per-service and per-page contract in each service's file-header JSDoc, cross-cutting AI coding rules in `.claude/rules/*`, and repeatable procedures in `.claude/skills/*`.
+The standards and patterns the canonical docs defer to live at their enforcement site, not in a canonical document, and auto-attach as the relevant code is touched: per-service and per-page contract in each service's file-header JSDoc, cross-cutting rules in `.claude/rules/*`, procedures in `.claude/skills/*`, and code comments. A canonical doc never restates a contract a JSDoc, rule, or skill already owns.
 
 - **View-layer rules** - the public-rendering standard (page contract, reusable primitives, CSS-vocabulary discipline, visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the route list lives in `src/routes/publicRoutes.ts`; durable view design intent lives in DESIGN_DECISIONS.md §4.
 - **Service-layer rules** - ownership and required patterns live in each service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; non-negotiable invariants in DESIGN_DECISIONS.md §3-§4 and schema triggers.
-- **Testing Strategy** - how to derive, layer, and verify tests.
-- **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
 ## When to load more detail (recommended wording / agent rule)
 

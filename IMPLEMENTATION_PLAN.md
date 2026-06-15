@@ -10,9 +10,24 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-<<<<<<< Updated upstream
-### Club classification overrides ride the pipeline CSV pre-go-live
-=======
+### Member search lacks the required rate limit and audit entry
+
+DESIGN_DECISIONS §3 requires every authenticated member-search query to enforce a
+search-specific rate limit (per-IP and per-member) and to write an immutable, privacy-safe
+audit entry (actor member id, query hash, result count, timestamp; no IP, no raw query
+string). The deployed search path (`memberService.searchMembers`, reached via the `?q=`
+param on the member profile/landing route) does neither. Close by adding the rate limit and
+the audit write to the search path.
+
+### Internal QC subsystem build-excluded pending retirement
+
+The `src/internal-qc/` QC subsystem (net-correction and persons-QC operator tooling mounted
+at `/internal/*` in dev and staging) ships in source but must never reach a production
+runtime. Current: the production image build strips `dist/internal-qc` and replaces
+`dist/routes/internalRoutes.js` with a null stub alongside the dev-shortcuts strip
+(`INCLUDE_DEV_SHORTCUTS=0`), so the routes are unreachable in production. Target: QC
+retirement removes the source subtree and this strip together.
+
 ### Dev/staging admin bootstrap rides registration
 
 `identityAccessService.registerMember` calls `applyDevStagingBootstrapAdmin`
@@ -24,19 +39,15 @@ procedure in `src/dev-bootstrap/README.md` deletes them at production
 go-live. Until then, production safety rests on the env-config fail-fast
 guards plus the production image build stripping `dist/dev-bootstrap/`.
 
-### Force-keep / force-junk requests deferred to live operation
+### Club classification overrides ride the pipeline CSV pre-go-live
 
-Classification overrides are hand-edited rows in
-`legacy_data/overrides/club_classification_overrides.csv`
-(`club_key,name,force_category,reason`; any of the four §10.1 categories),
-the same pattern as every other override CSV. Cases are few; the six
-curator-review clubs are seeded. The platform is not in the loop: no
-export, merge, or bridge tooling exists or should be built. The
-A_Periodic_Club_Cleanup story's "force-keep or force-junk request: apply,
-modify, or reject" queue item is live-operation work: build it only after
-go-live, when pipeline reloads have stopped and the production DB owns club
-truth. Until then the queue's existing junk actions (confirm junk, promote
-to dormant) cover rescue needs.
+Until go-live, club force-keep / force-junk classification overrides are
+hand-edited rows in `legacy_data/overrides/club_classification_overrides.csv`
+(`club_key,name,force_category,reason`), because pipeline reloads rebuild the
+DB from the CSVs and the override must survive each reload. After go-live,
+reloads stop, the production DB owns club truth, and the admin queue actions
+(USER_STORIES `A_Periodic_Club_Cleanup`, MIGRATION_PLAN §10.4) become the
+override path. Delete this entry when those queue actions ship.
 
 ### Freestyle surfaces deviate from the VC §4.5 token standard
 
@@ -61,15 +72,6 @@ exclusions are self-tightening: companion tests in the same file fail the
 moment an excluded surface becomes compliant, naming the exclusion to prune.
 Closure rides
 the freestyle-pages-fixes list in `legacy_data/IMPLEMENTATION_PLAN.md`.
->>>>>>> Stashed changes
-
-Until go-live, club force-keep / force-junk classification overrides are
-hand-edited rows in `legacy_data/overrides/club_classification_overrides.csv`
-(`club_key,name,force_category,reason`), because pipeline reloads rebuild the
-DB from the CSVs and the override must survive each reload. After go-live,
-reloads stop, the production DB owns club truth, and the admin queue actions
-(USER_STORIES `A_Periodic_Club_Cleanup`, MIGRATION_PLAN §10.4) become the
-override path. Delete this entry when those queue actions ship.
 
 ### Persona harness: classes blocked on unbuilt features
 

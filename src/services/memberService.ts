@@ -57,7 +57,9 @@
  *   member_declared_anchors (deleted on PII purge and deceased scrub),
  *   legacy_members (claim-state columns cleared on PII purge),
  *   erasure_log (append-only; one row per applied erasure shape),
- *   audit_entries.
+ *   audit_entries,
+ *   historical_persons (read-only; surfaced in member search via the public-player
+ *   name index, so search spans both live members and imported historical identities).
  *
  * Side effects:
  *   - audit_entries append

@@ -1012,7 +1012,7 @@ export interface LegacyPersonClubAffiliationOverrides {
   display_name?: string;
 }
 
-// Wizard contract (MIGRATION_PLAN §9.3): rows arrive 'pending' from loaders;
+// Wizard contract: rows arrive 'pending' from loaders;
 // the onboarding wizard transitions to 'confirmed_current' AND stamps
 // resolved_club_id in the same transaction. Schema CHECK enforces the pairing,
 // so a caller that passes resolution_status='confirmed_current' must also

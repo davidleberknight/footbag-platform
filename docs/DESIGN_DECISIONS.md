@@ -1075,29 +1075,31 @@ Impact:
 
 Decision:
 
-S3 buckets that hold application data (database snapshots, member-uploaded media, curated media, error pages) use SSE-KMS with the project KMS customer-managed key. The local SQLite database file on the Lightsail instance is stored unencrypted as an explicit deployment trade-off; mitigations include restricted instance access, least-privilege IAM, OS hardening, and encrypted S3 backups with defined retention.
+S3 buckets that hold application data (database snapshots, member-uploaded media, curated media, error pages) use SSE-S3: server-side AES-256 encryption with S3-managed keys. The local SQLite database file on the Lightsail instance is stored unencrypted as an explicit deployment trade-off; mitigations include restricted instance access, least-privilege IAM, OS hardening, and encrypted S3 backups with defined retention.
 
 Rationale:
 
-- Customer-managed KMS keys allow operator-controlled rotation, scoped key policies, and a CloudTrail audit trail for every decrypt operation; SSE-S3 (AWS-managed keys) provides none of these.
-- KMS-scoped policies restrict which principals can decrypt a given bucket's objects independently of the bucket policy, which limits blast radius if a runtime credential is compromised.
-- The application reads and writes through the standard S3 SDK; SSE-KMS is transparent at the data path and adds no application-side encryption code.
+- The platform's data is community membership data, not financial or regulated records, and card data never touches the platform because Stripe holds it; SSE-S3's AES-256 at-rest encryption meets the protection requirement for this data class.
+- The payloads that require strong confidentiality are encrypted above the storage layer and do not depend on S3 encryption: ballots use application-level KMS envelope encryption (§3.7), passwords are argon2id hashes, and operator secrets live in SSM SecureString. S3 object encryption is defense-in-depth for the residual data, not the primary control for any secret.
+- A customer-managed KMS key would add an independent decrypt-authorization gate, a per-decrypt CloudTrail trail, and an operator-controlled key-disable switch, but those gains are small in this deployment: the single runtime role needs both S3 read and key decrypt, so the gate does not constrain the primary named threat of a compromised runtime credential or container shell, and per-object audit granularity is diluted once the bucket-key feature needed to control KMS cost is enabled.
+- SSE-KMS would add failure modes that work against volunteer-maintainable simplicity: a disabled or misconfigured key takes media rendering and database restore offline, and it interacts poorly with the cross-region replication the backup design relies on, where a key must exist in each region with decrypt and encrypt grants on the replication role and a misconfiguration silently breaks the disaster-recovery copy.
 
 Requirements:
 
-- Every S3 bucket holding application data sets `bucket-key-enabled` and a default-encryption rule that selects SSE-KMS with the project key, so any object written via any client lands encrypted under the managed key.
-- The KMS key policy grants `kms:Encrypt`, `kms:Decrypt`, and `kms:GenerateDataKey` only to the runtime principals that need them per bucket. Tally-side ballot decryption uses a separate key per §3.7.
-- Bucket policies deny `s3:PutObject` requests that select a different SSE algorithm, so a misconfigured client cannot write SSE-S3 objects into a bucket that should be SSE-KMS.
+- Every S3 bucket holding application data sets a default-encryption rule that selects SSE-S3 (AES-256), so any object written by any client lands encrypted at rest with no application-side encryption code.
+- Public access is blocked on every application-data bucket; object access is granted only to the runtime assumed role and approved administrator principals.
+- Customer-managed KMS keys are reserved for the cases that need non-exportable key custody or application-level secrecy: session-JWT signing, ballot encryption (§3.7), and SSM SecureString parameters.
 
 Trade-offs:
 
-- SSE-KMS adds per-request KMS API calls (mitigated by the bucket-key feature, which amortizes the data key over many objects) and a small monthly KMS charge per active key.
-- Operator burden grows by one KMS key per environment plus its rotation cadence; offset by the security gain of operator-controlled rotation and the audit trail.
+- Incident response and decrypt authorization on the S3 buckets rely on S3 access logging, CloudTrail S3 data events where enabled, and IAM plus bucket-policy scoping; the per-decrypt audit trail and operator key-disable containment that a customer-managed KMS key provides are forgone.
+- Decrypt authorization is governed by S3 and IAM permissions alone, without a second key-policy gate independent of bucket access.
 
 Impact:
 
-- Terraform bucket creation references the KMS key; new buckets that hold application data inherit the SSE-KMS default automatically.
-- Local SQLite remains unencrypted on the Lightsail volume; the property the platform actually relies on is "no plaintext leaves the host", and that property is satisfied by the SSE-KMS backups plus host-access controls.
+- Terraform sets `apply_server_side_encryption_by_default` with `sse_algorithm = "AES256"` on each application-data bucket; new application-data buckets inherit the SSE-S3 default.
+- Cross-region replication of media and snapshots carries no KMS key dependency, keeping the disaster-recovery and restore paths free of key-availability failure modes.
+- Local SQLite remains unencrypted on the Lightsail volume; the property the platform relies on is "no plaintext leaves the host", satisfied by the SSE-S3 backups plus host-access controls.
 
 ## 2.8 System Member Account
 
@@ -2887,7 +2889,7 @@ Rationale:
 
 The platform uses two distinct Stripe payment models:
 
-- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. The enforced state machine is: pending → completed on payment_intent.succeeded; pending → failed on payment_intent.payment_failed; completed → refunded on charge.refunded.
+- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. The enforced state machine is: pending → succeeded on payment_intent.succeeded; pending → failed on payment_intent.payment_failed; succeeded → refunded on charge.refunded.
 
 - Recurring annual donations: Implemented via Stripe Subscriptions. The platform creates or reuses a Stripe Customer object for each member (stripeCustomerId stored on the member record) and creates a yearly Stripe Subscription via Stripe Checkout in subscription mode. The platform does not manage the billing schedule or retries. Stripe owns the annual renewal cycle, dunning configuration, and retry logic. Local state transitions are driven entirely by incoming webhooks: active on customer.subscription.created; a new payment record created on invoice.payment_succeeded; local status set to past_due on invoice.payment_failed; local status set to canceled on customer.subscription.deleted. The Stripe Billing dunning schedule (number of retries, intervals) is configured by a System Administrator in the Stripe Dashboard and is not replicated in application configuration.
 
@@ -4170,7 +4172,7 @@ Impact:
 
 Simplified monitoring (binary availability states), simplified troubleshooting (clear recovery procedures), simplified codebase (no degraded-mode state management), reduced testing surface.
 
-Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Configuration: web container mem_limit: 1536m (1.5 GB), mem_reservation: 1024m; worker container mem_limit: 1024m (1 GB), mem_reservation: 768m. These are deployment configuration values for container resource management, not Administrator-configurable application parameters.
+Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Configuration: web container mem_limit: 512m; worker container mem_limit: 384m. These are deployment configuration values for container resource management, not Administrator-configurable application parameters.
 
 Health check integration: The /health/ready endpoint returns 503 when memory usage exceeds 90 percent. During this condition, the origin responds with 503 and CloudFront serves the configured maintenance/error experience; alerts fire so operators can intervene or restart containers. (CloudFront does not perform active health checks.)
 

@@ -32,8 +32,8 @@ and healthy community.
 
 ## Enforcement
 
-Instances of unacceptable behaviour may be reported to the project maintainer,
-David Leberknight, at **davidleberknight@gmail.com**. All reports will be
+Instances of unacceptable behaviour may be reported to the project directors
+at **directors@footbag.org**. All reports will be
 reviewed and investigated promptly and fairly. The maintainer is obligated to
 maintain confidentiality with regard to the reporter.
 

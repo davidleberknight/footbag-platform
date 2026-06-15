@@ -264,7 +264,7 @@ export const contactRequestService = {
     // The work_queue_items INSERT, the submission audit row, and the admin-
     // alerts mailing-list notification commit in one transaction: a rollback
     // cannot leave a dangling alert, an alertless queue item, or a queue
-    // item without its corresponding audit-trail entry. (DD §5.4, US §198)
+    // item without its corresponding audit-trail entry.
     transaction(() => {
       workQueue.insertItem.run(
         id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,

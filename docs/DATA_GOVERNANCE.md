@@ -57,7 +57,7 @@ The following surfaces are approved public historical records:
 - **Year archives**: event and result listings by year.
 - **Hall of Fame (HoF)**: permanent honor; publicly discoverable.
 - **Big Add Posse (BAP)**: permanent honor; publicly discoverable.
-- **World records**: official record tables/pages, once added. Not inferred from incomplete aggregates.
+- **World records**: official record tables/pages. Not inferred from incomplete aggregates.
 - **Minimal historical-person pages**: name, country, official honors, official result/event links, world-record inclusion where applicable. No contact fields. Not a current-member profile.
 
 HoF and BAP honors are preserved even through PII purge or deceased flows. The honor record outlives the personal data.

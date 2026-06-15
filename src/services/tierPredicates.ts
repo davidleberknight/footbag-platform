@@ -3,8 +3,8 @@
  *
  * Admin short-circuit: any member with `is_admin = 1` satisfies all tier
  * predicates regardless of their member_tier_grants state. The operational
- * invariant (admins always hold Tier 2+) is documented in USER_STORIES §3.6
- * but enforced nowhere at the schema or service layer; this predicate gate
+ * invariant (admins always hold Tier 2+) is a governance rule enforced
+ * nowhere at the schema or service layer; this predicate gate
  * is the single point that makes the invariant true for callers.
  *
  * Unknown-member handling: predicates return `false` (no entitlement) when

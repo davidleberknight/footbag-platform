@@ -65,7 +65,7 @@ export const PAGE_SIZE = 24;
 
 // Chip-shape for tag rendering: each tag display string carries an
 // optional href. `#by_<slug>` chips render the member's display name
-// (e.g. "David Leberknight") instead of the raw tag, with an href to
+// (e.g. "Jane Doe") instead of the raw tag, with an href to
 // `/members/<slug>` for authenticated viewers. Unauthenticated viewers
 // see the name as plain text (the route is auth-gated, so a clickable
 // link would dead-end). Slugs that don't resolve to an active,
@@ -195,7 +195,7 @@ export interface GalleryOwner {
 //
 // `byMember` is the lifted-out `#by_<slug>` criterion: when a gallery
 // filters items by a specific member, that chip is rendered as prose
-// attribution ("by David Leberknight") rather than listed alongside
+// attribution ("by Jane Doe") rather than listed alongside
 // hashtag chips. Null when no `#by_*` criterion applies, or when the
 // slug doesn't resolve to an active member (in which case the raw
 // `#by_<slug>` tag stays in criteriaTags as fallback).

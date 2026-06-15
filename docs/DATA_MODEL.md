@@ -694,6 +694,12 @@ The Official IFPA Roster is not public. Service-layer access is restricted to ad
 
 Deceased members are excluded from this operational roster because US `A_Mark_Member_Deceased` removes deceased accounts from active member search and club rosters. HoF and BAP visibility for deceased members on profile and historical surfaces is preserved separately at the profile rendering layer; this operational roster is not the home for memorial visibility.
 
+### 4.13e Active Player Reminder Ledger
+
+**Table:** `active_player_reminder_sent`
+
+Append-only ledger recording that an Active Player expiry reminder was sent to a member at a given pre-expiry offset, so the same reminder is not re-sent for the same expiry. Columns: `member_id` (FK to `members`), `expires_at` (the AP expiry the reminder concerns), `offset_label` (CHECK: `days_1`, `days_2`, `day_of`), and `sent_at`. Rows are immutable; UPDATE and DELETE are blocked by triggers (see §7).
+
 ### 4.14 Members & Authentication
 
 **Table:** `members`  
@@ -1008,13 +1014,13 @@ The application must prevent an event organizer from removing themselves if they
 
 **Table:** `account_tokens`
 
-Security tokens for email verification, password reset, data export, legacy-account claim, and declared-old-email mailbox verification (`token_type` CHECK: `email_verify`, `password_reset`, `data_export`, `account_claim`, `mailbox_link`). Tokens are stored as SHA-256 hashes only; plaintext is never persisted. Target bindings are nullable FK columns per purpose: `target_legacy_member_id` for claim tokens, `target_anchor_id` (to `member_declared_anchors`) for mailbox-link tokens.
+Security tokens for email verification, password reset, data export, legacy-account claim, and declared-old-email mailbox verification (`token_type` CHECK: `email_verify`, `password_reset`, `data_export`, `account_claim`, `mailbox_link`). Tokens are stored as SHA-256 hashes only; plaintext is never persisted. Target bindings are nullable FK columns per purpose: `target_legacy_member_id` for claim tokens, `target_anchor_id` (to `member_declared_anchors`) for mailbox-link tokens, and `target_audit_entry_id` (to `audit_entries`) binding a token to the audit row of the action that issued it.
 
 - **Email verification tokens** expire after the duration configured in `email_verify_expiry_hours` (default: 24 hours).
 - **Password reset tokens** expire after the duration configured in `password_reset_expiry_hours` (default: 1 hour).
 - Both TTL values are Administrator-configurable via `system_config_current` (see §4.23).
 - **Multiple outstanding tokens are allowed** per member per type. The index `idx_account_tokens_active` on `(member_id, token_type)` is non-unique; it supports lookup performance but does not limit the number of active tokens.
-- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`, `account_claim`.
+- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`, `account_claim`, `mailbox_link`.
 - `account_claim` tokens are used in the self-serve legacy account claim flow. They are single-use, time-limited (default 24 hours, configurable via `account_claim_expiry_hours`), and carry a dual binding: `member_id` (the requesting authenticated account) and `target_legacy_member_id` (the `legacy_members` row being claimed). A token may only be consumed while authenticated as the same `member_id` that initiated the request. `target_legacy_member_id` uses `ON DELETE NO ACTION`; `legacy_members` rows are never deleted in normal flow (they are marked claimed, not removed).
 - `used_at` records when the token was consumed (single-use); `NULL` means not yet consumed.
 - A presented token is valid only when `used_at IS NULL AND now < expires_at`.
@@ -1119,6 +1125,8 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `verify_resend_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting verify-email resend requests |
 | `jwt_expiry_hours` | `24` | Session JWT lifetime (hours); governs archive access expiry |
 | `photo_upload_rate_limit_per_hour` | `10` | Max photo uploads per member per hour |
+| `profile_edit_rate_limit_per_hour` | `20` | Max profile edits per member per hour |
+| `purchase_tier_rate_limit_per_hour` | `20` | Max tier-purchase attempts per member per hour |
 | `video_submission_rate_limit_per_hour` | `5` | Max video link submissions per member per hour |
 | `reconciliation_summary_interval_days` | `7` | Cadence (days) for reconciliation digest email to admins |
 | `primary_snapshot_version_days` | `30` | S3 versioning retention window (days) for primary backup bucket |
@@ -1339,6 +1347,7 @@ These derive state from history or effective-dated tables.
 | `member_active_player_current` | `active_player_grants` + `member_tier_current` | Derives current Active Player state for Tier 0 members from the latest AP ledger snapshot. Output: `member_id`, `is_active_player`, `active_player_expires_at`, `latest_active_player_reason_code`. |
 | `member_membership_status_current` | `member_tier_current` + `member_active_player_current` | Combined authorization surface. Output: tier, underlying tier, AP fields, `has_tier1_benefits`, `is_official_roster_member`. Canonical join target for feature gates and roster checks. |
 | `official_ifpa_roster_current` | `members_active` + `member_membership_status_current` | Operational Official IFPA Roster surface. Filters `is_official_roster_member = 1 AND is_deceased = 0`. Not public; admin and admin-provisioned access only. |
+| `net_team_appearance_canonical` | `net_team_appearance` | The only public Net team-appearance surface. Filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes. |
 | `system_config_current` | `system_config` | Returns the row with the latest `effective_start_at <= now` per `config_key`. Authoritative read surface for all runtime config lookups. |
 
 ### Semantic filter views

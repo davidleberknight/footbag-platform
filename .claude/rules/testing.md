@@ -84,7 +84,7 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 
 ## Coverage floor
 
-Thresholds are set in `vitest.config.ts`. Target: 100% across the board. Coverage never ratchets down. If a change lowers a threshold, the change is wrong, not the threshold.
+Thresholds are set in `vitest.config.ts` and are a mechanical ratchet floor: coverage never ratchets down, and a change that lowers a threshold is wrong, not the threshold. Overall coverage is an aspirational best-effort goal, not a fixed number. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100% coverage.
 
 New source files must land with tests that keep coverage at or above the current floor. Do not lower thresholds to admit new code.
 

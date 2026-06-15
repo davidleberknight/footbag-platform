@@ -2,11 +2,14 @@
 
 **Document Purpose:**
 
-This Footbag Website Modernization Project will upgrade footbag.org as the new global community hub for the sport of footbag. The project will create a secure, open-source, low-cost platform designed for volunteer maintenance over decades. The architecture deliberately prioritizes simplicity over sophisticated features, with the goal being that future volunteer developers should have minimal skill requirements. Features include secure voting, money collection, member-maintained media galleries, and more, all hosted in the AWS cloud, and designed with best-practice design patterns and technologies.
+The Footbag Website Modernization Project upgrades footbag.org into the global community hub for the sport of footbag: a secure, open-source, low-cost platform built to be maintained by volunteers over decades. The architecture deliberately prioritizes simplicity over sophisticated features, so that future volunteers can contribute without deep specialist expertise. Its capabilities include secure voting, payment collection, and member-maintained media galleries, hosted on AWS and built on well-understood, mainstream design patterns and technologies.
 
 ## Table of Contents
 
 - [1. Document Relationships](#1-document-relationships)
+  - [1.1 Canonical Documents](#11-canonical-documents)
+  - [1.2 Implementation Contracts](#12-implementation-contracts)
+  - [1.3 Why This Scheme Is Efficient for Claude Code](#13-why-this-scheme-is-efficient-for-claude-code)
 - [2. Design Philosophy](#2-design-philosophy)
 - [3. Functionality](#3-functionality)
   - [3.1 Media Content](#31-media-content)
@@ -49,33 +52,57 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 # 1. Document Relationships
 
-The project documentation suite consists of the following documents:
+This project's knowledge base has two layers. **Canonical documents** hold durable design intent and requirements; an AI or a human reads only the slice a task needs. **Implementation contracts** are the lower-level standards and patterns those documents defer to, and they live at their enforcement site in code and `.claude/`. The two are listed separately below, and §1.3 explains why the split is efficient for Claude Code.
 
-**View-layer standard:** The public-rendering standard (the `PageViewModel<TContent>` contract every page consumes, the reusable primitives, the CSS-vocabulary discipline, and the visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary) live in the owning service's file-header JSDoc; durable view design intent lives in DESIGN_DECISIONS.md §4.
+## 1.1 Canonical Documents
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Service-layer design:** Ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others) live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Read-only page services carry a page-contract file-header JSDoc stating audience, rendering contract, and sensitive-page invariants for the routes they serve. Pair with code, tests, and TypeScript types for current method shapes.
-
-**Where implementation detail lives:** durable design intent and rationale in Design Decisions; per-service and per-page contract in service file-header JSDoc; cross-cutting AI coding rules in `.claude/rules/*`; repeatable procedures in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a JSDoc, rule, or skill already owns.
-
-**Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
-
-**Glossary:** Jargon definitions and acronym reference for technical terms for humans.
-
-**Diagrams:** Visual aids to understand system design including system context, infrastructure topology, the data model, data flow diagrams, and security boundaries.
-
-**DevOps:** Covers develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod). Includes operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures.
-
-**Developer Onboarding:** Guidance for software developers joining the project, specifically targetting the Minimum Viable First Page of functionality, to stand up the full tech stack for the first time. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips.
+**Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, User Stories, Design Decisions, and this Project Summary define the high-level requirements with which all other documents must be consistent.
 
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
 **Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. Each service's file-header JSDoc defines which tables it owns and the required persistence patterns; this document defines the schema itself. The schema sql file goes with this, to create the SQLite database.
 
-**Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The two canonical docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
+**Data Governance:** Canonical policy for member-data visibility, public historical records, search and anti-enumeration, exports, logging hygiene, and derived statistics. Source of Truth for privacy boundaries; the rationale behind these rules lives in Design Decisions, and the two must not contradict.
+
+**Testing Strategy:** Defines how to derive, layer, and verify tests across routes, services, and pure functions, with a risk-classification rubric, coverage expectations, and verification gates. Strategic context that pairs with the operational testing rules in `.claude/rules/testing.md`.
+
+**Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The canonical design docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
+
+**DevOps:** Covers develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod). Includes operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures.
+
+**Developer Onboarding:** Guidance for software developers joining the project, specifically targetting the Minimum Viable First Page of functionality, to stand up the full tech stack for the first time. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips.
+
+**Glossary:** Jargon definitions and acronym reference for technical terms for humans.
+
+**Diagrams:** Visual aids to understand system design including system context, infrastructure topology, the data model, data flow diagrams, and security boundaries.
 
 **Implementation Plan:** Active-slice / current-sprint tracker for the project. Source of Truth for current scope, accepted shortcuts, known drift, sprint-level sequencing, and developer track assignments. Unlike the canonical docs above, which describe design intent, this document carries all implementation-status language; the canonical docs do not describe status.
+
+## 1.2 Implementation Contracts
+
+These are not documents in the suite; they are the lower-level standards and patterns the canonical docs defer to, each living at its enforcement site so it stays next to the code it governs.
+
+**View-layer standard:** The public-rendering standard (the `PageViewModel<TContent>` contract every page consumes, the reusable primitives, the CSS-vocabulary discipline, and the visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary) live in the owning service's file-header JSDoc; durable view design intent lives in DESIGN_DECISIONS.md §4.
+
+**Service-layer design:** Ownership boundaries for every service under `src/services/**`, the cross-cutting required patterns, and the non-negotiable service invariants live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Pair with code, tests, and TypeScript types for current method shapes.
+
+**Path-scoped rules (`.claude/rules/`):** Cross-cutting AI coding rules (db-layer, service-layer, view-layer, testing, comments, doc-governance, and others) that auto-attach when work happens inside the path they govern.
+
+**Skills (`.claude/skills/`):** Repeatable procedures (add a public page, extend a service contract, write tests, run a doc-sync) that trigger when a task matches them.
+
+**Service file-header JSDoc:** The per-service and per-page contract: ownership boundary, required patterns, invariants preserved, transaction discipline, persistence, and side-effect categories. Auto-loads with the file every time the service is read.
+
+**Code comments:** Plain-words, self-contained WHY at the point it matters, governed by `.claude/rules/comments.md`.
+
+## 1.3 Why This Scheme Is Efficient for Claude Code
+
+All important design decisions live in one authoritative home, Design Decisions, so the reasoning behind the system is found in a single place. The lower-level implementation standards and patterns (how a page renders, how a service is shaped, how the database layer is called, how a test is derived, naming and SQL conventions) live instead at their enforcement site, next to the code they govern. That placement is what makes the knowledge base efficient for Claude Code:
+
+- **The right contract loads at the right moment.** A service's file-header JSDoc auto-loads whenever the service file is read; a path-scoped `.claude/rules/*.md` auto-attaches when work happens inside its path; a `.claude/skills/*` triggers when a task matches it. The relevant standard arrives in context exactly when the code is touched, without first loading the whole documentation suite.
+- **Each fact has one home.** A canonical doc states the design; it does not restate a contract that a JSDoc, rule, or skill already owns. One home per fact minimizes both drift between sources and the tokens spent re-reading duplicated content.
+- **Reading stays selective.** Because durable design intent is separated from enforcement-site detail, an AI reads only the canonical slice a task needs (per the source-of-truth order in CLAUDE.md) and picks up the precise lower-level contract automatically as it edits.
 
 ---
 
@@ -103,17 +130,19 @@ Members can upload media content (photos and links to videos), lead clubs, and l
 
 Complete functional requirements with acceptance criteria are in the User Stories document. The functionality closely follows the legacy footbag.org site, but with usability improvements for members, payments and email integration, secure voting, and much improved admin powers.
 
-The site is a public-facing community hub with a tiered membership model: Visitors can browse public clubs, events, news, tutorials, and media. Members (Tier 0+) authenticate to participate (create a profile, club affiliation, event registration, email preferences, donations/payments, and personal data controls). Tier 1+ Members add community creation (media uploads, galleries/hashtags) and can take on leadership roles by creating clubs and free events. Tier 2+ members unlock advanced eligibility, including the ability to apply for IFPA event sanctioning and sponsorship; payments are a separate capability that may be enabled for events via admin approval.
+The site is a public-facing community hub with a tiered membership model: Visitors can browse public clubs, events, news, tutorials, media, the freestyle trick dictionary, official rules, and public historical records (competition results, world records, Hall of Fame). Members (Tier 0+) authenticate to participate (create a profile, club affiliation, event registration, email preferences, donations/payments, and personal data controls). Tier 1+ Members add community creation (media uploads, galleries/hashtags) and can take on leadership roles by creating clubs and free events. Tier 2+ members unlock advanced eligibility, including the ability to apply for IFPA event sanctioning and sponsorship; payments are a separate capability that may be enabled for events via admin approval.
 
 Club Leaders manage a club's presence and lifecycle with a small co-leader team, and Event Organizers run an event end-to-end (registration operations, attendee communications, and results publication), with sanctioned/paid events gated through an admin-approved process. Platform governance is supported by Administrators who handle moderation, approvals, finance operations, vote administration, communications, and system configuration, with strong auditability across privileged actions.
 
 Discovery and content are unified by a shared media model: the platform hosts uploaded photos while videos are link-based, and everything (clubs, events, tutorials, and media) ties together through hashtags and galleries so event/club activity naturally aggregates into browsable collections. Community safety is human-reviewed: members can flag content and admins take explicit, reasoned actions if required.
 
+Footbag-specific content is organized by discipline (freestyle, net, and sideline). The freestyle trick dictionary is a public reference surface covering tricks, component sets, modifiers, a glossary, notation, and add/combo analysis, with multiple browse views. Curated freestyle tutorial media, drawn from established instructional series, is maintained separately from member-uploaded media. Official IFPA competition history is published as public historical surfaces: event results and year archives, world records, Hall of Fame and Big Add Posse honorees, and historical-person pages. These are public historical records governed by the Data Governance policy, which keeps historical discoverability separate from current-member discovery. Official rules and IFPA governance documents are published as public reference pages.
+
 Money and governance are first-class: Stripe-backed payments support donations (one-time/recurring), membership upgrades, and paid event registration, with member-visible payment history and admin reconciliation/controls. The site also includes privacy-preserving voting (encrypted ballots with verifiable participation), where eligibility can be tier-based and influenced by special flags, including Hall of Fame (HoF), Big Add Posse (BAP), and Board/Admin status.
 
 When system events require administrator attention (event sanction requests, flagged media, leadership reassignments, payment reconciliation issues, election management tasks, etcetera), the system creates work queue items visible on the admin dashboard. When an item is added to the queue, the system sends an email notification to the admin-alerts mailing list containing only the task type and entity ID (no sensitive member data such as email addresses, payment amounts, or personal information). This ensures timely admin awareness while preserving data privacy.
 
-**Out of Scope (Phase 1):**
+**Out of Scope:**
 
 - Real-time features (WebSockets, live updates).
 - Mobile native apps.
@@ -128,8 +157,8 @@ When system events require administrator attention (event sanction requests, fla
 - Direct organizer payouts (Stripe Connect).
 - Archive search.
 - Marketplace beyond event registrations and donations.
-- E-Commerce (a store) will be a big feature for Phase Two. We can raise money and provide cool merch to the community. This might include adding PayPal as a second payment option (after Stripe) for user convenience.
-- Merging the full content from FootbagHallOfFame.net onto Footbag.org will be a feature for Phase Two, which will eliminate the cost of hosting that site on SquareSpace.
+- E-Commerce (a store) is a planned future addition. We can raise money and provide cool merch to the community. This might include adding PayPal as a second payment option (after Stripe) for user convenience.
+- Merging the full content from FootbagHallOfFame.net onto Footbag.org is a planned future addition, which will eliminate the cost of hosting that site on SquareSpace.
 
 ## 3.1 Media Content
 
@@ -222,7 +251,7 @@ Stripe webhooks are treated as durable input events; the system records them, ap
 
 All payment state transitions are tracked to prevent financial reconciliation failures. A nightly reconciliation job compares local payment records against Stripe to detect discrepancies.
 
-Note that it is possible to add PayPal as a second option for user convenience in Phase Two.
+Note that it is possible to add PayPal as a second option for user convenience in the future.
 
 ## 3.5 Emails
 
@@ -479,7 +508,7 @@ Trade-offs: Database table views filter member deleted_at for transparent query 
 
 ## 4.8 Runtime Infrastructure and Cost
 
-Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
+Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,856MB (~45% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
 
 **Operational Simplicity:**
 

@@ -152,7 +152,7 @@
 
 **Prepared Statement**: SQL query compiled into executable bytecode once at application startup and reused for every subsequent execution, with parameters bound at call time. Footbag.org prepares all statements in db.ts at startup (50-100 total, grouped by domain), calling them with positional parameters (?) via better-sqlite3 methods; this eliminates repeated SQL compilation overhead and provides complete SQL injection protection.
 
-**Progressive Enhancement**: Web development approach where core functionality works with plain HTML and full page reloads, with JavaScript used only to enhance the experience. Footbag.org evaluated this approach and rejected it; the platform requires JavaScript for interactive features, and the no-JS path is not maintained. Users with JavaScript disabled see a noscript message. See also: JavaScript.
+**Progressive Enhancement**: Web development approach where core functionality works with plain HTML and full page reloads, with JavaScript used only to enhance the experience. Footbag.org does not adopt this methodology; it builds server-rendered pages with native-POST forms, so core navigation and form submission function without JavaScript, while JavaScript is required for interactive enhancements (autocomplete, media previews) and for Stripe's hosted checkout. Users with JavaScript disabled see a noscript message recommending enablement and can still navigate and submit forms. See also: JavaScript.
 
 **Receipt Token**: UUID returned to voter after casting ballot, enabling verification that vote was recorded without revealing vote contents or linking voter identity to specific ballot. Voter can check that their receipt token appears in public election results.
 

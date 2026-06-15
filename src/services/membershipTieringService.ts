@@ -445,7 +445,7 @@ export function applyHonorGrant(
  *   - HoF or BAP → `tier2`
  *   - else        → `tier0`
  * Target precedence table: needs deferred legacy-state columns on
- * `legacy_members` before it can be expanded. (MIGRATION_PLAN §3, DD §2551)
+ * `legacy_members` before it can be expanded.
  *
  * Caller owns the transaction so the grant is atomic with the merge writes.
  * Tier 0 grants are written even when current is already Tier 0, so the

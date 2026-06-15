@@ -130,7 +130,7 @@ publicRouter.get('/events/:eventKey',    eventController.event);
 // auto-link flows live in the onboarding wizard at /register/wizard/legacy_claim
 // (see memberOnboardingController). /history/:personId/claim remains the
 // documented destination for HP-card deep-links from inside the wizard's
-// legacy_claim view (USER_STORIES M_Complete_Onboarding_Wizard).
+// legacy_claim view.
 publicRouter.get('/history/:personId/claim',         requireAuth, claimController.getClaimHp);
 publicRouter.post('/history/:personId/claim/confirm', requireAuth, claimController.postClaimHpConfirm);
 publicRouter.get('/history/:personId',   historyController.detail);

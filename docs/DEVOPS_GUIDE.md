@@ -974,7 +974,7 @@ Before a deploy that depends on infrastructure state, run `terraform -chdir=terr
 
 ### 7.0 Deployment model
 
-Deployment is operator-driven: the maintainer builds locally and ships via `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` (image transferred over SSH with `docker save | ssh | docker load`, compose restart on the host). The standard runbook in §7.3 documents the operator path.
+Deployment is operator-driven: the maintainer builds locally and ships via the `./deploy_to_aws.sh` entry point, which orchestrates the build, the SSH image transfer (`docker save | ssh | docker load`), and the compose restart on the host. The standard runbook in §7.3 documents the operator path.
 
 The platform's longer-term design intent is an automated CI/CD deploy pipeline that satisfies §7.1 CI responsibilities, publishes a versioned artifact, and promotes to staging and production through §7.2. The script-based path remains as the operator fallback for emergencies and isolated-environment deploys; the artifact format and validation gates are the same on both paths.
 
@@ -1516,7 +1516,7 @@ Minimum drill expectations:
 
 ### 11.1 Ownership model
 
-`OperationsPlatformService` owns job orchestration, job-run logging, backup jobs, cleanup jobs, readiness composition, and alarm raise/ack integration. Job logic belongs in application code; schedule ownership belongs to the infrastructure/operator layer.
+`OperationsPlatformService` owns job orchestration, job-run logging, cleanup jobs, readiness composition, and alarm raise/ack integration for the in-app periodic jobs. Job logic belongs in application code; schedule ownership belongs to the infrastructure/operator layer. Database backup is the deliberate exception: it runs as a host-side systemd one-shot (`scripts/backup-db.sh`) so it keeps producing snapshots independent of application health, and therefore is not an `OperationsPlatformService` job and does not write a `system_job_runs` row.
 
 ### 11.2 Job catalog
 
@@ -1540,7 +1540,7 @@ Minimum drill expectations:
 - schedules are infrastructure-managed, not app-admin managed
 - schedule changes must be code-reviewed
 - schedule definitions live with infrastructure configuration
-- job execution status is visible in the app health view, but schedule changes are not exposed in the app
+- in-app job execution status is visible in the app health view, but schedule changes are not exposed in the app; the host-side database backup surfaces instead via its `BackupAgeMinutes` CloudWatch metric and `db-backup-stale` alarm
 - missed job executions must alert before user-visible damage accumulates
 
 ### 11.4 Job failure response
@@ -1556,7 +1556,7 @@ For any failed job:
 
 ### 11.5 Job-run logging
 
-Every job run must record:
+Every in-app job run records, in `system_job_runs`:
 
 - job name
 - start and end time
@@ -1564,6 +1564,8 @@ Every job run must record:
 - error summary if failed
 - operator correlation where manually rerun
 - key metrics such as processed counts when relevant
+
+The host-side database backup is the exception: it surfaces via the `BackupAgeMinutes` CloudWatch metric and the `db-backup-stale` alarm (a dead timer, a failing upload, and a wedged host all breach it) rather than a `system_job_runs` row.
 
 ### 11.6 Curator video transcode job inspection
 

@@ -37,7 +37,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║                                                                     ║
 ║  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────┐         ║
 ║  │    nginx    │ │     web     │ │   worker    │ │ image  │         ║
-║  │   128 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
+║  │    64 MB    │→│   512 MB    │ │   384 MB    │ │ 896 MB │         ║
 ║  │Reverse proxy│ │ Controllers │ │Email outbox │ │ Sharp  │         ║
 ║  │Rate limiting│ │ Services    │ │DB backup    │ │ Photo  │         ║
 ║  │TLS terminus │ │ db.ts       │ │Nightly sync │ │ proc.  │         ║
