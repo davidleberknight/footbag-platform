@@ -49,8 +49,8 @@ variable "lightsail_bundle_id" {
   description = <<-EOT
     Lightsail instance bundle (size).
     # TODO: Choose based on expected traffic. Recommended starting points:
-    #   staging:    "nano_3_0"    (1 vCPU, 512 MB RAM, $3.50/mo)
-    #   production: "small_3_0"   (1 vCPU, 2 GB RAM,  $10/mo)
+    #   staging:    "nano_3_0"    (2 vCPU, 512 MB RAM, ~$5/mo dualstack)
+    #   production: "medium_3_0"  (2 vCPU, 4 GB RAM,   ~$24/mo dualstack)
     Run: aws lightsail get-bundles --query 'bundles[*].[bundleId,price]'
   EOT
   type        = string

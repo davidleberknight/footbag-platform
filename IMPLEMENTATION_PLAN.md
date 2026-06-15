@@ -106,6 +106,46 @@ accessibility-only gate. To close the gap:
 Delete this entry when the `@a11y` axe gate runs green in CI and via
 `./run_all_tests.sh --axe`.
 
+### Production Stripe webhook secret is hand-set in host env, not SSM-sourced
+
+DESIGN_DECISIONS §6.10 specifies that production sources the Stripe webhook
+signing secret from AWS SSM Parameter Store, and the deployment populates
+`STRIPE_WEBHOOK_SECRET` from SSM at container start alongside the other §3.6
+secrets; DEVOPS_GUIDE §5.1/§5.2 and `.env.example` agree. Current:
+`terraform/{staging,production}/ssm.tf` provisions only the `stripe_secret_key`
+SecureString, no parameter exists for the webhook secret, and DEVOPS_GUIDE §5.5
+has the operator hand-set `STRIPE_WEBHOOK_SECRET` in `/srv/footbag/env`. The web
+app already reads the value as a single env var at boot with the empty-and-stub
+guards (`src/config/env.ts`), so only the deploy-time source deviates. Close by
+adding the webhook-secret SecureString to both `ssm.tf` files, extending the
+instance IAM read policy to the new path, sourcing `STRIPE_WEBHOOK_SECRET` from
+SSM when the deploy seeds `/srv/footbag/env`, and updating DEVOPS_GUIDE §5.5 to
+the SSM-sourced procedure. DEVOPS_GUIDE §15.7 already points at the SSM path.
+
+### Notification side-effects declared in service JSDoc are not yet wired
+
+Three service file-header JSDoc contracts list `outbox_emails` /
+`mailing_list_subscriptions` side-effects that the service bodies do not yet
+perform. The notifications are design intent (USER_STORIES: granting HoF or BAP
+sends a congratulatory email; the tier-change and vouch flows follow the
+post-commit confirmation-email pattern), so the JSDoc contracts stand and the
+wiring is the gap. Current:
+
+- `membershipTieringService.ts` declares tier-change and congratulatory HoF/BAP
+  emails plus an `admin-alerts` mailing-list subscription update on the is_admin
+  change; the body writes only tier-grant ledger and audit rows.
+- `activePlayerService.ts` declares a vouch-confirmation email; `applyVouch`
+  writes grant and audit rows with no enqueue.
+- `eventService.ts` declares organizer-confirmation, participant-notice, and
+  sanction-decision emails; these ride the unbuilt event-organizer write routes
+  (see the persona-harness entry above).
+
+Close by enqueuing each email after its transaction commits (the outbox and
+`communicationService` infra is built and tested) and writing the admin-alerts
+mailing-list row inside the tiering transaction; the eventService notifications
+land with the event-organizer feature. Trim nothing from the JSDoc: the
+contracts describe the target.
+
 ## Audit-surfaced deployed-story gaps
 
 Verified gaps between deployed user stories and code. Each is a real deviation to close;

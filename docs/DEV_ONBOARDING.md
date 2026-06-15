@@ -671,7 +671,7 @@ To exercise the live Google Safe Browsing v4 API end-to-end locally:
    a project, enable the "Safe Browsing API" under APIs & Services → Library,
    then APIs & Services → Credentials → Create Credentials → API key. Free
    tier: 10,000 lookups/day.
-2. Create `.local/secrets.json` (gitignored; the `.local/` directory holds all per-operator local files): write `{"safe_browsing_api_key": "<your-key>"}` as the file content. Schema and rationale in `.local/README.md`.
+2. Create `.local/secrets.json` (gitignored; the `.local/` directory holds all per-operator local files): write `{"safe_browsing_api_key": "<your-key>"}` as the file content.
 3. In your local `.env`: `SAFE_BROWSING_ADAPTER=live` (uncomment the line
    that ships in `.env.example`).
 4. `./run_dev.sh`. The validator now calls Google for every external URL

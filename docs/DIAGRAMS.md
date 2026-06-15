@@ -157,7 +157,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  web Controller                                                     │
-│  1. Rate limit: 5 attempts / 15 min per account identifier          │
+│  1. Rate limit: 10 attempts / 15 min per email + IP                 │
 │  2. Validate input: email format, password length  (Zod)            │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
@@ -249,7 +249,9 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ```
   Note: these are Express route handlers for server-rendered pages,
   forms, and required callbacks — not a public REST API. JSON is
-  returned only on designated webhook and AJAX endpoints.
+  returned only on designated webhook and AJAX endpoints. Route paths
+  and handler names below are illustrative; the live route list is in
+  src/routes/publicRoutes.ts.
 
   All requests → nginx → web container
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -445,6 +447,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  SecretsAdapter          LiveSecretsAdapter (SSM)   LocalSecretsAdapter│
 │  JwtSigningAdapter       createKmsJwtAdapter (KMS RS256) createLocalJwtAdapter (RS256)│
 │  SafeBrowsingAdapter     LiveSafeBrowsingAdapter    StubSafeBrowsingAdapter│
+│  CaptchaAdapter          createLiveCaptchaAdapter (Turnstile) createStubCaptchaAdapter│
 │  HttpReachabilityAdapter LiveHttpReachabilityAdapter StubHttpReachabilityAdapter│
 │  ImageProcessingAdapter  HttpImageAdapter           HttpImageAdapter│
 │  VideoTranscodingAdapter HttpVideoTranscodingAdapter HttpVideoTranscodingAdapter│

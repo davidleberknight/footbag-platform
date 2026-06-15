@@ -1052,7 +1052,7 @@ At minimum, the host env file must define:
 
 Container memory limits are env-driven so the same `docker-compose.prod.yml` overlay sizes correctly for the host bundle. Per-environment values:
 
-| Variable | Staging (nano_3_0, 512M host) | Production (small_3_0, 2GB host) |
+| Variable | Staging (nano_3_0, 512M host) | Production (medium_3_0, 4GB host) |
 |---|---|---|
 | `WEB_MEMORY_LIMIT` | unset (default 192M) | `512M` |
 | `WORKER_MEMORY_LIMIT` | unset (default 96M) | `384M` |
@@ -1377,7 +1377,7 @@ Required behavior:
 
 - copy relevant primary backup state to the DR bucket
 - verify integrity of the copied content
-- enforce DR retention through Object Lock in COMPLIANCE mode with a 30-day retention period (non-overridable, including by root, for the retention window)
+- enforce DR retention through Object Lock in GOVERNANCE mode with a 30-day retention period, overridable only by a tightly scoped role holding `s3:BypassGovernanceRetention` so a lawful erasure request can be honored on backup objects that contain personal data
 - log run metadata and failures
 - raise alarms on failure
 

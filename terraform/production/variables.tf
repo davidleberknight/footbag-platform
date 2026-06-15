@@ -36,7 +36,7 @@ variable "route53_zone_id" {
 variable "lightsail_bundle_id" {
   description = "Lightsail instance bundle (size)"
   type        = string
-  default     = "small_3_0" # $10/mo — appropriate for production
+  default     = "medium_3_0" # 2 vCPU / 4GB RAM / 80GB SSD / 4TB transfer, ~$24/mo dualstack — production size
 }
 
 variable "lightsail_blueprint_id" {

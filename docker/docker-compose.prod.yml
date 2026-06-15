@@ -118,7 +118,7 @@ services:
       resources:
         limits:
           # Memory limit is env-driven so the same compose overlay works for
-          # staging (nano_3_0, 512M host) and production (small_3_0, 2GB host)
+          # staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host)
           # without manual edits. Default 192M fits staging; production
           # /srv/footbag/env sets WEB_MEMORY_LIMIT=512M. Web no longer runs
           # Sharp inline (image worker handles it via HTTP), so the staging
@@ -190,9 +190,9 @@ services:
           memory: ${WORKER_MEMORY_LIMIT:-96M}
 
   # Image processing worker. Scaled-down sizing for single-image-at-a-time
-  # avatar testing on Lightsail nano_3_0 (512M host); production target is
-  # `memory: 896M` with `IMAGE_MAX_CONCURRENT=2`. Bump both after the host
-  # bundle is upgraded to a 2GB+ instance.
+  # avatar testing on Lightsail nano_3_0 (512M host); the production
+  # medium_3_0 (4GB host) sets `IMAGE_MEMORY_LIMIT=896M` and
+  # `IMAGE_MAX_CONCURRENT=2` via /srv/footbag/env.
   #
   # OOM kills are an expected condition under the scaled-down limit (high
   # pixel-count inputs decoded by Sharp can exceed 256M of RGBA). Defenses:
@@ -238,5 +238,5 @@ services:
           # Memory limit is env-driven (see web service). Default 256M fits
           # staging (nano_3_0); production /srv/footbag/env sets
           # IMAGE_MEMORY_LIMIT=896M plus IMAGE_MAX_CONCURRENT=2 to take full
-          # advantage of the production 2GB host.
+          # advantage of the production 4GB host.
           memory: ${IMAGE_MEMORY_LIMIT:-256M}
