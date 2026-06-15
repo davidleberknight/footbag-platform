@@ -361,13 +361,16 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     movementExplanation:
       'A derived entry topology readable as the uptime illusion shape: structurally the ' +
       'reverse-direction mirror of miraging (an outward dex rather than inward), with the ' +
-      'terminal stall omitted because the set continues into the next move.',
+      'terminal stall omitted because the set continues into the next move. The same outward ' +
+      'uptime dex is the Atomic set operator; Illusioning is the descriptive reading of that ' +
+      'operator, not a separate productive modifier.',
     equivalenceNotes: [
       { reading: 'uptime illusion structure', citation: 'Structural reading' },
     ],
     derivedSystems: [],
     relatedSystems: [
       { slug: 'miraging', label: 'Miraging (inward-dex mirror)' },
+      { slug: 'atomic', label: 'Atomic (the underlying set operator)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Structural pattern; not in the Holden compilation.',

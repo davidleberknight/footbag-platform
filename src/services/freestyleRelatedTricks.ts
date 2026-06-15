@@ -55,8 +55,6 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
   // Both-feet / both-knees airborne primitives share the flying-contact set.
   'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
   'double-kick': ['flying-inside', 'flying-outside', 'flying-clipper'],
-  // The kick-only miraging dex atom reads as a mirage entry without a stall.
-  'miraging-kick': ['mirage'],
   // Cross-body toe contact: the toe-surface sibling of the inside-contact clipper kick.
   'toe-clipper': ['flying-clipper'],
 };
@@ -73,6 +71,18 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   ['pendulum', 'rake'],
   // Sibling body primitives: contact the bag with both limbs in the air.
   ['double-kick', 'double-knee'],
+  // 1-ADD dex-kicks: a dexterity finished with a kick instead of a terminal
+  // stall. Each sits in its own family/base, so only this overlay connects them
+  // to one another.
+  ['around-the-world-kick', 'pixie-kick', 'fairy-kick', 'orbit-kick', 'legover-kick', 'miraging-kick', 'atomic-kick'],
+  // Trick and its kick/stall counterpart: the stalled trick and its drop-the-
+  // stall kick (or a surface and its stall) sit in different families, so
+  // neither surfaces the other without this overlay. Legover and its kick
+  // already share a family; Toe has no kick row, so neither is listed here.
+  ['clipper', 'clipper-stall'],
+  ['around-the-world', 'around-the-world-kick'],
+  ['mirage', 'miraging-kick'],
+  ['butterfly', 'butterfly-kick'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the

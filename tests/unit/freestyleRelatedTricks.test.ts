@@ -286,6 +286,64 @@ describe('buildRelatedTricks — rule contracts', () => {
   });
 });
 
+describe('buildRelatedTricks — dex-kick group + kick/stall pairs (R0 overlay)', () => {
+  // Local fixture: the seven 1-ADD dex-kicks plus the non-kick partners of the
+  // four kick/stall counterpart pairs. Each kick sits in its own family/base,
+  // so without the R0 neighborhood overlay nothing connects them.
+  const KICKS: FreestyleTrickRow[] = [
+    row('around-the-world-kick', '1', 'dex',      'around-the-world', 'around-the-world-kick'),
+    row('pixie-kick',            '1', 'dex',      'pixie',            'pixie-kick'),
+    row('fairy-kick',            '1', 'dex',      'fairy',            'fairy-kick'),
+    row('orbit-kick',            '1', 'dex',      'orbit',            'orbit'),
+    row('legover-kick',          '1', 'dex',      'legover',          'legover'),
+    row('miraging-kick',         '1', 'dex',      'miraging-kick',    'miraging-kick'),
+    row('atomic-kick',           '1', 'dex',      'atomic-kick',      'atomic-kick'),
+    row('clipper',               '1', 'body',     'clipper',          'clipper'),
+    row('clipper-stall',         '2', 'surface',  'clipper-stall',    'clipper-stall'),
+    row('around-the-world',      '2', 'dex',      'around-the-world', 'around-the-world'),
+    row('mirage',                '2', 'dex',      'mirage',           'mirage'),
+    row('butterfly',             '3', 'compound', 'butterfly',        'butterfly'),
+    row('butterfly-kick',        '2', 'compound', 'butterfly',        'butterfly-kick'),
+  ];
+  const get = (slug: string): FreestyleTrickRow => {
+    const r = KICKS.find(x => x.slug === slug);
+    if (!r) throw new Error(`fixture missing: ${slug}`);
+    return r;
+  };
+
+  it('the seven dex-kicks cross-reference one another as movement neighbours', () => {
+    const slugs = buildRelatedTricks(get('atomic-kick'), KICKS)
+      .filter(r => r.rule === 'neighborhood').map(r => r.slug);
+    expect(slugs).toEqual(expect.arrayContaining([
+      'around-the-world-kick', 'pixie-kick', 'fairy-kick', 'orbit-kick',
+      'legover-kick', 'miraging-kick',
+    ]));
+  });
+
+  it('dex-kick group is mutual (pixie-kick surfaces atomic-kick and the rest)', () => {
+    const slugs = buildRelatedTricks(get('pixie-kick'), KICKS).map(r => r.slug);
+    expect(slugs).toContain('atomic-kick');
+    expect(slugs).toContain('around-the-world-kick');
+  });
+
+  it('clipper and clipper-stall are reciprocal neighbours', () => {
+    expect(buildRelatedTricks(get('clipper'), KICKS).map(r => r.slug)).toContain('clipper-stall');
+    expect(buildRelatedTricks(get('clipper-stall'), KICKS).map(r => r.slug)).toContain('clipper');
+  });
+
+  it('a stalled trick now surfaces its kick variant (the previously-missing direction)', () => {
+    expect(buildRelatedTricks(get('around-the-world'), KICKS).map(r => r.slug)).toContain('around-the-world-kick');
+    expect(buildRelatedTricks(get('mirage'), KICKS).map(r => r.slug)).toContain('miraging-kick');
+    expect(buildRelatedTricks(get('butterfly'), KICKS).map(r => r.slug)).toContain('butterfly-kick');
+  });
+
+  it('miraging-kick belongs to both the dex-kick group and the mirage pair', () => {
+    const slugs = buildRelatedTricks(get('miraging-kick'), KICKS).map(r => r.slug);
+    expect(slugs).toContain('mirage');                 // kick/stall pair
+    expect(slugs).toContain('around-the-world-kick');  // dex-kick group
+  });
+});
+
 describe('buildNextTricks — Option (b) per-bucket sampling', () => {
   it('mirage: takes 2 from ADD=3 + 2 from ADD=4 (per-bucket cap drops fury)', () => {
     const result = buildNextTricks(pick('mirage'), FIXTURE);
