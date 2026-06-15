@@ -1285,8 +1285,8 @@ function processLegacyClaimTokenConfirm(
     return { kind: 'validation_error', formState: null, message: '' };
   }
   try {
-    // SC §LegacyClaim atomicity: the token consume, the merge, AND the
-    // wizard task transition run in one transaction.
+    // One transaction so the token consume, the claim merge, and the wizard
+    // task transition commit together; none lands without the others.
     transaction(() => {
       identityAccessService.consumeAndClaimLegacyInTx(memberId, token);
       completeTask(memberId, 'legacy_claim');

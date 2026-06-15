@@ -33,7 +33,7 @@ self-contained. Forbidden everywhere:
   as inline navigation are tolerated only when they do not replace the explanation.
 - **Doc references.** Doc PATHS (`docs/FOO.md §X`, `see BAR.md`, `exploration/…`) are ALWAYS
   forbidden — doc and code evolve independently and the reference rots. Bare section shorthands
-  (`DD §2.9`, `SC §X`, `US §198`) are tolerated only as a locator sitting beside a complete
+  (`DD §2.9`, `US §198`) are tolerated only as a locator sitting beside a complete
   self-contained explanation, never as a substitute for one.
 - **Preview / demo / special login identifiers** (usernames, emails, literal `login_email`
   values). Refer by role ("the preview-user account"); literals live in env vars / local notes.
@@ -57,7 +57,7 @@ precondition is not yet wired is a long-term parity test with a failing precondi
 sprint test.
 
 Test comments must NEVER reference any doc or finding id: no `BUG_HUNT` / `B##` /
-`Regression for B##` / `(B##)`, no `DD §` / `US §` / `SC §` / `DATA_GOVERNANCE §`, no `docs/*.md`
+`Regression for B##` / `(B##)`, no `DD §` / `US §` / `DATA_GOVERNANCE §`, no `docs/*.md`
 or bare `*.md` filenames, no sprint or section numbers. This is stricter than `src`: in tests even
 a section shorthand beside prose is not allowed.
 

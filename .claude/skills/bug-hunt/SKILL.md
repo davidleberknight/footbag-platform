@@ -47,7 +47,7 @@ When an AI agent runs this file, treat it as a prompt with explicit role, succes
 
 **Non-goals:** do not run a browser QA pass, do not redesign the application, do not write fixes, do not create a test plan, and do not record speculative issues as bugs.
 
-**Operating rule for uncertainty:** when code and user stories disagree, do not assume the user story is right. The bug may be in the code, the user story, the service catalog, the view catalog, the migration plan, or the prompt. Step back and reason from the platform goal, domain invariants, deployed route behavior, and source-of-truth order. If a human decision is required, ask exactly one question with enough context for the maintainer to answer.
+**Operating rule for uncertainty:** when code and user stories disagree, do not assume the user story is right. The bug may be in the code, the user story, the service JSDoc, the view catalog, the migration plan, or the prompt. Step back and reason from the platform goal, domain invariants, deployed route behavior, and source-of-truth order. If a human decision is required, ask exactly one question with enough context for the maintainer to answer.
 
 ### 0.1 Read order by role
 
@@ -350,9 +350,9 @@ Any swallow on a security-critical notification is a finding. The pattern is: a 
 
 #### 4.4.20 Domain-invariant violations
 
-These are the SERVICE_CATALOG / DATA_GOVERNANCE / USER_STORIES non-negotiables. A violation is a real bug even when the code "works":
+These are the service-JSDoc / DATA_GOVERNANCE / USER_STORIES non-negotiables. A violation is a real bug even when the code "works":
 
-- **Deceased login**: login must reject any member with `is_deceased = 1` *before* the credential check (SERVICE_CATALOG §4 auth boundary). A credential check that runs first, or a path that lets a deceased member authenticate, is catastrophic.
+- **Deceased login**: login must reject any member with `is_deceased = 1` *before* the credential check (DATA_GOVERNANCE §2 auth boundary). A credential check that runs first, or a path that lets a deceased member authenticate, is catastrophic.
 - **Active-player no-shorten**: an older event / vouch / club-join must never shorten an existing later expiry; idempotency via the `ux_active_player_grants_*` unique constraints.
 - **Ballot non-anonymity**: `ballots.voter_member_id` is stored in plaintext by design; a path that strips it is a finding.
 - **Work-queue admin-alert coupling**: every `work_queue_items` INSERT must enqueue an `admin-alerts` notification carrying task type + entity id only (no PII).
@@ -623,7 +623,7 @@ A service that reads a file or directory at runtime is correct only if the deplo
 
 This is a **separate, lower-priority sweep** run after the §4.4 security/correctness sweep. Its findings go in their own `BUGS.md` group (see §4.6) so they never drown the security findings. **Severity**: most §4.4B findings are **Low** or **Medium**. Escalate to **High** only when the divergence produces an actual behavioral or security failure (for example, a template that branches on a raw `role` value and thereby exposes an admin-only control to a non-admin viewer — that is an authorization leak, not a style nit).
 
-Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,service-layer,db-layer}.md`, `docs/SERVICE_CATALOG.md`, `docs/VIEW_CATALOG.md`. Cite the rule.
+Ground every §4.4B finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,service-layer,db-layer}.md`, service file-header JSDoc, `docs/VIEW_CATALOG.md`. Cite the rule.
 
 #### 4.4B.1 Controller-layer divergence
 
@@ -709,7 +709,7 @@ For every `src/services/*.ts` file, inspect the file-header JSDoc and any export
 - **Security and privacy invariants:** auth assumptions, owner/admin/tier boundaries, anti-enumeration behavior, PII minimization, deceased-member handling, append-only ledger behavior, and idempotency guarantees are documented when the service owns or enforces them.
 - **Transaction and consistency boundary:** multi-write operations, rollback expectations, no-`await` transaction constraints, and post-commit side effects are accurately described.
 - **Dependency shape:** singleton vs factory, injected dependencies, adapter usage, and mutable state expectations match the actual export pattern.
-- **Terminology consistency:** the JSDoc uses the same domain vocabulary as the user stories/service catalog/data governance docs without cryptic abbreviations or doc-anchor shorthand.
+- **Terminology consistency:** the JSDoc uses the same domain vocabulary as the user stories and data governance docs without cryptic abbreviations or doc-anchor shorthand.
 - **Completeness without noise:** comments explain WHY and contract boundaries, not line-by-line HOW. Missing contract information is a bug when it would mislead an implementer; excessive stale detail is also a bug.
 - **Forbidden content:** no sprint/slice/phase labels, dated change markers, temporary-status notes, or document references. The only permitted temporary language is a known developer-bootstrapping deviation with self-contained `Current:` and `Target:` lines, and only when that same deviation is accepted in `IMPLEMENTATION_PLAN.md`.
 

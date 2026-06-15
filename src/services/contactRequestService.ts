@@ -25,6 +25,9 @@
  *   - Work-queue UPDATE and the resolution audit row commit in one
  *     transaction; the member notification enqueue happens after commit and
  *     records an operational error on failure instead of rolling back.
+ *   - Per-member open-request cap is 3; the 4th open submission throws
+ *     RateLimitedError. Message body is capped at 2000 characters, the
+ *     resolution note at 500.
  *
  * Persistence:
  *   work_queue_items, audit_entries.

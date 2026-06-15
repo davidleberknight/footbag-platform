@@ -52,6 +52,8 @@ Any redirect target derived from `?returnTo=`, `Referer`, or other request input
 
 Authentication is checked by middleware (`requireAuth` from `src/middleware/auth.ts`) at the route layer, not in the controller body. Ownership and authorization within an authenticated request (for example, `:memberKey` matches `req.user.slug`) are checked in the controller and return 404 on mismatch (anti-enumeration), not 403.
 
+For anti-enumeration endpoints (login, register, password reset, email verify, claim lookup), the controller does not branch on whether the account exists; it calls the service unconditionally and lets the service run the identical path both ways.
+
 ## Request parsing
 
 `req.query` and `req.params` values are typed `string | string[] | undefined`. Controllers narrow with `typeof X === 'string'` before passing to services. Body fields use null-coalescing for optional defaults; services validate the actual content.

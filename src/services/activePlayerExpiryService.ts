@@ -10,6 +10,9 @@
  * Idempotency: a per-(member, expires_at, offset) row in
  * active_player_reminder_sent prevents duplicate sends when the worker runs
  * multiple times in a single day or across days within the same offset window.
+ * The dedup-row insert and the outbox enqueue run in one transaction(), so an
+ * enqueue failure rolls back the dedup row and the reminder is retried on the
+ * next pass.
  * A renewal writes a fresh AP grant with a later expires_at, which generates
  * a fresh reminder cycle because the dedup key has not been used yet.
  *

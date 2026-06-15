@@ -9,6 +9,12 @@
  * shape (absent, mismatch, malformed) returns the same non-revealing
  * result so the endpoint cannot be used to probe token state.
  *
+ * The claim is rate-limited per IP and per member over a configurable window
+ * (config keys bootstrap_claim_rate_limit_max_per_ip / _per_member, default 5;
+ * bootstrap_claim_rate_limit_window_minutes, default 60). Both limits throw
+ * RateLimitedError, which the controller maps to HTTP 429 with Retry-After and
+ * the same non-revealing body as every other failure shape.
+ *
  * Does not own: steady-state admin grants (A_Manage_Admin_Role) or the
  * dev/staging allowlist bootstrap (src/dev-bootstrap/runtime.ts).
  */
@@ -44,7 +50,9 @@ async function claimBootstrapAdmin(
 ): Promise<BootstrapClaimResult> {
   const windowMinutes = readIntConfig('bootstrap_claim_rate_limit_window_minutes', 60);
   const ipRl = rateLimitHit(`bootstrap-claim-ip:${ip}`, readIntConfig('bootstrap_claim_rate_limit_max_per_ip', 5), windowMinutes);
-  if (!ipRl.allowed) return { status: 'invalid' };
+  if (!ipRl.allowed) {
+    throw new RateLimitedError('Too many attempts. Please try again later.', ipRl.retryAfterSeconds);
+  }
   const memberRl = rateLimitHit(`bootstrap-claim:${memberId}`, readIntConfig('bootstrap_claim_rate_limit_max_per_member', 5), windowMinutes);
   if (!memberRl.allowed) {
     throw new RateLimitedError('Too many attempts. Please try again later.', memberRl.retryAfterSeconds);

@@ -15,7 +15,7 @@ You analyze the footbag-platform codebase without making changes.
 
 ## Context loading
 Read the minimum the task requires. For large docs (USER_STORIES,
-DESIGN_DECISIONS, SERVICE_CATALOG, DATA_MODEL), read only the
+DESIGN_DECISIONS, DATA_MODEL), read only the
 section relevant to the question. Do not load entire files.
 
 ## Reporting

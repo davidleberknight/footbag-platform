@@ -26,7 +26,7 @@ This catalog defines the target rendering standard for the public site and the t
 
 This catalog owns: the target public-rendering standard, the target page contract (`PageViewModel<TContent>`), the required reusable primitives and CSS vocabulary, the per-route rules and ordering constraints, and the target audience/authorization and rendering invariants for every public page. It is authoritative for design questions about how a public page must be rendered, what view-model shape services must produce, and which rules templates must follow.
 
-This catalog does not own: current template HTML, current view-model TypeScript shapes, current controller code paths, or current implementation status. Those live in `src/views/`, `src/types/`, `src/controllers/`, and `IMPLEMENTATION_PLAN.md` respectively. It also does not own service ownership boundaries; those live in `docs/SERVICE_CATALOG.md`.
+This catalog does not own: current template HTML, current view-model TypeScript shapes, current controller code paths, or current implementation status. Those live in `src/views/`, `src/types/`, `src/controllers/`, and `IMPLEMENTATION_PLAN.md` respectively. It also does not own service ownership boundaries; those live in each service's file-header JSDoc.
 
 This catalog is intentionally narrower than the full product. A public capability may still be part of the broader product because it is defined in `docs/USER_STORIES.md` even when it is not yet cataloged here. Read `IMPLEMENTATION_PLAN.md` to determine current scope.
 
@@ -134,7 +134,7 @@ The generic slot `TContent` is the page-specific content shape. Each page declar
 
 - Page-content interfaces: `<PageName>Content` (e.g. `LoginContent`, `RecordsContent`).
 - Row-level view-model interfaces inside a `*Content` shape: `<Entity>ViewModel` (e.g. `FreestyleRecordViewModel`, `NetTeamViewModel`).
-- Controllers: `<domain>Controller.ts`; templates: `src/views/<section>/<page>.hbs`. Service and prepared-statement naming live in `docs/SERVICE_CATALOG.md`.
+- Templates: `src/views/<section>/<page>.hbs`. Service and controller file-naming are design decisions in DESIGN_DECISIONS.md §1.9; prepared-statement-group naming lives in `.claude/rules/db-layer.md`.
 
 **Enforcement:**
 
@@ -471,7 +471,7 @@ Anti-enumeration applies. Same code path; same response; same timing.
 
 ### 7.6a Onboarding wizard and dashboard task widget
 
-The onboarding wizard backed by `MemberOnboardingService` (MIGRATION_PLAN §10, SERVICE_CATALOG §6.1) is the post-verification entry point for outstanding onboarding tasks; the member dashboard hosts a task widget that surfaces the same tasks for resume. Both surfaces call the same service methods and share view-model shapes.
+The onboarding wizard backed by `MemberOnboardingService` (MIGRATION_PLAN §10) is the post-verification entry point for outstanding onboarding tasks; the member dashboard hosts a task widget that surfaces the same tasks for resume. Both surfaces call the same service methods and share view-model shapes.
 
 Wizard URL family: `/register/wizard/:taskType` mounted under the `/register/*` group. Per-task POST sub-paths use the action-suffix convention shared with the rest of the codebase: `/skip` for all task types, plus `/find`, `/auto-link/confirm`, `/claim/confirm/:token`, `/claim/confirm` for `legacy_claim`, and `/submit` for the two metadata tasks. The same URL serves the post-verify entry and the dashboard task-widget Resume target. Cataloged in §5.
 
@@ -501,7 +501,7 @@ Rate limiting applies at `initiateAccountClaim` and resend per requesting accoun
 
 `GET /hof` and `GET /bap` are the canonical section entry routes. The current target is the editorial landing page only. The services (`HallOfFameService.getHofLandingPage` and `BigAddPosseService.getBapLandingPage`) are read-only with no DB queries; they shape the page model directly. Templates must not construct the standalone HoF or BAP URLs; the service provides `content.externalLink` for the call-to-action.
 
-Full inductee and roster surfaces are deferred out of scope by design: in-site HoF inductee pages, member-linked HoF records, and richer HoF history are scope-deferred per the `HallOfFameService` entry in `docs/SERVICE_CATALOG.md`. In-site BAP roster pages, induction-year pages, and member-linked BAP records are scope-deferred per the `BigAddPosseService` entry. This is scope language, not status: the design intent is that those surfaces require future curation work that has not been scoped in.
+Full inductee and roster surfaces are deferred out of scope by design: in-site HoF inductee pages, member-linked HoF records, and richer HoF history are scope-deferred; in-site BAP roster pages, induction-year pages, and member-linked BAP records are likewise scope-deferred. This is scope language, not status: the design intent is that those surfaces require future curation work that has not been scoped in.
 
 ### 7.9 Club detail leader contact gate
 

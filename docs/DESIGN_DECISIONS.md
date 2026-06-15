@@ -184,7 +184,7 @@ S3 Backup Configuration: Retry policy, alert thresholds, recovery drill schedule
 
 Migration Procedures: SQL conventions, maintenance mode, rollback strategies (DevOps document)
 
-Transaction Boundaries: Which operations require transactions, timeout policies, and temporary-unavailable / busy-handling boundaries (Service Catalog document)
+Transaction Boundaries: Which operations require transactions, timeout policies, and temporary-unavailable / busy-handling boundaries (`.claude/rules/db-layer.md` and per-service JSDoc)
 
 Query Performance: Index selection criteria, profiling procedures, optimization triggers (Data Model and DevOps documents)
 
@@ -408,7 +408,7 @@ Impact:
 
 Decision:
 
-The platform uses a four-layer separation. Each layer has a specific responsibility. A function's signature, imports, and file location follow the layer it belongs to, not its semantic association with other code. Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX). There is no separate REST API layer between HTML controllers and services. Only webhook callbacks use REST. All business services must be documented in the Service Catalog.
+The platform uses a four-layer separation. Each layer has a specific responsibility. A function's signature, imports, and file location follow the layer it belongs to, not its semantic association with other code. Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX). There is no separate REST API layer between HTML controllers and services. Only webhook callbacks use REST. All high-stakes write-path business services carry a file-header JSDoc documenting their contract (ownership, required patterns, invariants, persistence, side-effects).
 
 Layers:
 
@@ -417,6 +417,7 @@ Layers:
    - Functions take domain arguments (ids, strings, DTOs) and return domain values. No `Request`/`Response`/`NextFunction` parameters.
    - Never read cookies or headers. Never set cookies, redirect, or emit status codes.
    - Own business rules, validation, authorization checks, and page-model shaping.
+   - One service file per domain, named `src/services/<domain>Service.ts`.
 
 2. Middleware (`src/middleware/`); Express cross-cutting handlers.
 
@@ -429,6 +430,7 @@ Layers:
    - Parse `req.body`/`req.params`/`req.query`, orchestrate service calls, decide response type.
    - Own `res.cookie(...)`, `res.redirect(...)`, `res.render(...)`, `res.status(...)` calls.
    - Thin: controllers do not own business rules, route-domain interpretation, or page-model shaping beyond trivial glue logic. When a page varies by authentication state or viewer role, the controller passes viewer context to the service and the service returns the appropriately shaped response. Controllers must not mutate service-returned view models based on auth state.
+   - One controller file per domain, named `src/controllers/<domain>Controller.ts`.
 
 4. Adapters (`src/adapters/`); external-service implementations behind typed interfaces.
 
@@ -487,18 +489,18 @@ Impact:
 ## 1.10 Code-primary Rule Home with Markdown Overview
 
 Decision:
-Rules for page rendering and service ownership live at their strongest enforcement site. Markdown catalogs carry rules with no code anchor plus cross-service overview.
+Rules for page rendering and service ownership live at their strongest enforcement site. The view catalog carries the page-rendering rules that have no code anchor.
 
 Rule home precedence:
 
 1. Mechanical enforcement (drift-impossible): TypeScript types in `src/types/` and `src/services/serviceErrors.ts`; DB triggers, CHECK constraints, and named UNIQUE indexes in `database/schema.sql`; CI convention gates in `scripts/ci/assert_conventions.sh`; test factories with coverage thresholds; PreToolUse hooks in `.claude/hooks/`.
-2. Code-adjacent rule docs: file-header JSDoc on every high-stakes write-path service stating Owns / Does not own / Required patterns / Persistence / Side effects / Service shape, updated in the same change as the code; path-scoped `.claude/rules/*.md` files (service-layer, controller-conventions, template-conventions, db-layer, testing) auto-attached to Claude when working in matching paths; per-subtree `CLAUDE.md` files.
+2. Code-adjacent rule docs: file-header JSDoc on every high-stakes write-path service stating Owns / Does not own / Required patterns / Persistence / Side effects / Service shape, updated in the same change as the code; path-scoped `.claude/rules/*.md` files auto-attached to Claude when working in matching paths; per-subtree `CLAUDE.md` files.
 3. DESIGN_DECISIONS.md: design intent and cross-cutting invariants with no code anchor (anti-enumeration, member-vs-historical-person distinction, audit append-only, this decision).
-4. VIEW_CATALOG.md and SERVICE_CATALOG.md: surface-level overview. VC owns the public-rendering standard, page contract, primitives, page matrix, sensitive-page rules, and per-route rules (the route list itself lives in `src/routes/publicRoutes.ts`). SC owns global service-layer rules, non-negotiable invariants, the service ownership matrix, and service-specific extensions per service. Method rosters, persistence tables, and side-effect categorizations for JSDoc'd services are not mirrored in SC; they live only in the source file's JSDoc.
+4. VIEW_CATALOG.md: surface-level overview of the public-rendering standard, page contract, primitives, page matrix, sensitive-page rules, and per-route rules (the route list itself lives in `src/routes/publicRoutes.ts`). Service-layer rules live at their enforcement site: global service-layer rules in the path-scoped `.claude/rules/*.md` files, non-negotiable invariants in DESIGN_DECISIONS.md §3–§4 and `database/schema.sql` triggers, and each service's ownership, required patterns, persistence, and side-effects in its file-header JSDoc.
 
 Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer. Home is the one intentional composition-page exception to the generic public page contract.
 
-When a service contract changes, the service file's JSDoc updates in the same change. The path-scoped rule file and SC §6 entry update only if the change touches their respective concerns. Any new public surface is admitted by adding it to the appropriate rule home in the same change.
+When a service contract changes, the service file's JSDoc updates in the same change. The path-scoped rule file updates only if the change touches a cross-cutting rule. Any new public surface is admitted by adding it to the appropriate rule home in the same change.
 
 Rationale:
 - Rules co-located with the code they describe drift less; one-file edits are more disciplined than two-file edits.
@@ -507,12 +509,12 @@ Rationale:
 - Mechanical enforcement catches drift that prose rules cannot enforce.
 
 Trade-offs:
-- Per-service rules live in JSDoc rather than concentrated in one catalog. Cross-service overview lives in SC §5 matrix; per-service detail is at the source file.
+- Per-service rules live at the source file in each service's file-header JSDoc; a reader assembles the cross-service picture from the individual service files.
 - Multiple rule homes require contributors to know where each kind of rule lives. The precedence above is explicit.
 
 Impact:
 - New mechanical rules go into `scripts/ci/assert_conventions.sh` as grep gates.
-- SC §6 per-service paragraphs are scoped to service-specific extensions; cross-cutting parts live in SC §4 or in service JSDoc.
+- Per-service rules live in each service's file-header JSDoc; cross-cutting invariants live in DESIGN_DECISIONS.md §3–§4, the path-scoped rule files, or schema triggers.
 - High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the file-header JSDoc convention; read-only services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) do not require it.
 
 ## 1.11 Configuration Model
@@ -571,13 +573,13 @@ Internal-only code (operator, maintainer, and QC tools that are not reachable fr
 Current and reserved subtrees:
 
 - `src/internal-qc/{controllers,services}/**` (live): historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope is mechanically greppable at retirement time.
-- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes per the `AdminGovernanceService` entry in `docs/SERVICE_CATALOG.md`. Follows the same subtree convention without the QC deletion banner.
+- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes. Follows the same subtree convention without the QC deletion banner.
 
 Rationale:
 
 - A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
 - The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time.
-- Keeping internal-only code out of `src/services/` preserves the service-catalog invariant: `docs/SERVICE_CATALOG.md` covers permanent product surface only (see the SC scope-and-organization section). Internal-only code is documented in its relevant runbook, not in the main service catalog.
+- Keeping internal-only code out of `src/services/` keeps the permanent product service surface free of internal-only tooling. Internal-only code is documented in its relevant runbook.
 - Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-only surfaces exist in every environment and are gated by auth role, not by env config.
 
 Trade-offs:
@@ -590,7 +592,7 @@ Impact:
 - `src/internal-qc/` already houses the Net QC and persons QC subsystems. `src/internal-admin/` is reserved, not yet created.
 - `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
-- `docs/SERVICE_CATALOG.md` documents the catalog-scope consequence in the scope-and-organization section: internal-only subtrees are out of catalog scope. Permanent product services (including dev-mode shaping services such as `SimulatedEmailService`) remain in-catalog.
+- Internal-only subtrees are not part of the permanent product service surface; permanent product services are, and the high-stakes write-path ones carry the file-header JSDoc convention.
 
 ## 1.13 Curator Content Source of Truth
 
@@ -1284,6 +1286,7 @@ Requirements:
 
 - Submitted passwords are length-capped at 128 bytes before hashing so a multi-megabyte password body cannot drive argon2id into a denial-of-service path.
 - argon2id parameters (memory, iterations, parallelism) are pinned in code constants and recorded in the stored hash via a version tag, so older hashes can be re-derived to current cost on next login without ambiguity.
+- The hash-algorithm version (`password_hash_version`) is distinct from the session-invalidation counter (`password_version`, §3.2): the former changes only when the hashing parameters or algorithm change, the latter increments on every password reset or change. They are never conflated.
 
 Trade-offs:
 
@@ -1653,6 +1656,8 @@ Impact:
 - Tally operations run under a privileged admin/tally role with kms:Decrypt permission and are exposed only through explicit admin flows.
 
 - AuditLogService records every decrypt operation (who/when/why) without logging plaintext.
+
+- Ballot non-anonymity is by design: `ballots.voter_member_id` is stored in plaintext alongside the encrypted ballot, so the participation fact (who voted) is intentionally not anonymous, while the ballot content stays confidential under AES-256-GCM.
 
 Receipt Token Handling: Each accepted ballot generates a cryptographic receipt token that allows the voter to later confirm their ballot was included in the tally. The receipt mechanism follows the hash-before-storage pattern.
 
@@ -2411,13 +2416,13 @@ Controllers own HTTP-layer concerns only: request body and query parsing, respon
 Rationale:
 
 - Express is mainstream, well-documented, and already present in the Node + TypeScript stack. Introducing a second routing framework would create parallel routing concepts for no comparable gain.
-- Routing, headers, and status codes are HTTP-layer concerns; service-layer code never touches `req` or `res`. The separation lets the service catalog stay testable without an HTTP fixture.
-- Thin controllers keep the service catalog and view catalog stable: a controller change does not ripple into either catalog unless the underlying service contract or view contract changes.
+- Routing, headers, and status codes are HTTP-layer concerns; service-layer code never touches `req` or `res`. The separation lets the service layer stay testable without an HTTP fixture.
+- Thin controllers keep the service contracts and the view catalog stable: a controller change does not ripple into either unless the underlying service contract or view contract changes.
 
 Trade-offs:
 
 - Express does not provide a DI container, validation framework, or built-in error-mapping pipeline; each is wired explicitly. The wiring lives in `src/middleware/*` and `src/lib/controllerErrors.ts`, both small.
-- Thin-controller discipline must be maintained at review time. A controller that grows business logic produces a slow shift away from the property. Code review (and service-catalog drift checks per §1.10) is the enforcement mechanism.
+- Thin-controller discipline must be maintained at review time. A controller that grows business logic produces a slow shift away from the property. Code review (and service-contract/JSDoc drift checks per §1.10) is the enforcement mechanism.
 
 Impact:
 
@@ -2554,6 +2559,10 @@ Impact:
 
 - Service-level tests can mock adapters; integration tests validate adapter + SDK behavior end-to-end.
 
+- The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Two backends differ by intent: CAPTCHA verification stays stubbed on staging and goes live in production only; outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
+
+- Adapters fail fast at boot when a required environment variable is absent, so a misconfigured deployment cannot start in a half-wired state. Adapter contract parity is verified per §5.7.
+
 ## 5.4 Outbox Pattern for Emails
 
 Decision:
@@ -2662,7 +2671,7 @@ Trade-offs:
 Impact:
 
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
-- `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits) and `docs/SERVICE_CATALOG.md` (`CommunicationService.sendAnnounceEmail`).
+- `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits).
 - Google Managed Services is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.

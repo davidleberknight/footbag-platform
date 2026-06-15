@@ -89,7 +89,7 @@ Read:
 9. `docs/DESIGN_DECISIONS.md`
 10. `docs/DATA_GOVERNANCE.md`
 11. `docs/DATA_MODEL.md`
-12. `docs/SERVICE_CATALOG.md`
+12. per-service file-header JSDoc (the service contracts)
 13. `docs/VIEW_CATALOG.md`
 14. `docs/TESTING.md`
 15. `docs/DEVOPS_GUIDE.md`
@@ -148,7 +148,7 @@ In scope:
 * contradictions between design decisions and user stories
 * contradictions between migration plan and design decisions
 * contradictions between view catalog and user stories
-* contradictions between service catalog and user stories
+* contradictions between service contracts (JSDoc) and user stories
 * contradictions between data governance and data model
 * missing service contracts for required user-story behavior
 * missing view/page contracts for required user-story behavior
@@ -266,7 +266,7 @@ Examples:
 
 ## Source-of-truth hierarchy
 
-Use the repo's canonical order; do not restate a competing one. The authority order is `CLAUDE.md`'s "Source-of-truth order for active work": explicit current human decision, then `CLAUDE.md` and `.claude/rules/*`, then the active-slice block in `IMPLEMENTATION_PLAN.md`, then current code (implemented behavior, not design authority), then the auto-attached path-scoped rules and service JSDoc, then targeted sections of `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, `docs/VIEW_CATALOG.md`, `docs/SERVICE_CATALOG.md`, and `docs/TESTING.md`, then `docs/DESIGN_DECISIONS.md` for long-term rationale. `docs/DATA_GOVERNANCE.md` is mandatory before any finding touching members, historical persons, search, auth, contact fields, exports, stats, or privacy. Treat legacy data and pipeline outputs as migration evidence, never as authority.
+Use the repo's canonical order; do not restate a competing one. The authority order is `CLAUDE.md`'s "Source-of-truth order for active work": explicit current human decision, then `CLAUDE.md` and `.claude/rules/*`, then the active-slice block in `IMPLEMENTATION_PLAN.md`, then current code (implemented behavior, not design authority), then the auto-attached path-scoped rules and service JSDoc, then targeted sections of `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, `docs/VIEW_CATALOG.md`, and `docs/TESTING.md`, then `docs/DESIGN_DECISIONS.md` for long-term rationale. `docs/DATA_GOVERNANCE.md` is mandatory before any finding touching members, historical persons, search, auth, contact fields, exports, stats, or privacy. Treat legacy data and pipeline outputs as migration evidence, never as authority.
 
 When two sources conflict, classify the conflict as a finding rather than silently choosing one.
 
@@ -296,7 +296,7 @@ At minimum include:
 * user story sections and roles
 * major feature domains
 * design decision sections
-* service catalog entries
+* service-contract JSDoc entries
 * view catalog entries
 * data model areas
 * data governance rules
@@ -390,9 +390,9 @@ The threat model must cover these domains (each gets a DFD in 4a and misuse case
 
 Record bugs where the design lacks controls, ownership, tests, or failure behavior.
 
-### Phase 5: Service catalog sweep
+### Phase 5: Service contract sweep
 
-Review `docs/SERVICE_CATALOG.md` against all user stories and design decisions.
+Review the per-service file-header JSDoc (the service contracts) and the service-related decisions in `docs/DESIGN_DECISIONS.md` against all user stories.
 
 Look for:
 
@@ -675,12 +675,12 @@ Search for contradictions across:
 
 * user stories vs design decisions
 * user stories vs data model
-* user stories vs service catalog
+* user stories vs service contracts (JSDoc)
 * user stories vs view catalog
 * user stories vs testing standards
 * migration plan vs data governance
 * migration plan vs design decisions
-* service catalog vs view catalog
+* service contracts (JSDoc) vs view catalog
 * data model vs schema
 * DevOps guide vs Terraform/Docker/scripts
 * testing docs vs CI/package scripts
@@ -717,7 +717,7 @@ For each candidate finding:
 2. Check whether `IMPLEMENTATION_PLAN.md` records it as current deviation or known gap.
 3. Check whether the user story explicitly defers it.
 4. Check whether a design decision intentionally excludes it.
-5. Check whether the view/service catalog says the area is intentionally partial.
+5. Check whether the view catalog or a service's JSDoc says the area is intentionally partial.
 6. Check whether it is only an implementation bug better handled by `bug-hunt`.
 7. Check whether it is only Python legacy pipeline behavior outside this skill's scope.
 8. Check whether it matters after go-live.

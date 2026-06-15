@@ -14,7 +14,7 @@ Current code is the source of truth for implemented behavior.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
 - For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
-- For required service-layer ownership and patterns, load `docs/SERVICE_CATALOG.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
+- For required service-layer ownership and patterns, read the service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
@@ -105,9 +105,9 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Design Decisions** - rationale and non-negotiable design commitments / trade-offs.
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
-### Catalog and contract documents
+### Standards and contracts
 - **View Catalog** - target public-rendering standard, public page overview matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
-- **Service Catalog** - target service-layer ownership, required patterns, and invariants. Pair with code/tests/types for current method shapes.
+- **Service-layer rules** - ownership and required patterns live in each service's file-header JSDoc and the path-scoped `.claude/rules/*.md`; non-negotiable invariants in DESIGN_DECISIONS.md §3–§4 and schema triggers.
 - **Testing Strategy** - how to derive, layer, and verify tests.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
@@ -123,7 +123,7 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 
 - Need exact feature behavior or acceptance criteria -> **User Stories** (+ **View Catalog** when flow/UI context matters)
 - Need required rendering patterns, route audience/auth, view-model contracts, or sensitive-page invariants -> **View Catalog**
-- Need target service ownership, required service-layer patterns, or service-level error semantics -> **Service Catalog**
+- Need service ownership, required service-layer patterns, or service-level error semantics -> the service's file-header JSDoc and `.claude/rules/service-layer.md`
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need to derive, layer, or verify tests -> **Testing Strategy** (`docs/TESTING.md`)

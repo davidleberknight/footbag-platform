@@ -86,4 +86,4 @@ If your issue stays in Status = New for more than a few days, ping the maintaine
 - [.github/ISSUE_TEMPLATE/](../.github/ISSUE_TEMPLATE/): the form YAML files (look here if you want to see the exact prompts before opening a form).
 - [CONTRIBUTING.md](../CONTRIBUTING.md): contributor onboarding and governance categories.
 - [SECURITY.md](../SECURITY.md): vulnerability reporting.
-- [TESTING.md](TESTING.md) §15: the canonical spec for this tracker.
+- [TESTING.md](TESTING.md): the testing rules this tracker relies on (every bug fix lands with a regression test).

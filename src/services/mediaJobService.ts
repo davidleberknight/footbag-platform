@@ -15,6 +15,11 @@
  * findRetryEligiblePendingTranscode lists parked retry rows; both run once at
  * worker startup. There is no steady-state polling.
  *
+ * getJobForAdmin matches on (jobId, admin_member_id), so a job initiated by a
+ * different admin returns null and reads as not-found (404, not 403); the admin
+ * status surface cannot be enumerated. This authorization scoping is separate
+ * from the in-progress optimistic lock on state transitions.
+ *
  * Persistence: media_jobs only.
  *
  * Side effects: none beyond media_jobs writes. No audit append, no outbox

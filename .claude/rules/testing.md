@@ -44,7 +44,7 @@ For every service method:
 - Idempotency — repeating an operation with the same key returns the same id/outcome.
 - Error classes — every `throw` path has a test that asserts the thrown class and the message shape.
 - Boundary values — zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs, extreme dates.
-- Edge cases from the relevant `docs/USER_STORIES.md` story (acceptance criteria) and the SERVICE_CATALOG entry for the owning service (required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
+- Edge cases from the relevant `docs/USER_STORIES.md` story (acceptance criteria) and the owning service's file-header JSDoc (ownership boundary and required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
 
 For every pure function / shaping helper:
 
@@ -138,4 +138,4 @@ The only scripts permitted to write a real-data path are the CI loader-pipeline 
 - `tests/fixtures/factories.ts` — canonical test-data factories; extend these rather than hand-rolling row inserts.
 - `tests/fixtures/testDb.ts` — DB setup/teardown helper.
 - `docs/USER_STORIES.md` — functional acceptance criteria.
-- `docs/SERVICE_CATALOG.md` — service contract shapes.
+- service file-header JSDoc — service contract, invariants, and side-effects.

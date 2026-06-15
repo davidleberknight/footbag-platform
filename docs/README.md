@@ -12,7 +12,6 @@ Design and specification documents for the footbag-platform modernization projec
 - [`USER_STORIES.md`](USER_STORIES.md): functional scope and acceptance criteria
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
-- [`SERVICE_CATALOG.md`](SERVICE_CATALOG.md): service contracts and ownership
 - [`VIEW_CATALOG.md`](VIEW_CATALOG.md): public page standards, per-route rules, and the page-matrix
 - [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md): build, deploy, operate, recover, and infrastructure procedures
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local/staging iteration guidance
@@ -23,7 +22,7 @@ Design and specification documents for the footbag-platform modernization projec
 - Why was it designed this way? → `DESIGN_DECISIONS.md`
 - What entities exist and how are they related? → `DATA_MODEL.md` + `database/schema.sql`
 - What does a public page/route look like? → `VIEW_CATALOG.md`
-- What does a service own? → `SERVICE_CATALOG.md`
+- What does a service own? → the service's file-header JSDoc
 - How do I build, deploy, or recover? → `DEVOPS_GUIDE.md`
 - How do I set up the project and iterate locally? → `DEV_ONBOARDING.md`
 

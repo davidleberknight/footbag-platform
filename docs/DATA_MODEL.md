@@ -252,7 +252,7 @@ Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows
 
 #### Event status lifecycle (application-managed)
 ```
-draft → published → registration_full | closed → completed | canceled
+draft → pending_approval → published → registration_full | closed → completed | canceled
 ```
 
 #### Sanction status (application-managed)
@@ -427,7 +427,7 @@ Emitted values, grouped by namespace:
 
 Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`.
 
-This list is the authoritative inventory; new action_types must be added here as part of any code change that introduces a new event type, and the corresponding service entry in `SERVICE_CATALOG.md` must declare its audit emissions.
+This list is the authoritative inventory; new action_types must be added here as part of any code change that introduces a new event type, and the owning service's file-header JSDoc must declare its audit emissions in its Side effects section.
 
 #### Erasure log
 `erasure_log` is an append-only ledger of applied PII erasures (UPDATE and DELETE blocked by DB triggers). Each row records one erasure shape applied to one entity: `erasure_kind` is `account_pii_purge` (full anonymization of a deleted account) or `deceased_contact_scrub` (contact-only erasure of a deceased member's record). The ledger serves two purposes. First, any restore from backup re-applies it before restored data becomes reachable, so an erasure cannot be silently undone by routine recovery (DD §1.2). Second, it is the authority on which erasure shapes a member row has received, since both shapes must set `personal_data_purged_at` to satisfy the members credential CHECK; a contact-scrubbed row can still receive the full purge, and a fully purged row receives nothing further.

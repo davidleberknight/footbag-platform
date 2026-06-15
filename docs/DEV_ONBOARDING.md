@@ -788,7 +788,6 @@ Read these first when working on code:
 - `PROJECT_SUMMARY.md`
 - `USER_STORIES.md`
 - `VIEW_CATALOG.md`
-- `SERVICE_CATALOG.md`
 - `DESIGN_DECISIONS.md`
 - `DATA_MODEL.md`
 
@@ -796,7 +795,7 @@ How they relate:
 
 - user stories define what the website must do
 - view catalog defines what pages must exist and what they must communicate
-- service catalog defines service responsibilities and contracts
+- each service's file-header JSDoc defines its responsibilities and contract
 - design decisions define what architectural shortcuts are intentional and what is forbidden
 - The data mode / schema sql is the executable truth for the current data baseline
 

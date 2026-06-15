@@ -35,7 +35,7 @@ When sources conflict, evaluate in this order:
 2. `docs/USER_STORIES.md` for functional requirements
 3. the top active-slice/status block in `IMPLEMENTATION_PLAN.md` for current scope and out-of-scope boundaries
 4. current local repository code and configuration for implemented behavior
-5. derived local documentation (`VIEW_CATALOG`, `SERVICE_CATALOG`, `DATA_MODEL`, etc.)
+5. derived local documentation (`VIEW_CATALOG`, `DATA_MODEL`, etc.) and per-service file-header JSDoc, the authoritative home for service ownership, required patterns, invariants, and side-effects
 
 When code, plan, and derived docs disagree, surface the drift explicitly. Do not flatten the disagreement into one invented source of truth.
 
@@ -48,6 +48,7 @@ Before making any recommendation, read selectively:
 - `docs/USER_STORIES.md`
 - the most relevant derived documentation for the affected area
 - the touched code files
+- the file-header JSDoc of any touched service (the authoritative service contract; JSDoc that no longer matches the service is drift to fix in the same pass)
 - any schema/configuration needed to understand the change
 
 ## Workflow

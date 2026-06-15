@@ -47,6 +47,13 @@ Bare `throw new Error(...)` is reserved for internal invariant assertions ("this
 
 When a catch block writes a `*_failed` audit row, it uses `recordOperationalError(...)` from `src/services/operationalErrors.ts`, not `appendAuditEntry` directly. The helper pairs the audit row with a `logger.error()` line — same call drives the staging/prod CloudWatch alarm and the in-test guard. The helper does not throw or swallow; the caller decides per its contract.
 
+## Rate limiting
+
+Rate-limit enforcement (`rateLimitHit(key)` plus `throw new RateLimitedError(...)`) lives in the
+owning service method, whatever the bucket keying (per-member, per-admin, per-IP, per-target);
+controllers pass request-derived key inputs as arguments. Never implement rate limits as per-route
+blanket middleware. All bucket sizes and windows come from `system_config_current` keys.
+
 ## Discriminated-union return shapes
 
 State-transition methods return discriminated unions, not booleans or thrown errors:
@@ -57,6 +64,15 @@ State-transition methods return discriminated unions, not booleans or thrown err
       | { status: 'noop' as const; reason: 'no_shorten' | 'tier1_plus' };
 
 Callers narrow on the `status` discriminator; the `as const` literal narrows the type so TypeScript exhaustiveness checks downstream.
+
+## Anti-enumeration
+
+Endpoints that could leak account existence (login, register, password-reset request,
+email-verify/resend, member lookup, legacy claim) run the SAME code path whether or not the
+account exists: always reach the hash-compare, always run the rate-limit bucket, return identical
+UX and timing both ways. The service owns this; never add an existence-dependent early return.
+Controllers may gate on facts independent of account existence (CAPTCHA, input shape) before
+calling the service, but must not short-circuit around the service's existence check.
 
 ## Auth-conditional shaping
 
@@ -73,7 +89,7 @@ High-stakes write-path services (identity, membership, payments, voting, active-
 - Side-effect categories change (new outbox enqueue, new audit category, new work-queue insert, new alarm).
 - Service shape changes (singleton becomes factory or vice versa).
 
-Drift between JSDoc and the actual service contract is a real bug, not a doc nicety. JSDoc auto-loads with the file at every read; stale JSDoc actively misleads Claude and human reviewers. SC §6's per-service paragraphs (when not yet trimmed) are read at audit time; SC trims won't be safe until the JSDoc is the authoritative readable home for these rules.
+Drift between JSDoc and the actual service contract is a real bug, not a doc nicety. JSDoc auto-loads with the file at every read; stale JSDoc actively misleads Claude and human reviewers. The file-header JSDoc is the authoritative readable home for a service's ownership, required patterns, invariants, persistence, and side-effects.
 
 ## Mechanically enforced
 

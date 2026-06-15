@@ -78,7 +78,6 @@ Each bug fix lands with a regression test in the same PR; the issue closes when 
 - [docs/GLOSSARY.md](docs/GLOSSARY.md): terminology and jargon.
 - [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md): go-live readiness steps: data migration, and validation gates.
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md): project overview.
-- [docs/SERVICE_CATALOG.md](docs/SERVICE_CATALOG.md): back-end code service contracts.
 - [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md): intended functional behaviors and success criteria.
 - [docs/VIEW_CATALOG.md](docs/VIEW_CATALOG.md): route and web-page contracts.

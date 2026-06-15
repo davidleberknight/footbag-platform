@@ -55,7 +55,7 @@ The project documentation suite consists of the following documents:
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Service Catalog:** Target service-layer design. Defines ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others). Per-service rule detail for high-stakes services lives in each service's file-header JSDoc; lighter and read-only services keep their detail in the per-service notes here. Pair with code, tests, and TypeScript types for current method shapes.
+**Service-layer design:** Ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others) live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Read-only services' page contracts live in VIEW_CATALOG.md. Pair with code, tests, and TypeScript types for current method shapes.
 
 **Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
 
@@ -69,7 +69,7 @@ The project documentation suite consists of the following documents:
 
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
-**Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. The Service Catalog defines which services own which tables and the required persistence patterns; this document defines the schema itself. The schema sql file goes with this, to create the SQLite database.
+**Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. Each service's file-header JSDoc defines which tables it owns and the required persistence patterns; this document defines the schema itself. The schema sql file goes with this, to create the SQLite database.
 
 **Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The two canonical docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
 
@@ -335,7 +335,7 @@ Login and logout flows use the same form + controller + template pattern. After 
 
 **Services Layer (Business Logic):**
 
-Contains all domain logic and business rules (documented in Service Catalog as derived from User Stories). Performs authorization checks beyond basic authentication. Validates business constraints (single club membership, event capacity, email uniqueness, hashtag uniqueness, etcetera). Reads and writes data via prepared SQL statements (and transaction helpers) exposed by the shared db.ts code module. Manages cross-cutting concerns: email queueing and audit logging. Services are the back office; they do the actual work while controllers handle communication.
+Contains all domain logic and business rules (documented in each service's file-header JSDoc, derived from User Stories). Performs authorization checks beyond basic authentication. Validates business constraints (single club membership, event capacity, email uniqueness, hashtag uniqueness, etcetera). Reads and writes data via prepared SQL statements (and transaction helpers) exposed by the shared db.ts code module. Manages cross-cutting concerns: email queueing and audit logging. Services are the back office; they do the actual work while controllers handle communication.
 
 **Infrastructure Layer:**
 

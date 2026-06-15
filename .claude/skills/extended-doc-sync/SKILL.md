@@ -53,7 +53,7 @@ documented authority order; it does not refuse to.
   "Drift handling" rules in `.claude/rules/doc-governance.md` to classify each drift:
   which side is canonical and which has drifted.
 - **Long-term canonical design docs** describe durable design intent, not status:
-  `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/SERVICE_CATALOG.md`,
+  `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
   `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
   `docs/PROJECT_SUMMARY.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DEV_ONBOARDING.md`,
   `docs/DEVOPS_GUIDE.md`, `docs/TESTING.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`,
@@ -106,7 +106,7 @@ For a comprehensive audit, read (subset for a scoped ask per Scaling):
    `.claude/skills/design-bug-hunt/SKILL.md`
 4. `PROJECT_SUMMARY_CONCISE.md`
 5. `IMPLEMENTATION_PLAN.md`, `legacy_data/IMPLEMENTATION_PLAN.md`
-6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/SERVICE_CATALOG.md`,
+6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
    `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
    `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`,
    `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `docs/PROJECT_SUMMARY.md`
@@ -163,7 +163,7 @@ style-only issues unless a canonical style rule is itself violated.
 
 ### Phase 5: Cross-document consistency
 Compare every doc cluster where concepts overlap (USER_STORIES vs DD / DATA_MODEL /
-DATA_GOVERNANCE / SERVICE_CATALOG / VIEW_CATALOG / TESTING; DD vs DATA_MODEL / catalogs /
+DATA_GOVERNANCE / VIEW_CATALOG / TESTING; DD vs DATA_MODEL / catalogs /
 DEVOPS_GUIDE / MIGRATION_PLAN; catalogs vs actual services/routes; TESTING vs scripts/CI;
 DEVOPS_GUIDE vs Terraform/Docker/deploy scripts; MIGRATION_PLAN vs onboarding/claim/club/
 email/DNS docs; PROJECT_SUMMARY / PROJECT_SUMMARY_CONCISE and README vs current state;
@@ -182,11 +182,11 @@ and infra (`terraform/**`, `docker/**`). When a control's existence is decided o
 decision doc and drawn/defined the other way in a diagram or glossary, that is a finding,
 not a stylistic nicety. The same fact stated in five places means five places to drift.
 
-### Phase 6: Service and view catalog sync
-`SERVICE_CATALOG.md` vs `src/services/**`, `src/adapters/**`, controllers, `src/db/**`,
-schema, tests: cataloged service missing from code, deployed service missing from catalog,
-ownership conflict, controller business logic where catalog says service-owned, JSDoc that
-contradicts catalog or implementation. `VIEW_CATALOG.md` vs `src/routes/**`, controllers,
+### Phase 6: Service contract and view catalog sync
+Per-service file-header JSDoc vs `src/services/**`, `src/adapters/**`, controllers, `src/db/**`,
+schema, tests: JSDoc ownership / required-pattern / invariant / side-effect claims that no
+longer match the service, controller business logic where the JSDoc says service-owned, a
+service whose contract has drifted from its JSDoc. `VIEW_CATALOG.md` vs `src/routes/**`, controllers,
 `src/views/**`, public-route tests: route/path/page-key mismatch, missing view-model shape
 where required, template deriving domain logic, sensitive-page rendering rule missing from
 code/tests, target-only catalog text treated as current elsewhere.

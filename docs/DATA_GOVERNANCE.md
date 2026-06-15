@@ -27,6 +27,7 @@
 - Anonymous surfaces expose approved non-PII fields only. No contact information, addresses, emails, or phone numbers.
 - A public page may carry an authenticated enhancement only where that boundary is documented (e.g. the club page: public shell, member-visible roster and contact).
 - Member-only content requires a genuine session-path authorization check.
+- Deceased members cannot authenticate regardless of credentials; the login path rejects a member flagged deceased before any credential check.
 
 ---
 
@@ -154,6 +155,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 - Member account erasure is supported; it clears the account's identifying personal data and severs the account-to-historical-record link.
 - The historical record itself remains public, with attribution name and honors.
+- Two erasure paths exist and must not be collapsed. A soft-deleted account, after `member_cleanup_grace_days`, undergoes full PII purge: credentials, contact, identity links, and declared anchors are cleared while HoF/BAP display is preserved. A member flagged deceased, after `deceased_cleanup_grace_days`, undergoes a contact-only scrub: contact fields are cleared while identity, honors, and links are preserved. Each path appends an `erasure_log` row.
 - Audit-log retention follows §8; erasure does not delete audit history.
 - Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
 

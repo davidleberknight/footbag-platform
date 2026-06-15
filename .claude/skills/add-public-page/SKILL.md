@@ -20,8 +20,8 @@ Read only the section relevant to this task. For large documents, locate the sec
    - route registration: confirm the route exists in `src/routes/publicRoutes.ts` or add it there. The route-rules section lists per-route ordering, anti-enumeration, and canonical-identity constraints; read any bullet matching the route you are touching.
    - public-page-matrix entry for the affected route: required service binding, audience and authorization, required rendering pattern.
    - sensitive-page target rules: when the page touches privacy, anti-enumeration, owner-only, or public/private boundary surfaces, read the relevant subsection in full.
-6. **`docs/SERVICE_CATALOG.md`**: target service-layer ownership and required patterns. Locate the entry for the owning service; read its boundary statement and required patterns. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
-7. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in VC or SC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
+6. **The owning service's file-header JSDoc** (`src/services/<name>.ts`): the authoritative service-layer contract; read its ownership boundary and required patterns. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
+7. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in VC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
 8. **`docs/DATA_MODEL.md`**: understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the view-layer change must preserve.
 
 If the requested page is not cataloged, first determine whether it is out of scope for the cataloged surface before proposing catalog expansion.
@@ -68,7 +68,7 @@ Before touching any file, state:
 - route(s) affected and whether they are already registered in `src/routes/publicRoutes.ts`
 - user story acceptance criteria being satisfied
 - view-model fields required by the VIEW_CATALOG public-page-matrix entry for the route
-- service method(s) that will own the page shaping (from the SERVICE_CATALOG entry for the owning service)
+- service method(s) that will own the page shaping (from the owning service's file-header JSDoc)
 - if content comes from an external URL: the fetched content structure and how it maps to `content.sections[]`
 - if a new top-level nav section: which files need a nav item added (home controller, nav partial/layout, the VIEW_CATALOG public-rendering-standard section)
 - complete list of files expected to change
@@ -95,4 +95,4 @@ If in doubt about a layout, flag it to the human rather than shipping something 
 - run `npm test` to confirm all tests pass
 - run `npm run build` (`tsc -p tsconfig.json`) to confirm no type errors
 - only use browser automation if the human explicitly asked for it (see `browser-qa` skill)
-- after changes, invoke `doc-sync` to check whether VIEW_CATALOG.md or SERVICE_CATALOG.md needs updating
+- after changes, invoke `doc-sync` to check whether VIEW_CATALOG.md or the owning service's file-header JSDoc needs updating
