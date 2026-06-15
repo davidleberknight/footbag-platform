@@ -1,0 +1,18 @@
+{
+  "id": "gallery_freestyle_history",
+  "name": "Freestyle History",
+  "description": "Archival freestyle footage preserved for the future Freestyle History surface. Historical competition clips that predate the current gallery structure; parked here so they are not lost while that surface is built.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#freestyle_history"
+  ],
+  "excludeTags": [],
+  "externalLinks": [
+    {
+      "label": "1998 World Footbag Championships: Women's Freestyle",
+      "url": "https://www.youtube.com/watch?v=2URvZFuxBls",
+      "sortOrder": 1
+    }
+  ]
+}
