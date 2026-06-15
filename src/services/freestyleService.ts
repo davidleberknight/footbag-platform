@@ -6571,9 +6571,9 @@ export const freestyleService = {
         // Intuition) and a base-chain build path (rendered in About). Both are
         // derived from base_trick + modifier links, so they cover every
         // modifier-composed compound, not only curated flagship pages.
-        const { derivedDelta, derivedBuildPath } = ((): { derivedDelta: string | null; derivedBuildPath: string | null } => {
+        const { derivedDelta, derivedBuildPath, derivedBuildPathTokens } = ((): { derivedDelta: string | null; derivedBuildPath: string | null; derivedBuildPathTokens: string[] } => {
           if (!dictRow || !dictRow.base_trick || dictRow.base_trick === dictRow.slug) {
-            return { derivedDelta: null, derivedBuildPath: null };
+            return { derivedDelta: null, derivedBuildPath: null, derivedBuildPathTokens: [] };
           }
           const rowBySlug = new Map(allDictRows.map(r => [r.slug, r] as const));
           const modsBySlug = new Map<string, string[]>();
@@ -6583,7 +6583,7 @@ export const freestyleService = {
             modsBySlug.set(l.trick_slug, arr);
           }
           const nameOf = (s: string): string => rowBySlug.get(s)?.canonical_name ?? s.replace(/-/g, ' ');
-          const cap = (n: string): string => (n ? n.charAt(0).toUpperCase() + n.slice(1) : n);
+          const cap = (n: string): string => (n ? n.replace(/\b\w/g, c => c.toUpperCase()) : n);
           const thisMods = modsBySlug.get(dictRow.slug) ?? [];
           const parentMods = [...(modsBySlug.get(dictRow.base_trick) ?? [])];
           // Modifiers this trick adds over its immediate parent (multiset diff).
@@ -6603,13 +6603,21 @@ export const freestyleService = {
             cur = next && next !== cur ? next : null;
           }
           const thisName = dictRow.canonical_name;
+          const hasBuildPath = !!(thisMods.length && ancestors.length);
+          const tokenize = (s: string): string[] => s.toLowerCase().split(/[\s-]+/).filter(Boolean);
           return {
             derivedDelta: addedMods.length
               ? `Compared with ${nameOf(dictRow.base_trick)}, ${thisName} adds ${addedMods.join(' and ')}.`
               : null,
-            derivedBuildPath: (thisMods.length && ancestors.length)
+            derivedBuildPath: hasBuildPath
               ? `${ancestors.map(cap).join(' → ')} → + ${thisMods.join(' + ')} = ${cap(thisName)}`
               : null,
+            // Significant tokens the build path expresses (ancestor names +
+            // modifiers + this trick's name), for the single-equivalence-reading
+            // redundancy check on the Equivalent readings section.
+            derivedBuildPathTokens: hasBuildPath
+              ? [...ancestors.flatMap(tokenize), ...thisMods.flatMap(tokenize), ...tokenize(thisName)]
+              : [],
           };
         })();
 
@@ -6683,9 +6691,24 @@ export const freestyleService = {
                 ),
               )
             : null,
-          semanticNotation: dictRow
-            ? shapeSemanticNotation(dictRow, new Map(allDictRows.map(r => [r.slug, r])))
-            : null,
+          semanticNotation: (() => {
+            if (!dictRow) return null;
+            const sn = shapeSemanticNotation(dictRow, new Map(allDictRows.map(r => [r.slug, r])));
+            // Suppress an Equivalent readings section that holds a single reading
+            // the About build path already fully expresses (every reading token
+            // appears among the build-path components). Multi-step reading chains
+            // are always preserved.
+            if (sn && sn.isEquivalenceLayer && sn.readings.length === 1 && derivedBuildPathTokens.length) {
+              const pathTokens = new Set(derivedBuildPathTokens);
+              const readingTokens = sn.readings[0]!.tokens
+                .flatMap(t => t.text.toLowerCase().split(/[\s-]+/))
+                .filter(Boolean);
+              if (readingTokens.length && readingTokens.every(tk => pathTokens.has(tk))) {
+                return { ...sn, isEquivalenceLayer: false };
+              }
+            }
+            return sn;
+          })(),
           operationalNotation: (() => {
             // O1a/O1b/O1d: shape into role-classified tokens for the trick-
             // detail template. Null when no source carries operational

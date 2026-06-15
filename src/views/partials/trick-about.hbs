@@ -67,6 +67,14 @@
 
   </dl>
 
+  {{!-- Parent-delta line for tricks with no physical intuition prose: it would
+       stand alone under a Movement intuition heading otherwise, so it lives here
+       beside the build path. Tricks with prose render the delta in Movement
+       intuition instead. --}}
+  {{#if content.intuitionDelta}}{{#unless content.intuition}}
+  <p class="text-muted" data-intuition-delta>{{content.intuitionDelta}}</p>
+  {{/unless}}{{/if}}
+
   {{#if content.dictEntry.familyNote}}
   <div>
     <p>{{content.dictEntry.familyNote}}</p>
