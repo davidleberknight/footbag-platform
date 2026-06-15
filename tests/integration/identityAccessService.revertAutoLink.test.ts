@@ -168,11 +168,11 @@ describe('identityAccessService.revertAutoLink', () => {
     expect(revoke.reason_code).toBe('legacy.auto_link_reported_incorrect');
     expect(revoke.new_tier_status).toBe('tier0');
 
+    // The revert deliberately creates no admin work-queue task: the audit row
+    // below is its durable trail, and admins review claims on demand rather than
+    // per revert.
     const workQueueRows = listWorkQueue(memberId);
-    const reviewRow = workQueueRows.find(r => r.task_type === 'auto_link_revert_review');
-    expect(reviewRow).toBeDefined();
-    expect(reviewRow!.status).toBe('open');
-    expect(String(reviewRow!.reason_text)).toContain('audit-original-1');
+    expect(workQueueRows.find(r => r.task_type === 'auto_link_revert_review')).toBeUndefined();
 
     const audits = listAuditEntries(memberId, 'legacy.auto_link_revert');
     expect(audits).toHaveLength(1);

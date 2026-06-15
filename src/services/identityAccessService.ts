@@ -89,8 +89,8 @@
  *     consumed / expired, cross-source offered / confirmed / declined)
  *   - outbox_emails enqueue (verification, reset, claim email, resend,
  *     mailbox-control link to a declared old email)
- *   - work_queue_items insert (auto_link_revert_review on every revert;
- *     member_link_help_request intake with admin-alerts fan-out)
+ *   - work_queue_items insert (member_link_help_request intake with
+ *     admin-alerts fan-out)
  *
  * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
  * JwtSigningAdapter resolved via getJwtSigningAdapter()).
@@ -3149,10 +3149,11 @@ async function getLinkHistoryViewForWizard(
 //      preserved on revert.
 //   4. Append a member_tier_grants 'revoke' row with reason_code
 //      'legacy.auto_link_reported_incorrect'.
-//   5. Enqueue a work_queue_items row with task_type 'auto_link_revert_review'
-//      pointing back to the original claim audit entry.
-//   6. Append an audit_entries row with action_type 'legacy.auto_link_revert'
-//      carrying metadata_json.original_claim_audit_id.
+//   5. Append an audit_entries row with action_type 'legacy.auto_link_revert'
+//      carrying metadata_json.original_claim_audit_id. This append-only row is
+//      the revert's durable trail; the revert deliberately enqueues no admin
+//      work-queue task, since the admin is already acting when they revert and
+//      the honors oversight surface reviews claims on demand, not per revert.
 //
 // Anti-enumeration: an unrecognized original_claim_audit_id and an already-
 // reverted link both return a non-revealing reason discriminator so a
@@ -3225,16 +3226,6 @@ function revertAutoLinkInTx(
       original_claim_audit_id: originalClaimAuditId,
     });
 
-    const wqId = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-    workQueue.insertItem.run(
-      wqId, now, 'system', now, 'system',
-      'membership', 'auto_link_revert_review',
-      'member', memberId,
-      1, now,
-      `Auto-link revert reported by member. Original claim audit: ${originalClaimAuditId}.`,
-      null,
-    );
-
     appendAuditEntry({
       actionType:    'legacy.auto_link_revert',
       category:      'identity',
@@ -3247,7 +3238,6 @@ function revertAutoLinkInTx(
         original_claim_audit_id: originalClaimAuditId,
         legacy_member_id:        legacyMemberId,
         cleared_historical_person_id: clearedHp,
-        work_queue_item_id:      wqId,
       },
     });
 

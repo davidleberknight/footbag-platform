@@ -10,15 +10,6 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-### Member search lacks the required rate limit and audit entry
-
-DESIGN_DECISIONS §3 requires every authenticated member-search query to enforce a
-search-specific rate limit (per-IP and per-member) and to write an immutable, privacy-safe
-audit entry (actor member id, query hash, result count, timestamp; no IP, no raw query
-string). The deployed search path (`memberService.searchMembers`, reached via the `?q=`
-param on the member profile/landing route) does neither. Close by adding the rate limit and
-the audit write to the search path.
-
 ### Internal QC subsystem build-excluded pending retirement
 
 The `src/internal-qc/` QC subsystem (net-correction and persons-QC operator tooling mounted

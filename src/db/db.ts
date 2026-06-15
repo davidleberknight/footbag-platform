@@ -4919,6 +4919,21 @@ export const registration = {
            version    = version + 1
      WHERE id = ?
   `); },
+
+  // Production bootstrap grant. The NOT EXISTS clause makes the grant the
+  // single-shot gate: it fires only while no admin exists, so a second
+  // concurrent claim finds an admin already present and changes zero rows.
+  // This holds the single-admin-creation invariant in the database rather than
+  // relying on the external SSM-token deletion winning the race.
+  get grantFirstAdmin() { return db.prepare(`
+    UPDATE members
+       SET is_admin   = 1,
+           updated_at = ?,
+           updated_by = 'register_admin_bootstrap',
+           version    = version + 1
+     WHERE id = ?
+       AND NOT EXISTS (SELECT 1 FROM members WHERE is_admin = 1)
+  `); },
 };
 
 export const auth = {

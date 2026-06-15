@@ -4,10 +4,14 @@
  * Owns the single-shot SSM-token claim: a signed-in member submits the
  * operator-provisioned token; on a constant-time match the member receives
  * is_admin=1 plus the Tier 2 invariant grant plus the grant_admin_bootstrap
- * audit row in one transaction, and the SSM parameter is deleted so the
- * bootstrap closes. The parameter's absence closes the path; every failure
- * shape (absent, mismatch, malformed) returns the same non-revealing
- * result so the endpoint cannot be used to probe token state.
+ * audit row in one transaction. The grant is single-shot because it fires only
+ * while no admin exists, so a concurrent or later claim that finds an admin
+ * already present grants nothing and returns the same non-revealing result;
+ * the in-database invariant, not the timing of the token deletion, is what
+ * closes the path. The SSM parameter is deleted after a successful grant as
+ * cleanup. Every failure shape (absent, mismatch, malformed, already-closed)
+ * returns the same non-revealing result so the endpoint cannot be used to
+ * probe token state.
  *
  * The claim is rate-limited per IP and per member over a configurable window
  * (config keys bootstrap_claim_rate_limit_max_per_ip / _per_member, default 5;
@@ -66,8 +70,14 @@ async function claimBootstrapAdmin(
   if (!constantTimeMatch(token, stored)) return { status: 'invalid' };
 
   const now = new Date().toISOString();
+  let granted = false;
   transaction(() => {
-    registration.setAdminFlagOnRegister.run(now, memberId);
+    // The grant fires only while no admin exists. A concurrent second claim
+    // runs its synchronous transaction after this one commits, finds an admin
+    // present, changes zero rows, and skips the tier grant below. This holds
+    // the single-admin-creation invariant in the database rather than relying
+    // on the external SSM-token deletion winning the race.
+    if (registration.grantFirstAdmin.run(now, memberId).changes === 0) return;
     // The tier primitive writes both the Tier 2 ledger row and the
     // grant_admin_bootstrap audit row (its action-type routing treats every
     // non-dev reason code as the production bootstrap).
@@ -76,7 +86,13 @@ async function claimBootstrapAdmin(
       'admin_bootstrap.admin_tier2',
       { via: 'bootstrap_claim', env: config.footbagEnv ?? 'development' },
     );
+    granted = true;
   });
+
+  // An admin already existed, so the bootstrap is closed. Return the same
+  // non-revealing shape every other failure path returns; leave the token for
+  // the operator since the DB invariant, not its deletion, closes the path.
+  if (!granted) return { status: 'invalid' };
 
   // Consume the single shot. Deletion failure leaves the grant in place
   // (it committed) but the token open: loud operational signal so the

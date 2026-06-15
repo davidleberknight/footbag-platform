@@ -36,10 +36,10 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 3. Current code — implemented behavior; may contain accepted shortcuts; check the implementation plan's known deviation entries if drift is detected. Current code is not necessarily correct, may have bugs or drift from canonical docs, so always ask the human if unsure.
 4. Auto-attached layer (no explicit load needed): path-scoped `.claude/rules/*.md` files, file-header JSDoc on services, per-subtree `CLAUDE.md` files. Covers per-file rule detail for the path you are in.
 5. When needed, targeted sections of:
-  - `docs/USER_STORIES.md` — intended behavior
+  - `docs/USER_STORIES.md` — intended behavior, success criteria.
   - `docs/DATA_MODEL.md` — schema semantics; verify against `database/schema.sql`
   - `docs/TESTING.md` — how to derive, layer, and verify tests for any surface; mandatory before writing or extending tests
-6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area, or to understand the design details about a technical topic in the code, as required; do not read unless you have a good reason to save tokens.
+6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area, or to understand the design details about a technical topic in the code; do not read unless you have a good reason, to save tokens.
 
 **Note:** `docs/DATA_GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy boundaries.
 
@@ -47,7 +47,7 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
 
 1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval.
 2. Never take a destructive or risky action without explicit human approval.
-3. When asking the human a question, always provide full context so the human can understand clearly. Always ask exactly one excellent question at a time with one recommended answer based on deep analysis (not a guess). One-at-a-time covers questions in prose, not just formal prompts: a trailing "open questions" or "decisions for you" list with two or more asks is the same violation. Before sending any message, scan it for "?" and if it puts more than one decision to the human, cut to the single most important and defer the rest. 
+3. When asking the human a question, always provide full context so the human can understand clearly. Always ask exactly one excellent question at a time with one recommended answer based on deep analysis (not a guess). One-at-a-time covers questions in prose, not just formal prompts: a trailing "open questions" or "decisions for you" list with two or more asks is the same violation. Before sending any message, scan it for "?" and if it puts more than one decision to the human, cut to the single most important and defer the rest.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations. If you can see two or more interpretations for a task, then name them clearly, stop and ask. Push back when you should.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask. Think before coding; do not assume or add unscoped features, and strive for simplicity over complexity; this requires analysis before jumping in. Prefer surgical changes over sweeping edits.
 6. Code comments and human-readable text in code follow `.claude/rules/comments.md` (plain-words self-contained WHY; no sprint/slice/phase labels, dates, caller refs, or doc references; deviations use "Current:"/"Target:" and are recorded in `IMPLEMENTATION_PLAN.md`).
@@ -70,6 +70,7 @@ Verification defaults: confirm what success looks like for the task, prefer rout
 Skills auto-load: each `.claude/skills/<name>/SKILL.md` description is in context at session start, and Claude invokes a skill when a task matches it. This section does not re-list skills (that would drift from the SKILL.md files); it records only the rules a one-line description can't carry.
 
 - When a task matches a skill's trigger, invoke it as the **first action**, before reading files or exploring.
+- Skills do not replace the path-scoped `.claude/rules/*.md`. A skill tells you *what* to do; the rule whose `paths:` glob matches the file you are about to touch tells you *how*. Before editing any file, load that rule (Read the target file first, which fires rule auto-attach) and comply with it. When a skill's workflow will touch `src/controllers/`**, `src/views/**`, `src/public/css/**`, `tests/**`, `src/adapters/**`, `src/db/**`, or `src/services/**`, confirm the matching rule is in context before writing, not after.
 - **Compose in this order** when skills stack: `extend-service-contract` → `add-public-page` → `write-tests` → `doc-sync`.
 - `doc-sync` is **mandatory** after any change of significance to design, behavior, or requirements, unless the human pre-approved the specific changes.
 - `browser-qa` runs **only** when the human names a specific page or check (heavy token use); never unsolicited, never as a broad suite.

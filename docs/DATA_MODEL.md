@@ -421,7 +421,7 @@ Emitted values, grouped by namespace:
 - **`active_player.*`**: `grant`, `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
-- **`member.*`**: `profile_updated`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
+- **`member.*`**: `profile_updated`, `search`, `search_rate_limited`, `pii_purged`, `deceased_pii_scrubbed`, `pii_erasure_failed`.
 - **`admin.club_cleanup.*`**: parameterized by the cleanup action taken.
 - **Grandfathered (no namespace)**: `onboarding_task_started`, `onboarding_task_skipped`, `onboarding_task_completed`, `onboarding_task_not_applicable`, `upload_member_media`, `upload_curated_media`, `edit_member_media`, `upload_curated_url_reference`, `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_dev_register_allowlist`, `dev_admin_invariant_repair`, `dev_persona_seed`, `dev_switch_persona`.
 
@@ -1103,6 +1103,9 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `legacy_claim_init_rate_limit_max_per_target` | `3` | Max legacy-claim emails per target legacy member per window (silent) |
 | `legacy_claim_init_rate_limit_max_per_ip` | `10` | Max legacy-claim initiate attempts per source IP per window (silent) |
 | `legacy_claim_init_rate_limit_window_minutes` | `60` | Sliding window (minutes) for legacy-claim initiate rate limiting |
+| `member_search_rate_limit_max_per_ip` | `60` | Max authenticated member-search queries per source IP per window |
+| `member_search_rate_limit_max_per_member` | `30` | Max authenticated member-search queries per member per window |
+| `member_search_rate_limit_window_minutes` | `1` | Sliding window (minutes) for member-search rate limiting |
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |

@@ -98,4 +98,28 @@ describe('bootstrap claim', () => {
     const m2 = db.prepare('SELECT is_admin FROM members WHERE id = ?').get('boot-second') as Record<string, unknown>;
     expect(m2.is_admin).toBe(0);
   });
+
+  it('refuses a valid-token claim once an admin exists, even with the token still present', async () => {
+    // Re-provision the token to stand in for the concurrency window where one
+    // claim has granted but its token deletion has not yet landed when a second
+    // valid claim arrives. The grant must still be single-shot: the in-database
+    // no-admin-exists guard, not the token's deletion, closes the bootstrap.
+    stub().setSecret(TOKEN_PARAM, 'one-shot-bootstrap-token');
+
+    const second = await request(createApp())
+      .post('/admin/bootstrap-claim')
+      .set('Cookie', cookieFor('boot-second'))
+      .type('form')
+      .send({ token: 'one-shot-bootstrap-token' });
+    expect(second.status).toBe(422);
+
+    const m2 = db.prepare('SELECT is_admin FROM members WHERE id = ?').get('boot-second') as Record<string, unknown>;
+    expect(m2.is_admin).toBe(0);
+    const tier = db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get('boot-second') as { tier_status?: string } | undefined;
+    expect(tier?.tier_status).not.toBe('tier2');
+    const audit = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = 'boot-second' AND action_type = 'grant_admin_bootstrap'`,
+    ).get() as { n: number };
+    expect(audit.n).toBe(0);
+  });
 });

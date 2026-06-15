@@ -7,6 +7,7 @@
  * Port 3060 — unique to this file.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createHash } from 'crypto';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
@@ -64,6 +65,14 @@ beforeAll(async () => {
       country: 'US',
     });
   }
+
+  // Lower the per-member search cap to 2 so a 3rd query in one test is throttled.
+  // The per-IP cap stays at its default so the per-member bucket trips first.
+  db.prepare(`
+    INSERT INTO system_config
+      (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+    VALUES (?, ?, 'member_search_rate_limit_max_per_member', '2', ?, 'Test tunable', NULL)
+  `).run('test-msearch-member-rl', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
 
   db.close();
   createApp = await importApp();
@@ -292,5 +301,53 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Too many results. Please refine your search.');
     expect(res.text).toMatch(/section-count[^>]*>20\+</);
+  });
+
+  it('throttles the searcher once their per-member quota is exceeded, showing a wait notice', async () => {
+    const app = createApp();
+    // First two queries are under the seeded cap of 2.
+    for (const q of ['alpha', 'bravo']) {
+      const ok = await request(app).get(`/members/${SEARCHER_SLUG}?q=${q}`).set('Cookie', searcherCookie());
+      expect(ok.status).toBe(200);
+      expect(ok.text).not.toContain('Too many searches');
+    }
+    // Third query trips the per-member bucket: the page still renders, with the
+    // wait notice in place of results.
+    const blocked = await request(app).get(`/members/${SEARCHER_SLUG}?q=charlie`).set('Cookie', searcherCookie());
+    expect(blocked.status).toBe(200);
+    expect(blocked.text).toContain('Too many searches just now. Please wait a moment and try again.');
+
+    const adb = new (await import('better-sqlite3')).default(dbPath);
+    const row = adb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'member.search_rate_limited' AND actor_member_id = ?`,
+    ).get(SEARCHER_ID) as { metadata_json: string } | undefined;
+    adb.close();
+    expect(row).toBeDefined();
+    expect(JSON.parse(row!.metadata_json).scope).toBe('member');
+  });
+
+  it('writes a privacy-safe audit row per search: query hash + result count, never the IP or raw query', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=Janet`).set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+
+    const expectedHash = createHash('sha256').update('janet').digest('hex');
+    const adb = new (await import('better-sqlite3')).default(dbPath);
+    const row = adb.prepare(
+      `SELECT entity_id, entity_type, reason_text, metadata_json FROM audit_entries
+        WHERE action_type = 'member.search' AND actor_member_id = ? AND entity_id = ?`,
+    ).get(SEARCHER_ID, expectedHash) as
+      | { entity_id: string; entity_type: string; reason_text: string | null; metadata_json: string }
+      | undefined;
+    adb.close();
+
+    expect(row).toBeDefined();
+    expect(row!.entity_type).toBe('member_search');
+    expect(JSON.parse(row!.metadata_json).resultCount).toBeGreaterThan(0);
+    // The raw query text and the caller IP never enter the trail.
+    expect(row!.metadata_json.toLowerCase()).not.toContain('janet');
+    expect(row!.reason_text).toBeNull();
+    expect(JSON.stringify(row)).not.toMatch(/127\.0\.0\.1|::1|::ffff/);
   });
 });

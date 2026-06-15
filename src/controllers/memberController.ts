@@ -84,7 +84,7 @@ export const memberController = {
           clearFlash(res, req);
         }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-        const vm = memberService.getOwnProfile(memberKey, { query, notice: profileNotice });
+        const vm = memberService.getOwnProfile(memberKey, { query, notice: profileNotice, ip: req.ip });
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }

@@ -28,7 +28,11 @@
  *     on top of `members_active` or the bare `members` table for search.
  *   - `searchMembers` is authenticated Tier 0+ only; never callable from public
  *     routes. Minimum 2-character query; substring match on display name; 20-result
- *     cap with `hasMore` flag; no browse-all pagination.
+ *     cap with `hasMore` flag; no browse-all pagination. It enforces a per-IP and
+ *     per-member rate limit (config keys member_search_rate_limit_max_per_ip /
+ *     _per_member / _window_minutes) and writes an immutable, privacy-safe audit
+ *     row per query carrying the actor member id, a one-way query hash, and the
+ *     result count, never the caller IP or the raw query text.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
  *   - Every erasure writes an erasure_log row in the same transaction. The
  *     ledger, not personal_data_purged_at, decides which erasure shapes a row
@@ -62,12 +66,12 @@
  *   name index, so search spans both live members and imported historical identities).
  *
  * Side effects:
- *   - audit_entries append
+ *   - audit_entries append (profile/PII mutations and member-search queries)
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { identityAccessService } from './identityAccessService';
@@ -105,6 +109,22 @@ function auditProfileUpdate(memberId: string, fields: readonly string[]): void {
   });
 }
 
+// Records the privacy-safe audit row for every executed member search: the
+// actor, a one-way hash of the query, and the result count. The raw query text
+// and the caller IP are deliberately excluded so the trail can prove a search
+// happened and detect scraping without re-exposing what a member searched for.
+function auditMemberSearch(actorMemberId: string, queryHash: string, resultCount: number): void {
+  appendAuditEntry({
+    actionType: 'member.search',
+    category: 'member_search',
+    actorType: 'member',
+    actorMemberId,
+    entityType: 'member_search',
+    entityId: queryHash,
+    metadata: { resultCount },
+  });
+}
+
 export interface MemberSearchEntry {
   displayName: string;
   country: string | null;
@@ -122,6 +142,8 @@ export interface MemberSearchResult {
   results: MemberSearchEntry[];
   hasMore: boolean;
   tooShort: boolean;
+  /** True when the per-IP or per-member search quota was exceeded; no DB read ran. */
+  rateLimited: boolean;
 }
 
 export interface ActivePlayerView {
@@ -286,6 +308,8 @@ export interface SearchBlockView {
   results: ReadonlyArray<MemberSearchEntry>;
   hasMore: boolean;
   tooShort: boolean;
+  /** True when the search quota was exceeded; the block shows a wait-and-retry notice. */
+  rateLimited: boolean;
   /** True when a search was performed (query was non-empty). */
   hasQuery: boolean;
 }
@@ -700,15 +724,17 @@ export const memberService = {
 
   getOwnProfile(
     slug: string,
-    opts?: { query?: string; notice?: string },
+    opts?: { query?: string; notice?: string; ip?: string },
   ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
     const heroData = buildMemberHeroData(row);
     const query = opts?.query;
+    // The authenticated owner is the search actor; the per-member quota and the
+    // audit row key on their id.
     const searchResult =
       query !== undefined && query !== ''
-        ? this.searchMembers(query)
+        ? this.searchMembers(query, { actorMemberId: row.id, ip: opts?.ip ?? 'unknown' })
         : null;
     const search: SearchBlockView = {
       formAction: `/members/${slug}`,
@@ -716,6 +742,7 @@ export const memberService = {
       results: searchResult?.results ?? [],
       hasMore: searchResult?.hasMore ?? false,
       tooShort: searchResult?.tooShort ?? false,
+      rateLimited: searchResult?.rateLimited ?? false,
       hasQuery: searchResult !== null,
     };
     return {
@@ -1152,12 +1179,38 @@ export const memberService = {
     });
   },
 
-  searchMembers(query: string): MemberSearchResult {
+  searchMembers(query: string, ctx: { actorMemberId: string; ip: string }): MemberSearchResult {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0 };
+      return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0, rateLimited: false };
     }
-    const escaped = trimmed.toLowerCase()
+    const normalized = trimmed.toLowerCase();
+    const queryHash = createHash('sha256').update(normalized).digest('hex');
+
+    // Per-IP and per-member quotas defend the member directory against scraping
+    // at the legitimate-traffic threshold; member search is held stricter than
+    // ordinary page reads because each query enumerates real people. The IP
+    // bucket is spent first, and the member bucket only when the IP passes, so
+    // a blocked IP does not also burn the member's allowance.
+    const windowMinutes = readIntConfig('member_search_rate_limit_window_minutes', 1);
+    const ipRl = rateLimitHit(`member-search-ip:${ctx.ip}`, readIntConfig('member_search_rate_limit_max_per_ip', 60), windowMinutes);
+    const memberRl = ipRl.allowed
+      ? rateLimitHit(`member-search:${ctx.actorMemberId}`, readIntConfig('member_search_rate_limit_max_per_member', 30), windowMinutes)
+      : ipRl;
+    if (!ipRl.allowed || !memberRl.allowed) {
+      appendAuditEntry({
+        actionType: 'member.search_rate_limited',
+        category: 'member_search',
+        actorType: 'member',
+        actorMemberId: ctx.actorMemberId,
+        entityType: 'member_search',
+        entityId: queryHash,
+        metadata: { scope: ipRl.allowed ? 'member' : 'ip' },
+      });
+      return { query: trimmed, results: [], hasMore: false, tooShort: false, rateLimited: true };
+    }
+
+    const escaped = normalized
       .replace(/\\/g, '\\\\')
       .replace(/%/g, '\\%')
       .replace(/_/g, '\\_');
@@ -1211,7 +1264,8 @@ export const memberService = {
 
     const hasMore = merged.length > SEARCH_LIMIT;
     const results = hasMore ? merged.slice(0, SEARCH_LIMIT) : merged;
-    return { query: trimmed, results, hasMore, tooShort: false };
+    auditMemberSearch(ctx.actorMemberId, queryHash, results.length);
+    return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false };
   },
 
   getMembersWelcomePage(
