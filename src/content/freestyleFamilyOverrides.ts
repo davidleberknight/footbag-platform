@@ -77,6 +77,64 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   // is created; no ontology hardened. Reversible by deleting this
   // entry: rev-up returns to whirl family on next request.
   ['rev-up', 'rev-up'],
+
+  // Nearest-anchor family reassignment. Each row below sits in the lineage of a
+  // derived branch family (torque / blender / double-leg-over / eggbeater) but
+  // carried its root's label (osis / legover), so it browsed under the root and
+  // never appeared on its own branch page. A trick belongs to the nearest
+  // meaningful family anchor, not the oldest ancestor; these one-way redirects
+  // make the branch the owning family. Branch families stay contained in their
+  // root for display, so a row still reaches the root section as a branch member.
+
+  // Torque (carried osis)
+  ['torque', 'torque'],
+  ['symposium-torque', 'torque'],
+  ['forque', 'torque'],
+  ['stepping-paradox-torque', 'torque'],
+  ['spinning-symposium-torque', 'torque'],
+  ['spinning-miraging-symposium-torque', 'torque'],
+  ['fairy-gyro-torque', 'torque'],
+  ['fairy-torque', 'torque'],
+  ['reverse-swirling-paradox-torque', 'torque'],
+  ['reverse-torque', 'torque'],
+  ['toe-spinning-torque', 'torque'],
+  ['atomic-ducking-torque', 'torque'],
+  ['nuclear-torque', 'torque'],
+
+  // Blender (carried osis)
+  ['blender', 'blender'],
+  ['fender', 'blender'],
+  ['fender-bender', 'blender'],
+  ['stepping-blender', 'blender'],
+  ['reverse-blender', 'blender'],
+  ['clipper-ducking-blender', 'blender'],
+  ['reverse-swirling-blender', 'blender'],
+  ['atomic-blender', 'blender'],
+
+  // Double Leg Over (carried legover; stepping-ducking-smog was a route-out)
+  ['double-leg-over', 'double-leg-over'],
+  ['nova', 'double-leg-over'],
+  ['gyro-double-leg-over', 'double-leg-over'],
+  ['oh-wheely', 'double-leg-over'],
+  ['atomic-double-leg-over', 'double-leg-over'],
+  ['nuclear-double-leg-over', 'double-leg-over'],
+  ['stepping-ducking-smog', 'double-leg-over'],
+
+  // Eggbeater (carried legover; stepping-ducking-pigbeater was a route-out)
+  ['eggbeater', 'eggbeater'],
+  ['pigbeater', 'eggbeater'],
+  ['mantis', 'eggbeater'],
+  ['symposium-eggbeater', 'eggbeater'],
+  ['stepping-eggbeater', 'eggbeater'],
+  ['fairy-eggbeater', 'eggbeater'],
+  ['pixie-eggbeater', 'eggbeater'],
+  ['pandemonium', 'eggbeater'],
+  ['bladerunner', 'eggbeater'],
+  ['chainsaw-massacre', 'eggbeater'],
+  ['stepping-ducking-symposium-eggbeater', 'eggbeater'],
+  ['spinning-eggbeater', 'eggbeater'],
+  ['barraging-eggbeater', 'eggbeater'],
+  ['stepping-ducking-pigbeater', 'eggbeater'],
 ]);
 
 /**

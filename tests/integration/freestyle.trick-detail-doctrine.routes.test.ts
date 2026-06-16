@@ -2,21 +2,20 @@
  * Trick-detail ontology doctrine tests.
  *
  * Pins:
- *   - Flagship pages render the surviving ontology sections (Movement
- *     Intuition, Productivity, Family Evolution) when content is authored
- *   - The standalone Mechanical Delta, Ontology Role, and Progressive
- *     Readings sections, plus the interpretive-traditions block, are retired;
- *     the "vs parent" idea is a one-line delta inside Movement Intuition and
- *     the build-path is a line inside the About section
- *   - Leaf-class compounds suppress Productivity + Family Evolution
- *   - Productive-descendant links render with /freestyle/tricks/<slug> hrefs
- *   - Family-evolution sections render numbered narrative steps
+ *   - Flagship pages render the surviving ontology section (Movement
+ *     Intuition) when content is authored
+ *   - The standalone Mechanical Delta, Ontology Role, Progressive Readings,
+ *     Productivity, and Family Evolution sections, plus the
+ *     interpretive-traditions block, are retired; the "vs parent" idea is a
+ *     one-line delta inside Movement Intuition and the build-path is a line
+ *     inside the About section
+ *   - Productivity + Family Evolution render on no page
  *   - Placeholder-description suppressor: literal "X-modified Y."
  *     description suppressed; structured decomposition pill renders instead
  *   - DB description rows NOT mutated (verified by absence of regex
  *     match in raw description on rendered page when literal differs
  *     from displayed)
- *   - Shell ordering: surviving sections appear BEFORE trick-about
+ *   - Shell ordering: the intuition section appears BEFORE trick-about
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -215,29 +214,20 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// The standalone Mechanical Delta (L2), Ontology Role (L3), and Progressive
-// Readings (L6) sections, plus the interpretive-traditions block, are retired.
-// The Movement Intuition (L1), Productivity (L4), and Family Evolution (L5)
-// sections remain. The "vs parent" idea moves to a one-line delta inside
+// The standalone Mechanical Delta (L2), Ontology Role (L3), Progressive
+// Readings (L6), Productivity (L4), and Family Evolution (L5) sections, plus
+// the interpretive-traditions block, are retired. The Movement Intuition (L1)
+// section remains. The "vs parent" idea moves to a one-line delta inside
 // Movement Intuition; the build-path moves into the About section.
-describe('Tier A flagship pages — surviving ontology sections render', () => {
-  it('mirage renders the productivity section with productive-descendant links', async () => {
+describe('Tier A flagship pages — productivity + family-evolution deleted', () => {
+  it('mirage does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toContain('Why this trick became productive');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-mirage"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/blur"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/sumo"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('mirage renders the family-evolution narrative with multiple branch axes', async () => {
+  it('mirage does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Family evolution');
-    expect(res.text).toContain('Topology intensification');
-    expect(res.text).toContain('Multi-dex extension');
-    expect(res.text).toContain('X-dex escalation');
-    expect(res.text).toContain('Terminal surface shift');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 
 });
@@ -285,16 +275,12 @@ describe('Shell ordering — surviving ontology sections render BEFORE trick-abo
     expect(intuitionIdx).toBeLessThan(aboutIdx);
   });
 
-  it('on mirage, the surviving sections render in canonical order (intuition → productivity → family-evolution → about)', async () => {
+  it('on mirage, the surviving sections render in canonical order (intuition → about)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    const intuitionIdx       = res.text.indexOf('class="content-section trick-intuition"');
-    const productivityIdx    = res.text.indexOf('class="content-section trick-productivity"');
-    const familyEvolutionIdx = res.text.indexOf('class="content-section trick-family-evolution"');
-    const aboutIdx           = res.text.indexOf('>About this trick<');
+    const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
+    const aboutIdx     = res.text.indexOf('>About this trick<');
     expect(intuitionIdx).toBeGreaterThan(-1);
-    expect(productivityIdx).toBeGreaterThan(intuitionIdx);
-    expect(familyEvolutionIdx).toBeGreaterThan(productivityIdx);
-    expect(aboutIdx).toBeGreaterThan(familyEvolutionIdx);
+    expect(aboutIdx).toBeGreaterThan(intuitionIdx);
   });
 });
 
@@ -349,7 +335,7 @@ describe('Retired ontology sections are absent on every trick page', () => {
 // fury + sumo are leaf-class compounds; Productivity and Family Evolution are
 // intentionally suppressed (suppression beats filler).
 
-describe('blur renders intuition + productivity + family-evolution', () => {
+describe('blur renders intuition (productivity + family-evolution deleted)', () => {
   it('blur renders L1 intuition with the 4-ADD coach prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
@@ -357,18 +343,14 @@ describe('blur renders intuition + productivity + family-evolution', () => {
     expect(res.text).toMatch(/Blur stretches a paradox-mirage/);
   });
 
-  it('blur renders L4 productivity with fury + blurriest descendant links', async () => {
+  it('blur does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/fury"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/blurriest"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('blur renders L5 family-evolution with multi-dex naming + cultural-canonical branch axes', async () => {
+  it('blur does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blur');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Three-dex extension');
-    expect(res.text).toContain('Cultural-canonical shorthand');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
@@ -402,7 +384,7 @@ describe('sumo renders intuition only (productivity + family-evolution suppress)
   });
 });
 
-describe('drifter renders intuition + productivity + family-evolution', () => {
+describe('drifter renders intuition (productivity + family-evolution deleted)', () => {
   it('drifter renders L1 intuition with the mirage-dex-into-clipper prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/drifter');
     expect(res.status).toBe(200);
@@ -410,22 +392,14 @@ describe('drifter renders intuition + productivity + family-evolution', () => {
     expect(res.text).toMatch(/Drifter holds the same in-to-out dex pattern/);
   });
 
-  it('drifter renders L4 productivity with paradox-drifter + vortex + smoke + lotus descendants', async () => {
+  it('drifter does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/drifter');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-drifter"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/vortex"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/smoke"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/lotus"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('drifter renders L5 family-evolution with topology + rotational + naming-driven + clipper-stall-sibling branch axes', async () => {
+  it('drifter does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/drifter');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Topology intensification');
-    expect(res.text).toContain('Rotational variant');
-    expect(res.text).toContain('Naming-driven extensions');
-    expect(res.text).toContain('Clipper-stall sibling branch');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
@@ -444,7 +418,7 @@ describe('atom-smasher renders intuition only (productivity + family-evolution s
   });
 });
 
-describe('barrage renders intuition + productivity + family-evolution', () => {
+describe('barrage renders intuition (productivity + family-evolution deleted)', () => {
   it('barrage renders L1 intuition with the doubled-dex prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/barrage');
     expect(res.status).toBe(200);
@@ -452,20 +426,14 @@ describe('barrage renders intuition + productivity + family-evolution', () => {
     expect(res.text).toMatch(/two complete same-side inside dexes/);
   });
 
-  it('barrage renders L4 productivity with paradox-barrage + blurrage descendants + fury operator-path', async () => {
+  it('barrage does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/barrage');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-barrage"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/blurrage"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/fury"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('barrage renders L5 family-evolution with topology + stepping-paradox + operator-path branch axes', async () => {
+  it('barrage does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/barrage');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Topology intensification');
-    expect(res.text).toContain('Stepping-paradox extension');
-    expect(res.text).toContain('Operator-path productivity');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
@@ -484,7 +452,7 @@ describe('blurriest renders intuition only (productivity + family-evolution supp
   });
 });
 
-describe('blender renders intuition + productivity + family-evolution', () => {
+describe('blender renders intuition (productivity + family-evolution deleted)', () => {
   it('blender renders L1 intuition with the whirl-into-osis compound prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blender');
     expect(res.status).toBe(200);
@@ -492,22 +460,14 @@ describe('blender renders intuition + productivity + family-evolution', () => {
     expect(res.text).toMatch(/Blender stitches a whirl/);
   });
 
-  it('blender renders L4 productivity with paradox-blender + food-processor + spender + mind-bender descendants', async () => {
+  it('blender does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blender');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-blender"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/food-processor"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/spender"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mind-bender"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('blender renders L5 family-evolution with topology + naming-driven + multi-modifier + operator-path branch axes', async () => {
+  it('blender does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/blender');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Topology intensification');
-    expect(res.text).toContain('Naming-driven extensions');
-    expect(res.text).toContain('Multi-modifier extension');
-    expect(res.text).toContain('Operator-path productivity');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
@@ -541,49 +501,33 @@ describe('phoenix renders intuition only (productivity + family-evolution suppre
   });
 });
 
-describe('osis renders productivity + family-evolution', () => {
-  it('osis renders L4 productivity with torque + blender + ducking-osis + pixie-osis descendants', async () => {
+describe('osis — productivity + family-evolution deleted', () => {
+  it('osis does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/osis');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/torque"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/blender"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/ducking-osis"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie-osis"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('osis renders L5 family-evolution with compound-of-canonicals branch axes (mirage + whirl paths)', async () => {
+  it('osis does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/osis');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Compound-of-canonicals (mirage path)');
-    expect(res.text).toContain('Compound-of-canonicals (whirl path)');
-    expect(res.text).toContain('Body-modifier branch');
-    expect(res.text).toContain('Set-treatment branch');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
-describe('butterfly renders productivity + family-evolution', () => {
-  it('butterfly renders L4 productivity with ripwalk + dimwalk + parkwalk + phoenix descendants', async () => {
+describe('butterfly — productivity + family-evolution deleted', () => {
+  it('butterfly does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/ripwalk"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/dimwalk"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/parkwalk"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/phoenix"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('butterfly renders L5 family-evolution with stepping + set-treatment + body-modifier + multi-modifier branches', async () => {
+  it('butterfly does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/butterfly');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Stepping branch');
-    expect(res.text).toContain('Set-treatment branch');
-    expect(res.text).toContain('Stepping-paradox branch');
-    expect(res.text).toContain('Multi-modifier extension');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
-describe('torque renders intuition + productivity + family-evolution', () => {
+describe('torque renders intuition (productivity + family-evolution deleted)', () => {
   it('torque renders L1 intuition with the miraging-osis compound prose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
@@ -591,22 +535,14 @@ describe('torque renders intuition + productivity + family-evolution', () => {
     expect(res.text).toMatch(/dex pattern stitched into an osis/);
   });
 
-  it('torque renders L4 productivity with mobius + paradox-torque + atomic-torque + gauntlet descendants', async () => {
+  it('torque does NOT render the productivity section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
-    expect(res.text).toContain('class="content-section trick-productivity"');
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/mobius"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/paradox-torque"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/atomic-torque"/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\/gauntlet"/);
+    expect(res.text).not.toContain('class="content-section trick-productivity"');
   });
 
-  it('torque renders L5 family-evolution with body-modifier + gyro + atomic + highest-ADD branches', async () => {
+  it('torque does NOT render the family-evolution section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
-    expect(res.text).toContain('class="content-section trick-family-evolution"');
-    expect(res.text).toContain('Body-modifier branch');
-    expect(res.text).toContain('Gyro layering');
-    expect(res.text).toContain('Atomic / nuclear extension');
-    expect(res.text).toContain('Highest-ADD reach');
+    expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
 
