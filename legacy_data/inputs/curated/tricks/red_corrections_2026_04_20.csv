@@ -2037,3 +2037,4 @@ whirling-mirage,is_active,1,0,"Retire the structural-named duplicate; this is th
 stepping-legover,is_active,1,0,"Retire the structural-named duplicate; this is the notation-verified same move as its folk-named canonical, which now carries this name as an alias."
 pixie-symposium-eggbeater,is_active,1,0,"Retire the structural-named duplicate; this is the notation-verified same move as its folk-named canonical, which now carries this name as an alias."
 gyro-flurry,is_active,1,0,"Retire the structural-named duplicate of flurricane (identical notation, same move); flurricane is canonical and keeps gyro-flurry as an alias."
+stepping-illusion,is_active,1,0,"Merge the structural-named duplicate into the folk-named canonical; blizzard is stepping illusion (the divergence is entry-surface only, bodies are identical), so stepping-illusion is retired and kept as an alias of blizzard."
