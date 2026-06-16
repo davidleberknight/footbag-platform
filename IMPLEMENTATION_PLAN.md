@@ -71,13 +71,31 @@ path has landed. The classes still unseeded are blocked on features that do not 
 exist, not on the harness:
 
 - event organizer / co-organizer — `event_organizers` exists, no organizer-gated edit routes do.
-- group owner / co-owner / member — designed in USER_STORIES §3.10 and §6, no schema or routes yet.
+- group owner / co-owner / member — designed in USER_STORIES §3.10 and §6, no schema or routes yet. Disposition (in-app feature vs external tools vs hybrid) is open pending community-requirements findings (MIGRATION_PLAN §19.5 items 35-37); preserve the design, do not build.
 - vote-eligibility by inclusion list — no voting routes or eligibility code yet.
 - the claimed-legacy banned subject — `legacy_members` has no banned column yet.
 
 Add each persona (plus its adjacent-owner negative where the route is ownership-scoped)
 in the change that lands its feature. The system / internal-caller actor is not a catalog
 persona: it is exercised by the secret-gated `/ipc` request, not a `/dev/switch` session.
+
+### SEO / crawler readiness not yet built
+
+The public site has no crawler-facing SEO surface: no `robots.txt`, no sitemap, and
+the layout (`src/views/layouts/main.hbs`) never emits the `SeoMeta.description` field
+(`src/types/page.ts`) or a canonical link. Policy: only public pages are indexed;
+authenticated surfaces and the future archive carry noindex. To close the gap:
+
+- Add a production `robots.txt` (allow CSS/JS/img; `Sitemap:` directive).
+- Emit `<meta name="description">` and `<link rel="canonical">` in the layout; ensure a
+  unique per-page `<title>`; add a per-page noindex hook for authenticated routes.
+- Generate a sitemap index (public pages vs the future archive) and verify Search
+  Console via DNS TXT.
+- Set `X-Robots-Tag: noindex` for non-production environments (generalize the `/dev`
+  pattern in `src/testkit/legacyNewsInspectRoute.ts`).
+- Tracked as go-live gate OR16 (MIGRATION_PLAN §22): production robots.txt correct,
+  staging noindex verified, per-page title/description/canonical rendered, sitemap
+  submitted, archive excluded from indexing. Design decision: DESIGN_DECISIONS §4.10.
 
 ### Accessibility (`@a11y`) axe checks specified but not wired
 

@@ -63,6 +63,8 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [4.6 One Type System with Body-font Notation](#46-one-type-system-with-body-font-notation)
   - [4.7 Canonical Responsive Breakpoints](#47-canonical-responsive-breakpoints)
   - [4.8 Stylesheet Convention Gates](#48-stylesheet-convention-gates)
+  - [4.9 One Public Rendering Standard](#49-one-public-rendering-standard)
+  - [4.10 Search-engine and Crawler Readiness](#410-search-engine-and-crawler-readiness)
 - [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
   - [5.1 Node.js with TypeScript](#51-nodejs-with-typescript)
   - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
@@ -2407,6 +2409,37 @@ Trade-offs:
 Impact:
 
 - The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced by `scripts/ci/assert_conventions.sh` (§4.8).
+
+## 4.10 Search-engine and Crawler Readiness
+
+Decision:
+
+Only public pages are indexed. The public site is built for crawlability: server-rendered HTML, a production `robots.txt`, an XML sitemap, and a unique title, meta description, and canonical URL on every public page. Authenticated surfaces and the member-only legacy archive are kept out of search indexes. Search Console ownership is verified by a DNS TXT record. Meeting this standard is a go-live gate.
+
+Rationale:
+
+- Server-rendered HTML (§4.1) returns complete markup on the first response, so every crawler, including those that do not execute JavaScript, sees full content with no render step.
+- Public discoverability serves the community mission; private member data and governance surfaces must never reach a search index.
+- DNS-TXT verification survives redeploys and template edits and covers every subdomain under one property.
+
+Requirements:
+
+- `robots.txt` is served in production, permits page resources (CSS, JavaScript, images), names the sitemap, and disallows authenticated and internal path prefixes.
+- The shared layout emits a unique `<title>`, a `<meta name="description">`, and a `<link rel="canonical">` for every public page, all sourced from the page view-model.
+- An XML sitemap lists public pages only; the member-only legacy archive is never listed.
+- Authenticated routes and the legacy archive carry a noindex directive; non-production environments return `X-Robots-Tag: noindex` for the whole site.
+- Structured data (Organization, Event) and an explicit AI-crawler allow/block policy are added only when there is a demonstrated need; `llms.txt` is not used, because no major crawler honors it.
+
+Trade-offs:
+
+- Distinguishing public from private on one robots and sitemap surface costs an explicit per-route noindex on authenticated pages rather than a blanket allow.
+- Deferring structured data forgoes some rich-result eligibility in exchange for not maintaining markup with little payoff at the current scale.
+
+Impact:
+
+- A new public page is indexable by default and sets noindex only when it exposes private data.
+- The shared layout and the page view-model carry the description and canonical fields.
+- A go-live gate verifies the production `robots.txt`, the sitemap, the per-page tags, the staging noindex, and the archive's exclusion from indexing.
 
 # 5. Back-End Services and Patterns
 

@@ -24,9 +24,11 @@ The legacy-site webmaster has delivered the legacy data; it is under analysis by
 
 ## Open questions for the legacy-site webmaster
 
-These are the decisions that involve the legacy-site webmaster. Each is labelled with its status, and **only the items marked "Still open" need an answer**; everything else is settled and kept here for the record. The numbers are fixed labels referred to elsewhere in this plan (§19 uses an independent 1-34 numbering; §28 refers back to these front-matter numbers as "front-matter question N").
+These are the decisions that involve the legacy-site webmaster. Each is labelled with its status, and **only the items marked "Still open" need an answer**; everything else is settled and kept here for the record. The numbers are fixed labels referred to elsewhere in this plan (§19 uses an independent 1-37 numbering; §28 refers back to these front-matter numbers as "front-matter question N").
 
 Quick status: **still open**: 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23. **Settled**: 1, 9, 12. **Confirmed against the delivered dump, to be re-confirmed on the final export**: 10, 11.
+
+Open questions owned by the IFPA secretary and the community-requirements discovery rather than the webmaster are tracked in their own sections, not the list above, and are all still open: §19 items 35 (legacy group activity), 36 (group communication home), and 37 (sanctioning workflow depth); the seven items in §20a; and the IFPA list-mail questions in §29.12a.
 
 **Architecture and DNS**
 
@@ -134,6 +136,10 @@ These decisions are settled. Each is final unless a noted open question revises 
 
 **22.** Historic tournament and registration data (the legacy multi-table tournament system) is not imported. The platform's canonical historical results are cleaner and authoritative; a future tournament feature, if built, models fresh rather than importing legacy data.
 
+**23.** No legacy communication path goes dark at cutover unless it has been explicitly inventoried, classified, and either migrated, retained, redirected, archived, or deliberately retired with stakeholder sign-off. Operationalized per-function in §19 item 26 and §29.12a constraint 5.
+
+**24.** No old governance data, such as IFPA voting records, is deleted unless the right people confirm that deletion is acceptable. Disposition of IFPA-owned legacy records is an IFPA governance decision (the IFPA secretary rules), never an operator or maintainer decision. Enforced by the sealed-archive treatment in §29.12a (applied to IFPA governance records per §28) and DESIGN_DECISIONS §6.5a.
+
 ---
 
 ## Table of contents
@@ -169,6 +175,8 @@ These decisions are settled. Each is final unless a noted open question revises 
 18. [Audit requirements](#18-audit-requirements)
 19. [What we need from the legacy-site webmaster](#19-what-we-need-from-the-legacy-site-webmaster)
 20. [What we need from the historical-pipeline maintainer](#20-what-we-need-from-the-historical-pipeline-maintainer)
+    - [20a. What we need from the IFPA secretary (Julie)](#20a-what-we-need-from-the-ifpa-secretary-julie)
+    - [20b. What the project manager (Dave) does](#20b-what-the-project-manager-dave-does)
 21. [Design decisions affected](#21-design-decisions-affected)
 
 ### Part C -- Go-live
@@ -949,7 +957,7 @@ Includes `email_verified_at IS NOT NULL` filter.
 ### 15.9 `account_tokens`: `account_claim` type and target binding
 `token_type` CHECK includes `'account_claim'`. `target_legacy_member_id` with `ON DELETE NO ACTION`.
 
-Cleanup interaction: the §29.6 daily `account_tokens` cleanup job removes rows where `expires_at < now()` or where `consumed_at IS NOT NULL` and the consumption is older than the configured retention window. Because `legacy_members` rows are never deleted (they persist as permanent archival records, claimed or not), the `ON DELETE NO ACTION` FK on `target_legacy_member_id` is not load-bearing in production; it exists to prevent accidental cascade if a `legacy_members` row is ever administratively removed. The cleanup job operates on `account_tokens` only and does not need to inspect `legacy_members` state.
+Cleanup interaction: the §29.6 daily `account_tokens` cleanup job removes rows where `expires_at < now()` or where `used_at IS NOT NULL` and the consumption is older than the configured retention window. Because `legacy_members` rows are never deleted (they persist as permanent archival records, claimed or not), the `ON DELETE NO ACTION` FK on `target_legacy_member_id` is not load-bearing in production; it exists to prevent accidental cascade if a `legacy_members` row is ever administratively removed. The cleanup job operates on `account_tokens` only and does not need to inspect `legacy_members` state.
 
 ### 15.10 `member_club_affiliations`
 Permanent operational table. The current-club cap is two concurrent current clubs per member, service-enforced (no partial unique index).
@@ -992,7 +1000,7 @@ If test-load validation confirms the legacy export's tier fields are insufficien
 
 ### 15.17 Declared identity anchors (former surnames and old emails)
 
-Built as one table, `member_declared_anchors` (schema authority `database/schema.sql`; documented in DATA_MODEL §4.30): one row per `(member_id, anchor_type, normalized_value)` with `anchor_type` in (`former_surname`, `old_email`). Anchors are member-asserted with no proof required. Former surnames participate in claim matching across all claim paths alongside the current real-name surname; old emails match against `legacy_members.legacy_email` during auto-link candidate matching (§7). Normalization is application-side before insert and lookup.
+Built as one table, `member_declared_anchors` (schema authority `database/schema.sql`; documented in DATA_MODEL §4.30): one row per `(member_id, anchor_type, anchor_value)` with `anchor_type` in (`former_surname`, `old_email`). Anchors are member-asserted with no proof required. Former surnames participate in claim matching across all claim paths alongside the current real-name surname; old emails match against `legacy_members.legacy_email` during auto-link candidate matching (§7). Normalization is application-side before insert and lookup.
 
 - Surfaces: optional input at registration, prompted within the wizard's universal claim task, editable from the profile; see `M_Complete_Onboarding_Wizard`.
 - Privacy: visible only to the member and to admin; never surfaced on public profile, member search, or any cross-member listing.
@@ -1146,7 +1154,7 @@ Required metadata per event where applicable:
 
 ## 19. What we need from the legacy-site webmaster
 
-The legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5) is the current operator of the live legacy site. The front-matter open-questions table carries the live status of every item below; this section holds the contract-grade detail. The webmaster holds the legacy-system facts (DNS, mail, server config, data); the IFPA secretary holds governance answers (membership policy, committees, records, rules currency). The written design in these canonical docs is the baseline; proposed changes arrive as specific doc-revision requests, and the maintainer keeps the canonical docs.
+Steve, the legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5), is the current operator of the live legacy site. The front-matter open-questions table carries the live status of the webmaster items below; this section holds the contract-grade detail. The webmaster holds the legacy-system facts (DNS, mail, server config, data); Julie, the IFPA secretary, holds governance answers (membership policy, committees, records, rules currency). The written design in these canonical docs is the baseline; proposed changes arrive as specific doc-revision requests, and the maintainer keeps the canonical docs.
 
 The webmaster is not asked to produce club data; that comes from the mirror pipeline (§20). The long-term operator pattern for coordinating with any external DNS/mail upstream is documented in `docs/DEVOPS_GUIDE.md` §16.8; this section applies that pattern to the webmaster's specific contract.
 
@@ -1207,7 +1215,7 @@ The webmaster is not asked to produce club data; that comes from the mirror pipe
 
 See §28 "Email transition" for the full consolidation: one mail system, never two; the email transition is its own atomic step (MX to Google, SPF/DMARC flip to SES-only, legacy mail server retired inbound and outbound), strictly before the front-door cutover. The coordination items specific to the webmaster:
 
-21. **Email inventory**: what `@footbag.org` mailboxes and aliases exist today? Which are actively used vs. dead or spam-only?
+21. **Email inventory**: what `@footbag.org` mailboxes and aliases exist today? Which are actively used vs. dead or spam-only? Record each address with: the address; its domain; whether it is a real mailbox, a forwarding alias, a forwarding rule, or a mailing list / group; who owns it; who receives mail sent to it; whether it is active, dead, or spam-only; whether anyone needs to send or reply from it; whether its history must be archived; whether it needs moderation; what its Google Workspace or Google Group equivalent will be; the decision to retain, migrate, or retire it; and a test that confirms delivery before any MX change.
 
 22. **Mailing list inventory**: what mailing lists exist, who manages them, and what software runs them? (announce@, board@, committee lists, regional lists, others.) Are there complex features (moderation, archives, digests) or are they simple distribution lists? Recommended classification: for each list, determine whether it accepts inbound posts from subscribers (discussion) or is broadcast-only. The platform sends outbound via SES and accepts no inbound mail, so inbound/discussion lists must move to a Google Group (Google owns inbound and redistribution) or be retired, while broadcast-only lists become platform announce; settle each before the MX flip so nothing consuming an `@footbag.org` address goes dark. IFPA `@ifpa.footbag.org` list mail is dispositioned separately under §29.12a (IFPA list mail), not as part of the ordinary `@footbag.org` inventory.
 
@@ -1219,13 +1227,19 @@ See §28 "Email transition" for the full consolidation: one mail system, never t
 
 ### 19.5 Feature continuity
 
-26. **Group, committee, and mailing-list continuity**: inventory every group, committee, and mailing list active on the legacy site. For each, propose the cutover allocation: (a) stays on legacy parallel-role server (continues to receive mail through the legacy mail server, continues to be addressable through the webmaster's retained subdomains); (b) migrates to the new platform pre-cutover (requires a new-platform feature build, scoped separately from this MP); (c) is retired with consent. Default per item: stays on legacy parallel-role server unless the webmaster and maintainer agree the function must migrate or retire. No item goes dark at T-0 (per §29.12a constraint 5). IFPA `@ifpa.footbag.org` list functions and the legacy group-message archive are excluded from this generic allocation and are dispositioned under §29.12a (IFPA list mail / sealed legacy email archive); their disposition authority rests with IFPA governance.
+26. **Group, committee, and mailing-list continuity**: inventory every group, committee, and mailing list active on the legacy site. For each, propose the cutover allocation: (a) stays on legacy parallel-role server (continues to receive mail through the legacy mail server, continues to be addressable through the webmaster's retained subdomains); (b) migrates to the new platform pre-cutover (requires a new-platform feature build, scoped separately from this MP); (c) is retired with consent. Default per item: stays on legacy parallel-role server unless the webmaster and maintainer agree the function must migrate or retire. No item goes dark at T-0 (per §29.12a constraint 5). IFPA `@ifpa.footbag.org` list functions and the legacy group-message archive are excluded from this generic allocation and are dispositioned under §29.12a (IFPA list mail / sealed legacy email archive); their disposition authority rests with IFPA governance. Each inventoried item is recorded with: name/address; purpose; owner; moderator (if any); current activity status; current users/stakeholders; whether archive/data exists; sensitivity; spam level; recommended disposition; whether notification is required; whether a new user story is required; and whether it is a go-live blocker.
 
 27. **Tournament in a box**: see §28 "Tournament in a box" for the full set of open questions. The webmaster must define what the legacy tournament management feature does today before it can be placed in the phased feature scope.
 
 28. **Forum retirement**: when is the webmaster comfortable retiring the legacy forums? The new platform will not replicate forum functionality; legacy forum content goes to a read-only archive at `archive.footbag.org`. The webmaster is presently unsure of the live phpBB forum's state (whether it still runs, and whether already read-only), so confirming the forum content is locatable and extractable to a static mirror is a prerequisite to the archive plan.
 
 34. **Legacy-feature disclosure (deliverable)**: the webmaster enumerates every function running on the legacy site, including pages, tools, crons, feeds, forms, and mail hooks, so nothing is discovered after cutover. The facts feed USER_STORIES gap-fill: the maintainer authors the stories, the webmaster supplies the facts. Anything the disclosure reveals that belongs in v1 is added to the v1 scope. A first installment has been delivered in narrative form (a legacy-repository walkthrough covering per-app schemas, data dumps, sub-domains, and mail systems); its facts are folded into the §28 dispositions and the item 16 subdomain inventory. Gate WM19.
+
+35. **Legacy group activity**: which legacy groups, committees, and discussion lists are still actively used, and by whom? For each, establish last real (non-spam) traffic and active participants. This generalizes the §29.12a 12-month non-spam-traffic question from `@ifpa.footbag.org` aliases to all legacy groups. The community-requirements lead discovers; the webmaster supplies traffic facts. Feeds the item 26 inventory and allocation.
+
+36. **Group communication home**: for group and committee communication, is the home the in-app group feature (designed in USER_STORIES §3.10, §6, §7, unbuilt), Google Groups, external chat, or a hybrid? Open pending the item 35 findings. Constraints: a group roster stays authoritative in-app because vote eligibility references `members_of_group` (USER_STORIES A_Create_Vote); any binding governance decision is recorded in an auditable system, never exclusively in a chat platform. No build proceeds until requirements are confirmed.
+
+37. **Sanctioning workflow depth**: is sanctioning a deliberating committee (submit, review, discuss, decide) or admin approval, and is `sanctioning@footbag.org` actively used and read by whom? The community-requirements lead elicits the real process. Until confirmed, admin approval stands (USER_STORIES A_Approve_Sanctioned_Event) with admin override; `sanctioning@footbag.org` is provisioned on Google before legacy delivery is withdrawn so it stays live through transition regardless of any future workflow wiring.
 
 ### 19.6 Cutover operations
 
@@ -1262,6 +1276,44 @@ The historical-pipeline work, with build state:
 3. **Known name variants table** (built; seeded from mined data per §15.15).
 4. **World records CSV** (built; loadable per G15).
 5. **Legacy-data analysis and review sign-off** (in progress: the delivered legacy data is under analysis). The sign-off confirms legacy data is complete and member-list presentation is reviewed (unblocks members ungating), recorded as an `audit_entries` row with `action_type='legacy_pipeline.data_review_signoff'`, the maintainer's identity in `actor_member_id`, and reference identifiers plus a free-text reasoning summary in `metadata_json`.
+
+---
+
+## 20a. What we need from the IFPA secretary (Julie)
+
+Julie is the IFPA secretary. Steve knows how the legacy systems work; Julie knows how IFPA governs itself and what the community needs. She leads the discovery of what the old groups and committees are for and who still uses them, and she rules on what happens to old governance records.
+
+1. **Which legacy groups are still alive, and who cares.** Find out which old groups, committees, and email discussion lists people still actually use, who runs or moderates each, and who would be upset if one changed or went away. Steve can say how much real (non-spam) mail each address still gets; Julie supplies the human picture: what each is for, the people involved, and who must be told before anything is retired or archived.
+
+2. **What happens to the old IFPA vote records.** The legacy site holds old elections, issue votes, and individually cast ballots. Deleting them is the simplest path, but they are governance records, so the decision is Julie's, not the operator's. The choices are: keep them, archive them, archive them encrypted and sealed so no one can read them, keep only the final tallies, or (only if she confirms it is acceptable) delete them. The recommended choice is to archive them encrypted and sealed and never publish them, because they contain private ballots. Nothing is deleted without her decision.
+
+3. **How sanctioning really works.** The new platform currently lets an admin approve an event's sanction. We need to know whether IFPA sanctioning is really a committee that discusses and decides together, or whether one or two people just approve it, and whether anyone still reads the `sanctioning@footbag.org` address. That tells us whether simple admin approval is enough or needs to become a committee workflow.
+
+4. **Where group conversation should live.** For each group or committee, Julie recommends whether its discussion belongs in the new platform, in Google Groups, in an external chat tool, or nowhere (retired). The one firm rule: any decision that actually binds IFPA, such as a sanction or a vote, must be recorded somewhere durable and auditable, never left only in a chat app where it can vanish.
+
+5. **Whether groups need moderators.** For any group we keep or move, does it need a real owner or moderator with powers over membership and posts, or is it enough to let admins and the community keep order informally?
+
+6. **Who to notify.** When something is retired or archived, who needs to hear about it, and how? This is aimed at the people who actually used it, not a message to every old member.
+
+7. **Running the email side.** Julie helps administer the IFPA Google Workspace alongside a platform maintainer, including the group, alias, and spam settings once we know which groups and addresses we are keeping.
+
+---
+
+## 20b. What the project manager (Dave) does
+
+Dave is the project manager and the primary maintainer. Steve, Julie, and the historical-pipeline and freestyle maintainer each supply facts and decisions in their own areas; Dave pulls those together, keeps the written plan current, and drives the work to go-live. His actions:
+
+1. **Run the action tracker.** Own and curate the GitHub issues and project board as the single place open work is tracked. Once Steve and Julie respond, turn their findings into issues and keep the board current.
+
+2. **Keep the stakeholder documents.** Set up and maintain the shared Google Docs that Steve and Julie can comment on (a review copy of this plan, a running list of open questions and decisions, and the inventory of legacy groups and addresses), and fold their resolved comments back into the canonical plan here.
+
+3. **Drive the open questions to decisions.** Take each open question (the ones for Steve in §19, for Julie in §20a, and items 35-37) to an answer, record the decision, and update the canonical docs to match.
+
+4. **Decide scope and sequencing.** Decide what ships in the first version versus later, what becomes a go-live blocker, and what is deferred.
+
+5. **Author the user stories.** Turn the facts Steve and Julie supply into user stories, including any new ones the discovery turns up, for example a sanctioning-committee workflow if Julie confirms one is needed.
+
+6. **Coordinate the sources and route governance decisions.** Keep Steve (legacy facts), Julie (governance and community), and the historical-pipeline and freestyle maintainer (all legacy data) aligned, and route any decision about deleting or releasing IFPA governance records to Julie's IFPA ruling rather than deciding it himself.
 
 ---
 
@@ -1366,6 +1418,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR13 | Curator content seeder (`src/services/curatorSeedService.ts`) routed through the async `media_jobs` lifecycle (presigned PUT to S3, transcode dispatched to worker container); OOM dry-run completed on the production-host memory profile against the full production seed manifest | §29.13 | State 3 → State 4 |
 | OR14 | Pre-cutover audit confirms every retained `*.footbag.org` subdomain (per §19 item 16) serves a valid HTTPS certificate matching its hostname; baseline reading recorded before cookie-Domain widening lands | §29.15, §29.16 | State 3 → State 4 |
 | OR15 | Proxy-path smoke test green from the legacy server: `curl --resolve` against a current CloudFront edge IP returns the apex page over the `footbag.org` certificate; first run at State 3, re-run green on cutover day before the flip | §29.12 | State 3 → State 4 |
+| OR16 | Search-engine and crawler readiness: production `robots.txt` served and correct, per-page title / meta-description / canonical rendered, XML sitemap published and submitted to Search Console, non-production `X-Robots-Tag: noindex` verified, and the member-only legacy archive confirmed excluded from indexing | DD §4.10 | State 3 → State 4 |
 | RD1 | Legacy URL forwarding redirect handlers cover all in-flight email patterns (`/members/profile/:legacyMemberId`, `/clubs/:slug`, forum threads) per §29.12b; sample-replay validation against a stored set of legacy URLs passes at test load | §29.12b | State 3 → State 4 |
 
 ### Code governance gates
@@ -1388,7 +1441,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | PC1 | JWT session TTL reverted to the DD §3.4 baseline (24h); staging observability-tuned values removed from production source path before the cutover deploy | §23 Phase 4 prereqs; §29.8 | State 3 → State 4 |
 | PC2 | SES sender cutover to `noreply@footbag.org` | §29.8 | State 3 → State 4 |
 | PC3 | Lightsail SSH firewall rule restore | §29.8 | State 3 → State 4 |
-| PC4 | SES sandbox-mode flip | §29.8 | State 3 → State 4 |
+| PC4 | SES adapter set to live on production (`SES_ADAPTER=live`) once SES production access is granted | §29.8 | State 3 → State 4 |
 | PC5 | Production Terraform default region fix: us-east-2 → us-east-1 | §29.8 | State 3 → State 4 |
 | PC6 | Preview fixture scrub | §29.8 | State 3 → State 4 |
 | PC7 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
@@ -1482,7 +1535,7 @@ Phase 4 activities:
 - `footbag.org` SES domain identity verified (DKIM CNAMEs in the zone); `SES_FROM_IDENTITY` on the production host updated to `noreply@footbag.org`; runtime-role `OutboundEmail` IAM policy resource ARN set to the `footbag.org` domain identity
 - Email-delivery smoke passes end-to-end (§25 gate G10)
 
-### State 4: Phase 3 (production cutover)
+### State 4: Phase 3 complete (production cutover)
 
 1. Legacy webmaster places legacy site in write freeze / maintenance mode. **Timing constraint:** write-freeze must be instantaneous (site goes read-only at a coordinated moment), not gradual. Any member writes between "maintenance announced" and "maintenance enforced" appear in the final export but were not expected. The coordinated moment and the user-facing notice text are settled under §19 item 29.
 2. Legacy webmaster produces final production export from the frozen database state
@@ -1698,7 +1751,7 @@ Email architecture is decided: **one mail system, never two.** The platform must
 - **Legacy `@footbag.org` mail server:** retired at the transition, both directions.
 - **`@ifpa.footbag.org`:** out of scope here. It is a distinct mail domain on llic.net, dispositioned separately under §29.12a (IFPA list mail). Moving `footbag.org` MX does not touch it; zone edits must preserve its delegation.
 
-**Two-phase DNS sequencing.** Phase one, any time early: the SES DKIM CNAMEs and the ACM/SES domain-verification records go into the zone (they do not affect the legacy sender) so certificate issuance, SES domain verification, and the production-access ticket complete ahead of the transition. Phase two, on email-transition day, atomically: the MX flips to Google, SPF flips to authorize exactly the two new senders (SES and Google; the legacy server drops out), and the strict DMARC policy applies. Applying the strict SPF/DMARC early would quarantine the still-running legacy sender's mail, which is why phase two waits for the transition day.
+**Two-phase DNS sequencing.** Phase one, any time early: the SES DKIM CNAMEs and the ACM/SES domain-verification records go into the zone (they do not affect the legacy sender) so certificate issuance, SES domain verification, and the production-access ticket complete ahead of the transition. Phase two, on email-transition day, atomically: the MX flips to Google, SPF flips to authorize exactly the two new senders (SES and Google; the legacy server drops out), and the DMARC policy applies (quarantine initially, tightened to reject once deliverability is verified). Applying the strict SPF/DMARC early would quarantine the still-running legacy sender's mail, which is why phase two waits for the transition day.
 
 **Transition-day gate.** The MX flip is gated on provisioning being verifiably complete: every active `@footbag.org` address (per the §19 item 21 inventory, including the webmaster's own address and any list-intake addresses) exists on Google as a mailbox or forward, and every mailing list has its §19 item 26 disposition executed or scheduled. An unprovisioned active address loses mail silently at the flip; the inventory is the safety gate.
 
@@ -1856,7 +1909,7 @@ The legacy host persists in a parallel role beyond the §27 rollback window for 
 
 1. Provision every active `@footbag.org` mailbox or alias on Google from the confirmed inventory; verify each receives test mail. Decide the `noreply@` handling (monitored alias or Reply-To `admin@`, per §28).
 2. Pre-shrink the `footbag.org` MX TTL. This is the webmaster's manual action on his authoritative zone: the platform's `dns-ttl-preflight.sh` automation operates on Route 53, which is not authoritative until the later DNS handover, so it cannot lower the live MX TTL on email day. That script's only TTL role is the handover-phase `A` / `AAAA` drop.
-3. Atomically: repoint the MX to Google, flip SPF to authorize exactly SES + Google, apply the strict DMARC policy, and shut down legacy outbound. A transient lower-priority backup MX to the legacy server may bridge the hours until Google delivery is confirmed, then is removed.
+3. Atomically: repoint the MX to Google, flip SPF to authorize exactly SES + Google, apply the DMARC policy (quarantine, later tightened to reject), and shut down legacy outbound. A transient lower-priority backup MX to the legacy server may bridge the hours until Google delivery is confirmed, then is removed.
 4. Verify inbound end-to-end to every provisioned address; verify SES outbound passes SPF/DKIM/DMARC checks at a major provider.
 5. Withdraw legacy `@footbag.org` delivery entirely. `@ifpa.footbag.org` on llic.net is untouched throughout.
 
