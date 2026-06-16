@@ -83,6 +83,11 @@ const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
   ['around-the-world', 'around-the-world-kick'],
   ['mirage', 'miraging-kick'],
   ['butterfly', 'butterfly-kick'],
+  // Continuous-control held-delay leg-over lineage: an inside delay held while
+  // the body crosses over it. Each sits in its own singleton family, so only
+  // this overlay connects them. Walk-over steps over the held delay, hop-over
+  // jumps over it, and eclipse lifts the whole structure airborne.
+  ['wrap', 'walk-over', 'hop-over', 'eclipse'],
 ];
 
 // Curated neighbors for a slug: its one-directional overlay entry plus the

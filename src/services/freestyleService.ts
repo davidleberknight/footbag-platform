@@ -6533,10 +6533,14 @@ export const freestyleService = {
         // rules are not rendered as related groups.
         const relatedList: FreestyleRelatedTrick[] = dictRow ? buildRelatedTricks(dictRow, allDictRows) : [];
         const isSwingElement = slug === 'pendulum' || slug === 'rake';
+        const isHeldDelayLegover =
+          slug === 'wrap' || slug === 'walk-over' || slug === 'hop-over' || slug === 'eclipse';
         const relatedGroups: FreestyleRelatedGroup[] = ([
           { key: 'neighborhood',    label: isSwingElement ? 'Swing elements' : 'Movement neighbours',
             rationale: isSwingElement
               ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
+              : isHeldDelayLegover
+              ? 'Continuous-control held-delay leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.'
               : null },
         ] as const).flatMap(g => {
           const tricks = relatedList.filter(r => r.rule === g.key);
