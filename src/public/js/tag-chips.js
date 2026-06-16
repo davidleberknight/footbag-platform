@@ -116,6 +116,19 @@
         textInput.focus();
       }
     });
+
+    // Flush any uncommitted text into a chip when the form submits, so a tag
+    // typed but not yet turned into a chip (e.g. typed then "Browse" clicked
+    // without pressing Enter) is still included in the submitted value.
+    var form = original.closest('form');
+    if (form) {
+      form.addEventListener('submit', function () {
+        var pending = textInput.value.trim().replace(/^#/, '');
+        if (pending.length > 0) {
+          commitTag(container, textInput, hidden, pending);
+        }
+      });
+    }
   }
 
   function parseTokens(value) {
@@ -132,7 +145,9 @@
   }
 
   function commitTag(container, textInput, hidden, token) {
-    token = token.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^_|_$/g, '').replace(/__+/g, '_');
+    // Hyphens are valid in tag slugs (e.g. trick tags like #gyro-flurry), so
+    // preserve them; only non-tag characters collapse to an underscore.
+    token = token.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^[-_]+|[-_]+$/g, '').replace(/__+/g, '_');
     if (token.length === 0) return;
 
     var existing = container.querySelectorAll('.tag-chip-input-chip');
