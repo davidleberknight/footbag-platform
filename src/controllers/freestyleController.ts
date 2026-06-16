@@ -28,6 +28,31 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/search — server-rendered trick search results (works without JS). */
+  search(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const q = typeof req.query['q'] === 'string' ? req.query['q'] : '';
+      const vm = freestyleService.getFreestyleTrickSearchPage(q);
+      res.render('freestyle/search', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /** GET /freestyle/search/suggest?q= — JSON typeahead for the trick search box. */
+  searchSuggest(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const q = typeof req.query['q'] === 'string' ? req.query['q'].trim() : '';
+      if (q.length === 0 || q.length > 100) {
+        res.json([]);
+        return;
+      }
+      res.json(freestyleService.searchTricks(q, 10));
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/leaders */
   leaders(_req: Request, res: Response, next: NextFunction): void {
     try {

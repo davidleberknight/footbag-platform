@@ -2186,6 +2186,40 @@ export const freestyleTricks = {
   `); },
 };
 
+export interface FreestyleTrickSearchRow {
+  slug: string;
+  canonical_name: string;
+  adds: string | null;
+  category: string | null;
+  aliases_json: string | null;
+  matched_alias: string | null;
+}
+
+// Alias-aware substring search over active tricks. A trick matches on its
+// canonical name, its slug (hyphens read as spaces so "double leg" finds
+// double-leg-over), or any of its alias texts. Name/slug matches rank ahead of
+// alias-only matches; the caller dedupes by slug (keeping the higher-ranked
+// row) and trims to its display limit.
+export function searchFreestyleTricksByText(query: string, limit: number): FreestyleTrickSearchRow[] {
+  const escaped = query.replace(/[%_\\]/g, c => '\\' + c);
+  const like = `%${escaped}%`;
+  return db.prepare(`
+    SELECT slug, canonical_name, adds, category, aliases_json,
+           NULL AS matched_alias, sort_order, 0 AS match_rank
+      FROM freestyle_tricks
+     WHERE is_active = 1
+       AND (canonical_name LIKE ? ESCAPE '\\' OR REPLACE(slug, '-', ' ') LIKE ? ESCAPE '\\')
+    UNION ALL
+    SELECT t.slug, t.canonical_name, t.adds, t.category, t.aliases_json,
+           a.alias_text AS matched_alias, t.sort_order, 1 AS match_rank
+      FROM freestyle_trick_aliases a
+      JOIN freestyle_tricks t ON t.slug = a.trick_slug AND t.is_active = 1
+     WHERE a.alias_text LIKE ? ESCAPE '\\'
+     ORDER BY match_rank ASC, sort_order ASC
+     LIMIT ?
+  `).all(like, like, like, limit) as FreestyleTrickSearchRow[];
+}
+
 export const freestyleTrickAliases = {
   // alias_slug -> canonical trick_slug (single row or undefined). Used by the
   // TT Series view to resolve sidecar tags whose first non-meta tag is an
@@ -2237,6 +2271,18 @@ export const freestyleMediaLinks = {
     INNER JOIN freestyle_tricks ft ON ('#' || ft.slug) = t.tag_normalized
     WHERE mi.source_id IS NOT NULL
       AND ft.is_active = 1
+    UNION
+    -- Media tagged with a trick's alias slug (e.g. a retired structural name
+    -- folded onto its folk-named canonical) is coverage for that canonical.
+    SELECT DISTINCT
+      ft.slug       AS slug,
+      mi.source_id  AS source_id
+    FROM media_items mi
+    INNER JOIN media_tags mt ON mt.media_id = mi.id
+    INNER JOIN tags t        ON t.id        = mt.tag_id
+    INNER JOIN freestyle_trick_aliases a ON ('#' || a.alias_slug) = t.tag_normalized
+    INNER JOIN freestyle_tricks ft       ON ft.slug = a.trick_slug AND ft.is_active = 1
+    WHERE mi.source_id IS NOT NULL
   `); },
 };
 

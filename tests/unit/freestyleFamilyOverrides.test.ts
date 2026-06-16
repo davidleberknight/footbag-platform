@@ -28,16 +28,34 @@ describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
     expect(resolveFamilyOverride('high-plains-drifter')).toBe('drifter');
   });
 
+  it('promotes the nearest-anchor branch families (torque / flurry / flail / butterfly-swirl / drifter)', () => {
+    // The anchor of a derived branch family carried its root label and so
+    // browsed under the root; the override makes the branch the owning family.
+    expect(resolveFamilyOverride('torque')).toBe('torque');
+    expect(resolveFamilyOverride('flurry')).toBe('flurry');
+    expect(resolveFamilyOverride('flail')).toBe('flail');
+    expect(resolveFamilyOverride('butterfly-swirl')).toBe('butterfly-swirl');
+    expect(resolveFamilyOverride('drifter')).toBe('drifter');
+    // toe-flurry is a flurry-family member that carried the legover root.
+    expect(resolveFamilyOverride('toe-flurry')).toBe('flurry');
+    // drifter members that carried the retired clipper-stall root.
+    expect(resolveFamilyOverride('fume')).toBe('drifter');
+    expect(resolveFamilyOverride('stepping-ducking-drifter')).toBe('drifter');
+  });
+
   it('returns null for slugs that have no override', () => {
     expect(resolveFamilyOverride('whirl')).toBeNull();
-    expect(resolveFamilyOverride('torque')).toBeNull();
-    expect(resolveFamilyOverride('drifter')).toBeNull();
+    expect(resolveFamilyOverride('mirage')).toBeNull();
+    expect(resolveFamilyOverride('osis')).toBeNull();
     expect(resolveFamilyOverride('nonexistent')).toBeNull();
   });
 
   it('the override map size matches the curator-authored entry count', () => {
-    // 4 Slice J/M entries + 1 emergency 2026-05-19 entry (rev-up self-bucket).
-    expect(FAMILY_OVERRIDES.size).toBe(5);
+    // Rev-Whirl sibling promotion (3) + high-plains-drifter (1) + rev-up
+    // self-bucket (1) + nearest-anchor reassignments: torque (13), blender (8),
+    // double-leg-over (7), eggbeater (14), flurry (2), flail (1),
+    // butterfly-swirl (1), drifter anchor + members (9).
+    expect(FAMILY_OVERRIDES.size).toBe(60);
   });
 });
 
@@ -110,11 +128,16 @@ describe('FAMILY_DISPLAY_NAMES', () => {
 });
 
 describe('cross-mechanism invariants', () => {
-  it('FAMILY_OVERRIDES and FAMILY_DUAL_MEMBERSHIPS share no keys', () => {
-    // A row is either re-bucketed (one-way) or dual-membership — never both.
+  it('keys shared by FAMILY_OVERRIDES and FAMILY_DUAL_MEMBERSHIPS agree on the branch family', () => {
+    // Branch anchors (torque / blender / drifter) are re-bucketed one-way into
+    // their own family (the override drives the detail-page family attribution)
+    // and also carry an additive dual-membership into that same family. When a
+    // slug is in both maps the two mechanisms must name the same branch.
     for (const slug of FAMILY_OVERRIDES.keys()) {
-      expect(FAMILY_DUAL_MEMBERSHIPS.has(slug),
-        `${slug} should not appear in both maps`).toBe(false);
+      const dual = FAMILY_DUAL_MEMBERSHIPS.get(slug);
+      if (!dual) continue;
+      expect(dual, `${slug} dual-membership should include its override family`)
+        .toContain(FAMILY_OVERRIDES.get(slug));
     }
   });
 

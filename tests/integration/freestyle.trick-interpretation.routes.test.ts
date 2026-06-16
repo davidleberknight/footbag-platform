@@ -55,6 +55,22 @@ beforeAll(async () => {
     review_status: 'curated', is_active: 1,
   });
 
+  // Interpretation note: one move, competing analyses (canonical + historical).
+  insertFreestyleTrick(testDbHandle, {
+    slug: 'torque', canonical_name: 'torque', adds: '4',
+    base_trick: 'osis', trick_family: 'osis', category: 'compound',
+    description: 'A mirage into an osis.',
+    review_status: 'curated', is_active: 1,
+  });
+
+  // Terminology note: one label, different moves (no historical-reading line).
+  insertFreestyleTrick(testDbHandle, {
+    slug: 'clipper', canonical_name: 'clipper', adds: '1',
+    base_trick: 'clipper', trick_family: 'clipper', category: 'body',
+    description: 'A cross-body inside-foot stall.',
+    review_status: 'curated', is_active: 1,
+  });
+
   testDbHandle.close();
   createApp = await importApp();
 });
@@ -113,6 +129,32 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
       alias_text: 'egg beater',
       trick_slug: 'eggbeater',
     });
+  });
+});
+
+describe('Naming & interpretation overlay — interpretation note (torque)', () => {
+  it('surfaces both the canonical and historical readings of the same move', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/torque');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Naming &amp; interpretation');
+    expect(res.text).toMatch(/Canonical reading[\s\S]*?miraging osis/);
+    expect(res.text).toMatch(/Historical reading[\s\S]*?stepping opposite osis/);
+    expect(res.text).toContain('the difference is in how sources analyze it');
+  });
+});
+
+describe('Naming & interpretation overlay — terminology note (clipper)', () => {
+  it('renders the section and states the footbag.org clipper kick is a different move', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Naming &amp; interpretation');
+    expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot stall/);
+    expect(res.text).toMatch(/different move shares this name[\s\S]*?clipper kick/);
+  });
+
+  it('does NOT render a "Historical reading" label (a different move is not a reading of this trick)', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    expect(res.text).not.toContain('Historical reading');
   });
 });
 

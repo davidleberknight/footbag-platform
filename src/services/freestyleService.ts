@@ -57,6 +57,7 @@ import {
   freestyleMediaLinks,
   freestyleCompetition, freestylePartnerships, media,
   queryCuratorMediaTags,
+  searchFreestyleTricksByText,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
@@ -387,6 +388,55 @@ export interface FreestyleRecordsContent {
   groups: FreestyleRecordGroup[];
   totalRecords: number;
   totalHolders: number;
+}
+
+export interface FreestyleTrickSearchResult {
+  slug: string;
+  name: string;
+  href: string;
+  adds: string | null;
+  category: string | null;
+  /** The alias the query matched, when the canonical name did not match directly. */
+  matchedAlias: string | null;
+}
+
+export interface FreestyleSearchContent {
+  query: string;
+  hasQuery: boolean;
+  tooShort: boolean;
+  results: FreestyleTrickSearchResult[];
+  resultCount: number;
+  hasMore: boolean;
+}
+
+const TRICK_SEARCH_MIN_LENGTH = 2;
+
+function runTrickSearch(query: string, limit: number): FreestyleTrickSearchResult[] {
+  const q = query.trim();
+  if (q.length < TRICK_SEARCH_MIN_LENGTH) return [];
+  return runSqliteRead('freestyleTricks.search', () => {
+    const rows = searchFreestyleTricksByText(q, limit * 4);
+    const seen = new Set<string>();
+    const out: FreestyleTrickSearchResult[] = [];
+    for (const r of rows) {
+      if (seen.has(r.slug)) continue;
+      seen.add(r.slug);
+      const matchedAlias =
+        r.matched_alias && r.matched_alias.toLowerCase() !== r.canonical_name.toLowerCase()
+          ? r.matched_alias
+          : null;
+      out.push({
+        slug: r.slug,
+        name: r.canonical_name,
+        href: `/freestyle/tricks/${r.slug}`,
+        adds: r.adds ?? null,
+        category: r.category ?? null,
+        matchedAlias,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  });
 }
 
 export interface FreestyleLeaderViewModel {
@@ -6220,6 +6270,52 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * Alias-aware substring search over active tricks, shared by the
+   * server-rendered results page and the typeahead suggest endpoint. Returns
+   * up to `limit` results, deduped by slug.
+   */
+  searchTricks(query: string, limit = 10): FreestyleTrickSearchResult[] {
+    return runTrickSearch(query, limit);
+  },
+
+  getFreestyleTrickSearchPage(rawQuery: string): PageViewModel<FreestyleSearchContent> {
+    const query = (rawQuery ?? '').trim();
+    const hasQuery = query.length > 0;
+    const tooShort = hasQuery && query.length < TRICK_SEARCH_MIN_LENGTH;
+    const PAGE_LIMIT = 50;
+    const found = hasQuery && !tooShort ? runTrickSearch(query, PAGE_LIMIT + 1) : [];
+    const hasMore = found.length > PAGE_LIMIT;
+    const results = hasMore ? found.slice(0, PAGE_LIMIT) : found;
+    return {
+      seo: {
+        title: hasQuery ? `Search: ${query}` : 'Search Tricks',
+        description: 'Search the freestyle trick dictionary by trick name or alias.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_search',
+        title:      'Search Tricks',
+        intro:      'Find a trick by its name or a folk-name alias.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle',        href: '/freestyle' },
+          { label: 'Trick Dictionary', href: '/freestyle/tricks' },
+          { label: 'Search' },
+        ],
+      },
+      content: {
+        query,
+        hasQuery,
+        tooShort,
+        results,
+        resultCount: results.length,
+        hasMore,
+      },
+    };
+  },
+
   getLeadersPage(): PageViewModel<FreestyleLeadersContent> {
     const rows = runSqliteRead('freestyleRecords.listLeaders', () =>
       freestyleRecords.listLeaders.all() as FreestyleLeaderRow[],
@@ -6417,9 +6513,22 @@ export const freestyleService = {
         //   - demoMedia: named-trick performance (Footbag Finland, Flipsider)
         //   - dropped (passback_records): renders in the Passback Records
         //     table below instead, to avoid duplicating record-clip data
-        const allRefMedia = runSqliteRead('media.listMediaByTrickTag', () =>
-          media.listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
-        );
+        // Match media tagged with the canonical slug AND with any alias slug,
+        // so media tagged under a retired structural name (folded onto this
+        // folk-named canonical) stays attached. Dedupe by media id.
+        const mediaTagCandidates = [`#${slug}`, ...aliasSlugs.map(a => `#${a}`)];
+        const seenRefMediaIds = new Set<string>();
+        const allRefMedia: TrickRefMediaRow[] = [];
+        for (const tag of mediaTagCandidates) {
+          const rows = runSqliteRead('media.listMediaByTrickTag', () =>
+            media.listMediaByTrickTag.all(tag) as TrickRefMediaRow[],
+          );
+          for (const r of rows) {
+            if (seenRefMediaIds.has(r.id)) continue;
+            seenRefMediaIds.add(r.id);
+            allRefMedia.push(r);
+          }
+        }
         // Batch-load hashtag chips for every reference-media row in one round-trip
         // (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7). Builds mediaId → raw-tag-array
         // map; shapeReferenceMedia applies the browse-surface suppression policy.

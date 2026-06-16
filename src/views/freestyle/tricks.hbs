@@ -16,6 +16,21 @@
 
 <div class="wrapper">
 
+  {{! ── Trick search: name/alias lookup. Submits to the dedicated search page
+      (typeahead lives there); works without JS. ── }}
+  <div class="card member-search-card">
+    <div class="member-search-section">
+      <form method="GET" action="/freestyle/search" class="member-search-form" role="search">
+        <input type="text" name="q" minlength="2" maxlength="100"
+               placeholder="Search tricks by name or alias..."
+               aria-label="Search tricks by name or alias"
+               autocomplete="off"
+               class="member-search-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+  </div>
+
   {{! ── Page intro — plain, movement-first. Shown on every browse view. ── }}
   {{#if content.dictionaryIntro}}
   <p class="browse-view-intro">{{content.dictionaryIntro}}

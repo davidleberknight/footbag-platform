@@ -1,0 +1,62 @@
+{{! /freestyle/search — alias-aware trick dictionary search (works without JS) }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  <div class="card member-search-card">
+    <div class="member-search-section">
+      <form method="GET" action="/freestyle/search" class="member-search-form" role="search"
+            data-trick-search-form data-suggest-url="/freestyle/search/suggest">
+        <input type="text" name="q" minlength="2" maxlength="100"
+               placeholder="Search tricks by name or alias..."
+               value="{{content.query}}"
+               aria-label="Search tricks by name or alias"
+               autocomplete="off"
+               class="member-search-input"
+               data-trick-search-input />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <div data-trick-search-results>
+      {{#if content.hasQuery}}
+        {{#if content.tooShort}}
+          <p class="text-muted">Please enter at least 2 characters.</p>
+        {{else if content.results.length}}
+          <div class="member-search-card-results-head">
+            <strong>Results</strong>
+            <span class="section-count">{{content.resultCount}}{{#if content.hasMore}}+{{/if}}</span>
+          </div>
+          {{#if content.hasMore}}
+            <p class="text-muted">Showing the first {{content.resultCount}}. Refine your search to narrow it.</p>
+          {{/if}}
+          <div class="member-search-results">
+            {{#each content.results}}
+              <div class="member-search-result">
+                <a href="{{href}}">{{name}}</a>
+                {{#if adds}}<span class="text-muted">{{adds}} ADD</span>{{/if}}
+                {{#if matchedAlias}}<span class="text-muted">also: {{matchedAlias}}</span>{{/if}}
+              </div>
+            {{/each}}
+          </div>
+        {{else}}
+          <p class="text-muted">No tricks found matching "{{content.query}}".</p>
+        {{/if}}
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<script src="/js/freestyle-trick-search.js" defer></script>

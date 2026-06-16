@@ -68,6 +68,10 @@ publicRouter.get('/bap',   bapController.index);
 // IMPORTANT: literal sub-routes registered before param routes (/freestyle/tricks/:slug)
 // and before /freestyle itself.
 publicRouter.get('/freestyle/records',     freestyleController.records);
+// Trick search. The suggest endpoint backs the typeahead; the page is the
+// no-JS fallback. Both are literal paths registered ahead of /freestyle/tricks/:slug.
+publicRouter.get('/freestyle/search/suggest', freestyleController.searchSuggest);
+publicRouter.get('/freestyle/search',         freestyleController.search);
 // Freestyle Media section; built by mediaService and also reached from the
 // /media hub's Freestyle card, so both surfaces share one structure.
 publicRouter.get('/freestyle/media',       mediaController.freestyleMedia);

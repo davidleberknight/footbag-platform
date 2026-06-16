@@ -135,6 +135,34 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   ['spinning-eggbeater', 'eggbeater'],
   ['barraging-eggbeater', 'eggbeater'],
   ['stepping-ducking-pigbeater', 'eggbeater'],
+
+  // Flurry (anchor carried its legover root; the branch members flurricane /
+  // gyro-flurry / paradox-flurry already carry the flurry label, so only the
+  // anchor and toe-flurry browsed under legover instead of their own family).
+  ['flurry', 'flurry'],
+  ['toe-flurry', 'flurry'],
+
+  // Flail (anchor carried its illusion root; every flail-* descendant already
+  // carries the flail label, so only the anchor browsed under illusion).
+  ['flail', 'flail'],
+
+  // Butterfly-Swirl (anchor carried its swirl root; every butterfly-swirl-*
+  // descendant already carries the label, so only the anchor browsed under swirl).
+  ['butterfly-swirl', 'butterfly-swirl'],
+
+  // Drifter (the drifter root family lost its anchor and several members to the
+  // retired clipper-stall label they still carried; these redirects return them
+  // to the drifter family they descend from. drifter also keeps its
+  // dual-membership entry below).
+  ['drifter', 'drifter'],
+  ['clipper-ducking-drifter', 'drifter'],
+  ['diving-drifter', 'drifter'],
+  ['fairy-drifter', 'drifter'],
+  ['fume', 'drifter'],
+  ['lotus', 'drifter'],
+  ['nuclear-drifter', 'drifter'],
+  ['quantum-drifter', 'drifter'],
+  ['stepping-ducking-drifter', 'drifter'],
 ]);
 
 /**
