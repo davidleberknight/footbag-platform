@@ -1933,6 +1933,7 @@ Usage discovery (the legacy-site webmaster supplies the facts; disposition of an
 1. Which `@ifpa.footbag.org` aliases received any non-spam mail in the last 12 months?
 2. Who reads each such alias today, and does any committee still conduct business over it rather than over ordinary email or board tools?
 3. For any alias still in real use, is running it on llic.net acceptable indefinitely, or is there a date by which the list host must retire?
+4. The legacy source (the `wrapper` list component and the `groups/` code) addresses every committee and sanctioning list as `<list>@ifpa.footbag.org`, and no apex `sanctioning@footbag.org` or `directors@footbag.org` appears in the legacy code or the published site. Apex mail routing lives in sendmail aliases outside the codebase, so confirm whether `sanctioning@footbag.org` and `directors@footbag.org` exist as live apex aliases today and where they forward. This reconciles DESIGN_DECISIONS §5.5, which lists both as apex receive addresses to provision on Google: if the real in-use contacts are the `@ifpa.footbag.org` lists, settle the target domain (consolidate onto apex on Google, or keep on the llic.net list server) before the email transition provisions any address.
 
 The roughly 1.2GB `ifpa_group_messages` archive is dispositioned under the sealed legacy email archive below.
 
