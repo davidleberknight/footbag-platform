@@ -363,9 +363,14 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     canonicalFormula:  'CLIP > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL]',
     familyAnchorAdds:  4,
     commonDescendants: ['flurricane', 'gyro flurry', 'paradox flurry'],
-    siblingFamilies:   ['mirage'],
+    siblingFamilies:   ['legover', 'eggbeater', 'double-leg-over'],
     notableCompounds:  ['flurricane'],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Flurry\'s barraging-legover lineage',
+        body:  'Flurry is the barraging-legover counterpart to eggbeater (the atomic legover): both are legover-family branches named by the set operator that builds them, conserving the legover toe-catch terminal.',
+      },
+    ],
   },
   {
     slug:              'flail',
@@ -376,7 +381,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['atomic flail', 'fairy flail', 'gyro flail', 'paradox flail'],
     siblingFamilies:   ['mirage', 'legover'],
     notableCompounds:  [],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Branch of illusion',
+        body:  'Flail ≡ symposium illusion: the symposium (no-plant) operator on the illusion terminal, conserving illusion\'s opposite-foot toe delay.',
+      },
+    ],
   },
   {
     slug:              'butterfly-swirl',
@@ -387,7 +397,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['ducking butterfly-swirl', 'gyro butterfly-swirl', 'spinning butterfly-swirl'],
     siblingFamilies:   ['butterfly', 'eclipse'],
     notableCompounds:  [],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Butterfly-entry swirl',
+        body:  'Butterfly-Swirl pairs a butterfly-style out-dex with the back-swirl terminal: a same/opposite out-dex precedes the back swirl, which catches on a same-side cross-body clipper. It leads its own branch (gyro / spinning / ducking butterfly-swirl) off the swirl anchor.',
+      },
+    ],
   },
   {
     slug:              'double-leg-over',
