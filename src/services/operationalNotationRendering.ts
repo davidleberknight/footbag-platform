@@ -55,9 +55,9 @@ const SURFACES        = new Set([
 const SIDES           = new Set(['SAME', 'OP']);
 const DIRECTIONS      = new Set(['IN', 'OUT']);
 const FRONT_BACK      = new Set(['FRONT', 'BACK']);
-const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE']);
+const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE', 'FLYING']);
 const ROTATION_NOUNS  = new Set(['WHIRL', 'SWIRL']);
-const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS']);
+const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS', 'KICK']);
 
 // Educational tooltip text per role. Used in the `title` attribute of each
 // rendered <span> for native browser hover-disclosure. Generic fallbacks;
@@ -97,6 +97,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   SPIN:  'SPIN: body rotation in place',
   DUCK:  'DUCK: body action (downward)',
   DIVE:  'DIVE: body action (forward-downward)',
+  FLYING: 'FLYING: airborne flying body action (the flying operator)',
   // Standalone WHIRL/SWIRL — layer-disambiguated from semantic core_family
   WHIRL: 'WHIRL (operational): rotational dex step within the trick',
   SWIRL: 'SWIRL (operational): rotational dex step within the trick',
@@ -114,6 +115,7 @@ const COMPONENT_FLAG_LABELS: Record<string, string> = {
   PDX:  'Paradox component (paradox-direction dex)',
   XDEX: 'Cross-dex component (full-circle dex variant)',
   UNS:  'Unusual-surface component (stall on a non-standard landing surface)',
+  KICK: 'Kick action marker (non-scoring; the kick itself carries no ADD)',
 };
 
 // Pre-state flag specific tooltip overrides — same rationale as
