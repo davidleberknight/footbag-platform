@@ -489,7 +489,7 @@ Several shortcuts exist to reduce friction during local manual testing. The runt
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
 | `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `dev_switch_persona`. |
-| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog (plus optional `.local/test-personas.json`). Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
+| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by `seedConfig.ts`. |
 | `FOOTBAG_DEV_ADMIN_GRANT_TIER2` | env var | development only | At boot, every `is_admin=1` member whose ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant, enforcing the admin↔Tier 2 prerequisite from `A_Manage_Admin_Role`. |
 | `./scripts/manage-dev-admin-seed.sh --seed-dev-admins` | operator script | development AND staging | Reads `.local/dev-admin-seed.json` (JSONC; or `FOOTBAG_DEV_ADMIN_SEED_JSON` on staging) and inserts admin member rows with `is_admin=1` plus a Tier 2 grant. Production blocked by `seedConfig.ts`. |
 
@@ -507,7 +507,7 @@ export FOOTBAG_ENV=development
 #   http://localhost:3000/dev/switch?as=admin_t2    (admin)
 ```
 
-The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`; add per-developer personas in the gitignored `.local/test-personas.json` (same JSONC spec).
+The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`.
 
 For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
 

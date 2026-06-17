@@ -220,6 +220,7 @@ Belongs:
 - Audit-log emission assertions
 - Rate-limit boundary assertions
 - Adapter parity (boot-time config tests, interface parity tests)
+- Exhaustive route-wiring crawl: every rendered link and form target resolves for the persona it was shown to
 
 Does not belong:
 
@@ -277,7 +278,7 @@ Does not belong:
 - Every service branch
 - Every validation edge case
 - Every policy function (these are unit and integration territory)
-- Exhaustive navigation crawls (heavyweight)
+- Exhaustive navigation crawls in a real browser (the exhaustive route-wiring crawl runs at the integration HTTP layer, §5.2)
 
 ### 5.6 Security regression
 
@@ -336,7 +337,7 @@ Belongs in the lightweight suite:
 Does not belong:
 
 - Every business-rule branch (unit or integration)
-- Full navigation crawls (operator-invoked via browser-qa)
+- Full browser navigation crawls (operator-invoked via browser-qa; the HTTP route-wiring crawl lives in §5.2)
 - Multi-browser parity (operator-invoked via browser-qa when needed)
 - Pentest attack flows (operator-invoked via browser-qa)
 - Deeper accessibility audits beyond automated `@a11y` coverage (operator-invoked via browser-qa or manual review)
@@ -456,10 +457,6 @@ A new dev/staging-only affordance lands with all of:
 - *initial-admins parity test* where applicable. Model: `tests/unit/devShortcuts.initialAdminEmails.test.ts`.
 
 These tests describe long-term contracts on the affordance's safety properties, not sprint-scoped probes. They are tagged `@security`.
-
-#### 7.5.5 Per-developer persona extension
-
-Beyond the canonical catalog, each developer may keep a gitignored `.local/test-personas.json`: a JSONC array of `PersonaSpec` objects (`//` line comments allowed) merged after the catalog at seed time. `src/testkit/personaSchemaValidator.ts` validates every entry against the full `PersonaSpec` before any row is written, failing with the offending slug and field so a malformed local entry never reaches a DB constraint. The same loader feeds the seed runner and the `/dev/personas` listing, so the page reflects exactly what a seed would create. The file is absent on staging and on a fresh clone, in which case the canonical catalog is the only input. The step-by-step recipe is in §16.6.
 
 ### 7.6 Test-only HTTP endpoints live behind the env-gated dev router
 
@@ -841,8 +838,8 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, se
 
 ### 16.1 What the harness provides
 
-- A curated persona catalog (`src/testkit/canonicalPersonas.ts`) plus an optional per-developer extension (`.local/test-personas.json`), seeded into the dev or staging database.
-- `GET /dev/personas`, a table of every loadable persona (slug, tier, role, coverage notes, source) with a Switch control.
+- A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
+- `GET /dev/personas`, a table of every loadable persona with its tier, roles, purpose, and coverage notes. A session-eligible persona row carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
 - `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
 - A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
 - The simulated-email card, captured outbound email rendered inline on email-gated pages when `SES_ADAPTER=stub`.
@@ -876,37 +873,18 @@ The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPT
 
 Live Stripe checkout-session creation and the `stripe listen` / `trigger` developer loop are out of scope until the live adapter ships.
 
-### 16.6 Adding your own personas (`.local/test-personas.json`)
-
-The per-developer extension is a gitignored JSON array of `PersonaSpec` objects (JSONC, `//` line comments allowed), merged after the canonical catalog. `slug`, `displayName`, `tier`, and a non-empty `coverageNotes[]` are required; optional dimensions include `isAdmin`, `underlyingTier` (required for `tier3`), `onboardingComplete` or `onboardingTasks`, `payments[]`, `legacy`, `club` or `clubs[]`, `activePlayer`, and `mailingList`. Example:
-
-```json
-[
-  {
-    "slug": "my_tier1_legacy",
-    "displayName": "My Local Tester",
-    "tier": "tier1",
-    "payments": [{ "type": "membership", "status": "succeeded", "purchasedTier": "tier1" }],
-    "legacy": { "linked": false },
-    "coverageNotes": ["tier1", "unlinked legacy match"]
-  }
-]
-```
-
-`src/testkit/personaSchemaValidator.ts` validates every entry before any DB write; a malformed entry fails loudly, naming the slug and the offending field, so a typo never surfaces as an opaque constraint error. To pick up edits, use the **Refresh all personas** control on `/dev/personas` (re-running the seed alone skips any slug that already exists); `/dev/personas` then shows exactly what was loaded. The full `PersonaSpec` surface is documented in `src/testkit/personaFactory.ts`; live examples are in `canonicalPersonas.ts`.
-
-### 16.7 Staging loop
+### 16.6 Staging loop
 
 On the staging host the harness is seeded after a deploy with `./deploy_to_aws.sh --seed-test-personas` (allowlisted to the staging target only). `/dev/personas`, `/dev/switch`, the simulated-email card, and the stub purchase flow behave as in development. Operator staging-smoke checks run with `RUN_STAGING_SMOKE=1 npm run test:smoke`.
 
-### 16.8 Pre-flight checklist
+### 16.7 Pre-flight checklist
 
 - `FOOTBAG_ENV` is `development` or `staging` (the `/dev` surface is absent otherwise).
 - `SES_ADAPTER=stub` (so the simulated-email card renders).
 - `PAYMENT_ADAPTER=stub` (the default in development; the staging setting) for the purchase flow.
 - The database has been seeded (`--seed-test-personas`); `/dev/personas` is non-empty.
 
-### 16.9 Provenance and the cutover audit
+### 16.8 Provenance and the cutover audit
 
 Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `dev_persona_seed` or `dev_switch_persona`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
 

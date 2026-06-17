@@ -5006,6 +5006,25 @@ export const auth = {
       AND m.is_deceased = 0
   `); },
 
+  // Dev persona harness only: a raw existence probe the /dev/personas listing
+  // uses to grey out any persona that has no seeded member row. It hits the bare
+  // members table (not members_active or the session lookup) on purpose: a
+  // seeded persona still counts as backed even when its state blocks login or
+  // search, so unverified, deceased, and soft-deleted personas read as real and
+  // are not greyed, they are simply not switchable.
+  get personaMemberExistsBySlug() { return db.prepare(`
+    SELECT 1 FROM members WHERE slug = ?
+  `); },
+
+  // Dev persona harness only: the login email for a seeded persona, so the
+  // /dev/login affordance can drive the real login path by email. Hits the bare
+  // members table (not the session/login views) because the personas it serves
+  // are deliberately login-blocked (unverified, deceased, soft-deleted) and
+  // would be filtered out of those views.
+  get personaLoginEmailBySlug() { return db.prepare(`
+    SELECT login_email FROM members WHERE slug = ?
+  `); },
+
   get updateMemberLastLogin() { return db.prepare(`
     UPDATE members
     SET

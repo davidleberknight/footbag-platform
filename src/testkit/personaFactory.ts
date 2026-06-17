@@ -63,6 +63,7 @@ export const PERSONA_SEED_REASON_TEXT =
   'TEST PERSONA HARNESS. Not a real tier purchase. Remove before any production deploy.';
 export const PERSONA_SEED_AUDIT_ACTION_TYPE = 'dev_persona_seed';
 export const PERSONA_SWITCH_AUDIT_ACTION_TYPE = 'dev_switch_persona';
+export const PERSONA_LOGIN_AUDIT_ACTION_TYPE = 'dev_login_persona';
 export const PERSONA_REFRESH_AUDIT_ACTION_TYPE = 'dev_persona_refresh';
 export const PERSONA_SEED_CREATED_BY = 'dev-shortcuts/personas';
 
@@ -259,6 +260,25 @@ export interface PersonaSpec {
   dimension?: string;
   /** One sentence: what code path / gate this persona exists to exercise. */
   purpose?: string;
+  /**
+   * Plain-words how a tester uses this persona and what to verify when acting as
+   * it. Distinct from `purpose` (why it exists): this is the testing recipe a
+   * tester reads on /dev/personas before clicking Switch.
+   */
+  testingUsage: string;
+  /**
+   * Set when the persona's backing feature is not built yet, naming the missing
+   * feature or table. A blocked persona is never seeded (the seed runner skips
+   * it) and renders greyed on /dev/personas, so the catalog shows the full
+   * deployed-spread coverage matrix including the test cases that arrive with a
+   * future feature.
+   */
+  blockedBy?: string;
+  /**
+   * Plain-English user story this persona traces to: the real-world scenario its
+   * not-yet-built feature serves, shown beside a blocked persona.
+   */
+  userStory?: string;
   /**
    * Marks an adjacent-owner / unauthorized actor whose value is the deny half of
    * the authorization matrix (owns a resource of the same type, but not this one).

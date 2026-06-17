@@ -6,7 +6,7 @@
  * The dev-reachable positive case is covered by devSwitchRoute.test.ts and
  * devPersonasListing.test.ts; this file owns the production-refusal case. The
  * config singleton freezes on the first importApp, so this file boots exactly
- * one env (production). It probes both /dev routes (/switch and /personas).
+ * one env (production). It probes the /dev routes (/switch, /login, /personas).
  *
  * It also probes POST /payments/checkout/:sessionId/decline: that stub-only
  * tester affordance is registered only when PAYMENT_ADAPTER=stub, and this
@@ -80,6 +80,12 @@ describe('GET /dev/* — production mount gate', () => {
   it('returns 404 for /dev/personas (router not mounted in production)', async () => {
     const app = createApp();
     const res = await request(app).get('/dev/personas');
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for /dev/login (router not mounted in production)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/dev/login?as=any-slug');
     expect(res.status).toBe(404);
   });
 

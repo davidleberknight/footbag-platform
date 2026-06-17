@@ -7,14 +7,11 @@
  *
  * Module-load guard: throws on import unless FOOTBAG_ENV is 'development' or
  * 'staging', so a production process can never load the persona password
- * literal. The persona seed runner is the only importer, and it runs under a
- * dev/staging env. The harness's non-sensitive detection markers (reason_code,
- * audit action_types, created_by) live in personaFactory.ts, not here, because
- * Vitest imports that module with FOOTBAG_ENV unset and this guard would
- * otherwise throw. The non-sensitive .local extension file path
- * (TEST_PERSONA_DEV_FILE_PATH) lives in seedCli.ts for the same reason: the
- * /dev/personas listing route reaches it via a chain app.ts imports
- * unconditionally, so it must stay outside this guard.
+ * literal. Its importers (the seed runner, and the dev refresh and login routes
+ * via dynamic import) all run under a dev/staging env. The harness's
+ * non-sensitive detection markers (reason_code, audit action_types, created_by)
+ * live in personaFactory.ts, not here, because Vitest imports that module with
+ * FOOTBAG_ENV unset and this guard would otherwise throw.
  *
  * Password-leak protection (regression: tests/integration/personaSeed.passwordLeak.test.ts):
  * the literal appears in exactly this one checked-in file; it is argon2-hashed

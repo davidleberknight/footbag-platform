@@ -54,7 +54,6 @@
  */
 import BetterSqlite3 from 'better-sqlite3';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
-import { loadLocalPersonas } from './personaSchemaValidator';
 import {
   seedPersona,
   normalizeNameForVariant,
@@ -108,15 +107,14 @@ function unique(values: string[]): string[] {
 }
 
 /**
- * Tear down all persona-owned rows and re-seed the canonical (+ optional .local)
- * catalog. Synchronous: runs inside a single better-sqlite3 transaction.
+ * Tear down all persona-owned rows and re-seed the canonical catalog.
+ * Synchronous: runs inside a single better-sqlite3 transaction.
  */
 export function refreshAllPersonas(
   db: BetterSqlite3.Database,
-  repoRoot: string,
   opts: RefreshPersonasOptions = {},
 ): RefreshResult {
-  const specs: PersonaSpec[] = [...CANONICAL_PERSONAS, ...loadLocalPersonas(repoRoot)];
+  const specs: PersonaSpec[] = CANONICAL_PERSONAS;
 
   // First column of every row as a string, dropping nulls. Used to pull id sets
   // out of the FK graph before the linking rows are deleted.
@@ -159,8 +157,8 @@ export function refreshAllPersonas(
 
   const run = db.transaction((): RefreshResult => {
     // 1. Discover persona members actually present, by deterministic id prefix.
-    //    Covers every seeded persona plus any whose .local spec was removed since
-    //    seeding (orphans), so a refresh always converges to the current catalog.
+    //    Covers every seeded persona plus any whose spec was removed from the
+    //    catalog since seeding (orphans), so a refresh always converges to it.
     const memberRows = db
       .prepare(`SELECT id, slug FROM members WHERE id LIKE 'member_persona_%'`)
       .all() as { id: string; slug: string }[];
@@ -439,14 +437,19 @@ export function refreshAllPersonas(
       db.exec(sql);
     }
 
-    // 5. Re-seed the current catalog (full rebuild — no skip-if-exists).
+    // 5. Re-seed the current catalog (full rebuild — no skip-if-exists). Blocked
+    //    personas have no built feature to seed, so they are skipped: they keep
+    //    no member row and render greyed on /dev/personas.
+    let reseeded = 0;
     for (const spec of specs) {
+      if (spec.blockedBy) continue;
       seedPersona(db, spec, opts.passwordHash ? { passwordHash: opts.passwordHash } : {});
+      reseeded += 1;
     }
 
     return {
       deletedMembers,
-      reseeded: specs.length,
+      reseeded,
       actorGrantRowsRemoved: tierActorRowsRemoved + apActorRowsRemoved,
     };
   });

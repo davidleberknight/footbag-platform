@@ -647,14 +647,12 @@ Before go-live the admin UI, the seeder, and the gallery render paths share one 
 Decision:
 
 The src/testkit/ subtree provides a composable test-data
-harness with three layers: a composition primitive that builds a
+harness with two layers: a composition primitive that builds a
 member plus all supporting rows (tier grant, legacy-claim linkage,
 historical-person link, club affiliations and leadership, onboarding-
 wizard progress, payment history, mailing-list subscriptions, audit
-trail) from a single structured spec; a maintainer-curated canonical
-catalog of named personas with coverage annotations; and a per-
-developer extension layer (.local/-scoped, gitignored, schema-
-validated) for ad-hoc personas. Two browser-facing affordances support
+trail) from a single structured spec; and a maintainer-curated canonical
+catalog of named personas with coverage annotations. Two browser-facing affordances support
 manual use: a route that issues a session cookie for any persona, and
 a listing view of all loaded personas with one-click switching. The
 harness is permanent test infrastructure: it is active in development
@@ -676,11 +674,10 @@ Rationale:
   whether instantiated in-process for a Vitest test or seeded in-
   database for a browser session, so behavior verified by a test
   reflects behavior reachable from a browser.
-- The three-layer split separates concerns. The primitive owns row-
+- The two-layer split separates concerns. The primitive owns row-
   building. The canonical catalog owns the maintainer-shared reference
   set with coverage notes that document which testing dimensions each
-  persona exercises. The per-developer extension owns ad-hoc additions
-  without polluting the shared reference.
+  persona exercises.
 - Two browser affordances (switch route plus listing view) cover both
   expert use (direct URL with persona slug) and discovery use (paid
   testers who do not read code browse the listing to find personas).
@@ -702,9 +699,6 @@ Requirements:
 - Canonical catalog persona entries carry coverage notes that
   enumerate the testing dimensions the persona exercises (tier, admin
   role, legacy state, club state, payment history shape, etc.).
-- Per-developer extension layer schema-validates against the same
-  spec the canonical catalog uses. Schema violations fail loud at load
-  time, not silently at use time.
 - Both browser affordances are active in development and staging and
   refused in production, gated by config.footbagEnv with a production
   hard-guard.

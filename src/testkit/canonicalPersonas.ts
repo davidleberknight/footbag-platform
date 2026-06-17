@@ -3,16 +3,22 @@
  *
  * The shared reference set every maintainer and paid tester switches between.
  * Each entry carries a `dimension` (the authorization axis it belongs to), a
- * `purpose` (the code path or gate it exists to exercise), and `coverageNotes`;
- * the catalog doubles as a coverage matrix that surfaces gaps as the testing
- * surface grows. New test slices add personas here rather than inventing fixture
- * rows.
+ * `purpose` (the code path or gate it exists to exercise), a `testingUsage` (how
+ * a tester uses it and what to verify), and `coverageNotes`; the catalog doubles
+ * as a coverage matrix that surfaces gaps as the testing surface grows. New test
+ * slices add personas here rather than inventing fixture rows.
  *
  * The catalog covers the tier ladder and admin role plus onboarding-wizard
  * state, legacy-claim variants, graded auto-link confidence (high/medium/low),
  * legacy-club-candidate cards (pending/declined/resolved/junk), club
  * affiliations, payment history, Active Player expiry, mailing-list
  * subscription state, and edge-case identities.
+ *
+ * Classes whose backing feature is not built yet (event organizer, group roles,
+ * vote eligibility, the claimed-legacy banned subject) appear with a `blockedBy`
+ * marker: they are never seeded and render greyed on /dev/personas, so the
+ * catalog shows the full deployed-spread matrix and the test cases that arrive
+ * with each future feature. Drop a persona's `blockedBy` when its feature lands.
  */
 import type { PersonaSpec } from './personaFactory';
 
@@ -23,6 +29,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Tier ladder & admin',
     purpose: 'Tier 0 floor actor: the just-below case every tier-gated route must deny.',
+    testingUsage: 'Switch here to confirm tier-gated routes deny the Tier 0 floor while open routes still work.',
     onboardingComplete: true,
     coverageNotes: ['tier0 baseline', 'onboarding wizard complete', 'no payment history'],
   },
@@ -32,6 +39,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Tier ladder & admin',
     purpose: 'Tier 1 member: the first paid-benefits gate.',
+    testingUsage: 'Act as a paid Tier 1 member to confirm the first paid-benefits gate opens while Tier 2 surfaces stay closed.',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier1' }],
     coverageNotes: ['tier1', 'one successful membership purchase', 'tier1 benefits gate'],
@@ -42,6 +50,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier2',
     dimension: 'Tier ladder & admin',
     purpose: 'Tier 2 member: full paid-tier benefits gate.',
+    testingUsage: 'Act as a full Tier 2 member to confirm all paid-tier benefits and organizer-eligible surfaces open.',
     onboardingComplete: true,
     payments: [
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier1' },
@@ -56,6 +65,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     underlyingTier: 'tier2',
     dimension: 'Tier ladder & admin',
     purpose: 'Tier 3 governance tier reached without payment (admin-comped); underlying Tier 2.',
+    testingUsage: 'Verify Tier 3 governance surfaces open for a comped director and that Tier 2 is what remains if governance ends.',
     onboardingComplete: true,
     coverageNotes: [
       'tier3 governance tier',
@@ -70,6 +80,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     isAdmin: true,
     dimension: 'Tier ladder & admin',
     purpose: 'Admin role: exercises admin nav and every admin-gated surface (allow half of admin routes).',
+    testingUsage: 'Act as an admin to walk the admin nav and confirm every admin-gated surface opens (the allow half of the admin matrix).',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2' }],
     coverageNotes: ['admin role', 'tier2', 'admin nav + admin-gated surfaces'],
@@ -82,6 +93,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Account state & privacy',
     purpose: 'Registered but email not yet verified: login is blocked and member search excludes the account until verification.',
+    testingUsage: 'Confirm an unverified account cannot log in and is excluded from member search; Switch is expected to be refused because login is blocked until verification.',
     emailVerified: false,
     coverageNotes: [
       'registered-unverified (email_verified_at NULL)',
@@ -95,6 +107,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier2',
     dimension: 'Account state & privacy',
     purpose: 'Deceased member: login disabled and search/roster-excluded, while HoF/BAP honors and history stay visible.',
+    testingUsage: 'Verify a deceased member is login-disabled and search/roster-excluded while HoF/BAP honors and history still render; Switch is refused because login is disabled.',
     isDeceased: true,
     honors: { hof: true },
     onboardingComplete: true,
@@ -109,6 +122,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Account state & privacy',
     purpose: 'Soft-deleted and still inside the restoration window: logging in offers account restoration.',
+    testingUsage: 'Confirm logging in during the open restoration window presents the account-restoration screen.',
     deletionState: 'grace_open',
     onboardingComplete: true,
     coverageNotes: [
@@ -123,6 +137,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Account state & privacy',
     purpose: 'Soft-deleted past the restoration window (pre-purge): login is permanently rejected.',
+    testingUsage: 'Confirm logging in past the restoration window is permanently rejected with no restore offered.',
     deletionState: 'grace_elapsed',
     onboardingComplete: true,
     coverageNotes: [
@@ -139,6 +154,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Onboarding wizard',
     purpose: 'Fresh signup with no onboarding rows: every wizard task reads as pending.',
+    testingUsage: 'Confirm a fresh signup shows every onboarding-wizard task as pending.',
     coverageNotes: ['fresh signup, no onboarding rows (all tasks pending)'],
   },
   {
@@ -147,6 +163,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Onboarding wizard',
     purpose: 'Mid-wizard: personal details done, legacy claim paused, so the dashboard shows the resume card.',
+    testingUsage: 'Confirm a mid-wizard member sees the dashboard resume card for the paused legacy-claim step.',
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: [
       'partial wizard',
@@ -160,6 +177,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Onboarding wizard',
     purpose: 'Wizard with the legacy and club tasks explicitly skipped.',
+    testingUsage: 'Confirm the wizard reflects explicitly skipped legacy and club tasks (not the same as pending).',
     onboardingTasks: {
       personal_details: 'completed',
       legacy_claim: 'skipped',
@@ -175,6 +193,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Legacy claim',
     purpose: 'Unlinked legacy match carrying a legacy_email: the email-equality claim fast path and confirm-token card.',
+    testingUsage: 'Walk the email-equality claim fast path and the confirm-token card for an unlinked legacy match that carries a legacy email.',
     legacy: { linked: false, realName: 'Pat Match', legacyEmail: 'pat.match@legacy.test' },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: [
@@ -188,6 +207,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Legacy claim',
     purpose: 'Unlinked legacy match with no email: the historical-person card-confirm claim path.',
+    testingUsage: 'Walk the historical-person card-confirm claim path for an unlinked match with no legacy email.',
     legacy: { linked: false, realName: 'Jo Cardonly' },
     coverageNotes: [
       'unlinked legacy match, null legacy_email',
@@ -200,6 +220,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Legacy claim',
     purpose: 'Completed legacy claim: member.legacy_member_id is set.',
+    testingUsage: 'Confirm a completed legacy claim shows the member linked to its legacy account and no further claim is offered.',
     onboardingComplete: true,
     legacy: { linked: true, realName: 'Sam Claimed', legacyEmail: 'sam.claimed@legacy.test' },
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier1' }],
@@ -211,6 +232,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Legacy claim',
     purpose: 'Claimed legacy account carrying the legacy admin flag: it must never confer a live admin role, so member.is_admin stays 0.',
+    testingUsage: 'Confirm a claimed legacy account carrying the legacy admin flag does NOT gain a live admin role (member.is_admin stays 0).',
     legacy: {
       linked: true,
       realName: 'Cyrus Wasadmin',
@@ -231,6 +253,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Auto-link confidence',
     purpose: 'High-confidence auto-link (exact name): the auto-confirm card.',
+    testingUsage: 'Confirm the high-confidence (exact name) auto-link surfaces the one-click auto-confirm card.',
     legacy: { autoLinkConfidence: 'high' },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: ['auto-link high confidence (exact name match)', 'auto-link-confirm card'],
@@ -241,6 +264,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Auto-link confidence',
     purpose: 'Medium-confidence auto-link (same-surname name_variants match).',
+    testingUsage: 'Confirm a medium-confidence same-surname auto-link is offered for review rather than auto-confirmed.',
     legacy: { autoLinkConfidence: 'medium' },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: ['auto-link medium confidence (same-surname name_variants match)'],
@@ -251,6 +275,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Auto-link confidence',
     purpose: 'Low-confidence / no-candidate auto-link: no card surfaces, falls through to manual claim.',
+    testingUsage: 'Confirm a low/no-candidate auto-link surfaces no card and falls through to the manual claim path.',
     legacy: { autoLinkConfidence: 'low' },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused' },
     coverageNotes: ['auto-link low confidence (no name candidate)', 'falls through to manual claim'],
@@ -261,6 +286,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Legacy club cards',
     purpose: 'Legacy-club-candidate cards across pending / declined / resolved / junk-suppressed states.',
+    testingUsage: 'Confirm the onboarding wizard renders legacy-club cards across pending, declined, and resolved states and suppresses the junk one.',
     legacy: { linked: false, realName: 'Cam Cards' },
     legacyClubCandidates: [
       { clubName: 'Pending Kick Club', classification: 'onboarding_visible', resolutionStatus: 'pending' },
@@ -281,6 +307,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Club affiliations',
     purpose: 'Several club affiliations at once: one current+primary, one former.',
+    testingUsage: 'Confirm the profile shows multiple club affiliations with the current+primary one distinguished from the former one.',
     onboardingComplete: true,
     clubs: [
       { clubName: 'Harbor Kick Collective', current: true, primary: true },
@@ -294,6 +321,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Club affiliations',
     purpose: 'Current club affiliation flagged as the listed contact.',
+    testingUsage: 'Confirm a current affiliation flagged as the listed contact renders as the club contact.',
     onboardingComplete: true,
     clubs: [{ clubName: 'Riverside Footbag', current: true, contact: true }],
     coverageNotes: ['current club affiliation flagged as listed contact'],
@@ -306,6 +334,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Club roles (authorization)',
     purpose: 'Confirmed live club co-leader (bootstrap claim promoted to a club_leaders row): the allow case for club-content edits.',
+    testingUsage: 'Act as a confirmed club co-leader to confirm it can edit its own club content (the allow case).',
     onboardingComplete: true,
     club: { clubName: 'Downtown Footbag', leader: true, role: 'co-leader' },
     coverageNotes: [
@@ -319,6 +348,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Club roles (authorization)',
     purpose: 'Live club co-leader: edits club content as an equal member of the leadership set.',
+    testingUsage: 'Act as a co-leader to confirm equal edit rights over the shared club content.',
     onboardingComplete: true,
     club: { clubName: 'Seaside Footbag', role: 'co-leader' },
     coverageNotes: [
@@ -332,6 +362,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Club roles (authorization)',
     purpose: 'Adjacent-owner: co-leads a different club, so club-scoped routes must deny it on clubs it does not co-lead (BOLA).',
+    testingUsage: 'The adjacent-owner deny case: confirm a co-leader of a different club is rejected on clubs it does not co-lead (BOLA).',
     negative: true,
     onboardingComplete: true,
     club: { clubName: 'Hilltop Footbag', role: 'co-leader' },
@@ -346,6 +377,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Club roles (authorization)',
     purpose: 'Tier 0 whose current Active Player grant (not a paid tier) is what qualifies it to hold a live co-leader row.',
+    testingUsage: 'Confirm a Tier 0 member whose current Active Player grant supplies Tier 1 benefits can hold and exercise a co-leader role.',
     onboardingComplete: true,
     activePlayer: { expiresAt: '2027-12-31T00:00:00.000Z' },
     club: { clubName: 'Lakeside Footbag', role: 'co-leader' },
@@ -361,6 +393,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Club roles (authorization)',
     purpose: 'Tier 0 bootstrap-leader claim awaiting promotion: a club_bootstrap_leaders row plus signal, with no live club_leaders row.',
+    testingUsage: 'Confirm a Tier 0 bootstrap-leader claim awaiting promotion has no live co-leader edit rights yet.',
     onboardingComplete: true,
     club: { clubName: 'Ridgeway Footbag', leader: true },
     coverageNotes: [
@@ -376,6 +409,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Payments',
     purpose: 'Failed membership purchase: no tier granted, retry-from-failure surface.',
+    testingUsage: 'Confirm a failed membership purchase grants no tier and offers a retry-from-failure surface.',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'failed', purchasedTier: 'tier1' }],
     coverageNotes: ['failed membership purchase, no tier grant', 'retry-from-failure surface'],
@@ -386,6 +420,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Payments',
     purpose: 'Pending checkout: no tier granted yet.',
+    testingUsage: 'Confirm a pending checkout grants no tier yet.',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'pending', purchasedTier: 'tier2' }],
     coverageNotes: ['pending checkout, no tier grant yet'],
@@ -396,6 +431,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Payments',
     purpose: 'Refunded membership purchase.',
+    testingUsage: 'Confirm a refunded membership purchase is reflected in payment history and confers no tier.',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'refunded', purchasedTier: 'tier1' }],
     coverageNotes: ['refunded membership purchase'],
@@ -406,6 +442,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Payments',
     purpose: 'Membership plus a standalone donation in payment history.',
+    testingUsage: 'Confirm a standalone donation appears in payment history alongside the tier-conferring membership.',
     onboardingComplete: true,
     payments: [
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier1' },
@@ -421,6 +458,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Active Player',
     purpose: 'Current (non-expired) Active Player grant.',
+    testingUsage: 'Confirm a current Active Player grant unlocks the Tier 1 benefits it confers on a Tier 0 member.',
     onboardingComplete: true,
     activePlayer: { expiresAt: '2027-12-31T00:00:00.000Z' },
     coverageNotes: ['current (non-expired) Active Player grant'],
@@ -431,6 +469,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Active Player',
     purpose: 'Recently-expired Active Player grant: the expiry-boundary partner of ap_active.',
+    testingUsage: 'Confirm a recently-expired Active Player shows the expiry surface and has lost the conferred Tier 1 benefits.',
     onboardingComplete: true,
     activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z', reasonCode: 'official_event_attendance' },
     coverageNotes: ['recently-expired Active Player', 'M_Active_Player_Expiry surface'],
@@ -443,6 +482,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Mailing list',
     purpose: 'Subscribed mailing-list membership.',
+    testingUsage: 'Confirm a subscribed member is included in list mail and shows the subscribed state.',
     onboardingComplete: true,
     mailingList: { status: 'subscribed' },
     coverageNotes: ['subscribed mailing-list membership'],
@@ -453,6 +493,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Mailing list',
     purpose: 'Unsubscribed mailing-list membership.',
+    testingUsage: 'Confirm an unsubscribed member is excluded from list mail and shows the unsubscribed state.',
     onboardingComplete: true,
     mailingList: { status: 'unsubscribed' },
     coverageNotes: ['unsubscribed mailing-list membership'],
@@ -465,6 +506,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier2',
     dimension: 'Honors & standing',
     purpose: 'Hall-of-Fame honor: the lifetime badge renders on the live profile and the honor confers Tier 2.',
+    testingUsage: 'Confirm the HoF lifetime badge renders on the live profile and the honor confers Tier 2.',
     honors: { hof: true },
     onboardingComplete: true,
     coverageNotes: ['HoF honor (is_hof=1)', 'lifetime badge render', 'honor-conferred tier2'],
@@ -475,6 +517,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier2',
     dimension: 'Honors & standing',
     purpose: 'Big-Add-Posse honor: the lifetime badge renders on the live profile and the honor confers Tier 2.',
+    testingUsage: 'Confirm the BAP lifetime badge renders on the live profile and the honor confers Tier 2.',
     honors: { bap: true },
     onboardingComplete: true,
     coverageNotes: ['BAP honor (is_bap=1)', 'lifetime badge render', 'honor-conferred tier2'],
@@ -486,6 +529,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     underlyingTier: 'tier2',
     dimension: 'Honors & standing',
     purpose: 'IFPA Board governance flag: sets the temporary Tier 3 governance status over an underlying tier.',
+    testingUsage: 'Confirm the IFPA Board flag sets the temporary Tier 3 governance status over the underlying Tier 2.',
     honors: { board: true },
     onboardingComplete: true,
     coverageNotes: ['IFPA Board flag (is_board=1)', 'temporary Tier 3 governance over underlying tier2'],
@@ -499,6 +543,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Identity edge cases',
     purpose: 'Surname collision (Tan) with edge_surname_b.',
+    testingUsage: 'Confirm search and disambiguation handle a surname collision (one of the two Tans).',
     onboardingComplete: true,
     coverageNotes: ['surname collision (Tan) with edge_surname_b'],
   },
@@ -509,6 +554,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Identity edge cases',
     purpose: 'Surname collision (Tan) with edge_surname_a.',
+    testingUsage: 'Confirm search and disambiguation handle the other side of the Tan surname collision.',
     onboardingComplete: true,
     coverageNotes: ['surname collision (Tan) with edge_surname_a'],
   },
@@ -519,6 +565,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Identity edge cases',
     purpose: 'Duplicate display name with edge_dup_display_b.',
+    testingUsage: 'Confirm duplicate display names stay distinguishable (one of the two Jordan Lees).',
     onboardingComplete: true,
     coverageNotes: ['duplicate display name with edge_dup_display_b'],
   },
@@ -529,6 +576,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Identity edge cases',
     purpose: 'Duplicate display name with edge_dup_display_a.',
+    testingUsage: 'Confirm the other duplicate display name renders and resolves distinctly.',
     onboardingComplete: true,
     coverageNotes: ['duplicate display name with edge_dup_display_a'],
   },
@@ -539,6 +587,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Identity edge cases',
     purpose: 'Unicode / diacritic display and real name.',
+    testingUsage: 'Confirm a unicode/diacritic name renders and searches correctly.',
     onboardingComplete: true,
     coverageNotes: ['unicode / diacritic display + real name'],
   },
@@ -550,6 +599,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Identity edge cases',
     purpose: 'RTL-override control characters in the display name.',
+    testingUsage: 'Confirm RTL-override control characters in a display name render safely without corrupting surrounding layout.',
     onboardingComplete: true,
     coverageNotes: ['RTL-override control characters in display name'],
   },
@@ -561,7 +611,164 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier0',
     dimension: 'Identity edge cases',
     purpose: 'Cyrillic homoglyph in the display name.',
+    testingUsage: 'Confirm a Cyrillic homoglyph in a display name is handled safely in search and display.',
     onboardingComplete: true,
     coverageNotes: ['Cyrillic homoglyph in display name'],
+  },
+
+  // ── Event roles (authorization) — BLOCKED: organizer edit routes not built ──
+  {
+    slug: 'eo_organizer',
+    displayName: 'Olive Organizer',
+    tier: 'tier2',
+    dimension: 'Event roles (authorization)',
+    purpose: 'Event creator / primary organizer: the allow case for organizer-gated event edits.',
+    testingUsage: 'When organizer routes ship, act as the event organizer to confirm it can edit the event, manage co-organizers, and view participants.',
+    blockedBy: 'event organizer edit routes not built',
+    userStory: 'Event organizers edit their own event, manage its co-organizers, and view its participants.',
+    coverageNotes: ['event organizer (creator)', 'allow: edits own event'],
+  },
+  {
+    slug: 'eo_corganizer',
+    displayName: 'Cory Coorg',
+    tier: 'tier1',
+    dimension: 'Event roles (authorization)',
+    purpose: 'Event co-organizer on a shared event: equal organizer rights.',
+    testingUsage: 'When organizer routes ship, confirm a co-organizer has equal edit rights on the shared event.',
+    blockedBy: 'event organizer edit routes not built',
+    userStory: 'A co-organizer added to an event shares full edit rights with the creator.',
+    coverageNotes: ['event co-organizer', 'allow: edits shared event'],
+  },
+  {
+    slug: 'eo_other_organizer',
+    displayName: 'Otto Elsewhere',
+    tier: 'tier2',
+    dimension: 'Event roles (authorization)',
+    purpose: 'Adjacent-owner: organizes a different event, so event-scoped routes must deny it (BOLA).',
+    testingUsage: 'When organizer routes ship, the deny case: confirm an organizer of a different event is rejected on events it does not organize.',
+    blockedBy: 'event organizer edit routes not built',
+    userStory: 'An organizer of one event must not be able to edit a different event they do not run.',
+    negative: true,
+    coverageNotes: ['organizes a different event', 'deny: adjacent-owner BOLA'],
+  },
+
+  // ── Group roles (authorization) — BLOCKED: group schema and routes not built ─
+  {
+    slug: 'go_owner',
+    displayName: 'Gwen Owner',
+    tier: 'tier1',
+    dimension: 'Group roles (authorization)',
+    purpose: 'Group creator / owner: the allow case for group management.',
+    testingUsage: 'When groups ship, confirm the owner can edit the group, manage members and co-owners, and moderate the email queue.',
+    blockedBy: 'group schema and routes not built',
+    userStory: 'A member who creates a group edits it, manages its members and co-owners, and moderates its email queue.',
+    coverageNotes: ['group owner', 'allow: manages own group'],
+  },
+  {
+    slug: 'go_coowner',
+    displayName: 'Coyle Coowner',
+    tier: 'tier1',
+    dimension: 'Group roles (authorization)',
+    purpose: 'Group co-owner: equal management rights.',
+    testingUsage: 'When groups ship, confirm a co-owner has equal management rights on the group.',
+    blockedBy: 'group schema and routes not built',
+    userStory: 'A co-owner added to a group shares full management rights with the creator.',
+    coverageNotes: ['group co-owner', 'allow: manages group'],
+  },
+  {
+    slug: 'go_member',
+    displayName: 'Mei Member',
+    tier: 'tier1',
+    dimension: 'Group roles (authorization)',
+    purpose: 'Group member: member-scoped actions only (participate, leave, upload to allowed surfaces).',
+    testingUsage: 'When groups ship, confirm a plain member can do member-scoped group actions but not owner-only management.',
+    blockedBy: 'group schema and routes not built',
+    userStory: 'A group member can take part and upload to allowed surfaces but cannot manage the group.',
+    coverageNotes: ['group member', 'allow: member actions; deny: owner actions'],
+  },
+  {
+    slug: 'go_nonmember',
+    displayName: 'Noah Outside',
+    tier: 'tier1',
+    dimension: 'Group roles (authorization)',
+    purpose: 'Non-member: must be denied member-only group actions.',
+    testingUsage: 'When groups ship, the deny case: confirm a non-member is rejected from member-only group actions.',
+    blockedBy: 'group schema and routes not built',
+    userStory: 'Someone who is not in a group must not be able to take member-only actions in it.',
+    negative: true,
+    coverageNotes: ['non-member', 'deny: member-only actions'],
+  },
+  {
+    slug: 'go_other_owner',
+    displayName: 'Ona Othergroup',
+    tier: 'tier1',
+    dimension: 'Group roles (authorization)',
+    purpose: 'Adjacent-owner: owns a different group, so group-scoped routes must deny it (BOLA).',
+    testingUsage: 'When groups ship, the deny case: confirm an owner of a different group is rejected on groups it does not own.',
+    blockedBy: 'group schema and routes not built',
+    userStory: 'An owner of one group must not be able to manage a different group.',
+    negative: true,
+    coverageNotes: ['owns a different group', 'deny: adjacent-owner BOLA'],
+  },
+
+  // ── Vote eligibility — BLOCKED: voting routes and eligibility snapshot not built ─
+  {
+    slug: 'vote_inclusion_list',
+    displayName: 'Ines List',
+    tier: 'tier0',
+    dimension: 'Vote eligibility',
+    purpose: "Member on a vote's explicit inclusion list: the allow case.",
+    testingUsage: 'When voting ships, confirm a member on the explicit inclusion list can view and cast the vote.',
+    blockedBy: 'voting routes and eligibility snapshot not built',
+    userStory: "A member named on a vote's inclusion list can view and cast that vote.",
+    coverageNotes: ['on explicit inclusion list', 'allow: eligible to vote'],
+  },
+  {
+    slug: 'vote_tier_qualified',
+    displayName: 'Tess Qualified',
+    tier: 'tier2',
+    dimension: 'Vote eligibility',
+    purpose: 'Member who qualifies by a tier/flag eligibility rule rather than an inclusion list.',
+    testingUsage: 'When voting ships, confirm a member whose tier or flags satisfy the eligibility rule can vote.',
+    blockedBy: 'voting routes and eligibility snapshot not built',
+    userStory: "A member whose tier or standing meets a vote's eligibility rule can cast it.",
+    coverageNotes: ['qualifies by tier/flag rule', 'allow: eligible to vote'],
+  },
+  {
+    slug: 'vote_t0_no_ap',
+    displayName: 'Tad Floor',
+    tier: 'tier0',
+    dimension: 'Vote eligibility',
+    purpose: 'Tier 0 without Active Player on a Tier-1-restricted vote: the deny case.',
+    testingUsage: 'When voting ships, the deny case: confirm a Tier 0 member with no Active Player is rejected from a Tier-1-restricted vote.',
+    blockedBy: 'voting routes and eligibility snapshot not built',
+    userStory: 'A member below the required tier (and without an Active Player grant) is shut out of a tier-restricted vote.',
+    negative: true,
+    coverageNotes: ['tier0, no Active Player', 'deny: tier-restricted vote'],
+  },
+  {
+    slug: 'vote_unqualified',
+    displayName: 'Una Ineligible',
+    tier: 'tier1',
+    dimension: 'Vote eligibility',
+    purpose: 'Member meeting no tier, flag, or inclusion rule: the deny case.',
+    testingUsage: 'When voting ships, the deny case: confirm a member who meets no eligibility rule cannot vote.',
+    blockedBy: 'voting routes and eligibility snapshot not built',
+    userStory: 'A member who meets no inclusion, tier, or flag rule cannot cast the vote.',
+    negative: true,
+    coverageNotes: ['meets no eligibility rule', 'deny: ineligible'],
+  },
+
+  // ── Claimed-legacy banned — BLOCKED: legacy_members.banned column not added ──
+  {
+    slug: 'legacy_banned_claimed',
+    displayName: 'Ben Wasbanned',
+    tier: 'tier0',
+    dimension: 'Legacy claim',
+    purpose: 'Claimed legacy record carrying the legacy banned flag: it is audit metadata only and must not impose live disciplinary state.',
+    testingUsage: 'When the legacy banned column exists, confirm claiming a banned legacy record succeeds and the legacy ban does not gate or discipline the live account.',
+    blockedBy: 'legacy_members.banned column not added',
+    userStory: 'Someone whose old footbag.org record was banned can still claim it; the old ban is history, not a live restriction on the new account.',
+    coverageNotes: ['claimed legacy row with banned=1', 'legacy ban is audit-only, not a live gate'],
   },
 ];

@@ -10,18 +10,6 @@
  * seedConfig env-guard).
  */
 
-/**
- * Repo-root-relative path to the per-developer, gitignored persona extension
- * file. JSONC-tolerant (`//` line comments stripped before parse). Optional:
- * the canonical catalog seeds with or without it.
- *
- * Lives here (not in the env-guarded personaSecrets.ts) because it is a
- * non-sensitive path, and the /dev/personas listing route reaches it through
- * personaSchemaValidator — a chain app.ts imports unconditionally. Routing the
- * constant through the guarded module would throw on every production boot.
- */
-export const TEST_PERSONA_DEV_FILE_PATH = '.local/test-personas.json';
-
 /** Resolve the SQLite path from a `--db <path>` flag, else FOOTBAG_DB_PATH, else the dev default. */
 export function parseDbArg(argv: string[]): { dbPath: string } {
   let dbPath = process.env.FOOTBAG_DB_PATH ?? './database/footbag.db';

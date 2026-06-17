@@ -3,18 +3,14 @@
  *
  * Real SQLite (no mocks). Each test builds a fresh schema, seeds the canonical
  * catalog by calling refreshAllPersonas against an empty DB, then exercises one
- * dimension. repoRoot points at an empty temp dir so no .local extension loads;
- * the runner reseeds canonical personas only.
+ * dimension.
  *
  * No passwordHash is passed: seeded members get the factory placeholder hash, so
  * the module never imports the env-gated persona secret (FOOTBAG_ENV is unset
  * under Vitest).
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterAll, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { refreshAllPersonas } from '../../src/testkit/personaRefreshRunner';
 import {
@@ -33,7 +29,6 @@ const { dbPath } = setTestEnv('3097');
 const T1 = 'member_persona_t1_paid';
 const T2 = 'member_persona_t2_paid';
 
-let repoRoot: string;
 let db: BetterSqlite3.Database;
 
 const tierOf = (memberId: string): string | undefined =>
@@ -44,12 +39,7 @@ const tierOf = (memberId: string): string | undefined =>
 const count = (sql: string, ...params: unknown[]): number =>
   (db.prepare(sql).get(...params) as { n: number }).n;
 
-beforeAll(() => {
-  repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-personaroot-'));
-});
-
 afterAll(() => {
-  fs.rmSync(repoRoot, { recursive: true, force: true });
   cleanupTestDb(dbPath);
 });
 
@@ -57,7 +47,7 @@ beforeEach(() => {
   cleanupTestDb(dbPath);
   db = createTestDb(dbPath);
   // Baseline: seed the canonical catalog from an empty DB.
-  refreshAllPersonas(db, repoRoot);
+  refreshAllPersonas(db);
 });
 
 afterEach(() => {
@@ -77,7 +67,7 @@ describe('refreshAllPersonas', () => {
     });
     expect(tierOf(T1)).toBe('tier2');
 
-    refreshAllPersonas(db, repoRoot);
+    refreshAllPersonas(db);
 
     // Back to the seeded tier, and the upgrade grant is physically gone — proving
     // the row was deleted, not merely out-voted by a fresh seed grant.
@@ -112,7 +102,7 @@ describe('refreshAllPersonas', () => {
     // The shared mailing_lists parent (seeded by ml_subscribed) must survive teardown.
     expect(count(`SELECT COUNT(*) AS n FROM mailing_lists WHERE slug = 'announce'`)).toBe(1);
 
-    refreshAllPersonas(db, repoRoot);
+    refreshAllPersonas(db);
 
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = 'member-outsider-1'`)).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants WHERE member_id = 'member-outsider-1'`)).toBe(1);
@@ -132,8 +122,8 @@ describe('refreshAllPersonas', () => {
     const t0 = tags();
     const v0 = variants();
 
-    expect(() => refreshAllPersonas(db, repoRoot)).not.toThrow();
-    expect(() => refreshAllPersonas(db, repoRoot)).not.toThrow();
+    expect(() => refreshAllPersonas(db)).not.toThrow();
+    expect(() => refreshAllPersonas(db)).not.toThrow();
 
     // Stable counts prove teardown removed the prior round's random-id rows
     // (clubs/tags) and PK-keyed rows (members/name_variants) before reseeding.
@@ -315,7 +305,7 @@ describe('refreshAllPersonas', () => {
        VALUES ('ccl-outsider-1', ?, 'system', 'club', ?, 'member-outsider-2', ?)`,
     ).run(TS, personaClub.id, TS);
 
-    expect(() => refreshAllPersonas(db, repoRoot)).not.toThrow();
+    expect(() => refreshAllPersonas(db)).not.toThrow();
 
     // The outsider and their gallery survive; only the rows referencing the
     // deleted persona club/tag are gone.
@@ -437,7 +427,7 @@ describe('refreshAllPersonas', () => {
       reason_code: 'admin.correction',
     });
 
-    const result = refreshAllPersonas(db, repoRoot);
+    const result = refreshAllPersonas(db);
     expect(result.actorGrantRowsRemoved).toBe(1);
 
     // The real legacy account survives, unclaimed.
@@ -494,7 +484,7 @@ describe('refreshAllPersonas', () => {
        VALUES (?, ?, 'system', ?, ?, ?)`,
     ).run('apv-block-1', '2026-01-01T00:00:00.000Z', T2, T1, '2026-01-01T00:00:00.000Z');
 
-    expect(() => refreshAllPersonas(db, repoRoot)).toThrow();
+    expect(() => refreshAllPersonas(db)).toThrow();
 
     // Guards restored by the transaction rollback (DDL is transactional in SQLite).
     const guards = count(

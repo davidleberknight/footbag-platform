@@ -1,7 +1,6 @@
 /**
- * Persona seed runner. Seeds the canonical persona catalog (and the optional
- * per-developer .local extension) into the dev/staging database so the
- * /dev/switch route and the persona listing have members to act as.
+ * Persona seed runner. Seeds the canonical persona catalog into the dev/staging
+ * database so the /dev/switch route and the persona listing have members to act as.
  *
  * Env guard: ./personaSecrets throws on import unless FOOTBAG_ENV is
  * 'development' or 'staging'. Production is hard-blocked.
@@ -9,30 +8,8 @@
  * Idempotent: a persona whose slug already exists as a member is skipped, so
  * re-running after a partial seed (or alongside other seeds) is safe.
  *
- * Input:
- *   1. CANONICAL_PERSONAS (always; the maintainer-curated catalog in code).
- *   2. .local/test-personas.json if present (JSONC-tolerant; `//` line comments
- *      stripped). Per-developer, gitignored. Malformed entries fail loudly.
- *      Absent on a staging box (the canonical catalog is the only input there).
- *
- * .local/test-personas.json shape — a JSON array of PersonaSpec objects (see
- * personaFactory.ts for the full type; canonicalPersonas.ts for live examples):
- *
- *   [
- *     // slug, displayName, tier, and a non-empty coverageNotes[] are required.
- *     {
- *       "slug": "my_tier1_legacy",
- *       "displayName": "My Local Tester",
- *       "tier": "tier1",
- *       "payments": [{ "type": "membership", "status": "succeeded", "purchasedTier": "tier1" }],
- *       "legacy": { "linked": false },
- *       "coverageNotes": ["tier1", "unlinked legacy match"]
- *     }
- *   ]
- *
- * No checked-in `.example` template exists (the entire .local/ tree is
- * gitignored); this JSDoc plus canonicalPersonas.ts are the schema reference,
- * mirroring how the dev-admin seed documents .local/dev-admin-seed.json.
+ * Input: CANONICAL_PERSONAS, the maintainer-curated catalog in code
+ * (personaFactory.ts has the full PersonaSpec type; canonicalPersonas.ts has live examples).
  *
  * Usage (dev, via tsx):
  *   FOOTBAG_ENV=development npx tsx src/testkit/personaSeedRunner.ts
@@ -44,15 +21,12 @@
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import { existsSync } from 'node:fs';
-import * as path from 'node:path';
 import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { seedPersona } from './personaFactory';
 import { parseDbArg } from './seedCli';
-import { loadLocalPersonas } from './personaSchemaValidator';
 
 export async function main(): Promise<number> {
-  const repoRoot = path.resolve(__dirname, '..', '..');
   const { dbPath } = parseDbArg(process.argv.slice(2));
   const env = process.env.FOOTBAG_ENV ?? '<unset>';
 
@@ -61,7 +35,7 @@ export async function main(): Promise<number> {
     return 1;
   }
 
-  const specs = [...CANONICAL_PERSONAS, ...loadLocalPersonas(repoRoot)];
+  const specs = CANONICAL_PERSONAS;
   console.log(`[persona-seed] env=${env} specs=${specs.length}`);
 
   // Direct argon2, not the shared hashPassword helper: this CLI seed script
@@ -76,8 +50,16 @@ export async function main(): Promise<number> {
   const existsBySlug = db.prepare(`SELECT 1 FROM members WHERE slug = ?`);
   let created = 0;
   let skipped = 0;
+  let skippedBlocked = 0;
   try {
     for (const spec of specs) {
+      if (spec.blockedBy) {
+        // The persona's feature is not built yet, so there is nothing to seed.
+        // It still lives in the catalog and renders greyed on /dev/personas.
+        skippedBlocked += 1;
+        console.log(`[persona-seed] skip (blocked: ${spec.blockedBy}): ${spec.slug}`);
+        continue;
+      }
       if (existsBySlug.get(spec.slug)) {
         skipped += 1;
         console.log(`[persona-seed] skip (slug exists): ${spec.slug}`);
@@ -91,7 +73,9 @@ export async function main(): Promise<number> {
     db.close();
   }
 
-  console.log(`[persona-seed] done. created=${created} skipped=${skipped}`);
+  console.log(
+    `[persona-seed] done. created=${created} skipped=${skipped} skippedBlocked=${skippedBlocked}`,
+  );
   return 0;
 }
 

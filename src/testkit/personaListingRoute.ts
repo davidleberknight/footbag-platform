@@ -1,8 +1,7 @@
 /**
  * GET /dev/personas — tester-facing catalog of every loadable persona.
  *
- * Lists the canonical catalog plus the optional per-developer .local extension
- * (the exact merge the seed runner seeds), each row carrying a Switch link to
+ * Lists the canonical persona catalog, each row carrying a Switch link to
  * /dev/switch?as=<slug>. This is the human entry point to the persona harness:
  * a tester opens the page, picks a persona, and clicks Switch to act as them.
  *
@@ -12,9 +11,8 @@
  * link is safe because /dev/switch itself 404s an unknown slug.
  */
 import { Request, Response, NextFunction } from 'express';
-import * as path from 'node:path';
+import { auth } from '../db/db';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
-import { loadLocalPersonas } from './personaSchemaValidator';
 import type { PersonaSpec } from './personaFactory';
 
 interface PersonaListRow {
@@ -31,7 +29,29 @@ interface PersonaListRow {
   /** Adjacent-owner / unauthorized actor — the deny half of the matrix. */
   negative: boolean;
   coverage: string[];
-  source: 'canonical' | '.local';
+  /** Plain-words how a tester uses this persona and what to verify. */
+  testingUsage: string;
+  /** When set, the backing feature is not built yet (persona is greyed). */
+  blockedBy?: string;
+  /** Plain-English user story this persona traces to, shown beside a blocked persona. */
+  userStory?: string;
+  /**
+   * A seeded member row exists and the feature is not blocked, so the persona is
+   * real. A row that is not backed renders greyed.
+   */
+  backed: boolean;
+  /**
+   * The session lookup the switch route uses resolves this persona, so a Switch
+   * link will succeed. A backed persona is still not switchable when its state
+   * blocks login (unverified, deceased, soft-deleted): real, but no session.
+   */
+  switchable: boolean;
+  /**
+   * For a backed persona whose login is blocked (unverified, deceased,
+   * soft-deleted), the /dev/login link that runs the real login attempt. Lets a
+   * login-blocked persona be an exercisable link instead of a dead row.
+   */
+  loginHref?: string;
   switchHref: string;
 }
 
@@ -61,7 +81,11 @@ function deriveRoles(spec: PersonaSpec): string[] {
   return roles;
 }
 
-function toRow(spec: PersonaSpec, source: PersonaListRow['source']): PersonaListRow {
+function toRow(
+  spec: PersonaSpec,
+  backed: boolean,
+  switchable: boolean,
+): PersonaListRow {
   return {
     slug: spec.slug,
     tierLabel: TIER_LABELS[spec.tier] ?? spec.tier,
@@ -69,9 +93,37 @@ function toRow(spec: PersonaSpec, source: PersonaListRow['source']): PersonaList
     purpose: spec.purpose ?? spec.coverageNotes[0] ?? '',
     negative: spec.negative ?? false,
     coverage: spec.coverageNotes,
-    source,
+    testingUsage: spec.testingUsage,
+    ...(spec.blockedBy ? { blockedBy: spec.blockedBy } : {}),
+    ...(spec.userStory ? { userStory: spec.userStory } : {}),
+    backed,
+    switchable,
+    ...(backed && !switchable
+      ? { loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}` }
+      : {}),
     switchHref: `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
   };
+}
+
+/**
+ * A persona is backed when its feature is built (no blockedBy) and a member row
+ * was seeded for its slug. The raw existence probe counts login-blocked and
+ * soft-deleted personas as backed (they are real, just not switchable).
+ */
+function isPersonaBacked(spec: PersonaSpec): boolean {
+  if (spec.blockedBy) return false;
+  return Boolean(auth.personaMemberExistsBySlug.get(spec.slug));
+}
+
+/**
+ * A persona is switchable when the session lookup the switch route runs resolves
+ * it. Using that exact query as the oracle keeps the listing and the route in
+ * lockstep: a Switch link appears only when /dev/switch will succeed, so the
+ * listing never offers a link that 404s.
+ */
+function isPersonaSwitchable(spec: PersonaSpec): boolean {
+  if (spec.blockedBy) return false;
+  return Boolean(auth.findMemberForSessionBySlug.get(spec.slug));
 }
 
 /** Group rows by authorization axis, preserving first-seen dimension order. */
@@ -93,18 +145,13 @@ function groupByDimension(specs: PersonaSpec[], rows: PersonaListRow[]): Persona
 
 export function getDevPersonas(_req: Request, res: Response, next: NextFunction): void {
   try {
-    const repoRoot = path.resolve(__dirname, '..', '..');
-    const localPersonas = loadLocalPersonas(repoRoot);
-    const specs: PersonaSpec[] = [...CANONICAL_PERSONAS, ...localPersonas];
-    const sources: PersonaListRow['source'][] = [
-      ...CANONICAL_PERSONAS.map(() => 'canonical' as const),
-      ...localPersonas.map(() => '.local' as const),
-    ];
-    const rows = specs.map((spec, i) => toRow(spec, sources[i]));
+    const rows = CANONICAL_PERSONAS.map((spec) =>
+      toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
+    );
     res.render('dev/persona-listing', {
       seo: { title: 'Test personas' },
       page: { sectionKey: '', pageKey: 'dev_personas', title: 'Test personas' },
-      groups: groupByDimension(specs, rows),
+      groups: groupByDimension(CANONICAL_PERSONAS, rows),
       personaCount: rows.length,
     });
   } catch (err) {

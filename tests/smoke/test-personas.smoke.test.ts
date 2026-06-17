@@ -8,10 +8,8 @@
  * produces no duplicate audit rows (the skip-existing-slug idempotency contract
  * in src/testkit/personaSeedRunner.ts).
  *
- * Unlike the dev-admin smoke, there is no .local gate: the persona catalog is
- * code and always seeds, so the expected count is derived from CANONICAL_PERSONAS
- * directly. (A developer's optional .local/test-personas.json is never present
- * on a staging box, so it does not affect the expected count here.)
+ * The persona catalog is code and always seeds, so the expected count is derived
+ * from CANONICAL_PERSONAS directly.
  *
  * Transport: scripts/verify-test-personas.sh uses ssh -t to invoke a sudo'd
  * docker compose exec on the staging host. The operator's sudo password is
@@ -47,8 +45,11 @@ import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
 
 const RUN = process.env.RUN_STAGING_SMOKE === '1';
 
-const expectedPersonaCount = CANONICAL_PERSONAS.length;
-const expectedTierGrants = CANONICAL_PERSONAS.filter((p) => p.tier !== 'tier0').length;
+// Blocked personas (a future feature not built yet) are never seeded, so the
+// expected counts cover only the backed catalog.
+const BACKED_PERSONAS = CANONICAL_PERSONAS.filter((p) => !p.blockedBy);
+const expectedPersonaCount = BACKED_PERSONAS.length;
+const expectedTierGrants = BACKED_PERSONAS.filter((p) => p.tier !== 'tier0').length;
 
 interface VerifyResult {
   personasSeeded: number;

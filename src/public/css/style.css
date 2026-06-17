@@ -12056,6 +12056,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0;
   padding-left: 18px;
 }
+.dev-persona-unseeded {
+  opacity: 0.55;
+}
+.dev-persona-unseeded code {
+  color: var(--gray-700);
+}
 
 /* Homepage foundational-tricks mosaic: a 4-across by 3-down grid of labelled
    looping clips, one per core atom. Cells with no clip yet show a neutral

@@ -9,13 +9,18 @@
  * devSwitchRoute.test.ts; the production-refusal (404) case by
  * devRoutes.prodGate.test.ts.
  *
- * The route renders the in-memory canonical catalog (no DB read), so the
- * assertions below check the rendered catalog directly against CANONICAL_PERSONAS.
+ * The route renders the in-memory canonical catalog and probes the DB per
+ * persona: a Switch link appears only when the session lookup the switch route
+ * runs resolves the persona, so a seeded-but-login-blocked persona (unverified,
+ * deceased, soft-deleted) renders "Not switchable" rather than a link that would
+ * 404, and a blocked or unseeded one renders greyed. beforeAll seeds the backed
+ * catalog so the Switch-link assertions hold.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
+import { seedPersona } from '../../src/testkit/personaFactory';
 
 const { dbPath } = setTestEnv('3437');
 
@@ -45,6 +50,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  for (const spec of CANONICAL_PERSONAS.filter((p) => !p.blockedBy)) {
+    seedPersona(db, spec);
+  }
   db.close();
   createApp = await importApp();
 });
@@ -62,13 +70,35 @@ describe('GET /dev/personas (staging boot)', () => {
     expect(createApp()).toBeTypeOf('function');
   });
 
-  it('renders 200 and lists every canonical persona with a Switch link', async () => {
+  // A backed persona is switchable unless its own state blocks login. The switch
+  // route's session lookup excludes unverified, deceased, and soft-deleted rows,
+  // so those render "Not switchable" rather than a Switch link that would 404.
+  const isSwitchable = (p: (typeof CANONICAL_PERSONAS)[number]) =>
+    !p.blockedBy && p.emailVerified !== false && !p.isDeceased && !p.deletionState;
+
+  it('lists every persona; only session-eligible personas get a Switch link', async () => {
     const res = await request(createApp()).get('/dev/personas');
     expect(res.status).toBe(200);
+    // Every persona, switchable or not, is listed in the catalog.
     for (const spec of CANONICAL_PERSONAS) {
-      expect(res.text).toContain(spec.slug);
-      // Handlebars HTML-escapes the `=` in the href to &#x3D;; match either form.
-      expect(res.text).toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
+      expect(res.text, spec.slug).toContain(spec.slug);
+    }
+    // Switchable personas offer a Switch link (Handlebars escapes `=` to &#x3D;).
+    for (const spec of CANONICAL_PERSONAS.filter(isSwitchable)) {
+      expect(res.text, spec.slug).toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
+    }
+    // Seeded-but-login-blocked personas offer a Log in link (the real login
+    // attempt) instead of a Switch link: an exercisable link, not a dead row.
+    const loginBlocked = CANONICAL_PERSONAS.filter((p) => !p.blockedBy && !isSwitchable(p));
+    expect(loginBlocked.length, 'catalog should include login-blocked personas').toBeGreaterThan(0);
+    for (const spec of loginBlocked) {
+      expect(res.text, spec.slug).not.toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
+      expect(res.text, spec.slug).toMatch(new RegExp(`/dev/login\\?as(=|&#x3D;)${spec.slug}\\b`));
+    }
+    // Blocked (unbuilt-feature) personas show their blocker reason and no link.
+    for (const spec of CANONICAL_PERSONAS.filter((p) => p.blockedBy)) {
+      expect(res.text, spec.slug).toContain(spec.blockedBy as string);
+      expect(res.text, spec.slug).not.toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
     }
   });
 

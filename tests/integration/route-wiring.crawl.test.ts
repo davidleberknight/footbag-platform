@@ -159,10 +159,27 @@ function shouldSkip(path: string): boolean {
   return false;
 }
 
+// Handlebars HTML-escapes attribute values, so a query-string href renders
+// with entities: `=` becomes the numeric reference `&#x3D;`, `&` becomes
+// `&amp;`. The raw markup must be decoded back to the real URL before parsing,
+// or the `#` inside `&#x3D;` truncates the href at the fragment split and every
+// `?key=value` link collapses to `?key`, silently never getting probed.
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 function normalize(href: string): string | null {
-  if (!href.startsWith('/')) return null;        // external, mailto, anchors
-  if (href.startsWith('//')) return null;        // protocol-relative external
-  const noHash = href.split('#')[0];
+  const decoded = decodeEntities(href);
+  if (!decoded.startsWith('/')) return null;     // external, mailto, anchors
+  if (decoded.startsWith('//')) return null;     // protocol-relative external
+  const noHash = decoded.split('#')[0];
   return noHash === '' ? null : noHash;
 }
 
@@ -192,7 +209,10 @@ function stripJsonIslands(html: string): string {
   return html.replace(/<script type="application\/json"[^>]*>[\s\S]*?<\/script>/g, '');
 }
 
-async function crawlAs(persona: string, cookie: string | null): Promise<CrawlFailure[]> {
+async function crawlAs(
+  persona: string,
+  cookie: string | null,
+): Promise<{ failures: CrawlFailure[]; visited: Set<string> }> {
   const app = createApp();
   const failures: CrawlFailure[] = [];
   const visited = new Set<string>();
@@ -253,25 +273,38 @@ async function crawlAs(persona: string, cookie: string | null): Promise<CrawlFai
     }
   }
 
-  return failures;
+  // Reaching the page budget means coverage was capped: links beyond it were
+  // never probed, so an unfollowed broken link could hide in the tail. Fail
+  // loudly and raise the budget rather than let truncation pass silently.
+  if (visited.size >= MAX_PAGES) {
+    failures.push({ persona, url: '(crawl)', via: '(budget)', problem: `hit MAX_PAGES=${MAX_PAGES}; coverage truncated, raise the budget` });
+  }
+
+  return { failures, visited };
 }
 
 describe('route wiring crawl', () => {
   it('anonymous: every rendered link and form target resolves; no template artifacts', async () => {
-    const failures = await crawlAs('anonymous', null);
+    const { failures } = await crawlAs('anonymous', null);
     expect(failures).toEqual([]);
   });
 
   it('authenticated member: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
-    const failures = await crawlAs('member', cookie);
+    const { failures } = await crawlAs('member', cookie);
     expect(failures).toEqual([]);
   });
 
   it('admin: every rendered link and form target resolves; no template artifacts', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
-    const failures = await crawlAs('admin', cookie);
+    const { failures, visited } = await crawlAs('admin', cookie);
     expect(failures).toEqual([]);
+    // Guards the entity-decode path: a query-string link (the `?as=` carries an
+    // HTML-escaped `=`) must be followed with its value intact, not truncated.
+    expect(visited.has('/dev/switch?as=t0_fresh')).toBe(true);
+    // A login-blocked persona is an exercisable link, not a dead row: its
+    // /dev/login target is followed and resolves (it lands on /login).
+    expect(visited.has('/dev/login?as=unverified')).toBe(true);
   });
 
   // Probed after the crawls because a successful refresh re-seeds every
