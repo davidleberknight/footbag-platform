@@ -1501,6 +1501,13 @@ export interface FreestyleTrickContent {
   // metadata: JOB / ADD / VIDEO). Non-null only when isFirstClass is
   // true. Renders directly below the hero, before the rest of the page.
   comparativeNotation: ComparativeNotationRow | null;
+  // Presentation-only: hoist the existing Movement-notation block above
+  // Movement Intuition/About so a non-first-class family/branch anchor's
+  // structure reads near the top, at the same visibility as a first-class
+  // page's notation summary. The block renders exactly once (hoisted here
+  // OR at its default position below About, never both). No data/doctrine
+  // change; gating only.
+  hoistNotation: boolean;
   // Equivalence-topology view: alternate-derivation paths for tricks
   // whose canonical reading admits a structurally distinct path that
   // converges arithmetically. Null when no entry is authored OR when
@@ -4579,6 +4586,15 @@ export function isFirstClass(slug: string): boolean {
   return FIRST_CLASS_TIER_1.has(slug) || FIRST_CLASS_TIER_2.has(slug);
 }
 
+// Presentation-only family/branch-anchor predicate, used to hoist the notation
+// block to the top of the trick-detail page. True for a public family-roster
+// slug (resolveDisplayFamily maps a roster slug to itself) or a curator-named
+// major-compound anchor. No data or doctrine semantics — display gating only.
+const HERO_NOTATION_MAJOR_COMPOUND_ANCHORS: ReadonlySet<string> = new Set(['mobius']);
+function isFamilyDisplayAnchor(slug: string): boolean {
+  return resolveDisplayFamily(slug) === slug || HERO_NOTATION_MAJOR_COMPOUND_ANCHORS.has(slug);
+}
+
 /** Returns the first-class tier for `slug`, or null when not first-class. */
 export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
   if (FIRST_CLASS_TIER_1.has(slug)) return 'tier-1';
@@ -6946,7 +6962,12 @@ export const freestyleService = {
             const addAnalysis = (firstClassPasses || isCoreAtom(slug))
               ? null
               : shapeTrickAddAnalysis(slug);
-            return { isFirstClass: firstClassPasses, comparativeNotation, addAnalysis };
+            return {
+              isFirstClass: firstClassPasses,
+              comparativeNotation,
+              addAnalysis,
+              hoistNotation: isFamilyDisplayAnchor(slug) && !isFirstClass(slug),
+            };
           })(),
           equivalenceTopology: (() => {
             // Surfaces an
