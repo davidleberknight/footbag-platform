@@ -13,10 +13,9 @@
  *   - Four axes are declared and surface in canonical order when populated
  *   - Empty axes are pruned (no zero-group sections)
  *   - Pilot modifiers bucket into the correct axis
- *   - Groups carry cards shaped via the canonical dictionary-trick-card partial
- *   - Cards within a group sort ADD ascending then name
+ *   - Each axis carries a flat card list shaped via the canonical dictionary-trick-card partial
+ *   - Cards within an axis are deduped and sort ADD ascending then name
  *   - Each axis carries an axis definition + anchor id
- *   - Each group carries `anchorId = 'movement-{slug}'`
  *   - kind!=='trick' rows (modifiers/operators/surfaces) excluded
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -120,81 +119,67 @@ describe('Slice L1 — Movement System view shape on FreestyleTricksIndexContent
     }
   });
 
-  it('Set / Uptime axis contains pixie + atomic groups (curator-confirmed pilot)', async () => {
+  it('Set / Uptime axis contains the pixie + atomic tricks', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
     const setUptime = view.axes.find(a => a.axisKey === 'set-uptime');
 
     expect(setUptime).toBeDefined();
-    const modifierSlugs = setUptime!.groups.map(g => g.modifierSlug);
-    expect(modifierSlugs).toContain('pixie');
-    expect(modifierSlugs).toContain('atomic');
+    const slugs = setUptime!.cards.map(c => c.slug);
+    expect(slugs).toContain('pixie-illusion');
+    expect(slugs).toContain('dimwalk');
+    expect(slugs).toContain('atom-smasher');
   });
 
-  it('Entry Topologies axis contains paradox group only', async () => {
+  it('Entry Topologies axis contains the paradox trick only', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
     const entry = view.axes.find(a => a.axisKey === 'entry-topology');
 
     expect(entry).toBeDefined();
-    expect(entry!.groups.map(g => g.modifierSlug)).toEqual(['paradox']);
+    expect(entry!.cards.map(c => c.slug)).toEqual(['paradox-whirl']);
   });
 
-  it('Midtime Body axis contains spinning + ducking groups', async () => {
+  it('Midtime Body axis contains the spinning + ducking tricks', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
     const midtime = view.axes.find(a => a.axisKey === 'midtime-body');
 
     expect(midtime).toBeDefined();
-    const modifierSlugs = midtime!.groups.map(g => g.modifierSlug);
-    expect(modifierSlugs).toContain('spinning');
-    expect(modifierSlugs).toContain('ducking');
+    const slugs = midtime!.cards.map(c => c.slug);
+    expect(slugs).toContain('spinning-whirl');
+    expect(slugs).toContain('ducking-whirl');
   });
 
-  it('No-Plant & Suspension axis contains symposium group only', async () => {
+  it('No-Plant & Suspension axis contains the symposium trick only', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
     const noPlant = view.axes.find(a => a.axisKey === 'no-plant-suspension');
 
     expect(noPlant).toBeDefined();
-    expect(noPlant!.groups.map(g => g.modifierSlug)).toEqual(['symposium']);
+    expect(noPlant!.cards.map(c => c.slug)).toEqual(['symposium-mirage']);
   });
 
-  it('each modifier group carries anchorId = "movement-{slug}" and a memberCount that matches its cards', async () => {
+  it('each axis carries a non-empty, deduped flat card list', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
 
     for (const axis of view.axes) {
-      for (const group of axis.groups) {
-        expect(group.anchorId).toBe(`movement-${group.modifierSlug}`);
-        expect(group.cards.length).toBe(group.memberCount);
-        expect(group.memberCount).toBeGreaterThan(0);
-      }
+      const slugs = axis.cards.map(c => c.slug);
+      expect(slugs.length).toBeGreaterThan(0);
+      // A trick using two modifiers in the same axis appears once.
+      expect(new Set(slugs).size).toBe(slugs.length);
     }
   });
 
-  it('cards within a group sort ADD ascending then by name', async () => {
+  it('cards within an axis sort ADD ascending then by name', async () => {
     const { freestyleService } = await import('../../src/services/freestyleService');
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
     const setUptime = view.axes.find(a => a.axisKey === 'set-uptime')!;
-    const pixie = setUptime.groups.find(g => g.modifierSlug === 'pixie')!;
 
-    // Seed: pixie-illusion (ADD 3) + dimwalk (ADD 4) — both link to pixie.
-    expect(pixie.cards.length).toBe(2);
-    expect(pixie.cards[0]!.slug).toBe('pixie-illusion');
-    expect(pixie.cards[1]!.slug).toBe('dimwalk');
-  });
-
-  it('group bodyDefinition is populated from COMPONENT_DEFINITIONS when curator-authored', async () => {
-    const { freestyleService } = await import('../../src/services/freestyleService');
-    const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
-    const midtime = view.axes.find(a => a.axisKey === 'midtime-body')!;
-    const spinning = midtime.groups.find(g => g.modifierSlug === 'spinning')!;
-
-    // The spinning body-mechanics definition is shared with the Component
-    // view — Slice L1 reuses the same content map intentionally.
-    expect(spinning.bodyDefinition).not.toBeNull();
-    expect(spinning.bodyDefinition!).toMatch(/rotation/i);
+    // Seed: pixie-illusion (ADD 3) leads; the two ADD-4 tricks follow
+    // alphabetically (atom smasher < dimwalk).
+    expect(setUptime.cards.map(c => c.slug)).toEqual(['pixie-illusion', 'atom-smasher', 'dimwalk']);
   });
 
   it('cards conform to the canonical DictionaryTrickCard contract (kind === "trick")', async () => {
@@ -202,20 +187,18 @@ describe('Slice L1 — Movement System view shape on FreestyleTricksIndexContent
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
 
     for (const axis of view.axes) {
-      for (const group of axis.groups) {
-        for (const card of group.cards) {
-          // The Slice A discriminator filter must apply uniformly across browse views.
-          expect(card.kind).toBe('trick');
-          // Each card must carry the canonical view-model fields the partial reads.
-          expect(typeof card.slug).toBe('string');
-          expect(typeof card.displayName).toBe('string');
-          expect(typeof card.addsLabel).toBe('string');
-        }
+      for (const card of axis.cards) {
+        // The Slice A discriminator filter must apply uniformly across browse views.
+        expect(card.kind).toBe('trick');
+        // Each card must carry the canonical view-model fields the partial reads.
+        expect(typeof card.slug).toBe('string');
+        expect(typeof card.displayName).toBe('string');
+        expect(typeof card.addsLabel).toBe('string');
       }
     }
   });
 
-  it('empty axes are pruned (axes with zero populated groups do not appear)', async () => {
+  it('empty axes are pruned (axes with zero cards do not appear)', async () => {
     // Sanity: if MOVEMENT_SYSTEM_AXES ever grows an axis whose modifiers are
     // entirely absent from the test seed, that axis must not render. The
     // current pilot covers all four axes — this is a structural invariant
@@ -224,7 +207,7 @@ describe('Slice L1 — Movement System view shape on FreestyleTricksIndexContent
     const view = freestyleService.getFreestyleTricksIndexPage().content.movementSystemView;
 
     for (const axis of view.axes) {
-      expect(axis.groups.length).toBeGreaterThan(0);
+      expect(axis.cards.length).toBeGreaterThan(0);
     }
   });
 });

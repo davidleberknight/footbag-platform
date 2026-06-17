@@ -174,14 +174,12 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
     expect(res.text).not.toContain('Derived systems:');
   });
 
-  it('renders a section per modifier (set-spinning, set-paradox, set-fairy, set-stepping, etc.)', async () => {
+  it('renders a section per modifier cluster', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('id="set-spinning"');
-    expect(res.text).toContain('id="set-paradox"');
-    expect(res.text).toContain('id="set-fairy"');
-    expect(res.text).toContain('id="set-stepping"');
-    expect(res.text).toContain('id="set-quantum"');
-    expect(res.text).toContain('id="set-ducking"');
+    expect(res.text).toContain('id="cluster-set-uptime"');
+    expect(res.text).toContain('id="cluster-rotational-body"');
+    expect(res.text).toContain('id="cluster-no-plant-timing"');
+    expect(res.text).toContain('id="cluster-dexterity-structural"');
   });
 
   it('renders the two-line dict-trick-row stack per section (2026-05-27 migration)', async () => {
@@ -193,51 +191,45 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
 });
 
 describe('/freestyle/tricks?view=sets — findability of representative ecosystem tricks', () => {
-  it('spinning section includes spinning-paradox-mirage', async () => {
+  it('rotational-body cluster includes spinning-paradox-mirage', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Anchor pattern: the spinning section block ID + the spinning-paradox-mirage slug appearing in card markup.
-    expect(res.text).toMatch(/id="set-spinning"[\s\S]+?spinning-paradox-mirage/);
+    expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?spinning-paradox-mirage/);
   });
 
-  it('paradox section also includes spinning-paradox-mirage (multi-modifier surfacing)', async () => {
+  it('no-plant-timing cluster also includes spinning-paradox-mirage (multi-modifier surfacing)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toMatch(/id="set-paradox"[\s\S]+?spinning-paradox-mirage/);
+    expect(res.text).toMatch(/id="cluster-no-plant-timing"[\s\S]+?spinning-paradox-mirage/);
   });
 
-  it('fairy section includes fairy-mirage and fairy-butterfly', async () => {
+  it('set-uptime cluster includes fairy-mirage and fairy-butterfly', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    const section = res.text.match(/id="set-fairy"[\s\S]+?(?=<section class="content-section|<\/section>\s*<aside|$)/);
+    const section = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
     expect(section).not.toBeNull();
     expect(section![0]).toContain('fairy-mirage');
     expect(section![0]).toContain('fairy-butterfly');
   });
 
-  it('stepping section includes stepping-eggbeater', async () => {
+  it('set-uptime cluster includes stepping-eggbeater', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toMatch(/id="set-stepping"[\s\S]+?stepping-eggbeater/);
+    expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?stepping-eggbeater/);
   });
 
-  it('quantum section includes quantum-mirage', async () => {
+  it('set-uptime cluster includes quantum-mirage', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toMatch(/id="set-quantum"[\s\S]+?quantum-mirage/);
+    expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?quantum-mirage/);
   });
 
-  it('ducking section includes ducking-mirage', async () => {
+  it('dexterity-structural cluster includes ducking-mirage', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toMatch(/id="set-ducking"[\s\S]+?ducking-mirage/);
+    expect(res.text).toMatch(/id="cluster-dexterity-structural"[\s\S]+?ducking-mirage/);
   });
 
-  it('cluster jump nav surfaces clusters; individual modifier anchors preserved for drill-down', async () => {
+  it('cluster jump nav surfaces the clusters', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     expect(res.text).toContain('class="sets-view-jump"');
-    // jump nav links to the higher-level clusters
     expect(res.text).toMatch(/href="#cluster-set-uptime"/);
     expect(res.text).toMatch(/href="#cluster-rotational-body"/);
     expect(res.text).toMatch(/href="#cluster-no-plant-timing"/);
-    // individual modifier sections + anchors still exist (drill-down + deep-links)
-    expect(res.text).toMatch(/id="set-spinning"/);
-    expect(res.text).toMatch(/id="set-fairy"/);
-    expect(res.text).toMatch(/id="set-paradox"/);
   });
 });
 
@@ -280,11 +272,13 @@ describe('/freestyle/tricks?view=sets — card formatting standardization', () =
     expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
   });
 
-  it('section count matches the listed trick count per modifier (data integrity)', async () => {
+  it('cluster section count + complexity-band headings render', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // Spinning has 1 linked trick in the test fixture (spinning-paradox-mirage).
-    expect(res.text).toMatch(/id="set-spinning"[\s\S]+?<span class="section-count">1<\/span>/);
-    // Fairy has 2 linked tricks (fairy-mirage, fairy-butterfly).
-    expect(res.text).toMatch(/id="set-fairy"[\s\S]+?<span class="section-count">2<\/span>/);
+    // rotational-body has 1 trick (spinning-paradox-mirage, a 2-operator compound).
+    expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?<span class="section-count">1<\/span>/);
+    // set-uptime groups its four 1-operator tricks under a "1 operator" band.
+    const setUptime = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
+    expect(setUptime).not.toBeNull();
+    expect(setUptime![0]).toContain('1 operator');
   });
 });

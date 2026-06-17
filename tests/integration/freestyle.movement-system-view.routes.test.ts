@@ -147,27 +147,18 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
     expect(introMatch![0]).toMatch(/Alternative surfaces/);
   });
 
-  it('renders modifier groups with anchor "movement-{slug}"', async () => {
+  it('renders each axis\'s tricks as a flat card list (no per-modifier sub-groups)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toContain('id="movement-pixie"');
-    expect(res.text).toContain('id="movement-atomic"');
-    expect(res.text).toContain('id="movement-paradox"');
-    expect(res.text).toContain('id="movement-spinning"');
-    expect(res.text).toContain('id="movement-ducking"');
-    expect(res.text).toContain('id="movement-symposium"');
-  });
-
-  it('group heading links back to the same view with a hash anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-pixie"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system#movement-paradox"');
-  });
-
-  it('renders the COMPONENT_DEFINITIONS body prose under each modifier group', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toContain('movement-group-definition');
-    // spinning's COMPONENT_DEFINITIONS one-liner mentions rotation
-    expect(res.text).toMatch(/rotation/i);
+    // The pixie + atomic tricks render inside the Set / Uptime axis section.
+    const axisStart = res.text.indexOf('id="movement-axis-set-uptime"');
+    const axisEnd = res.text.indexOf('<section', axisStart + 1);
+    const axisSlice = axisEnd > -1 ? res.text.substring(axisStart, axisEnd) : res.text.substring(axisStart);
+    expect(axisSlice).toContain('data-trick-slug="pixie-illusion"');
+    expect(axisSlice).toContain('data-trick-slug="dimwalk"');
+    expect(axisSlice).toContain('data-trick-slug="atom-smasher"');
+    // No per-modifier sub-group anchors or definition rows remain.
+    expect(res.text).not.toContain('id="movement-pixie"');
+    expect(res.text).not.toContain('movement-group-definition');
   });
 });
 
@@ -193,29 +184,14 @@ describe('GET /freestyle/tricks?view=movement-system — cards', () => {
     expect(m![0]).toMatch(/class="dict-trick-row-job-value">/);
   });
 
-  it('the modifier-composition gloss row coexists with the two-line rows in a group', async () => {
+  it('sorts pixie-illusion (ADD 3) before the ADD-4 tricks inside the Set / Uptime axis', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const groupStart = res.text.indexOf('id="movement-pixie"');
-    expect(groupStart).toBeGreaterThan(-1);
-    const groupEnd = res.text.indexOf('<section', groupStart + 1);
-    const slice = groupEnd > -1 ? res.text.substring(groupStart, groupEnd) : res.text.substring(groupStart);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toContain('dict-trick-row-stack');
-  });
-
-  it('renders pixie-illusion (ADD 3) before dimwalk (ADD 4) inside the pixie group', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const groupStart  = res.text.indexOf('id="movement-pixie"');
-    expect(groupStart).toBeGreaterThan(-1);
-    // Locate the start of the *next* section to bound this group's slice.
-    const groupEnd = res.text.indexOf('<section', groupStart + 1);
-    const groupSlice = groupEnd > -1 ? res.text.substring(groupStart, groupEnd) : res.text.substring(groupStart);
-    // Search on the card-stack data attribute, not the bare slug — after
-    // Slice N, the pixie modifier gloss mentions "PIX + BUTTERFLY (dimwalk)"
-    // which appears BEFORE the card stack and would otherwise dominate
-    // the indexOf result.
-    const pixieIllusionIdx = groupSlice.indexOf('data-trick-slug="pixie-illusion"');
-    const dimwalkIdx       = groupSlice.indexOf('data-trick-slug="dimwalk"');
+    const axisStart = res.text.indexOf('id="movement-axis-set-uptime"');
+    expect(axisStart).toBeGreaterThan(-1);
+    const axisEnd = res.text.indexOf('<section', axisStart + 1);
+    const axisSlice = axisEnd > -1 ? res.text.substring(axisStart, axisEnd) : res.text.substring(axisStart);
+    const pixieIllusionIdx = axisSlice.indexOf('data-trick-slug="pixie-illusion"');
+    const dimwalkIdx       = axisSlice.indexOf('data-trick-slug="dimwalk"');
     expect(pixieIllusionIdx).toBeGreaterThan(-1);
     expect(dimwalkIdx).toBeGreaterThan(pixieIllusionIdx);
   });

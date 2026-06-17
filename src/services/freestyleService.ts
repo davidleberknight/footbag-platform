@@ -2898,25 +2898,14 @@ export interface TopologyBrowseView {
 // Reuses shapeDictionaryTrickCard and isTrickRow.
 // ─────────────────────────────────────────────────────────────────────────
 
-export interface MovementSystemGroup {
-  modifierSlug:   string;
-  modifierName:   string;
-  bodyDefinition: string | null;   // reused from COMPONENT_DEFINITIONS; null when curator hasn't authored one
-  // Per-modifier educational composition gloss
-  // (e.g., paradox: "PDX + base — entry topology..."). Single italic
-  // line rendered above the card stack. null when no curator entry.
-  compositionGloss: string | null;
-  memberCount:    number;
-  anchorId:       string;          // `movement-${modifierSlug}` for hash-anchor navigation
-  cards:          DictionaryTrickCard[];   // ADD ascending, then name
-}
-
 export interface MovementSystemAxisView {
   axisKey:        string;          // matches MovementSystemAxis.axisKey
   axisName:       string;          // matches MovementSystemAxis.axisName
   axisDefinition: string;          // matches MovementSystemAxis.axisDefinition
   anchorId:       string;          // `movement-axis-${axisKey}`
-  groups:         MovementSystemGroup[];   // declaration-order per curator content module
+  // Tricks under the axis, deduped across the axis modifiers, ordered by ADD
+  // ascending then alphabetically. No per-modifier sub-grouping.
+  cards:          DictionaryTrickCard[];
 }
 
 export interface MovementSystemBrowseView {
@@ -3068,11 +3057,18 @@ export interface DictionaryLandingChip {
 // Higher-level modifier cluster for the grouped ?view=sets page (organizational
 // UX; individual modifier groups nest underneath). Reversible content grouping,
 // not ontology — see freestyleModifierClusters.ts.
+export interface SetsClusterBand {
+  rung:  number;                // 1 / 2 / 3 (3 = "3+")
+  label: string;                // "1 operator" / "2 operators" / "3+ operators"
+  cards: DictionaryTrickCard[]; // alphabetical within the band
+}
+
 export interface SetsClusterView {
-  key:    string;               // `cluster-{key}` section anchor
-  label:  string;
-  blurb:  string;
-  groups: FreestyleSetGroup[];  // active modifier groups in this cluster
+  key:        string;               // `cluster-{key}` section anchor
+  label:      string;
+  blurb:      string;
+  bands:      SetsClusterBand[];     // tricks banded by operator count (complexity)
+  trickCount: number;                // total tricks across the cluster (deduped)
 }
 
 export interface FreestyleMinorLineage {
@@ -7861,15 +7857,7 @@ export const freestyleService = {
         const ar = rungOf(a.slug);
         const br = rungOf(b.slug);
         if (ar !== br) return ar - br;
-        // Then ADD ascending; rows without numeric ADD sink to the bottom.
-        const ai = parseAddNumeric(a.adds) ?? Number.POSITIVE_INFINITY;
-        const bi = parseAddNumeric(b.adds) ?? Number.POSITIVE_INFINITY;
-        if (ai !== bi) return ai - bi;
-        // Then sub-lineage (immediate base trick), grouping siblings together.
-        const ab = a.base_trick ?? '';
-        const bb = b.base_trick ?? '';
-        if (ab !== bb) return ab.localeCompare(bb, undefined, { sensitivity: 'base' });
-        // Then trick name alphabetical.
+        // Then trick name alphabetical within the operator-rung (complexity) band.
         return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
       });
     };
@@ -7975,10 +7963,7 @@ export const freestyleService = {
         band.entries.push(e);
         bandMap.set(slug, band);
       }
-      // Within a public family: operator rung then name. Within the standalone
-      // band: alphabetical only.
-      const byRungName = (a: AddBucketEntry, b: AddBucketEntry) =>
-        (rungOf(a.row.slug) - rungOf(b.row.slug)) || byCanonicalNameAlpha(a.indexRow, b.indexRow);
+      // Within each family band: alphabetical by canonical name.
       const byName = (a: AddBucketEntry, b: AddBucketEntry) =>
         byCanonicalNameAlpha(a.indexRow, b.indexRow);
       // Public families in the canonical display order (NOT by accidental size
@@ -7992,7 +7977,7 @@ export const freestyleService = {
         return {
           rootSlug: slug,
           rootLabel: b.label,
-          cards: b.entries.slice().sort(slug === 'other' ? byName : byRungName).map(cardOf),
+          cards: b.entries.slice().sort(byName).map(cardOf),
         };
       });
       return {
@@ -8080,19 +8065,11 @@ export const freestyleService = {
       dexLabel: string,
       entries: AddBucketEntry[],
     ): FreestyleTrickDexCountGroup => {
-      // Structural ordering within a dex bucket (was pure alphabetical): ADD
-      // ascending, then structural anchor (family), then operator rung, then
-      // name — so same-dex tricks group by lineage instead of feeling random.
+      // Ordering within a dex bucket: ADD ascending, then alphabetical.
       const sorted = entries.slice().sort((a, b) => {
         const aa = parseAddNumeric(a.row.adds) ?? Number.POSITIVE_INFINITY;
         const ba = parseAddNumeric(b.row.adds) ?? Number.POSITIVE_INFINITY;
         if (aa !== ba) return aa - ba;
-        const af = a.row.trick_family ?? '';
-        const bf = b.row.trick_family ?? '';
-        if (af !== bf) return af.localeCompare(bf, undefined, { sensitivity: 'base' });
-        const ar = rungOf(a.row.slug);
-        const br = rungOf(b.row.slug);
-        if (ar !== br) return ar - br;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
       const bucketId = dexCount === null ? 'dex-unknown' : `dex-${dexCount}`;
@@ -8460,19 +8437,28 @@ export const freestyleService = {
     // Axes with zero non-empty groups are pruned to avoid empty section
     // headings.
 
-    const buildMovementSystemGroup = (modifierSlug: string): MovementSystemGroup | null => {
-      const bucket = componentAccumulator.get(modifierSlug);
-      if (!bucket || bucket.entries.length === 0) return null;
-      const sorted = bucket.entries.slice().sort(componentSortByAddThenName);
-      return {
-        modifierSlug:   bucket.modifierSlug,
-        modifierName:   bucket.modifierName,
-        bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
-        compositionGloss: resolveModifierCompositionGloss(bucket.modifierSlug),
-        memberCount:    sorted.length,
-        anchorId:       `movement-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug, ctx)),
-      };
+    // Per-axis flat card list: union the tricks across the axis's modifiers,
+    // dedup by slug, order by ADD ascending then alphabetically. No per-modifier
+    // sub-grouping (the axis itself is the grouping).
+    const buildMovementSystemAxisCards = (modifierSlugs: readonly string[]): DictionaryTrickCard[] => {
+      const seen = new Set<string>();
+      const entries: { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow }[] = [];
+      for (const slug of modifierSlugs) {
+        const bucket = componentAccumulator.get(slug);
+        if (!bucket) continue;
+        for (const e of bucket.entries) {
+          if (seen.has(e.row.slug)) continue;
+          seen.add(e.row.slug);
+          entries.push(e);
+        }
+      }
+      entries.sort((a, b) => {
+        const aa = parseAddNumeric(a.row.adds) ?? Number.POSITIVE_INFINITY;
+        const ba = parseAddNumeric(b.row.adds) ?? Number.POSITIVE_INFINITY;
+        if (aa !== ba) return aa - ba;
+        return byCanonicalNameAlpha(a.indexRow, b.indexRow);
+      });
+      return entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
     };
 
     // Build the alternative-surfaces subsection (compact educational
@@ -8506,19 +8492,16 @@ export const freestyleService = {
         'Four axes for navigating the freestyle movement language: how the set initiates ' +
         '(Set / Uptime), how the body enters (Entry Topologies), what the body does during the dex ' +
         '(Midtime Body), and discipline around plant and landing (No-Plant & Suspension). ' +
-        'Each axis groups tricks by the modifiers they carry. Compounds may appear under multiple ' +
-        'modifier headings within an axis; this is intentional.',
+        'Within each axis, tricks are ordered by ADD, then alphabetically.',
       axes: MOVEMENT_SYSTEM_AXES
         .map(axis => ({
           axisKey:        axis.axisKey,
           axisName:       axis.axisName,
           axisDefinition: axis.axisDefinition,
           anchorId:       `movement-axis-${axis.axisKey}`,
-          groups:         axis.modifierSlugs
-            .map(slug => buildMovementSystemGroup(slug))
-            .filter((g): g is MovementSystemGroup => g !== null),
+          cards:          buildMovementSystemAxisCards(axis.modifierSlugs),
         }))
-        .filter(a => a.groups.length > 0),
+        .filter(a => a.cards.length > 0),
       alternativeSurfaces: {
         intro:  ALTERNATIVE_SURFACES.intro,
         groups: alternativeSurfaceGroups,
@@ -8611,14 +8594,45 @@ export const freestyleService = {
     // into curated higher-level clusters for the By-modifier jump menu + the
     // grouped sets page. Reversible content map; modifiers not listed in a
     // cluster fall through to 'other'; empty clusters are dropped.
+    // Cluster → complexity bands (operator count) → alphabetical. Tricks are
+    // unioned across the cluster's modifiers and deduped, then banded by
+    // operator rung. Cluster membership implies at least one operator, so the
+    // bands are 1 / 2 / 3+ operators (no Core band).
+    const clusterBandOf = (n: number): { rung: number; label: string } =>
+      n <= 1 ? { rung: 1, label: '1 operator' }
+      : n === 2 ? { rung: 2, label: '2 operators' }
+      : { rung: 3, label: '3+ operators' };
     const setsClusterView: SetsClusterView[] = MODIFIER_CLUSTERS
-      .map(c => ({
-        key:    c.key,
-        label:  c.label,
-        blurb:  c.blurb,
-        groups: setGroups.filter(g => clusterForModifier(g.modifierSlug) === c.key),
-      }))
-      .filter(c => c.groups.length > 0);
+      .map(c => {
+        const seen = new Set<string>();
+        const rows: FreestyleTrickRowWithStatus[] = [];
+        for (const b of setGroupAccumulator.values()) {
+          if (clusterForModifier(b.modifierSlug) !== c.key) continue;
+          for (const t of b.tricks) {
+            if (seen.has(t.slug)) continue;
+            seen.add(t.slug);
+            rows.push(t);
+          }
+        }
+        // Alphabetical first, so cards land alphabetically within each band.
+        rows.sort((x, y) => x.canonical_name.localeCompare(y.canonical_name, undefined, { sensitivity: 'base' }));
+        const bandMap = new Map<number, { rung: number; label: string; rows: FreestyleTrickRowWithStatus[] }>();
+        for (const r of rows) {
+          const band = clusterBandOf(rungOf(r.slug));
+          const entry = bandMap.get(band.rung) ?? { rung: band.rung, label: band.label, rows: [] };
+          entry.rows.push(r);
+          bandMap.set(band.rung, entry);
+        }
+        const bands: SetsClusterBand[] = [...bandMap.values()]
+          .sort((a, b) => a.rung - b.rung)
+          .map(band => ({
+            rung:  band.rung,
+            label: band.label,
+            cards: band.rows.map(r => shapeDictionaryTrickCard(r, shapeTrickIndexRow(r, ctx), null, ctx)),
+          }));
+        return { key: c.key, label: c.label, blurb: c.blurb, bands, trickCount: rows.length };
+      })
+      .filter(c => c.bands.length > 0);
     const landingGrid: DictionaryLandingGrid = {
       bands: [
         {
@@ -8669,7 +8683,7 @@ export const freestyleService = {
               countDisplay: fmtCount(setsClusterView.length),
               countSuffix:  'modifier groups',
               lensQuestion: 'Which named moves, sets, or twists does it use?',
-              chips:        setsClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=sets#cluster-${c.key}`, count: c.groups.reduce((n, g) => n + g.cards.length, 0) })),
+              chips:        setsClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=sets#cluster-${c.key}`, count: c.trickCount })),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
             },
             {
@@ -8682,7 +8696,7 @@ export const freestyleService = {
               countSuffix:  'axes + surfaces',
               lensQuestion: 'Which broad movement style does it belong to?',
               chips:        [
-                ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.groups.reduce((n, g) => n + g.cards.length, 0) })),
+                ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.cards.length })),
                 { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.tricks.length, 0) },
               ],
               crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers →', href: '/freestyle/operators' },
@@ -8734,7 +8748,7 @@ export const freestyleService = {
       `${dexRows} canonical trick ${plural(dexRows, 'row', 'rows')} represented.`;
 
     const movementMemberships = movementSystemView.axes.reduce(
-      (n, a) => n + a.groups.reduce((m, g) => m + g.cards.length, 0), 0);
+      (n, a) => n + a.cards.length, 0);
     const movementSystemScale =
       `${movementSystemView.axes.length} ${plural(movementSystemView.axes.length, 'system / axis', 'systems / axes')} · ` +
       `${movementMemberships} trick-row ${plural(movementMemberships, 'membership', 'memberships')} shown, ` +

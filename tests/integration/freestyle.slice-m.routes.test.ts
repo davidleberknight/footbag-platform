@@ -218,35 +218,6 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 // ─────────────────────────────────────────────────────────────────────────
 // 3. Paradox modifier-composition gloss (Movement System view)
 // ─────────────────────────────────────────────────────────────────────────
-
-describe('Paradox composition gloss (Movement System view)', () => {
-  it('paradox group renders the curator-authored italic composition gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('movement-group-composition-gloss');
-    // Verify the curator content appears under the paradox group anchor.
-    const start = res.text.indexOf('id="movement-paradox"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toMatch(/PDX \+ base/);
-    expect(slice).toMatch(/entry topology/);
-  });
-
-  it('un-glossed modifier groups DO NOT render a composition gloss row', async () => {
-    // Most axis modifiers now carry a curator-authored gloss. weaving is in the
-    // Midtime Body axis but has NO gloss entry — its group is the canary
-    // verifying the gloss row suppresses cleanly when null.
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const weavingStart = res.text.indexOf('id="movement-weaving"');
-    expect(weavingStart, 'weaving group should be present in the rendered view').toBeGreaterThan(-1);
-    const weavingEnd = res.text.indexOf('<section', weavingStart + 1);
-    const slice = weavingEnd > -1 ? res.text.substring(weavingStart, weavingEnd) : res.text.substring(weavingStart);
-    expect(slice).not.toContain('movement-group-composition-gloss');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
 // 4. Unresolved-compound pill (dictionary trick cards)
 // ─────────────────────────────────────────────────────────────────────────
 

@@ -141,69 +141,6 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
 // ─────────────────────────────────────────────────────────────────────────
 // 2. Movement System gloss expansion — 5 new modifier groups
 // ─────────────────────────────────────────────────────────────────────────
-
-describe('Slice N — Movement System gloss expansion (5 new modifiers)', () => {
-  it('paradox group still renders its Slice M gloss (regression check)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.status).toBe(200);
-    const start = res.text.indexOf('id="movement-paradox"');
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toMatch(/PDX \+ base/);
-  });
-
-  it('spinning group renders the new SPIN + base gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const start = res.text.indexOf('id="movement-spinning"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toMatch(/SPIN \+ base/);
-  });
-
-  it('ducking group renders the new DUCK + base gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const start = res.text.indexOf('id="movement-ducking"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toMatch(/DUCK \+ base/);
-  });
-
-  it('symposium group renders the new SYMP + base gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const start = res.text.indexOf('id="movement-symposium"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toMatch(/SYMP \+ base/);
-  });
-
-  it('stepping group renders the new STEP + base gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const start = res.text.indexOf('id="movement-stepping"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toMatch(/STEP \+ base/);
-  });
-
-  it('pixie group renders the new PIX + base gloss', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    const start = res.text.indexOf('id="movement-pixie"');
-    expect(start).toBeGreaterThan(-1);
-    const end = res.text.indexOf('<section', start + 1);
-    const slice = end > -1 ? res.text.substring(start, end) : res.text.substring(start);
-    expect(slice).toContain('movement-group-composition-gloss');
-    expect(slice).toMatch(/PIX \+ base/);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
 // 3. Precedence contract — op-notation still renders when no chain exists
 // ─────────────────────────────────────────────────────────────────────────
 

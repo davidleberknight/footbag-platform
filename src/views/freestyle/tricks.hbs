@@ -273,7 +273,7 @@
   <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
   {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
   {{#if content.setsClusterView.length}}
-  <p class="sets-view-total detail-muted"><strong>{{content.setGroups.length}}</strong> sets and modifiers, grouped into {{content.setsClusterView.length}} clusters. Each cluster expands into its individual modifiers below.</p>
+  <p class="sets-view-total detail-muted"><strong>{{content.setsClusterView.length}}</strong> modifier clusters, each banded by operator count.</p>
 
   <nav class="sets-view-jump" aria-label="Modifier cluster jump">
     {{#each content.setsClusterView}}
@@ -285,18 +285,15 @@
   <section class="content-section" id="cluster-{{key}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2>{{label}}</h2>
-      <span class="section-count">{{groups.length}}</span>
+      <span class="section-count">{{trickCount}}</span>
     </div>
     <p class="sets-cluster-blurb detail-muted">{{blurb}}</p>
-    {{#each groups}}
-    <section class="trick-set-group" id="set-{{modifierSlug}}" data-anchor-style="dotted">
+    {{#each bands}}
+    <section class="trick-set-group" data-anchor-style="dotted">
       <div class="section-heading">
-        <h3><a href="/freestyle/tricks?view=sets#set-{{modifierSlug}}">{{modifierName}}</a></h3>
-        <span class="section-count">{{trickCount}}</span>
+        <h3>{{label}}</h3>
+        <span class="section-count">{{cards.length}}</span>
       </div>
-      <p class="detail-muted">
-        {{#if (eq modifierType "set")}}Set modifier{{else}}{{#if (eq modifierType "body")}}Body modifier{{else}}Modifier{{/if}}{{/if}}{{#if addBonus}} · +{{addBonus}} ADD{{#if addBonusRotational}} (+{{addBonusRotational}} on rotational bases){{/if}}{{/if}}
-      </p>
       <div class="dict-trick-row-stack">
         {{#each cards}}
           {{> dictionary-trick-row}}
@@ -573,28 +570,14 @@
   <section class="content-section trick-movement-axis" id="{{anchorId}}">
     <div class="section-heading">
       <h2>{{axisName}}</h2>
-      <span class="section-count">{{groups.length}}</span>
+      <span class="section-count">{{cards.length}}</span>
     </div>
     <p class="movement-axis-definition">{{axisDefinition}}</p>
-    {{#each groups}}
-    <section class="trick-movement-group" id="{{anchorId}}" data-anchor-style="solid">
-      <div class="movement-group-heading">
-        <h3><a href="/freestyle/tricks?view=movement-system#{{anchorId}}">{{modifierName}}</a></h3>
-        <span class="section-count">{{memberCount}}</span>
-      </div>
-      {{#if bodyDefinition}}
-      <p class="movement-group-definition">{{bodyDefinition}}</p>
-      {{/if}}
-      {{#if compositionGloss}}
-      <p class="movement-group-composition-gloss"><em>{{compositionGloss}}</em></p>
-      {{/if}}
-      <div class="dict-trick-row-stack">
-        {{#each cards}}
-          {{> dictionary-trick-row}}
-        {{/each}}
-      </div>
-    </section>
-    {{/each}}
+    <div class="dict-trick-row-stack">
+      {{#each cards}}
+        {{> dictionary-trick-row}}
+      {{/each}}
+    </div>
   </section>
   {{/each}}
   {{else}}
