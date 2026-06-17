@@ -47,13 +47,17 @@ export interface OperationalNotationDisplay {
 }
 
 // Static token vocabulary. Closed sets — no cross-row data dependency.
-const SURFACES        = new Set(['SET', 'CLIP', 'TOE']);
+const SURFACES        = new Set([
+  'SET', 'CLIP', 'TOE',
+  // Anatomical + folk landing surfaces (stall surfaces beyond toe / clipper).
+  'INSIDE', 'OUTSIDE', 'SOLE', 'KNEE', 'NECK', 'HEAD', 'FOREHEAD', 'SHOULDER', 'CLOUD', 'HEEL', 'PEAK',
+]);
 const SIDES           = new Set(['SAME', 'OP']);
 const DIRECTIONS      = new Set(['IN', 'OUT']);
 const FRONT_BACK      = new Set(['FRONT', 'BACK']);
 const BODY_ACTIONS    = new Set(['SPIN', 'DUCK', 'DIVE']);
 const ROTATION_NOUNS  = new Set(['WHIRL', 'SWIRL']);
-const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX']);
+const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX', 'UNS']);
 
 // Educational tooltip text per role. Used in the `title` attribute of each
 // rendered <span> for native browser hover-disclosure. Generic fallbacks;
@@ -109,6 +113,7 @@ const COMPONENT_FLAG_LABELS: Record<string, string> = {
   XBD:  'Cross-body component (delay step across the body)',
   PDX:  'Paradox component (paradox-direction dex)',
   XDEX: 'Cross-dex component (full-circle dex variant)',
+  UNS:  'Unusual-surface component (stall on a non-standard landing surface)',
 };
 
 // Pre-state flag specific tooltip overrides — same rationale as
