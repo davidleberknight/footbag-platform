@@ -7,7 +7,7 @@ description: Audit and rewrite an AI-facing IMPLEMENTATION_PLAN.md (or similar A
 
 ## Purpose
 
-Audit and rewrite AI-facing implementation plan documents (e.g. `legacy_data/IMPLEMENTATION_PLAN.md`) into a **strict operational state**.
+Audit and rewrite AI-facing implementation plan documents (e.g. `IMPLEMENTATION_PLAN.md`) into a **strict operational state**.
 
 These documents are **not user-facing docs**. They are working control surfaces for AI and must remain:
 - Minimal

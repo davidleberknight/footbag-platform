@@ -89,7 +89,7 @@ Do not reference internal team members by name in **technical / design project d
 
 **Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
 
-**The root `IMPLEMENTATION_PLAN.md` and `legacy_data/IMPLEMENTATION_PLAN.md` are the only technical-doc exceptions** — sprint tracking by name (James / Dave) is expected and correct in both. The root IP routes to `legacy_data/IMPLEMENTATION_PLAN.md` for historical-pipeline detail; do not reintroduce that detail into the root.
+**`IMPLEMENTATION_PLAN.md` is the one technical-doc exception**: owner tracking by first name (Steve, Julie, Dave, James) is expected and correct in it. It is the single unified plan of record covering platform, migration, data-pipeline, and freestyle work; there is no separate historical-pipeline plan.
 
 **The MIGRATION_PLAN coordination sections name the people who hold the facts and decisions.** In those sections (§14, §19, §20a, §20b), the legacy-site webmaster (Steve), the IFPA secretary (Julie), and the project manager (Dave) may be named directly, because the sections describe who supplies which facts and who decides what. Outside those coordination sections, the name rules above still apply, and for legacy data use "the legacy data" / "the legacy data import", never possessive constructions like "Steve's dump". Steve's address `brat@footbag.org` is authoritatively listed in DD §5.5.
 
@@ -100,10 +100,10 @@ When replacing, preserve role/context: "James's sprint" means "the historical-pi
 Test filenames, describe blocks, test names, and comments describe the long-term contract, never
 the sprint that prompted them, and never reference any doc. Full rules in `.claude/rules/comments.md`.
 
-## IP is AI-facing
+## The IP is for humans and agents
 
-`IMPLEMENTATION_PLAN.md` is written for AI-agent consumption, not human audit. Edit with that audience in mind:
+`IMPLEMENTATION_PLAN.md` is written to be read by both the maintainers and AI agents; each item is stated plainly enough to act on without opening another document. Edit with that in mind:
 
 - When an item is done, **delete it outright**. No "Closed" section, no one-line tombstone, no "(COMPLETE)" markers, no strike-through.
 - Keep sections as small as possible; remove empty headers after deleting their contents.
-- Reserve verbose explanation for memory entries or commit messages where humans might read.
+- State each item in full inline; reference another document only to point at the work or to avoid copying a large table.

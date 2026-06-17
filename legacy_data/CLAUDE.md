@@ -5,7 +5,7 @@
 This subtree prepares canonical historical data and loads it into the platform DB.
 
 Stay in this lane:
-- Do not modify repo-root code, repo-root docs, `.claude/skills/`, or `.claude/rules/`.
+- Do not modify repo-root code, repo-root docs (except the shared `IMPLEMENTATION_PLAN.md`, which both maintainers own), `.claude/skills/`, or `.claude/rules/`.
 - For repo-root/platform tasks, use repo-root `CLAUDE.md` and `IMPLEMENTATION_PLAN.md`.
 - `legacy_data` is James's track. Cross-track changes require explicit coordination.
 - Never run `git commit`, `git push`, or `git pull`. Stage-only changes are allowed; the human owns commits.

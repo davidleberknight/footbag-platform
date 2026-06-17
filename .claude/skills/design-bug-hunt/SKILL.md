@@ -92,7 +92,7 @@ Read:
 12. `docs/DEVOPS_GUIDE.md`
 13. `docs/MIGRATION_PLAN.md`
 14. `legacy_data/CLAUDE.md`
-15. `legacy_data/IMPLEMENTATION_PLAN.md`
+15. `IMPLEMENTATION_PLAN.md`
 
 This full read-order applies to a comprehensive design audit. For a scoped ask, read only the subset that bears on the request (see Scaling and budget).
 
@@ -498,7 +498,7 @@ Migration design is in scope. Python migration code is not.
 Review:
 
 * `docs/MIGRATION_PLAN.md`
-* `legacy_data/IMPLEMENTATION_PLAN.md`
+* `IMPLEMENTATION_PLAN.md`
 * data governance docs
 * onboarding/claim stories
 * club bootstrap stories

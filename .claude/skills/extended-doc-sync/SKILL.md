@@ -59,7 +59,7 @@ documented authority order; it does not refuse to.
   `docs/DEVOPS_GUIDE.md`, `docs/TESTING.md`, `GOVERNANCE.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 - **Implementation status** (temporary deviations, accepted shortcuts, active-slice scope)
-  lives only in `IMPLEMENTATION_PLAN.md` and `legacy_data/IMPLEMENTATION_PLAN.md`.
+  lives only in `IMPLEMENTATION_PLAN.md`.
 - **Code is authoritative for implemented behavior**, not for design intent (bootstrap
   stubs are not a design signal).
 - Separate the two questions on every drift: is the FACT drifted, or is the DESIGN drifted?
@@ -117,7 +117,7 @@ For a comprehensive audit, read (subset for a scoped ask per Scaling):
 3. `.claude/skills/doc-sync/SKILL.md`, `.claude/skills/bug-hunt/SKILL.md`,
    `.claude/skills/design-bug-hunt/SKILL.md`
 4. `PROJECT_SUMMARY_CONCISE.md`
-5. `IMPLEMENTATION_PLAN.md`, `legacy_data/IMPLEMENTATION_PLAN.md`
+5. `IMPLEMENTATION_PLAN.md`
 6. `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`,
    `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`,
    `docs/TESTING.md`, `docs/DEVOPS_GUIDE.md`, `docs/MIGRATION_PLAN.md`,
@@ -228,7 +228,7 @@ backups/restore/rollback, health endpoints, image worker, SES/S3/CloudFront/Stri
 Parameter Store assumptions, TLS/cookie/CSRF/host-pinning config, and staging smoke tests.
 
 ### Phase 10: Migration and go-live sync
-`docs/MIGRATION_PLAN.md`, `legacy_data/CLAUDE.md`, `legacy_data/IMPLEMENTATION_PLAN.md`,
+`docs/MIGRATION_PLAN.md`, `legacy_data/CLAUDE.md`, `IMPLEMENTATION_PLAN.md`,
 `DATA_GOVERNANCE.md`, claim/onboarding/club stories, data model, catalogs, tests: pre- vs
 post-go-live source-of-truth assumptions, final export, write freeze, validation gates,
 rollback, legacy-credential exclusion, identity mapping, email/DNS transition, retained

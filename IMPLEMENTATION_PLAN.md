@@ -1,220 +1,170 @@
 # IMPLEMENTATION_PLAN.md
 
-This doc holds the accepted deviations from long-term design intent.
-Long-term design: `docs/`.
-Sister IP for data prep and all freestyle work: `legacy_data/IMPLEMENTATION_PLAN.md`.
+This is the single plan of record for the footbag.org modernization: every open work item and every open question we still need to resolve, grouped by who owns it. It is the clean baseline we will load into the go-live kanban board. Long-term design and rationale live under `docs/`; this file tracks what is left to do.
 
-## When to add an entry here
+How to read it. Sections are ordered by owner, from the people we are coordinating with (Steve, then Julie) to the maintainers doing the build (Dave, then James, whose pipeline work carries the most detail). Each item is written to stand on its own: you should not need to open another document to understand what the task is. A reference to `docs/MIGRATION_PLAN.md` (the detailed migration design) or a file path appears only where it points at the actual work or saves copying a large table here. Finished items are deleted from this file rather than marked done.
 
-Entries belong here ONLY if current code or infra deviates from canonical design (`docs/`) and a change is needed to close the gap. Go-live and cutover-readiness items go to `docs/MIGRATION_PLAN.md`. Documented future work and intentional dev-vs-staging-vs-prod asymmetries are not deviations.
+Owners. Steve is the current footbag.org webmaster (he holds the legacy-site, DNS, email, and data-export facts). Julie is the IFPA secretary (she decides IFPA governance, groups, and votes). Dave is the project maintainer and manager (platform code, and he drives every open question to a decision). James is the historical-data and freestyle maintainer (the data pipeline and all freestyle content).
 
-## Active work
+---
 
-### Internal QC subsystem build-excluded pending retirement
+## Steve — legacy-site coordination
 
-The `src/internal-qc/` QC subsystem (net-correction and persons-QC operator tooling mounted
-at `/internal/*` in dev and staging) ships in source but must never reach a production
-runtime. Current: the production image build strips `dist/internal-qc` and replaces
-`dist/routes/internalRoutes.js` with a null stub alongside the dev-shortcuts strip
-(`INCLUDE_DEV_SHORTCUTS=0`), so the routes are unreachable in production. Target: QC
-retirement removes the source subtree and this strip together.
+Steve runs the current footbag.org. These are the facts and decisions we need from him to migrate safely. Dave chases each one; Steve provides the answer. The first group blocks go-live; the DNS group can wait until after launch. Background for any item is in MIGRATION_PLAN, but each is stated in full here so nothing needs to be looked up to act on it.
 
-### Dev/staging admin bootstrap rides registration
+- [Q] **Deliver the committee and board membership table.** The old database has two tables listing who sat on which IFPA committee and board (`ifpa_committees`, `ifpa_committee_members`). Steve held them back from the first data delivery because of their size and will send them separately. We need them because whether a member was on the board at cutover decides their starting membership tier, and James cannot finish the tier calculation without them. Status: blocking go-live.
+- [Q] **Inventory the @footbag.org email addresses and mailing lists.** Give us a complete list of every `@footbag.org` mailbox and forwarding alias (which are real inboxes people log into, which only forward, which are dead), plus every mailing list (announce, board, committee, regional), who runs each, and what should happen to each at cutover. This list is the safety check for email-transition day so that no address goes dark. Status: blocking go-live.
+- [Q] **Pick the email switchover date.** Once the inventory above exists, agree the single day we move all `@footbag.org` mail to the new setup. Status: blocking go-live (waits on the inventory).
+- [Q] **Confirm the member-export details.** For the test export of legacy member records: confirm what each column means (member ID, username, email, signup date, last-login, tier and account-status flags); confirm the member-ID integers are the same ones used in the old `members/profile/{id}` page URLs, so old links still resolve to the right person; and estimate what fraction of the stored emails are probably still deliverable. Status: blocking go-live (this is what lets the test import run).
+- [Q] **Deliver the final export, and agree the write-freeze.** After the old site is frozen to new writes, send one final fresh database dump in the same format as the test export. Agree how many hours before that dump the site goes read-only, and the message members see during the freeze. Status: needed at cutover.
+- [Q] **Settle the cutover logistics.** Name a reachable backup contact during the cutover windows; commit to keeping the old database available for at least 30 days after cutover; and agree the list of milestones that end Steve's temporary role (stable operation, email moved, DNS moved, every retained service migrated or retired). Status: needed at cutover.
+- [Q] **Decide what happens to each legacy feature.** For every feature still on the old site (the tournament-management tool, the discussion forums, the WordPress sites behind `sites.footbag.org`, the `/reference/` wiki), tell us what it does today and whether it stays on the old server, moves to the new platform, or is retired. Also give a full list of every page, tool, scheduled job, feed, and form on the old site, so nothing is discovered only after cutover. Status: scoping.
+- [Q] **Two policy inputs from community knowledge.** First: how real is the risk that someone registers under a famous player's name to falsely claim that player's competition record (this decides whether honors-bearing claims need an up-front check rather than after-the-fact review). Second: do any old account bans still matter today, and were any ever enforced outside the database. Status: settles open policy.
+- [Q] **DNS, domain, and TLS (not needed for launch).** Identify the domain registrar and DNS provider and whether the apex domain supports ALIAS/ANAME records; list which `*.footbag.org` subdomains must keep working on the old host after cutover; and commit to renewing the TLS certificates on those retained subdomains so they do not expire. These are handled after launch, during the later DNS handover.
 
-`identityAccessService.registerMember` calls `applyDevStagingBootstrapAdmin`
-(the operator-supplied email allowlist) so dev and staging get admin accounts
-without manual SQL. Canonical design has exactly one admin-creation path: the
-single-shot SSM-token claim at `/admin/bootstrap-claim`. The allowlist and
-every related shortcut are tagged `CUTOVER-REMOVE` in code, and the removal
-procedure in `src/dev-bootstrap/README.md` deletes them at production
-go-live. Until then, production safety rests on the env-config fail-fast
-guards plus the production image build stripping `dist/dev-bootstrap/`.
+---
 
-### Club classification overrides ride the pipeline CSV pre-go-live
+## Julie — IFPA governance
 
-Until go-live, club force-keep / force-junk classification overrides are
-hand-edited rows in `legacy_data/overrides/club_classification_overrides.csv`
-(`club_key,name,force_category,reason`), because pipeline reloads rebuild the
-DB from the CSVs and the override must survive each reload. After go-live,
-reloads stop, the production DB owns club truth, and the admin queue actions
-(USER_STORIES `A_Periodic_Club_Cleanup`, MIGRATION_PLAN §10.4) become the
-override path. Delete this entry when those queue actions ship.
+Julie is the IFPA secretary. These are governance decisions only she can make. Dave chases each one; Julie decides. The sensitive specifics (actual ballots and tallies) stay out of this public file.
 
-### Persona harness: classes blocked on unbuilt features
+- [Q] **Which groups are still alive.** Tell us which old groups, committees, and email discussion lists people still actually use, who runs or moderates each, and who would be upset if one changed or went away.
+- [Q] **What happens to the old IFPA vote records.** The old site holds past elections, issue votes, and individually cast ballots. Decide whether to keep them, archive them, archive them encrypted and sealed, keep only the final vote tallies, or (only if Julie confirms it is acceptable) delete them. This is a records-retention decision; the underlying ballot data stays private.
+- [Q] **How sanctioning actually works.** Tell us whether IFPA event sanctioning is really a committee that discusses and decides together, or just one or two people approving it, and whether anyone still reads the `sanctioning@footbag.org` address. Until we know, the platform uses simple admin approval.
+- [Q] **Where each group's conversation should live.** For each group or committee, say whether its discussion belongs on the new platform, in Google Groups, in an external chat tool, or nowhere (retired). No in-app group feature gets built until this is decided.
+- [Q] **Whether kept groups need moderators.** For any group we keep or move, does it need a real owner or moderator with power over who is a member and what gets posted, or is informal order from admins and the community enough.
+- [Q] **Who to notify when something changes.** When a group or address is retired or archived, who needs to hear about it, and how.
+- [Q] **Running the email side.** Help administer the IFPA Google Workspace (groups, aliases, and spam settings) once we know which groups and addresses we are keeping.
 
-`src/testkit/canonicalPersonas.ts` seeds a persona for every §4.6 class whose code
-path has landed. The classes still unseeded are blocked on features that do not yet
-exist, not on the harness:
+---
 
-- event organizer / co-organizer — `event_organizers` exists, no organizer-gated edit routes do.
-- group owner / co-owner / member — designed in USER_STORIES §3.10 and §6, no schema or routes yet. Disposition (in-app feature vs external tools vs hybrid) is open pending community-requirements findings (MIGRATION_PLAN §19.5 items 35-37); preserve the design, do not build.
-- vote-eligibility by inclusion list — no voting routes or eligibility code yet.
-- the claimed-legacy banned subject — `legacy_members` has no banned column yet.
+## Dave — platform and project management
 
-Add each persona (plus its adjacent-owner negative where the route is ownership-scoped)
-in the change that lands its feature. The system / internal-caller actor is not a catalog
-persona: it is exercised by the secret-gated `/ipc` request, not a `/dev/switch` session.
+Dave owns the platform code and coordinates every open question to a decision. His own open questions and setup tasks come first, then the platform work, roughly in go-live order.
 
-### SEO / crawler readiness not yet built
+### Open questions and setup that Dave owns
 
-The public site has no crawler-facing SEO surface: no `robots.txt`, no sitemap, and
-the layout (`src/views/layouts/main.hbs`) never emits the `SeoMeta.description` field
-(`src/types/page.ts`) or a canonical link. Policy: only public pages are indexed;
-authenticated surfaces and the future archive carry noindex. To close the gap:
+- [Q] **Find out the Worlds 2026 date.** The date of the 2026 World Footbag Championships is not yet known, and it drives the entire go-live timeline, so this is the first thing to pin down.
+- **Reconcile the production infrastructure with Terraform.** The Terraform config has the wrong default AWS region (us-east-2 instead of us-east-1), which strongly implies the production infrastructure has never actually been created from Terraform. Before any production deploy: fix that region default in `terraform/production/variables.tf`, run `terraform plan` against the production account to see the full gap between what Terraform expects and what actually exists, and import any resources that were created by hand so a later apply does not duplicate or destroy them.
+- **Set up the cutover monitoring.** Decide the alarm thresholds for origin response latency and login success rate (read them off the staging baseline), and write the cutover monitoring steps into the DevOps guide. None of this exists yet.
+- **Fix how curator content is seeded.** The curator seeder (`src/services/curatorSeedService.ts`) currently runs video transcoding in its own process, which can run the host out of memory. Route it through the same background media-job path the rest of the app uses (upload to S3, let the worker container transcode) before go-live.
+- **Restore the public contact email.** Once the new email system is live, swap the placeholder contact text in the `/legal` pages back to a working `mailto:admin@footbag.org`, and decide how a `noreply@` address is handled.
+- **Run the project coordination.** Keep the action tracker and the shared stakeholder documents, drive every open question above to a decision, write up user stories for the facts Steve and Julie supply, and route governance questions to Julie.
 
-- Add a production `robots.txt` (allow CSS/JS/img; `Sitemap:` directive).
-- Emit `<meta name="description">` and `<link rel="canonical">` in the layout; ensure a
-  unique per-page `<title>`; add a per-page noindex hook for authenticated routes.
-- Generate a sitemap index (public pages vs the future archive) and verify Search
-  Console via DNS TXT.
-- Set `X-Robots-Tag: noindex` for non-production environments (generalize the `/dev`
-  pattern in `src/testkit/legacyNewsInspectRoute.ts`).
-- Tracked as go-live gate OR16 (MIGRATION_PLAN §22): production robots.txt correct,
-  staging noindex verified, per-page title/description/canonical rendered, sitemap
-  submitted, archive excluded from indexing. Design decision: DESIGN_DECISIONS §4.10.
+### Platform deviations and go-live gates
 
-### Accessibility (`@a11y`) axe checks specified but not wired
+Each of these is a place where the running code differs from the intended design, or a launch requirement that is not built yet.
 
-`docs/TESTING.md` §14.1 specifies automated accessibility checks via
-`@axe-core/playwright`, tagged `@a11y`, on every business-critical surface
-against WCAG 2.1 AA, with a `@smoke @a11y` subset on high-traffic public pages.
-The dependency is installed, but no `@a11y` test exists and the runner has no
-accessibility-only gate. To close the gap:
+- **Internal QC tools must never reach production.** The operator-only QC tools under `src/internal-qc/` (reachable at `/internal/*` in development and staging) ship in the source but must not be reachable in production. Currently the production image build strips them out and replaces their routes with a dead stub. They are removed for good when the QC subsystem is retired.
+- **Dev and staging get admin accounts automatically.** To avoid hand-writing SQL, registration in development and staging promotes a configured list of emails to admin (`applyDevStagingBootstrapAdmin`). The intended design has exactly one way to create the first admin: a one-time token claim at `/admin/bootstrap-claim`. Every shortcut here is tagged `CUTOVER-REMOVE` and is deleted at go-live (procedure in `src/dev-bootstrap/README.md`); until then, production is protected by fail-fast config checks and by the production image stripping this code out.
+- **Build the admin club-cleanup actions (to retire the override CSV).** Before go-live, club classification fixes (force-keep or force-junk a club) are hand-edited rows in a pipeline CSV, because the database is rebuilt from CSVs on every reload (James owns that CSV procedure, below). The real design is an admin work-queue action that does this against the live database. Building those admin actions retires the temporary CSV approach.
+- **Seed the remaining test personas as their features get built.** The test suite seeds a sample user for every account type whose feature exists. The still-missing ones are blocked on features that do not exist yet: event organizers, group owners and members, vote-eligibility lists, and a banned legacy member. Add each persona in the same change that builds its feature.
+- **Build search-engine and crawler readiness.** There is no `robots.txt`, no sitemap, and the page layout never outputs a meta description or canonical link. We want public pages indexed and everything else hidden from search engines. Build: a production `robots.txt` that allows assets and points to the sitemap; a per-page title, meta description, and canonical link in the layout; a way to mark authenticated pages "do not index"; a sitemap; and a "do not index" header on the non-production sites. This is a named go-live blocker.
+- **Wire up the accessibility tests.** The testing standard calls for automated accessibility checks (using axe, against the WCAG 2.1 AA standard) on every important page, but none are written and the test runner has no accessibility mode. Add the checks to the browser test suite, tag the high-traffic public ones for the quick smoke run, and add an option to `run_all_tests.sh` that runs only them.
+- **Source the Stripe webhook secret from AWS, not by hand.** The design says production reads the Stripe webhook signing secret from AWS Parameter Store at startup, like the other secrets. Currently the operator pastes it into the server's env file by hand because no Parameter Store entry exists for it. Add the secret to Parameter Store in both staging and production Terraform, grant the server permission to read it, have the deploy pull it from there, and update the DevOps guide.
+- **Actually send the notifications the services promise.** Three services document, in their header contracts, emails and mailing-list updates that the code does not yet send: the membership-tiering service (tier-change and Hall-of-Fame / Big-Add-Posse congratulation emails, plus an admin-alerts mailing-list update when someone becomes admin), the active-player service (a vouch-confirmation email), and the event service (organizer, participant, and sanctioning emails). The email outbox and worker that send these already exist and are tested; the gap is that the service code never enqueues them. Add each send after its database transaction commits. The event-service emails arrive with the event-organizer feature.
 
-- Add `@a11y` axe assertions (`new AxeBuilder({ page }).analyze()` against the
-  WCAG 2.1 AA ruleset, failing on new violations) to the lightweight Playwright
-  suite, one per business-critical surface; tag the high-traffic public subset
-  `@smoke @a11y`.
-- Add an `--axe` flag to `run_all_tests.sh` that runs only the `@a11y`-tagged
-  Playwright tests, and ensure `--full` exercises them.
+### Gaps between what the site promises and what it does
 
-Delete this entry when the `@a11y` axe gate runs green in CI and via
-`./run_all_tests.sh --axe`.
+Each item is a place where a shipped user story is not fully delivered. Delete it when the fix ships with a test. The name in parentheses is the user story it belongs to.
 
-### Production Stripe webhook secret is hand-set in host env, not SSM-sourced
+- **A public profile does not show the member's club.** The public profile page has no club field; it should show which club the member belongs to. (M_View_Profile)
+- **A profile does not show the member's photos and videos.** Neither the private nor the public profile shows the member's uploaded media; both should show a thumbnail grid of it. (M_View_Profile)
+- **Leaving a club as its last co-leader gives no warning.** Leaving a club just goes through; it should warn the member first when they are the club's only co-leader. (M_Leave_Club)
+- **An inactive club cannot be reactivated.** There is a way to mark a club inactive but no way to reverse it; a co-leader should be able to reactivate an inactive club at any time. (CL_Mark_Club_Inactive)
+- **Member hashtags are forced to lowercase.** Uploads reject mixed-case tags and store them lowercased, even though the database keeps a separate column meant to preserve the original capitalization. Preserve the original capitalization for display while still matching case-insensitively. (M_Upload_Photo)
+- **The empty upload gallery is just a bare message.** When a member has no media, show a helpful empty state with example photos, clickable popular tags, and hashtag statistics. (M_Upload_Photo, M_Submit_Video)
+- **The empty named-gallery page has no tag suggestions.** It has the right wording but offers no popular tags; show five site-wide popular tags on it. (V_View_Gallery)
+- **The daily hashtag-statistics rebuild is never run.** The function that rebuilds hashtag statistics exists and is tested, but nothing schedules it, so only incremental updates happen. Schedule the daily rebuild through the operations service and worker, recorded as a job run. (SYS_Rebuild_Hashtag_Stats, V_Browse_Hashtags)
+- **The admin dashboard has no work-queue summary.** It shows static cards with no counts; it should show how many items are waiting in each admin queue, link to each, and highlight the urgent ones. (A_View_Dashboard)
+- **Old-record cleanup only covers members.** The scheduled cleanup of soft-deleted data only processes deleted or deceased members; it should also do the seven-year cleanup of old payments and the seven-year retention of ballots, and report counts per type. (SYS_Cleanup_Soft_Deleted_Records)
+- **Email bodies are hard-coded, not editable.** Email text is written inline in the code; the database table meant to hold editable templates is seeded but never read, and there is no admin screen to edit them. Load templates from the database, let admins edit them, and log the changes. (SYS_Send_Email)
+- **The database backup script is not hardened.** It does a single backup attempt with a staleness metric. Add a write-ahead-log checkpoint, retry with backoff, a health timestamp, an alarm after three failures in a row, and a wait for graceful shutdown. (SYS_Continuous_Database_Backup)
+- **An expired Active Player gets no explanation.** Someone whose Active Player status has lapsed sees only a badge and the generic tier-0 text; explain that their Tier 1 benefits and Official IFPA Roster listing have ended. (M_Active_Player_Expiry)
+- **Inactive clubs still show in the public directory.** The directory query includes both active and inactive clubs, so inactive ones still appear; hide them from the directory while keeping them reachable by direct link. (CL_Mark_Club_Inactive)
 
-DESIGN_DECISIONS §6.10 specifies that production sources the Stripe webhook
-signing secret from AWS SSM Parameter Store, and the deployment populates
-`STRIPE_WEBHOOK_SECRET` from SSM at container start alongside the other §3.6
-secrets; DEVOPS_GUIDE §5.1/§5.2 and `.env.example` agree. Current:
-`terraform/{staging,production}/ssm.tf` provisions only the `stripe_secret_key`
-SecureString, no parameter exists for the webhook secret, and DEVOPS_GUIDE §5.5
-has the operator hand-set `STRIPE_WEBHOOK_SECRET` in `/srv/footbag/env`. The web
-app already reads the value as a single env var at boot with the empty-and-stub
-guards (`src/config/env.ts`), so only the deploy-time source deviates. Close by
-adding the webhook-secret SecureString to both `ssm.tf` files, extending the
-instance IAM read policy to the new path, sourcing `STRIPE_WEBHOOK_SECRET` from
-SSM when the deploy seeds `/srv/footbag/env`, and updating DEVOPS_GUIDE §5.5 to
-the SSM-sourced procedure. DEVOPS_GUIDE §15.7 already points at the SSM path.
+### Cross-track pickups (Dave writes the code; James advises on the freestyle and pipeline details)
 
-### Notification side-effects declared in service JSDoc are not yet wired
+These are freestyle or data-pipeline topics, but the actual change is in platform code, the test suite, or the `.claude` config, which is Dave's area. The skill items wait until James has audited the content.
 
-Three service file-header JSDoc contracts list `outbox_emails` /
-`mailing_list_subscriptions` side-effects that the service bodies do not yet
-perform. The notifications are design intent (USER_STORIES: granting HoF or BAP
-sends a congratulatory email; the tier-change and vouch flows follow the
-post-commit confirmation-email pattern), so the JSDoc contracts stand and the
-wiring is the gap. Current:
+- **Bring the freestyle CSS up to the site standard.** The freestyle parts of `src/public/css/style.css` use one-off screen-size breakpoints and custom card styles that predate the shared design tokens the rest of the site uses. Move them onto the standard breakpoints and shared tokens. (The earlier problems with raw color values and undefined style classes are already fixed and tested.)
+- **Stop member uploads from appearing as curated trick tutorials.** On a trick page (`/freestyle/tricks/:slug`), the "Reference Videos" section currently includes member-uploaded videos that happen to be tagged with the trick, because the database query does not check where a video came from. Only videos from a known curator source should appear there; member uploads should still be findable through hashtag browsing and the member's own gallery.
+- **Show who made each reference video and link to its source.** The reference-video query does not join the table that holds each video's creator and source URL, so videos show only a generic label. Join it and show the creator and a link. (Depends on the source data James's pipeline seeds.)
+- **Clean planning jargon out of the freestyle content files.** Several files under `src/content/freestyle*.ts`, plus one template partial, carry comments and notes with old sprint, phase, and "wave" labels, dates, and paths into the `exploration/` folder. Rewrite each comment to plainly say why the code is the way it is, following the project comment rules. Do not touch the actual data (scoring math, notation, formulas) or real timestamps in tests.
+- **Tidy and relocate the freestyle skills.** Five freestyle-related skill files under `.claude/skills/` carry dated history and machine-specific cross-references; clean each to a plain set of triggers and steps, and move the design rules they contain into the design docs. Move the `freestyle-dictionary-surface` skill out of the active skill folder, and fix its reference to a skill that does not exist. Do this after James audits the content; a few structural calls there are James's to make.
+- **Simplify the local-database scripts.** `reset-local-db.sh` and `scripts/deploy-local-data.sh --db-only` are two overlapping fast paths for the same thing; collapse or document them. And the same argument list is duplicated between `deploy_to_aws.sh` and `scripts/deploy-to-aws.sh`.
+- **Fix a stale comment in `scripts/reset-local-db.sh`.** A comment (around lines 141-145) still describes loaders 21, 22, and 23 as "the freestyle media loaders." Loaders 21 and 22 are now trick-dictionary loaders, there is no loader 23, and the old freestyle-media loaders were deleted. Update the comment to match.
+- **Remove the club-classification QC panel before any production launch.** A development-only audit panel on the club page (with 19 extra database columns and its own test) was added to inspect the club classifier. It is not a substitute for the real admin club-cleanup feature and must be removed before production. Search the code for `TEMP-DEVIATION`.
 
-- `membershipTieringService.ts` declares tier-change and congratulatory HoF/BAP
-  emails plus an `admin-alerts` mailing-list subscription update on the is_admin
-  change; the body writes only tier-grant ledger and audit rows.
-- `activePlayerService.ts` declares a vouch-confirmation email; `applyVouch`
-  writes grant and audit rows with no enqueue.
-- `eventService.ts` declares organizer-confirmation, participant-notice, and
-  sanction-decision emails; these ride the unbuilt event-organizer write routes
-  (see the persona-harness entry above).
+---
 
-Close by enqueuing each email after its transaction commits (the outbox and
-`communicationService` infra is built and tested) and writing the admin-alerts
-mailing-list row inside the tiering transaction; the eventService notifications
-land with the event-organizer feature. Trim nothing from the JSDoc: the
-contracts describe the target.
+## James — data pipeline and freestyle
 
-## Audit-surfaced deployed-story gaps
+James owns the data pipeline (turning the old site's data into the new database) and all freestyle content. This section carries the most detail. The cutover-critical pipeline work comes first, then the freestyle work.
 
-Verified gaps between deployed user stories and code. Each is a real deviation to close;
-delete the entry when its target ships with a test.
+### Data pipeline
 
-### N2 — public profile omits club affiliation
+- **Top priority: commit the mirror member-extraction code into the repository.** The code that turns the old site's member pages into the roughly 1,600 club-only historical-person records currently only runs on James's own machine; it is not in the repository, so nobody else can reproduce it. Commit it into `legacy_data/scripts/` before the production data load. Note: that folder already holds several extraction scripts (`extract_club_members.py`, `extract_member_profiles.py`, `extract_member_usernames.py`), so James should first confirm whether the production version of this code is among them or genuinely still missing.
+- **Finish the legacy member-account import.** This is the cutover-critical pipeline that reads the old site's member dump and loads it into the new member table. The loader already does all the filtering of invalid rows, drops passwords and session tokens, and counts every exclusion; the extract, admin-extract, and validation scripts are all built, tested, and have been dry-run against the real test dump. That dry run turned about 33,665 dump rows into 25,495 importable members, with real names on 100% and country on 99.9%, and matched all 73 admins to a member. What is left before the real production load: (a) write the script that computes each member's starting membership tier, which needs five new columns in the database schema (a change to coordinate with Dave) and needs Steve's committee/board table to know who was on the board; (b) fill in each member's Hall-of-Fame and Big-Add-Posse honor flags by matching them against the local roster files, because right now they are left blank and default to off, which would wrongly deny those members their tier-2 grant; (c) finish cross-checking that the member IDs in the dump match the IDs used in the old profile-page URLs; and (d) load the final dump taken after the site is frozen. The detailed column-by-column mapping is in `docs/MIGRATION_PLAN.md` §15.16.
+- **Reconcile the Hall-of-Fame and Big-Add-Posse honors (mostly done).** The code that reads the honor flags from the captured roster snapshots and validates them is built and passing; no member gets an honor flag without roster proof. A separate read-only tool compares the current public honor-roster web pages against the captured snapshots to catch drift. What is left: a curator works through the differences it reports (the Hall-of-Fame page currently shows about 10 spelling or accent variants versus the snapshot; the Big-Add-Posse page is clean) and refreshes the snapshots before go-live.
+- **Scrub contact details out of club descriptions (waiting on approval).** The club seed file (`legacy_data/seed/clubs.csv`) has phone numbers and email addresses written into the free-text descriptions, but the design is that club contact happens only through the club's leaders, never as free text. The fix is a curator-reviewed removal of all phones and emails from descriptions: the full list of what would change is shown for approval first, and any ambiguous run of digits is asked about rather than guessed. The current list is 34 of 312 clubs, with 20 emails and 24 phone-like number runs. After approval, edit the file, re-run the pipeline, and confirm nothing changed except the descriptions. Status: waiting on the maintainer to approve the list.
+- **The club-classification override procedure (the CSV behind Dave's admin-cleanup item).** Before go-live, forcing a club to be kept or junked is done by hand-editing rows in `overrides/club_classification_overrides.csv`. The procedure: look up the club's key by name from the seed file (never guess it), fill in the name and reason so the row explains itself, re-run the club-classification build script and check the override count and the difference from the last run, then run QC. The loader deliberately fails loudly on an unknown category or a club key that no longer exists.
+- **Turn on foreign-key enforcement for the main reseed.** The big seed loader (`08_load_mvfp_seed_full_to_sqlite.py`) currently runs with foreign-key checks off. The delete order is already fixed; the remaining problem is that one pipeline script (`run_pipeline.sh`) calls this loader without first loading the member table it points at, so turning checks on would fail there. The fix: load the member seed before every call to loader 08 in that script, then turn enforcement on and prove a clean run.
+- **Merge duplicate clubs instead of just dropping one.** When two club records are the same club, the current override only hides the duplicate, which throws away its member roster. There are four such same-name, same-country pairs, each with members on both sides. Change the override so the kept club absorbs the dropped club's members (combined and de-duplicated) and the best of its other fields, recording which keys were merged. This stays a curator-confirmed, single-CSV, pipeline-time change: no automatic matching, no admin merge screen.
+- **Score-text extraction (the rest is deferred).** Done: the kick counts for consecutive-kicks events are now pulled out of the raw result text. Deferred: the free-text "sick" and "routine" descriptors, which are multilingual, sparse, and would mean changing the core text parser for little gain.
+- **Workbook parity check (one part deferred).** Done: a check that the event count in the published workbook matches the canonical event list. Deferred: a stricter check that the year sheets and the excluded-events list exactly account for all events, which is not currently computable because the year sheets list event names rather than keys and about 9 sparse events appear on both.
+- **Override visibility (database exposure deferred).** Done: a sheet in the workbook listing every event whose results were overridden, plus any stale overrides. Deferred: surfacing an "overridden" flag in the canonical data and the database itself.
 
-Current: `PublicProfileContent` has no club field; `public-profile.hbs` renders none.
-Target: surface the member's club affiliation on the public profile (M_View_Profile).
+### Freestyle
 
-### N3 — profile omits the member media thumbnail grid
+- **Urgent: stop the freestyle pipeline from scraping the live footbag.org.** Two pipeline scripts still fetch pages from the live site over the internet. That is non-deterministic and will break for good when footbag.org is shut down at cutover. Point them at the committed local mirror instead (`legacy_data/mirror_footbag_org/`, which already holds the roughly 930 needed pages): the scripts are `event_results/scripts/18_scrape_footbag_org_moves.py` and `20_link_footbag_org_sources.py`. A third script that downloads demo media should point at the mirror if those files are mirrored, otherwise be run once before shutdown with its output committed. Then add a check that fails the build if any non-test pipeline script (other than the one whose job is to build the mirror) still references a live footbag.org URL.
+- **Fix three dead curator-media videos.** Three curated trick videos point at YouTube videos that are gone or private and need their URL replaced or the entry removed: a "spinning symposium whirl", a "tombstone", and a Lon Smith shred clip. Separately, one world-record entry points at a dead Vimeo video that should be refreshed or dropped.
+- **Lift the freestyle pipeline into its own `freestyle/` folder (James plans it; Dave makes the code edits outside `legacy_data/`).** At cutover everything under `legacy_data/` freezes for good, but freestyle content keeps being curated from sources that are not footbag.org, so it is the one living pipeline and needs to move out of the soon-frozen folder and become self-contained. The work: move the freestyle loaders, scripts, tools, inputs, and live exploration folders into `freestyle/`; add a `freestyle/run_freestyle.sh` that rebuilds every freestyle table from committed inputs on a fresh checkout; remove the freestyle steps from the legacy pipeline scripts; load the symbolic-grammar data into the database instead of copying it into the web image; sort the roughly 147 freestyle exploration folders into keep-and-move versus archive; and write a `freestyle/README.md` and `freestyle/CLAUDE.md`. It is done when, on a fresh checkout with no mirror present, the freestyle build script rebuilds every freestyle table, the legacy pipeline still runs without the freestyle steps, every `/freestyle/*` page renders, freestyle QC passes, and the build and tests are green.
+- **Write the editorial notes for nine trick families.** Nine families (eclipse, dada-curve, barfly, dyno, paradon, double-over-down, flurry, flail, butterfly-swirl) currently have only their structural data. Write the human "observational notes" for each (left empty when there is nothing factual to say, never invented) and review the automatically derived sibling and descendant lists. The file is `src/content/freestyleGlossaryFamilyCards.ts`.
+- **Resolve three trick-dictionary data conflicts.** Three trick entries are blocked from the scaled-up pilot by small data conflicts: a base trick whose slug is not active, a modifier whose difficulty bonus is unresolved, and a difficulty value that disagrees with its own example. Reconcile each.
+- **Link about 48 world-record videos to their tricks.** About 48 of the 165 trick names on records that have a video do not match any active trick or alias (for example "Alpine PLO", "DDD", "DSO", "Double Dyno"), so those records badge nowhere in the dictionary. Give each a canonical name or an alias so it links to its trick.
+- **Freestyle trick-promotion decisions (some blocked on an outside expert).** Expanding the trick dictionary further needs several judgment calls from the curator rather than anything mechanical: whether an operator can apply to itself twice, definitions for two undefined operators ("blazing" and "terraging"), a large batch of crossbody tricks (about 47, the single biggest lever), and a couple of unusual cases. There is an 84-row curator worklist for the rest. Some of this is blocked on a Wave 2 reply from rules expert Red Husted (see Blockers). Separately, two competing specifications for the "atomic" trick family need to be reconciled, and a known bug overcounts the difficulty of three rotational atomic tricks.
 
-Current: neither `profile.hbs` nor `public-profile.hbs` shows the member's uploaded photos/videos.
-Target: render a thumbnail grid of the member's media (M_View_Profile).
+---
 
-### N5 — leaving as the only co-leader is not warned
+## Go-live MVP scope (Dave, decided last)
 
-Current: `clubService.leaveClub` executes unconditionally; no last-co-leader signal reaches the UI.
-Target: warn before the leave completes when the member is the club's only co-leader (M_Leave_Club).
+- [Q] **Decide what ships in version 1 and what waits.** This is the final scoping decision, and it cannot be made until every open question above is answered, because those answers determine what is even possible for launch. So it sits last in the plan.
 
-### N6 — no club reactivation path
+---
 
-Current: only `markClubInactive` exists; no reactivate route/service.
-Target: a co-leader can reactivate an inactive club at any time (CL_Mark_Club_Inactive).
+## Blockers
 
-### N9 — member hashtags forced lowercase
+Things we are waiting on from outside the immediate work.
 
-Current: the member upload path rejects mixed-case tags and stores `tag_display` lowercased; the
-schema's separate `tag_display` column exists to preserve capitalization.
-Target: preserve original capitalization in `tag_display` while normalizing `tag_normalized`
-(M_Upload_Photo).
+- **The legacy member data, from Steve.** The final source for the member table. The test dump has arrived (members, admins, and payments); the committee/board table is still to come (see Steve's section). Still open: the final dump taken after the site is frozen, and agreement that the member IDs line up. Until the real data lands, a 2,505-row placeholder seed stands in. Several features wait on the real data: linking club-only members to accounts, claiming a legacy account at registration, re-seeding name variants, and showing the public member list (the `/members` page currently shows only a welcome message).
+- **The freestyle rules wording, from the IFPA.** The official wording for the Routine, Circle, Sick 3, and Shred 30 formats. It re-enables the rules buttons that were removed from the freestyle page.
+- **A Wave 2 reply from rules expert Red Husted.** Six detailed grammar questions about how tricks combine. Both the trick-dictionary expansion and the PassBack intake promotion wait on his answers.
+- **The data-review sign-off.** A confirmation that the legacy data is complete and the member list has been reviewed, recorded as an audit entry with James as the actor. Legacy-data pages must not go to production without it.
 
-### N10 — no teaching-moment empty state on member upload
+---
 
-Current: the gallery empty state is a bare string.
-Target: a My Content empty state showing example photos, clickable popular tags, and aggregated
-hashtag statistics (M_Upload_Photo, M_Submit_Video).
+## Release gates
 
-### N11 — named-gallery empty state lacks popular-tag suggestions
+The checks that must pass before the data and platform are considered ready. The full list of go-live gates lives in `docs/MIGRATION_PLAN.md` §22; these are the data-and-platform ones tracked here.
 
-Current: the named-gallery empty state has corrected wording but no popular-tag suggestions; the
-content shape has no `popularTags` field.
-Target: show 5 platform-wide popular tags on the empty named-gallery state (V_View_Gallery).
+- Data integrity: QC passes with zero hard failures; no unexpected drops in row counts versus the last locked version; no new spikes of missing person IDs on participants.
+- Workbook: the event count matches the canonical event list; no empty year sheets; world-championship events are labelled.
+- Identity: no duplicate canonical persons; no aliases leaking into the persons list.
+- Platform database: the event count matches the canonical list; sample event pages load; player pages resolve with no orphaned IDs.
+- Club cleanup: the test for the club-confirmation wizard step pins the club ID it writes.
 
-### N12 — daily hashtag-stats rebuild is not scheduled
+---
 
-Current: `hashtagDiscoveryService.rebuildTagStats` exists and is tested but no worker /
-`OperationsPlatformService` invocation calls it; only incremental updates run.
-Target: schedule the daily rebuild via `OperationsPlatformService` + the worker, wrapped in
-`recordJobRun` (SYS_Rebuild_Hashtag_Stats, V_Browse_Hashtags).
+## Deferred / parked
 
-### N14 — admin dashboard lacks the work-queue summary panel
+Real work, but nothing is being done on it now.
 
-Current: the dashboard renders static cards with no per-category counts or urgency.
-Target: a summarized work-queue panel with per-category counts linking to sub-queues, urgent
-categories highlighted (A_View_Dashboard).
-
-### N15 — soft-delete cleanup covers only members
-
-Current: `runPiiPurgeScan` processes only deleted/deceased members.
-Target: also run payment 7-year cleanup and ballot 7-year preservation, with per-entity-type
-counts in the run summary (SYS_Cleanup_Soft_Deleted_Records).
-
-### N16 — email templates are not DB-driven
-
-Current: email bodies are hardcoded inline; the `email_templates` table is seeded but never read;
-no admin editing surface.
-Target: load templates from the DB, admin-editable, with audit-logged changes (SYS_Send_Email).
-
-### N17 — continuous DB backup omits hardening steps
-
-Current: `scripts/backup-db.sh` does a single-attempt backup with a CloudWatch staleness metric.
-Target: add the WAL checkpoint, retry with exponential backoff, health-timestamp update,
-3-consecutive-failure alarm, and graceful-shutdown wait (SYS_Continuous_Database_Backup).
-
-### N18 — expired Active Player state lacks explanatory copy
-
-Current: an expired Active Player shows only a badge plus the generic Tier 0 blurb.
-Target: explain that Tier 1 benefits and Official IFPA Roster inclusion have ended
-(M_Active_Player_Expiry).
-
-### N20 — inactive clubs are not hidden from the directory
-
-Current: `clubs_open` is `status IN ('active','inactive')`, and the directory index and country
-list both read it, so inactive clubs still appear in the public directory.
-Target: hide inactive clubs from the public directory while keeping them reachable by direct link
-(CL_Mark_Club_Inactive).
+- **There is no in-app way to edit the trick dictionary.** The freestyle trick data is read-only while the site runs; only the pre-launch pipeline writes it. Once the live site is taking member writes, that rebuild-from-pipeline approach cannot run against production, so the dictionary cannot grow until there is an admin editing screen, probably modelled on the existing curator-media admin tools. The same read-only limitation applies to records, consecutive-kicks records, and events.
+- **Glossary version 4 multi-layer rollout.** Waiting on curator triage and a static-page rollout.
+- **Symbolic-grammar UI rollout.** Phase 1 waiting on approval.
+- **A permanent home for the symbolic-grammar data.** The data currently rides into the web image as copied files (a deploy bug that is already fixed and guarded by a test). The permanent fix is to load it into the database as clearly-marked observational tables, which is gated on outstanding expert answers and curator triage and folds into the freestyle move above.
+- **Local MP4 trick clips.** Need a way to ingest video files that are not embeds.
+- **Merging the two canonical result sets.** Combine the pre-1997 and post-1997 sets and retire the older one.
+- **Version stamps in the data outputs.** Add the build version, build date, and identity-lock version to the workbook and canonical files.
+- **A data-notes sheet in the workbook.** Explaining excluded events, sources, and what "unknown" means.
