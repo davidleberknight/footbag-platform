@@ -299,7 +299,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['atomic eclipse', 'ducking eclipse', 'gyro eclipse', 'miraging eclipse'],
     siblingFamilies:   ['butterfly-swirl'],
     notableCompounds:  [],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Airborne hop-over',
+        body:  'Eclipse lifts the held-delay leg-over chassis of hop-over off the ground: after a jump off the support leg, both the inside-foot held delay and the outward dex happen in flight. The jump is a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.',
+      },
+    ],
   },
   {
     slug:              'dada-curve',
@@ -310,7 +315,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['gyro dada-curve', 'pixie dada-curve'],
     siblingFamilies:   ['butterfly', 'paradon'],
     notableCompounds:  [],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Miraging far symposium butterfly',
+        body:  'Dada-Curve carries a committed equivalence: it reads as a miraging far symposium butterfly, a butterfly-family branch stacking the miraging, far, and symposium operators on a no-plant-while chassis that closes on an opposite cross-body clipper.',
+      },
+    ],
   },
   {
     slug:              'barfly',
@@ -321,7 +331,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['gyro barfly', 'pixie barfly', 'spinning barfly', 'stepping barfly'],
     siblingFamilies:   ['butterfly', 'dada-curve'],
     notableCompounds:  ['blurriest', 'superfly'],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Double-infinity compound',
+        body:  'Barfly is a 4-ADD double-infinity compound: two same-side outward dex cycles run between a clipper entry and an opposite cross-body clipper terminal. It anchors the blurry superlative blurriest, which stacks a third dex onto the same chassis.',
+      },
+    ],
   },
   {
     slug:              'dyno',
@@ -332,7 +347,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['fairy dyno', 'miraging dyno', 'pixie dyno', 'stepping dyno'],
     siblingFamilies:   ['osis', 'butterfly-swirl'],
     notableCompounds:  [],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Spin-bearing branch',
+        body:  'Dyno is a 4-ADD branch whose signature is a back spin: an outward dex, then a back-spinning body element, then a same-side cross-body clipper. The back spin places it beside osis (its structure carries the tracked folk name Reverse Whirling Osis), and it leads a named branch of its own (fairy, miraging, pixie, and stepping dyno).',
+      },
+    ],
   },
   {
     slug:              'paradon',
@@ -343,7 +363,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['fairy paradon', 'pixie paradon', 'symposium paradon'],
     siblingFamilies:   ['double-over-down', 'dada-curve'],
     notableCompounds:  ['dolomite'],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Toe-set double out-dex',
+        body:  'Paradon is a 4-ADD toe-set branch: an opposite-out dex, then a same-side out dex, closing on an opposite cross-body clipper. It sits beside double-over-down, which repeats the opposite-out dex instead of switching to same-side, and feeds named descendants including symposium paradon (folk-named Dolomite).',
+      },
+    ],
   },
   {
     slug:              'double-over-down',
@@ -354,7 +379,12 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['down diver', 'gyro double-over-down', 'pixie double-over-down'],
     siblingFamilies:   ['legover', 'paradon'],
     notableCompounds:  ['down diver'],
-    observationalNotes: [],
+    observationalNotes: [
+      {
+        title: 'Name is the structure',
+        body:  'Double-Over-Down is named for what it does: two opposite-out dexes (the double over) come down onto an opposite cross-body clipper (the down), all from a toe set, for 4 ADD. It sits beside paradon, which switches the second dex to same-side, and beside the legover family; its deepest named descendant is the down diver.',
+      },
+    ],
   },
   {
     slug:              'flurry',
