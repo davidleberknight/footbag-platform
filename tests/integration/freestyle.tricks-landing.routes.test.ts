@@ -307,12 +307,13 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
 
   it('By ADD groups each bucket into lineage sub-bands with headers', async () => {
     const html = (await request(createApp()).get('/freestyle/tricks')).text; // default = By ADD
-    // ADD-4 spans two lineages in the seed (whirl x3 + mirage x2), so both bands
-    // render headers; single-lineage buckets (ADD-2, ADD-3) stay header-free.
+    // By-family is the default ADD-view mode: each tier sub-groups into
+    // nearest-anchor family bands with a plain family-name header (no
+    // "-derived" suffix, and no surface/root bands).
     expect(html).toContain('class="add-lineage-header"');
-    expect(html).toMatch(/Whirl-derived/);
-    expect(html).toMatch(/Mirage-derived/);
-    // the mirage ADD-4 tricks sit in the Mirage-derived band of the ADD-4 bucket
+    expect(html).toContain('add-lineage-header">Whirl');
+    expect(html).toContain('add-lineage-header">Mirage');
+    // the mirage ADD-4 tricks sit in the Mirage band of the ADD-4 bucket
     expect(html).toContain('data-trick-slug="ducking-paradox-mirage"');
   });
 

@@ -2952,6 +2952,11 @@ export interface AlternativeSurfaceTrickView {
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
+  // ADD-view within-tier browse mode: 'family' (default — nearest-anchor family
+  // bands in public-family order) or 'alpha' (flat A-Z by canonical name for
+  // lookup). Drives the By family / Alphabetical toggle; does not change which
+  // tricks appear, only how each ADD tier is sub-arranged.
+  addSort: 'family' | 'alpha';
   // Quick-jump chips for the ADD view (levels 1..6 + a collapsed "7+ ADD"),
   // each linking to the in-page ADD section anchor. Empty off the ADD view.
   addJumpChips: { label: string; href: string }[];
@@ -7579,6 +7584,7 @@ export const freestyleService = {
   getFreestyleTricksIndexPage(
     family?: string,
     view?: string,
+    addSort: 'family' | 'alpha' = 'family',
   ): PageViewModel<FreestyleTricksIndexContent> {
     // Active + pending external rows. Pending rows surface as labeled
     // placeholders; they never claim canonical status.
@@ -7924,47 +7930,49 @@ export const freestyleService = {
     ): FreestyleTrickAddGroup => {
       const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
       const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx);
-      // Lineage root for each entry, resolved the same way the Family view does:
-      // its display family walked to the top public ancestor (torque/blender ->
-      // osis). Tricks outside a public family band under their own family slug.
-      const rootOf = (row: FreestyleTrickRowWithStatus): { slug: string; label: string } => {
-        const df = (resolveDisplayFamily(row.trick_family ?? '') ?? row.trick_family ?? '').trim();
-        if (!df) return { slug: 'other', label: 'Other lineages' };
-        const anc = familyWithAncestors(df);
-        const root = anc.length ? anc[anc.length - 1]! : df;
-        const label = PUBLIC_FAMILY_LABEL.get(root)
-          ?? resolveFamilyDisplayName(root)
-          ?? (root.charAt(0).toUpperCase() + root.slice(1));
-        return { slug: root, label };
+      // Group each entry under its NEAREST public family, using the same
+      // nearest-anchor model the Family view uses: FAMILY_OVERRIDES, then the
+      // DB trick_family, resolved by resolveDisplayFamily. NO walk to the root
+      // ancestor, so torque/blender band under Torque/Blender (not Osis) and
+      // drifter members under Drifter. A trick whose family is not a public
+      // parent / minor lineage (e.g. the clipper-stall surface) is not a public
+      // group; it collects in a trailing "Other / standalone tricks" band.
+      const familyOf = (row: FreestyleTrickRowWithStatus): { slug: string; label: string } => {
+        const raw = (resolveFamilyOverride(row.slug) ?? row.trick_family ?? '').trim();
+        const fam = raw ? resolveDisplayFamily(raw) : null;
+        if (!fam) return { slug: 'other', label: 'Other / standalone tricks' };
+        const label = PUBLIC_FAMILY_LABEL.get(fam)
+          ?? resolveFamilyDisplayName(fam)
+          ?? (fam.charAt(0).toUpperCase() + fam.slice(1));
+        return { slug: fam, label };
       };
       const bandMap = new Map<string, { label: string; entries: AddBucketEntry[] }>();
       for (const e of sorted) {
-        const { slug, label } = rootOf(e.row);
+        const { slug, label } = familyOf(e.row);
         const band = bandMap.get(slug) ?? { label, entries: [] };
         band.entries.push(e);
         bandMap.set(slug, band);
       }
-      // Multi-trick lineages first (largest first, then label); single-trick
-      // lineages collapse into a trailing "Other lineages" band to avoid a wall
-      // of one-row headers. Within a band: operator rung then name.
+      // Within a public family: operator rung then name. Within the standalone
+      // band: alphabetical only.
       const byRungName = (a: AddBucketEntry, b: AddBucketEntry) =>
         (rungOf(a.row.slug) - rungOf(b.row.slug)) || byCanonicalNameAlpha(a.indexRow, b.indexRow);
-      const multi = [...bandMap.entries()].filter(([, b]) => b.entries.length >= 2);
-      const singles = [...bandMap.entries()].filter(([, b]) => b.entries.length === 1)
-        .flatMap(([, b]) => b.entries);
-      multi.sort((a, b) => (b[1].entries.length - a[1].entries.length) || a[1].label.localeCompare(b[1].label));
-      const lineageBands: FreestyleAddLineageBand[] = multi.map(([slug, b]) => ({
-        rootSlug: slug,
-        rootLabel: b.label,
-        cards: b.entries.slice().sort(byRungName).map(cardOf),
-      }));
-      if (singles.length) {
-        lineageBands.push({
-          rootSlug: 'other',
-          rootLabel: 'Other lineages',
-          cards: singles.slice().sort(byRungName).map(cardOf),
-        });
-      }
+      const byName = (a: AddBucketEntry, b: AddBucketEntry) =>
+        byCanonicalNameAlpha(a.indexRow, b.indexRow);
+      // Public families in the canonical display order (NOT by accidental size
+      // or source root); the standalone band always last.
+      const orderedSlugs = [
+        ...PUBLIC_FAMILY_ORDER.filter(s => bandMap.has(s)),
+        ...(bandMap.has('other') ? ['other'] : []),
+      ];
+      const lineageBands: FreestyleAddLineageBand[] = orderedSlugs.map(slug => {
+        const b = bandMap.get(slug)!;
+        return {
+          rootSlug: slug,
+          rootLabel: b.label,
+          cards: b.entries.slice().sort(slug === 'other' ? byName : byRungName).map(cardOf),
+        };
+      });
       return {
         addNumeric,
         addLabel,
@@ -7972,7 +7980,7 @@ export const freestyleService = {
         tricks: sorted.map(e => e.indexRow),
         cards:  sorted.map(cardOf),
         lineageBands,
-        showLineageBands: lineageBands.length > 1,
+        showLineageBands: lineageBands.length > 0,
       };
     };
     const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
@@ -8744,6 +8752,7 @@ export const freestyleService = {
       },
       content: {
         addGroups,
+        addSort,
         addJumpChips,
         dexCountGroups,
         setsBrowseView,

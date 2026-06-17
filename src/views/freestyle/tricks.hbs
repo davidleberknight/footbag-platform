@@ -169,6 +169,20 @@
        JOB: + ADD:. No green ADD chip (the value is in the section header
        + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
+  {{! Within-tier browse mode: By family (default, nearest-anchor family bands
+      in public-family order) or Alphabetical (flat A-Z for lookup). Selected
+      via ?sort=; server-rendered, no JavaScript. }}
+  <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
+    {{#if (eq content.addSort "alpha")}}
+      <a href="/freestyle/tricks?view=add">By family</a>
+      <span class="trick-view-toggle-sep">·</span>
+      <span class="trick-view-toggle-active">Alphabetical</span>
+    {{else}}
+      <span class="trick-view-toggle-active">By family</span>
+      <span class="trick-view-toggle-sep">·</span>
+      <a href="/freestyle/tricks?view=add&amp;sort=alpha">Alphabetical</a>
+    {{/if}}
+  </nav>
   {{#if content.addJumpChips.length}}
   <nav class="add-jump" aria-label="Jump to ADD level">
     <span class="add-jump-label">Jump to:</span>
@@ -183,11 +197,20 @@
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    {{! Lineage sub-bands within the ADD bucket (Mirage-derived, Osis-derived,
-        …). Headers show only when the bucket spans more than one lineage. }}
+    {{#if (eq @root.content.addSort "alpha")}}
+    {{! Alphabetical: flat A-Z across the whole tier, by canonical name. }}
+    <div class="dict-trick-row-stack">
+      {{#each cards}}
+        {{> dictionary-trick-row}}
+      {{/each}}
+    </div>
+    {{else}}
+    {{! By family: nearest-anchor family bands in public-family order; the
+        "Other / standalone tricks" band trails, alphabetized. Family parents
+        / minor lineages only — no surface/root buckets. }}
     {{#each lineageBands}}
     <div class="trick-add-lineage">
-      {{#if ../showLineageBands}}<h3 class="add-lineage-header">{{rootLabel}}-derived</h3>{{/if}}
+      <h3 class="add-lineage-header">{{rootLabel}}</h3>
       <div class="dict-trick-row-stack">
         {{#each cards}}
           {{> dictionary-trick-row}}
@@ -195,6 +218,7 @@
       </div>
     </div>
     {{/each}}
+    {{/if}}
   </section>
   {{/each}}
   {{/if}}

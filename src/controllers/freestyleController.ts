@@ -155,7 +155,10 @@ export const freestyleController = {
       }
       // /freestyle/tricks opens directly on the By ADD ladder (the service
       // defaults view to 'add'); there is no separate browse-mode gate.
-      const vm = freestyleService.getFreestyleTricksIndexPage(family, view);
+      // ?sort=alpha switches the ADD view's within-tier arrangement to flat A-Z
+      // for lookup; anything else (the default) is the nearest-anchor By-family.
+      const addSort = req.query['sort'] === 'alpha' ? 'alpha' : 'family';
+      const vm = freestyleService.getFreestyleTricksIndexPage(family, view, addSort);
       res.render('freestyle/tricks', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
