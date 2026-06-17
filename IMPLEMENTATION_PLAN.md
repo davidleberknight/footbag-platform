@@ -2,7 +2,7 @@
 
 This doc holds the accepted deviations from long-term design intent.
 Long-term design: `docs/`.
-Sister IP for data prep: `legacy_data/IMPLEMENTATION_PLAN.md`.
+Sister IP for data prep and all freestyle work: `legacy_data/IMPLEMENTATION_PLAN.md`.
 
 ## When to add an entry here
 
@@ -39,30 +39,6 @@ DB from the CSVs and the override must survive each reload. After go-live,
 reloads stop, the production DB owns club truth, and the admin queue actions
 (USER_STORIES `A_Periodic_Club_Cleanup`, MIGRATION_PLAN §10.4) become the
 override path. Delete this entry when those queue actions ship.
-
-### Freestyle surfaces deviate from the VC §4.5 token standard
-
-The non-freestyle site is on the VC §4.4-§4.5 standard: `--font-body` /
-`--font-mono` tokens behind every `font-family`, token-only
-colors/radii/shadows, canonical 480/768 breakpoints, three button variants,
-no undefined template classes. Fonts are now tokenized site-wide (the
-`assert_conventions.sh` font gate scans the whole stylesheet). The
-freestyle sections of `src/public/css/style.css` (below the "Freestyle
-records" banner) still predate the rest of the standard:
-~360 long-tail hex literals (the recurring palette is tokenized; what
-remains is low-frequency one-offs needing consolidate-or-name calls),
-breakpoints 520/600/640/680/720/1023/1024, and ~40 undefined
-class tokens (every dead token is removed; the remainder are
-test-anchored contract classes that need real styling decisions) across
-`src/views/freestyle/**` plus 8 still-excluded freestyle partials, and
-bespoke card families that do not inherit the shared tokens.
-One gate enforces the standard but excludes freestyle for now: the
-template-class-vocabulary test (`tests/unit/template-class-vocabulary.test.ts`,
-explicit `EXCLUDED_DIRS` / `EXCLUDED_FILES`). The
-exclusions are self-tightening: companion tests in the same file fail the
-moment an excluded surface becomes compliant, naming the exclusion to prune.
-Closure rides
-the freestyle-pages-fixes list in `legacy_data/IMPLEMENTATION_PLAN.md`.
 
 ### Persona harness: classes blocked on unbuilt features
 
@@ -160,16 +136,6 @@ contracts describe the target.
 Verified gaps between deployed user stories and code. Each is a real deviation to close;
 delete the entry when its target ships with a test.
 
-### N1 — trick Reference Videos admit member uploads
-
-Current: `/freestyle/tricks/:slug` Reference Videos include member-uploaded videos tagged with a
-trick slug. `db.ts listMediaByTrickTag` has no provenance filter and `freestyleService` tier
-dispatch routes `tierOf(null)` (member uploads, no `source_id`) into the tutorial bucket.
-Target: the curated Reference Videos band requires curator source provenance (`source_id` /
-source-tier registry); member uploads are excluded from the curated band but remain discoverable
-via hashtag browse (`/media/browse`) and in the member's own gallery. Do NOT key the filter on the
-`#curated` tag.
-
 ### N2 — public profile omits club affiliation
 
 Current: `PublicProfileContent` has no club field; `public-profile.hbs` renders none.
@@ -215,13 +181,6 @@ Current: `hashtagDiscoveryService.rebuildTagStats` exists and is tested but no w
 `OperationsPlatformService` invocation calls it; only incremental updates run.
 Target: schedule the daily rebuild via `OperationsPlatformService` + the worker, wrapped in
 `recordJobRun` (SYS_Rebuild_Hashtag_Stats, V_Browse_Hashtags).
-
-### N13 — reference videos lack creator + source link
-
-Current: `listMediaByTrickTag` does not join `media_sources`; `shapeReferenceMedia` produces only a
-hardcoded `sourceLabel`.
-Target: each reference video shows its creator and a link to the source URL when available
-(V_View_Trick_Reference_Videos).
 
 ### N14 — admin dashboard lacks the work-queue summary panel
 
