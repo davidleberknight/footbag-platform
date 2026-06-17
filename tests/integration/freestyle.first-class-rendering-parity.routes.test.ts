@@ -260,7 +260,7 @@ describe('First-class rendering parity — osis golden', () => {
     // Line-2 notation present (JOB + ADD)
     expect(card).toContain('dict-trick-row-notation');
     // JOB value carries the curator-authored operational chain
-    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*\[set\][\s\S]+spin/);
+    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*SET[\s\S]+SPIN/);
     // ADD value carries the atomic flag-decomposition breakdown.
     expect(card).toContain('spin(1) + xbod(1) + stall(1)');
     // JOB resolved (not pending)
@@ -367,9 +367,9 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor('osis', res.text);
     // The osis atomic flag-decomposition is curator-authored
-    // ('[set] > (downtime) spin > ss clipper'). The Job row in
+    // ('SET > SPIN [BOD] > OP CLIP [XBD] [DEL]'). The Job row in
     // the first-class summary must carry this verbatim.
-    expect(card).toContain('[set] &gt; (downtime) spin &gt; ss clipper');
+    expect(card).toContain('SET &gt; SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
   });
 });
 
@@ -405,11 +405,11 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
   // Slice D 2026-05-26: `= N ADD` terminator stripped from ADD breakdowns
   // (hero/registry ADD chip is the authoritative total).
   it.each([
-    ['toe-stall',  '[set] &gt; toe',                                  'stall(1)'],
-    ['mirage',     '[set] &gt; hippy in dex &gt; op toe',             'dex(1) + stall(1)'],
-    ['whirl',      '[set] &gt; leggy in dex &gt; ss clipper',         'xbody(1) + dex(1) + stall(1)'],
-    ['butterfly',  '[set] &gt; hippy out dex &gt; ss clipper',        'dex(1) + xbody(1) + stall(1)'],
-    ['swirl',      '[set] &gt; leggy (xbd) out dex &gt; ss clipper',  'xbody(1) + dex(1) + stall(1)'],
+    ['toe-stall',  'SET &gt; SAME TOE [DEL]',                          'stall(1)'],
+    ['mirage',     'SET &gt; OP IN [DEX] &gt; OP TOE [DEL]',            'dex(1) + stall(1)'],
+    ['whirl',      'SET &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]',     'xbody(1) + dex(1) + stall(1)'],
+    ['butterfly',  'SET &gt; OP OUT [DEX] &gt; OP CLIP [XBD] [DEL]',    'dex(1) + xbody(1) + stall(1)'],
+    ['swirl',      'SET &gt; OP BACK SWIRL [DEX] &gt; OP CLIP [XBD] [DEL]', 'xbody(1) + dex(1) + stall(1)'],
   ])('%s renders JOB + ADD rows in the first-class summary (full parity)', async (slug, expectedJobText, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');

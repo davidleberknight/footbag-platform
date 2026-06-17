@@ -4667,52 +4667,52 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   ['toe-stall', {
     decomposition:    'stall(1) = 1 ADD',
     totalAdd:         1,
-    operationalChain: '[set] > toe',
+    operationalChain: 'SET > SAME TOE [DEL]',
   }],
   ['clipper-stall', {
     decomposition:    'xbody(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: '[set] > clipper',
+    operationalChain: 'SET > OP CLIP [XBD] [DEL]',
   }],
   ['mirage', {
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: '[set] > hippy in dex > op toe',
+    operationalChain: 'SET > OP IN [DEX] > OP TOE [DEL]',
   }],
   ['legover', {
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: '[set] > leggy out dex > ss toe',
+    operationalChain: 'SET > OP OUT [DEX] > SAME TOE [DEL]',
   }],
   ['pickup', {
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: '[set] > leggy in dex > ss toe',
+    operationalChain: 'SET > OP IN [DEX] > SAME TOE [DEL]',
   }],
   ['illusion', {
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: '[set] > leggy out dex > op toe',
+    operationalChain: 'SET > OP OUT [DEX] > OP TOE [DEL]',
   }],
   ['whirl', {
     decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: '[set] > leggy in dex > ss clipper',
+    operationalChain: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',
   }],
   ['butterfly', {
     decomposition:    'dex(1) + xbody(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: '[set] > hippy out dex > ss clipper',
+    operationalChain: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
   }],
   ['swirl', {
     decomposition:    'xbody(1) + dex(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: '[set] > leggy (xbd) out dex > ss clipper',
+    operationalChain: 'SET > OP BACK SWIRL [DEX] > OP CLIP [XBD] [DEL]',
   }],
   ['osis', {
     decomposition:    'spin(1) + xbod(1) + stall(1) = 3 ADD',
     totalAdd:         3,
-    operationalChain: '[set] > (downtime) spin > ss clipper',
+    operationalChain: 'SET > SPIN [BOD] > OP CLIP [XBD] [DEL]',
   }],
   ['around-the-world', {
     // Pedagogical normalization: foundational tricks teach the
@@ -4722,7 +4722,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     // foundational primitives.
     decomposition:    'dex(1) + stall(1) = 2 ADD',
     totalAdd:         2,
-    operationalChain: 'toe > ss(midtime) in dex > ss toe',
+    operationalChain: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',
   }],
   // ── Foundational 1-ADD surface vocabulary (added with the
   //    foundational-band first-class widening). Anatomical surface stalls
@@ -6381,6 +6381,14 @@ export const freestyleService = {
    * Delta or Progressive Readings section: their useful content is relocated to
    * two derived one-liners, `intuitionDelta` (rendered in Movement Intuition) and
    * `buildPath` (rendered in About), both null for atoms and link-less tricks.
+   *
+   * Notation placement: first-class tricks render the hero `comparativeNotation`
+   * summary card (its JOB+ADD derivation rows need curator convergence data). A
+   * non-first-class trick that is a family/branch display anchor cannot get that
+   * card without authoring derivation data the source lacks, so it instead HOISTS
+   * the standard `trick-notation` block above Movement Intuition/About via
+   * `hoistNotation` (true when the slug is a display anchor and not first-class);
+   * the block is moved, never duplicated. All other tricks keep it in place.
    */
   getTrickDetailPage(rawSlug: string): PageViewModel<FreestyleTrickContent> {
     // A record or media link may address a trick by an alias slug; resolve it
@@ -7581,6 +7589,20 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * Build the trick-dictionary index view-model.
+   *
+   * `view` selects the browse lens (family / category / topology / add / …) and
+   * `family` narrows to a single family band. In the ADD view (`?view=add`) each
+   * ADD tier sub-groups by the NEAREST public-family anchor — the same model the
+   * family view uses (`resolveFamilyOverride` then `trick_family`, resolved by
+   * `resolveDisplayFamily`), not the top source-root ancestor — so branch anchors
+   * own their tricks and no foundational surface (clipper-stall) or raw root ever
+   * becomes a band; bands order by the canonical public-family order, and tricks
+   * with no public family collect in a trailing "Other / standalone tricks" band.
+   * `addSort` toggles the within-tier presentation: 'family' (default) keeps that
+   * banded grouping, 'alpha' (`?sort=alpha`) renders a flat A–Z list for lookup.
+   */
   getFreestyleTricksIndexPage(
     family?: string,
     view?: string,

@@ -2522,9 +2522,8 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     const atwCard = res.text.slice(atwIdx, atwCardEnd);
     // No shared-card op-notation chip.
     expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
-    // Line-2 JOB slot carries the resolved chain incl. the (midtime) marker.
+    // Line-2 JOB slot carries the resolved symbolic chain.
     expect(atwCard).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(atwCard).toMatch(/class="dict-trick-row-job-value">/);
-    expect(atwCard).toMatch(/\(midtime\)/);
+    expect(atwCard).toMatch(/class="dict-trick-row-job-value">[\s\S]*?TOE[\s\S]*?\[DEX\]/);
   });
 });

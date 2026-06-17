@@ -409,7 +409,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
     // First-class secondary row carries the JOB:
     expect(toeStallCard![0]).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
-    expect(toeStallCard![0]).toMatch(/\[set\][\s\S]*?toe/);
+    expect(toeStallCard![0]).toMatch(/SET[\s\S]*?TOE/);
   });
 
   it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {

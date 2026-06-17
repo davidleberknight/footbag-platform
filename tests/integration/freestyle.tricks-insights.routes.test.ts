@@ -400,9 +400,9 @@ describe('GET /freestyle/tricks', () => {
     const atwCard = res.text.slice(atwIdx, atwCardEnd);
     // No standalone op-notation chip (shared-card class) on the ADD-view row.
     expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
-    // Line 2 carries the labeled JOB slot including the (midtime) marker.
+    // Line 2 carries the labeled JOB slot with the symbolic chain.
     expect(atwCard).toMatch(/dict-trick-row-label">JOB</);
-    expect(atwCard).toMatch(/\(midtime\)/);
+    expect(atwCard).toMatch(/dict-trick-row-job-value">[\s\S]*?TOE[\s\S]*?\[DEX\]/);
     // Leg-over orthographic noise still filtered out everywhere.
     expect(res.text).not.toContain('leg over');
   });

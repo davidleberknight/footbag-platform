@@ -24,7 +24,7 @@
 // saturation; rest recede.
 
 export type OperationalTokenRole =
-  | 'surface'           // CLIP, TOE
+  | 'surface'           // SET, CLIP, TOE
   | 'side'              // SAME, OP
   | 'direction'         // IN, OUT, FRONT, BACK (when standalone)
   | 'body_action'       // SPIN, DUCK, DIVE
@@ -47,7 +47,7 @@ export interface OperationalNotationDisplay {
 }
 
 // Static token vocabulary. Closed sets — no cross-row data dependency.
-const SURFACES        = new Set(['CLIP', 'TOE']);
+const SURFACES        = new Set(['SET', 'CLIP', 'TOE']);
 const SIDES           = new Set(['SAME', 'OP']);
 const DIRECTIONS      = new Set(['IN', 'OUT']);
 const FRONT_BACK      = new Set(['FRONT', 'BACK']);
@@ -78,6 +78,7 @@ const ROLE_LABELS: Record<OperationalTokenRole, string> = {
 // case-insensitive lookup.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // Surfaces
+  SET:   'SET: launch the bag up (entry / start of trick)',
   CLIP:  'CLIP: clipper set position (start of trick)',
   TOE:   'TOE (operational): toe set position (start of trick)',
   // Sides — layer-disambiguated (semantic notation uses footedness role)

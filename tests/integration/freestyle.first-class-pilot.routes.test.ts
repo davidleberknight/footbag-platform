@@ -188,13 +188,13 @@ describe('First-class trick pilot — Notation summary card', () => {
     // (uniform label across atomic / curator sources). The uppercased
     // canonical-name form ("OSIS") never appears as a tautological
     // chain value because the JOB row carries the operational chain
-    // (e.g. "[set] > (downtime) spin > ss clipper").
+    // (e.g. "SET > SPIN [BOD] > OP CLIP [XBD] [DEL]").
     const res = await request(createApp()).get('/freestyle/tricks/osis');
     const startIdx = res.text.indexOf('class="trick-notation-summary"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
     expect(region).toMatch(/<dt>JOB<\/dt>/);
-    expect(region).toContain('[set] &gt; (downtime) spin &gt; ss clipper');
+    expect(region).toContain('SET &gt; SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
     // The legacy "Operational" / "Job" inline labels are gone.
     expect(region).not.toMatch(/<dt>Operational<\/dt>/);
     expect(region).not.toMatch(/<dt>Job<\/dt>/);
