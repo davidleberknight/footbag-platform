@@ -195,7 +195,7 @@
          the structural reconciliation explicit. --}}
     {{#if content.passbackAddDisagreements.length}}
     <h3 id="passback-add-framing" class="add-analysis-subheading">
-      External-source ADD framings &mdash; PassBack vs IFPA counting
+      External-source ADD framings &mdash; outside source vs IFPA counting
     </h3>
     <p class="passback-add-framing-prose">{{content.passbackAddFraming}}</p>
     <details class="passback-add-disagreement-details">
@@ -209,7 +209,7 @@
           <tr>
             <th scope="col">IFPA trick</th>
             <th scope="col">IFPA structural reading</th>
-            <th scope="col">PB dex_count</th>
+            <th scope="col">Outside-source dex count</th>
             <th scope="col">Note</th>
           </tr>
         </thead>
@@ -219,7 +219,7 @@
             <td><a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a></td>
             <td>{{#if ifpaFormula}}<code>{{ifpaFormula}}</code>{{else}}<em class="passback-add-no-formula">&mdash;</em>{{/if}}</td>
             <td class="passback-add-claim-cell">{{passbackAdd}}</td>
-            <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">PB dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>
+            <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">Outside-source dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>
           </tr>
           {{/each}}
         </tbody>

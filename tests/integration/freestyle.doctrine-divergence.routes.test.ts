@@ -83,7 +83,7 @@ describe('Doctrine-divergence registry — ingestion', () => {
       expect(entry!.category).toBe('historical-divergence');
       expect(entry!.relatedRedQuestion).toBe('Q7');
       expect(entry!.status).toBe('published');
-      expect(entry!.sourceSystem).toBe('PassBack');
+      expect(entry!.sourceSystem).toBe('an outside source');
     }
   });
 
@@ -126,7 +126,7 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
     // Heading present.
     expect(res.text).toMatch(/<h2 class="trick-scoring-notes-heading">Scoring notes<\/h2>/);
     // Provenance prose present (substring; just enough to anchor).
-    expect(res.text).toContain('PassBack historically lists blurrage at 3 ADD');
+    expect(res.text).toContain('An outside source historically lists blurrage at 3 ADD');
     // Canonical value rendered.
     expect(res.text).toContain('4 ADD');
   });
@@ -136,7 +136,7 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
     const res = await request(app).get('/freestyle/tricks/predator');
     expect(res.status).toBe(200);
     // Source claim line should render explicitly.
-    expect(res.text).toMatch(/Source claim \(PassBack\): 3 ADD/);
+    expect(res.text).toMatch(/Source claim \(an outside source\): 3 ADD/);
     expect(res.text).toMatch(/Published canonical value: 4 ADD/);
   });
 

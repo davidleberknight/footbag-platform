@@ -52,7 +52,7 @@ describe('Eclipse intuition entry — content module', () => {
     expect(entry?.prose ?? '').toMatch(/jump.*support leg/i);
     expect(entry?.prose ?? '').toMatch(/held-delay leg-over chassis/i);
     expect(entry?.prose ?? '').toMatch(/hop-over/i);
-    expect(entry?.attribution ?? '').toMatch(/Red pt1/i);
+    expect(entry?.attribution ?? '').toMatch(/outside source/i);
     expect(entry?.attribution ?? '').toMatch(/airborne hop-over topology/i);
   });
 

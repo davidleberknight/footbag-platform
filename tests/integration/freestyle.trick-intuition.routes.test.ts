@@ -47,7 +47,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Movement intuition — flagship pages render the section', () => {
-  it('mirage renders the section with prose + fb.org attribution', async () => {
+  it('mirage renders the section with prose + outside-source attribution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-intuition"');
@@ -55,7 +55,7 @@ describe('Movement intuition — flagship pages render the section', () => {
     // Prose substring (whitespace tolerant; HTML may wrap).
     expect(res.text).toMatch(/swing the support leg from in to out over the footbag/);
     // Attribution renders.
-    expect(res.text).toMatch(/Per fb\.org \/newmoves description/);
+    expect(res.text).toMatch(/Per an outside source/);
   });
 
   it('whirl renders the section', async () => {
@@ -82,11 +82,11 @@ describe('Movement intuition — flagship pages render the section', () => {
     expect(res.text).toMatch(/a reverse miraging motion/);
   });
 
-  it('mobius renders the physical prose and the fb.org attribution', async () => {
+  it('mobius renders the physical prose and the outside-source attribution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mobius');
     expect(res.text).toContain('class="content-section trick-intuition"');
     expect(res.text).toMatch(/spin into a right-leg mirage/);
-    expect(res.text).toMatch(/Per fb\.org \/newmoves description/);
+    expect(res.text).toMatch(/Per an outside source/);
     // The verbose "structural reading is gyro torque" restatement is no longer
     // carried in the intuition prose (About and Equivalent readings own the
     // structure; the parent-delta relocation is covered in the doctrine suite).

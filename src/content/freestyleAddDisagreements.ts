@@ -45,11 +45,11 @@ export interface AddDisagreementRow {
 }
 
 export const PASSBACK_ADD_FRAMING_PROSE =
-  "PassBack records a trick's dex_count: the mechanical count of " +
+  "An outside source records a trick's dex_count: the mechanical count of " +
   "dexterities performed. IFPA records the canonical ADD: the " +
   "structural sum across stall, dex, cross-body traversal, rotation, " +
   "and operator weights. The two measurements answer different " +
-  "questions: PB asks \"how many dexes?\", IFPA asks \"how much " +
+  "questions: the outside count asks \"how many dexes?\", IFPA asks \"how much " +
   "compositional difficulty?\". Same trick name; two valid readings. " +
   "Rows below show the divergence honestly: both numbers measure " +
   "something real, just different things.";
@@ -63,24 +63,24 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'blur',                      ifpaName: 'blur',                      ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'blurriest',                 ifpaName: 'blurriest',                 ifpaFormula: null,                            passbackAdd: 3, curatorNote: null },
   { ifpaSlug: 'bullwhip',                  ifpaName: 'bullwhip',                  ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
-  { ifpaSlug: 'butterfly',                 ifpaName: 'butterfly',                 ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD (dex + xbody + stall); PB counts 1 dex' },
-  { ifpaSlug: 'clipper',                   ifpaName: 'Clipper Kick',              ifpaFormula: null,                            passbackAdd: 0, curatorNote: 'IFPA canonical = 1 ADD (xbody kick); PB records 0 dexes (a clipper kick is not a dex)' },
+  { ifpaSlug: 'butterfly',                 ifpaName: 'butterfly',                 ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD (dex + xbody + stall); an outside source counts 1 dex' },
+  { ifpaSlug: 'clipper',                   ifpaName: 'Clipper Kick',              ifpaFormula: null,                            passbackAdd: 0, curatorNote: 'IFPA canonical = 1 ADD (xbody kick); an outside source records 0 dexes (a clipper kick is not a dex)' },
   { ifpaSlug: 'dada-curve',                ifpaName: 'dada curve',                ifpaFormula: 'miraging far symposium butterfly', passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'dimwalk',                   ifpaName: 'dimwalk',                   ifpaFormula: 'pixie butterfly',                passbackAdd: 2, curatorNote: null },
-  { ifpaSlug: 'eggbeater',                 ifpaName: 'eggbeater',                 ifpaFormula: 'atomic legover',                 passbackAdd: 1, curatorNote: 'IFPA per pt4 = 3 ADD (atomic + legover + stall); PB counts 1 dex' },
+  { ifpaSlug: 'eggbeater',                 ifpaName: 'eggbeater',                 ifpaFormula: 'atomic legover',                 passbackAdd: 1, curatorNote: 'IFPA per pt4 = 3 ADD (atomic + legover + stall); an outside source counts 1 dex' },
   { ifpaSlug: 'foot-stall',                ifpaName: 'foot stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
   { ifpaSlug: 'forehead-stall',            ifpaName: 'forehead stall',            ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
   { ifpaSlug: 'gauntlet',                  ifpaName: 'gauntlet',                  ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'head-stall',                ifpaName: 'head-stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
   { ifpaSlug: 'heel-stall',                ifpaName: 'heel stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
-  { ifpaSlug: 'illusion',                  ifpaName: 'illusion',                  ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; PB counts 1 dex' },
+  { ifpaSlug: 'illusion',                  ifpaName: 'illusion',                  ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; an outside source counts 1 dex' },
   { ifpaSlug: 'inside-stall',              ifpaName: 'inside stall',              ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
   { ifpaSlug: 'knee-stall',                ifpaName: 'knee stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
-  { ifpaSlug: 'legover',                   ifpaName: 'legover',                   ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; PB counts 1 dex' },
-  { ifpaSlug: 'mirage',                    ifpaName: 'mirage',                    ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; PB counts 1 dex' },
+  { ifpaSlug: 'legover',                   ifpaName: 'legover',                   ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; an outside source counts 1 dex' },
+  { ifpaSlug: 'mirage',                    ifpaName: 'mirage',                    ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; an outside source counts 1 dex' },
   { ifpaSlug: 'mobius',                    ifpaName: 'mobius',                    ifpaFormula: 'gyro torque',                    passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'neck-stall',                ifpaName: 'neck stall',                ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
-  { ifpaSlug: 'osis',                      ifpaName: 'osis',                      ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD (spin + xbody + stall); PB counts 1 dex' },
+  { ifpaSlug: 'osis',                      ifpaName: 'osis',                      ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD (spin + xbody + stall); an outside source counts 1 dex' },
   { ifpaSlug: 'outside-stall',             ifpaName: 'outside stall',             ifpaFormula: null,                            passbackAdd: 0, curatorNote: null },
   { ifpaSlug: 'paradox-blender',           ifpaName: 'paradox blender',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'paradox-drifter',           ifpaName: 'paradox drifter',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
@@ -91,7 +91,7 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'paradox-whirl',             ifpaName: 'paradox whirl',             ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'parkwalk',                  ifpaName: 'parkwalk',                  ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'phoenix',                   ifpaName: 'phoenix',                   ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
-  { ifpaSlug: 'pickup',                    ifpaName: 'pickup',                    ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; PB counts 1 dex' },
+  { ifpaSlug: 'pickup',                    ifpaName: 'pickup',                    ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD; an outside source counts 1 dex' },
   { ifpaSlug: 'pixie-mirage',              ifpaName: 'pixie mirage',              ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'pixie-osis',                ifpaName: 'pixie osis',                ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'pixie-whirl',               ifpaName: 'pixie whirl',               ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
@@ -110,7 +110,7 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'stepping-osis',             ifpaName: 'stepping osis',             ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'stepping-whirl',            ifpaName: 'stepping whirl',            ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'sumo',                      ifpaName: 'sumo',                      ifpaFormula: null,                            passbackAdd: 2, curatorNote: 'Sumo also features in §3b edge cases (pt9 X-Dex exception)' },
-  { ifpaSlug: 'swirl',                     ifpaName: 'swirl',                     ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD; PB counts 1 dex' },
+  { ifpaSlug: 'swirl',                     ifpaName: 'swirl',                     ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD; an outside source counts 1 dex' },
   { ifpaSlug: 'symposium-mirage',          ifpaName: 'symposium mirage',          ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'symposium-osis',            ifpaName: 'symposium osis',            ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'symposium-whirl',           ifpaName: 'symposium whirl',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
@@ -120,9 +120,9 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'ducking-whirl',             ifpaName: 'ducking whirl',             ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'ducking-osis',              ifpaName: 'ducking osis',              ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'ducking-mirage',            ifpaName: 'ducking mirage',            ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
-  { ifpaSlug: 'whirl',                     ifpaName: 'whirl',                     ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD; PB counts 1 dex' },
+  { ifpaSlug: 'whirl',                     ifpaName: 'whirl',                     ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 3 ADD; an outside source counts 1 dex' },
   { ifpaSlug: 'whirling-butterfly',        ifpaName: 'whirling butterfly',        ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'whirling-mirage',           ifpaName: 'whirling mirage',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
-  { ifpaSlug: 'around-the-world',          ifpaName: 'around the world',          ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD (full-orbit dex + stall); PB counts 1 dex' },
+  { ifpaSlug: 'around-the-world',          ifpaName: 'around the world',          ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD (full-orbit dex + stall); an outside source counts 1 dex' },
   { ifpaSlug: 'orbit',                     ifpaName: 'orbit',                     ifpaFormula: 'around the world',               passbackAdd: 1, curatorNote: null },
 ];

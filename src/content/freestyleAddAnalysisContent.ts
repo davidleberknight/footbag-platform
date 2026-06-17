@@ -79,7 +79,7 @@ export interface AddAnalysisDiscrepancyCase {
   trickName:                 string;
   trickSlug:                 string | null;
   ifpaAdd:                   string;   // "5"
-  externalSourceLabel:       string;   // "footbagmoves"
+  externalSourceLabel:       string;   // "Outside source"
   externalAdd:               string;
   delta:                     string;   // "-1" / "0" / "+1"
   decompositionDifference:   string;
@@ -426,10 +426,10 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     trickName:               'Hurl (Nuclear ss Whirl)',
     trickSlug:               null,
     ifpaAdd:                 '5',
-    externalSourceLabel:     'footbagmoves',
+    externalSourceLabel:     'Outside source',
     externalAdd:             '4',
     delta:                   '−1',
-    decompositionDifference: 'IFPA counts ss as +0; footbagmoves treats it as ADD-additive in some entries.',
+    decompositionDifference: 'IFPA counts ss as +0; an outside source treats it as ADD-additive in some entries.',
     pattern:                 'positional operator',
     ifpaStatusLine:          'settled (SS=+0 universal)',
   },
@@ -438,7 +438,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     trickName:               'Barfry (Nuclear ss Butterfly)',
     trickSlug:               null,
     ifpaAdd:                 '5',
-    externalSourceLabel:     'footbagmoves',
+    externalSourceLabel:     'Outside source',
     externalAdd:             '4',
     delta:                   '−1',
     decompositionDifference: 'Same SS pattern as Hurl, applied to butterfly base.',
@@ -450,7 +450,7 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
     trickName:               'Godzilla (Nuclear ss Dyno)',
     trickSlug:               null,
     ifpaAdd:                 '6',
-    externalSourceLabel:     'footbagmoves',
+    externalSourceLabel:     'Outside source',
     externalAdd:             '5',
     delta:                   '−1',
     decompositionDifference: 'Same SS pattern as Hurl, applied to dyno base.',
@@ -531,10 +531,10 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   },
   {
     caseId:                  'DC-10',
-    trickName:               'Bladerunner (footbagmoves: Atomic Eggbeater)',
+    trickName:               'Bladerunner (outside source: Atomic Eggbeater)',
     trickSlug:               null,
     ifpaAdd:                 '4',
-    externalSourceLabel:     'footbagmoves',
+    externalSourceLabel:     'Outside source',
     externalAdd:             '5',
     delta:                   '+1',
     decompositionDifference: "FM names Bladerunner as \"Atomic Eggbeater\". IFPA's eggbeater is already atomic legover; FM's name applies atomic recursively, IFPA's official math doesn't.",
@@ -555,7 +555,7 @@ const EDGE_CASES: readonly AddAnalysisEdgeCase[] = [
     briefNote:  'Sumo’s 5 ADD comes via a named X-Dex exception: certain nuclear-mirage compounds carry an implicit X-Dex similar to atom smasher.',
   },
   {
-    trickName:  'Genesis (footbagmoves: Furious Whirl)',
+    trickName:  'Genesis (outside source: Furious Whirl)',
     trickSlug:  null,
     ifpaAdd:    '5',
     briefNote:  "Genesis (FM-named \"Furious Whirl\" at 7 ADD) is +2 above IFPA's official 5. The +2 traces to FM's earlier rotational-escalation convention which IFPA retired (rotational bases get a flat +1 per modifier rather than progressive scaling).",

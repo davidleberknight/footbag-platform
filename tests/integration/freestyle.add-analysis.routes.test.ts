@@ -553,11 +553,11 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
   });
 });
 
-describe('GET /freestyle/add-analysis — PassBack ADD framing subsection (Batch C 2026-05-18)', () => {
-  // External-source ADD reconciliation: 68 name-matched rows where PB
-  // dex_count diverges from IFPA structural ADD. Surfaces the framing
+describe('GET /freestyle/add-analysis — outside-source ADD framing subsection', () => {
+  // External-source ADD reconciliation: name-matched rows where an outside
+  // source's dex_count diverges from IFPA structural ADD. Surfaces the framing
   // explicitly so the divergence reads as a structural reconciliation
-  // (PB counts dexes; IFPA counts ADD) rather than a true conflict.
+  // (the outside source counts dexes; IFPA counts ADD) rather than a true conflict.
 
   it('renders the §3c framing heading + anchor', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
@@ -565,7 +565,7 @@ describe('GET /freestyle/add-analysis — PassBack ADD framing subsection (Batch
     expect(res.text).toMatch(/External-source ADD framings/);
   });
 
-  it('renders the PassBack-vs-IFPA counting framing prose', async () => {
+  it('renders the outside-source-vs-IFPA counting framing prose', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('class="passback-add-framing-prose"');
     expect(res.text).toMatch(/dex_count/);
@@ -584,7 +584,7 @@ describe('GET /freestyle/add-analysis — PassBack ADD framing subsection (Batch
     }
   });
 
-  it('every disagreement row carries a PB dex_count value and links to the canonical detail page', async () => {
+  it('every disagreement row carries an outside-source dex_count value and links to the canonical detail page', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     // Pull the table region
     const tableMatch = res.text.match(/<table class="passback-add-disagreement-table">[\s\S]*?<\/table>/);
