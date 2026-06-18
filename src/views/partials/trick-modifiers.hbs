@@ -9,7 +9,7 @@
 <section class="content-section trick-modifiers">
   <div class="section-heading">
     <h2>Modifiers on this trick</h2>
-    <p class="section-intro">How each modifier in this trick's name groups in the browse views.</p>
+    {{#if content.sectionSubtitles.modifiers}}<p class="section-intro">{{content.sectionSubtitles.modifiers}}</p>{{/if}}
   </div>
   <ul class="trick-modifier-list">
     {{#each content.modifierMemberships}}

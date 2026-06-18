@@ -9,7 +9,7 @@
 <section class="content-section" data-section="structural-neighbors">
   <div class="section-heading">
     <h2>Structural Neighbors</h2>
-    <p class="section-intro">The same modifiers applied to a different base, and other names for the same structure. Same-family variations live in the family ladder above.</p>
+    {{#if content.sectionSubtitles.structuralNeighbors}}<p class="section-intro">{{content.sectionSubtitles.structuralNeighbors}}</p>{{/if}}
   </div>
   {{#each content.structuralNeighbors.buckets}}
   <div class="related-group" data-bucket="{{key}}">

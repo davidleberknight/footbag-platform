@@ -202,7 +202,7 @@ import {
 import {
   getTrickInterpretation,
 } from '../content/freestyleTrickInterpretations';
-import { getNotationSubtitle } from '../content/freestyleNotationSubtitles';
+import { getSectionSubtitles, type DetailSectionKey } from '../content/freestyleSectionSubtitles';
 import { getAboutDerivatives } from '../content/freestyleAboutDerivatives';
 import {
   resolveTrickTier,
@@ -1425,10 +1425,10 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
-  // Curator-authored one-line gloss under the Movement notation heading;
-  // null when no entry exists (the section heading then stands alone, never
-  // generic filler). Source: freestyleNotationSubtitles.ts.
-  notationSubtitle: string | null;
+  // Curator-authored one-line subtitle per detail-page section; each value is
+  // null when no entry exists (the heading then stands alone, never generic
+  // filler). Source: freestyleSectionSubtitles.ts.
+  sectionSubtitles: Record<DetailSectionKey, string | null>;
   // Curator-authored "About" derivatives line, rendered after the build chain;
   // null when no entry. Source: freestyleAboutDerivatives.ts.
   aboutDerivatives: string | null;
@@ -6826,7 +6826,7 @@ export const freestyleService = {
                 modifierLinks,
               )
             : null,
-          notationSubtitle: getNotationSubtitle(slug),
+          sectionSubtitles: getSectionSubtitles(slug),
           aboutDerivatives: getAboutDerivatives(slug),
           notationDisplay: dictRow
             ? shapeNotationDisplay(

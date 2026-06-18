@@ -7,7 +7,7 @@
 <section class="content-section notation-display" aria-label="Trick notation">
   <div class="section-heading">
     <h2>Movement notation</h2>
-    {{#if content.notationSubtitle}}<p class="section-intro">{{content.notationSubtitle}}</p>{{/if}}
+    {{#if content.sectionSubtitles.movementNotation}}<p class="section-intro">{{content.sectionSubtitles.movementNotation}}</p>{{/if}}
   </div>
   {{#if content.notationDisplay}}
   <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
@@ -18,7 +18,7 @@
   {{#if content.operationalNotation}}{{#unless content.isFirstClass}}
   <div class="operational-notation-display">
     <div class="section-heading"><h3>Execution notation</h3></div>
-    <p class="section-intro">How the body performs the trick, step by step.</p>
+    {{#if content.sectionSubtitles.executionNotation}}<p class="section-intro">{{content.sectionSubtitles.executionNotation}}</p>{{/if}}
     <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
     {{#if content.operationalNotation.sourceNote}}
     <p class="operational-notation-source-note">{{content.operationalNotation.sourceNote}}</p>
@@ -42,12 +42,9 @@
 <section class="content-section equivalent-readings" aria-label="Equivalent readings">
   <div class="section-heading">
     <h2>Equivalent readings</h2>
-    <p class="section-intro">
-      Other ways the same trick reads &mdash; later rows progressively unfold the composition.
-      {{#if content.semanticNotation.curatorConfirmPending}}
-      <span class="equivalent-readings-pending-flag">pending</span>
-      {{/if}}
-    </p>
+    {{#if (or content.sectionSubtitles.equivalentReadings content.semanticNotation.curatorConfirmPending)}}
+    <p class="section-intro">{{content.sectionSubtitles.equivalentReadings}}{{#if content.semanticNotation.curatorConfirmPending}} <span class="equivalent-readings-pending-flag">pending</span>{{/if}}</p>
+    {{/if}}
   </div>
   <ol class="equivalent-readings-list">
     {{#each content.semanticNotation.readings}}
@@ -56,7 +53,6 @@
     </li>
     {{/each}}
   </ol>
-  <p class="equivalent-readings-source">Different ways to express the same trick's composition. Tap any term to jump to its glossary entry.</p>
 </section>
 {{/if}}
 
