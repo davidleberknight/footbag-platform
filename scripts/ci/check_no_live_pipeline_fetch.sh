@@ -24,7 +24,7 @@ while IFS= read -r f; do
   if grep -qE "$FETCH" "$f" && grep -qE "$HOSTS" "$f"; then
     offenders="${offenders}  ${f}"$'\n'
   fi
-done < <(find legacy_data scripts -name '*.py' \
+done < <(find legacy_data scripts freestyle -name '*.py' \
            -not -path '*/.venv/*' -not -path '*/tests/*' -not -path '*/fixtures/*' 2>/dev/null \
            | grep -vE "$ALLOW")
 

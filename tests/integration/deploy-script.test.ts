@@ -6,7 +6,7 @@
  *     credential file, missing SSH alias.
  *   - scripts/reset-local-db.sh preflight: missing canonical_input CSVs.
  *   - legacy_data/run_pipeline.sh: identity-lock CSV missing path.
- *   - legacy_data/event_results/scripts/20_link_footbag_org_sources.py:
+ *   - freestyle/loaders/20_link_footbag_org_sources.py:
  *     graceful skip when scraped_footbag_moves.csv is absent.
  *
  * Strategy: spawn each script as a subprocess against a controlled env and
@@ -385,7 +385,7 @@ describe('remote-half script production refusal guards (static-text)', () => {
 describe('legacy_data script 20 graceful skip', () => {
   it('exits 0 with skip message when scraped CSV is absent', () => {
     const r = run('python3', [
-      'legacy_data/event_results/scripts/20_link_footbag_org_sources.py',
+      'freestyle/loaders/20_link_footbag_org_sources.py',
       '--scraped-csv',
       '/tmp/definitely-does-not-exist-scraped.csv',
       '--db',

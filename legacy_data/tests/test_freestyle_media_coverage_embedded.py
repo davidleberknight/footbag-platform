@@ -30,7 +30,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = (
-    REPO_ROOT / "legacy_data" / "event_results" / "scripts"
+    REPO_ROOT / "freestyle" / "loaders"
     / "24_qc_freestyle_media_coverage.py"
 )
 

@@ -117,7 +117,7 @@ def test_freestyle_records_loader_idempotent(tmp_path: Path) -> None:
         }],
     )
     loader = [
-        "legacy_data/event_results/scripts/10_load_freestyle_records_to_sqlite.py",
+        "freestyle/loaders/10_load_freestyle_records_to_sqlite.py",
         "--db", str(db),
         "--records-csv", str(records),
     ]
@@ -277,7 +277,7 @@ def _write_trick_dictionary_inputs(tmp_path: Path) -> list[str]:
 def test_trick_dictionary_loader_idempotent(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     loader = [
-        "legacy_data/event_results/scripts/17_load_trick_dictionary.py",
+        "freestyle/loaders/17_load_trick_dictionary.py",
         "--db", str(db),
         *_write_trick_dictionary_inputs(tmp_path),
     ]
@@ -290,7 +290,7 @@ def test_red_additions_loader_idempotent(tmp_path: Path) -> None:
     # The red-additions loader upserts onto the dictionary the 17-loader builds,
     # so seed the base dictionary first (same order as the real pipeline).
     setup = run([
-        "legacy_data/event_results/scripts/17_load_trick_dictionary.py",
+        "freestyle/loaders/17_load_trick_dictionary.py",
         "--db", str(db),
         *_write_trick_dictionary_inputs(tmp_path),
     ])
@@ -311,7 +311,7 @@ def test_red_additions_loader_idempotent(tmp_path: Path) -> None:
         ["slug", "field", "old_value", "new_value", "source_note"], [],
     )
     loader = [
-        "legacy_data/event_results/scripts/19_load_red_additions.py",
+        "freestyle/loaders/19_load_red_additions.py",
         "--db", str(db),
         "--additions-csv", str(additions),
         "--corrections-csv", str(corrections),
@@ -351,7 +351,7 @@ def test_consecutive_records_loader_idempotent(tmp_path: Path) -> None:
           "event_name": "Idem Open", "location": "Town"}],
     )
     loader = [
-        "legacy_data/event_results/scripts/11_load_consecutive_records_to_sqlite.py",
+        "freestyle/loaders/11_load_consecutive_records_to_sqlite.py",
         "--db", str(db),
         "--source-csv", str(src),
     ]

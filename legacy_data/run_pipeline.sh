@@ -262,11 +262,9 @@ run_db_load_canonical() {
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
-    python event_results/scripts/10_load_freestyle_records_to_sqlite.py \
-        --db "${REPO_ROOT}/database/footbag.db" \
-        --records-csv inputs/curated/records/records_master.csv
-    python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+    # Freestyle records are built by the self-contained freestyle pipeline
+    # (freestyle/run_freestyle.sh), which lives outside legacy_data/ so it
+    # survives the cutover freeze. The legacy pipeline no longer builds them.
     echo "───────────────────────────────────────────────────────────────────────"
     echo ""
 }
@@ -341,11 +339,9 @@ run_v0_backbone() {
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
-    python event_results/scripts/10_load_freestyle_records_to_sqlite.py \
-        --db "${REPO_ROOT}/database/footbag.db" \
-        --records-csv inputs/curated/records/records_master.csv
-    python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
-        --db "${REPO_ROOT}/database/footbag.db"
+    # Freestyle records are built by the self-contained freestyle pipeline
+    # (freestyle/run_freestyle.sh), which lives outside legacy_data/ so it
+    # survives the cutover freeze. The legacy pipeline no longer builds them.
     echo ""
 
     echo "╔══════════════════════════════════════════════════════╗"
