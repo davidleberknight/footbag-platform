@@ -129,9 +129,19 @@ Decisions / deferred:
   structural-block neighborhood badge was set back to "observational" to match
   the glossary's taught term.
 
+## Modifier-link gap — fixed
+
+The folk-named compounds now carry their modifier links, so the Modifier row
+renders: `bling-blang` -> whirling (filled the empty `modifier_links` column in
+its existing `red_additions` row), `eggbeater` -> atomic. eggbeater is a
+curated-base trick (`noise/tricks.csv`), which had no way to declare modifiers —
+loader 17 wiped all links and only `red_additions` recreated them. Rather than
+misattribute eggbeater to Red, the base CSV gained a `modifier_links` column and
+loader 17 now reads it (general fix for any curated-base trick). Verified: both
+links present in `freestyle_trick_modifier_links`; trick-dictionary QC clean.
+
 ## Recommended follow-ups (data, not copy)
 
-1. Populate modifier links for folk-named compounds (eggbeater, bling-blang, …).
-2. Title-case the `canonical_name` for slug-form rows (bling-blang).
-3. Curator pass on the 9 NEEDS-CURATOR modifier notes.
-4. Jargon sweep of the glossary + Emerging Vocabulary surfaces (item 4 remainder).
+1. Title-case the `canonical_name` for slug-form rows (bling-blang).
+2. Curator pass on the 9 NEEDS-CURATOR modifier notes.
+3. Jargon sweep of the glossary + Emerging Vocabulary surfaces (item 4 remainder).

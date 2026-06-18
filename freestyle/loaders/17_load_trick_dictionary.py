@@ -96,6 +96,7 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
 
     rows = []
     aliases_by_slug: dict[str, list[str]] = {}
+    modifier_link_rows: list[dict] = []
 
     with tricks_csv.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -114,6 +115,19 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
             is_core = 1 if slug in IS_CORE_SLUGS else 0
 
             aliases_by_slug.setdefault(slug, []).extend(aliases)
+
+            # Modifier links declared on the base trick (pipe-separated modifier
+            # names). The caller validates each against the modifier table after
+            # load_modifiers populates it, then inserts the survivors.
+            raw_mods = (row.get("modifier_links") or "").strip()
+            for order_idx, mod_name in enumerate(
+                [m.strip() for m in raw_mods.split("|") if m.strip()], start=1,
+            ):
+                modifier_link_rows.append({
+                    "trick_slug": slug,
+                    "modifier_slug": trick_name_to_slug(mod_name),
+                    "apply_order": order_idx,
+                })
 
             rows.append({
                 "slug": slug,
@@ -153,7 +167,25 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
         """,
         rows,
     )
-    return len(rows), aliases_by_slug
+    return len(rows), aliases_by_slug, modifier_link_rows
+
+
+def insert_base_modifier_links(conn: sqlite3.Connection, link_rows: list[dict]) -> int:
+    """Insert curated-base modifier links. Skips any whose modifier slug is not a
+    registered modifier. Must run AFTER load_modifiers (the FK target) and after
+    the wholesale modifier_links DELETE so the rows are not cleared again."""
+    if not link_rows:
+        return 0
+    valid = {r[0] for r in conn.execute("SELECT slug FROM freestyle_trick_modifiers")}
+    rows = [r for r in link_rows if r["modifier_slug"] in valid]
+    conn.executemany(
+        """
+        INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
+        VALUES (:trick_slug, :modifier_slug, :apply_order)
+        """,
+        rows,
+    )
+    return len(rows)
 
 
 def load_modifiers(conn: sqlite3.Connection, modifiers_csv: Path, loaded_at: str) -> int:
@@ -343,8 +375,9 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
             conn.execute("DELETE FROM freestyle_trick_source_links")
             conn.execute("DELETE FROM freestyle_trick_aliases")
 
-            n_tricks, inline_aliases = load_tricks(conn, tricks_csv, loaded_at)
+            n_tricks, inline_aliases, base_modifier_links = load_tricks(conn, tricks_csv, loaded_at)
             n_modifiers = load_modifiers(conn, modifiers_csv, loaded_at)
+            n_base_links = insert_base_modifier_links(conn, base_modifier_links)
             upsert_curated_v1_source(conn)
             n_source_links = load_curated_source_links(conn)
             n_aliases, unresolved = load_aliases(conn, aliases_csv, inline_aliases, loaded_at)
@@ -361,6 +394,7 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
 
         print()
         print(f"Loaded {n_modifiers} modifiers into freestyle_trick_modifiers.")
+        print(f"Loaded {n_base_links} curated-base modifier links.")
         print(f"Loaded {n_source_links} source_links to '{CURATED_V1_SOURCE_ID}'.")
         print(f"Loaded {n_aliases} aliases into freestyle_trick_aliases.")
 
