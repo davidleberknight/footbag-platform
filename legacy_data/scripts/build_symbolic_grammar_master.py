@@ -5,7 +5,7 @@ OBSERVATIONAL symbolic-grammar layer; independent of IFPA canonical dictionary.
 
 Reads:
 - legacy_data/out/footbagmoves_inventory.csv  (573 rows; 377 with operational notation)
-- legacy_data/tools/trick_video_discovery/passback_review_queue.csv (106 rows; alternate-notation style)
+- freestyle/tools/trick_video_discovery/passback_review_queue.csv (106 rows; alternate-notation style)
 
 Writes (all under exploration/footbagmoves-federation/):
 - SYMBOLIC_GRAMMAR_MASTER.xlsx
@@ -41,7 +41,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 FM_INVENTORY = ROOT / "legacy_data" / "out" / "footbagmoves_inventory.csv"
-PASSBACK_QUEUE = ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "passback_review_queue.csv"
+PASSBACK_QUEUE = ROOT / "freestyle" / "tools" / "trick_video_discovery" / "passback_review_queue.csv"
 OUT_DIR = ROOT / "exploration" / "footbagmoves-federation"
 MASTER_XLSX = OUT_DIR / "SYMBOLIC_GRAMMAR_MASTER.xlsx"
 MASTER_CSV = OUT_DIR / "SYMBOLIC_GRAMMAR_MASTER.csv"

@@ -1,7 +1,7 @@
 // freestyleEmbeddedCoverage.ts
 // ============================
 // GENERATED FILE — do not hand-edit.
-// Source of truth: legacy_data/tools/trick_video_discovery/embedded_coverage.csv
+// Source of truth: freestyle/tools/trick_video_discovery/embedded_coverage.csv
 // Regenerate: python3 legacy_data/scripts/build_embedded_coverage_content.py
 //
 // Service-readable mirror of the curator embedded-coverage manifest: tricks

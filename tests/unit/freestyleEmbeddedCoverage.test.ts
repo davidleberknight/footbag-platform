@@ -1,7 +1,7 @@
 /**
  * Drift guard + shape tests for the embedded-coverage bridge module.
  *
- * The CSV manifest (legacy_data/tools/trick_video_discovery/embedded_coverage.csv)
+ * The CSV manifest (freestyle/tools/trick_video_discovery/embedded_coverage.csv)
  * is the source of truth; the TS module is GENERATED from it by
  * legacy_data/scripts/build_embedded_coverage_content.py. This guard fails the
  * build if the committed TS is stale (CSV edited without regenerating), so the
@@ -20,7 +20,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CSV_PATH = resolve(
   HERE,
-  '../../legacy_data/tools/trick_video_discovery/embedded_coverage.csv',
+  '../../freestyle/tools/trick_video_discovery/embedded_coverage.csv',
 );
 
 function parseCsv(): EmbeddedCoverageEdge[] {

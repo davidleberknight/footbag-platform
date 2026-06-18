@@ -2,7 +2,7 @@
 """promote_snippet_candidates.py
 
 Promote reviewer-approved rows from
-`legacy_data/tools/trick_video_discovery/snippet_candidates.csv` into
+`freestyle/tools/trick_video_discovery/snippet_candidates.csv` into
 `curated/freestyle_tricks/*.meta.json` sidecars.
 
 URL-reference media only. NEVER downloads YouTube/Vimeo videos. NEVER

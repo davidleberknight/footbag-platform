@@ -8,7 +8,7 @@ binaries into /curated and emits paired sidecars. It does NOT touch the
 seeder, schema, promote script, rendering, doctrine, or ontology, and it does
 NOT route through snippet_candidates.csv.
 
-Input  : legacy_data/tools/trick_video_discovery/footbag_org_rehost_candidates.csv
+Input  : freestyle/tools/trick_video_discovery/footbag_org_rehost_candidates.csv
 Output : curated/freestyle_demos/<stem>.mov          (re-host source binary)
          curated/freestyle_demos/<stem>.poster.jpg   (poster; seeder skips *.poster.*)
          curated/freestyle_demos/<stem>.meta.json     (paired sidecar)
@@ -42,7 +42,7 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "footbag_org_rehost_candidates.csv"
+MANIFEST = REPO_ROOT / "freestyle" / "tools" / "trick_video_discovery" / "footbag_org_rehost_candidates.csv"
 DEST_DIR = REPO_ROOT / "curated" / "freestyle_demos"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
