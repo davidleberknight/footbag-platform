@@ -1,5 +1,5 @@
 /**
- * E2E regression suite. Three deliberately small tests:
+ * E2E regression suite. Four deliberately small tests:
  *
  *   1. Avatar upload happy path against the real image worker. The
  *      May 2026 bug was that imageWorker.ts didn't import dotenv, so
@@ -17,6 +17,12 @@
  *      request end-to-end (the chain that "stubbed-adapter" tests
  *      cannot prove).
  *
+ *   4. Named-gallery photo upload — a persona owns an empty named
+ *      gallery; the test uploads a photo through the member upload UI
+ *      and asserts it appears AND its bytes actually serve. A seeded
+ *      media row with no media-store bytes renders a broken image;
+ *      only a real upload proves the store path end-to-end.
+ *
  * The adapter-misconfig integration suite covers failure-mode contracts
  * (worker down → 503, worker 503 → 503, generic error → 500) at supertest
  * speed. This file only covers the success paths that need two real
@@ -28,6 +34,7 @@ import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 import { seedTier1Member, personaToPlaywrightCookies } from '../fixtures/personas';
+import { insertPersonaNamedGallery } from '../../src/testkit/personaRowBuilders';
 
 const DB_PATH_FILE = path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-db-path');
 
@@ -78,6 +85,66 @@ test('Tier-1 member uploads avatar end-to-end against real image worker', { tag:
   expect(uploadRes.status()).toBeGreaterThanOrEqual(200);
   expect(uploadRes.status()).toBeLessThan(400);
   await expect(page.locator('text=Service Unavailable')).toHaveCount(0);
+
+  await context.close();
+});
+
+test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const slug = `e2e_gallery_${Date.now()}`;
+  const persona = seedTier1Member(db, { slug });
+  const galleryId = `gallery_persona_${slug}`;
+  insertPersonaNamedGallery(db, {
+    galleryId,
+    ownerMemberId: persona.memberId,
+    ownerSlug: slug,
+    name: 'Highlights Reel',
+  });
+  db.close();
+
+  const context = await browser.newContext();
+  await context.addCookies(personaToPlaywrightCookies(persona, { domain: new URL(baseURL!).hostname }));
+  const page = await context.newPage();
+
+  // A fresh deploy seeds the gallery container only, never the media, so the
+  // named gallery starts empty.
+  await page.goto(`/media/${galleryId}`);
+  await expect(page.locator('text=No photos or videos found with this tag')).toBeVisible();
+
+  // Upload a real photo through the member upload UI, exercising the real image
+  // worker the same way the avatar test does.
+  await page.goto(`/members/${slug}/media/upload`);
+  const jpegBytes = await sharp({
+    create: { width: 12, height: 12, channels: 3, background: { r: 0, g: 128, b: 255 } },
+  }).jpeg().toBuffer();
+  await page.locator('input[type=file]#photoFile').setInputFiles({
+    name: 'highlight.jpg',
+    mimeType: 'image/jpeg',
+    buffer: jpegBytes,
+  });
+  const uploadResponse = page.waitForResponse(
+    (r) => r.url().includes(`/members/${slug}/media/upload`) && r.request().method() === 'POST',
+  );
+  await page.locator('form.upload-form button[type=submit]').first().click();
+  const uploadRes = await uploadResponse;
+  expect(uploadRes.status()).toBeGreaterThanOrEqual(200);
+  expect(uploadRes.status()).toBeLessThan(400);
+
+  // The photo now appears in the previously-empty named gallery and its bytes
+  // actually serve from the media store: a seeded row with no bytes (the original
+  // bug) would render a broken image with naturalWidth 0. The transcode is async,
+  // so poll with reloads until the image is served.
+  await expect
+    .poll(
+      async () => {
+        await page.goto(`/media/${galleryId}`);
+        const img = page.locator('.gallery-grid .gallery-tile img').first();
+        if ((await img.count()) === 0) return 0;
+        return img.evaluate((el) => (el as HTMLImageElement).naturalWidth);
+      },
+      { timeout: 30_000, intervals: [1_000, 2_000, 3_000, 5_000] },
+    )
+    .toBeGreaterThan(0);
 
   await context.close();
 });

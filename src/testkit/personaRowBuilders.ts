@@ -185,24 +185,9 @@ export function insertPersonaNamedGallery(
     VALUES (?, ?, ?, ?)
   `).run(o.galleryId, byTagId, TS, SYS);
 
-  const mediaId = `media_persona_${o.ownerSlug}_gallery`;
-  db.prepare(`
-    INSERT INTO media_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px, moderation_status
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'photo', 0, ?, ?, ?, ?, 1000, 600, 'active')
-  `).run(
-    mediaId, TS, SYS, TS, SYS,
-    o.ownerMemberId, `${o.name} photo`, TS,
-    `personas/${mediaId}/thumb.jpg`, `personas/${mediaId}/display.jpg`,
-  );
-
-  db.prepare(`
-    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
-  `).run(`mt-${mediaId}-by`, TS, SYS, TS, SYS, mediaId, byTagId, byTag);
-
+  // The gallery is seeded empty: its media is created by a real click-through
+  // upload in the end-to-end test, so the upload path is genuinely exercised
+  // rather than faked with a pre-inserted row that has no media-store bytes.
   return o.galleryId;
 }
 

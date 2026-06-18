@@ -65,7 +65,7 @@ describe('seedPersona — composition by dimension', () => {
     expect(pay.c).toBe(1);
   });
 
-  it('gallery spec produces a member-owned named gallery with one matching media item', () => {
+  it('gallery spec produces an empty member-owned named gallery (media is uploaded through the UI, never seeded)', () => {
     const p = seedPersona(db, {
       slug: 'fac_gallery', displayName: 'Fac Gallery', tier: 'tier1',
       gallery: { name: 'My Best Shots' },
@@ -79,9 +79,9 @@ describe('seedPersona — composition by dimension', () => {
     const media = db.prepare(
       `SELECT COUNT(*) c FROM media_items WHERE uploader_member_id = ? AND is_avatar = 0 AND moderation_status = 'active'`,
     ).get(p.memberId) as { c: number };
-    expect(media.c).toBe(1);
-    // The gallery's #by_<slug> criteria tag also tags the media item, so the
-    // gallery resolves to exactly one item through the tag-AND query.
+    expect(media.c).toBe(0);
+    // No media is seeded, so the gallery's #by_<slug> criteria tag resolves to
+    // zero items until a real upload tags one.
     const tagged = db.prepare(`
       SELECT COUNT(*) c
       FROM member_gallery_tags mgt
@@ -89,7 +89,7 @@ describe('seedPersona — composition by dimension', () => {
       JOIN member_galleries g ON g.id = mgt.gallery_id
       WHERE g.owner_member_id = ?
     `).get(p.memberId) as { c: number };
-    expect(tagged.c).toBe(1);
+    expect(tagged.c).toBe(0);
   });
 
   it('admin spec sets is_admin=1', () => {

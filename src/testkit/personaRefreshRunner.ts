@@ -96,6 +96,12 @@ export interface RefreshResult {
    * refresh audit row instead of silent.
    */
   actorGrantRowsRemoved: number;
+  /**
+   * Media-store object keys (thumb/display) for every media_item a persona
+   * uploaded, captured before the rows are deleted. This routine is DB-only;
+   * the async refresh route deletes these bytes after the transaction commits.
+   */
+  deletedMediaKeys: string[];
 }
 
 function placeholders(n: number): string {
@@ -341,8 +347,22 @@ export function refreshAllPersonas(
     }
     delIn('media_jobs', 'admin_member_id', memberIds);
     // media_tags and media_flags cascade; members.avatar_media_id and
-    // clubs.logo_media_id are SET NULL, so no ordering hazard. Files on disk
-    // are accepted residue.
+    // clubs.logo_media_id are SET NULL, so no ordering hazard. The uploaded
+    // media's storage-object keys are captured first so the async refresh route
+    // can delete the bytes after this DB-only transaction commits.
+    const deletedMediaKeys = unique(
+      (memberIds.length
+        ? (db
+            .prepare(
+              `SELECT s3_key_thumb, s3_key_display FROM media_items
+               WHERE uploader_member_id IN (${placeholders(memberIds.length)})`,
+            )
+            .all(...memberIds) as { s3_key_thumb: string | null; s3_key_display: string | null }[])
+        : []
+      )
+        .flatMap((r) => [r.s3_key_thumb, r.s3_key_display])
+        .filter((k): k is string => !!k),
+    );
     delIn('media_items', 'uploader_member_id', memberIds);
     delIn('member_galleries', 'owner_member_id', memberIds); // gallery tag/link children cascade
     delIn2('club_viability_signals', 'member_id', memberIds, 'club_id', clubIds);
@@ -463,6 +483,7 @@ export function refreshAllPersonas(
       deletedMembers,
       reseeded,
       actorGrantRowsRemoved: tierActorRowsRemoved + apActorRowsRemoved,
+      deletedMediaKeys,
     };
   });
 

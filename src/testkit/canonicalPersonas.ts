@@ -39,11 +39,10 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     tier: 'tier1',
     dimension: 'Tier ladder & admin',
     purpose: 'Tier 1 member: the first paid-benefits gate.',
-    testingUsage: 'Act as a paid Tier 1 member to confirm the first paid-benefits gate opens while Tier 2 surfaces stay closed. Owns one named gallery, so the /media member-galleries list page has content to act on.',
+    testingUsage: 'Act as a paid Tier 1 member to confirm the first paid-benefits gate opens while Tier 2 surfaces stay closed.',
     onboardingComplete: true,
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier1' }],
-    gallery: { name: 'Highlights Reel' },
-    coverageNotes: ['tier1', 'one successful membership purchase', 'tier1 benefits gate', 'owns one member named gallery'],
+    coverageNotes: ['tier1', 'one successful membership purchase', 'tier1 benefits gate'],
   },
   {
     slug: 't2_paid',

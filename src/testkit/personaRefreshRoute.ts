@@ -17,6 +17,7 @@ import argon2 from 'argon2';
 import { db } from '../db/db';
 import { appendAuditEntry } from '../services/auditService';
 import { refreshAllPersonas } from './personaRefreshRunner';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PERSONA_REFRESH_AUDIT_ACTION_TYPE, PERSONA_SEED_CREATED_BY } from './personaFactory';
 
 export async function postDevPersonasRefresh(
@@ -30,6 +31,14 @@ export async function postDevPersonasRefresh(
 
     const result = refreshAllPersonas(db, { passwordHash });
 
+    // The runner is DB-only, so delete the uploaded media's bytes here to return
+    // the media store to its seeded (empty) state. Best-effort per key: a missing
+    // object is the desired end state, not an error.
+    const mediaStorage = getMediaStorageAdapter();
+    await Promise.all(
+      result.deletedMediaKeys.map((key) => mediaStorage.delete(key).catch(() => undefined)),
+    );
+
     appendAuditEntry({
       actionType: PERSONA_REFRESH_AUDIT_ACTION_TYPE,
       category: 'identity',
@@ -42,6 +51,7 @@ export async function postDevPersonasRefresh(
         reseeded: result.reseeded,
         deletedMembers: result.deletedMembers,
         actorGrantRowsRemoved: result.actorGrantRowsRemoved,
+        deletedMediaObjects: result.deletedMediaKeys.length,
       },
     });
 

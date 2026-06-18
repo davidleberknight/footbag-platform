@@ -305,7 +305,12 @@ describe('refreshAllPersonas', () => {
        VALUES ('ccl-outsider-1', ?, 'system', 'club', ?, 'member-outsider-2', ?)`,
     ).run(TS, personaClub.id, TS);
 
-    expect(() => refreshAllPersonas(db)).not.toThrow();
+    const result = refreshAllPersonas(db);
+    // Uploaded media's storage keys are returned so the refresh route can delete
+    // the bytes; the row itself is gone (asserted below).
+    expect(result.deletedMediaKeys).toEqual(
+      expect.arrayContaining(['k/thumb.jpg', 'k/display.jpg']),
+    );
 
     // The outsider and their gallery survive; only the rows referencing the
     // deleted persona club/tag are gone.
