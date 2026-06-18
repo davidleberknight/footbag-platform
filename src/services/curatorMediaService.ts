@@ -256,9 +256,10 @@ export interface CuratorPhotoInput {
   // Optional. When provided, the upload is also written as a file-paired
   // sidecar pair under <curatedRootDir>/<category>/. The seeder reconciles
   // these into media_items rows on its next run, so the upload survives
-  // a DB or media-store wipe. Per DD §1.13, /curated/ is the source of
-  // truth; the inline storage.put + media_items insert below are the UX
-  // optimization (line 575). The admin upload controller passes this field
+  // a DB or media-store wipe. Per DD §1.13, before go-live /curated/ is
+  // the source of truth and the inline storage.put + media_items insert
+  // below are the UX optimization (line 575); at go-live /curated/ is
+  // retired and the persistent DB becomes the source of truth. The admin upload controller passes this field
   // in local-adapter mode and omits it in S3 mode; the curator seeder
   // (which calls in the opposite direction, /curated/ → DB+S3) always
   // omits it.
@@ -1139,7 +1140,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(thumbKey, processed.thumb);
       await storage.put(displayKey, processed.display);
 
-      // /curated/ source-of-truth write per DD §1.13. When a category is
+      // /curated/ source-of-truth write per DD §1.13 (the pre-go-live
+      // phase; at go-live /curated/ is retired and the persistent DB is
+      // the source of truth). When a category is
       // provided, the source bytes plus a sibling sidecar JSON land under
       // <curatedRootDir>/<category>/ so the upload survives a DB or media-
       // store wipe and the seeder can rebuild from it. Identity column for
@@ -1252,13 +1255,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(posterDisplayKey, processed.display);
       await storage.put(posterThumbKey, processed.thumb);
 
-      // /curated/ source-of-truth write per DD §1.13. Mirrors uploadPhoto
+      // /curated/ source-of-truth write per DD §1.13 (pre-go-live; at
+      // go-live /curated/ is retired and the persistent DB is the source
+      // of truth). Mirrors uploadPhoto
       // (see comment there). Video produces a triple: the source video
       // binary, a sibling poster, and the meta sidecar referencing the
       // poster by its `<slug>.poster.<ext>` name. The seeder's enumerator
-      // (curatorSeedService.ts) already knows to skip files matching the
-      // `*.poster.*` pattern as not-a-primary-binary, so the poster is
-      // attached to its parent video via the sidecar's `poster:` field.
+      // skips files matching the `*.poster.*` pattern as not-a-primary-
+      // binary, so the poster is attached to its parent video via the
+      // sidecar's `poster:` field.
       let recordedSourceFilename = input.sourceFilename;
       if (input.category) {
         if (!isValidCategoryName(input.category)) {

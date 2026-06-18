@@ -5269,26 +5269,6 @@ export const media = {
     SELECT id FROM members WHERE is_system = 1
   `); },
 
-  // Curator seed reconcile: list system-uploader rows that the seed
-  // service compares against the on-disk source-of-truth (per DD §1.13).
-  // Returns flat rows; the service shapes.
-  get listCuratorRowsForReconcile() { return db.prepare(`
-    SELECT id, source_filename, caption
-    FROM media_items
-    WHERE uploader_member_id = ?
-      AND moderation_status = 'active'
-      AND source_filename IS NOT NULL
-  `); },
-
-  // Read normalized tag list for a single media row. Used by curator
-  // seed reconcile to detect tag drift between sidecar and DB.
-  get listMediaTagsForId() { return db.prepare(`
-    SELECT t.tag_normalized
-    FROM media_tags mt
-    JOIN tags t ON t.id = mt.tag_id
-    WHERE mt.media_id = ?
-  `); },
-
   get insertCuratorPhoto() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,

@@ -9,8 +9,10 @@
 // delete operations on FH-owned galleries write/remove these sidecars
 // after the DB transaction commits. The Python seeder
 // (`scripts/seed_fh_curator.py::_load_named_gallery_sidecars`) reads
-// the same files on a fresh seed so /curated/galleries/ is the source
-// of truth in git for FH gallery definitions.
+// the same files on a fresh seed so before go-live /curated/galleries/
+// is the source of truth in git for FH gallery definitions. At go-live
+// /curated/ is retired and the persistent DB becomes the source of
+// truth (the seeder is not run against production).
 //
 // Member-owned galleries do NOT use sidecars: their state lives only
 // in the DB. The post-commit sidecar write is conditional on the

@@ -69,9 +69,11 @@ VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 # Public named galleries owned by the FH system member are defined as
 # JSON sidecars under /curated/galleries/<slug>.json (one file per
 # gallery). The seeder reads them via _load_named_gallery_sidecars()
-# during the gallery-seed step. /curated/galleries/ is the source of
-# truth: an FH gallery row whose sidecar is deleted is removed from
-# the DB on the next seed (see ensure_fh_named_galleries).
+# during the gallery-seed step. Before go-live /curated/galleries/ is
+# the source of truth: an FH gallery row whose sidecar is deleted is
+# removed from the DB on the next seed (see ensure_fh_named_galleries).
+# The seeder runs only pre-go-live; at go-live /curated/ is retired and
+# the persistent DB becomes the source of truth.
 #
 # Sidecar schema (camelCase, matching /curated/freestyle_tricks/*.meta.json):
 #   id            "gallery_<descriptive_slug>" — public URL under /media/
@@ -1209,8 +1211,7 @@ def seed_freestyle_tricks_sidecars(
 # upload form writes when local-adapter mode supplies a category.
 FILE_PAIRED_SUBDIR_BLOCKLIST = {*URL_REF_SIDECAR_SUBDIRS, "galleries"}
 
-# Binary extensions recognized as file-paired primaries. Mirrors the
-# enumerator in src/services/curatorSeedService.ts:enumerateMediaSources.
+# Binary extensions recognized as file-paired primaries.
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov"}
 

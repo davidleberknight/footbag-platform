@@ -8,8 +8,10 @@
 // The 94 existing sidecars in `/curated/freestyle_tricks/` are the
 // canonical example shape and validation target. Admin URL-ref upload
 // + edit operations write these sidecars; never the DB. The seeder
-// regenerates DB rows from sidecars on each run, so /curated/ is the
-// source of truth that lives in git.
+// regenerates DB rows from sidecars on each run, so before go-live
+// /curated/ is the source of truth that lives in git. At go-live
+// /curated/ is retired: the persistent DB becomes the source of truth
+// and the seeder is not run against production.
 
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';

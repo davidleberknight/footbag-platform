@@ -427,9 +427,11 @@ def test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags() -> No
 
 def test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars() -> None:
     """When an admin (or operator) deletes a sidecar from /curated/, the next
-    seeder run must DELETE the corresponding media_items row. /curated/ is
-    the source of truth; rows persisted from now-missing sidecars are
-    orphans and must not survive.
+    seeder run must DELETE the corresponding media_items row. Before
+    go-live /curated/ is the source of truth; rows persisted from
+    now-missing sidecars are orphans and must not survive. The seeder runs
+    only pre-go-live; at go-live /curated/ is retired and the persistent
+    DB is the source of truth.
     """
     if not PYTHON.exists():
         raise RuntimeError(f"venv python missing at {PYTHON}")
