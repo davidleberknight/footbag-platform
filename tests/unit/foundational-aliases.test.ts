@@ -9,8 +9,8 @@ import { join } from 'node:path';
 // reconciliation depends on, including the DLO/DSO distinction: DLO is Double
 // Leg Over, DSO is Double Switch-Over, and the two must resolve to different
 // tricks.
-const NOISE = 'legacy_data/inputs/noise';
-const RED_ADD = 'legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv';
+const NOISE = 'freestyle/inputs/noise';
+const RED_ADD = 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv';
 
 const tricks = readFileSync(join(process.cwd(), `${NOISE}/tricks.csv`), 'utf8').split(/\r?\n/);
 const aliasCsv = readFileSync(join(process.cwd(), `${NOISE}/trick_aliases.csv`), 'utf8').split(/\r?\n/);

@@ -20,7 +20,7 @@ const ANY_BRACKET = /\[[^\]]+\]/g;
 const SET_SURFACE = /^(SET|CLIP|TOE|KNEE|INSIDE|OUTSIDE|SOLE)\b/;
 
 const csvLines = readFileSync(
-  join(process.cwd(), 'legacy_data/inputs/curated/tricks/red_corrections_2026_04_20.csv'),
+  join(process.cwd(), 'freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv'),
   'utf8',
 ).split(/\r?\n/);
 

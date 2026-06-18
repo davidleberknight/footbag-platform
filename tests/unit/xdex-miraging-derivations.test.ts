@@ -26,7 +26,7 @@ const APPROVED = [
 ] as const;
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|UNS|XDEX)\]/g;
-const TRICKS_DIR = 'legacy_data/inputs/curated/tricks';
+const TRICKS_DIR = 'freestyle/inputs/curated/tricks';
 
 const correctionsLines = readFileSync(
   join(process.cwd(), `${TRICKS_DIR}/red_corrections_2026_04_20.csv`),

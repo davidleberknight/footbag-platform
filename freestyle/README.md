@@ -34,11 +34,19 @@ python3 freestyle/scripts/18_scrape_footbag_org_moves.py --live
 Re-scrapes the live site and overwrites `inputs/footbag_org_moves_snapshot.csv`
 for review and commit. Without `--live` the script is a no-op.
 
+## Symbolic grammar
+
+The symbolic-grammar observational layer is loaded into the DB by
+`loaders/26_load_symbolic_grammar.py` (wired into `run_freestyle.sh`); the
+runtime reads it from the database, not from disk. The loader still reads the
+committed CSVs from `exploration/symbolic-grammar-2/`, and the
+`build_symbolic_grammar_*` generators still live in `legacy_data/scripts/`;
+relocating both into `freestyle/` is the remaining follow-up.
+
 ## Not here yet
 
-- Symbolic-grammar build + DB load (`build_symbolic_grammar_*`) — still in
-  `legacy_data/scripts/`, and the runtime reads `exploration/symbolic-grammar-2/`.
-  Moving + DB-loading it is the documented follow-up.
+- Relocating the symbolic-grammar CSVs + `build_symbolic_grammar_*` generators
+  out of `exploration/` / `legacy_data/scripts/` into `freestyle/` (see above).
 - The shared `_trick_canonicalization.py` / `_trick_tag_invariant.py` helpers
   stay in `scripts/` (also used by the curator-media seeder); the QC loaders
   import them from there.

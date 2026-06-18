@@ -7,7 +7,7 @@ import { join } from 'node:path';
 // have ADD equal to its bracket-flag count. Two entries are deliberate
 // exceptions to bracket-count (a swing-element trick and a sui-generis
 // self-token primitive); for those we only pin the exact notation.
-const TRICKS_DIR = 'legacy_data/inputs/curated/tricks';
+const TRICKS_DIR = 'freestyle/inputs/curated/tricks';
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|UNS|XDEX)\]/g;
 
 const APPROVED = [
