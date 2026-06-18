@@ -15,8 +15,8 @@ const APPROVED = [
   { slug: 'triple-orbit',   adds: 4, notation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'double-pixie',   adds: 3, notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' },
   { slug: 'double-fairy',   adds: 3, notation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL]' },
-  { slug: 'orbit-kick',     adds: 1, notation: 'TOE > SAME OUT [DEX]' },
-  { slug: 'legover-kick',   adds: 1, notation: 'SET > OP OUT [DEX]' },
+  { slug: 'orbit-kick',     adds: 1, notation: 'TOE > SAME OUT [DEX] [KICK]' },
+  { slug: 'legover-kick',   adds: 1, notation: 'SET > OP OUT [DEX] [KICK]' },
   // clipper-stall correction: terminal clipper is [XBD] [DEL] = 2, not 1.
   { slug: 'diving-clipper', adds: 3, notation: 'SET > DIVE [BOD] > SAME CLIP [XBD] [DEL]' },
   { slug: 'gyro-clipper',   adds: 3, notation: 'SET > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]' },
@@ -25,11 +25,13 @@ const APPROVED = [
   { slug: 'clipper',          adds: 1, notation: 'CLIP [XBD]' },
   { slug: 'dragon',           adds: 2, notation: 'SET > SAME OUT [XBD] [DEL]' },
   { slug: 'probe',            adds: 2, notation: 'SET > OP CLIP [XBD] [DEL]' },
-  { slug: 'toe-clipper',      adds: 2, notation: 'JUMP [BOD] > OP TOE [XBD]' },
+  { slug: 'toe-clipper',      adds: 2, notation: 'SET > OP TOE [BOD] [XBD]' },
   { slug: 'stepping-clipper', adds: 3, notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'pixie-clipper',    adds: 3, notation: 'TOE > SAME IN [DEX] > SAME/OP CLIP [XBD] [DEL]' },
-  { slug: 'miraging-kick',    adds: 1, notation: 'SET > OP IN [DEX]' },
-  { slug: 'atomic-kick', adds: 1, notation: 'TOE > OP OUT [DEX]' },
+  { slug: 'miraging-kick',    adds: 1, notation: 'SET > OP IN [DEX] [KICK]' },
+  { slug: 'atomic-kick', adds: 1, notation: 'TOE > OP OUT [DEX] [KICK]' },
+  // Self-token kick: DOUBLE KICK names the move; [BOD] scores, [KICK] does not.
+  { slug: 'double-kick', adds: 1, notation: 'DOUBLE KICK [BOD] [KICK]' },
   // missing-canonical creations (PassBack reconciliation): multiplicity +
   // atomic-prefix compounds. atomic-whirl held (overlaps the X-Dex migration).
   { slug: 'double-illusion',        adds: 3, notation: 'SET > OP OUT [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
@@ -41,11 +43,9 @@ const APPROVED = [
   { slug: 'atomic-ducking-torque',  adds: 6, notation: 'TOE > OP OUT [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
 ] as const;
 
-// bracket-count deliberately differs from ADD: swing-element (pendulum) and
-// sui-generis self-token (double-kick, foot analogue of double-knee).
+// bracket-count deliberately differs from ADD: swing-element (pendulum).
 const EXCEPTIONS = [
   { slug: 'pendulum',    notation: 'TOE SWING (SET) > SAME TOE [DEL]' },
-  { slug: 'double-kick', notation: 'double kick' },
 ] as const;
 
 const correctionsLines = readFileSync(
