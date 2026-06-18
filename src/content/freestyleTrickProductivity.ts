@@ -173,7 +173,6 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
       "Whirl is among the most generative anchors in the dictionary. The conserved cross-body-rotational-with-clipper-terminal pattern composes naturally with body modifiers (gyro, spinning, ducking), with suspension modifiers (symposium produces pogo), with terminal compounds (osis produces blender), and with topology modifiers (paradox produces paradox-whirl and surge). What makes whirl productive is the persistence of its rotational signature: descendants remain recognizably whirl-derived even under heavy modifier stacking. The cross-body rotational catch also supports fluid combo continuity: whirl-shaped transitions link naturally into spinning, paradox, ducking, symposium, and stepping systems alike, which is why whirl became one of the most productive transition anchors in advanced freestyle run architecture.",
     productiveDescendants: [
       { slug: 'blender',     label: 'blender',     note: 'Terminal compound: whirl-osis.' },
-      { slug: 'pogo',        label: 'pogo',        note: 'Suspension variant: whirl with no-plant constraint.' },
       { slug: 'blistering',  label: 'blistering',  note: 'Gyro back-spin layered on whirl.' },
       { slug: 'surreal',     label: 'surreal',     note: 'Surging-paradox-whirl, top of the rotational-topology ladder.' },
     ],
