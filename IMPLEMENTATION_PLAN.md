@@ -44,7 +44,6 @@ Dave owns the platform code and coordinates every open question to a decision. H
 
 ### Open questions and setup that Dave owns
 
-- [Q] **Find out the Worlds 2026 date.** The date of the 2026 World Footbag Championships is not yet known, and it drives the entire go-live timeline, so this is the first thing to pin down.
 - **Reconcile the production infrastructure with Terraform before any production deploy.** Run `terraform plan` against the production account to see the full gap between what Terraform expects and what actually exists, and import any resources that were created by hand so a later apply does not duplicate or destroy them.
 - **Set up the cutover monitoring.** Decide the alarm thresholds for origin response latency and login success rate (read them off the staging baseline), and write the cutover monitoring steps into the DevOps guide. None of this exists yet.
 - **Fix how curator content is seeded.** The curator seeder (`src/services/curatorSeedService.ts`) currently transcodes video inline (synchronously in the seeding process) rather than through the async media-job worker; a slot-1 semaphore guards against OOM today, but the full production seed manifest can still exhaust the host. Route it through the same background media-job path the rest of the app uses (upload to S3, let the worker container transcode) before go-live.
