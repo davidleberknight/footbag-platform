@@ -19,13 +19,13 @@ Input:
 
   Indirect (embedded) instructional coverage — a trick taught inside another
   trick's tutorial — is read from a curator manifest
-  (legacy_data/tools/trick_video_discovery/embedded_coverage.csv) and reported
+  (freestyle/tools/trick_video_discovery/embedded_coverage.csv) and reported
   SEPARATELY: it never counts toward the direct strong-coverage headline. A
   no-primary trick with an embedded edge is bucketed EMBEDDED_ONLY (covered
   indirectly), not as a gap.
 
 Output:
-  legacy_data/reports/freestyle_media_coverage.csv
+  freestyle/reports/freestyle_media_coverage.csv
   (per-trick row incl. embedded_covered / embedded_hosts / has_pedagogical_reach)
 
 Stdout:
@@ -55,8 +55,8 @@ import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-LEGACY_DATA_DIR = SCRIPT_DIR.parents[1]
-REPO_ROOT = SCRIPT_DIR.parents[2]
+LEGACY_DATA_DIR = SCRIPT_DIR.parents[0]
+REPO_ROOT = SCRIPT_DIR.parents[1]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
 
 # Single source of truth for the media-tag vocabulary: import the live invariant's

@@ -56,11 +56,11 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT  = SCRIPT_DIR.parents[2]
-LEGACY_DIR = SCRIPT_DIR.parents[1]
+REPO_ROOT  = SCRIPT_DIR.parents[1]
+LEGACY_DIR = SCRIPT_DIR.parents[0]
 
 DEFAULT_DB     = REPO_ROOT / "database" / "footbag.db"
-DEFAULT_SCRAPE = LEGACY_DIR / "out" / "scraped_footbag_moves.csv"
+DEFAULT_SCRAPE = LEGACY_DIR / "inputs" / "footbag_org_moves_snapshot.csv"
 OUT_DIR        = LEGACY_DIR / "out"
 
 OUT_COMPARISON = OUT_DIR / "trick_dictionary_comparison.csv"

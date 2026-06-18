@@ -42,8 +42,8 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT = SCRIPT_DIR.parents[2]
-SCRAPED_CSV = SCRIPT_DIR.parents[1] / "out" / "scraped_footbag_moves.csv"
+REPO_ROOT = SCRIPT_DIR.parents[1]
+SCRAPED_CSV = SCRIPT_DIR.parents[0] / "inputs" / "footbag_org_moves_snapshot.csv"
 
 FOOTBAG_ORG_SOURCE_ID = "footbag-org-2026-04"
 FOOTBAG_ORG_RETRIEVED_AT = "2026-04-15T00:00:00.000Z"

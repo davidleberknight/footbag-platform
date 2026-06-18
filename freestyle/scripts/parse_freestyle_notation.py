@@ -15,8 +15,8 @@ Excludes from this MVP (handled in later phases):
   nuclear, quantum, down-family
 
 Outputs (read-only by default; no DB writes):
-  legacy_data/reports/parser_mvp_dry_run.json   — per-row parse JSON
-  legacy_data/reports/parser_mvp_coverage.md    — QC coverage report
+  freestyle/reports/parser_mvp_dry_run.json   — per-row parse JSON
+  freestyle/reports/parser_mvp_coverage.md    — QC coverage report
 
 Failure classification — every row lands in exactly one bucket:
   exact            — parse complete; computed_adds == asserted_adds
@@ -51,9 +51,9 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO        = Path(__file__).resolve().parent.parent
+REPO        = Path(__file__).resolve().parents[2]
 DEFAULT_DB  = REPO / "database" / "footbag.db"
-DEFAULT_OUT_DIR = REPO / "legacy_data" / "reports"
+DEFAULT_OUT_DIR = REPO / "freestyle" / "reports"
 
 PARSER_VERSION = "2.5"  # Phase 2.5: descriptive vs add_contributing role split, status vocabulary refinement, rotational-escalation policy warning
 

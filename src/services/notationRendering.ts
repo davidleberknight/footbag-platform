@@ -9,7 +9,7 @@
 //     not in the DB (rotation, direction, delay/unusual surface, body
 //     component, footedness, multiplicity, suffix); DB-driven lookups
 //     for modifier slugs+types and core-family slugs+aliases.
-//   - Forever-rule §7 sync: when scripts/parse_freestyle_notation.py adds
+//   - Forever-rule §7 sync: when freestyle/scripts/parse_freestyle_notation.py adds
 //     or modifies a token in ROTATION_TOKENS, DIRECTION_TOKENS,
 //     DELAY_SURFACE_TOKENS, or UNUSUAL_SURFACE_TOKENS, the matching constant
 //     in this file MUST update in the same change.
@@ -48,7 +48,7 @@ export interface NotationDisplay {
 }
 
 // ── Static parser-mirror sets ─────────────────────────────────────────────
-// SYNC RULE: keep aligned with scripts/parse_freestyle_notation.py registries.
+// SYNC RULE: keep aligned with freestyle/scripts/parse_freestyle_notation.py registries.
 // Tokens stored UPPERCASE here to match the authored notation casing
 // (parser stores lowercase because it tokenizes canonical_name which is
 // lowercase; this renderer tokenizes notation which is uppercase).

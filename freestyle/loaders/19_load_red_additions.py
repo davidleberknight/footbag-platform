@@ -3,8 +3,8 @@ Script 19: Load Red Husted's expert-review additions and corrections (2026-04-20
 into the freestyle trick dictionary.
 
 Reads:
-  legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv     (22 rows)
-  legacy_data/inputs/curated/tricks/red_corrections_2026_04_20.csv   (1 row)
+  freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv     (22 rows)
+  freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv   (1 row)
 
 Writes: database/footbag.db
   - freestyle_tricks                (INSERT OR REPLACE for additions; UPDATE for corrections)
@@ -42,9 +42,9 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT = SCRIPT_DIR.parents[2]
-ADDITIONS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
-CORRECTIONS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv"
+REPO_ROOT = SCRIPT_DIR.parents[1]
+ADDITIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
+CORRECTIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv"
 
 RED_SOURCE_ID = "red-husted-2026-04-20"
 RED_RETRIEVED_AT = "2026-04-20T00:00:00.000Z"

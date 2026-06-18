@@ -29,12 +29,12 @@ import urllib.request
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT  = SCRIPT_DIR.parents[2]
-TRICKS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "tricks.csv"
-OUT_DIR    = SCRIPT_DIR.parents[1] / "out"
+REPO_ROOT  = SCRIPT_DIR.parents[1]
+TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "noise" / "tricks.csv"
+OUT_DIR    = SCRIPT_DIR.parents[0] / "out"
 # The committed snapshot is the build's source of truth (loader 21 reads it); a
 # --live re-scrape overwrites it so a refresh is a deliberate, reviewable commit.
-SNAPSHOT   = SCRIPT_DIR.parents[1] / "inputs" / "footbag_org_moves_snapshot.csv"
+SNAPSHOT   = SCRIPT_DIR.parents[0] / "inputs" / "footbag_org_moves_snapshot.csv"
 OUT_CSV    = SNAPSHOT
 OUT_AUDIT  = OUT_DIR / "scraped_footbag_moves_audit.txt"
 

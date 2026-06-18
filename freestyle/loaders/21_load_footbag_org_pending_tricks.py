@@ -3,7 +3,7 @@ Script 21: Load footbag.org tricks that are NOT in our canonical dictionary as
 review_status='pending', is_active=0. Phase 2B coverage step.
 
 Reads:
-  legacy_data/inputs/footbag_org_moves_snapshot.csv  (committed snapshot; refresh via script 18 --live)
+  freestyle/inputs/footbag_org_moves_snapshot.csv  (committed snapshot; refresh via script 18 --live)
   database/footbag.db
     freestyle_tricks
     freestyle_trick_aliases
@@ -56,8 +56,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT  = SCRIPT_DIR.parents[2]
-LEGACY_DIR = SCRIPT_DIR.parents[1]
+REPO_ROOT  = SCRIPT_DIR.parents[1]
+LEGACY_DIR = SCRIPT_DIR.parents[0]
 
 DEFAULT_DB     = REPO_ROOT / "database" / "footbag.db"
 DEFAULT_SCRAPE = LEGACY_DIR / "inputs" / "footbag_org_moves_snapshot.csv"

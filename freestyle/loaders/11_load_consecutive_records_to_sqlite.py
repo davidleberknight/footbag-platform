@@ -4,7 +4,7 @@
 
 Loads consecutive kicks records from the curated CSV into the SQLite database.
 
-Source: legacy_data/inputs/curated/records/consecutives_records.csv
+Source: freestyle/inputs/curated/records/consecutives_records.csv
 Target table: consecutive_kicks_records
 
 Usage (from legacy_data/):
@@ -24,7 +24,7 @@ except ImportError:
 import sys
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
-LEGACY_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
+LEGACY_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 SOURCE_CSV  = os.path.join(LEGACY_ROOT, 'inputs', 'curated', 'records', 'consecutives_records.csv')
 
 def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
