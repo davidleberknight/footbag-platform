@@ -34,7 +34,7 @@ import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 import { seedTier1Member, personaToPlaywrightCookies } from '../fixtures/personas';
-import { insertPersonaNamedGallery } from '../../src/testkit/personaRowBuilders';
+import { insertPersonaNamedGallery, completeOnboarding } from '../../src/testkit/personaRowBuilders';
 
 const DB_PATH_FILE = path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-db-path');
 
@@ -93,6 +93,10 @@ test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag:
   const db = openLiveDb();
   const slug = `e2e_gallery_${Date.now()}`;
   const persona = seedTier1Member(db, { slug });
+  // The /members/*/media/upload page is behind the onboarding gate, so an
+  // un-onboarded member is redirected to the wizard and the upload form never
+  // renders. Complete onboarding so the upload page is reachable.
+  completeOnboarding(db, persona.memberId);
   const galleryId = `gallery_persona_${slug}`;
   insertPersonaNamedGallery(db, {
     galleryId,
