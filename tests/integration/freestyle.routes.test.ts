@@ -1220,13 +1220,13 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
-    // Operational tokens render inside the Movement notation section as a
-    // folded-in subblock. The operational-notation-display class is preserved
-    // on that subblock; the operational tokens render only for non-first-class
+    // Operational tokens render in their own Execution notation section
+    // (operational-notation-display class preserved), only for non-first-class
     // tricks (the trick-notation-summary card carries the compact JOB row on
-    // first-class pages).
+    // first-class pages). This fixture has notation=null, so only the Execution
+    // notation section renders (no Movement notation section).
     expect(res.text).toContain('operational-notation-display');
-    expect(res.text).toContain('<h2>Movement notation</h2>');
+    expect(res.text).toContain('<h2>Execution notation</h2>');
     // O1b: each token rendered as a span with role class. O1c refined the
     // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
     // the generic "Plant or landing surface").

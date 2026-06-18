@@ -34,23 +34,14 @@
     About, so no standalone mechanical-delta or progressive-readings
     section is needed.
   --}}
-  {{!-- Family/branch anchors hoist the notation block above Movement
-       Intuition/About so the trick's structure reads first. Rendered exactly
-       once: here when hoisted, otherwise at its default position below About. --}}
-  {{#if content.hoistNotation}}
+  {{!-- Notation first on every trick page: Movement notation, then Execution
+       notation, then Equivalent readings, so the trick's structure reads before
+       the Movement intuition and About prose that follow. --}}
   {{> trick-notation}}
-  {{/if}}
 
   {{> trick-intuition}}
 
   {{> trick-about}}
-
-  {{!-- Notation near the top: Movement notation (with the Execution-notation
-       sub-block) and Equivalent readings sit right under About so the trick's
-       structure reads before the deeper sections. Hoisted above for anchors. --}}
-  {{#unless content.hoistNotation}}
-  {{> trick-notation}}
-  {{/unless}}
 
   {{!-- Wayfinding summary near the top: jump-links to learn / watch / family.
        Placed above the deep sections and the media block so it reads as a
@@ -96,13 +87,15 @@
       extraLink=content.ux2Pilot.prereqExtraLink}}
   {{/if}}
 
+  {{!-- Structural neighbors (cross-base composition) read before Related
+       families so the page closes on family lineage. --}}
+  {{> trick-structural-neighbors}}
+
   {{> trick-family}}
 
   {{> trick-quantity-ladder}}
 
   {{> trick-related}}
-
-  {{> trick-structural-neighbors}}
 
   {{> symbolic-related-topology}}
 

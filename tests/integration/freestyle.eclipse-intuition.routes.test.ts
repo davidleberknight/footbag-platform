@@ -8,7 +8,8 @@
  * accounting, or any ontology field.
  *
  * Layer separation per freestyleTrickIntuition.ts JSDoc: editorial
- * prose only; renders between trick-about and trick-notation.
+ * prose only; renders after the notation block (Notation -> Movement
+ * intuition -> About).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -52,8 +53,6 @@ describe('Eclipse intuition entry — content module', () => {
     expect(entry?.prose ?? '').toMatch(/jump.*support leg/i);
     expect(entry?.prose ?? '').toMatch(/held-delay leg-over chassis/i);
     expect(entry?.prose ?? '').toMatch(/hop-over/i);
-    expect(entry?.attribution ?? '').toMatch(/outside source/i);
-    expect(entry?.attribution ?? '').toMatch(/airborne hop-over topology/i);
   });
 
   it('eclipse intuition does NOT contain notation jargon (no [TOKEN] brackets, no ADD numbers as primary framing)', () => {

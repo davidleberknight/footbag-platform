@@ -1185,7 +1185,7 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
     const res = await request(app).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section notation-display"');
-    expect(res.text).toContain('aria-label="Trick notation"');
+    expect(res.text).toContain('aria-label="Movement notation"');
     expect(res.text).toContain('class="notation-display-tokens"');
   });
 
@@ -1194,7 +1194,7 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
     const res = await request(app).get('/freestyle/tricks/phase6-no-notation');
     expect(res.status).toBe(200);
     // Section header must not render; aria-label must not appear.
-    expect(res.text).not.toContain('aria-label="Trick notation"');
+    expect(res.text).not.toContain('aria-label="Movement notation"');
     expect(res.text).not.toContain('notation-display-tokens');
   });
 

@@ -1,14 +1,13 @@
 /**
- * Trick-detail notation hoisting (presentation-only IA).
+ * Trick-detail notation ordering (presentation-only IA).
  *
- * Family/branch anchors that are NOT first-class render the existing
- * Movement-notation block ABOVE Movement Intuition / About so the trick's
- * structure reads near the top, at the same visibility as a first-class
- * page's notation summary. The block is moved, never duplicated:
- *   - anchor, non-first-class  -> notation appears before "About this trick"
- *   - first-class (osis)       -> unchanged: notation stays below About
- *   - non-anchor non-first-class -> unchanged: notation stays below About
- *   - every page renders exactly one notation block
+ * The Movement-notation block renders first on every trick page — above
+ * Movement Intuition and About — so the trick's structure reads before the
+ * prose, regardless of whether the trick is a family/branch anchor, a
+ * first-class roster anchor, or an ordinary compound. The block renders
+ * exactly once per page:
+ *   - any page with notation -> notation appears before "About this trick"
+ *   - every page renders at most one notation block
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -19,7 +18,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3611');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-const NOTATION = 'aria-label="Trick notation"';
+const NOTATION = 'aria-label="Movement notation"';
 const ABOUT = 'About this trick';
 
 beforeAll(async () => {
@@ -31,13 +30,13 @@ beforeAll(async () => {
       notation: name.toUpperCase(), operational_notation: 'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
       review_status: 'curated', is_active: 1,
     });
-  // Family-roster anchor (non-first-class) -> hoisted.
+  // Family-roster anchor (non-first-class).
   t('torque', 'torque', 'osis');
-  // Major-compound anchor (mobius is in the curated hero-notation set) -> hoisted.
+  // Major-compound anchor (mobius is in the curated hero-notation set).
   t('mobius', 'mobius', 'torque');
-  // First-class roster anchor -> NOT hoisted (must stay unchanged).
+  // First-class roster anchor.
   t('osis', 'osis', 'osis');
-  // Non-anchor, non-first-class compound -> NOT hoisted (unchanged).
+  // Non-anchor, non-first-class compound.
   t('paradox-whirl', 'paradox whirl', 'whirl');
   db.close();
   createApp = await importApp();
@@ -53,40 +52,21 @@ const idx = (html: string, marker: string) => html.indexOf(marker);
 const count = (html: string, marker: string) =>
   html.split(marker).length - 1;
 
-describe('Notation hoisting for non-first-class family/branch anchors', () => {
-  it('torque renders the notation block before About (hoisted)', async () => {
-    const html = await page('torque');
-    expect(idx(html, NOTATION)).toBeGreaterThan(-1);
-    expect(idx(html, NOTATION)).toBeLessThan(idx(html, ABOUT));
-  });
-
-  it('mobius renders the notation block before About (hoisted)', async () => {
-    const html = await page('mobius');
-    expect(idx(html, NOTATION)).toBeGreaterThan(-1);
-    expect(idx(html, NOTATION)).toBeLessThan(idx(html, ABOUT));
-  });
-});
-
-describe('Unchanged pages', () => {
-  it('osis (first-class) is not hoisted — notation never appears before About', async () => {
-    const html = await page('osis');
-    const ni = idx(html, NOTATION), ai = idx(html, ABOUT);
-    // Unchanged = the notation block is not lifted above About. (osis's
-    // hero summary is the first-class comparativeNotation card, unaffected.)
-    expect(ni === -1 || ni > ai).toBe(true);
-  });
-
-  it('a non-anchor non-first-class trick keeps notation below About', async () => {
-    const html = await page('paradox-whirl');
-    expect(idx(html, NOTATION)).toBeGreaterThan(idx(html, ABOUT));
-  });
+describe('Notation renders first on every trick page', () => {
+  for (const slug of ['torque', 'mobius', 'osis', 'paradox-whirl']) {
+    it(`${slug} renders the notation block before About`, async () => {
+      const html = await page(slug);
+      expect(idx(html, NOTATION)).toBeGreaterThan(-1);
+      expect(idx(html, NOTATION)).toBeLessThan(idx(html, ABOUT));
+    });
+  }
 });
 
 describe('No duplicate notation block', () => {
-  it('renders exactly one notation block on a hoisted page', async () => {
+  it('renders exactly one notation block on an anchor page', async () => {
     expect(count(await page('torque'), NOTATION)).toBe(1);
   });
-  it('renders exactly one notation block on an unchanged page', async () => {
+  it('renders exactly one notation block on an ordinary compound page', async () => {
     expect(count(await page('paradox-whirl'), NOTATION)).toBe(1);
   });
 });

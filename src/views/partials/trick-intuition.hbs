@@ -16,7 +16,7 @@
     {{#if content.sectionSubtitles.movementIntuition}}<p class="section-intro">{{content.sectionSubtitles.movementIntuition}}</p>{{/if}}
   </div>
   <p class="trick-intuition-prose">{{content.intuition.prose}}</p>
-  <p class="trick-intuition-attribution">{{content.intuition.attribution}}</p>
+  {{#if content.intuition.attribution}}<p class="trick-intuition-attribution">{{content.intuition.attribution}}</p>{{/if}}
   {{!-- Parent-delta line supplements the physical prose. When a trick has no
        intuition prose the delta renders in About instead, so it never stands
        alone under a Movement intuition heading. --}}

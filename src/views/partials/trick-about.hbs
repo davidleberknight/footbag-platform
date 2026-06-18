@@ -9,21 +9,16 @@
   </div>
 
   {{#if content.dictEntry.description}}
-    {{#if content.descriptionIsPlaceholder}}
     {{!--
-      Placeholder-description suppressor. The DB
-      `description` matched a known placeholder pattern (X-modified Y /
-      X-and-Y modified Z / "Popular freestyle trick."). The literal
-      description is suppressed; the structured ADD-decomposition pill
-      below renders instead. The DB row is preserved unchanged — this
-      is a render-time-only suppression.
+      Placeholder-description suppressor. The DB `description` matched a known
+      placeholder pattern (X-modified Y / X-and-Y modified Z / "Popular
+      freestyle trick."). The literal description is suppressed; the build path
+      under "How it's built" carries the composition instead. The DB row is
+      preserved unchanged — this is a render-time-only suppression.
     --}}
-    {{#if content.dictEntry.addComposition}}
-    <p class="trick-description trick-description--decomposition-pill">{{content.dictEntry.addComposition}}</p>
-    {{/if}}
-    {{else}}
+    {{#unless content.descriptionIsPlaceholder}}
     <p class="trick-description">{{content.dictEntry.description}}</p>
-    {{/if}}
+    {{/unless}}
   {{/if}}
 
   {{#if content.dictEntry.isModifier}}
@@ -36,14 +31,11 @@
 
   <dl>
 
-    {{!-- One "How it's built" row: the ADD composition when present, else the
-         derived base-chain build path (which already names the parent), else a
-         bare base-trick link. The build path supersedes the separate Base trick
-         row so the lineage is stated once. --}}
-    {{#if content.dictEntry.addComposition}}
-    <dt>How it's built</dt>
-    <dd>{{content.dictEntry.addComposition}}</dd>
-    {{else if content.buildPath}}
+    {{!-- One "How it's built" row: the derived base-chain build path in
+         build-path language (which already names the parent), else a bare
+         base-trick link. The build path supersedes the separate Base trick row
+         so the lineage is stated once. ADD arithmetic stays in ADD analysis. --}}
+    {{#if content.buildPath}}
     <dt>How it's built</dt>
     <dd data-build-path>{{content.buildPath}}</dd>
     {{else if content.dictEntry.baseTrick}}
