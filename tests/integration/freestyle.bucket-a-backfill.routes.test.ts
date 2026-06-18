@@ -254,13 +254,13 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_F
 
 describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
   it.each(NEGATIVE_COHORT.map(r => [r.slug, r.bucket] as const))(
-    '%s (bucket %s) still renders "JOB: canonical decomposition pending" after the Bucket A backfill',
+    '%s (bucket %s) still renders the honest INCOMPLETE badge after the Bucket A backfill',
     async (slug) => {
       const app = await createApp();
       const res = await request(app).get('/freestyle/tricks?view=dex-count');
       const card = cardFor(slug, res.text);
-      expect(card).toContain('dict-trick-row-pending-value');
-      expect(card).toContain('canonical decomposition pending');
+      expect(card).toContain('dict-badge-incomplete');
+      expect(card).toContain('>INCOMPLETE<');
     },
   );
 

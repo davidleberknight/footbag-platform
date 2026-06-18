@@ -128,6 +128,13 @@
     </section>
     {{/if}}
 
+    {{#if content.externalEntries.total}}
+    <details class="observed-disclosure">
+      <summary class="observed-disclosure-summary">External / unadjudicated (database-tracked) <span class="text-muted">({{content.externalEntries.total}})</span></summary>
+      {{> observed-summary-section section=content.externalEntries title="Tracked in the database, not yet adjudicated" anchor="external-unadjudicated"}}
+    </details>
+    {{/if}}
+
     {{! ── Long tail (collapsed by default) ── }}
     <details class="observed-disclosure">
       <summary class="observed-disclosure-summary">Folk names &amp; unresolved structures <span class="text-muted">({{content.folk.total}} + {{content.parser.total}})</span></summary>

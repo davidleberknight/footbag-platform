@@ -248,11 +248,17 @@
     {{#unless dexCount}}{{#if (eq bucketId "dex-unknown")}}
     <p class="dex-count-unknown-note"><em>We haven&rsquo;t mapped these tricks&rsquo; moves in detail yet, so they can&rsquo;t be sorted by dexterity-move count. The tricks still exist.</em></p>
     {{/if}}{{/unless}}
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
+    {{! Secondary ADD bands: cards are ordered by ADD, each run gets a header. }}
+    {{#each addBands}}
+    <div class="trick-add-lineage">
+      <h3 class="add-lineage-header">{{addLabel}}</h3>
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
     </div>
+    {{/each}}
   </section>
   {{/each}}
   {{/if}}
@@ -271,6 +277,7 @@
        projection) is reserved for /freestyle/sets. }}
   {{#if (eq content.activeView "sets")}}
   <p class="browse-view-intro">Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier? For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-lens-note detail-muted">These cluster totals count tricks by the modifier they use, so they will not match the grouping totals in <a href="/freestyle/tricks?view=movement-system">By movement system</a>, which sorts some of the same modifiers into different groups. The two are different lenses on the same tricks, not the same tally.</p>
   {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
   {{#if content.setsClusterView.length}}
   <p class="sets-view-total detail-muted"><strong>{{content.setsClusterView.length}}</strong> modifier clusters, each banded by operator count.</p>
@@ -527,11 +534,17 @@
       <span class="section-count">{{memberCount}}</span>
     </div>
     <p class="topology-group-definition">{{bodyDefinition}}</p>
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
+    {{! Secondary ADD bands: cards are ordered by ADD, each run gets a header. }}
+    {{#each addBands}}
+    <div class="trick-add-lineage">
+      <h3 class="add-lineage-header">{{addLabel}}</h3>
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
     </div>
+    {{/each}}
   </section>
   {{/each}}
   {{else}}
@@ -554,6 +567,7 @@
   {{#if (eq content.activeView "movement-system")}}
   <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
   <p class="browse-view-intro"><strong>By movement system = the four big groupings</strong> (sets &amp; uptime · how you enter · mid-air body moves · airborne). Each grouping gathers the modifiers that belong to it. It also recognizes <strong>Alternative surfaces</strong> (tricks caught on an unusual part of the body), listed separately below the four groupings. To find every trick that uses a <em>specific</em> modifier (pixie, fairy, ducking, spinning, …), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For "what IS this set system?", see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-lens-note detail-muted">Each grouping total here counts the distinct tricks in that movement grouping. It will not match the per-cluster totals in <a href="/freestyle/tricks?view=sets">By modifier</a>, because the two views place some modifiers in different groups. They are different lenses on the same tricks.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
   {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}
 
@@ -573,11 +587,17 @@
       <span class="section-count">{{cards.length}}</span>
     </div>
     <p class="movement-axis-definition">{{axisDefinition}}</p>
-    <div class="dict-trick-row-stack">
-      {{#each cards}}
-        {{> dictionary-trick-row}}
-      {{/each}}
+    {{! Secondary ADD bands: cards are ordered by ADD, each run gets a header. }}
+    {{#each addBands}}
+    <div class="trick-add-lineage">
+      <h3 class="add-lineage-header">{{addLabel}}</h3>
+      <div class="dict-trick-row-stack">
+        {{#each cards}}
+          {{> dictionary-trick-row}}
+        {{/each}}
+      </div>
     </div>
+    {{/each}}
   </section>
   {{/each}}
   {{else}}

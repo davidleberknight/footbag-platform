@@ -2785,11 +2785,23 @@ export interface SetDetailCrossLinks {
 // moves does this trick involve?". Tricks without op_notation fall into an
 // "Unknown" bucket. Uses the shared dictionary-trick-card partial; card
 // shapes are identical to the ADD view.
+// A labelled ADD sub-band within a browse section whose secondary sort is ADD
+// (dex-count, movement-system axis, topology neighborhood). The label makes the
+// otherwise-invisible secondary ordering legible — readers see "3 ADD / 4 ADD"
+// headers instead of an unexplained card sequence.
+export interface FreestyleAddBand {
+  addLabel: string;                  // '2 ADD' / '3 ADD' / '? ADD' (null ADD)
+  cards:    DictionaryTrickCard[];
+}
+
 export interface FreestyleTrickDexCountGroup {
   dexCount: number | null;     // null = unknown (no op_notation)
   dexLabel: string;            // pre-shaped: '0 dex events', '1 dex event', '2 dex events', '3+ dex events', 'Unknown / no notation'
   bucketId: string;            // pre-shaped section anchor: 'dex-0', 'dex-1', ... 'dex-unknown'. Avoids Handlebars 0-is-falsy footgun in the template.
   cards: DictionaryTrickCard[];
+  // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
+  // The template renders these so the secondary ADD ordering carries a header.
+  addBands: FreestyleAddBand[];
 }
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
@@ -2883,6 +2895,9 @@ export interface TopologyGroup {
   memberCount:    number;
   anchorId:       string;          // 'topology-{slug}'
   cards:          DictionaryTrickCard[];   // ADD ascending then name
+  // The same cards partitioned into ADD-labelled sub-bands (ADD ascending), so
+  // the neighborhood's secondary ADD ordering renders with visible headers.
+  addBands:       FreestyleAddBand[];
 }
 
 export interface TopologyBrowseView {
@@ -2913,6 +2928,9 @@ export interface MovementSystemAxisView {
   // Tricks under the axis, deduped across the axis modifiers, ordered by ADD
   // ascending then alphabetically. No per-modifier sub-grouping.
   cards:          DictionaryTrickCard[];
+  // The same cards partitioned into ADD-labelled sub-bands (ADD ascending), so
+  // the axis's secondary ADD ordering renders with visible headers.
+  addBands:       FreestyleAddBand[];
 }
 
 export interface MovementSystemBrowseView {
@@ -3784,6 +3802,10 @@ export interface FreestyleObservationalContent {
   parser:              ObservationalSummarySection;
   /** Alias / Duplicate archive — names that resolve to an existing trick. */
   aliasArchive:        ObservationalSummarySection;
+  /** External / unadjudicated rows tracked in the database (is_active=0 +
+   *  review_status='pending'). Excluded from canonical browse; their home is
+   *  this Emerging Vocabulary surface. */
+  externalEntries:     ObservationalSummarySection;
   sources:             readonly { badge: string; label: string }[];
   canonicalReferences: readonly { label: string; href: string }[];
   generatedOn:         string;
@@ -5316,6 +5338,29 @@ function parseAddNumeric(adds: string | null): number | null {
 
 function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: string }): number {
   return a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' });
+}
+
+// Partition an already-ADD-sorted card list into labelled ADD sub-bands. Used
+// by every browse section whose secondary sort is ADD (dex-count, movement
+// system, topology) so the secondary ordering renders with visible '3 ADD' /
+// '4 ADD' headers instead of an unexplained card run. Input MUST already be
+// sorted by ADD ascending; bands are cut at each ADD change in sequence.
+function bandCardsByAdd(
+  items: { adds: string | null; card: DictionaryTrickCard }[],
+): FreestyleAddBand[] {
+  const bands: FreestyleAddBand[] = [];
+  let current: FreestyleAddBand | null = null;
+  let currentKey: number | null | undefined = undefined;
+  for (const { adds, card } of items) {
+    const n = parseAddNumeric(adds);
+    if (current === null || n !== currentKey) {
+      current = { addLabel: n === null ? '? ADD' : `${n} ADD`, cards: [] };
+      bands.push(current);
+      currentKey = n;
+    }
+    current.cards.push(card);
+  }
+  return bands;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -7912,9 +7957,12 @@ export const freestyleService = {
     }
 
     // ---- ADD groups (the new beginner default view) -------------------
-    // Modifiers are excluded; pending placeholders are included alongside
-    // canonical tricks within the same ADD bucket. Empty / non-numeric ADD
-    // lands in 'Unrated / unresolved'.
+    // Canonical browse excludes external / unadjudicated placeholders (is_active=0
+    // + review_status='pending', the "External source, not yet adjudicated" rows);
+    // those belong to Emerging Vocabulary, not the dictionary. Canonical-but-
+    // incomplete tricks (adjudicated, JOB not yet authored) stay visible and the
+    // row partial badges them INCOMPLETE. Modifiers are excluded. Empty /
+    // non-numeric ADD lands in 'Unrated / unresolved'.
     //
     // Builds the dictionary-trick-card view-model alongside
     // the legacy `tricks` shape. The By ADD template branch renders the
@@ -7923,9 +7971,11 @@ export const freestyleService = {
     const addBuckets = new Map<number | null, AddBucketEntry[]>();
     for (const row of allRows) {
       if (!isTrickRow(row)) continue;
+      const indexRow = shapeTrickIndexRow(row, ctx);
+      if (indexRow.isExternalOnly) continue;
       const numeric = parseAddNumeric(row.adds);
       const bucket = addBuckets.get(numeric) ?? [];
-      bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
+      bucket.push({ row, indexRow });
       addBuckets.set(numeric, bucket);
     }
     const addGroups: FreestyleTrickAddGroup[] = [];
@@ -8069,11 +8119,13 @@ export const freestyleService = {
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
       const bucketId = dexCount === null ? 'dex-unknown' : `dex-${dexCount}`;
+      const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
       return {
         dexCount,
         dexLabel,
         bucketId,
-        cards: sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx)),
+        cards,
+        addBands: bandCardsByAdd(sorted.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
       };
     };
     const dexNumericKeys = [...dexBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
@@ -8385,6 +8437,7 @@ export const freestyleService = {
           return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
         });
       const indexRows = matched.map(r => shapeTrickIndexRow(r, ctx));
+      const cards = matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug, ctx));
       // Pass the topology-slug as the group anchor.
       // Template renders dotted-underline emphasis on topology surfaces
       // (observational, not canonical) via ancestor-class selector.
@@ -8394,7 +8447,8 @@ export const freestyleService = {
         bodyDefinition: def.definition,
         memberCount:    matched.length,
         anchorId:       `topology-${def.slug}`,
-        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug, ctx)),
+        cards,
+        addBands:       bandCardsByAdd(matched.map((r, i) => ({ adds: r.adds, card: cards[i]! }))),
       };
     };
 
@@ -8436,7 +8490,9 @@ export const freestyleService = {
     // Per-axis flat card list: union the tricks across the axis's modifiers,
     // dedup by slug, order by ADD ascending then alphabetically. No per-modifier
     // sub-grouping (the axis itself is the grouping).
-    const buildMovementSystemAxisCards = (modifierSlugs: readonly string[]): DictionaryTrickCard[] => {
+    const buildMovementSystemAxisCards = (
+      modifierSlugs: readonly string[],
+    ): { cards: DictionaryTrickCard[]; addBands: FreestyleAddBand[] } => {
       const seen = new Set<string>();
       const entries: { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow }[] = [];
       for (const slug of modifierSlugs) {
@@ -8454,7 +8510,11 @@ export const freestyleService = {
         if (aa !== ba) return aa - ba;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
-      return entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
+      const cards = entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
+      return {
+        cards,
+        addBands: bandCardsByAdd(entries.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
+      };
     };
 
     // Build the alternative-surfaces subsection (compact educational
@@ -8490,13 +8550,17 @@ export const freestyleService = {
         '(Midtime Body), and discipline around plant and landing (No-Plant & Suspension). ' +
         'Within each axis, tricks are ordered by ADD, then alphabetically.',
       axes: MOVEMENT_SYSTEM_AXES
-        .map(axis => ({
-          axisKey:        axis.axisKey,
-          axisName:       axis.axisName,
-          axisDefinition: axis.axisDefinition,
-          anchorId:       `movement-axis-${axis.axisKey}`,
-          cards:          buildMovementSystemAxisCards(axis.modifierSlugs),
-        }))
+        .map(axis => {
+          const { cards, addBands } = buildMovementSystemAxisCards(axis.modifierSlugs);
+          return {
+            axisKey:        axis.axisKey,
+            axisName:       axis.axisName,
+            axisDefinition: axis.axisDefinition,
+            anchorId:       `movement-axis-${axis.axisKey}`,
+            cards,
+            addBands,
+          };
+        })
         .filter(a => a.cards.length > 0),
       alternativeSurfaces: {
         intro:  ALTERNATIVE_SURFACES.intro,
@@ -9349,6 +9413,27 @@ export const freestyleService = {
       'Documented names that resolve to an existing canonical trick, folded as aliases ' +
       'or wording / source duplicates. Kept for lookup; not part of the promotion frontier.');
 
+    // External / unadjudicated rows tracked in the database (is_active=0 +
+    // review_status='pending'). Distinct from the generated observational
+    // universe above (which is in_db=false): these are real freestyle_tricks
+    // rows held out of canonical browse until a curator adjudicates them. This
+    // Emerging Vocabulary surface is their home.
+    const externalRows = runSqliteRead('freestyleTricks.listExternalPending', () =>
+      freestyleTricks.listExternalPending.all() as {
+        slug: string; canonical_name: string; adds: string | null;
+        base_trick: string | null; trick_family: string | null; category: string;
+      }[],
+    );
+    const externalEntries: ObservationalSummarySection = {
+      total:       externalRows.length,
+      intro:
+        'Names recorded in the database from outside sources but not yet adjudicated. ' +
+        'They are held out of the canonical dictionary browse and live here as Emerging ' +
+        'Vocabulary until a curator adjudicates them. No canonical ADD, no detail page.',
+      sampleCards: [],
+      fullList:    externalRows.map(r => ({ name: r.canonical_name, source: 'external' })),
+    };
+
     // Three-layer ontology (publication-integrity doctrine): a mature canonical
     // ontology, a substantial governed expansion frontier, and a broader lexical
     // archive. The frontier counts distinct mechanically-coherent candidate
@@ -9417,6 +9502,7 @@ export const freestyleService = {
         folk,
         parser,
         aliasArchive,
+        externalEntries,
         sources,
         canonicalReferences: [
           { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },

@@ -321,13 +321,13 @@ describe('First-class rendering parity — honest incomplete-state', () => {
     // breakdowns; the hero/registry ADD chip carries the total.
     ['paradox-mirage',   'paradox(+1) + mirage(2)'],
     ['atomic-butterfly', 'atomic(+1) + butterfly(3)'],
-  ])('%s renders ADD breakdown + honest "JOB: canonical decomposition pending" line', async (slug, expectedAddText) => {
+  ])('%s renders ADD breakdown + honest INCOMPLETE badge for the unauthored JOB', async (slug, expectedAddText) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
-    // Honest incomplete-state line for missing Job notation
-    expect(card).toContain('dict-trick-row-pending-value');
-    expect(card).toContain('canonical decomposition pending');
+    // Honest incomplete-state badge for missing Job notation
+    expect(card).toContain('dict-badge-incomplete');
+    expect(card).toContain('>INCOMPLETE<');
     // ADD breakdown rendered (authoritative data wired through)
     expect(card).toContain(expectedAddText);
   });
@@ -447,12 +447,12 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     ['spinning-butterfly',      'spinning(+1) + butterfly(3)'],
     ['stepping-osis',           'stepping(+1) + osis(3)'],
     ['paradox-symposium-whirl', 'paradox(+1) + symposium(+1) + whirl(3)'],
-  ])('%s renders ADD breakdown + honest JOB-pending line', async (slug, expectedAddSubstring) => {
+  ])('%s renders ADD breakdown + honest INCOMPLETE badge', async (slug, expectedAddSubstring) => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const card = cardFor(slug, res.text);
-    expect(card).toContain('dict-trick-row-pending-value');
-    expect(card).toContain('canonical decomposition pending');
+    expect(card).toContain('dict-badge-incomplete');
+    expect(card).toContain('>INCOMPLETE<');
     expect(card).toContain(expectedAddSubstring);
   });
 
@@ -466,8 +466,9 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     expect(card).toMatch(/data-token-slug="legover"/);
     // ADD breakdown wires through.
     expect(card).toContain('atomic(+1) + legover(2)');
-    // Job canonical decomposition pending (eggbeater has no curator op-notation).
-    expect(card).toContain('canonical decomposition pending');
+    // JOB notation is unauthored (eggbeater has no curator op-notation), so the
+    // card carries the honest INCOMPLETE badge.
+    expect(card).toContain('>INCOMPLETE<');
   });
 });
 

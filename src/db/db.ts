@@ -2154,6 +2154,18 @@ export const freestyleTricks = {
     ORDER BY is_active DESC, sort_order ASC
   `); },
 
+  // External / unadjudicated placeholders only (is_active = 0,
+  // review_status = 'pending'), excluding modifier-category rows. These are kept
+  // out of the canonical dictionary browse and surfaced on the Emerging
+  // Vocabulary page instead.
+  get listExternalPending() { return db.prepare(`
+    SELECT slug, canonical_name, adds, base_trick, trick_family, category
+    FROM freestyle_tricks
+    WHERE is_active = 0 AND review_status = 'pending'
+      AND category <> 'modifier'
+    ORDER BY trick_family ASC, canonical_name ASC
+  `); },
+
   get getBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, sort_order,

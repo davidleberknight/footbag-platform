@@ -8273,6 +8273,22 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
   color: var(--text-muted);
 }
+/* Status badge for an adjudicated canonical trick whose JOB notation is not
+   yet authored. Shown in place of the JOB value on browse rows + first-class
+   cards. Muted, uppercase, small, non-alarming. */
+.dict-badge-incomplete {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--sec-bg);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 .dict-trick-row-placeholder-note {
   margin: 0.3rem 0 0;
   font-size: 0.78rem;
@@ -9720,6 +9736,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   max-width: 760px;
   margin: -0.75rem 0 1.25rem;
   color: var(--text-subtle);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.browse-view-lens-note {
+  max-width: 760px;
+  margin: -0.5rem 0 1.25rem;
   font-size: 0.85rem;
   line-height: 1.45;
 }

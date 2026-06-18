@@ -26,14 +26,26 @@ import {
   OBSERVATIONAL_UNIVERSE,
   OBSERVATIONAL_UNIVERSE_STATS,
 } from '../../src/content/freestyleObservationalUniverse';
+import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3220');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
-  // Content-module-driven; no DB seeding needed. Empty DB is sufficient.
-  createTestDb(dbPath).close();
+  // The frontier sections are content-module-driven. The external/unadjudicated
+  // section reads the DB, so seed a couple of in-DB external placeholders
+  // (is_active=0 + review_status='pending') to exercise it.
+  const db = createTestDb(dbPath);
+  insertFreestyleTrick(db, {
+    slug: 'pending-zorblax', canonical_name: 'pending zorblax', adds: '4',
+    category: 'compound', review_status: 'pending', is_active: 0,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'pending-quasar', canonical_name: 'pending quasar', adds: '',
+    category: 'compound', review_status: 'pending', is_active: 0,
+  });
+  db.close();
   createApp = await importApp();
 });
 
@@ -147,5 +159,17 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(OBSERVATIONAL_UNIVERSE.length).toBeGreaterThan(0);
     expect(OBSERVATIONAL_UNIVERSE_STATS.canonicalPublished).toBeGreaterThan(0);
     expect(OBSERVATIONAL_UNIVERSE_STATS.total).toBe(OBSERVATIONAL_UNIVERSE.length);
+  });
+
+  // ── External / unadjudicated in-DB entries (Emerging Vocabulary home) ──
+  it('surfaces in-DB external/unadjudicated rows in their own section', async () => {
+    const html = await page();
+    expect(html).toContain('External / unadjudicated (database-tracked)');
+    expect(html).toContain('id="external-unadjudicated"');
+    // The seeded external rows appear by name.
+    expect(html).toContain('pending zorblax');
+    expect(html).toContain('pending quasar');
+    // They carry the tracked tag, never a canonical trick-detail link.
+    expect(html).not.toMatch(/href="\/freestyle\/tricks\/pending-zorblax"/);
   });
 });

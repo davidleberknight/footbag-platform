@@ -104,21 +104,20 @@ beforeAll(async () => {
     is_active:      0,
   });
 
-  // Unrated, descriptionless pending row: exercises the
-  // 'Unrated / unresolved' bucket and the 'Description pending' /
-  // 'Notation pending' fallback strings on the ADD view. Empty-string
-  // adds matches real data (loader-21 emits empty when the source has
-  // no ADD value).
+  // Active canonical row with no numeric ADD: exercises the
+  // 'Unrated / unresolved' bucket on the ADD view. Empty-string adds matches
+  // real data (loader-21 emits empty when the source has no ADD value). It is
+  // active + adjudicated (not external), so the canonical browse keeps it.
   insertFreestyleTrick(db, {
-    slug:           'pending-quasar',
-    canonical_name: 'pending quasar',
+    slug:           'unrated-quasar',
+    canonical_name: 'unrated quasar',
     adds:           '',
     category:       'compound',
     description:    null,
     notation:       null,
     sort_order:     91,
-    review_status:  'pending',
-    is_active:      0,
+    review_status:  'curated',
+    is_active:      1,
   });
 
   // Active family member of 'whirl': control row that SHOULD appear in the
@@ -758,19 +757,16 @@ describe('GET /freestyle/tricks/:slug — Related Tricks section narrowed', () =
 });
 
 describe('pending row visibility', () => {
-  it('pending tricks render as labeled external placeholders in the default ADD view', async () => {
+  it('pending external placeholders are excluded from the canonical ADD browse', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Active control still rendered.
     expect(res.text).toContain('whirl');
-    // Pending rows ARE surfaced as external placeholders, with the badge and
-    // adjudication note. They MUST NOT carry a detail-page anchor (inert).
-    expect(res.text).toContain('pending zorblax');
-    expect(res.text).toContain('External source, not yet adjudicated');
-    expect(res.text).toContain('not yet been fully adjudicated');
-    // No <a> link wrapping the pending name (template branches on isExternalOnly).
-    expect(res.text).not.toMatch(/<a[^>]*href="\/freestyle\/tricks\/pending-zorblax"/);
+    // External / unadjudicated placeholders belong to Emerging Vocabulary, not
+    // the canonical dictionary browse; they are excluded entirely.
+    expect(res.text).not.toContain('pending zorblax');
+    expect(res.text).not.toContain('External source, not yet adjudicated');
   });
 
   it('category view continues to hide pending tricks (canonical layout only)', async () => {
@@ -828,7 +824,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   it('renders an "Unrated / unresolved" group when at least one row has no numeric ADD', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    // The fixture seeds 'pending zorblax' with empty ADD.
+    // The fixture seeds active 'unrated quasar' with empty ADD.
     expect(res.text).toContain('Unrated / unresolved');
   });
 
