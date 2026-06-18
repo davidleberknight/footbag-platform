@@ -6001,6 +6001,37 @@ function buildStructuralFacts(
   return { familyBase, movementSystems, neighborhoods, modifiers, hasAny };
 }
 
+// Fallback modifier links for the structural-fact block when a trick has no DB
+// modifier links (folk-named compounds, curated-base rows). Recovers the
+// operators from the curator-published RESOLVED_FORMULAS operator string: split
+// on '+', and keep only tokens that are registered modifiers. Descriptive
+// operator notes (e.g. 'atomic + x-dex', 'kick (terminal stall removed)') thus
+// self-filter to their real modifiers (atomic) or to nothing.
+function deriveModifierLinksFromOperator(
+  slug: string,
+  modifierRows: readonly FreestyleTrickModifierRow[],
+): ModifierLinkInfo[] {
+  const operator = RESOLVED_FORMULAS_BY_SLUG.get(slug)?.operator ?? '';
+  if (!operator) return [];
+  const bySlug = new Map(modifierRows.map(r => [r.slug, r]));
+  const out: ModifierLinkInfo[] = [];
+  const seen = new Set<string>();
+  for (const part of operator.split('+')) {
+    const ms = trickNameToSlug(part.trim());
+    if (!ms || seen.has(ms)) continue;
+    const reg = bySlug.get(ms);
+    if (!reg) continue;
+    seen.add(ms);
+    out.push({
+      slug:    ms,
+      name:    reg.modifier_name.toLowerCase(),
+      type:    reg.modifier_type,
+      cssRole: modifierCssRole(ms, reg.modifier_type),
+    });
+  }
+  return out;
+}
+
 function buildModifierLinkMap(
   rows: FreestyleTrickModifierLinkRow[],
 ): Map<string, ModifierLinkInfo[]> {
@@ -6759,10 +6790,16 @@ export const freestyleService = {
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
           structuralFacts: (() => {
             if (!dictRow) return null;
+            // Folk-named compounds with no DB modifier links fall back to the
+            // curator-published operator so the block still shows their modifiers,
+            // movement systems, and neighborhoods.
+            const modsForFacts = currentTrickMods.length > 0
+              ? currentTrickMods
+              : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows);
             const facts = buildStructuralFacts(
               { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family },
               dictEntry?.isBase ?? false,
-              currentTrickMods,
+              modsForFacts,
             );
             return facts.hasAny ? facts : null;
           })(),

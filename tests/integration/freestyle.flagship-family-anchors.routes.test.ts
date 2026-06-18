@@ -45,6 +45,17 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, {
     slug: 'paradox', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body',
   });
+  // atomic supports the operator-fallback case (atom-smasher has no DB link).
+  insertFreestyleTrickModifier(db, {
+    slug: 'atomic', add_bonus: 1, add_bonus_rotational: 2, modifier_type: 'set',
+  });
+  // Folk-named compound with NO modifier link in the DB. Its modifiers must be
+  // recovered from the RESOLVED_FORMULAS operator ('atomic + x-dex').
+  insertFreestyleTrick(db, {
+    slug: 'atom-smasher', canonical_name: 'atom smasher', base_trick: 'mirage',
+    trick_family: 'mirage', category: 'compound', adds: '4', is_active: 1,
+    notation: 'ATOM SMASHER',
+  });
 
   // Anchor tricks: each is its own family. The slug-equals-family
   // condition activates familyAnchorContext when the family carries
@@ -242,5 +253,19 @@ describe('compact structural-fact block', () => {
     // mirage is its own family base, so the block (if present) carries no
     // Family base row pointing at itself.
     expect(block).not.toContain('Family base');
+  });
+
+  it('a folk-named compound with no DB modifier link recovers its modifiers from the operator', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/atom-smasher');
+    expect(res.status).toBe(200);
+    const block = blockOf(res.text);
+    expect(block).not.toBe('');
+    // atom-smasher operator is 'atomic + x-dex'; atomic is a registered modifier,
+    // x-dex is not, so only atomic surfaces.
+    expect(block).toContain('Modifier');
+    expect(block).toContain('href="/freestyle/modifier/atomic"');
+    expect(block).not.toContain('href="/freestyle/modifier/x-dex"');
+    // The recovered modifier also populates the movement-system row.
+    expect(block).toContain('Movement system');
   });
 });
