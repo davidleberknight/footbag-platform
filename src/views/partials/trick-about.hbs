@@ -67,6 +67,12 @@
 
   </dl>
 
+  {{!-- Curator derivatives note: a concise line pointing at major higher-ADD
+       derivatives, placed right after the build chain. --}}
+  {{#if content.aboutDerivatives}}
+  <p class="text-muted" data-about-derivatives>{{content.aboutDerivatives}}</p>
+  {{/if}}
+
   {{!-- Parent-delta line for tricks with no physical intuition prose: it would
        stand alone under a Movement intuition heading otherwise, so it lives here
        beside the build path. Tricks with prose render the delta in Movement

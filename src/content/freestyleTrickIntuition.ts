@@ -178,7 +178,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
     slug: 'torque',
     prose:
       "Torque feels like a mirage's dex pattern stitched into an osis's spin-and-clipper terminal. The body works through a mirage-style inside-then-outside swing before the support leg lifts into the osis spin; the catch arrives on the cross-body clipper. The rhythm carries mirage's directional dex at the start and resolves into osis's body-spin terminal at the end, a compound-of-canonicals compressed into a single transition. Momentum has to carry through both the dex and the spin without the body settling between them.",
-    attribution: 'Curator description: 4-ADD compound (Miraging Osis); compound-of-canonicals.',
+    attribution: 'Curator description: 4-ADD compound-of-canonicals.',
   },
   {
     slug: 'ripwalk',

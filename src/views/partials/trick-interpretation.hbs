@@ -23,8 +23,10 @@
     <h2>Naming &amp; interpretation</h2>
   </div>
   <dl class="trick-interpretation-readings">
+    {{#if content.interpretation.canonicalReading}}
     <dt class="trick-interpretation-reading-label">Canonical reading</dt>
     <dd class="trick-interpretation-reading-value">{{content.interpretation.canonicalReading}}</dd>
+    {{/if}}
     {{#if content.interpretation.historicalReadings.length}}
     <dt class="trick-interpretation-reading-label">Historical reading{{#if (gt content.interpretation.historicalReadings.length 1)}}s{{/if}}</dt>
     {{#each content.interpretation.historicalReadings}}

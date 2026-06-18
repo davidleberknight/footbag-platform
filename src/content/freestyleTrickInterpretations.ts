@@ -97,11 +97,13 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
   },
   {
     slug: 'torque',
-    canonicalReading: 'miraging osis',
+    // Canonical reading lives in the Equivalent-readings chain + Movement
+    // intuition; this slot keeps only the unique historical variant so the
+    // "miraging osis" reading is stated once on the page.
+    canonicalReading: '',
     historicalReadings: ['stepping opposite osis'],
     structuralNotes: [
-      'Both readings describe the same move; the difference is in how sources analyze it, not in how it is performed.',
-      'The canonical reading decomposes it as a miraging osis; an older reading describes it as a stepping opposite osis.',
+      'Older sources sometimes describe this same movement as stepping opposite osis. The difference is interpretive/source terminology, not a different trick.',
     ],
   },
   {

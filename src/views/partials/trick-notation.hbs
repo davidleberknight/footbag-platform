@@ -7,7 +7,7 @@
 <section class="content-section notation-display" aria-label="Trick notation">
   <div class="section-heading">
     <h2>Movement notation</h2>
-    <p class="section-intro">Notation and equivalent readings for this trick.</p>
+    {{#if content.notationSubtitle}}<p class="section-intro">{{content.notationSubtitle}}</p>{{/if}}
   </div>
   {{#if content.notationDisplay}}
   <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>

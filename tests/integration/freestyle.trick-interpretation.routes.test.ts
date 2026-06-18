@@ -133,13 +133,17 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
 });
 
 describe('Naming & interpretation overlay — interpretation note (torque)', () => {
-  it('surfaces both the canonical and historical readings of the same move', async () => {
+  it('surfaces only the historical variant (canonical reading lives in the equivalent-readings chain)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Naming &amp; interpretation');
-    expect(res.text).toMatch(/Canonical reading[\s\S]*?miraging osis/);
     expect(res.text).toMatch(/Historical reading[\s\S]*?stepping opposite osis/);
-    expect(res.text).toContain('the difference is in how sources analyze it');
+    expect(res.text).toContain('interpretive/source terminology, not a different trick');
+    // The canonical "miraging osis" reading is NOT repeated in this section.
+    expect(res.text).not.toMatch(/Canonical reading[\s\S]*?stepping opposite osis/);
+    const interpStart = res.text.indexOf('trick-interpretation');
+    const interpEnd = res.text.indexOf('</section>', interpStart);
+    expect(res.text.slice(interpStart, interpEnd)).not.toContain('miraging osis');
   });
 });
 

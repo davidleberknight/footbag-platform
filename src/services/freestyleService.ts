@@ -202,6 +202,8 @@ import {
 import {
   getTrickInterpretation,
 } from '../content/freestyleTrickInterpretations';
+import { getNotationSubtitle } from '../content/freestyleNotationSubtitles';
+import { getAboutDerivatives } from '../content/freestyleAboutDerivatives';
 import {
   resolveTrickTier,
 } from '../content/freestyleTrickTier';
@@ -1423,6 +1425,13 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
+  // Curator-authored one-line gloss under the Movement notation heading;
+  // null when no entry exists (the section heading then stands alone, never
+  // generic filler). Source: freestyleNotationSubtitles.ts.
+  notationSubtitle: string | null;
+  // Curator-authored "About" derivatives line, rendered after the build chain;
+  // null when no entry. Source: freestyleAboutDerivatives.ts.
+  aboutDerivatives: string | null;
   // NF-2B semantic-notation fallback ladder. Coexists with notationDisplay
   // (Layer 1); the ladder picks layer='equivalence' / 'base-lineage' /
   // 'curation-gap' or returns null (Layer 4 silence). See shapeSemanticNotation.
@@ -6817,6 +6826,8 @@ export const freestyleService = {
                 modifierLinks,
               )
             : null,
+          notationSubtitle: getNotationSubtitle(slug),
+          aboutDerivatives: getAboutDerivatives(slug),
           notationDisplay: dictRow
             ? shapeNotationDisplay(
                 dictRow.notation,
