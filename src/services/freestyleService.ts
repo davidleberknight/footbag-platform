@@ -1801,8 +1801,6 @@ export interface FreestyleTrickDictEntry {
   isBase: boolean;              // true when this trick IS the family base (trick_family == own slug)
   isModifier: boolean;
   isCompound: boolean;          // true for category=compound or category=dex with a different base
-  // ADD composition: null for base tricks and modifiers
-  addComposition: string | null;  // e.g. "whirl (3) + blurry (+2 on rotational) = 5"
   appliedModifiers: AppliedModifier[];
   // Family editorial note for major families
   familyNote: string | null;
@@ -5640,12 +5638,9 @@ function shapeDictEntry(
   // Look up base trick row for its ADD value
   const baseRow     = baseTrickSlug ? allTricks.find(t => t.slug === baseTrickSlug) : null;
   const baseTrickAdds = baseRow?.adds ?? null;
-  const baseAddsNum   = baseRow?.adds ? parseInt(baseRow.adds, 10) : null;
-
-  // Extract modifiers and build ADD composition
+  // Extract the applied modifiers (their count drives the modifier-link badge).
   const modifierMap = new Map(allModifiers.map(m => [m.slug, m]));
   let appliedModifiers: AppliedModifier[] = [];
-  let addComposition: string | null = null;
 
   if (hasBase && baseTrick && !isModifier) {
     const modifierSlugs = extractModifierSlugs(row.canonical_name, baseTrick);
@@ -5668,15 +5663,6 @@ function shapeDictEntry(
         };
       })
       .filter((m): m is AppliedModifier => m !== null);
-
-    if (appliedModifiers.length > 0 && baseAddsNum !== null) {
-      const totalBonus = appliedModifiers.reduce((s, m) => s + m.effectiveBonus, 0);
-      const tricksAdds = row.adds ? parseInt(row.adds, 10) : null;
-      const partsStr   = appliedModifiers
-        .map(m => `${m.name} (+${m.effectiveBonus}${m.isRotationalBase ? ' on rotational base' : ''})`)
-        .join(' + ');
-      addComposition = `${baseTrick} (${baseAddsNum}) + ${partsStr} = ${tricksAdds ?? baseAddsNum + totalBonus}`;
-    }
   }
 
   const addsNumeric = row.adds ? parseInt(row.adds, 10) : null;
@@ -5710,7 +5696,6 @@ function shapeDictEntry(
     isBase,
     isModifier,
     isCompound,
-    addComposition,
     appliedModifiers,
     familyNote:       (row.trick_family && FAMILY_NOTES[row.trick_family]) ? FAMILY_NOTES[row.trick_family] : null,
   };
