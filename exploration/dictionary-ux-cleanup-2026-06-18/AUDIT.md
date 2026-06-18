@@ -103,6 +103,32 @@ movement intuition, equivalent readings, naming/interpretation, structural
 neighbors, related families, and parser diagnostics sit below the fold. The
 structural-fact notes add one muted line per fact, not paragraphs.
 
+## Status update — jargon sweep + notation pass
+
+Applied:
+- **Feel-card jargon removed** (renders on the glossary modifier reference):
+  atomic "X-dex-like" + "recent rulings (under community review)"; blurry
+  "Folk-shorthand"; paradox + symposium "PS X shorthand".
+- **`set-detail` "modifier registry"** empty-state reworded to plain language.
+- **Equivalent-readings "pending"** flag → "not yet confirmed".
+- **`sole-survivor` notation authored** (no longer INCOMPLETE): it is the exact
+  structural twin of `spinning-symposium-whirl`
+  (`CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]`,
+  5 brackets = 5 ADD); "sole survivor" is a pun name, not a sole-surface catch
+  (correcting this report's earlier hint).
+
+Decisions / deferred:
+- **`spyro` notation NOT authored.** It is a 1-ADD gyro body primitive (= a
+  single `SPIN [BOD]`, per the genuphobia component), but as a STANDALONE trick
+  it would terminate in `[BOD]`, for which there is no precedent (every other
+  trick ends in a scored contact/delay). The bracket count is safe but the
+  structure is not; it needs curator confirmation of the standalone form.
+- **"observational" kept site-wide (curator decision).** The word is a defined,
+  explained term across ~38 glossary instances (CSS class names, a definition
+  table, family-card pedagogy). Rather than rename it, the trick-detail
+  structural-block neighborhood badge was set back to "observational" to match
+  the glossary's taught term.
+
 ## Recommended follow-ups (data, not copy)
 
 1. Populate modifier links for folk-named compounds (eggbeater, bling-blang, …).

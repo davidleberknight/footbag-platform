@@ -122,10 +122,10 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie-mirage"/);
   });
 
-  it('renders example-tricks empty state for holden-only sets with no modifier registry', async () => {
+  it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/bubba');
     expect(res.text).toContain('set-detail-examples-section--empty');
-    expect(res.text).toContain('No canonical tricks currently link this set');
+    expect(res.text).toContain('No tricks are linked to this set yet');
   });
 
   it('renders cross-links to set hub, compositional hub, and movement-system axis', async () => {

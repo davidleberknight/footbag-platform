@@ -230,10 +230,9 @@ describe('compact structural-fact block', () => {
     // Each classification carries a one-line beginner explanation.
     expect(block).toContain('structural-fact-note');
     expect(block).toContain('The hips pivot between two dexterity moves');
-    // The neighborhood grouping is marked exploratory in plain language (no
-    // "observational" jargon).
-    expect(block).toContain('>exploratory<');
-    expect(block).not.toContain('>observational<');
+    // The neighborhood grouping carries the observational layer badge, matching
+    // the glossary's defined term.
+    expect(block).toContain('>observational<');
   });
 
   it('the family base row is suppressed on the base trick page (no self-reference)', async () => {

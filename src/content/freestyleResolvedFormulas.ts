@@ -1266,7 +1266,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'spinning(+1) + symposium(+1) + whirl(3) = 5 ADD',
-    provenance:  'spinning = +1 midtime body modifier; symposium = +1 no-plant body modifier; whirl = 3 ADD core atom (rotational). PassBack folk-name resolution.',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL]',  // identical structure to spinning-symposium-whirl (its structural twin); 5 brackets match the 5 ADD.
+    provenance:  'spinning = +1 midtime body modifier; symposium = +1 no-plant body modifier; whirl = 3 ADD core atom (rotational). PassBack folk-name resolution; "sole survivor" is a pun name, not a sole-surface catch.',
   },
   {
     slug:        'spinning-paradox-mirage',

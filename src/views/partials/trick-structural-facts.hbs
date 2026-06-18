@@ -21,7 +21,7 @@
     {{/if}}
 
     {{#if content.structuralFacts.neighborhoods.length}}
-    <dt>{{#if (gt content.structuralFacts.neighborhoods.length 1)}}Movement neighborhoods{{else}}Movement neighborhood{{/if}} <span class="symbolic-layer-badge" title="An exploratory grouping by movement feel, not an official family classification">exploratory</span></dt>
+    <dt>{{#if (gt content.structuralFacts.neighborhoods.length 1)}}Movement neighborhoods{{else}}Movement neighborhood{{/if}} <span class="symbolic-layer-badge" title="Observational movement-neighborhood lens: supplementary; does not change canonical classifications">observational</span></dt>
     <dd>{{#each content.structuralFacts.neighborhoods}}<span class="structural-fact"><a href="/freestyle/tricks?view=topology#topology-{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
     {{/if}}
 
