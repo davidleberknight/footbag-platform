@@ -204,12 +204,12 @@ describe('Pre-Adrian promotion — no tautological compound-slot leakage', () =>
   });
 });
 
-describe('Pre-Adrian promotion — provenance is visible, not silently curator-authored', () => {
-  it('the RESOLVED_FORMULAS entries carry the "Pre-Adrian" provenance marker in their provenance field', () => {
+describe('Foundational-vocabulary promotion — provenance is visible, not silently curator-authored', () => {
+  it('the RESOLVED_FORMULAS entries carry the foundational-vocabulary provenance marker in their provenance field', () => {
     for (const row of PROMOTION_COHORT) {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === row.slug);
       expect(entry).toBeDefined();
-      expect(entry?.provenance ?? '').toMatch(/Pre-Adrian/);
+      expect(entry?.provenance ?? '').toMatch(/Foundational-vocabulary/);
       // None of the four are Red-confirmed; verify the provenance says so.
       expect(entry?.provenance ?? '').toMatch(/not Red-confirmed/);
     }

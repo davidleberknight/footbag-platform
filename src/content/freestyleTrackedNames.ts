@@ -12,7 +12,7 @@
 // Grouped by SOURCE, not ADD: the /freestyle/observational page
 // contract forbids grouping by external ADD claim.
 //
-// Source: the 2026-05-21 cross-source vocabulary reconciliation audit
+// Source: the cross-source vocabulary reconciliation audit
 // + SYMBOLIC_GRAMMAR_MASTER.csv (symbolic_notation_raw).
 // Reversible content module per [[feedback_reversible_content_governance]].
 

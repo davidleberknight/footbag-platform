@@ -35,9 +35,9 @@
  *     Operators with zero precedents do not appear here.
  *   - Operators that resolve to other operators in doctrine
  *     (e.g., surging = spinning + stepping per Red pt2;
- *     blurry = stepping per Red 2026-05-20) are captured via a
+ *     blurry = stepping per Red) are captured via a
  *     `decomposesTo` field.
- *   - Red rulings are cited inline (pt#, date).
+ *   - Red rulings are cited inline (pt#).
  *   - No individual names per the public-prose depersonalization rule.
  *   - When a rule has known base-specific variations (e.g., paradox
  *     direction-flip on whirl/illusion/dlo vs OP-IN retention on
@@ -448,7 +448,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     variations: [],
     confidence: 'medium',
     notes:
-      "Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox + barraging + mirage decomposition). fury op_notation is pending; nemesis is the one resolved furious-base precedent.",
+      "Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox + barraging + mirage decomposition). fury op_notation is pending; nemesis is the one resolved furious-base precedent.",
   },
 
   // ── barraging ──────────────────────────────────────────────────────
@@ -474,21 +474,21 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     variations: [],
     confidence: 'medium-high',
     notes:
-      "barraging is structurally similar to barrage (the standalone atom); the naming-disambiguation case is captured in the barrage Tier A entry. Red 2026-05-15 ratified barraging as a +1 operator distinct from the standalone trick.",
+      "barraging is structurally similar to barrage (the standalone atom); the naming-disambiguation case is captured in the barrage Tier A entry. Red ratified barraging as a +1 operator distinct from the standalone trick.",
   },
 
   // ── blurry ─────────────────────────────────────────────────────────
   {
     slug: 'blurry',
     signature:
-      "Per Red 2026-05-20: blurry = stepping (the prior \"blurry implies stepping-paradox\" reading was retired). Operates as a stepping-class operator under the current doctrine.",
-    addContribution: '+1 universal (per Red 2026-05-20 retired the +2 stepping-paradox reading)',
+      "Per Red: blurry = stepping (the prior \"blurry implies stepping-paradox\" reading was retired). Operates as a stepping-class operator under the current doctrine.",
+    addContribution: '+1 universal (per Red retired the +2 stepping-paradox reading)',
     precedents: [],
     variations: [],
     confidence: 'medium',
     decomposesTo: 'stepping',
     notes:
-      "Red 2026-05-20: blurry no longer implies paradox. Compounds using the blurry folk name (ripwalk, food-processor, blurriest, blurry-whirl, blurry-torque, blurrage) have their structural decomposition under review per the audit Bucket B. Existing chain entries that previously read as 'stepping paradox X' are being normalized; some chains carry curatorConfirmPending=true.",
+      "Red: blurry no longer implies paradox. Compounds using the blurry folk name (ripwalk, food-processor, blurriest, blurry-whirl, blurry-torque, blurrage) have their structural decomposition under review per the audit Bucket B. Existing chain entries that previously read as 'stepping paradox X' are being normalized; some chains carry curatorConfirmPending=true.",
   },
 
   // ── tapping ────────────────────────────────────────────────────────
@@ -496,7 +496,7 @@ export const OPERATOR_GRAMMAR_ENTRIES: readonly OperatorGrammarEntry[] = [
     slug: 'tapping',
     signature:
       "Inconsistent structural signature across resolved siblings. spinal-tap (tapping torque) and tap (per chain 'atomic near mirage', not tapping) demonstrate divergent patterns. tapdown carries `curatorConfirmPending=true` in the chain registry.",
-    addContribution: '+1 universal (per Red 2026-05-15 pt3)',
+    addContribution: '+1 universal (per Red pt3)',
     precedents: [
       {
         baseSlug:     'torque',

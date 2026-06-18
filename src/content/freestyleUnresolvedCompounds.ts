@@ -57,8 +57,8 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   'surgery',
   // 'tomahawk' is not flagged: strong external consensus
   // (FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl')
-  // decomposes it to ducking+paradox+whirl (far = paradox per Red
-  // 2026-05-15). The chain reading is authored in
+  // decomposes it to ducking+paradox+whirl (far = paradox per Red).
+  // The chain reading is authored in
   // freestyleSymbolicEquivalences.ts with curatorConfirmPending=false.
 ]);
 

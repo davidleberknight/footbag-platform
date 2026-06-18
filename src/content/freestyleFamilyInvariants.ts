@@ -34,7 +34,7 @@
  *     or any other canonical classification. This is a pedagogical
  *     surface, not a taxonomy column.
  *   - Plain text content; the template wraps it in <code> at render
- *     time. No tokenization in this slice (visual restraint).
+ *     time. No tokenization (visual restraint).
  */
 
 export const FAMILY_INVARIANTS: ReadonlyMap<string, string> = new Map([

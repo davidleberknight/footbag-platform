@@ -350,7 +350,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // Torque is itself the named compound for miraging osis (existing
   // chain); these stack one modifier onto torque. blurry-torque's
   // alternative "stepping paradox torque" reading was retired per the
-  // Red 2026-05-20 adjudication ("Blurry just implies stepping; it does
+  // Red adjudication ("Blurry just implies stepping; it does
   // not imply paradox anymore"). The canonical ADD remains at 6 pending
   // curator clarification on whether the value derives from stepping+
   // torque + a hidden component or whether the row should re-rank.
@@ -369,7 +369,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'blurry-torque',
     readings: ['blurry torque'],
-    curatorConfirmPending: true,   // Red 2026-05-20: blurry no longer implies paradox; structural decomposition under review
+    curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
   },
 
   // ── Dada-curve ──────────────────────────────────
@@ -393,7 +393,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   // is false because each reading is an identity transformation of the
   // canonical name (no decomposition claim beyond what the name asserts).
   // blurry-whirl's alternative "stepping paradox whirl" reading was
-  // retired per the Red 2026-05-20 adjudication ("Blurry just implies
+  // retired per the Red adjudication ("Blurry just implies
   // stepping; it does not imply paradox anymore"). Canonical ADD
   // remains at 5 pending curator clarification on the decomposition.
   {
@@ -429,7 +429,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'blurry-whirl',
     readings: ['blurry whirl'],
-    curatorConfirmPending: true,   // Red 2026-05-20: blurry no longer implies paradox; structural decomposition under review
+    curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
   },
   {
     slug:     'spinning-symposium-whirl',
@@ -465,7 +465,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'food-processor',
     readings: ['blurry blender', 'stepping paradox blender'],
-    curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (Red 2026-05-15)
+    curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (Red)
   },
   {
     slug:     'spender',
@@ -496,7 +496,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'magellan',
     readings: ['pixie legover'],
-    curatorConfirmPending: false,   // FM 'Pixie Legover (same side)' + PB 'Pixie near Legover' agree on pixie+legover; near/same-side = +0 per Red 2026-05-15
+    curatorConfirmPending: false,   // FM 'Pixie Legover (same side)' + PB 'Pixie near Legover' agree on pixie+legover; near/same-side = +0 per Red
   },
   {
     slug:     'parkwalk',
@@ -506,12 +506,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'pigbeater',
     readings: ['pixie eggbeater'],
-    curatorConfirmPending: false,   // FM 'Pixie Eggbeater' + PB 'Pixie far Eggbeater' agree (far = +0 per Red 2026-05-15)
+    curatorConfirmPending: false,   // FM 'Pixie Eggbeater' + PB 'Pixie far Eggbeater' agree (far = +0 per Red)
   },
   {
     slug:     'mind-bender',
     readings: ['ducking paradox blender'],
-    curatorConfirmPending: false,   // FM 'Ducking Paradox Blender' + PB 'Clipper Ducking far Blender' agree on ducking+paradox+blender (Clipper prefix = set-initiator; far = paradox per Red 2026-05-15)
+    curatorConfirmPending: false,   // FM 'Ducking Paradox Blender' + PB 'Clipper Ducking far Blender' agree on ducking+paradox+blender (Clipper prefix = set-initiator; far = paradox per Red)
   },
   {
     slug:     'tomahawk',
@@ -566,7 +566,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'mantis',
     readings: ['gyro eggbeater'],
-    curatorConfirmPending: false,   // FM 'Gyro Eggbeater' + PB 'Spinning near Eggbeater' agree (near=+0 positional); math gyro(+1)+eggbeater(3)=4; Red 2026-05-15 ratified 'gyro' as legit operator
+    curatorConfirmPending: false,   // FM 'Gyro Eggbeater' + PB 'Spinning near Eggbeater' agree (near=+0 positional); math gyro(+1)+eggbeater(3)=4; Red ratified 'gyro' as legit operator
   },
   {
     slug:     'nova',
@@ -576,7 +576,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'tapdown',
     readings: ['tapping butterfly'],
-    curatorConfirmPending: true,   // FM 'Tapping Butterfly' only (PB silent); math tapping(+1)+butterfly(3)=4; Red 2026-05-15 pt3 tapping=+1
+    curatorConfirmPending: true,   // FM 'Tapping Butterfly' only (PB silent); math tapping(+1)+butterfly(3)=4; Red pt3 tapping=+1
   },
   {
     slug:     'big-apple',
@@ -594,12 +594,12 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'fury',
     readings: ['furious paradox mirage'],
-    curatorConfirmPending: false,   // Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage). Math: furious(+2 rot)+paradox(+1)+mirage(2)=5
+    curatorConfirmPending: false,   // Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage). Math: furious(+2 rot)+paradox(+1)+mirage(2)=5
   },
   {
     slug:     'fog',
     readings: ['stepping paradox double leg over', 'blurry dlo'],
-    curatorConfirmPending: false,   // Red pt6 2026-05-04: Fog = Stepping Paradox Double Legover. Math: stepping(+1)+paradox(+1)+dlo(3)=5. Folk alias 'blurry dlo' preserved
+    curatorConfirmPending: false,   // Red pt6: Fog = Stepping Paradox Double Legover. Math: stepping(+1)+paradox(+1)+dlo(3)=5. Folk alias 'blurry dlo' preserved
   },
   // 'pendulum' has no chain reading: "toe swing" is just the JOB-form
   // lowercase echo and adds no information to the browse card (the JOB
@@ -632,7 +632,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'barraging-osis',
     readings: ['barraging osis'],
-    curatorConfirmPending: false,   // Red 2026-05-15 ruling: 'Baroque (Barraging Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
+    curatorConfirmPending: false,   // Red ruling: 'Baroque (Barraging Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
   },
   {
     slug:     'surging',

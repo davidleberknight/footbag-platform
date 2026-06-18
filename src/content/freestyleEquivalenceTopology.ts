@@ -29,7 +29,7 @@
  *   - Reversible by deletion. No SQL hardening, no schema migration,
  *     no auto-derivation of entries.
  *   - Source labels in publishedIn cite modules, rulings (e.g.
- *     "Red 2026-05-20"), or archival sources; never name individuals
+ *     "Red pt4"), or archival sources; never name individuals
  *     beyond codified ruling-attribution exceptions.
  */
 
@@ -133,8 +133,8 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
         reading:      'barraging legover',
         addBreakdown: 'barraging(+2) + legover(2) = 4 ADD',
         publishedIn:
-          'freestyleSymbolicEquivalences.ts (pt4-locked 2026-05-02; ' +
-          'barraging weight 2 per Red 2026-05-20)',
+          'freestyleSymbolicEquivalences.ts (pt4-locked; ' +
+          'barraging weight 2 per Red)',
       },
       {
         role:         'alternate-equivalent',
@@ -143,7 +143,7 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
         reading:      'paradox + paradox legover',
         addBreakdown: 'paradox(+1) + paradox-legover(3) = 4 ADD',
         publishedIn:
-          'freestyleDerivationPilot.ts (derivation-atlas pilot 2026-05-20)',
+          'freestyleDerivationPilot.ts (derivation-atlas pilot)',
       },
     ],
     curatorConfirmPending: false,
@@ -154,8 +154,8 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
     pattern:     'flat-stack-vs-composite-base',
     summary:
       'Witchdoctor admits two structurally distinct derivations that ' +
-      'both yield 5 ADD: a composite-base reading anchored at Red ' +
-      '2026-05-20 (atom-smasher as the structural base + symposium ' +
+      'both yield 5 ADD: a composite-base reading ' +
+      '(atom-smasher as the structural base + symposium ' +
       'modifier), and a flat-stack reading that walks atomic + ' +
       'symposium over a mirage atom. The composite reading is the ' +
       'current canonical interpretation; the flat-stack reading ' +
@@ -169,7 +169,7 @@ export const EQUIVALENCE_TOPOLOGY: readonly EquivalenceTopologyEntry[] = [
         reading:      'atom-smasher + symposium',
         addBreakdown: 'atom-smasher(4) + symposium(+1) = 5 ADD',
         publishedIn:
-          'freestyleService.ts COMPOSITE_DERIVATIONS (Red 2026-05-20; ' +
+          'freestyleService.ts COMPOSITE_DERIVATIONS (Red; ' +
           'convergence-rule supported via R1b)',
       },
       {

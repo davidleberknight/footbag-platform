@@ -108,9 +108,7 @@ export const RESOLVED_FORMULAS_FRAMING_PROSE =
   "pt-ruled compounds, positional modifiers (reverse=+0), folk-name " +
   "resolutions with curator-locked decomposition, and the first multi-" +
   "operator chain. Each row's derivation is verifiable from the " +
-  "settled operator + base inventory; no Wave 2 dependencies; no " +
-  "curator-judgment cases. Burn-down progress lives in " +
-  "formula_review_queue.md.";
+  "settled operator + base inventory; no curator-judgment cases.";
 
 // Resolved formulas accumulator. All rows were classified
 // `curator_pending` in the formula-gap classification and the
@@ -303,7 +301,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'whirling(+1) + swirl(3) = 4 ADD',
-    provenance:  'whirling = +1 midtime body modifier (post-2026-05-18 Movement System inheritance); swirl = 3 ADD core atom',
+    provenance:  'whirling = +1 midtime body modifier (Movement System inheritance); swirl = 3 ADD core atom',
   },
   {
     slug:        'paradox-blender',
@@ -383,7 +381,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'xbody(1) + dex(1) + stall(1) = 3 ADD',
     operationalNotation: 'CLIP > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
-    provenance:  'Structural ADD decomposition: rev-whirl is structurally a whirl atom (1 dex + 1 cross-body + 1 stall = 3); the reverse(+0) + whirl(3) reading is the ALT interpretation (reverse-pair transform). 2026-05-23 curator-rendered-output audit: ADD row carries the structural form; ALT row carries the reverse-pair reading.',
+    provenance:  'Structural ADD decomposition: rev-whirl is structurally a whirl atom (1 dex + 1 cross-body + 1 stall = 3); the reverse(+0) + whirl(3) reading is the ALT interpretation (reverse-pair transform). ADD row carries the structural form; ALT row carries the reverse-pair reading.',
   },
   {
     slug:        'orbit',
@@ -393,7 +391,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    2,
     derivation:  'reverse(+0) + around-the-world(2) = 2 ADD',
-    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); ATW = 2 ADD core atom (full-orbit dex + stall). orbit is the canonical slug per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15); reverse-around-the-world and reverse-atw are aliases. Slug aligned to canonical `orbit` 2026-05-19 alongside DB row activation (red_additions_2026_04_20.csv + loader 19).',
+    provenance:  'reverse = positional direction marker (+0 per Red); ATW = 2 ADD core atom (full-orbit dex + stall). orbit is the canonical slug; reverse-around-the-world and reverse-atw are aliases. Slug aligned to canonical `orbit` alongside DB row activation (red_additions + loader 19).',
   },
   {
     slug:        'paradox-symposium-whirl',
@@ -452,7 +450,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // ─── Atomic-specific x-dex contribution ──────────────────────────────
   // An atomic-modifier formula where the +1 atomic contribution is
   // augmented by a doctrine-locked atomic-specific x-dex (paradox-like)
-  // contribution from the toe-start position. Red 2026-05-15: "Atom
+  // contribution from the toe-start position. Red: "Atom
   // Smasher carries x-dex like paradox from a toe." The extra +1 is part
   // of atomic's structural identity in this compound, not a separate
   // operator. External sources (FootbagMoves) list 3 ADD by collapsing
@@ -467,8 +465,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'atomic(+1) + mirage(2) + x-dex/paradox-like contribution(+1) = 4 ADD',
-    operationalNotation: 'TOE > SAME OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; scrambled-eggbeater (atomic-pickup X-Dex) pattern + mirage base; not Red-confirmed (Red 2026-05-15 ruled the ADD-math but not the operational notation).
-    provenance:  'Red 2026-05-15 ruling: Atom Smasher carries x-dex/paradox-like extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific x-dex/paradox-like contribution, not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
+    operationalNotation: 'TOE > SAME OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; scrambled-eggbeater (atomic-pickup X-Dex) pattern + mirage base; not Red-confirmed (Red ruled the ADD-math but not the operational notation).
+    provenance:  'Red ruling: Atom Smasher carries x-dex/paradox-like extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific x-dex/paradox-like contribution, not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
   },
 
   // ─── Movement-element components ─────────────────────────────────────
@@ -508,7 +506,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     1,
     totalAdd:    2,
     derivation:  'toe(1) + swing(1) = 2 ADD',
-    provenance:  'Curator-locked swing-element doctrine 2026-05-19: pendulum decomposes to a toe-stall start position plus a swing movement element (+1). The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the same arithmetic with reversed element order (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
+    provenance:  'Curator-locked swing-element doctrine: pendulum decomposes to a toe-stall start position plus a swing movement element (+1). The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the same arithmetic with reversed element order (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
   },
   {
     slug:        'flying-clipper',
@@ -518,12 +516,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     1,
     totalAdd:    2,
     derivation:  'BOD(1) + clipper(1) = 2 ADD',
-    provenance:  'Curator-locked flying-modifier doctrine 2026-05-19: flying-X = flying body modifier (BOD bucket; +1 ADD) + base trick. ADD accounting renders as BOD(1) per the body-modifier bucket convention. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
+    provenance:  'Curator-locked flying-modifier doctrine: flying-X = flying body modifier (BOD bucket; +1 ADD) + base trick. ADD accounting renders as BOD(1) per the body-modifier bucket convention. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
   },
 
   // ─── Rake (direction-variant companion to pendulum) ──────────────────
   // Closes the swing-element pair. With rake active in freestyle_tricks
-  // (red_additions_2026_04_20.csv row + loader 19 reload), the second
+  // (red_additions row + loader 19 reload), the second
   // half of the direction-variant pair lands here. Arithmetic is
   // identical to pendulum (toe + swing = 2 ADD); element order is
   // reversed (swing > toe). FootbagMoves lists rake at 3 ADD; IFPA treats
@@ -538,19 +536,19 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'swing(1) + toe(1) = 2 ADD',
     operationalNotation: 'SET > SWING TOE [DEL]',
-    provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine (Red review pending).',
+    provenance:  'Direction-variant companion of pendulum. Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine (Red review pending).',
   },
 
   // ─── Fury + fog (Red pt6-locked folk compounds) ──────────────────────
   // Two folk-named compounds from the workbook missing-IFPA queue. Both
-  // have Red pt6 2026-05-04 rulings published in red_additions_2026_04_20
+  // have Red pt6 rulings published in red_additions
   // and modifier_links registered on the DB rows.
   //
-  // fury: Red pt6 2026-05-04 overrode pt4 (paradox+barraging+mirage)
+  // fury: Red pt6 overrode pt4 (paradox+barraging+mirage)
   // with the cleaner furious-paradox-mirage reading. furious is +2 on
   // rotational bases (mirage is rotational), +1 on non-rotational.
   //
-  // fog: Red pt6 2026-05-04 MODEL_CHANGE: Fog does NOT contain an
+  // fog: Red pt6 MODEL_CHANGE: Fog does NOT contain an
   // eggbeater (Bedwetter does). Decomposition uses dlo (double-leg-over)
   // as base with stepping+paradox operator stack.
 
@@ -563,7 +561,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'furious(+2 rotational) + paradox(+1) + mirage(2) = 5 ADD',
     operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation; furious multi-dex pattern (nemesis precedent) + paradox-mirage stack; not Red-confirmed (Red pt6 ruled the chain reading but not the operational notation).
-    provenance:  'Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +1 non-rotational / +2 rotational; applied to mirage (rotational base) yields +2. Chain reading published in freestyleSymbolicEquivalences.ts.',
+    provenance:  'Red pt6: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +1 non-rotational / +2 rotational; applied to mirage (rotational base) yields +2. Chain reading published in freestyleSymbolicEquivalences.ts.',
   },
   {
     slug:        'fog',
@@ -573,7 +571,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'stepping(+1) + paradox(+1) + dlo(3) = 5 ADD',
-    provenance:  'Red pt6 2026-05-04 MODEL_CHANGE: Fog does NOT contain an eggbeater (Bedwetter does). Decomposition is stepping+paradox+dlo with double-leg-over as the 3-ADD base. Folk aliases blurry dlo and blurry dim walk preserved on DB row.',
+    provenance:  'Red pt6 MODEL_CHANGE: Fog does NOT contain an eggbeater (Bedwetter does). Decomposition is stepping+paradox+dlo with double-leg-over as the 3-ADD base. Folk aliases blurry dlo and blurry dim walk preserved on DB row.',
   },
 
   // ── Low-risk compound promotions. Each derivation
@@ -600,7 +598,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'ducking(+1) + mirage(2) = 3 ADD',
-    provenance:  'ducking = +1 midtime body modifier; mirage = 2 ADD core atom (rotational). Wave 1 audit derivation 2026-05-22.',
+    provenance:  'ducking = +1 midtime body modifier; mirage = 2 ADD core atom (rotational). Audit derivation.',
   },
   {
     slug:        'paradox-drifter',
@@ -611,7 +609,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'paradox(+1) + drifter(3) = 4 ADD',
     operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation; paradox-whirl direction-flip precedent + drifter base; not Red-confirmed.
-    provenance:  'paradox = +1 body modifier; drifter = 3 ADD rotational compound base. Wave 1 audit derivation 2026-05-22.',
+    provenance:  'paradox = +1 body modifier; drifter = 3 ADD rotational compound base. Audit derivation.',
   },
   {
     slug:        'spinning-pickup',
@@ -621,7 +619,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'spinning(+1) + pickup(2) = 3 ADD',
-    provenance:  'spinning = +1 midtime body modifier; pickup = 2 ADD core atom (non-rotational). Wave 1 audit derivation 2026-05-22.',
+    provenance:  'spinning = +1 midtime body modifier; pickup = 2 ADD core atom (non-rotational). Audit derivation.',
   },
   {
     slug:        'tapping-whirl',
@@ -631,14 +629,14 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'tapping(+1) + whirl(3) = 4 ADD',
-    provenance:  'tapping = +1 body modifier; whirl = 3 ADD core atom (rotational). Wave 1 audit derivation 2026-05-22.',
+    provenance:  'tapping = +1 body modifier; whirl = 3 ADD core atom (rotational). Audit derivation.',
   },
 
   // ── Audit-derived promotions. Each entry is a
   //    parser-validated modifier × base derivation (the audit's
   //    "real-compound" path). Closes most of the remaining promotion-
   //    candidate pool from the read-only audit. No composite-modifier
-  //    expansion in this batch; the blurry-* / haze / food-processor /
+  //    expansion here; the blurry-* / haze / food-processor /
   //    mantis / nova compounds remain non-first-class until their
   //    composite-derivation entries are curator-authored.
   {
@@ -649,7 +647,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'xbody(+1) + sole-stall(2) = 3 ADD',
-    provenance:  'cross-body normalizes to xbody bucket per curator 2026-05-22; sole-stall = 2 ADD unusual-surface stall.',
+    provenance:  'cross-body normalizes to xbody bucket per curator; sole-stall = 2 ADD unusual-surface stall.',
   },
   {
     slug:        'legeater',
@@ -679,7 +677,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    3,
     derivation:  'reverse(+0) + drifter(3) = 3 ADD',
-    provenance:  'rev/reverse is directional notation (zero-ADD); drifter = 3 ADD core compound. Curator 2026-05-22: rev/reverse is alternate directional notation, not an ADD operator.',
+    provenance:  'rev/reverse is directional notation (zero-ADD); drifter = 3 ADD core compound. Curator: rev/reverse is alternate directional notation, not an ADD operator.',
   },
   {
     slug:        'scrambled-eggbeater',
@@ -811,8 +809,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    5,
     derivation:  'atom-smasher(4) + symposium(+1) = 5 ADD',
-    operationalNotation: 'CLIP > (no plant while) SAME OUT [BOD] [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; atom-smasher (atomic-mirage X-Dex) + symposium-whirl no-plant pattern; not Red-confirmed (Red 2026-05-20 ruled the ADD-math but not the operational notation).
-    provenance:  'Red 2026-05-20 adjudication: Atomic Mirage already 4 (Atom Smasher canonical); witchdoctor = Atomic Mirage + Symposium = 5 ADD. Composite reading (COMPOSITE_DERIVATIONS) — atom-smasher as the curator-canonical 4-ADD composite base.',
+    operationalNotation: 'CLIP > (no plant while) SAME OUT [BOD] [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; atom-smasher (atomic-mirage X-Dex) + symposium-whirl no-plant pattern; not Red-confirmed (Red ruled the ADD-math but not the operational notation).
+    provenance:  'Red adjudication: Atomic Mirage already 4 (Atom Smasher canonical); witchdoctor = Atomic Mirage + Symposium = 5 ADD. Composite reading (COMPOSITE_DERIVATIONS) — atom-smasher as the curator-canonical 4-ADD composite base.',
   },
   {
     slug:        'mind-bender',
@@ -1139,7 +1137,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + reverse-drifter(3) = 4 ADD',
-    provenance:  'paradox = +1 body modifier; reverse-drifter = 3 ADD compound (Wave 3 promotion). DB description "Paradox-modified reverse drifter."',
+    provenance:  'paradox = +1 body modifier; reverse-drifter = 3 ADD compound. DB description "Paradox-modified reverse drifter."',
   },
   {
     slug:        'smog',
@@ -1189,7 +1187,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'blurry(+1) + barfly(4) = 5 ADD',
-    provenance:  'blurry = +1 flat (post Red 2026-05-20 retraction; "blurry just implies stepping"); barfly = 4 ADD compound (Wave 3 promotion, ATAM-derived). Per build_trick_reconciliation_workbook.py MODIFIER_COMPOSITIONS allowlist comment: blurriest specifically uses blurry as +1 flat, NOT as the stepping+paradox carve-out applied to blur/blurry-whirl/blurry-torque/food-processor.',
+    provenance:  'blurry = +1 flat (post Red retraction; "blurry just implies stepping"); barfly = 4 ADD compound (ATAM-derived). Per build_trick_reconciliation_workbook.py MODIFIER_COMPOSITIONS allowlist comment: blurriest specifically uses blurry as +1 flat, NOT as the stepping+paradox carve-out applied to blur/blurry-whirl/blurry-torque/food-processor.',
   },
   {
     slug:        'grave-digger',
@@ -1209,7 +1207,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'ducking(+1) + paradox-whirl(4) = 5 ADD',
-    provenance:  'ducking = +1 midtime body modifier; paradox-whirl = 4 ADD compound (Wave 3 promotion). DB description "Ducking-modified paradox whirl." Folk-name resolution. Shallow-readable derivation per composite-modifier framework §6.1: treats paradox-whirl as the published 4-ADD base rather than recursively expanding to ducking(+1)+paradox(+1)+whirl(3).',
+    provenance:  'ducking = +1 midtime body modifier; paradox-whirl = 4 ADD compound. DB description "Ducking-modified paradox whirl." Folk-name resolution. Shallow-readable derivation per composite-modifier framework §6.1: treats paradox-whirl as the published 4-ADD base rather than recursively expanding to ducking(+1)+paradox(+1)+whirl(3).',
   },
   {
     slug:        'big-apple',
@@ -1236,7 +1234,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'stepping(+1) + illusion(2) = 3 ADD',
-    provenance:  'stepping = +1 body modifier; illusion = 2 ADD core atom. PassBack folk-name resolution (Stepping far Illusion). Wave 5 observational→canonical promotion 2026-05-22.',
+    provenance:  'stepping = +1 body modifier; illusion = 2 ADD core atom. PassBack folk-name resolution (Stepping far Illusion). Observational→canonical promotion.',
   },
   {
     slug:        'blaze',
@@ -1246,7 +1244,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'whirling(+1) + mirage(2) = 3 ADD',
-    provenance:  'whirling = +1 body modifier; mirage = 2 ADD core atom (rotational). PassBack folk-name resolution (Whirling far Mirage). Whirling operator settled per Movement System axes 2026-05-18.',
+    provenance:  'whirling = +1 body modifier; mirage = 2 ADD core atom (rotational). PassBack folk-name resolution (Whirling far Mirage). Whirling operator settled per Movement System axes.',
   },
   {
     slug:        'bedwetter',
@@ -1256,7 +1254,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + eggbeater(3) = 4 ADD',
-    provenance:  'stepping = +1 body modifier; eggbeater = 3 ADD compound (≡ atomic legover per pt4). PassBack folk-name resolution. Wave 5 promotion 2026-05-22.',
+    provenance:  'stepping = +1 body modifier; eggbeater = 3 ADD compound (≡ atomic legover per pt4). PassBack folk-name resolution.',
   },
   {
     slug:        'sole-survivor',
@@ -1317,7 +1315,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + barrage(3) = 4 ADD',
-    provenance:  'paradox = +1 body modifier; barrage = 3 ADD compound (Wave 3 promotion; SS=+0 per pt12 ruling). FB.org /newmoves (2003).',
+    provenance:  'paradox = +1 body modifier; barrage = 3 ADD compound (SS=+0 per pt12 ruling). FB.org /newmoves (2003).',
   },
   {
     slug:        'paradox-symposium-mirage',
@@ -1337,7 +1335,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + high-plains-drifter(4) = 5 ADD',
-    provenance:  'paradox = +1 body modifier; high-plains-drifter = 4 ADD compound (Wave 3 promotion; pt11 = miraging clipper). FB.org /newmoves; alias Paradox Double Drifter.',
+    provenance:  'paradox = +1 body modifier; high-plains-drifter = 4 ADD compound (pt11 = miraging clipper). FB.org /newmoves; alias Paradox Double Drifter.',
   },
   {
     slug:        'spinning-paradox-blender',
@@ -1367,7 +1365,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'paradox(+1) + blizzard(3) = 4 ADD',
-    provenance:  'paradox = +1 body modifier; blizzard = 3 ADD compound (canonicalized in this slice; was stepping illusion). Stepwise dependency resolved 2026-05-22 within Wave 5. FB.org /newmoves (2003).',
+    provenance:  'paradox = +1 body modifier; blizzard = 3 ADD compound (canonicalized; was stepping illusion). Stepwise dependency resolved. FB.org /newmoves (2003).',
   },
 
   // ── Doctrine-divergence pilot batch. Three rows promoted from the
@@ -1386,7 +1384,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'stepping(+1) + barrage(3) = 4 ADD',
     operationalNotation: 'CLIP > SAME IN [DEX] >> OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; tombstone (stepping drifter) stepping pattern + barrage doubled-dex base; medium confidence (stepping-on-barrage stack pattern is unprecedented); not Red-confirmed.
-    provenance:  'stepping = +1 body modifier; barrage = 3 ADD compound (Wave 3 promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (Wave 7 doctrine-divergence pilot 2026-05-23).',
+    provenance:  'stepping = +1 body modifier; barrage = 3 ADD compound (promotion via ATAM bracket-flag count). PassBack source claims 3 ADD; the +1 gap is documented as historical-divergence under Red Q7 (doctrine-divergence pilot).',
   },
   {
     slug:        'predator',
@@ -1396,7 +1394,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'atomic(+1 non-rotational) + dlo(3) = 4 ADD',
-    provenance:  'atomic = +1 non-rotational set modifier; double-leg-over (dlo) = 3 ADD compound base (dlo not in FIRST_CLASS_ROTATIONAL_BASES). PassBack source claims 3 ADD; the +1 gap may reflect pt10\'s implicit paradox-atomic framing per Red Q7. Wave 7 doctrine-divergence pilot.',
+    provenance:  'atomic = +1 non-rotational set modifier; double-leg-over (dlo) = 3 ADD compound base (dlo not in FIRST_CLASS_ROTATIONAL_BASES). PassBack source claims 3 ADD; the +1 gap may reflect pt10\'s implicit paradox-atomic framing per Red Q7. Doctrine-divergence pilot.',
   },
   {
     slug:        'schmoe',
@@ -1406,7 +1404,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    3,
     derivation:  'stepping(+1) + legover(2) = 3 ADD',
-    provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Wave 7 doctrine-divergence pilot 2026-05-23, Red Q7.',
+    provenance:  'stepping = +1 body modifier; legover = 2 ADD core atom. PassBack source claims 2 ADD (reading: Stepping near Legover); the +1 gap is the same systemic pattern as blurrage. Doctrine-divergence pilot, Red Q7.',
   },
 
   // ── Productive-multiplicity base entries (DATW + DLO) ────────────────
@@ -1453,7 +1451,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'surging(+2) + butterfly(3) = 5 ADD',
     operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; surging pattern (surge / surreal / venom) + butterfly base; not Red-confirmed.
-    provenance:  'surging primitive (2 ADD; decomposes to spinning + stepping per Red pt2); butterfly = 3 ADD core atom. Chain reading "surging butterfly" per freestyleSymbolicEquivalences.ts. Bucket A derivation backfill 2026-05-25.',
+    provenance:  'surging primitive (2 ADD; decomposes to spinning + stepping per Red pt2); butterfly = 3 ADD core atom. Chain reading "surging butterfly" per freestyleSymbolicEquivalences.ts. Bucket A derivation backfill.',
   },
   {
     slug:        'torque',
@@ -1464,7 +1462,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'miraging(+1) + osis(3) = 4 ADD',
     operationalNotation: 'SET > OP IN [DEX] > (back or front) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // Sibling-derivation; compound-of-canonicals (mirage dex + osis spin-terminal); chain reading "miraging osis" pt11-locked; not Red-confirmed for operational notation.
-    provenance:  'pt11-locked chain reading "miraging osis": torque = mirage operator (+1 dex on the osis chassis) + osis = 4 ADD. The operational notation composes mirage\'s in-to-out dex with osis\'s spin-into-clipper terminal. Bucket A derivation backfill 2026-05-25.',
+    provenance:  'pt11-locked chain reading "miraging osis": torque = mirage operator (+1 dex on the osis chassis) + osis = 4 ADD. The operational notation composes mirage\'s in-to-out dex with osis\'s spin-into-clipper terminal. Bucket A derivation backfill.',
   },
   {
     slug:        'omelette',
@@ -1475,16 +1473,16 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'atomic(+1 non-rotational) + illusion(2) = 3 ADD',
     operationalNotation: 'SET > OP OUT [DEX] >> OP IN [DEX] > OP TOE [DEL]',  // Sibling-derivation; chain reading "atomic illusion" (pt2 + followup-2026-04 locked) drives the derivation despite DB base_trick=pickup; structural conflict noted in audit; not Red-confirmed for operational notation.
-    provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 non-rotational set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill 2026-05-25.',
+    provenance:  'Chain reading "atomic illusion" per freestyleSymbolicEquivalences.ts (pt2 + followup-2026-04 locked) — derivation follows the chain, NOT the DB base_trick=pickup. Structural conflict between chain reading and DB base flagged in audit Bucket A (medium confidence). atomic = +1 non-rotational set modifier; illusion = 2 ADD core atom. Bucket A derivation backfill.',
   },
 
   // ─── Foundational-vocabulary promotion ─────────────────────────────────
   // Conservative canonical promotion for the most conspicuous
   // foundational omissions. Three new canonical rows added to
-  // legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv;
-  // operationalNotation overlays below render the JOB row pre-pipeline-
-  // rebuild. Provenance: fb.org-derived / sibling-derived; NOT Red-
-  // confirmed. Surfaces Red questions K-1..K-3 + B-1.
+  // the red_additions curated input; operationalNotation overlays
+  // below render the JOB row pre-pipeline-rebuild. Provenance:
+  // fb.org-derived / sibling-derived; NOT Red-confirmed. Surfaces
+  // Red questions K-1..K-3 + B-1.
 
   {
     slug:        'around-the-world-kick',
@@ -1494,8 +1492,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    1,
     derivation:  'dex(1) = 1 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX]',  // fb.org-derived (fborg-1add.txt); kick-rule applied; not Red-confirmed.
-    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Kick-rule derivation: remove terminal [DEL] and stall(1) from around-the-world. fb.org-derived (fborg-1add.txt "Around the World Kick"); not Red-confirmed. Surfaces Red Q K-1..K-3 in CLEANUP_AUDIT.md (kick-family ADD reading + uniform [bod] vs structural [dex] interpretation).',
+    operationalNotation: 'TOE > SAME IN [DEX]',  // fb.org-derived; kick-rule applied; not Red-confirmed.
+    provenance:  'Foundational-vocabulary promotion. Kick-rule derivation: remove terminal [DEL] and stall(1) from around-the-world. fb.org-derived ("Around the World Kick"); not Red-confirmed. Surfaces Red Q K-1..K-3 (kick-family ADD reading + uniform [bod] vs structural [dex] interpretation).',
   },
   {
     slug:        'clipper',
@@ -1506,7 +1504,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    1,
     derivation:  'xbody(1) = 1 ADD',
     operationalNotation: 'OP CLIP [XBD]',  // 1-ADD body kick into clipper position; user-spec operational form; not Red-confirmed.
-    provenance:  'Pre-Adrian foundational-vocabulary polish 2026-05-25. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Curator-published; not Red-confirmed.',
+    provenance:  'Foundational-vocabulary polish. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Curator-published; not Red-confirmed.',
   },
   {
     slug:        'triple-around-the-world',
@@ -1516,8 +1514,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'dex(3) + stall(1) = 4 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',  // Sibling-derivation from around-the-world + double-around-the-world; fb.org-derived (fborg-4add.txt); not Red-confirmed.
-    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25. Sibling-derivation from around-the-world(2) + double-around-the-world(3): three consecutive full leg circles ending in a same-side toe delay. fb.org-derived (fborg-4add.txt "Triple Around The World"); not Red-confirmed. Math: dex(3) + stall(1) = 4. Surfaces Red Q B-1 (canonical promotion) in CLEANUP_AUDIT.md.',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]',  // Sibling-derivation from around-the-world + double-around-the-world; fb.org-derived; not Red-confirmed.
+    provenance:  'Foundational-vocabulary promotion. Sibling-derivation from around-the-world(2) + double-around-the-world(3): three consecutive full leg circles ending in a same-side toe delay. fb.org-derived ("Triple Around The World"); not Red-confirmed. Math: dex(3) + stall(1) = 4. Surfaces Red Q B-1 (canonical promotion).',
   },
   {
     slug:        'double-around-the-world-heel',
@@ -1528,7 +1526,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'dex(2) + heel-stall(1) = 3 ADD',
     operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Terminal-surface variant of double-around-the-world (toe→heel + [UNS] unusual-surface tag); fb.org-derived; not Red-confirmed.
-    provenance:  'Pre-Adrian foundational-vocabulary promotion 2026-05-25 (optional in slice spec). Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
+    provenance:  'Foundational-vocabulary promotion. Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
   },
 
   // ─── Held-delay leg-over family + butterfly-kick correction ───────────
@@ -1556,8 +1554,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    2,
     derivation:  'inside-delay(1) + bod(1) = 2 ADD',
-    operationalNotation: '[set] > inside [DEL] > (hop over) [BOD]',  // Held-delay leg-over family; fb.org-derived (fborg-2add.txt "Hop Over"); not Red-confirmed.
-    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
+    operationalNotation: '[set] > inside [DEL] > (hop over) [BOD]',  // Held-delay leg-over family; fb.org-derived ("Hop Over"); not Red-confirmed.
+    provenance:  'Held-delay leg-over family. fb.org-derived: "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
   },
   {
     slug:        'walk-over',
@@ -1567,8 +1565,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    2,
     derivation:  'inside-delay(1) + dex(1) = 2 ADD',
-    operationalNotation: '[set] > inside [DEL] > OP (step over) [DEX]',  // Held-delay leg-over family; fb.org-derived (fborg-2add.txt "Walk Over" / "Step Over"); not Red-confirmed. Step-over is the fb.org alias of walk-over.
-    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
+    operationalNotation: '[set] > inside [DEL] > OP (step over) [DEX]',  // Held-delay leg-over family; fb.org-derived ("Walk Over" / "Step Over"); not Red-confirmed. Step-over is the fb.org alias of walk-over.
+    provenance:  'Held-delay leg-over family. fb.org-derived: "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
   },
   {
     slug:        'wrap',
@@ -1578,8 +1576,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    2,
     derivation:  'inside-delay(1) + dex(1) = 2 ADD',
-    operationalNotation: '[set] > inside [DEL] > (wrap) [DEX]',  // Held-delay leg-over family; new canonical row promoted in red_additions; fb.org-derived (fborg-2add.txt "Wrap"); not Red-confirmed.
-    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions_2026_04_20.csv in this slice. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
+    operationalNotation: '[set] > inside [DEL] > (wrap) [DEX]',  // Held-delay leg-over family; new canonical row promoted in red_additions; fb.org-derived ("Wrap"); not Red-confirmed.
+    provenance:  'Held-delay leg-over family. fb.org-derived: "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
   },
   {
     slug:        'butterfly-kick',
@@ -1590,7 +1588,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'bod(1) + dex(1) = 2 ADD',
     operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]',  // Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod]; drops the terminal OP CLIP [XBD] that prior IFPA DB row carried. DB correction via red_corrections; overlay carries the resolved formula.
-    provenance:  'Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
+    provenance:  'Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
   },
 
   // ─── Eclipse promotion (airborne hop-over topology) ──────────────────
@@ -1631,7 +1629,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'pixie(+1) + clipper-stall(2) = 3 ADD ([DEX] + [XBD] + [DEL])',
     operationalNotation: 'TOE > SAME IN [DEX] > OP CLIP [XBD] [DEL]',  // Sibling-derivation from drifter / fairy-clipper / spinning-clipper; opposite-side clipper terminator (OP CLIP). Not Red-confirmed.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Opposite-side clipper terminator. Sibling JOB derivation from drifter (SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]) / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
+    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Opposite-side clipper terminator. Sibling JOB derivation from drifter (SET > OP IN [DEX] > SAME CLIP [XBD] [DEL]) / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
   {
     slug:        'pixie-same-clipper',
@@ -1642,7 +1640,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'pixie(+1) + clipper-stall(2) = 3 ADD ([DEX] + [XBD] + [DEL])',
     operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',  // Sibling-derivation from drifter / fairy-clipper / spinning-clipper; same-side clipper terminator (SAME CLIP). Not Red-confirmed.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Same-side clipper terminator. Sibling JOB derivation from drifter / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
+    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red-settled inventory, pt12); clipper-stall = 2 ADD core atom. Same-side clipper terminator. Sibling JOB derivation from drifter / fairy-clipper / spinning-clipper. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
 
   // ─── Inspinning-family compound promotions (deferred-candidate
@@ -1663,7 +1661,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'inspinning(+1) + butterfly(3) = 4 ADD',
     operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed JOB. Inspinning rotation flips spin to (front) AND flips dex side OP→SAME while preserving dex direction.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7: "Modifier stacking" on PassBack Inspinning group); butterfly = 3 ADD core atom. JOB form is FB.org-confirmed via RECONCILIATION (jobs=CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]). Establishes the inspinning direction-flip rule: spin (back→front), dex side (OP→SAME), dex direction + terminal stall unchanged.',
+    provenance:  'Deferred-candidate promotion. inspinning = +1 modifier (Red pt7: "Modifier stacking" on PassBack Inspinning group); butterfly = 3 ADD core atom. JOB form is FB.org-confirmed via RECONCILIATION (jobs=CLIP > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]). Establishes the inspinning direction-flip rule: spin (back→front), dex side (OP→SAME), dex direction + terminal stall unchanged.',
   },
   {
     slug:        'inspinning-paradox-illusion',
@@ -1674,7 +1672,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'inspinning(+1) + paradox-illusion(3) = 4 ADD',
     operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME OUT [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation from spinning-paradox-illusion with the inspinning direction-flip rule established by FB.org-confirmed inspinning-butterfly. Not Red-confirmed.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7); paradox-illusion = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-illusion (CLIP > (back) SPIN [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
+    provenance:  'Deferred-candidate promotion. inspinning = +1 modifier (Red pt7); paradox-illusion = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-illusion (CLIP > (back) SPIN [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
   {
     slug:        'inspinning-paradox-mirage',
@@ -1685,7 +1683,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'inspinning(+1) + paradox-mirage(3) = 4 ADD',
     operationalNotation: 'CLIP > (front) SPIN [BOD] > SAME IN [PDX] [DEX] > OP TOE [DEL]',  // Sibling-derivation from spinning-paradox-mirage with the inspinning direction-flip rule established by FB.org-confirmed inspinning-butterfly. Not Red-confirmed.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. inspinning = +1 modifier (Red pt7); paradox-mirage = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-mirage (CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
+    provenance:  'Deferred-candidate promotion. inspinning = +1 modifier (Red pt7); paradox-mirage = 3 ADD canonical compound in DB. Sibling JOB derivation from spinning-paradox-mirage (CLIP > (back) SPIN [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]) applying the inspinning direction-flip rule (spin back→front, dex side OP→SAME) established by FB.org-confirmed inspinning-butterfly. fb.org-derived. Not Red-confirmed for this specific compound.',
   },
 
   // ─── Down-family compound promotions (deferred-candidate
@@ -1693,8 +1691,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   //     tricks). Three siblings: double-over-down + down-double-down
   //     (distinct toe-set vs clipper-set chassis at 4 ADD); down-diver
   //     (5 ADD = diving(+1) + double-over-down chassis). All three JOBs
-  //     FB.org-confirmed verbatim (JobsNotation.txt + fborg-4add.txt +
-  //     fborg-5add.txt). Diving is a body-modifier per the
+  //     FB.org-confirmed verbatim. Diving is a body-modifier per the
   //     freestyleTrickIntuition mobius/osis ontology notes (four-way
   //     ducking/diving/weaving/zulu family).
 
@@ -1706,8 +1703,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    4,
     derivation:  '[DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (two same-side OUT dexes from toe set ending opposite-leg clipper)',
-    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (JobsNotation.txt + fborg-4add.txt). Toe-set chassis with two same-side OUT dexes.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Red pt7 ruled "Down pattern" tricks (double-over down / down double-down / down diver) as Different tricks. JOB FB.org-confirmed verbatim (fborg-4add.txt + JobsNotation.txt: "TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). 4 ADD by canonical bracket convention.',
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Toe-set chassis with two same-side OUT dexes.
+    provenance:  'Deferred-candidate promotion. Red pt7 ruled "Down pattern" tricks (double-over down / down double-down / down diver) as Different tricks. JOB FB.org-confirmed verbatim ("TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). 4 ADD by canonical bracket convention.',
   },
   {
     slug:        'down-double-down',
@@ -1717,8 +1714,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    4,
     derivation:  '[DEX] + [DEX] + [XBD] + [DEL] = 4 ADD (clipper-set entry: OP/SAME dex alternation between two same-side clippers)',
-    operationalNotation: 'CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt). Clipper-set entry with alternating OP/SAME OUT dexes.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Red pt7 ruled "Down pattern" tricks as Different tricks. JOB FB.org-confirmed verbatim (fborg-4add.txt: "CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). Distinct chassis from double-over-down (clipper-set entry vs toe-set entry, OP/SAME alternation vs SAME/SAME). 4 ADD by canonical bracket convention.',
+    operationalNotation: 'CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Clipper-set entry with alternating OP/SAME OUT dexes.
+    provenance:  'Deferred-candidate promotion. Red pt7 ruled "Down pattern" tricks as Different tricks. JOB FB.org-confirmed verbatim ("CLIP > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]"). Distinct chassis from double-over-down (clipper-set entry vs toe-set entry, OP/SAME alternation vs SAME/SAME). 4 ADD by canonical bracket convention.',
   },
   {
     slug:        'down-diver',
@@ -1728,12 +1725,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'diving(+1) + double-over-down(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Diving modifier on double-over-down chassis (TOE-set, SAME/SAME dexes, NOT down-double-down despite the "Diving Down Double-Down" alias).
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). FB.org alias "Diving Down Double-Down" preserved on row. Note: RECONCILIATION formula reads "diving(+1) + down-double-down(4)" but the actual FB.org JOB chassis matches double-over-down (TOE start, SAME OUT/SAME OUT), not down-double-down (CLIP start, OP/SAME alternation). Following JOB evidence as authoritative.',
+    operationalNotation: 'TOE > DIVE [BOD] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Diving modifier on double-over-down chassis (TOE-set, SAME/SAME dexes, NOT down-double-down despite the "Diving Down Double-Down" alias).
+    provenance:  'Deferred-candidate promotion. JOB FB.org-confirmed verbatim. FB.org alias "Diving Down Double-Down" preserved on row. Note: RECONCILIATION formula reads "diving(+1) + down-double-down(4)" but the actual FB.org JOB chassis matches double-over-down (TOE start, SAME OUT/SAME OUT), not down-double-down (CLIP start, OP/SAME alternation). Following JOB evidence as authoritative.',
   },
 
   // ─── Paradox-family compound promotions (deferred-candidate
-  //     follow-on). Two compounds, both FB.org-confirmed JOBs (fborg-5add.txt).
+  //     follow-on). Two compounds, both FB.org-confirmed JOBs.
   //     Standard paradox-prefix pattern: the base's leading dex is replaced
   //     by SAME IN [PDX] [DEX] (adds the [PDX] component flag for the +1
   //     ADD). Most paradox-* compounds already in DB; these two are the
@@ -1747,8 +1744,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + dada-curve(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Paradox prefix on dada-curve no-plant-while chassis.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. paradox = +1 PDX modifier (Red-settled canonical inventory); dada-curve = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt). Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX].',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > (NO PLANT WHILE) OP OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Paradox prefix on dada-curve no-plant-while chassis.
+    provenance:  'Deferred-candidate promotion. paradox = +1 PDX modifier (Red-settled canonical inventory); dada-curve = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX].',
   },
   {
     slug:        'paradox-whirling-swirl',
@@ -1758,8 +1755,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Paradox prefix on whirling-swirl chassis (preserves OP BACK SWIRL second dex + SAME CLIP terminal).
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt). Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; OP BACK SWIRL second dex + SAME CLIP terminator unchanged.',
+    operationalNotation: 'CLIP > SAME IN [PDX] [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Paradox prefix on whirling-swirl chassis (preserves OP BACK SWIRL second dex + SAME CLIP terminal).
+    provenance:  'Deferred-candidate promotion. paradox = +1 PDX modifier (Red-settled canonical inventory); whirling-swirl = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. Standard paradox-prefix pattern: SAME IN [PDX] [DEX] replaces the base\'s leading OP IN [DEX]; OP BACK SWIRL second dex + SAME CLIP terminator unchanged.',
   },
 
   // ─── Symposium-pixie promotion (deferred-candidate follow-on).
@@ -1779,12 +1776,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'symposium(+1) + pixie(2) = 3 ADD ([BOD] + [DEX] + [DEL])',
     operationalNotation: 'TOE > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL]',  // Sibling-derived from symposium-prefix pattern applied to pixie base. Not Red-confirmed.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. symposium = +1 no-plant body modifier (Red-settled canonical inventory); pixie = 2 ADD set primitive in DB. JOB sibling-derived: symposium prefix wraps pixie\'s first dex with "(no plant while) [BOD]" fused on the SAME IN [DEX]. Verified against pixie-symposium-mirage in DB which carries the same symposium [BOD]+[DEX] fusion structure. Not Red-confirmed for this specific compound.',
+    provenance:  'Deferred-candidate promotion. symposium = +1 no-plant body modifier (Red-settled canonical inventory); pixie = 2 ADD set primitive in DB. JOB sibling-derived: symposium prefix wraps pixie\'s first dex with "(no plant while) [BOD]" fused on the SAME IN [DEX]. Verified against pixie-symposium-mirage in DB which carries the same symposium [BOD]+[DEX] fusion structure. Not Red-confirmed for this specific compound.',
   },
 
   // ─── Ricochet promotion (deferred-candidate follow-on).
   //     Two out-to-in dexterities from a toe set ending on a cross-body
-  //     sole (flapper) delay. FB.org-confirmed JOB (fborg-5add.txt).
+  //     sole (flapper) delay. FB.org-confirmed JOB.
   //     Base is cross-body-sole-stall (folk-name = flapper / flapper-stall;
   //     aliases already registered in DB). [UNS] flag counts +1 ADD per
   //     canonical bracket convention; the cross-body-sole-stall DB row
@@ -1799,13 +1796,13 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  '[DEX] + [DEX] + [XBD] + [UNS] + [DEL] = 5 ADD (two same-direction OUT dexes from toe set ending opposite-side sole/flapper)',
-    operationalNotation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Cross-body sole (flapper) terminator carries [XBD] [UNS] [DEL] = 3 ADD.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. JOB FB.org-confirmed verbatim (fborg-5add.txt). Base is cross-body-sole-stall (DB canonical, 3 ADD; folk-name = flapper / flapper-stall; aliases already wired). The cross-body-sole-stall row uses descriptive op_notation ([set] > sole [xbd]) while ricochet expands the terminator to canonical-bracket form ([XBD] [UNS] [DEL]) — same structure, different representational convention.',
+    operationalNotation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP SOLE [XBD] [UNS] [DEL]',  // FB.org-confirmed. Cross-body sole (flapper) terminator carries [XBD] [UNS] [DEL] = 3 ADD.
+    provenance:  'Deferred-candidate promotion. JOB FB.org-confirmed verbatim. Base is cross-body-sole-stall (DB canonical, 3 ADD; folk-name = flapper / flapper-stall; aliases already wired). The cross-body-sole-stall row uses descriptive op_notation ([set] > sole [xbd]) while ricochet expands the terminator to canonical-bracket form ([XBD] [UNS] [DEL]) — same structure, different representational convention.',
   },
 
   // ─── Flurricane promotion (deferred-candidate follow-on).
-  //     Gyro(+1) modifier on flurry(4) base = 5 ADD. FB.org-confirmed JOB
-  //     (fborg-5add.txt + gyroMoves.txt). Standard gyro-prefix pattern:
+  //     Gyro(+1) modifier on flurry(4) base = 5 ADD. FB.org-confirmed JOB.
+  //     Standard gyro-prefix pattern:
   //     (back) SPIN [BOD] prepended; first dex shifts from OP IN to
   //     SAME IN (matches gyro-* sibling pattern in DB). FB.org publishes
   //     a TOE-set variant too; CLIP-set form used as primary per fb.org
@@ -1819,13 +1816,13 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'gyro(+1) + flurry(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [DEX] + [DEL])',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // FB.org-confirmed (fborg-5add.txt + gyroMoves.txt). CLIP-set primary form (TOE-set variant also published).
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. gyro = +1 spinning-style body modifier (Red-settled via gyro-* siblings in DB: gyro-mirage, gyro-illusion, gyro-whirl, gyro-butterfly all canonical with (back) SPIN [BOD] prefix); flurry = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (fborg-5add.txt + gyroMoves.txt). FB.org alias "Gyro Flurry" wired via aliases column. FB.org also publishes a TOE-set variant (TOE > (back) SPIN [BOD] > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]); CLIP-set form used as primary per fb.org listing order.',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]',  // FB.org-confirmed. CLIP-set primary form (TOE-set variant also published).
+    provenance:  'Deferred-candidate promotion. gyro = +1 spinning-style body modifier (Red-settled via gyro-* siblings in DB: gyro-mirage, gyro-illusion, gyro-whirl, gyro-butterfly all canonical with (back) SPIN [BOD] prefix); flurry = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Gyro Flurry" wired via aliases column. FB.org also publishes a TOE-set variant (TOE > (back) SPIN [BOD] > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]); CLIP-set form used as primary per fb.org listing order.',
   },
 
   // ─── Pixie-swirl promotion (deferred-candidate follow-on).
-  //     Pixie(+1) + swirl(3) = 4 ADD. FB.org-confirmed JOB (fborg-4add.txt
-  //     + pixieMoves.txt). Standard pixie-prefix pattern: SAME IN [DEX]
+  //     Pixie(+1) + swirl(3) = 4 ADD. FB.org-confirmed JOB. Standard
+  //     pixie-prefix pattern: SAME IN [DEX]
   //     prepended to swirl base. fb.org preserves SAME/OP variant on the
   //     BACK SWIRL second dex (player choice).
 
@@ -1837,8 +1834,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'pixie(+1) + swirl(3) = 4 ADD ([DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt + pixieMoves.txt). SAME/OP variant on BACK SWIRL preserved verbatim per fb.org.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt + pixieMoves.txt). Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the BACK SWIRL second dex (player choice).',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME/OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. SAME/OP variant on BACK SWIRL preserved verbatim per fb.org.
+    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red pt12 settled); swirl = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. Pixie prefix adds SAME IN [DEX] before swirl base; fb.org preserves SAME/OP variant on the BACK SWIRL second dex (player choice).',
   },
 
   // ─── Down-family follow-ons + flux (deferred-candidate
@@ -1854,8 +1851,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'pixie(+1) + double-over-down(4) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt + pixieMoves.txt). Pixie prefix carries unusual (plant) pre-state between first dex and the double-over-down chassis.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. pixie = +1 PDX modifier (Red pt12 settled); double-over-down = 4 ADD canonical compound in DB (shipped earlier this session). JOB FB.org-confirmed verbatim (fborg-5add.txt + pixieMoves.txt). The (plant) pre-state flag between the pixie dex and the doubled-out dex pair is curator-locked per fb.org source.',
+    operationalNotation: 'TOE > SAME IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Pixie prefix carries unusual (plant) pre-state between first dex and the double-over-down chassis.
+    provenance:  'Deferred-candidate promotion. pixie = +1 PDX modifier (Red pt12 settled); double-over-down = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. The (plant) pre-state flag between the pixie dex and the doubled-out dex pair is curator-locked per fb.org source.',
   },
   {
     slug:        'scorpions-tail',
@@ -1865,8 +1862,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'spinning(+1) + down-double-down(4) = 5 ADD ([BOD] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'CLIP > (back) SPIN [bod] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt + moves-on-video.txt). lowercase [bod] preserved verbatim per fb.org source.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. spinning = +1 midtime body modifier (Red-settled canonical inventory; many spinning-* siblings in DB); down-double-down = 4 ADD canonical compound in DB (shipped earlier this session). JOB FB.org-confirmed verbatim. FB.org alias "Spinning Down Double-Down" wired via aliases column. Note: fb.org uses lowercase [bod] for the SPIN tag (most siblings use uppercase [BOD]); the source form preserved as-is.',
+    operationalNotation: 'CLIP > (back) SPIN [bod] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. lowercase [bod] preserved verbatim per fb.org source.
+    provenance:  'Deferred-candidate promotion. spinning = +1 midtime body modifier (Red-settled canonical inventory; many spinning-* siblings in DB); down-double-down = 4 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Spinning Down Double-Down" wired via aliases column. Note: fb.org uses lowercase [bod] for the SPIN tag (most siblings use uppercase [BOD]); the source form preserved as-is.',
   },
   {
     slug:        'flux',
@@ -1876,8 +1873,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'atomic(+1) + osis(3) = 4 ADD ([DEX] + [BOD] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-4add.txt). Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather than at the front.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim (fborg-4add.txt). FB.org alias "Atomic Osis" wired via aliases column.',
+    operationalNotation: 'TOE > OP OUT [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // FB.org-confirmed. Atomic prefix manifests as (FRONT) SPIN [BOD] mid-trick rather than at the front.
+    provenance:  'Deferred-candidate promotion. atomic = +1 non-rotational body modifier (Red-settled canonical inventory); osis = 3 ADD core atom in DB. JOB FB.org-confirmed verbatim. FB.org alias "Atomic Osis" wired via aliases column.',
   },
 
   // ─── Double-over-down-swirl promotion (extends just-shipped
@@ -1892,8 +1889,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     4,
     totalAdd:    5,
     derivation:  'double-over-down(4) + back-swirl dex(1) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])',
-    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed (fborg-5add.txt). Extends double-over-down with OP BACK SWIRL third dex; terminator swaps OP CLIP → SAME CLIP.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-26. Extension of double-over-down (4 ADD canonical compound in DB, shipped earlier this session). JOB FB.org-confirmed verbatim (fborg-5add.txt). The two SAME OUT dex pair from double-over-down is preserved; third dex is an OP BACK SWIRL (rotation-variant fused token); terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
+    operationalNotation: 'TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]',  // FB.org-confirmed. Extends double-over-down with OP BACK SWIRL third dex; terminator swaps OP CLIP → SAME CLIP.
+    provenance:  'Deferred-candidate promotion. Extension of double-over-down (4 ADD canonical compound in DB). JOB FB.org-confirmed verbatim. The two SAME OUT dex pair from double-over-down is preserved; third dex is an OP BACK SWIRL (rotation-variant fused token); terminator swaps from OP CLIP to SAME CLIP per fb.org source.',
   },
 
   // ─── Quantum-symposium-mirage promotion (with backside-symposium-
@@ -1910,8 +1907,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     2,
     totalAdd:    4,
     derivation:  'quantum(+1) + symposium-mirage(3) = 4 ADD ([DEX] + [BOD] + [DEX] + [DEL])',
-    operationalNotation: 'TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (fborg-4add.txt). Quantum prefix = OP IN [DEX]; symposium prefix = (no plant while) [BOD] fused with the dex.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-26. quantum = +1 set modifier (Red pt2 retired the toe- prefix in favor of quantum-; siblings quantum-mirage / quantum-illusion / quantum-butterfly all canonical in DB). symposium = +1 no-plant body modifier (canonical inventory). JOB FB.org-confirmed verbatim (fborg-4add.txt). Folk-name alias "Backside Symposium Toe Blur" wired (the "toe" prefix is the pre-Quantum folk-name retired by Red pt2).',
+    operationalNotation: 'TOE > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. Quantum prefix = OP IN [DEX]; symposium prefix = (no plant while) [BOD] fused with the dex.
+    provenance:  'Deferred-candidate promotion. quantum = +1 set modifier (Red pt2 retired the toe- prefix in favor of quantum-; siblings quantum-mirage / quantum-illusion / quantum-butterfly all canonical in DB). symposium = +1 no-plant body modifier (canonical inventory). JOB FB.org-confirmed verbatim. Folk-name alias "Backside Symposium Toe Blur" wired (the "toe" prefix is the pre-Quantum folk-name retired by Red pt2).',
   },
 
   // ─── Avalanche + spike-hammer (deferred-candidate follow-on).
@@ -1932,8 +1929,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
-    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (paradoxMoves.txt). 3-operator-stack compression of stepping ducking paradox illusion.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (paradoxMoves.txt). FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer: same modifier stack, mirage base instead of illusion (dex direction OP OUT vs OP IN).',
+    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP OUT [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. 3-operator-stack compression of stepping ducking paradox illusion.
+    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-illusion (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-illusion = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Illusion" wired. Structural twin of spike-hammer: same modifier stack, mirage base instead of illusion (dex direction OP OUT vs OP IN).',
   },
   {
     slug:        'spike-hammer',
@@ -1943,8 +1940,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    5,
     derivation:  'stepping(+1) + ducking(+1) + paradox-mirage(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])',
-    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed (paradoxMoves.txt). 3-operator-stack compression of stepping ducking paradox mirage.
-    provenance:  'Pre-Adrian deferred-candidate promotion 2026-05-25. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim (paradoxMoves.txt). FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche: same modifier stack, illusion base swapped for mirage (dex direction OP IN vs OP OUT).',
+    operationalNotation: 'CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [PDX] [DEX] > OP TOE [DEL]',  // FB.org-confirmed. 3-operator-stack compression of stepping ducking paradox mirage.
+    provenance:  'Deferred-candidate promotion. Folk-name compression of stepping + ducking + paradox-mirage (a 3-operator-stack reading). stepping = +1 dex-prepending modifier; ducking = +1 midtime body modifier; paradox-mirage = 3 ADD canonical compound in DB. JOB FB.org-confirmed verbatim. FB.org alias "Stepping Ducking Paradox Mirage" wired. Structural twin of avalanche: same modifier stack, illusion base swapped for mirage (dex direction OP IN vs OP OUT).',
   },
 
   // ── FootbagMoves single-source 8-ADD promotions (torque family). Operators
