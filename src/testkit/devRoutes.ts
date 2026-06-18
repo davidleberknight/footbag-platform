@@ -16,7 +16,6 @@ import { getDevSwitch } from './personaSwitchRoute';
 import { getDevLogin } from './personaLoginRoute';
 import { getDevPersonas } from './personaListingRoute';
 import { postDevPersonasRefresh } from './personaRefreshRoute';
-import { getDevLegacyNews } from './legacyNewsInspectRoute';
 
 export const devRouter = Router();
 
@@ -24,5 +23,3 @@ devRouter.get('/switch', getDevSwitch);
 devRouter.get('/login', getDevLogin);
 devRouter.get('/personas', getDevPersonas);
 devRouter.post('/personas/refresh', postDevPersonasRefresh);
-// Read-only inspection surface for the extracted legacy news archive (dev/staging only).
-devRouter.get('/legacy-news', getDevLegacyNews);

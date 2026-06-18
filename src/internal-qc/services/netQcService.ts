@@ -41,8 +41,6 @@ import {
 } from '../../services/netService';
 import { PageViewModel } from '../../types/page';
 import { randomUUID } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // ── Recovery signals (internal) ──────────────────────────────────────────────
 
@@ -1223,144 +1221,38 @@ export const netQcService = {
     anomalyType?: string;
     hasSuggestion?: string;
   }): PageViewModel<TeamCorrectionsContent> {
-    const csvPath = path.join(process.cwd(), 'legacy_data', 'out', 'team_anomaly_worklist.csv');
-    let rows: TeamAnomalyRow[] = [];
-
-    try {
-      const content = fs.readFileSync(csvPath, 'utf-8');
-      const lines = content.split('\n').filter(l => l.trim());
-      if (lines.length > 1) {
-        const headers = lines[0].split(',').map(h => h.trim());
-        for (let i = 1; i < lines.length; i++) {
-          const fields: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          for (const ch of lines[i]) {
-            if (ch === '"') { inQuotes = !inQuotes; continue; }
-            if (ch === ',' && !inQuotes) { fields.push(current.trim()); current = ''; continue; }
-            current += ch;
-          }
-          fields.push(current.trim());
-
-          const row: Record<string, string> = {};
-          headers.forEach((h, idx) => { row[h] = fields[idx] || ''; });
-
-          // Parse partner suggestion from notes
-          let suggestedPartner = '';
-          let cooccurrenceCount = 0;
-          const likelyMatch = (row['notes'] || '').match(/Likely partners: ([^(]+)\((\d+)x\)/);
-          if (likelyMatch) {
-            suggestedPartner = likelyMatch[1].trim();
-            cooccurrenceCount = parseInt(likelyMatch[2], 10);
-          }
-
-          const ek = row['event_key'] || '';
-          const dk = row['discipline'] || '';
-          const pl = row['placement'] || '';
-          const candidateId = `tc_${ek}_${dk}_${pl}`.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 80);
-
-          // Upsert into DB for decision persistence
-          // Extract player_a from original display (name before location annotation)
-          const playerA = (row['original_display'] || '').split('(')[0].split('/')[0].trim();
-
-          netTeamCorrectionApproval.upsertCandidate.run(
-            candidateId, ek, dk, pl,
-            row['original_display'] || '',
-            row['anomaly_type'] || '',
-            playerA || null,
-            suggestedPartner || null,
-          );
-
-          rows.push({
-            id:              candidateId,
-            eventKey:        ek,
-            eventName:       row['event_name'] || '',
-            year:            row['year'] || '',
-            discipline:      dk,
-            placement:       pl,
-            originalDisplay: row['original_display'] || '',
-            anomalyType:     row['anomaly_type'] || '',
-            severity:        row['severity'] || '',
-            suggestedAction: row['suggested_action'] || '',
-            notes:           row['notes'] || '',
-            suggestedPartner,
-            cooccurrenceCount,
-            suggestedPlayerA: playerA,
-            suggestedPlayerB: suggestedPartner,
-            decision:        null,
-            topSuggestions:  [],
-          });
-        }
-      }
-    } catch {
-      // CSV not found, return empty page
-    }
-
-    // Read decisions back from DB
+    // Source the anomaly candidates from the persisted DB table. The request
+    // path no longer reads any pipeline CSV or partner graph off disk, so nothing
+    // here depends on the soon-frozen pipeline tree; a loader owns ingest.
     const dbRows = netTeamCorrectionApproval.listAll.all() as {
-      id: string; decision: string | null;
+      id: string; event_key: string; discipline_key: string; placement: string;
+      original_display: string; anomaly_type: string;
       suggested_player_a: string | null; suggested_player_b: string | null;
+      decision: string | null;
     }[];
-    const decisionMap = new Map(dbRows.map(r => [r.id, r]));
-    for (const row of rows) {
-      const dbRow = decisionMap.get(row.id);
-      if (dbRow) {
-        row.decision = dbRow.decision;
-        if (dbRow.suggested_player_a) row.suggestedPlayerA = dbRow.suggested_player_a;
-        if (dbRow.suggested_player_b) row.suggestedPlayerB = dbRow.suggested_player_b;
-      }
-    }
-
-    // Load partner graph for richer suggestions
-    const graphPath = path.join(process.cwd(), 'legacy_data', 'out', 'partner_graph.json');
-    let partnerGraph: Record<string, { person_name: string; partners: {
-      person_id: string; person_name: string; count: number;
-      first_year: number | null; last_year: number | null;
-    }[] }> = {};
-    try {
-      partnerGraph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
-    } catch { /* graph not available */ }
-
-    // Build reverse name→pid index from graph
-    const nameToPid = new Map<string, string>();
-    for (const [pid, entry] of Object.entries(partnerGraph)) {
-      nameToPid.set(entry.person_name.toLowerCase(), pid);
-    }
-
-    // Compute graph-based suggestions for each row
-    for (const row of rows) {
-      const playerName = row.suggestedPlayerA || row.originalDisplay.split('(')[0].split('/')[0].trim();
-      const pid = nameToPid.get(playerName.toLowerCase());
-      if (!pid || !partnerGraph[pid]) continue;
-
-      const eventYear = parseInt(row.year, 10) || 0;
-      const suggestions: PartnerSuggestion[] = [];
-
-      for (const p of partnerGraph[pid].partners.slice(0, 5)) {
-        const yearDiff = (p.last_year && eventYear) ? Math.abs(eventYear - p.last_year) : 99;
-        let confidence = 'LOW';
-        if (p.count >= 5 && yearDiff <= 5) confidence = 'HIGH';
-        else if (p.count >= 3) confidence = 'MEDIUM';
-
-        if (confidence !== 'LOW') {
-          suggestions.push({
-            personName:  p.person_name,
-            count:       p.count,
-            lastYear:    p.last_year,
-            confidence,
-          });
-        }
-      }
-
-      row.topSuggestions = suggestions;
-
-      // If no suggestedPartner yet but we have a HIGH suggestion, pre-fill
-      if (!row.suggestedPartner && suggestions.length > 0 && suggestions[0].confidence === 'HIGH') {
-        row.suggestedPartner = suggestions[0].personName;
-        row.cooccurrenceCount = suggestions[0].count;
-        row.suggestedPlayerB = suggestions[0].personName;
-      }
-    }
+    let rows: TeamAnomalyRow[] = dbRows.map((r) => {
+      const playerA = r.suggested_player_a || r.original_display.split('(')[0].split('/')[0].trim();
+      const suggestedPartner = r.suggested_player_b || '';
+      return {
+        id:              r.id,
+        eventKey:        r.event_key,
+        eventName:       '',
+        year:            '',
+        discipline:      r.discipline_key,
+        placement:       r.placement,
+        originalDisplay: r.original_display,
+        anomalyType:     r.anomaly_type,
+        severity:        '',
+        suggestedAction: '',
+        notes:           '',
+        suggestedPartner,
+        cooccurrenceCount: 0,
+        suggestedPlayerA: playerA,
+        suggestedPlayerB: suggestedPartner,
+        decision:        r.decision,
+        topSuggestions:  [],
+      };
+    });
 
     // Apply filters
     if (filters.severity) rows = rows.filter(r => r.severity === filters.severity);
