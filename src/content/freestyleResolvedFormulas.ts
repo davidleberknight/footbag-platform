@@ -588,6 +588,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'torque',
     baseAdd:     4,
     totalAdd:    5,
+    operationalNotation: 'TOE > OP OUT [DEX] > OP IN [DEX] > (back or front) SPIN [BOD] > OP CLIP [XBD] [DEL]',  // atomic chassis on torque; atomic adds one outward uptime dex (+1); no X-Dex.
     derivation:  'atomic(+1) + torque(4) = 5 ADD',
     provenance:  'atomic = +1 (single outward uptime dex); the +2-rotational reading is retired. torque = 4 ADD compound base; no X-Dex (cf. atomic-drifter, the published atomic-miraging sibling at base+1).',
   },

@@ -28,6 +28,9 @@ const APPROVED = [
   { slug: 'schmoe', adds: 3, notation: 'SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
   { slug: 'blurrage', adds: 4, notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL]' },
   { slug: 'triple-around-the-world', adds: 4, notation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]' },
+  // atomic chassis on eggbeater: a leading outward uptime dex over the
+  // eggbeater base. atomic(+1) + eggbeater(3) = 4.
+  { slug: 'atomic-eggbeater', adds: 4, notation: 'TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
 ] as const;
 
 const ADD_TOKEN = /\[(DEX|BOD|DEL|XBD|PDX|UNS|XDEX)\]/g;

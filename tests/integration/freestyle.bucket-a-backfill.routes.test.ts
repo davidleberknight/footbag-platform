@@ -92,7 +92,6 @@ const ALL_BUCKET_A_SLUGS = [
 // render "canonical decomposition pending" after the Bucket A backfill. Verifies scope.
 const NEGATIVE_COHORT = [
   { slug: 'tapping-whirl', adds: '4', base: 'whirl',  bucket: 'B (tapping grammar inconsistent)' },
-  { slug: 'atomic-torque', adds: '6', base: 'torque', bucket: 'C (compound dependency)' },
 ] as const;
 
 beforeAll(async () => {
@@ -267,9 +266,9 @@ describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
 
   it('Bucket B/C/D slugs do NOT have operationalNotation in RESOLVED_FORMULAS_SPRINT_1', () => {
     // Bucket B examples: tapping-whirl (tapping grammar inconsistent)
-    // Bucket C examples: atomic-torque, blurry-torque
+    // Bucket C examples: blurry-torque
     // None of these should have been touched by the Bucket A backfill.
-    const bucketB_C_slugs = ['tapping-whirl', 'atomic-torque', 'blurry-torque', 'predator', 'bedwetter', 'schmoe'];
+    const bucketB_C_slugs = ['tapping-whirl', 'blurry-torque', 'predator', 'bedwetter', 'schmoe'];
     for (const slug of bucketB_C_slugs) {
       const entry = RESOLVED_FORMULAS_SPRINT_1.find(e => e.slug === slug);
       if (entry) {
