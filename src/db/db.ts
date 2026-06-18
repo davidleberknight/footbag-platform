@@ -8076,6 +8076,18 @@ export const stripeEvents = {
   `); },
 };
 
+// Symbolic-grammar observational layer (loaded by freestyle/loaders/26_load_symbolic_grammar.py).
+// Each statement returns full rows keyed by column name; symbolicGrammarService
+// maps them to its typed structures at read time.
+export const symbolicGrammar = {
+  get equivalenceClusters() { return db.prepare(`SELECT * FROM symbolic_equivalence_clusters`); },
+  get groupMembership()     { return db.prepare(`SELECT * FROM symbolic_group_membership`); },
+  get movementArchetypes()  { return db.prepare(`SELECT * FROM symbolic_movement_archetypes`); },
+  get topologyGroups()      { return db.prepare(`SELECT * FROM symbolic_topology_groups`); },
+  get modifierGroups()      { return db.prepare(`SELECT * FROM symbolic_modifier_groups`); },
+  get glossaryCrosslinks()  { return db.prepare(`SELECT * FROM symbolic_glossary_crosslinks`); },
+};
+
 let helperTransactionOpen = false;
 
 function rollbackHelperTransaction(): void {

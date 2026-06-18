@@ -4325,5 +4325,82 @@ CREATE TABLE net_team_correction_candidate (
 CREATE INDEX idx_net_tc_decision ON net_team_correction_candidate(decision);
 
 -- =============================================================================
+-- Symbolic-grammar observational layer.
+-- Pipeline-loaded (DELETE+INSERT) from the committed symbolic-grammar CSVs by
+-- freestyle/loaders/26_load_symbolic_grammar.py; symbolicGrammarService reads
+-- these at runtime instead of the CSV files. All columns are TEXT (the service
+-- treats every value as a string and parses numerics at read time).
+-- =============================================================================
+CREATE TABLE symbolic_equivalence_clusters (
+  cluster_id                  TEXT PRIMARY KEY,
+  cluster_label               TEXT,
+  symbolic_normalization      TEXT,
+  member_trick_slugs          TEXT,
+  ifpa_decomposition_variance TEXT,
+  add_range                   TEXT,
+  anchor_topology_group       TEXT,
+  notes                       TEXT,
+  review_status               TEXT
+);
+
+CREATE TABLE symbolic_group_membership (
+  trick_slug        TEXT,
+  symbolic_group_id TEXT,
+  membership_reason TEXT,
+  confidence        TEXT,
+  source            TEXT
+);
+CREATE INDEX idx_sgm_trick ON symbolic_group_membership(trick_slug);
+CREATE INDEX idx_sgm_group ON symbolic_group_membership(symbolic_group_id);
+
+CREATE TABLE symbolic_movement_archetypes (
+  archetype_id          TEXT PRIMARY KEY,
+  archetype_label       TEXT,
+  uptime_pattern        TEXT,
+  midtime_pattern       TEXT,
+  downtime_pattern      TEXT,
+  anchor_topology_group TEXT,
+  anchor_modifier_groups TEXT,
+  member_examples       TEXT,
+  min_adds              TEXT,
+  max_adds              TEXT,
+  educational_value     TEXT,
+  notes                 TEXT
+);
+
+CREATE TABLE symbolic_topology_groups (
+  symbolic_group_id      TEXT PRIMARY KEY,
+  display_name           TEXT,
+  classification_axis    TEXT,
+  description            TEXT,
+  representative_examples TEXT,
+  confidence_level       TEXT,
+  source_basis           TEXT,
+  review_status          TEXT
+);
+
+CREATE TABLE symbolic_modifier_groups (
+  symbolic_group_id      TEXT PRIMARY KEY,
+  display_name           TEXT,
+  classification_axis    TEXT,
+  description            TEXT,
+  representative_examples TEXT,
+  confidence_level       TEXT,
+  source_basis           TEXT,
+  review_status          TEXT
+);
+
+CREATE TABLE symbolic_glossary_crosslinks (
+  crosslink_id     TEXT PRIMARY KEY,
+  term_a           TEXT,
+  term_b           TEXT,
+  relationship     TEXT,
+  cluster          TEXT,
+  source           TEXT,
+  notes            TEXT,
+  educational_value TEXT
+);
+
+-- =============================================================================
 -- END OF SCHEMA v0.1
 -- =============================================================================

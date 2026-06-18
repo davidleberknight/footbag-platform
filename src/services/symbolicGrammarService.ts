@@ -1,43 +1,26 @@
 /**
  * symbolicGrammarService.ts
  *
- * Observational symbolic-grammar layer (Layer 3). Backed by staging CSV
- * exports loaded from the on-disk data directories named in the path
- * constants below.
+ * Observational symbolic-grammar layer (Layer 3). Backed by the symbolic_*
+ * database tables, loaded from the committed symbolic-grammar CSVs by
+ * freestyle/loaders/26_load_symbolic_grammar.py.
  *
  * This service NEVER touches canonical ontology tables. It is parallel to
  * canonical IFPA family-based relating (which lives in `freestyleRelatedTricks.ts`)
  * and is clearly distinct in:
  *   - type prefix (`Symbolic*`)
  *   - layer attribution (`layerSource: 'observational'` on every shape)
- *   - source (staging CSVs vs prepared statements)
+ *   - source (observational symbolic_* tables vs canonical relating)
  *
- * Caching: module-level lazy load. Files read once at first call; held in memory.
- * Fail-safe: if files are missing or malformed, methods return empty arrays /
+ * Caching: module-level lazy load. Rows read once at first call; held in memory.
+ * Fail-safe: if the tables are absent or empty, methods return empty arrays /
  * null. This ensures the public surface degrades gracefully rather than
  * throwing in the request path.
  *
  * Observational layer: outputs are descriptive symbolic-grammar shape, never
  * canonical doctrine.
  */
-import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
-
-// ─────────────────────────────────────────────────────────────────────────
-// Paths
-// ─────────────────────────────────────────────────────────────────────────
-
-const PROJECT_ROOT = resolve(__dirname, '../..');
-const SG2_DIR = resolve(PROJECT_ROOT, 'exploration', 'symbolic-grammar-2');
-
-const CSV_PATHS = {
-  equivClusters:     resolve(SG2_DIR, 'symbolic_equivalence_clusters.csv'),
-  membership:        resolve(SG2_DIR, 'symbolic_group_membership.csv'),
-  archetypes:        resolve(SG2_DIR, 'movement_archetype_registry.csv'),
-  topologyGroups:    resolve(SG2_DIR, 'symbolic_topology_groups.csv'),
-  modifierGroups:    resolve(SG2_DIR, 'symbolic_modifier_groups.csv'),
-  glossaryCrosslink: resolve(SG2_DIR, 'glossary_crosslinks.csv'),
-} as const;
+import { symbolicGrammar } from '../db/db';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types — all prefixed Symbolic* to mark observational layer
@@ -117,93 +100,14 @@ export interface SymbolicGlossaryCrosslink {
   layerSource:      'observational';
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Minimal RFC 4180 CSV parser — handles QUOTE_ALL output from Python csv.writer.
-// Supports embedded commas + escaped double-quotes (""). No embedded newlines
-// in the staging CSVs we own (verified at adapter build time); the parser
-// still handles them defensively.
-// ─────────────────────────────────────────────────────────────────────────
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let field = '';
-  let row: string[] = [];
-  let inQuotes = false;
-  let i = 0;
-  while (i < text.length) {
-    const ch = text[i]!;
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-          continue;
-        }
-        inQuotes = false;
-        i++;
-        continue;
-      }
-      field += ch;
-      i++;
-      continue;
-    }
-    // not in quotes
-    if (ch === '"') {
-      inQuotes = true;
-      i++;
-      continue;
-    }
-    if (ch === ',') {
-      row.push(field);
-      field = '';
-      i++;
-      continue;
-    }
-    if (ch === '\r') {
-      i++;
-      continue;
-    }
-    if (ch === '\n') {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
-      i++;
-      continue;
-    }
-    field += ch;
-    i++;
-  }
-  // Trailing field/row (no final newline)
-  if (field !== '' || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows;
-}
-
-function readCsv(path: string): Record<string, string>[] {
-  if (!existsSync(path)) return [];
-  try {
-    const text = readFileSync(path, 'utf-8');
-    const rows = parseCsv(text);
-    if (rows.length === 0) return [];
-    const header = rows[0]!;
-    const out: Record<string, string>[] = [];
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r]!;
-      // Skip empty trailing rows
-      if (row.length === 1 && row[0] === '') continue;
-      const obj: Record<string, string> = {};
-      for (let c = 0; c < header.length; c++) {
-        obj[header[c]!] = row[c] ?? '';
-      }
-      out.push(obj);
-    }
-    return out;
-  } catch {
-    return [];
-  }
+// Read a symbolic_* table as plain string records (NULL -> ''), the shape the
+// cache mapping below expects. The prepared statements live in db.ts.
+function readTable(stmt: { all(): unknown[] }): Record<string, string>[] {
+  return (stmt.all() as Record<string, unknown>[]).map((row) => {
+    const obj: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row)) obj[k] = v == null ? '' : String(v);
+    return obj;
+  });
 }
 
 function splitMembers(raw: string): string[] {
@@ -238,7 +142,7 @@ let cacheBuildAttempted = false;
 
 function buildCache(): Cache {
   // Equivalence clusters
-  const equivRows = readCsv(CSV_PATHS.equivClusters);
+  const equivRows = readTable(symbolicGrammar.equivalenceClusters);
   const equivClusters: SymbolicEquivalenceCluster[] = equivRows.map(r => ({
     clusterId:                 r['cluster_id'] ?? '',
     clusterLabel:              r['cluster_label'] ?? '',
@@ -253,7 +157,7 @@ function buildCache(): Cache {
   }));
 
   // Memberships — build two indexes (by trick + by group)
-  const membershipRows = readCsv(CSV_PATHS.membership);
+  const membershipRows = readTable(symbolicGrammar.groupMembership);
   const memberships: SymbolicGroupMembership[] = membershipRows.map(r => ({
     trickSlug:        r['trick_slug'] ?? '',
     symbolicGroupId:  r['symbolic_group_id'] ?? '',
@@ -273,7 +177,7 @@ function buildCache(): Cache {
   }
 
   // Archetypes
-  const archetypeRows = readCsv(CSV_PATHS.archetypes);
+  const archetypeRows = readTable(symbolicGrammar.movementArchetypes);
   const archetypes: SymbolicMovementArchetype[] = archetypeRows.map(r => ({
     archetypeId:           r['archetype_id'] ?? '',
     archetypeLabel:        r['archetype_label'] ?? '',
@@ -291,7 +195,7 @@ function buildCache(): Cache {
   }));
 
   // Topology groups (indexed by id)
-  const topologyRows = readCsv(CSV_PATHS.topologyGroups);
+  const topologyRows = readTable(symbolicGrammar.topologyGroups);
   const topologyById = new Map<string, SymbolicTopologyGroup>();
   for (const r of topologyRows) {
     const id = r['symbolic_group_id'] ?? '';
@@ -310,7 +214,7 @@ function buildCache(): Cache {
   }
 
   // Modifier groups (indexed by id)
-  const modifierRows = readCsv(CSV_PATHS.modifierGroups);
+  const modifierRows = readTable(symbolicGrammar.modifierGroups);
   const modifierById = new Map<string, SymbolicModifierGroup>();
   for (const r of modifierRows) {
     const id = r['symbolic_group_id'] ?? '';
@@ -329,7 +233,7 @@ function buildCache(): Cache {
   }
 
   // Crosslinks indexed by term (bidirectional: a term may appear as term_a OR term_b)
-  const crosslinkRows = readCsv(CSV_PATHS.glossaryCrosslink);
+  const crosslinkRows = readTable(symbolicGrammar.glossaryCrosslinks);
   const crosslinksByTerm = new Map<string, SymbolicGlossaryCrosslink[]>();
   for (const r of crosslinkRows) {
     const cl: SymbolicGlossaryCrosslink = {

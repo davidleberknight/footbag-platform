@@ -65,6 +65,79 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
   return { dbPath, sessionSecret };
 }
 
+// ── Symbolic-grammar seed ──────────────────────────────────────────────────
+// symbolicGrammarService reads the symbolic_* tables at runtime. Seeding every
+// test DB from the committed CSVs keeps the observational panels populated the
+// way the always-present CSVs used to be, so freestyle/glossary route tests see
+// real symbolic data without each one re-seeding.
+const SYMBOLIC_SPECS: ReadonlyArray<readonly [string, string, readonly string[]]> = [
+  ['symbolic_equivalence_clusters.csv', 'symbolic_equivalence_clusters',
+    ['cluster_id', 'cluster_label', 'symbolic_normalization', 'member_trick_slugs',
+     'ifpa_decomposition_variance', 'add_range', 'anchor_topology_group', 'notes', 'review_status']],
+  ['symbolic_group_membership.csv', 'symbolic_group_membership',
+    ['trick_slug', 'symbolic_group_id', 'membership_reason', 'confidence', 'source']],
+  ['movement_archetype_registry.csv', 'symbolic_movement_archetypes',
+    ['archetype_id', 'archetype_label', 'uptime_pattern', 'midtime_pattern', 'downtime_pattern',
+     'anchor_topology_group', 'anchor_modifier_groups', 'member_examples', 'min_adds', 'max_adds',
+     'educational_value', 'notes']],
+  ['symbolic_topology_groups.csv', 'symbolic_topology_groups',
+    ['symbolic_group_id', 'display_name', 'classification_axis', 'description',
+     'representative_examples', 'confidence_level', 'source_basis', 'review_status']],
+  ['symbolic_modifier_groups.csv', 'symbolic_modifier_groups',
+    ['symbolic_group_id', 'display_name', 'classification_axis', 'description',
+     'representative_examples', 'confidence_level', 'source_basis', 'review_status']],
+  ['glossary_crosslinks.csv', 'symbolic_glossary_crosslinks',
+    ['crosslink_id', 'term_a', 'term_b', 'relationship', 'cluster', 'source', 'notes', 'educational_value']],
+];
+
+function parseQuotedCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let field = '', row: string[] = [], q = false, i = 0;
+  while (i < text.length) {
+    const ch = text[i]!;
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i += 2; continue; } q = false; i++; continue; }
+      field += ch; i++; continue;
+    }
+    if (ch === '"') { q = true; i++; continue; }
+    if (ch === ',') { row.push(field); field = ''; i++; continue; }
+    if (ch === '\r') { i++; continue; }
+    if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += ch; i++;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Parse the CSVs once per worker; reuse across every createTestDb call.
+let symbolicSeedCache: { table: string; cols: readonly string[]; rows: string[][] }[] | null = null;
+function symbolicSeedData(): { table: string; cols: readonly string[]; rows: string[][] }[] {
+  if (symbolicSeedCache) return symbolicSeedCache;
+  const dir = path.join(process.cwd(), 'exploration', 'symbolic-grammar-2');
+  symbolicSeedCache = SYMBOLIC_SPECS.map(([file, table, cols]) => {
+    const parsed = parseQuotedCsv(fs.readFileSync(path.join(dir, file), 'utf8'));
+    const header = parsed[0] ?? [];
+    const colIdx = cols.map(c => header.indexOf(c));
+    const rows = parsed.slice(1)
+      .filter(r => !(r.length === 1 && r[0] === ''))
+      .map(r => colIdx.map(ci => (ci >= 0 ? (r[ci] ?? '') : '')));
+    return { table, cols, rows };
+  });
+  return symbolicSeedCache;
+}
+
+export function seedSymbolicGrammar(db: BetterSqlite3.Database): void {
+  const data = symbolicSeedData();
+  db.transaction(() => {
+    for (const { table, cols, rows } of data) {
+      const stmt = db.prepare(
+        `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+      );
+      for (const r of rows) stmt.run(r);
+    }
+  })();
+}
+
 /**
  * Create and initialize a test database with the full schema.
  * Returns an open db handle; caller should close it after inserting test data.
@@ -78,6 +151,7 @@ export function createTestDb(dbPath: string): BetterSqlite3.Database {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(schema);
+  seedSymbolicGrammar(db);
   return db;
 }
 

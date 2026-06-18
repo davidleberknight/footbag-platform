@@ -5,9 +5,9 @@
 #
 # Usage:  freestyle/run_freestyle.sh [path/to/footbag.db]   (default: database/footbag.db)
 #
-# Deferred (follow-up): the symbolic-grammar build + DB load. The runtime still
-# reads exploration/symbolic-grammar-2/ until that lands; it is not part of this
-# table rebuild.
+# The symbolic-grammar layer is loaded into the DB (26_load_symbolic_grammar.py)
+# and read from there at runtime. Deferred follow-up: relocating the symbolic CSVs
+# + build scripts out of exploration/ into freestyle/.
 set -euo pipefail
 cd "$(dirname "$0")/.."          # repo root
 
@@ -31,6 +31,9 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 
 # Parser population (structural_parse_json + computed_adds)
 "${PY}" "${S}/parse_freestyle_notation.py" --apply --db "${DB}"
+
+# Symbolic-grammar observational layer (read at runtime by symbolicGrammarService)
+"${PY}" "${L}/26_load_symbolic_grammar.py" --db "${DB}"
 
 # Trick-dictionary QC: hard gate (non-zero exit aborts the rebuild)
 "${PY}" "${L}/22_qc_trick_dictionary.py"        --db "${DB}"
