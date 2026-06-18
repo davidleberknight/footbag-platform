@@ -35,7 +35,7 @@ const VALID_SOURCES: ReadonlySet<DerivationSource> = new Set<DerivationSource>([
 const VALID_STATUSES: ReadonlySet<DerivationStatus> = new Set<DerivationStatus>([
   'pending-curator',
   'confirmed',
-  'wave-2-gated',
+  'doctrine-gated',
   'doctrine-locked',
 ]);
 

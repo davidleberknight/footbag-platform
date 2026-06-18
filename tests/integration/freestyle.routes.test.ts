@@ -1183,8 +1183,8 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
   });
 
   it('F7 — reference-media tiles surface their hashtag chip strip', async () => {
-    // LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7: visible hashtag layer on every
-    // curated media tile. The ref-media-audit fixture seeds tags
+    // Visible hashtag layer on every curated media tile. The
+    // ref-media-audit fixture seeds tags
     // [#ref-media-audit, #freestyle, #trick] on each item; the browse-surface
     // suppression policy hides #freestyle (freestyle-only surface) and #trick
     // (universal), leaving the trick-slug chip.

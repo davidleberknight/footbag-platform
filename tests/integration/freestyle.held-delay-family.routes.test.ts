@@ -1,6 +1,6 @@
 /**
  * Held-delay leg-over family + butterfly-kick + ATW-family first-class
- * rendering — pre-Adrian polish slice (2026-05-25).
+ * rendering.
  *
  * Three concerns under test:
  *
@@ -117,7 +117,7 @@ describe('Butterfly-kick correction — 2 ADD with [dex] [bod] reading', () => {
     expect(entry?.operationalNotation).toMatch(/\[DEX\]/);
     // The terminal [XBD] that prior IFPA DB row carried is dropped.
     expect(entry?.operationalNotation).not.toMatch(/\[XBD\]/);
-    expect(entry?.provenance ?? '').toMatch(/Curator ruling 2026-05-25/);
+    expect(entry?.provenance ?? '').toMatch(/Curator ruling: butterfly-kick = 2 ADD/);
     expect(entry?.provenance ?? '').toMatch(/Resolves Red Q K-1/);
   });
 

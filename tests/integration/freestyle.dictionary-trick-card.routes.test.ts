@@ -124,8 +124,8 @@ beforeAll(async () => {
     operational_notation: null,
   });
 
-  // F4 fixture (LANDING-AND-TRICKS-QA-REALIGNMENT-1): a trick with NULL
-  // operational notation but PRESENT in the chain registry. Must render
+  // Fixture: a trick with NULL operational notation but PRESENT in the
+  // chain registry. Must render
   // the ≡ readings without the "Notation pending" placeholder (the chain
   // already carries the structural information).
   // `torque` is in SYMBOLIC_EQUIVALENCE_CHAINS per src/content/freestyleSymbolicEquivalences.ts.

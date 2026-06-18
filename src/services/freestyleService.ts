@@ -299,7 +299,7 @@ function labelForType(recordType: string): string {
   return RECORD_TYPE_LABELS[recordType] ?? recordType;
 }
 
-// ── Media-tag display shaping (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7) ───
+// ── Media-tag display shaping ───────────────────────────────────────────
 // Raw tags come from media_tags.tag_display (e.g., "#torque", "#curated",
 // "#trick"). The browse-surface render filters out noise (`#trick` is
 // universally redundant on freestyle media; `#freestyle` is redundant on
@@ -6514,9 +6514,9 @@ export const freestyleService = {
             allRefMedia.push(r);
           }
         }
-        // Batch-load hashtag chips for every reference-media row in one round-trip
-        // (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7). Builds mediaId → raw-tag-array
-        // map; shapeReferenceMedia applies the browse-surface suppression policy.
+        // Batch-load hashtag chips for every reference-media row in one round-trip.
+        // Builds mediaId → raw-tag-array map; shapeReferenceMedia applies the
+        // browse-surface suppression policy.
         const tagRows = allRefMedia.length > 0
           ? runSqliteRead('media.queryCuratorMediaTags',
               () => queryCuratorMediaTags(allRefMedia.map(r => r.id)))

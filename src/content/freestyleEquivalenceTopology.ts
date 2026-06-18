@@ -73,7 +73,7 @@ export type DerivationSource =
 export type DerivationStatus =
   | 'pending-curator'
   | 'confirmed'
-  | 'wave-2-gated'
+  | 'doctrine-gated'
   | 'doctrine-locked';
 
 export interface DerivationPath {

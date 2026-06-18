@@ -1557,7 +1557,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'inside-delay(1) + bod(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > (hop over) [BOD]',  // Held-delay leg-over family; fb.org-derived (fborg-2add.txt "Hop Over"); not Red-confirmed.
-    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
+    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
   },
   {
     slug:        'walk-over',
@@ -1568,7 +1568,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'inside-delay(1) + dex(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > OP (step over) [DEX]',  // Held-delay leg-over family; fb.org-derived (fborg-2add.txt "Walk Over" / "Step Over"); not Red-confirmed. Step-over is the fb.org alias of walk-over.
-    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
+    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
   },
   {
     slug:        'wrap',
@@ -1579,7 +1579,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'inside-delay(1) + dex(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > (wrap) [DEX]',  // Held-delay leg-over family; new canonical row promoted in red_additions; fb.org-derived (fborg-2add.txt "Wrap"); not Red-confirmed.
-    provenance:  'Held-delay leg-over family 2026-05-25 (pre-Adrian polish). fb.org-derived (fborg-2add.txt): "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions_2026_04_20.csv in this slice. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
+    provenance:  'Held-delay leg-over family. fb.org-derived (fborg-2add.txt): "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions_2026_04_20.csv in this slice. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
   },
   {
     slug:        'butterfly-kick',
@@ -1590,7 +1590,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    2,
     derivation:  'bod(1) + dex(1) = 2 ADD',
     operationalNotation: 'SET > JUMP [BOD] > SAME or OP OUT [DEX]',  // Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod]; drops the terminal OP CLIP [XBD] that prior IFPA DB row carried. DB correction via red_corrections; overlay carries the resolved formula.
-    provenance:  'Curator ruling 2026-05-25 (pre-Adrian polish): butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
+    provenance:  'Curator ruling: butterfly-kick = 2 ADD per fb.org [dex] [bod] reading. Resolves Red Q K-1 from CLEANUP_AUDIT.md. Prior IFPA DB value of 3 ADD with terminal [XBD] is corrected via red_corrections_2026_04_20.csv in this slice. Kick rule: same topology as butterfly stall minus terminal [DEL] / stall(1).',
   },
 
   // ─── Eclipse promotion (airborne hop-over topology) ──────────────────
@@ -1609,7 +1609,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    3,
     derivation:  'bod(1) + del(1) + dex(1) = 3 ADD (jump + mid-flight inside delay + outward dex)',
     operationalNotation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)',  // Curator-supplied; fb.org-aligned (pt1 jump-bearing 3-ADD reading); airborne hop-over topology.
-    provenance:  'Curator-published operational notation 2026-05-25 (pre-Adrian polish). Eclipse structurally an airborne symposium-style evolution of hop-over topology: jump-initiated aerial dexterity sequence with mid-flight held inside delay. bod(1) + del(1) + dex(1) = 3 ADD. fb.org-aligned (pt1 ruled jump-bearing 3-ADD). Historical alias "Catwalk" preserved on DB row.',
+    provenance:  'Curator-published operational notation. Eclipse structurally an airborne symposium-style evolution of hop-over topology: jump-initiated aerial dexterity sequence with mid-flight held inside delay. bod(1) + del(1) + dex(1) = 3 ADD. fb.org-aligned (pt1 ruled jump-bearing 3-ADD). Historical alias "Catwalk" preserved on DB row.',
   },
 
   // ─── Pixie-clipper compound promotions (deferred-candidate

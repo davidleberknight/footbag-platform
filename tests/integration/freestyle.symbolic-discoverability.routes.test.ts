@@ -151,8 +151,8 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
   });
 
   it('renders eleven restrained operator-card deep-links onboarding to mature surfaces', async () => {
-    // Bumped from 10 to 11 after LANDING-AND-TRICKS-QA-REALIGNMENT-1 F2 added
-    // a GLOSSARY('blurry') deeplink on the BL operator (Blender→Blurry rename).
+    // Eleven, not ten: the BL operator carries a GLOSSARY('blurry') deeplink
+    // (from the Blender to Blurry rename).
     const res = await request(createApp()).get('/freestyle/learn');
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
     expect(matches.length).toBe(11);
