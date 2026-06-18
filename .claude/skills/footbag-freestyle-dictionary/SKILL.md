@@ -275,7 +275,7 @@ When auditing the both-empty bucket, **read the `description` column carefully**
 **Operational forever-rules also reinforced this wave:**
 - All CSV-driven via `red_corrections_2026_04_20.csv` + `red_additions_2026_04_20.csv`; loader 19 applies. Never direct DB UPDATE.
 - DB backup before each major slice (`database/footbag.db.bak-pre-{slice}-{timestamp}`)
-- Parser-populate after each loader 19 run (`python3 scripts/parse_freestyle_notation.py --apply`) per `[[feedback_parser_population_after_rebuild]]`
+- Parser-populate after each loader 19 run (`python3 freestyle/scripts/parse_freestyle_notation.py --apply`) per `[[feedback_parser_population_after_rebuild]]`
 - Casing preservation per sibling (no casing normalization without curator decision per T6 deferral)
 - ADD-math sanity check on every row (forever-rule from Wave Alpha)
 
@@ -425,8 +425,8 @@ The active dictionary descriptions follow these templates. Apply the same templa
 
 The active dictionary descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
 
-- `legacy_data/inputs/noise/tricks.csv`: canonical baseline, loaded by `event_results/scripts/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
-- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv`: Red Husted overlays, loaded by `event_results/scripts/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
+- `legacy_data/inputs/noise/tricks.csv`: canonical baseline, loaded by `freestyle/loaders/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
+- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv`: Red Husted overlays, loaded by `freestyle/loaders/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
 
 **Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
 
@@ -582,7 +582,7 @@ Rules:
 
 ### Source registry (`media_sources.csv`) and tutorial-tier classification
 
-The `tutorial-tier` set in `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` `TUTORIAL_SOURCES` is load-bearing for the coverage dashboard: a primary link counts as `STRONG_TUTORIAL` only if its `source_id` is in this set. Update both `media_sources.csv` and the script's set when registering a new trusted-tutorial source.
+The `tutorial-tier` set in `freestyle/loaders/24_qc_freestyle_media_coverage.py` `TUTORIAL_SOURCES` is load-bearing for the coverage dashboard: a primary link counts as `STRONG_TUTORIAL` only if its `source_id` is in this set. Update both `media_sources.csv` and the script's set when registering a new trusted-tutorial source.
 
 Currently registered (2026-05-03): `anz_trikz`, `tt_youtube`, `footbagspot_passback`, `footbagspot_tutorials`, `shred_global`, `footbag_foundations`, `polini_pointers`, `everything_footbag`, `flipsider_footbag`, `footbag_finland`. Record / performance source: `passback_records` (classified `WEAK_RECORD`).
 
@@ -625,7 +625,7 @@ The 193 footbag.org pending rows (loaded historically by `21_load_footbag_org_pe
 
 ### Coverage dashboard
 
-`legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py`: read-only dashboard generator. Default mode builds a fresh schema-only temp DB and runs the reset-compatible loader chain; `--db <path>` runs against an existing DB. Outputs `legacy_data/reports/freestyle_media_coverage.csv` (one row per `freestyle_tricks` slug; 17 columns including `primary_strength`, `status`, `priority_bucket`) and a markdown summary on stdout.
+`freestyle/loaders/24_qc_freestyle_media_coverage.py`: read-only dashboard generator. Default mode builds a fresh schema-only temp DB and runs the reset-compatible loader chain; `--db <path>` runs against an existing DB. Outputs `legacy_data/reports/freestyle_media_coverage.csv` (one row per `freestyle_tricks` slug; 17 columns including `primary_strength`, `status`, `priority_bucket`) and a markdown summary on stdout.
 
 Four validation checks (non-zero exit if any fail): run before every media commit:
 1. No duplicate primary per `(entity_type='trick', entity_id)`.

@@ -34,7 +34,7 @@ Every script that reads `out/*` must have its producer run earlier in the same o
 
 Sweep: list every `out/*` path the touched code reads; locate the producing script; confirm the orchestrator runs the producer first.
 
-Reference failure: 2026-04-27 staging deploy hit `FileNotFoundError` in `event_results/scripts/20_link_footbag_org_sources.py` because `event_results/scripts/18_scrape_footbag_org_moves.py` had not run.
+Reference failure: 2026-04-27 staging deploy hit `FileNotFoundError` in `freestyle/loaders/20_link_footbag_org_sources.py` because `freestyle/scripts/18_scrape_footbag_org_moves.py` had not run.
 
 ### 2. No hidden dependency on prior local state
 

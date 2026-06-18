@@ -76,7 +76,7 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 
 ## 4. PassBack-specific lessons (worked examples: do not re-litigate)
 
-- **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py`).
+- **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
 - **Same trick can have TT tutorial AND PassBack record media**: that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
 - **`#passback_records` was added to the source tag whitelist on 2026-05-06**, after the gallery-readiness audit found that existing PassBack sidecars lacked it. A backfill script appended `#passback_records` to the 37 pre-existing PassBack sidecars; the `promote_snippet_candidates.py` change ensures new ones include it. Both changes were idempotent.
 - **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `legacy_data/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
@@ -128,10 +128,10 @@ python3 scripts/_trick_tag_invariant.py
 # Post-load QC: validates every active media_items row's tag shape against
 # the dictionary; hard-fails on misroute, alias-only resolution, missing
 # semantic tag, etc.
-python3 legacy_data/event_results/scripts/25_qc_media_tag_invariant.py
+python3 freestyle/loaders/25_qc_media_tag_invariant.py
 
 # Coverage dashboard: per-trick primary-strength + priority bucketing
-python3 legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py
+python3 freestyle/loaders/24_qc_freestyle_media_coverage.py
 
 # Full DB rebuild: required for sidecar changes to land in media_items
 bash scripts/reset-local-db.sh
@@ -289,7 +289,7 @@ A new `source_id` (e.g. `passback_demos`, `footbag_org`) requires SIX coordinate
 2. `src/services/freestyleService.ts` `SOURCE_TIER` — render bucket (`TUTORIAL`/`DEMONSTRATION`/`RECORD`).
 3. `src/services/freestyleService.ts` `SOURCE_LABELS` — public source label (else the raw id renders).
 4. `legacy_data/inputs/curated/media/media_sources.csv` — a row for the source. **FK target:** `media_items.source_id REFERENCES media_sources(source_id)`; missing it makes `seed_fh_curator.py` fail mid-seed with `FOREIGN KEY constraint failed` (the txn rolls back).
-5. `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` — `DEMO_SOURCES` / `STRONG_TUTORIAL_SOURCES` / `RECORD_SOURCES`. An unregistered source is an "unrecognized source_id" **hard-fail (exit 2)** AND mis-classifies clips as `WEAK_RECORD`.
+5. `freestyle/loaders/24_qc_freestyle_media_coverage.py` — `DEMO_SOURCES` / `STRONG_TUTORIAL_SOURCES` / `RECORD_SOURCES`. An unregistered source is an "unrecognized source_id" **hard-fail (exit 2)** AND mis-classifies clips as `WEAK_RECORD`.
 6. `tests/unit/freestyleSourceTier.test.ts` — the "exactly N known sources" guard count + a per-tier shape assertion (the guard intentionally fails until updated).
 
 Conditional: if the source emits a gallery TAG `#<source>`, whitelist it in `scripts/_trick_tag_invariant.py` `UTILITY_EXACT` (NOT needed if promote emits no source tag — `passback_demos` emits only `#<slug> #freestyle #trick`). See memory `[[feedback_curated_media_source_registration]]`.
