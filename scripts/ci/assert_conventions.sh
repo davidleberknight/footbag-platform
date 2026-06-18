@@ -634,6 +634,11 @@ if ! bash scripts/ci/check_action_pinning.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: live external fetch in pipeline scripts (delegated)"
+if ! bash scripts/ci/check_no_live_pipeline_fetch.sh; then
+  violations=$((violations + 1))
+fi
+
 # Rule: tests/ comments and describe/it names never reference docs, doc-section
 # shorthands, or finding ids. A test name describes the long-term contract in
 # plain words; doc paths and section numbers rot as docs evolve, and finding

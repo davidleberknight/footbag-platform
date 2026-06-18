@@ -3,7 +3,7 @@ Script 21: Load footbag.org tricks that are NOT in our canonical dictionary as
 review_status='pending', is_active=0. Phase 2B coverage step.
 
 Reads:
-  legacy_data/out/scraped_footbag_moves.csv  (produced by script 18)
+  legacy_data/inputs/footbag_org_moves_snapshot.csv  (committed snapshot; refresh via script 18 --live)
   database/footbag.db
     freestyle_tricks
     freestyle_trick_aliases
@@ -60,7 +60,7 @@ REPO_ROOT  = SCRIPT_DIR.parents[2]
 LEGACY_DIR = SCRIPT_DIR.parents[1]
 
 DEFAULT_DB     = REPO_ROOT / "database" / "footbag.db"
-DEFAULT_SCRAPE = LEGACY_DIR / "out" / "scraped_footbag_moves.csv"
+DEFAULT_SCRAPE = LEGACY_DIR / "inputs" / "footbag_org_moves_snapshot.csv"
 
 FOOTBAG_ORG_SOURCE_ID = "footbag-org-2026-04"
 PENDING_SORT_BASE     = 10_000  # well above any curated/red sort_order

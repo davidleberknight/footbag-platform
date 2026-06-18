@@ -1,17 +1,22 @@
 """
 Script 18: Scrape freestyle move corpus from footbag.org (1–7 ADD).
 
-Reads:  http://www.footbag.org/newmoves/list/{1..7}  (no auth required)
-Writes:
-  out/scraped_footbag_moves.csv       — full scraped corpus
-  out/scraped_footbag_moves_audit.txt — comparison against current tricks.csv
+The committed snapshot (inputs/footbag_org_moves_snapshot.csv) is the build's
+source of truth: loader 21 reads it, and the freestyle rebuild never touches the
+network. A live re-scrape is an explicit pre-cutover refresh only, gated behind
+--live; without that flag this script is a no-op.
+
+Reads (only with --live):  http://www.footbag.org/newmoves/list/{1..7}
+Writes (only with --live):
+  inputs/footbag_org_moves_snapshot.csv — full scraped corpus (committed input)
+  out/scraped_footbag_moves_audit.txt   — comparison against current tricks.csv
 
 Does NOT modify the database or any seed files.
-Review the CSV and audit before running any load step.
+Review the snapshot diff and audit before committing a refreshed snapshot.
 
 Usage (from legacy_data/ with venv active):
-  python event_results/scripts/18_scrape_footbag_org_moves.py
-  python event_results/scripts/18_scrape_footbag_org_moves.py --delay 1.0
+  python event_results/scripts/18_scrape_footbag_org_moves.py           # no-op; prints the snapshot path
+  python event_results/scripts/18_scrape_footbag_org_moves.py --live    # re-scrape before cutover
 """
 
 import argparse
@@ -27,7 +32,10 @@ SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT  = SCRIPT_DIR.parents[2]
 TRICKS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "tricks.csv"
 OUT_DIR    = SCRIPT_DIR.parents[1] / "out"
-OUT_CSV    = OUT_DIR / "scraped_footbag_moves.csv"
+# The committed snapshot is the build's source of truth (loader 21 reads it); a
+# --live re-scrape overwrites it so a refresh is a deliberate, reviewable commit.
+SNAPSHOT   = SCRIPT_DIR.parents[1] / "inputs" / "footbag_org_moves_snapshot.csv"
+OUT_CSV    = SNAPSHOT
 OUT_AUDIT  = OUT_DIR / "scraped_footbag_moves_audit.txt"
 
 BASE_URL   = "http://www.footbag.org/newmoves/list/{}"
@@ -417,10 +425,22 @@ def main() -> None:
                         help="Seconds between HTTP requests (default: 0.5)")
     parser.add_argument("--add-levels", type=str, default="1,2,3,4,5,6,7",
                         help="Comma-separated ADD levels to scrape (default: 1,2,3,4,5,6,7)")
+    parser.add_argument("--live", action="store_true",
+                        help="Fetch from the live footbag.org and overwrite the committed "
+                             "snapshot. Without this flag the script is a no-op: the committed "
+                             "snapshot is the build's source of truth.")
     args = parser.parse_args()
+
+    if not args.live:
+        print("Live scrape disabled; the committed snapshot is the source of truth:")
+        print(f"  {SNAPSHOT}")
+        print("Pass --live to re-scrape footbag.org before the site is shut down at cutover; it "
+              "overwrites the snapshot for review and commit.")
+        return
 
     add_levels = [int(x.strip()) for x in args.add_levels.split(",")]
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
 
     all_tricks: list[dict] = []
 
