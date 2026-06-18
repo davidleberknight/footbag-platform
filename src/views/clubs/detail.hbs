@@ -15,6 +15,10 @@
 <div class="wrapper">
   <div class="club-detail">
 
+    {{#if content.club.isInactive}}
+    <p class="notice notice-warn">This club is inactive. It stays reachable by direct link but does not appear in the club directory. A co-leader can reactivate it at any time.</p>
+    {{/if}}
+
     <dl class="club-detail-meta">
       <dt>Location</dt>
       <dd>

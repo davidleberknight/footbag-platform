@@ -19,6 +19,7 @@ import { logger } from './config/logger';
 import { config } from './config/env';
 import { operationsPlatformService } from './services/operationsPlatformService';
 import { createTranscodeWorker } from './transcodeWorker';
+import { checkpointAndCloseDatabase } from './db/db';
 
 let stopping = false;
 
@@ -82,6 +83,16 @@ async function activePlayerExpiryLoop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    // The hashtag-statistics full rebuild keeps the aggregated counts from
+    // drifting away from the incremental updates; it is cheap and idempotent,
+    // so it rides the same daily tick.
+    try {
+      await operationsPlatformService.runHashtagStatsRebuild();
+    } catch (err) {
+      logger.error('worker: hashtag-stats rebuild unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     if (stopping) break;
     const intervalMs = operationsPlatformService.getActivePlayerExpiryIntervalMs();
     await sleep(intervalMs);
@@ -112,6 +123,10 @@ let transcodeServer: { close: () => Promise<void> } | null = null;
 
 function shutdown(signal: NodeJS.Signals): void {
   logger.info('worker: received signal, shutting down', { signal });
+  // Setting stopping breaks the loops at their next wake; both check it before
+  // touching the DB, so closing the connection here cannot race an in-flight
+  // job. Checkpoint the WAL and close so the on-disk DB is consistent for the
+  // post-stop host backup.
   stopping = true;
   if (transcodeServer) {
     transcodeServer.close().catch((err) => {
@@ -120,6 +135,7 @@ function shutdown(signal: NodeJS.Signals): void {
       });
     });
   }
+  checkpointAndCloseDatabase();
 }
 
 process.on('SIGTERM', shutdown);

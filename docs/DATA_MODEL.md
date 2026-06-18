@@ -230,9 +230,9 @@ The `tag_normalized` column stores the lowercased form; `tag_display` stores the
 ### 4.2 Clubs
 
 **Table:** `clubs`  
-**Views:** `clubs_open` (active and inactive), `clubs_all` (including archived)
+**Views:** `clubs_open` (active and inactive), `clubs_active` (active only; the public directory surface), `clubs_all` (including archived)
 
-Clubs do **not** use soft-delete. `deleted_at` and `deleted_by` are **not** present on `clubs`. Club archival sets `status = 'archived'`. `clubs_open` filters `WHERE status IN ('active', 'inactive')`; `clubs_all` includes archived rows.
+Clubs do **not** use soft-delete. `deleted_at` and `deleted_by` are **not** present on `clubs`. Club archival sets `status = 'archived'`. `clubs_open` filters `WHERE status IN ('active', 'inactive')`; `clubs_active` filters `WHERE status = 'active'`; `clubs_all` includes archived rows.
 
 `logo_media_id REFERENCES media_items(id) ON DELETE SET NULL`: deleting a media item automatically detaches it as the club logo. The application stamps `updated_at`/`updated_by` when explicitly removing a logo; the FK action covers deletion via other paths.
 
@@ -415,9 +415,9 @@ Emitted values, grouped by namespace:
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed).
 - **`legacy.*`**: `auto_link_silent_claim`, `auto_link_confirmed`, `auto_link_revert`, `auto_link_notification_failed`, `claim_initiate_notification_failed`.
 - **`wizard.*`**: `start`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
-- **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
+- **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
-- **`payment.*`**: `checkout_started`, `succeeded`, `failed`, `refunded`, `canceled`.
+- **`payment.*`**: `checkout_started`, `succeeded`, `failed`, `refunded`, `canceled`, `compliance_anonymize_failed`.
 - **`active_player.*`**: `grant`, `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`.
 - **`roster.*`**: `list`, `summary`, `export`.
@@ -1361,6 +1361,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 |------|--------|----------|
 | `members_active` | `deleted_at IS NULL` | General member lookups (non-deleted accounts) |
 | `clubs_open` | `status IN ('active','inactive')` | Render club lists and lookups (excludes archived clubs) |
+| `clubs_active` | `status = 'active'` | Public club directory listings (index + country pages); inactive clubs stay reachable by direct link |
 | `email_templates_enabled` | `is_enabled = 1` | Templates active for automated email flows |
 | `recurring_donation_subscriptions_active` | `status <> 'canceled'` | Active subscription queries |
 

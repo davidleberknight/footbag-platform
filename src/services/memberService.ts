@@ -151,6 +151,11 @@ export interface MemberSearchResult {
 export interface ActivePlayerView {
   isCurrent: boolean;
   expiresAtDisplay: string | null;
+  // True when Active Player was held but has lapsed (a past expiry, no longer
+  // current), as opposed to never having earned it. Drives the expired badge
+  // and the explanation of which benefits ended.
+  hasLapsed: boolean;
+  lapsedExplanation: string | null;
 }
 
 export interface TierStatusView {
@@ -217,6 +222,7 @@ export interface MyClubsClubView {
   leaderRole: string | null;
   leaveHref: string;
   canMarkInactive: boolean;
+  canReactivate: boolean;
   canStepDown: boolean;
   // Standing "volunteer to co-lead" affordance for an eligible member of this
   // club; clubIsLeaderless flags the more-urgent no-co-leader case.
@@ -1406,10 +1412,17 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 
   let activePlayer: ActivePlayerView | null = null;
   if (tier.tier_status === 'tier0') {
+    // A past expiry with no current status means Active Player lapsed; a null
+    // expiry means it was never earned (so nothing was lost to explain).
+    const hasLapsed = !isAp && ap.active_player_expires_at != null;
     activePlayer = {
       isCurrent: isAp,
       expiresAtDisplay: ap.active_player_expires_at
         ? formatExpiryDate(ap.active_player_expires_at)
+        : null,
+      hasLapsed,
+      lapsedExplanation: hasLapsed
+        ? 'Your Active Player status has ended, so your Tier 1 benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, a vouch, or a one-time club-join grant.'
         : null,
     };
   }
@@ -1508,6 +1521,7 @@ function buildMyClubsView(memberId: string): MyClubsView {
       leaderRole: leadership ? 'Co-leader' : null,
       leaveHref: `/clubs/${encodeURIComponent(r.club_key)}/leave`,
       canMarkInactive: leadership != null && r.club_status === 'active',
+      canReactivate: leadership != null && r.club_status === 'inactive',
       canStepDown: leadership != null,
       canVolunteer,
       volunteerHref: canVolunteer ? `/clubs/${encodeURIComponent(r.club_key)}/volunteer` : null,

@@ -229,6 +229,21 @@ export interface PublicClubMemberRow {
 
 export const db: SqliteDatabase = openDatabase(DB_FILENAME);
 
+// Graceful-shutdown hook: fold the WAL back into the main file and close the
+// connection so the on-disk DB is consistent for the final host backup that
+// runs after the container stops. Idempotent and best-effort; a failed
+// checkpoint never blocks the close (the host backup script checkpoints again
+// before its snapshot).
+export function checkpointAndCloseDatabase(): void {
+  if (!db.open) return;
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch {
+    // Swallow: a busy/locked checkpoint must not prevent a clean close.
+  }
+  db.close();
+}
+
 // Statement-group properties below are getters, not pre-compiled statements.
 // Rule: db.prepare() is only ever called inside a getter or a function body,
 // never at module top level. This decouples module load from schema readiness:
@@ -693,6 +708,37 @@ export const clubs = {
       t.tag_normalized,
       t.tag_display
     FROM clubs_open AS c
+    INNER JOIN tags AS t
+      ON t.id = c.hashtag_tag_id
+    WHERE
+      t.is_standard = 1
+      AND t.standard_type = 'club'
+    ORDER BY
+      c.country COLLATE NOCASE ASC,
+      CASE WHEN c.region IS NULL OR c.region = '' THEN 1 ELSE 0 END ASC,
+      c.region  COLLATE NOCASE ASC,
+      c.city    COLLATE NOCASE ASC,
+      c.name    COLLATE NOCASE ASC
+  `); },
+
+  // Active clubs only, for the public directory (index + country pages).
+  // Inactive clubs are reachable by direct link via getByTagNormalized but do
+  // not appear in the listings.
+  get listActive() { return db.prepare(`
+    SELECT
+      c.id          AS club_id,
+      c.name,
+      c.description,
+      c.city,
+      c.region,
+      c.country,
+      CASE WHEN c.external_url_validated_at IS NOT NULL
+            AND c.external_url_quarantine_reason IS NULL
+           THEN c.external_url ELSE NULL END AS external_url,
+      c.status,
+      t.tag_normalized,
+      t.tag_display
+    FROM clubs_active AS c
     INNER JOIN tags AS t
       ON t.id = c.hashtag_tag_id
     WHERE
@@ -8043,6 +8089,33 @@ export const payments = {
     UPDATE payments
     SET stripe_payment_intent_id = ?, updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ? AND stripe_payment_intent_id IS NULL
+  `); },
+
+  // Compliance cleanup: payments whose creation is older than the retention
+  // window and still carry member-linking PII. member_id IS NOT NULL is the
+  // not-yet-anonymized marker, so the scan is idempotent (anonymizing nulls it).
+  get listComplianceExpired() { return db.prepare(`
+    SELECT id FROM payments
+    WHERE created_at <= ?
+      AND member_id IS NOT NULL
+    ORDER BY created_at
+  `); },
+
+  // Strips the personal/linking fields after the compliance retention window,
+  // keeping the anonymized financial record (amount, type, currency, status,
+  // date) for aggregate history and referential integrity.
+  get anonymizeForCompliance() { return db.prepare(`
+    UPDATE payments
+    SET member_id                  = NULL,
+        stripe_payment_intent_id   = NULL,
+        stripe_checkout_session_id = NULL,
+        stripe_customer_id         = NULL,
+        stripe_subscription_id     = NULL,
+        recurring_subscription_id  = NULL,
+        donation_note              = NULL,
+        metadata_json              = '{}',
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
   `); },
 
   get listByMember() { return db.prepare(`

@@ -218,12 +218,58 @@ describe('curatorMediaService.uploadPhoto', () => {
     })).rejects.toThrow(/must start with '#'/);
   });
 
-  it('rejects tag with uppercase', async () => {
+  it('accepts a mixed-case tag, normalizing for match and keeping capitalization for display', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    await svc.uploadPhoto({
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#WorldsJapan'],
+    });
+    const db = openDb();
+    const row = db.prepare(
+      `SELECT tag_normalized, tag_display FROM tags WHERE tag_normalized = ?`,
+    ).get('#worldsjapan') as { tag_normalized: string; tag_display: string };
+    expect(row.tag_normalized).toBe('#worldsjapan');
+    expect(row.tag_display).toBe('#WorldsJapan');
+    db.close();
+  });
+
+  it('still rejects a reserved-namespace tag given in a different case (#CURATED)', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
     await expect(svc.uploadPhoto({
-      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#WorldsJapan'],
-    })).rejects.toThrow(/must be lowercase/);
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#CURATED'],
+    })).rejects.toThrow(/auto-applied by the curator pipeline/);
+  });
+
+  it('matches case-insensitively: a later #mixedcasematch reuses the #MixedCaseMatch row', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#MixedCaseMatch'] });
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#mixedcasematch'] });
+
+    const db = openDb();
+    const tagRows = db.prepare(
+      `SELECT tag_display FROM tags WHERE tag_normalized = ?`,
+    ).all('#mixedcasematch') as Array<{ tag_display: string }>;
+    expect(tagRows).toHaveLength(1);
+    // First capitalization seen wins the display.
+    expect(tagRows[0].tag_display).toBe('#MixedCaseMatch');
+    db.close();
+  });
+
+  it('de-duplicates case variants within one upload (no media_tags uniqueness failure)', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const result = await svc.uploadPhoto({
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#DupTag', '#duptag'],
+    });
+
+    const db = openDb();
+    const count = db.prepare(
+      `SELECT COUNT(*) AS n FROM media_tags WHERE media_id = ? AND tag_id IN (SELECT id FROM tags WHERE tag_normalized = ?)`,
+    ).get(result.mediaId, '#duptag') as { n: number };
+    expect(count.n).toBe(1);
+    db.close();
   });
 
   it('rejects non-JPEG/PNG buffer; no storage.put called', async () => {

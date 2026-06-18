@@ -575,10 +575,30 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
       .set('Cookie', ownerCookie())
       .type('form')
-      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#NotLowercase', excludeTags: '' });
+      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#bad!tag', excludeTags: '' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('form-field-error');
-    expect(res.text).toMatch(/criteria tag must be lowercase/i);
+    expect(res.text).toMatch(/criteria tag must be/i);
+  });
+
+  it('accepts a mixed-case criteria tag and resolves it to the normalized tag row', async () => {
+    await createGalleryViaApi('Mixed Case Crit Source');
+    const id = findGalleryIdByName('Mixed Case Crit Source')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Mixed Case Crit Source', description: '', sortOrder: 'upload_desc', criteriaTags: '#Freestyle', excludeTags: '' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const row = db.prepare(`
+      SELECT t.tag_normalized FROM member_gallery_tags mgt
+      JOIN tags t ON t.id = mgt.tag_id
+      WHERE mgt.gallery_id = ? AND t.tag_normalized = '#freestyle'
+    `).get(id) as { tag_normalized: string } | undefined;
+    db.close();
+    expect(row?.tag_normalized).toBe('#freestyle');
   });
 
   it('persists a valid external link on update and pre-fills it on the next edit page render', async () => {

@@ -48,7 +48,7 @@ describe('getOwnProfile().content.membership', () => {
     db.close();
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
     expect(vm.content.membership!.tierBadgeText).toBe('Tier 0 Registered Member');
-    expect(vm.content.membership!.activePlayer).toEqual({ isCurrent: false, expiresAtDisplay: null });
+    expect(vm.content.membership!.activePlayer).toEqual({ isCurrent: false, expiresAtDisplay: null, hasLapsed: false, lapsedExplanation: null });
     expect(vm.content.membership!.underlyingTierBadgeText).toBeNull();
     expect(vm.content.membership!.showTier1Upgrade).toBe(true);
     expect(vm.content.membership!.showTier2Upgrade).toBe(true);

@@ -176,7 +176,21 @@ export const clubController = {
   postLeave(req: Request, res: Response, next: NextFunction): void {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const result = clubService.leaveClub(req.user!.userId, clubId);
+      const confirmed = req.body?.confirmed === '1';
+      const result = clubService.leaveClub(req.user!.userId, clubId, { confirmed });
+
+      if (result.branch === 'needs_coleader_confirmation') {
+        const key = encodeURIComponent(req.params.key);
+        res.render('clubs/leave-confirm', {
+          seo: { title: 'Leave Club' },
+          page: { sectionKey: 'clubs', pageKey: 'clubs_leave_confirm', title: `Leave ${result.clubName}` },
+          clubName: result.clubName,
+          leaveHref: `/clubs/${key}/leave`,
+          manageCoLeadersHref: `/clubs/${key}`,
+          cancelHref: `/members/${encodeURIComponent(req.user!.slug)}`,
+        });
+        return;
+      }
 
       if (result.branch === 'not_member') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a member of this club.');
@@ -276,6 +290,24 @@ export const clubController = {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'This club is already inactive.');
       } else {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club marked inactive.');
+      }
+      res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'clubs controller');
+    }
+  },
+
+  postReactivate(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const clubId = clubService.resolveClubIdByKey(req.params.key);
+      const result = clubService.reactivateClub(req.user!.userId, clubId);
+
+      if (result.branch === 'not_leader') {
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Only club leaders can reactivate a club.');
+      } else if (result.branch === 'already_active') {
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'This club is already active.');
+      } else {
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club reactivated.');
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {

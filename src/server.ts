@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { createApp } from './app';
+import { checkpointAndCloseDatabase } from './db/db';
 // CUTOVER-REMOVE: dev/staging boot-time admin shortcuts.
 // Current: initDevShortcuts() prints the dev/staging boot banner and runs
 //   the Tier 2 invariant repair on every startup.
@@ -70,13 +71,20 @@ const server = app.listen(config.port, () => {
 
 function shutdown(signal: string): void {
   logger.info('graceful shutdown initiated', { signal });
+  // Stop accepting new requests, let in-flight ones finish (the container stop
+  // grants a 30s window), then checkpoint the WAL and close the connection so
+  // the on-disk DB is consistent for the post-stop host backup.
+  const finalize = (): void => {
+    checkpointAndCloseDatabase();
+    process.exit(0);
+  };
   if (server) {
     server.close(() => {
       logger.info('server closed');
-      process.exit(0);
+      finalize();
     });
   } else {
-    process.exit(0);
+    finalize();
   }
 }
 

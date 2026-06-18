@@ -555,15 +555,17 @@ function validateTags(tags: string[]): void {
     if (!tag.startsWith('#')) {
       throw new ValidationError(`Tag must start with '#': got "${tag}"`);
     }
-    if (tag !== tag.toLowerCase()) {
-      throw new ValidationError(`Tag must be lowercase: got "${tag}"`);
-    }
-    if (tag === CURATED_TAG) {
+    // Mixed case is accepted: the original capitalization is preserved for
+    // display and matching is case-insensitive. The reserved-namespace guards
+    // below compare on the lowercased form so attribution cannot be forged with
+    // a case variant (e.g. #CURATED or #By_<slug>).
+    const normalized = tag.toLowerCase();
+    if (normalized === CURATED_TAG) {
       throw new ValidationError(
         `The ${CURATED_TAG} tag is auto-applied by the curator pipeline and must not appear in input.`,
       );
     }
-    if (tag.startsWith(UPLOADER_TAG_PREFIX)) {
+    if (normalized.startsWith(UPLOADER_TAG_PREFIX)) {
       throw new ValidationError(
         `Tags starting with "${UPLOADER_TAG_PREFIX}" are auto-applied as uploader attribution and must not appear in input: got "${tag}"`,
       );
@@ -589,15 +591,17 @@ async function normalizeExternalUrlOrThrow(input: string | null | undefined): Pr
 // uses it as a criteria tag). The `#by_*` namespace is system-managed
 // (auto-applied as the gallery's uploader-scoping criterion) and is
 // rejected from caller input here, matching the validateTags rule.
-const GALLERY_TAG_PATTERN = /^#[a-z0-9_]{1,99}$/;
+const GALLERY_TAG_PATTERN = /^#[a-zA-Z0-9_]{1,99}$/;
 
 function validateGalleryTag(tag: string, role: 'criteria' | 'exclude'): void {
   if (!GALLERY_TAG_PATTERN.test(tag)) {
     throw new ValidationError(
-      `${role} tag must be lowercase '#' + alphanumeric/underscore (max 100 chars): got "${tag}"`,
+      `${role} tag must be '#' + alphanumeric/underscore (max 100 chars): got "${tag}"`,
     );
   }
-  if (tag.startsWith(UPLOADER_TAG_PREFIX)) {
+  // Matching is case-insensitive, so the reserved uploader namespace is rejected
+  // whatever case it is supplied in.
+  if (tag.toLowerCase().startsWith(UPLOADER_TAG_PREFIX)) {
     throw new ValidationError(
       `${role} tag "${tag}" is in the auto-applied uploader namespace and must not appear in input.`,
     );
@@ -613,14 +617,23 @@ function defaultFindSystemMemberId(): string | null {
 
 function applyTags(mediaId: string, tags: string[], now: string): string[] {
   const tagIds: string[] = [];
+  // Tags are matched case-insensitively on the lowercased form; the original
+  // capitalization is kept for display. Two case variants of the same tag
+  // (#Foo and #foo) collapse to one row, so dedupe by normalized form here to
+  // respect the (media_id, tag_id) uniqueness on media_tags.
+  const seen = new Set<string>();
   for (const tag of tags) {
-    const existing = mediaTagsDb.findTagByNormalized.get(tag) as { id: string } | undefined;
+    const normalized = tag.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const existing = mediaTagsDb.findTagByNormalized.get(normalized) as { id: string } | undefined;
     let tagId: string;
     if (existing) {
       tagId = existing.id;
     } else {
       tagId = newTagId();
-      mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+      mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
     }
     mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
     tagIds.push(tagId);
@@ -2151,7 +2164,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         // `#curated` tag via applyTagsForCurator). Idempotent: if the
         // sidecar / caller already includes `#curated`, the dedupe below
         // collapses to one occurrence.
-        if (!validated.criteriaTags.includes(CURATED_TAG)) {
+        if (!validated.criteriaTags.some((t) => t.toLowerCase() === CURATED_TAG)) {
           validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
         }
       }
@@ -2266,7 +2279,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // scopes to FH-uploaded items only. Idempotent: re-create from a
       // sidecar that already includes `#curated` collapses to one
       // occurrence. See updateGallery for the matching edit-path branch.
-      if (isFhOwned && !validated.criteriaTags.includes(CURATED_TAG)) {
+      if (isFhOwned && !validated.criteriaTags.some((t) => t.toLowerCase() === CURATED_TAG)) {
         validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
       }
 
@@ -2859,6 +2872,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // AFTER the system auto-prepends `#by_<owner_slug>`, so an empty
     // user-supplied criteriaTags is acceptable here for member-owned
     // galleries (the auto-prepend always supplies at least one).
+    // Dedup keys on the lowercased form: tags match case-insensitively, so
+    // #Freestyle and #freestyle are the same criterion.
     const seenCriteria = new Set<string>();
     for (const tag of updates.criteriaTags) {
       try {
@@ -2867,11 +2882,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const m = (err as Error).message;
         throw new ValidationError(m, { fieldErrors: { criteriaTags: m } });
       }
-      if (seenCriteria.has(tag)) {
+      const norm = tag.toLowerCase();
+      if (seenCriteria.has(norm)) {
         const m = `Duplicate criteria tag: ${tag}`;
         throw new ValidationError(m, { fieldErrors: { criteriaTags: m } });
       }
-      seenCriteria.add(tag);
+      seenCriteria.add(norm);
     }
     const seenExclude = new Set<string>();
     for (const tag of updates.excludeTags) {
@@ -2881,15 +2897,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const m = (err as Error).message;
         throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
-      if (seenExclude.has(tag)) {
+      const norm = tag.toLowerCase();
+      if (seenExclude.has(norm)) {
         const m = `Duplicate exclude tag: ${tag}`;
         throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
-      if (seenCriteria.has(tag)) {
+      if (seenCriteria.has(norm)) {
         const m = `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`;
         throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
-      seenExclude.add(tag);
+      seenExclude.add(norm);
     }
     const submittedLinks = updates.externalLinks ?? [];
     if (submittedLinks.length > config.galleryMaxExternalLinks) {
@@ -2967,9 +2984,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     now: string,
     actorMemberId: string,
   ): void {
+    // Tags resolve by their lowercased form (matching is case-insensitive) and
+    // keep their original capitalization for display; case variants collapse to
+    // one row, respecting the (gallery_id, tag_id) uniqueness on the link table.
     media.deleteAllMemberGalleryTags.run(galleryId);
+    const seenCriteria = new Set<string>();
     for (const tag of validated.criteriaTags) {
-      const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+      const normalized = tag.toLowerCase();
+      if (seenCriteria.has(normalized)) continue;
+      seenCriteria.add(normalized);
+      const existingTag = mediaTagsDb.findTagByNormalized.get(normalized) as
         | { id: string }
         | undefined;
       let tagId: string;
@@ -2977,14 +3001,18 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         tagId = existingTag.id;
       } else {
         tagId = newTagId();
-        mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+        mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
       }
       media.insertMemberGalleryTag.run(galleryId, tagId, now, actorMemberId);
     }
 
     media.deleteAllMemberGalleryExcludeTags.run(galleryId);
+    const seenExclude = new Set<string>();
     for (const tag of validated.excludeTags) {
-      const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+      const normalized = tag.toLowerCase();
+      if (seenExclude.has(normalized)) continue;
+      seenExclude.add(normalized);
+      const existingTag = mediaTagsDb.findTagByNormalized.get(normalized) as
         | { id: string }
         | undefined;
       let tagId: string;
@@ -2992,7 +3020,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         tagId = existingTag.id;
       } else {
         tagId = newTagId();
-        mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+        mediaTagsDb.insertTag.run(tagId, now, now, normalized, tag);
       }
       media.insertMemberGalleryExcludeTag.run(galleryId, tagId, now, actorMemberId);
     }

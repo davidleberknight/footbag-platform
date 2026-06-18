@@ -51,7 +51,17 @@
       {{/each}}
     </ul>
   {{else}}
-    <div class="empty-state">No photos or videos found with this tag</div>
+    <div class="empty-state">
+      <p>No photos or videos found with this tag</p>
+      {{#if content.popularTags.length}}
+      <p>Try one of these popular tags:</p>
+      <ul class="tag-chip-row">
+        {{#each content.popularTags}}
+        <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
   {{/if}}
 
 </div>

@@ -52,7 +52,8 @@ CREATE UNIQUE INDEX ux_tags_normalized ON tags(tag_normalized);
 -- Registered footbag clubs with location, contact, and branding information.
 -- Uses status-based archival (active/inactive/archived) instead of soft-delete.
 -- Each club has a unique hashtag that serves as its canonical media-linking identity.
--- clubs_open excludes archived rows; clubs_all includes them for admin queries.
+-- clubs_open excludes archived rows; clubs_active narrows that to active rows
+-- for the public directory; clubs_all includes archived for admin queries.
 CREATE TABLE clubs (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -87,6 +88,11 @@ CREATE TABLE clubs (
 -- clubs_open: active and inactive rows (excludes archived clubs)
 CREATE VIEW clubs_open AS
   SELECT * FROM clubs WHERE status IN ('active', 'inactive');
+
+-- clubs_active: active rows only. The public club directory lists active clubs;
+-- inactive clubs stay reachable by direct link but drop out of the listings.
+CREATE VIEW clubs_active AS
+  SELECT * FROM clubs WHERE status = 'active';
 
 -- clubs_all: all rows including archived; use for admin queries and audits
 CREATE VIEW clubs_all AS

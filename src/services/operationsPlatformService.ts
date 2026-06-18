@@ -9,13 +9,15 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
- *     PII purge scan
+ *     PII purge scan, hashtag-stats rebuild
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
  *     admin alert
  *   - PII purge eligibility: which members' grace windows have expired and
  *     which erasure shape applies (full purge for soft-deleted accounts,
- *     contact scrub for deceased ones)
+ *     contact scrub for deceased ones), plus anonymizing payments past the
+ *     compliance-retention window (ballots are out of scope: destroying IFPA
+ *     vote records is an IFPA governance decision, not an operator job)
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService,
@@ -38,14 +40,17 @@
  *
  * Persistence:
  *   system_job_runs, work_queue_items, outbox_emails (backlog read +
- *   mailing-list enqueue), members (purge-eligibility read), health (read).
+ *   mailing-list enqueue), members (purge-eligibility read), payments
+ *   (compliance-retention read + anonymize write), health (read).
  *
  * Side effects:
  *   - system_job_runs insert/update
  *   - work_queue_items insert (auto_link_match, low confidence)
  *   - outbox_emails enqueue (admin-alerts fan-out)
- *   - audit_entries append (pii_erasure_failed operational errors; the
- *     per-row erasure audit rows belong to MemberService)
+ *   - payments anonymize-write (compliance-retention cleanup)
+ *   - audit_entries append (pii_erasure_failed and
+ *     payment.compliance_anonymize_failed operational errors; the per-row
+ *     erasure audit rows belong to MemberService)
  *   - logger.error on job failure (drives the CloudWatch alarm)
  *
  * Service shape: class singleton (`operationsPlatformService`); adapters are
@@ -53,9 +58,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, workQueue, batchAutoLink, memberPurge, outbox, transaction } from '../db/db';
+import { health, systemJobRuns, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
+import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { readIntConfig } from './configReader';
@@ -81,6 +87,16 @@ export interface PiiPurgeScanResult {
     scrubbed: number;
     skipped: number;
     errors: { memberId: string; error: string }[];
+  };
+  // Payment records past the compliance-retention window get their
+  // member-linking PII anonymized (the financial record is kept). Ballots are
+  // not in scope: their retention is a preserve-only window, and destruction of
+  // IFPA vote records is an IFPA governance decision, not an operator job.
+  payments: {
+    eligible: number;
+    anonymized: number;
+    skipped: number;
+    errors: { paymentId: string; error: string }[];
   };
 }
 
@@ -228,6 +244,23 @@ export class OperationsPlatformService {
       'SYS_Check_Active_Player_Expiry',
       () => runActivePlayerExpiryDailyPass(opts),
       opts.now,
+    );
+  }
+
+  /**
+   * SYS_Rebuild_Hashtag_Stats daily entry point. Recomputes the aggregated
+   * hashtag usage counts from scratch so the figures cannot drift from the
+   * incremental updates over time. The rebuild runs in a single transaction,
+   * so a failure leaves the existing stats in place; `recordJobRun` writes one
+   * `system_job_runs` row per pass with the upsert count in `details_json`.
+   */
+  async runHashtagStatsRebuild(
+    startTime?: Date,
+  ): Promise<{ rowsUpserted: number }> {
+    return this.recordJobRun(
+      'SYS_Rebuild_Hashtag_Stats',
+      () => hashtagDiscoveryService.rebuildTagStats(),
+      startTime,
     );
   }
 
@@ -436,6 +469,12 @@ export class OperationsPlatformService {
    * the pass is idempotent. One failing row never aborts the pass: the
    * failure is recorded as a member.pii_erasure_failed operational error and
    * counted, and the scan continues. Runs on the worker daily tick.
+   *
+   * A third branch anonymizes payments past the compliance-retention window
+   * (member-linking PII stripped, anonymized financial record kept), idempotent
+   * via the member_id-not-null marker. Vote ballots are deliberately not
+   * touched: their retention window only permits cleanup, and destroying IFPA
+   * vote records is an IFPA governance decision rather than an operator job.
    */
   async runPiiPurgeScan(opts: { now?: Date } = {}): Promise<PiiPurgeScanResult> {
     return this.recordJobRun('SYS_Cleanup_Soft_Deleted_Records', () => {
@@ -498,7 +537,35 @@ export class OperationsPlatformService {
         }
       }
 
-      return { deleted, deceased };
+      // Payment compliance cleanup: after the retention window, strip the
+      // member-linking PII from old payments while keeping the anonymized
+      // financial record. One failing row never aborts the pass.
+      const paymentRetentionDays = readIntConfig('payment_retention_days', 2555);
+      const paymentCutoff = new Date(now.getTime() - paymentRetentionDays * 86_400_000).toISOString();
+      const nowIso = now.toISOString();
+      const paymentsResult: PiiPurgeScanResult['payments'] = {
+        eligible: 0, anonymized: 0, skipped: 0, errors: [],
+      };
+      const paymentRows = payments.listComplianceExpired.all(paymentCutoff) as { id: string }[];
+      paymentsResult.eligible = paymentRows.length;
+      for (const { id } of paymentRows) {
+        try {
+          payments.anonymizeForCompliance.run(nowIso, 'system', id);
+          paymentsResult.anonymized += 1;
+        } catch (err) {
+          paymentsResult.errors.push({ paymentId: id, error: err instanceof Error ? err.message : String(err) });
+          recordOperationalError({
+            actionType: 'payment.compliance_anonymize_failed',
+            category:   'payments',
+            entityType: 'payment',
+            entityId:   id,
+            reasonText: 'PII purge scan: compliance-retention anonymization of an aged payment failed',
+            cause:      err,
+          });
+        }
+      }
+
+      return { deleted, deceased, payments: paymentsResult };
     }, opts.now);
   }
 

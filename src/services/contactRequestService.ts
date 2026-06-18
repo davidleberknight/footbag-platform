@@ -6,7 +6,8 @@
  *   - Contact-request submission (category-validated, per-member open-request cap)
  *   - Contact-request resolution (decision label + admin note + member notification)
  *   - Admin work-queue page shaping (all open items grouped by category,
- *     including structured link-help payload display)
+ *     including structured link-help payload display) and the per-category
+ *     summary for the admin dashboard work-queue card
  *
  * Does not own:
  *   - Link-help request workflow (IdentityAccessService; this service only
@@ -133,12 +134,13 @@ function validateDecisionLabel(d: unknown): DecisionLabel {
 // admin controller stays a thin HTTP adapter.
 
 const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
-  events:      'Events',
-  media:       'Media',
-  membership:  'Membership',
-  payments:    'Payments',
-  elections:   'Elections',
-  system:      'System',
+  events:          'Events',
+  media:           'Media',
+  membership:      'Membership',
+  payments:        'Payments',
+  elections:       'Elections',
+  system:          'System',
+  club_leadership: 'Club leadership',
 };
 
 const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
@@ -186,6 +188,22 @@ export interface WorkQueueContent {
   totalOpen: number;
   resolvedFlag: boolean;
   errorMessage: string | null;
+}
+
+// Per-category counts for the admin dashboard work-queue card. `hasUrgent` is
+// true when any open item in the category carries a non-default priority.
+export interface WorkQueueSummaryCategory {
+  category: string;
+  label: string;
+  count: number;
+  hasUrgent: boolean;
+  href: string;
+}
+
+export interface WorkQueueSummary {
+  categories: WorkQueueSummaryCategory[];
+  totalOpen: number;
+  hasOpen: boolean;
 }
 
 function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['linkHelp'] {
@@ -465,6 +483,36 @@ export const contactRequestService = {
         detailText: r.detail_text,
       };
     });
+  },
+
+  /**
+   * Per-category open-item counts for the admin dashboard work-queue card.
+   * Reads the raw open rows (which carry `priority`) so the card can flag
+   * categories with urgent items and link each to the full queue page. Only
+   * categories with at least one open item appear.
+   */
+  getWorkQueueSummary(): WorkQueueSummary {
+    const rows = workQueue.listOpenForAdmin.all() as Array<{
+      queue_category: string;
+      priority: number;
+    }>;
+    const byCategory = new Map<string, { count: number; hasUrgent: boolean }>();
+    for (const r of rows) {
+      const acc = byCategory.get(r.queue_category) ?? { count: 0, hasUrgent: false };
+      acc.count += 1;
+      if (r.priority > 0) acc.hasUrgent = true;
+      byCategory.set(r.queue_category, acc);
+    }
+    const categories: WorkQueueSummaryCategory[] = [...byCategory.entries()]
+      .map(([category, acc]) => ({
+        category,
+        label: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
+        count: acc.count,
+        hasUrgent: acc.hasUrgent,
+        href: '/admin/work-queue',
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return { categories, totalOpen: rows.length, hasOpen: rows.length > 0 };
   },
 
   /**

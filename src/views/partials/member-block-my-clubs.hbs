@@ -23,6 +23,11 @@
                   <button type="submit" class="btn-link text-muted fs-sm">Mark inactive</button>
                 </form>
               {{/if}}
+              {{#if this.canReactivate}}
+                <form method="POST" action="{{this.clubHref}}/reactivate" class="inline-form">
+                  <button type="submit" class="btn-link text-muted fs-sm">Reactivate club</button>
+                </form>
+              {{/if}}
               {{#if this.canStepDown}}
                 <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
                   <button type="submit" class="btn-link text-muted fs-sm">Step down as co-leader</button>

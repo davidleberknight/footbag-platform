@@ -60,7 +60,7 @@
  *     public-page read path.
  *
  * Persistence:
- *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,
+ *   clubs, clubs_open, clubs_active, clubs_all, club_leaders, club_bootstrap_leaders,
  *   legacy_club_candidates, legacy_person_club_affiliations,
  *   member_club_affiliations, club_viability_signals (promotion stamps the
  *   new club id onto the candidate's wizard flags), members, tags,
@@ -374,6 +374,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   contentEditHref: string | null;
   joinHref: string | null;
   viewGalleryHref: string | null;
+  // An inactive club is hidden from the directory but still reachable by direct
+  // link; the detail page shows a warning so it does not look like an active one.
+  isInactive: boolean;
   // TEMP-DEVIATION: club-classification QC panel.
   // Current: populated unconditionally on every club detail page; surfaces the
   //   classifier's category, confidence, R1-R10 rule firings, rule inputs,
@@ -637,6 +640,7 @@ function toPublicClubDetail(
     contentEditHref: null,
     joinHref: null,
     viewGalleryHref: null,
+    isInactive: row.status === 'inactive',
   };
   if (qcPanel) detail.qcPanel = qcPanel;
   return detail;
@@ -1064,7 +1068,7 @@ export class ClubService {
 
   getPublicClubsIndexPage(): PageViewModel<ClubsIndexContent> {
     return runSqliteRead('clubService.getPublicClubsIndexPage', () => {
-      const rows = clubs.listOpen.all() as PublicClubRow[];
+      const rows = clubs.listActive.all() as PublicClubRow[];
 
       const countryTotals = new Map<string, number>();
       for (const row of rows) {
@@ -1117,7 +1121,7 @@ export class ClubService {
 
   getPublicCountryPage(countrySlug: string, isAuthenticated: boolean): PageViewModel<CountryPageContent> {
     return runSqliteRead('clubService.getPublicCountryPage', () => {
-      const rows = clubs.listOpen.all() as PublicClubRow[];
+      const rows = clubs.listActive.all() as PublicClubRow[];
 
       const matchedRows = rows.filter(
         (row) => slugifyCountry(row.country) === countrySlug,
@@ -2247,20 +2251,32 @@ export class ClubService {
   leaveClub(
     actorMemberId: string,
     clubId: string,
-  ): {
-    branch: 'left' | 'not_member';
-    remainingClubName: string | null;
-  } {
+    opts: { confirmed?: boolean } = {},
+  ):
+    | { branch: 'left'; remainingClubName: string | null }
+    | { branch: 'not_member' }
+    | { branch: 'needs_coleader_confirmation'; clubName: string } {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
       | { id: string; is_primary: number; version: number } | undefined;
     if (!existing) {
-      return { branch: 'not_member', remainingClubName: null };
+      return { branch: 'not_member' };
     }
 
     // A co-leader who leaves also vacates leadership; the last co-leader out
     // leaves the club leaderless, a tolerated state (no sole-leader block).
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'co-leader' } | undefined;
+
+    // The only co-leader is warned before leaving: once they go the club has no
+    // member-visible contact until someone steps up. Leaving is allowed (a
+    // leaderless club is tolerated), but the member confirms first.
+    if (leadership && !opts.confirmed) {
+      const coLeaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+      if (coLeaderCount === 1) {
+        const soleClubRow = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
+        return { branch: 'needs_coleader_confirmation', clubName: soleClubRow?.name ?? 'your club' };
+      }
+    }
 
     const now = new Date().toISOString();
     let remainingClubName: string | null = null;
@@ -2675,6 +2691,44 @@ export class ClubService {
     });
 
     return { branch: 'marked_inactive' };
+  }
+
+  reactivateClub(
+    actorMemberId: string,
+    clubId: string,
+  ): {
+    branch: 'reactivated' | 'already_active' | 'not_leader';
+  } {
+    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'leader' | 'co-leader' } | undefined;
+    if (!leadership) {
+      return { branch: 'not_leader' };
+    }
+
+    const club = clubs.findById.get(clubId) as { club_id: string; name: string; status: string } | undefined;
+    if (!club) {
+      return { branch: 'not_leader' };
+    }
+    if (club.status === 'active') {
+      return { branch: 'already_active' };
+    }
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      clubs.updateStatus.run('active', now, 'club_service', clubId);
+
+      appendAuditEntry({
+        actionType: 'club.reactivated',
+        category: 'club_lifecycle',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'club',
+        entityId: clubId,
+        metadata: { club_name: club.name, old_status: club.status },
+      });
+    });
+
+    return { branch: 'reactivated' };
   }
 
   updateClubHashtag(

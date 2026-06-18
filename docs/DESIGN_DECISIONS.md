@@ -202,7 +202,7 @@ PostgreSQL on RDS: Rejected for monthly cost, connection management complexity, 
 
 ## 1.2 Backup Strategy
 
-Background worker runs every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main file, (2) SQLite backup API creates consistent snapshot, (3) Upload to S3 with retry (3 attempts, exponential backoff), (4) Update health timestamp. S3 versioning provides 30-day point-in-time recovery.
+A host systemd timer runs the backup script every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to the main file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to S3 with retry (3 attempts, exponential backoff), (4) refresh the health timestamp and emit the backup-age and consecutive-failure metrics that drive the staleness and repeated-failure alarms. S3 versioning provides 30-day point-in-time recovery. The backup runs as a host-side script rather than inside the application process so it operates on a quiescent file and is decoupled from container lifecycle.
 
 Transaction timeout: All transactions must complete within 30 seconds, enforced by application code. Code in db.ts wraps transaction execution and throws an error if the timeout is exceeded (defaults to 30000 ms). When timeout occurs, the wrapper executes ROLLBACK explicitly before throwing, ensuring the transaction releases locks immediately. This prevents indefinite database locks and ensures graceful failure for long-running operations.
 
@@ -210,7 +210,7 @@ Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds
 
 Requirements:
 
-- A continuous-backup loop runs on the application host and writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes per the worker description above). Loss of the loop fails the readiness probe so a silent backup gap cannot accrue.
+- A host systemd backup timer writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes, per the backup-script description above). A dead timer or a failing upload stops the backup-age metric from refreshing, so the staleness alarm breaches and a silent backup gap cannot accrue.
 - The off-account DR replica bucket has S3 Object Lock enabled in compliance mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
 - Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in `docs/DEVOPS_GUIDE.md` and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
 - The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.

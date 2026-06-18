@@ -17,8 +17,11 @@
         <p class="card-description">Create, edit, and delete the FH-curated named galleries that appear on /media. Member-owned galleries are managed by their owners.</p>
       </div>
       <div class="card">
-        <div class="card-title"><a href="/admin/work-queue">Work queue</a></div>
+        <div class="card-title"><a href="/admin/work-queue">Work queue</a>{{#if content.workQueue.hasOpen}} <span class="badge">{{content.workQueue.totalOpen}} open</span>{{/if}}</div>
         <p class="card-description">Open admin tasks across membership, events, media, payments, elections, and system. Member contact requests land here for review and resolution.</p>
+        {{#if content.workQueue.hasOpen}}
+        <p class="card-meta">{{#each content.workQueue.categories}}<a href="{{this.href}}"{{#if this.hasUrgent}} class="fw-600"{{/if}}>{{this.label}}: {{this.count}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+        {{/if}}
       </div>
       <div class="card">
         <div class="card-title"><a href="/admin/club-cleanup">Club cleanup</a>{{#if content.backlog.hasBacklog}} <span class="badge">{{content.backlog.openCount}} open</span>{{/if}}</div>

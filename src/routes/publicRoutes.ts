@@ -47,6 +47,7 @@ publicRouter.post('/clubs/:key/volunteer',      requireAuth, clubController.post
 publicRouter.post('/clubs/:key/invite',         requireAuth, clubController.postInvite);
 publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
+publicRouter.post('/clubs/:key/reactivate',     requireAuth, clubController.postReactivate);
 publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
 publicRouter.post('/clubs/:key/content/edit',    requireAuth, clubController.postContentEdit);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);

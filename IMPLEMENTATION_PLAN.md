@@ -67,18 +67,8 @@ Each of these is a place where the running code differs from the intended design
 
 Each item is a place where a shipped user story is not fully delivered. Delete it when the fix ships with a test. The name in parentheses is the user story it belongs to.
 
-- **Leaving a club as its last co-leader gives no warning.** Leaving a club just goes through; it should warn the member first when they are the club's only co-leader. (M_Leave_Club)
-- **An inactive club has no deliberate reactivation.** A club can be marked inactive, and joining or volunteering to co-lead an inactive club silently flips it back to active, but there is no deliberate reactivate action; a co-leader should be able to reactivate an inactive club at any time. (CL_Mark_Club_Inactive)
-- **Member hashtags must be entered lowercase.** Uploads reject any mixed-case tag outright, and the `tag_display` column meant to preserve the original capitalization is written identical to the normalized lowercase value, so its purpose is never realized. Accept mixed-case input, store the original in `tag_display` for display, and match case-insensitively. (M_Upload_Photo)
 - **The empty upload gallery is just a bare message.** When a member has no media, show a helpful empty state with example photos, clickable popular tags, and hashtag statistics. (M_Upload_Photo, M_Submit_Video)
-- **The empty named-gallery page has no tag suggestions.** It has the right wording but offers no popular tags; show five site-wide popular tags on it. (V_View_Gallery)
-- **The daily hashtag-statistics rebuild is never run.** The function that rebuilds hashtag statistics exists and is tested, but nothing schedules it, so only incremental updates happen. Schedule the daily rebuild through the operations service and worker, recorded as a job run. (SYS_Rebuild_Hashtag_Stats, V_Browse_Hashtags)
-- **The admin dashboard work-queue card has no counts.** The club-cleanup card already shows an open-item count, but the work-queue card is static; it should show how many items are waiting in each admin queue, link to each, and highlight the urgent ones. (A_View_Dashboard)
-- **Old-record cleanup only covers members.** The scheduled cleanup of soft-deleted data only processes deleted or deceased members; it should also do the seven-year cleanup of old payments and the seven-year retention of ballots, and report counts per type. (SYS_Cleanup_Soft_Deleted_Records)
 - **Email bodies are hard-coded, not editable.** Email text is written inline in the code; the database table meant to hold editable templates is seeded but never read, and there is no admin screen to edit them. Load templates from the database, let admins edit them, and log the changes. (SYS_Send_Email)
-- **The database backup script is not hardened.** It does a single backup attempt with a staleness metric. Add a write-ahead-log checkpoint, retry with backoff, a health timestamp, an alarm after three failures in a row, and a wait for graceful shutdown. (SYS_Continuous_Database_Backup)
-- **An expired Active Player gets no explanation.** Someone whose Active Player status has lapsed sees only a badge and the generic tier-0 text; explain that their Tier 1 benefits and Official IFPA Roster listing have ended. (M_Active_Player_Expiry)
-- **Inactive clubs still show in the public directory.** The directory query includes both active and inactive clubs, so inactive ones still appear; hide them from the directory while keeping them reachable by direct link. The club detail page also renders no inactive indicator even though `statusLabel` is carried in its view shape, so a direct link to an inactive club looks identical to an active one; show the status there too. (CL_Mark_Club_Inactive)
 
 ### Cross-track pickups (Dave writes the code; James advises on the freestyle and pipeline details)
 
@@ -153,6 +143,7 @@ The checks that must pass before the data and platform are considered ready. The
 
 Real work, but nothing is being done on it now.
 
+- **Ballot retention/cleanup.** The soft-deleted-records cleanup job covers members and payments; it deliberately preserves ballots and never auto-deletes them, because destroying IFPA vote records is an IFPA governance decision rather than an operator action. Ballot retention/cleanup activates when the voting feature ships and the IFPA defines a destruction policy. (SYS_Cleanup_Soft_Deleted_Records)
 - **There is no in-app way to edit the trick dictionary.** The freestyle trick data is read-only while the site runs; only the pre-launch pipeline writes it. Once the live site is taking member writes, that rebuild-from-pipeline approach cannot run against production, so the dictionary cannot grow until there is an admin editing screen, probably modelled on the existing curator-media admin tools. A freestyle-curation mechanism mirroring the curated-media go-live switch (off the `/curated/` JSON sidecars to admin-UI authoring against the live DB) is planned, so freestyle content can be curated post-go-live without a pipeline rebuild. The same read-only limitation applies to records, consecutive-kicks records, and events.
 - **Glossary version 4 multi-layer rollout.** Waiting on curator triage and a static-page rollout.
 - **Symbolic-grammar UI rollout.** Phase 1 waiting on approval.

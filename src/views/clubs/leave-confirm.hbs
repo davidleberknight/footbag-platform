@@ -1,0 +1,26 @@
+{{! Sole co-leader leave confirmation }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    <p class="notice notice-warn" role="alert">You are the only co-leader of {{clubName}}. If you leave, the club will have no member-visible contact until someone steps up.</p>
+
+    <p class="text-muted">You can invite a successor first, or leave and let the club stay leaderless for now.</p>
+
+    <div class="form-actions">
+      <a href="{{manageCoLeadersHref}}" class="btn btn-primary">Manage co-leaders</a>
+      <form method="POST" action="{{leaveHref}}" class="inline-form">
+        <input type="hidden" name="confirmed" value="1" />
+        <button type="submit" class="btn btn-outline">Leave anyway</button>
+      </form>
+      <a href="{{cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
+
+  </section>
+</div>

@@ -370,14 +370,11 @@ describe('GET /clubs/usa — vitality metadata row', () => {
     expect(cardSlice).not.toContain('Needs update');
   });
 
-  it('inactive club → "Historical club" chip appended even with leaders + members', async () => {
+  it('inactive club is hidden from the public country directory', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
-    const cardSlice = sliceCard(res.text, 'club_country_historical');
-    expect(cardSlice).toContain('class="club-meta-row club-meta-row--historical-club"');
-    expect(cardSlice).toContain('1 leader');     // singular form
-    expect(cardSlice).toContain('3 members');
-    expect(cardSlice).toContain('Historical club');
+    // Inactive clubs drop out of the directory (still reachable by direct link).
+    expect(res.text).not.toContain('#club_country_historical');
   });
 
   it('sparse club (no leaders, no members) → "No known leaders yet · Needs update"', async () => {

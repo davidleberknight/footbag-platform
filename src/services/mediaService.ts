@@ -296,6 +296,9 @@ export interface NamedGalleryContent {
   // Pre-shaped notice when the result set exceeds the single-page render
   // cap; null when everything fits.
   truncationNotice: string | null;
+  // Five site-wide popular tags, shown only when the gallery is empty so the
+  // empty state is a teachable moment; absent otherwise.
+  popularTags?: BrowseTagChip[];
 }
 
 // /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
@@ -656,6 +659,11 @@ export const mediaService = {
         shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
       );
 
+      // When the gallery is empty, the empty state offers five site-wide
+      // popular tags as a teachable jumping-off point.
+      const emptyResultSuggestions = rows.length === 0
+        ? hashtagDiscoveryService.getPopularTags(5) : undefined;
+
       return {
         seo: { title: `Gallery ${gallery.name}` },
         page: {
@@ -682,6 +690,7 @@ export const mediaService = {
           totalItemsNoun: rows.length === 1 ? 'item' : 'items',
           excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
           truncationNotice,
+          popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
         },
       };
     });

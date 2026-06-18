@@ -13,11 +13,14 @@
               (through {{activePlayer.expiresAtDisplay}})
             {{/if}}
           </span>
-        {{else}}
+        {{else if activePlayer.hasLapsed}}
           <span class="badge badge-coming-soon">Active Player expired</span>
         {{/if}}
       {{/if}}
     </div>
+    {{#if activePlayer.hasLapsed}}
+      <p class="text-muted">{{activePlayer.lapsedExplanation}}</p>
+    {{/if}}
     {{#if underlyingTierBadgeText}}
       <p class="text-muted">{{underlyingTierBadgeText}}</p>
     {{/if}}

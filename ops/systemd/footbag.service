@@ -45,12 +45,19 @@ ExecStart=/usr/bin/docker compose \
     -f docker/docker-compose.prod.yml \
     up --detach --remove-orphans --no-build
 
-# Graceful stop: waits up to 30s for in-flight requests to complete
+# Graceful stop: waits up to 30s for in-flight requests to complete. On
+# SIGTERM each container checkpoints the WAL and closes its DB connection, so
+# the stack comes down against a quiescent SQLite file.
 ExecStop=/usr/bin/docker compose \
     --env-file /srv/footbag/env \
     -f docker/docker-compose.yml \
     -f docker/docker-compose.prod.yml \
     down --timeout 30
+
+# Final backup after the stack is down: snapshots the quiescent DB so the most
+# recent state is captured at shutdown, not just on the 5-minute timer. The '-'
+# prefix makes it best-effort so a backup hiccup never wedges the stop.
+ExecStopPost=-/usr/bin/env bash scripts/backup-db.sh
 
 # Reload without downtime (nginx reload + rolling restart for web).
 # --no-build for the same reason as ExecStart.

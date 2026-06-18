@@ -141,6 +141,22 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
+resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
+  count               = var.enable_backup_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-db-backup-failing"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "BackupConsecutiveFailures"
+  namespace           = "Footbag/${var.environment}"
+  period              = 600 # 10 minutes (covers at least one backup cycle)
+  statistic           = "Maximum"
+  threshold           = 3              # Alert after three consecutive failed backups
+  treat_missing_data  = "notBreaching" # silence is covered by the staleness alarm
+  alarm_description   = "SQLite backup has failed three or more times in a row"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-cloudfront-5xx"
