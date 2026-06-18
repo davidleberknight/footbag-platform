@@ -70,6 +70,7 @@
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
+ * The profile media-grid preview is delegated to `mediaService.listMemberMediaPreview`.
  */
 import { randomUUID, createHash } from 'crypto';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
@@ -87,6 +88,7 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { mediaService, type GalleryItem } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 
 const MAX_BIO = 1000;
@@ -290,6 +292,8 @@ export interface OwnProfileContent {
    * (detoured), and completed tasks with pre-shaped CTA labels. */
   dashboardTasks?: DashboardTaskWidget | null;
   myClubs?: MyClubsView;
+  /** Thumbnail preview of the member's own uploaded media. */
+  media?: ProfileMediaView;
   /** Validated external links (max 3), shown on the profile. */
   links?: MemberLinkView[];
 }
@@ -318,6 +322,9 @@ export interface ProfileEditContent extends OwnProfileContent {
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
+  /** Raw ISO birth date (YYYY-MM-DD) for read-only display; required and
+   *  immutable since registration, so it is shown but never editable here. */
+  birthDate: string | null;
   // True while the member holds a co-leader (or organizer) role: contact-email
   // visibility is required at members-only and the control renders locked.
   emailVisibilityLocked: boolean;
@@ -334,6 +341,18 @@ export interface ProfileEditContent extends OwnProfileContent {
   /** Fixed-length edit slots (one per allowed link); empty slots carry blank
    *  label/url so the form always renders the full set of inputs. */
   linkSlots: MemberLinkView[];
+}
+
+export interface ProfileClubView {
+  name: string;
+  href: string;
+}
+
+// Member-profile media grid: a capped thumbnail preview of the member's own
+// uploads plus a link to the full member-scoped browse (null when empty).
+export interface ProfileMediaView {
+  items: GalleryItem[];
+  viewAllHref: string | null;
 }
 
 export interface PublicProfileContent {
@@ -364,6 +383,12 @@ export interface PublicProfileContent {
   genderLabel: string | null;
   /** Validated external links (max 3), shown on the public profile. */
   links: MemberLinkView[];
+  /** Current club affiliations (primary first), shown to authenticated viewers
+   *  only; empty for the anonymous HoF/BAP render. */
+  clubs: ProfileClubView[];
+  /** Thumbnail preview of the member's uploaded media, shown to authenticated
+   *  viewers only; empty for the anonymous HoF/BAP render. */
+  media: ProfileMediaView;
 }
 
 export interface ProfileEditInput {
@@ -767,6 +792,7 @@ export const memberService = {
         search,
         comingSoon:   COMING_SOON_FEATURES,
         myClubs:      buildMyClubsView(row.id),
+        media:        buildMemberMediaView(row.id, slug),
         memberSlug:   slug,
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
         dashboardTasks:         buildDashboardTasksView(row.id),
@@ -842,6 +868,10 @@ export const memberService = {
         isActivePlayer,
         genderLabel:    genderPublicLabel(row.gender, row.show_gender, viewer.authenticated),
         links:          buildMemberLinksView(row.id),
+        clubs:          viewer.authenticated ? buildPublicProfileClubsView(row.id) : [],
+        media:          viewer.authenticated
+          ? buildMemberMediaView(row.id, slug)
+          : { items: [], viewAllHref: null },
       },
     };
   },
@@ -865,6 +895,7 @@ export const memberService = {
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
+        birthDate: row.birth_date,
         emailVisibilityLocked: clubLeaders.memberCoLeadsAnyClub.get(row.id) != null,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
@@ -1426,6 +1457,28 @@ interface CurrentAffiliationRow {
   club_key: string;
   club_status: string;
   is_primary: number;
+}
+
+function buildPublicProfileClubsView(memberId: string): ProfileClubView[] {
+  const rows = memberClubAffiliations.listCurrentWithClubName.all(memberId) as Array<{
+    club_name: string;
+    club_key: string;
+  }>;
+  return rows.map((r) => ({
+    name: r.club_name,
+    href: `/clubs/${encodeURIComponent(r.club_key)}`,
+  }));
+}
+
+// Capped thumbnail preview of a member's own uploads plus a link to the full
+// member-scoped media browse. The browse link normalizes `by_<slug>` to the
+// `#by_<slug>` uploader tag, the same tag every member upload carries.
+function buildMemberMediaView(memberId: string, slug: string): ProfileMediaView {
+  const items = mediaService.listMemberMediaPreview(memberId);
+  return {
+    items,
+    viewAllHref: items.length > 0 ? `/media/browse?tag=by_${encodeURIComponent(slug)}` : null,
+  };
 }
 
 function buildMyClubsView(memberId: string): MyClubsView {

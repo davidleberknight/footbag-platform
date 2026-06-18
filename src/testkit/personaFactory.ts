@@ -50,6 +50,7 @@ import {
   insertNameVariant,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertPersonaNamedGallery,
 } from './personaRowBuilders';
 import type {
   OnboardingTaskType,
@@ -227,6 +228,15 @@ export interface PersonaMailingListSpec {
   status?: MailingListSubscriptionStatus;
 }
 
+/** A single member-owned named gallery seeded for this persona, with one
+ *  matching uploaded media item so it has a non-zero item count. */
+export interface PersonaGallerySpec {
+  /** Stable gallery id; defaults to gallery_persona_<slug>. */
+  id?: string;
+  name: string;
+  description?: string;
+}
+
 export interface PersonaSpec {
   /** Member slug; also the `?as=` key for /dev/switch. */
   slug: string;
@@ -296,6 +306,8 @@ export interface PersonaSpec {
   club?: PersonaClubSpec;
   /** Additional plain club memberships (current or former) beyond `club`. */
   clubs?: PersonaClubAffiliationSpec[];
+  /** One member-owned named gallery (with one matching media item). */
+  gallery?: PersonaGallerySpec;
   /** Legacy-club-candidate cards (pending / declined / resolved / junk). */
   legacyClubCandidates?: PersonaLegacyClubCandidateSpec[];
   activePlayer?: PersonaActivePlayerSpec;
@@ -534,6 +546,16 @@ export function seedPersona(
       is_primary: c.primary ? 1 : 0,
       is_contact: c.contact ? 1 : 0,
       source: 'member_self_service',
+    });
+  }
+
+  if (spec.gallery) {
+    insertPersonaNamedGallery(db, {
+      galleryId: spec.gallery.id ?? `gallery_persona_${spec.slug}`,
+      ownerMemberId: memberId,
+      ownerSlug: spec.slug,
+      name: spec.gallery.name,
+      ...(spec.gallery.description !== undefined ? { description: spec.gallery.description } : {}),
     });
   }
 

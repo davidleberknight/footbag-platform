@@ -3,12 +3,21 @@ import { mediaService } from '../services/mediaService';
 import { handleControllerError } from '../lib/controllerErrors';
 
 export const mediaController = {
-  hub(req: Request, res: Response, next: NextFunction): void {
+  hub(_req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = mediaService.getMediaHubPage({ authenticated: req.user != null });
+      const vm = mediaService.getMediaHubPage();
       res.render('media/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'media controller (hub)');
+    }
+  },
+
+  memberGalleries(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = mediaService.getMemberGalleriesPage({ authenticated: req.user != null });
+      res.render('media/member-galleries', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'media controller (member galleries)');
     }
   },
 

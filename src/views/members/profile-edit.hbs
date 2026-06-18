@@ -23,6 +23,12 @@
           <dt>Name</dt>
           <dd>{{content.displayName}}</dd>
         </div>
+        {{#if content.birthDate}}
+        <div class="identity-row">
+          <dt>Date of birth</dt>
+          <dd>{{formatDate content.birthDate}}</dd>
+        </div>
+        {{/if}}
         <div class="identity-row">
           <dt>Email</dt>
           <dd>{{content.loginEmail}}</dd>

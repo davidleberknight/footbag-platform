@@ -151,14 +151,14 @@ function tagAsCuratedFreestyleTrick(db: BetterSqlite3.Database, mediaId: string)
 
 function insertNamedGallery(
   db: BetterSqlite3.Database,
-  o: { id: string; ownerId: string; name: string; description?: string; isDefault?: 0 | 1 },
+  o: { id: string; ownerId: string; name: string; description?: string; isDefault?: 0 | 1; createdAt?: string },
 ): void {
   db.prepare(`
     INSERT INTO member_galleries (
       id, created_at, created_by, updated_at, updated_by, version,
       owner_member_id, name, description, is_default
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?, ?)
-  `).run(o.id, TS, TS, o.ownerId, o.name, o.description ?? '', o.isDefault ?? 0);
+  `).run(o.id, o.createdAt ?? TS, TS, o.ownerId, o.name, o.description ?? '', o.isDefault ?? 0);
 }
 
 function insertGalleryCriteria(
@@ -227,6 +227,17 @@ beforeAll(async () => {
   });
   insertGalleryCriteria(db, MEMBER_GALLERY_ID, [CURATED_TAG_ID]);
 
+  // A second member-owned named gallery, created earlier than the first, so the
+  // list page can assert oldest-first ordering.
+  insertNamedGallery(db, {
+    id: 'gallery_member_beach_001',
+    ownerId: MEMBER_ID,
+    name: 'Beach Session 2024',
+    description: 'Shots from the beach.',
+    createdAt: '2024-06-01T00:00:00.000Z',
+  });
+  insertGalleryCriteria(db, 'gallery_member_beach_001', [CURATED_TAG_ID]);
+
   // Auto-materialized Personal Gallery (is_default=1). The hub should
   // exclude these so the public list isn't polluted with one row per
   // member who has ever uploaded.
@@ -246,23 +257,25 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders five equal-size media cards, browse-by-hashtag leading with a green accent', async () => {
+  it('renders six equal-size media cards, browse-by-hashtag leading and Member galleries second', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Media');
     const cardCount = (res.text.match(/class="media-hub-card/g) || []).length;
-    expect(cardCount).toBe(5);
-    for (const title of ['Browse by hashtag', 'Freestyle', 'Net', 'Sideline', 'Related Sports']) {
+    expect(cardCount).toBe(6);
+    for (const title of ['Browse by hashtag', 'Member galleries', 'Freestyle', 'Net', 'Sideline', 'Related Sports']) {
       expect(res.text).toContain(title);
     }
     expect(res.text).toContain('href="/media/browse"');
     // The freestyle cards collapse into one card opening the shared section.
     expect(res.text).toContain('href="/freestyle/media"');
     // The browse-by-hashtag card is the same size as its siblings but carries a
-    // distinct green accent and leads the grid.
+    // distinct green accent and leads the grid; Member galleries sits second.
     expect(res.text).toContain('media-hub-card--browse');
-    expect(res.text.indexOf('Browse by hashtag')).toBeLessThan(res.text.indexOf('Related Sports'));
+    expect(res.text.indexOf('Browse by hashtag')).toBeLessThan(res.text.indexOf('Member galleries'));
+    // Compare against a card-only title ('Freestyle' also appears in the nav).
+    expect(res.text.indexOf('Member galleries')).toBeLessThan(res.text.indexOf('Related Sports'));
   });
 
   it('folds curated tricks, shred, photos, and the discipline taxonomy out of the primary grid', async () => {
@@ -275,19 +288,56 @@ describe('GET /media (hub)', () => {
     expect(res.text).not.toContain('media-hub-facade');         // Takraw embed removed (no stable source)
   });
 
-  it('lists member-owned galleries below the primary grid', async () => {
+  it('links the Member galleries card to the list page when member galleries exist', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
-    expect(res.text).toContain('Personal Vacation 2026');
-    expect(res.text).toContain(`href="/media/${MEMBER_GALLERY_ID}"`);
+    expect(res.text).toContain('href="/media/member-galleries"');
   });
 
-  it('excludes per-member auto-default Personal Gallery (is_default=1) from the hub', async () => {
+  it('keeps individual gallery names off the hub (they live on the list page)', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
-    expect(res.status).toBe(200);
+    // Member-owned gallery names render on the list page, not on the hub card.
+    expect(res.text).not.toContain('Personal Vacation 2026');
+    expect(res.text).not.toContain('Beach Session 2024');
+    // The auto-default Personal Gallery never surfaces either.
     expect(res.text).not.toContain('Personal Gallery');
     expect(res.text).not.toContain('Everything I have uploaded.');
+  });
+});
+
+describe('GET /media/member-galleries (member galleries list page)', () => {
+  it('lists member-owned named galleries, each linking to its gallery page', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/member-galleries');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Personal Vacation 2026');
+    expect(res.text).toContain('Beach Session 2024');
+    expect(res.text).toContain(`href="/media/${MEMBER_GALLERY_ID}"`);
+    expect(res.text).toContain('href="/media/gallery_member_beach_001"');
+  });
+
+  it('orders galleries oldest first by creation date', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/member-galleries');
+    // Beach Session 2024 was created before Personal Vacation 2026.
+    expect(res.text.indexOf('Beach Session 2024')).toBeLessThan(res.text.indexOf('Personal Vacation 2026'));
+  });
+
+  it('excludes the auto-default Personal Gallery (is_default=1)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/member-galleries');
+    expect(res.text).not.toContain('Personal Gallery');
+    expect(res.text).not.toContain('Everything I have uploaded.');
+  });
+
+  it('shows owner attribution and an item count, without a profile link for visitors', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/member-galleries');
+    expect(res.text).toContain('Regular Member');
+    expect(res.text).toMatch(/\d+ items?/);
+    // Member profiles are signed-in only: a visitor gets the name without a link.
+    expect(res.text).not.toContain('href="/members/media_regular"');
   });
 });
 

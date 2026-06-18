@@ -65,6 +65,33 @@ describe('seedPersona — composition by dimension', () => {
     expect(pay.c).toBe(1);
   });
 
+  it('gallery spec produces a member-owned named gallery with one matching media item', () => {
+    const p = seedPersona(db, {
+      slug: 'fac_gallery', displayName: 'Fac Gallery', tier: 'tier1',
+      gallery: { name: 'My Best Shots' },
+      coverageNotes: ['member named gallery'],
+    });
+    const gallery = db.prepare(
+      `SELECT name, is_default FROM member_galleries WHERE owner_member_id = ?`,
+    ).get(p.memberId) as { name: string; is_default: number };
+    expect(gallery.name).toBe('My Best Shots');
+    expect(gallery.is_default).toBe(0);
+    const media = db.prepare(
+      `SELECT COUNT(*) c FROM media_items WHERE uploader_member_id = ? AND is_avatar = 0 AND moderation_status = 'active'`,
+    ).get(p.memberId) as { c: number };
+    expect(media.c).toBe(1);
+    // The gallery's #by_<slug> criteria tag also tags the media item, so the
+    // gallery resolves to exactly one item through the tag-AND query.
+    const tagged = db.prepare(`
+      SELECT COUNT(*) c
+      FROM member_gallery_tags mgt
+      JOIN media_tags mt ON mt.tag_id = mgt.tag_id
+      JOIN member_galleries g ON g.id = mgt.gallery_id
+      WHERE g.owner_member_id = ?
+    `).get(p.memberId) as { c: number };
+    expect(tagged.c).toBe(1);
+  });
+
   it('admin spec sets is_admin=1', () => {
     const p = seedPersona(db, { slug: 'fac_admin', displayName: 'Fac Admin', tier: 'tier2', isAdmin: true, coverageNotes: ['admin'] });
     const member = db.prepare(`SELECT is_admin FROM members WHERE id = ?`).get(p.memberId) as { is_admin: number };

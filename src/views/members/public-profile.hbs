@@ -30,6 +30,17 @@
     </div>
     {{/if}}
 
+    {{#if content.clubs.length}}
+    <div class="profile-section">
+      <h2 class="profile-section-heading">Clubs</h2>
+      <ul>
+        {{#each content.clubs}}
+          <li><a href="{{href}}">{{name}}</a></li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
     {{#if (or content.contactEmail (or content.contactPhone content.contactWhatsapp))}}
     <div class="profile-section">
       <h2 class="profile-section-heading">Contact</h2>
@@ -54,6 +65,10 @@
         {{/each}}
       </ul>
     </div>
+    {{/if}}
+
+    {{#if content.media.items.length}}
+      {{> member-block-media content.media}}
     {{/if}}
 
     {{#if content.showCompetitiveResults}}

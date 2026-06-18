@@ -17,31 +17,11 @@
         {{#if href}}
           <a href="{{href}}" class="btn btn-outline">{{cta}} &rarr;</a>
         {{else}}
-          <span class="media-hub-soon">Coming soon</span>
+          <span class="media-hub-soon">{{#if emptyNote}}{{emptyNote}}{{else}}Coming soon{{/if}}</span>
         {{/if}}
       </div>
       {{/each}}
     </div>
   </section>
-
-  {{! ── Member-created galleries, preserved below the primary grid ───── }}
-  {{#if content.memberGalleries.length}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Member galleries</h2>
-    </div>
-    <div class="card-grid card-grid-2col">
-      {{#each content.memberGalleries}}
-      <div class="card">
-        <div class="card-title">{{name}}</div>
-        {{#if description}}<p>{{description}}</p>{{/if}}
-        <div class="card-actions">
-          <a href="{{href}}" class="btn btn-outline">Browse all &rarr;</a>
-        </div>
-      </div>
-      {{/each}}
-    </div>
-  </section>
-  {{/if}}
 
 </div>

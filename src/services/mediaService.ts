@@ -6,7 +6,12 @@
  * `avatarService.ts` via the factory `createAvatarService`.)
  *
  * Owns:
- *   - /media hub page read (FH-owned + member-owned named-gallery listing)
+ *   - /media hub page read (collection cards; the Member galleries card links
+ *     to the member-galleries list page)
+ *   - /media/member-galleries list page read (member-owned named galleries,
+ *     oldest first, excluding the auto-default Personal Gallery)
+ *   - Member media preview for the profile media grid (listMemberMediaPreview,
+ *     consumed by memberService)
  *   - /media/:galleryId named-gallery page read (tag-AND membership)
  *   - /media/browse on-the-fly tag browse read (paginated results mode)
  *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
@@ -62,6 +67,10 @@ import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
 
 export const PAGE_SIZE = 24;
+
+// Cap for the member-profile media grid: the most-recent uploads shown as a
+// thumbnail preview, with a "view all" link to the member-scoped browse.
+export const PROFILE_MEDIA_PREVIEW_LIMIT = 12;
 
 // Chip-shape for tag rendering: each tag display string carries an
 // optional href. `#by_<slug>` chips render the member's display name
@@ -190,44 +199,44 @@ export interface GalleryOwner {
   isSystem: boolean;
 }
 
-// Hub at /media: list of named-gallery URL bookmarks (FH-owned first,
-// member-owned after). Each card carries the owner attribution.
-//
-// `byMember` is the lifted-out `#by_<slug>` criterion: when a gallery
-// filters items by a specific member, that chip is rendered as prose
-// attribution ("by Jane Doe") rather than listed alongside
-// hashtag chips. Null when no `#by_*` criterion applies, or when the
-// slug doesn't resolve to an active member (in which case the raw
-// `#by_<slug>` tag stays in criteriaTags as fallback).
-export interface MediaHubGallerySummary {
-  id: string;
-  name: string;
-  description: string;
-  itemCount: number;
-  byMember: TagChip | null;
-  criteriaTags: TagChip[];
-  excludeTags: TagChip[];
-  href: string;
-  owner: GalleryOwner;
-}
-
 // One media-collection card on the /media hub. A null href is a forward-looking
-// collection shown as "coming soon". `accent` marks the browse-by-hashtag card,
-// which leads the grid with a distinct green treatment at the same card size.
+// collection shown as "coming soon" (or the card's `emptyNote` when set, e.g.
+// the Member galleries card's "None yet"). `accent` marks the browse-by-hashtag
+// card, which leads the grid with a distinct green treatment at the same card size.
 export interface MediaHubCard {
   title: string;
   description: string;
   href: string | null;
   cta: string | null;
   accent?: boolean;
+  // Fallback note rendered when href is null; defaults to "Coming soon".
+  emptyNote?: string;
 }
 
 export interface MediaHubContent {
   // The media-collection cards rendered in the hub grid; the browse-by-hashtag
   // card leads.
   cards: MediaHubCard[];
-  // Member-created named galleries, preserved below the primary grid.
-  memberGalleries: MediaHubGallerySummary[];
+}
+
+// One row on the /media/member-galleries list page: a member-owned named
+// gallery with its item count and owner attribution. `ownerHref` is the
+// owner's profile link, present only for authenticated viewers (member
+// profiles are not visitor-visible); the display name shows regardless.
+export interface MemberGalleryListItem {
+  id: string;
+  name: string;
+  description: string;
+  itemCount: number;
+  itemCountNoun: string;
+  href: string;
+  ownerDisplayName: string;
+  ownerHref: string | null;
+}
+
+export interface MemberGalleriesContent {
+  galleries: MemberGalleryListItem[];
+  hasGalleries: boolean;
 }
 
 // One folder in the Freestyle Media section. A null href is a folder whose
@@ -261,8 +270,11 @@ export interface FreestyleMediaContent {
 // below the hero, then a flat item grid in the gallery's sort_order.
 // Owner attribution renders in the hero block.
 //
-// `byMember` is the lifted-out `#by_<slug>` criterion. See
-// `MediaHubGallerySummary.byMember` for semantics.
+// `byMember` is the lifted-out `#by_<slug>` criterion: when a gallery filters
+// by a specific member, that chip renders as prose attribution ("by Jane Doe")
+// instead of among the hashtag chips. Null when no `#by_*` criterion applies or
+// the slug doesn't resolve to an active member (the raw `#by_<slug>` tag then
+// stays in criteriaTags).
 export interface NamedGalleryHero {
   id: string;
   name: string;
@@ -408,50 +420,26 @@ function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
 }
 
 export const mediaService = {
-  getMediaHubPage(viewer: ViewerContext = { authenticated: false }): PageViewModel<MediaHubContent> {
+  getMediaHubPage(): PageViewModel<MediaHubContent> {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
       const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
-      const allTagRowsByGallery = galleries.map((g) => ({
-        gallery: g,
-        tagRows: media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[],
-        excludeTagRows: media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[],
-      }));
-      const allTagDisplays = allTagRowsByGallery.flatMap((x) =>
-        [...x.tagRows, ...x.excludeTagRows].map((r) => r.tag_display),
-      );
-      const memberNamesBySlug = collectMemberNamesForByTags(allTagDisplays);
-
-      const summaries: MediaHubGallerySummary[] = allTagRowsByGallery.map(
-        ({ gallery: g, tagRows, excludeTagRows }) => {
-          const tagIds = tagRows.map((t) => t.id);
-          const excludeTagIds = excludeTagRows.map((t) => t.id);
-          const chips = shapeGalleryChips(tagRows, excludeTagRows, viewer, memberNamesBySlug);
-          return {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            itemCount: countGalleryItemsByCriteria(tagIds, excludeTagIds),
-            byMember: chips.byMember,
-            criteriaTags: chips.criteriaTags,
-            excludeTags: chips.excludeTags,
-            href: `/media/${g.id}`,
-            owner: shapeOwner(g),
-          };
-        },
-      );
-
-      const has = (id: string): boolean => summaries.some((s) => s.id === id);
-      // Related Sports points at the existing chinlone collection when seeded;
-      // until net/sideline media is curated those cards read as coming soon.
-      const relatedSportsHref = has('gallery_chinlone') ? '/media/gallery_chinlone' : null;
-      const memberGalleries = summaries.filter((s) => !s.owner.isSystem);
+      // The hub no longer lists each gallery inline: member-owned named
+      // galleries live behind the Member galleries card and its list page, and
+      // FH-owned galleries are reached through the curated collection cards.
+      // Only two facts drive the cards here: whether any member gallery exists
+      // (the card links to the list page when so, otherwise it shows a "none
+      // yet" note) and whether the chinlone collection is seeded (the Related
+      // Sports link).
+      const hasMemberGalleries = galleries.some((g) => g.is_system === 0);
+      const relatedSportsHref = galleries.some((g) => g.id === 'gallery_chinlone')
+        ? '/media/gallery_chinlone' : null;
 
       // The browse-by-hashtag card leads the grid with a distinct green treatment.
-      // A single Freestyle card opens into the shared Freestyle Media section
-      // (tutorials and demos, records, curated trick videos, shred clips), so
-      // the hub and /freestyle/media present one structure. Related Sports
-      // absorbs chinlone and (future) sepak takraw.
+      // The Member galleries card sits second. A single Freestyle card opens into
+      // the shared Freestyle Media section (tutorials and demos, records, curated
+      // trick videos, shred clips), so the hub and /freestyle/media present one
+      // structure. Related Sports absorbs chinlone and (future) sepak takraw.
       const cards: MediaHubCard[] = [
         {
           title: 'Browse by hashtag',
@@ -459,6 +447,13 @@ export const mediaService = {
           href: '/media/browse',
           cta: 'Browse tags',
           accent: true,
+        },
+        {
+          title: 'Member galleries',
+          description: 'Photo and video galleries created by IFPA members.',
+          href: hasMemberGalleries ? '/media/member-galleries' : null,
+          cta: hasMemberGalleries ? 'Browse member galleries' : null,
+          emptyNote: hasMemberGalleries ? undefined : 'None yet',
         },
         {
           title: 'Freestyle',
@@ -494,8 +489,65 @@ export const mediaService = {
           title: 'Footbag Media',
           intro: 'Browse by hashtag or visit named galleries.',
         },
-        content: { cards, memberGalleries },
+        content: { cards },
       };
+    });
+  },
+
+  getMemberGalleriesPage(viewer: ViewerContext = { authenticated: false }): PageViewModel<MemberGalleriesContent> {
+    return runSqliteRead('mediaService.getMemberGalleriesPage', () => {
+      const rows = media.listMemberOwnedNamedGalleries.all() as Array<{
+        id: string;
+        name: string;
+        description: string;
+        created_at: string;
+        owner_slug: string;
+        owner_display_name: string;
+      }>;
+      const galleries: MemberGalleryListItem[] = rows.map((g) => {
+        const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map((t) => t.id);
+        const excludeTagIds = (media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[]).map(
+          (t) => t.id,
+        );
+        const itemCount = countGalleryItemsByCriteria(tagIds, excludeTagIds);
+        return {
+          id: g.id,
+          name: g.name,
+          description: g.description,
+          itemCount,
+          itemCountNoun: itemCount === 1 ? 'item' : 'items',
+          href: `/media/${g.id}`,
+          ownerDisplayName: g.owner_display_name,
+          // Member profiles are visible to signed-in members only, so the owner
+          // link is present for authenticated viewers and omitted for visitors,
+          // who still see the owner's display name.
+          ownerHref: viewer.authenticated ? `/members/${g.owner_slug}` : null,
+        };
+      });
+      return {
+        seo: { title: 'Member Galleries' },
+        page: {
+          sectionKey: 'media',
+          pageKey: 'media_member_galleries',
+          title: 'Member Galleries',
+          intro: 'Photo and video galleries created by IFPA members.',
+        },
+        content: { galleries, hasGalleries: galleries.length > 0 },
+      };
+    });
+  },
+
+  // Member's own uploaded media, shaped as gallery tiles for the profile media
+  // grid. Reuses shapeItem so profile tiles render identically to gallery tiles;
+  // tags are omitted (the profile grid shows thumbnails only).
+  listMemberMediaPreview(
+    memberId: string,
+    limit: number = PROFILE_MEDIA_PREVIEW_LIMIT,
+  ): GalleryItem[] {
+    return runSqliteRead('mediaService.listMemberMediaPreview', () => {
+      const rows = media.listMemberUploadedMedia.all(memberId, limit) as CuratorGalleryRow[];
+      const adapter = getMediaStorageAdapter();
+      return rows.map((row) => shapeItem(row, [], (k) => adapter.constructURL(k)));
     });
   },
 

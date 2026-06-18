@@ -375,6 +375,25 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).not.toContain('Link your competition history');
   });
 
+  it('shows the stored date of birth as a read-only identity field', async () => {
+    const app = createApp();
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run('1990-03-15', OWN_ID);
+    db.close();
+    try {
+      const res = await request(app)
+        .get(`/members/${OWN_SLUG}/edit`)
+        .set('Cookie', ownCookie());
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('Date of birth');
+      expect(res.text).toContain('15 March 1990');
+    } finally {
+      const restore = new BetterSqlite3(TEST_DB_PATH);
+      restore.prepare('UPDATE members SET birth_date = NULL WHERE id = ?').run(OWN_ID);
+      restore.close();
+    }
+  });
+
   it('Save is wired to the profile form — form not nested, submit associated', async () => {
     const app = createApp();
     const res = await request(app)

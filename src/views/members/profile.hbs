@@ -67,6 +67,10 @@
 
         {{> member-block-my-clubs content.myClubs}}
 
+        {{#if content.media.items.length}}
+          {{> member-block-media content.media}}
+        {{/if}}
+
         {{> member-block-coming-soon content.comingSoon}}
 
         <div class="profile-section">

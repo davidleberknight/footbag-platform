@@ -67,8 +67,6 @@ Each of these is a place where the running code differs from the intended design
 
 Each item is a place where a shipped user story is not fully delivered. Delete it when the fix ships with a test. The name in parentheses is the user story it belongs to.
 
-- **A public profile does not show the member's club.** The public profile page has no club field; it should show which club the member belongs to. (M_View_Profile)
-- **A profile does not show the member's photos and videos.** Neither the private nor the public profile shows the member's uploaded media; both should show a thumbnail grid of it. (M_View_Profile)
 - **Leaving a club as its last co-leader gives no warning.** Leaving a club just goes through; it should warn the member first when they are the club's only co-leader. (M_Leave_Club)
 - **An inactive club has no deliberate reactivation.** A club can be marked inactive, and joining or volunteering to co-lead an inactive club silently flips it back to active, but there is no deliberate reactivate action; a co-leader should be able to reactivate an inactive club at any time. (CL_Mark_Club_Inactive)
 - **Member hashtags must be entered lowercase.** Uploads reject any mixed-case tag outright, and the `tag_display` column meant to preserve the original capitalization is written identical to the normalized lowercase value, so its purpose is never realized. Accept mixed-case input, store the original in `tag_display` for display, and match case-insensitively. (M_Upload_Photo)

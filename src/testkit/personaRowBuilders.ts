@@ -138,6 +138,74 @@ export function insertTag(db: BetterSqlite3.Database, o: TagOverrides = {}): str
   return id;
 }
 
+// ── Member named gallery + one matching media item ────────────────────────────
+//
+// Seeds a member-owned named gallery (is_default=0, so it is a deliberately
+// named gallery rather than the auto-default Personal Gallery) plus one uploaded
+// media item that resolves into it. The gallery's sole criteria tag is the
+// owner's `#by_<slug>` uploader tag and the media item carries the same tag, so
+// the gallery resolves to exactly one item through the standard tag-AND query.
+// The uploader tag is freeform (is_standard=0); insertTag only produces standard
+// tags, so the tag is inlined here.
+export interface PersonaNamedGalleryOverrides {
+  galleryId: string;
+  ownerMemberId: string;
+  ownerSlug: string;
+  name: string;
+  description?: string;
+}
+
+export function insertPersonaNamedGallery(
+  db: BetterSqlite3.Database,
+  o: PersonaNamedGalleryOverrides,
+): string {
+  const byTag = `#by_${o.ownerSlug}`;
+  // The uploader tag may already exist (a prior upload flow, or a prior seed not
+  // yet torn down): reuse it, otherwise create it freeform (is_standard=0).
+  const existingTag = db.prepare(`SELECT id FROM tags WHERE tag_normalized = ?`).get(byTag) as
+    | { id: string }
+    | undefined;
+  const byTagId = existingTag?.id ?? `tag-by-${o.ownerSlug}`;
+  if (!existingTag) {
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, 1)
+    `).run(byTagId, byTag, byTag, TS, SYS, TS, SYS);
+  }
+
+  db.prepare(`
+    INSERT INTO member_galleries (
+      id, created_at, created_by, updated_at, updated_by, version,
+      owner_member_id, name, description, is_default
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
+  `).run(o.galleryId, TS, SYS, TS, SYS, o.ownerMemberId, o.name, o.description ?? '');
+
+  db.prepare(`
+    INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+    VALUES (?, ?, ?, ?)
+  `).run(o.galleryId, byTagId, TS, SYS);
+
+  const mediaId = `media_persona_${o.ownerSlug}_gallery`;
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+      s3_key_thumb, s3_key_display, width_px, height_px, moderation_status
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'photo', 0, ?, ?, ?, ?, 1000, 600, 'active')
+  `).run(
+    mediaId, TS, SYS, TS, SYS,
+    o.ownerMemberId, `${o.name} photo`, TS,
+    `personas/${mediaId}/thumb.jpg`, `personas/${mediaId}/display.jpg`,
+  );
+
+  db.prepare(`
+    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+  `).run(`mt-${mediaId}-by`, TS, SYS, TS, SYS, mediaId, byTagId, byTag);
+
+  return o.galleryId;
+}
+
 // ── Legacy member (three-table design: members + legacy_members + historical_persons) ─
 //
 // Row in legacy_members table — the imported-legacy-account entity.

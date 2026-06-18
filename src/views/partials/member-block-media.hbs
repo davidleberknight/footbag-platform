@@ -1,0 +1,23 @@
+{{!-- Member's uploaded media: a capped thumbnail grid (reusing the gallery
+      tile look) with a link to the full member-scoped browse. Receives a
+      ProfileMediaView as context; the caller renders it only when items exist. --}}
+<div class="profile-section">
+  <h2 class="profile-section-heading">Media</h2>
+  <ul class="gallery-grid">
+    {{#each items}}
+      <li class="gallery-tile">
+        {{#if media}}
+          {{> video-facade media=media}}
+        {{else}}
+          <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
+            <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
+          </a>
+        {{/if}}
+        {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+      </li>
+    {{/each}}
+  </ul>
+  {{#if viewAllHref}}
+    <p class="mt-4"><a href="{{viewAllHref}}" class="btn btn-outline">View all media &rarr;</a></p>
+  {{/if}}
+</div>

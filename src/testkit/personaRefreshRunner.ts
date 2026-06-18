@@ -258,12 +258,24 @@ export function refreshAllPersonas(
         `SELECT id FROM payments WHERE member_id IN (${placeholders(memberIds.length)})`,
         memberIds,
       );
-      tagIds = clubIds.length
+      const clubTagIds = clubIds.length
         ? col(
             `SELECT hashtag_tag_id FROM clubs WHERE id IN (${placeholders(clubIds.length)})`,
             clubIds,
           )
         : [];
+      // Member-owned named galleries seeded for a persona carry a `#by_<slug>`
+      // uploader tag; include those so the tag and its links are torn down too.
+      const galleryTagIds = memberIds.length
+        ? col(
+            `SELECT DISTINCT mgt.tag_id
+               FROM member_gallery_tags mgt
+               JOIN member_galleries g ON g.id = mgt.gallery_id
+              WHERE g.owner_member_id IN (${placeholders(memberIds.length)})`,
+            memberIds,
+          )
+        : [];
+      tagIds = unique([...clubTagIds, ...galleryTagIds]);
 
       // name_variants are written only for a `medium` auto-link persona, linking
       // its member real_name to the historical-person middle-token name. The row

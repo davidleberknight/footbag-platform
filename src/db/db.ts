@@ -4519,6 +4519,7 @@ export interface MemberProfileRow {
   city: string | null;
   region: string | null;
   country: string | null;
+  birth_date: string | null;
   phone: string | null;
   whatsapp: string | null;
   email_visibility: string;
@@ -4592,6 +4593,7 @@ export const account = {
       m.city,
       m.region,
       m.country,
+      m.birth_date,
       m.phone,
       m.whatsapp,
       m.email_visibility,
@@ -5479,6 +5481,25 @@ export const media = {
       AND mi.moderation_status = 'active'
   `); },
 
+  // Member's own uploaded media, newest first, for the profile media grid.
+  // Active, non-avatar, member-owned (is_system=0) rows only; the LIMIT caps
+  // the profile preview. Returns the CuratorGalleryRow shape so the media
+  // service can reuse its gallery-tile shaping.
+  get listMemberUploadedMedia() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.uploader_member_id = ?
+      AND m.is_system = 0
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ?
+  `); },
+
   // Caption-only update for member-self edits. Mirrors
   // updateCuratorMediaCaption but stamps updated_by='member-self'.
   get updateMemberMediaCaption() { return db.prepare(`
@@ -5695,6 +5716,19 @@ export const media = {
     JOIN members m ON m.id = g.owner_member_id
     WHERE g.is_default = 0
     ORDER BY m.is_system DESC, g.name
+  `); },
+
+  // Member-owned named galleries (non-default, non-system) oldest first.
+  // Powers the /media/member-galleries list page; the per-member auto-default
+  // Personal Gallery (is_default=1) is excluded so the list shows only
+  // deliberately-named galleries.
+  get listMemberOwnedNamedGalleries() { return db.prepare(`
+    SELECT g.id, g.name, g.description, g.created_at,
+           m.slug AS owner_slug, m.display_name AS owner_display_name
+    FROM member_galleries g
+    JOIN members m ON m.id = g.owner_member_id
+    WHERE g.is_default = 0 AND m.is_system = 0
+    ORDER BY g.created_at ASC, g.id ASC
   `); },
 
   // Insert a new member_galleries row. Caller wraps in a transaction

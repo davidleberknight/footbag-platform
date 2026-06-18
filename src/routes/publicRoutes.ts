@@ -58,6 +58,9 @@ publicRouter.get('/media',              mediaController.hub);
 publicRouter.get('/media/browse',       mediaController.browse);
 // Literal sub-route; like /media/browse it MUST precede /media/:galleryId.
 publicRouter.get('/media/freestyle-tutorials', mediaController.freestyleTutorials);
+// Literal sub-route; like /media/browse it MUST precede /media/:galleryId so
+// the member-galleries list page is not captured as a gallery id.
+publicRouter.get('/media/member-galleries', mediaController.memberGalleries);
 publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
 publicRouter.get('/hof',   hofController.index);
 publicRouter.get('/bap',   bapController.index);
