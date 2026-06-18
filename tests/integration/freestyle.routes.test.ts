@@ -1280,33 +1280,35 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP: clipper set position \(start of trick\)">CLIP<\/span>/);
   });
 
-  it('renders the curator-authored source-note when operational_notation_source is populated (O1d)', async () => {
+  it('never renders source-provenance prose, even when operational_notation_source is populated', async () => {
+    // Source provenance is curator-internal metadata, not public detail-card
+    // copy: the Execution notation block must never surface it.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="operational-notation-source-note"');
-    expect(res.text).toContain('Source: FootbagMoves.com (curator-reviewed 2026-05-10). Demo source-note for O1d.');
+    // The operational/Execution notation block still renders its tokens.
+    expect(res.text).toContain('operational-notation-display');
+    // But the provenance line and its text never reach the page.
+    expect(res.text).not.toContain('class="operational-notation-source-note"');
+    expect(res.text).not.toContain('Source: FootbagMoves.com');
   });
 
-  it('omits the source-note element when operational_notation_source is null (O1d)', async () => {
+  it('omits the source-note element when operational_notation_source is null', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
-    // op-notation-seeded has operational_notation but NO source — the
-    // operational subblock must render but the source-note <p> must NOT.
     expect(res.text).toContain('operational-notation-display');
     expect(res.text).not.toContain('class="operational-notation-source-note"');
   });
 
-  it('places source-note between the token block and the Token-reference link (O1d)', async () => {
+  it('places the Token-reference link directly after the token block (no source-note between)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
     const tokensIdx  = res.text.indexOf('class="operational-notation-tokens"');
-    const sourceIdx  = res.text.indexOf('class="operational-notation-source-note"');
     const linkIdx    = res.text.indexOf('class="notation-glossary-link"');
     expect(tokensIdx).toBeGreaterThan(-1);
-    expect(sourceIdx).toBeGreaterThan(tokensIdx);
-    expect(linkIdx).toBeGreaterThan(sourceIdx);
+    expect(linkIdx).toBeGreaterThan(tokensIdx);
+    expect(res.text).not.toContain('class="operational-notation-source-note"');
   });
 });
 

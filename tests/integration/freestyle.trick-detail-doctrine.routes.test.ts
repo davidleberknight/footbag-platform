@@ -15,7 +15,7 @@
  *   - DB description rows NOT mutated (verified by absence of regex
  *     match in raw description on rendered page when literal differs
  *     from displayed)
- *   - Shell ordering: the intuition section appears BEFORE trick-about
+ *   - Shell ordering: About sits above the fold; Movement intuition follows it
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -265,22 +265,24 @@ describe('Pages with no curated L1-L6 content suppress those sections', () => {
   });
 });
 
-describe('Shell ordering — surviving ontology sections render BEFORE trick-about', () => {
-  it('on mirage, the intuition section appears before the About-this-trick heading', async () => {
+describe('Shell ordering — About sits above the fold, before Movement intuition', () => {
+  it('on mirage, About this trick appears before the Movement intuition section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
+    const aboutIdx     = res.text.indexOf('>About this trick<');
     const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
-    const aboutIdx = res.text.indexOf('>About this trick<');
-    expect(intuitionIdx).toBeGreaterThan(-1);
     expect(aboutIdx).toBeGreaterThan(-1);
-    expect(intuitionIdx).toBeLessThan(aboutIdx);
+    expect(intuitionIdx).toBeGreaterThan(-1);
+    expect(aboutIdx).toBeLessThan(intuitionIdx);
   });
 
-  it('on mirage, the surviving sections render in canonical order (intuition → about)', async () => {
+  it('on mirage, the structural-facts block sits between About and Movement intuition', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/mirage');
-    const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
     const aboutIdx     = res.text.indexOf('>About this trick<');
-    expect(intuitionIdx).toBeGreaterThan(-1);
-    expect(aboutIdx).toBeGreaterThan(intuitionIdx);
+    const structIdx    = res.text.indexOf('class="content-section trick-structural-facts"');
+    const intuitionIdx = res.text.indexOf('class="content-section trick-intuition"');
+    expect(aboutIdx).toBeGreaterThan(-1);
+    expect(structIdx).toBeGreaterThan(aboutIdx);
+    expect(intuitionIdx).toBeGreaterThan(structIdx);
   });
 });
 

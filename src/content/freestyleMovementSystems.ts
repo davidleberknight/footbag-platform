@@ -46,7 +46,7 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisName:       'Set / Uptime Systems',
     axisDefinition:
       'Set primitives that initiate a trick: what the foot does before the base trick ' +
-      'begins. Pre-base uptime treatments, compressed-set families, and Red-settled ' +
+      'begins. Pre-base uptime treatments, compressed-set families, and ' +
       'compound set modifiers (nuclear = paradox + illusion, quantum = ' +
       'compressed atomic).',
     // Order: pixie / fairy (pre-base uptime compressors); atomic / quantum / nuclear

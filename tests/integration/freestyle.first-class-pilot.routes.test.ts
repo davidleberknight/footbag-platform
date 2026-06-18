@@ -2,21 +2,23 @@
  * Integration tests for the first-class trick pilot (5 slugs:
  * osis / paradox-mirage / symposium-mirage / atomic-butterfly / ripwalk).
  *
+ * Every trick-detail page renders one universal notation card: Movement
+ * notation, then Execution notation, then the ADD derivation. The card is
+ * identical for bases and derivatives; "first-class" no longer grants a
+ * special summary card.
+ *
  * Contract under test:
- *   - First-class trick pages render the Zone B comparative-notation row
- *     (JOB / ADD / VIDEO labels) below the hero.
- *   - Non-first-class trick pages render the existing trick-detail
- *     layout unchanged (no Zone B row).
- *   - The First-Class ADD Convergence Rule (H1-H8) correctly classifies
- *     the pilot 5 as first-class, rejects mobius (Wave 2 gyro doctrine
- *     question) and blur (no published derivation yet).
+ *   - First-class trick pages render the universal notation card: the
+ *     Execution notation section (the operational / JOB chain) and the
+ *     ADD derivation section.
+ *   - The ADD derivation surfaces the curator-published breakdown
+ *     (e.g. osis -> spin(1) + xbod(1) + stall(1), paradox-mirage ->
+ *     paradox(+1) + mirage(2)) and never a tautological self-identity.
  *   - The 4-tier rendering hierarchy contract is preserved: Tier-4
  *     patterns (xbody(N), dex(N), stall(N), spin(N), = N ADD) do NOT
  *     appear on /freestyle/tricks browse / landing surfaces.
- *   - Curator-internal language (provenance, pt##, Red, Wave) never
+ *   - Curator-internal language (provenance, source citations) never
  *     reaches the rendered HTML.
- *   - First-class tricks suppress the Phase B trick-add-analysis
- *     disclosure (Zone B supersedes it).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -140,65 +142,62 @@ const PILOT_SLUGS = [
   'osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
 ] as const;
 
-describe('First-class trick pilot — Notation summary card', () => {
-  it.each(PILOT_SLUGS)('renders the Notation summary card on /freestyle/tricks/%s', async (slug) => {
+// Slice out a single <section> by a class on its opening tag, so an
+// assertion targets only that region of the page. Anchored on the section
+// class (unique) rather than aria-label, because the hero ADD chip reuses
+// the "ADD derivation" aria-label.
+function sectionByClass(html: string, sectionClass: string): string | null {
+  const classIdx = html.indexOf(sectionClass);
+  if (classIdx < 0) return null;
+  const sectionOpen = html.lastIndexOf('<section', classIdx);
+  const endIdx = html.indexOf('</section>', classIdx);
+  if (sectionOpen < 0 || endIdx < 0) return null;
+  return html.slice(sectionOpen, endIdx + '</section>'.length);
+}
+
+describe('First-class trick pilot — universal notation card', () => {
+  it.each(PILOT_SLUGS)('renders the ADD derivation section on /freestyle/tricks/%s', async (slug) => {
+    // The ADD derivation is the always-present structural row of the
+    // universal notation card; every first-class trick carries a
+    // curator-published derivation.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-notation-summary"/);
-    expect(res.text).toMatch(/class="trick-notation-summary-heading"[^>]*>\s*Notation summary\s*</);
+    const region = sectionByClass(res.text, 'trick-add-analysis');
+    expect(region).not.toBeNull();
+    expect(region!).toMatch(/<dt>ADD<\/dt>/);
   });
 
-  it.each(PILOT_SLUGS)('Notation summary on %s does NOT carry a "First-class" badge', async (slug) => {
-    // FC polish slice: the loud public-facing badge is retired; the
-    // section heading "Notation summary" is the only first-class signal.
+  it.each(PILOT_SLUGS)('notation card on %s does NOT carry a "First-class" badge', async (slug) => {
+    // The notation card is the same for bases and derivatives; no loud
+    // public-facing first-class badge is rendered.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/class="trick-first-class-strip-badge"/);
     expect(res.text).not.toMatch(/>\s*First-class\s*</);
   });
 
-  it.each(PILOT_SLUGS)('Notation summary on %s does NOT carry a redundant #slug title', async (slug) => {
-    // FC polish slice: the strip's #slug title row was redundant with
-    // the hero h1. Dropped entirely.
+  it.each(PILOT_SLUGS)('notation card on %s does NOT carry a redundant #slug title', async (slug) => {
+    // The hero h1 is the page title; the notation card adds no separate
+    // #slug title row.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     expect(res.text).not.toMatch(/class="trick-first-class-strip-title"/);
-    expect(res.text).not.toMatch(new RegExp(`class="trick-notation-summary-heading"[^>]*>\\s*#${slug}<`));
+    expect(res.text).not.toMatch(/class="trick-notation-summary-heading"/);
   });
 
-  it.each(PILOT_SLUGS)('Notation summary on %s carries the ADD row and the retired Compact/Official/Video rows are gone', async (slug) => {
-    // 2026-05-23 regression slice: the notation-summary card was
-    // reduced to the formula-only triplet JOB / ADD / ALT. Compact /
-    // Official / Video rows were dropped (Compact = title duplication;
-    // Official = redundant with hero ADD chip; Video = media indicator,
-    // not a formula row). JOB and ALT are conditional — JOB appears
-    // only when curator operational notation exists; ALT only for the
-    // 5 rev(0) entries. ADD is the one always-rendered row.
-    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
-    const startIdx = res.text.indexOf('class="trick-notation-summary"');
-    expect(startIdx).toBeGreaterThan(0);
-    const endIdx = res.text.indexOf('</section>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/<dt>ADD<\/dt>/);
-    expect(region).not.toMatch(/<dt>Compact<\/dt>/);
-    expect(region).not.toMatch(/<dt>Official<\/dt>/);
-    expect(region).not.toMatch(/<dt>Video<\/dt>/);
-  });
-
-  it('osis Notation summary uses "JOB" label — NOT a tautological echo of the canonical name', async () => {
-    // Atomic flag-decomposition source still resolves to the JOB row
-    // (uniform label across atomic / curator sources). The uppercased
-    // canonical-name form ("OSIS") never appears as a tautological
-    // chain value because the JOB row carries the operational chain
-    // (e.g. "SET > SPIN [BOD] > OP CLIP [XBD] [DEL]").
+  it('osis renders the Execution notation as the operational JOB chain — NOT a tautological echo of the canonical name', async () => {
+    // The operational chain (SET > SPIN [BOD] > OP CLIP [XBD] [DEL])
+    // renders as role-classified op-tokens in the Execution notation
+    // section. The uppercased canonical-name form ("OSIS") never appears
+    // as a tautological chain value.
     const res = await request(createApp()).get('/freestyle/tricks/osis');
-    const startIdx = res.text.indexOf('class="trick-notation-summary"');
-    const endIdx = res.text.indexOf('</section>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).toMatch(/<dt>JOB<\/dt>/);
-    expect(region).toContain('SET &gt; SPIN [BOD] &gt; OP CLIP [XBD] [DEL]');
-    // The legacy "Operational" / "Job" inline labels are gone.
-    expect(region).not.toMatch(/<dt>Operational<\/dt>/);
-    expect(region).not.toMatch(/<dt>Job<\/dt>/);
-    expect(region).not.toMatch(/>\s*OSIS\s*</);
+    const region = sectionByClass(res.text, 'operational-notation-display');
+    expect(region).not.toBeNull();
+    expect(region!).toMatch(/<h2>Execution notation<\/h2>/);
+    // Operational chain tokens render in order inside the section.
+    expect(region!).toMatch(
+      />SET<[\s\S]+?>SPIN<[\s\S]+?>\[BOD\]<[\s\S]+?>OP<[\s\S]+?>CLIP<[\s\S]+?>\[XBD\]<[\s\S]+?>\[DEL\]</,
+    );
+    // The canonical-name token is never the chain value.
+    expect(region!).not.toMatch(/>\s*OSIS\s*</);
   });
 
   it('osis ADD breakdown shows curator-published flag-decomposition (NOT trivial identity)', async () => {
@@ -207,39 +206,34 @@ describe('First-class trick pilot — Notation summary card', () => {
     expect(res.text).not.toMatch(/osis\(3\)\s*&#x3D;\s*3 ADD/);
   });
 
-  it('paradox-mirage ADD breakdown shows the Sprint 1 +1-stack derivation', async () => {
+  it('paradox-mirage ADD breakdown shows the +1-stack derivation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.text).toContain('paradox(+1) + mirage(2)');
   });
 
-  it('ripwalk ADD breakdown shows the Sprint 3 folk-name resolution', async () => {
+  it('ripwalk ADD breakdown shows the folk-name resolution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.text).toContain('stepping(+1) + butterfly(3)');
   });
 
-  it('hero ADD chip carries the curator-locked numeric value (Official row was retired)', async () => {
-    // 2026-05-23: the dedicated "Official" dl row in the notation
-    // summary card was retired as redundant with the hero ADD chip.
-    // The hero's chip is the single source of truth for the numeric
-    // total on first-class trick pages.
+  it('hero ADD chip carries the curator-locked numeric value', async () => {
+    // The hero's ADD chip is the single source of truth for the numeric
+    // total; the notation card carries the structural derivation, not a
+    // duplicate total row.
     const res = await request(createApp()).get('/freestyle/tricks/atomic-butterfly');
     expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-adds"[^>]*>4 ADD</);
-    expect(res.text).not.toMatch(/class="trick-notation-summary-official"/);
   });
 
-  it('Compact row was retired from the notation-summary card', async () => {
-    // 2026-05-23: the "Compact" dl row was retired as duplicating
-    // the page title. (paradox-mirage has no curator-authored JOB
-    // notation yet, so the JOB row simply does not render; the ADD
-    // row carries the derivation.)
+  it('paradox-mirage with no operational notation still renders the ADD derivation', async () => {
+    // paradox-mirage has no curator-authored operational notation, so
+    // the Execution notation section does not render; the ADD derivation
+    // section still carries the structural breakdown.
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    const startIdx = res.text.indexOf('class="trick-notation-summary"');
-    expect(startIdx).toBeGreaterThan(0);
-    const endIdx = res.text.indexOf('</section>', startIdx);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).not.toMatch(/<dt>Compact<\/dt>/);
-    expect(region).not.toMatch(/class="trick-notation-summary-compact"/);
-    expect(region).toMatch(/<dt>ADD<\/dt>/);
+    expect(res.text).not.toMatch(/operational-notation-display/);
+    const region = sectionByClass(res.text, 'trick-add-analysis');
+    expect(region).not.toBeNull();
+    expect(region!).toMatch(/<dt>ADD<\/dt>/);
+    expect(region!).toContain('paradox(+1) + mirage(2)');
   });
 });
 
@@ -252,22 +246,30 @@ describe('First-class trick pilot — hero record-chip removal', () => {
   });
 });
 
-describe('First-class trick pilot — non-first-class control slugs', () => {
-  it('mobius (H6 fails: gyro+torque computed != official) does NOT render the Notation summary', async () => {
+describe('First-class trick pilot — notation card is universal', () => {
+  it('the separate "Notation summary" card was removed app-wide (mobius, a non-first-class control)', async () => {
+    // The special first-class summary card no longer exists for any
+    // trick; this guards against its reintroduction.
     const res = await request(createApp()).get('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
+    expect(res.text).not.toMatch(/trick-notation-summary/);
+    expect(res.text).not.toMatch(/Notation summary/);
   });
 
-  it('blur (H4 fails: not in RESOLVED_FORMULAS_SPRINT_1) does NOT render the Notation summary', async () => {
+  it('the separate "Notation summary" card was removed app-wide (blur, a non-first-class control)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
+    expect(res.text).not.toMatch(/trick-notation-summary/);
+    expect(res.text).not.toMatch(/Notation summary/);
   });
 
-  it('first-class slugs suppress the Phase B trick-add-analysis disclosure', async () => {
+  it('first-class slugs DO render the ADD derivation section (the card is universal)', async () => {
+    // The ADD derivation is now rendered for first-class tricks too; it
+    // is the structural row of the one universal notation card.
     const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    expect(paradoxMirage.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    const region = sectionByClass(paradoxMirage.text, 'trick-add-analysis');
+    expect(region).not.toBeNull();
+    expect(region!).toMatch(/<dt>ADD<\/dt>/);
   });
 });
 
@@ -299,25 +301,28 @@ describe('First-class trick pilot — two-line JOB+ADD row', () => {
 });
 
 describe('First-class trick pilot — 4-tier hierarchy contract preservation', () => {
-  it('trick-detail notation-summary section is absent from the dictionary browse view', async () => {
+  it('trick-detail ADD-derivation section is absent from the dictionary browse view', async () => {
     // /freestyle/tricks is the By ADD ladder of registry cards; the
-    // trick-detail Tier sections (notation summary) never render here.
+    // trick-detail notation card (Execution notation, ADD derivation)
+    // never renders here.
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
+    expect(res.text).not.toMatch(/trick-add-analysis/);
   });
 });
 
 describe('First-class trick pilot — curator-internal language suppression', () => {
-  it.each(PILOT_SLUGS)('Notation summary on %s does NOT leak curator-internal provenance', async (slug) => {
+  it.each(PILOT_SLUGS)('the notation card on %s does NOT leak curator-internal provenance', async (slug) => {
+    // Provenance is curator-internal metadata, never rendered on the
+    // public page. Scan the whole page: the source-note line and any
+    // source citation must be absent.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
-    const startIdx = res.text.indexOf('class="trick-notation-summary"');
-    const endIdx   = res.text.indexOf('</section>', startIdx);
-    expect(startIdx).toBeGreaterThan(0);
-    const region = res.text.slice(startIdx, endIdx);
-    expect(region).not.toMatch(/canonical inventory/i);
-    expect(region).not.toMatch(/Red pt\d/i);
-    expect(region).not.toMatch(/Wave 2/i);
-    expect(region).not.toMatch(/Red ruling/i);
+    expect(res.text).not.toMatch(/operational-notation-source-note/);
+    expect(res.text).not.toMatch(/Source:/i);
+    expect(res.text).not.toMatch(/footbag\.org/i);
+    expect(res.text).not.toMatch(/Stanford shorthand/i);
+    expect(res.text).not.toMatch(/FootbagMoves/i);
+    expect(res.text).not.toMatch(/PassBack/i);
+    expect(res.text).not.toMatch(/canonical_db/i);
   });
 });

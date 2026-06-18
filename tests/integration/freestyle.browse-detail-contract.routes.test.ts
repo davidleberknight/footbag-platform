@@ -14,8 +14,8 @@
  *     illusion, pickup, orbit). Pinning a positive case (rev-whirl)
  *     guards against accidental removal of the ALT layer.
  *
- * This contract is currently in force (gated to the trick-transform
- * + trick-comparative-row partials, both detail-only). The suite is
+ * This contract is currently in force (the ALT row is gated to the
+ * trick-transform partial, detail-only). The suite is
  * a regression guard: a future shaping helper or partial refactor that
  * accidentally surfaces ALT / scoring divergence on a browse view will
  * fail one of these assertions.
@@ -92,8 +92,8 @@ describe('Browse contract: ALT row never appears on browse surfaces', () => {
     it(`${route}: no ALT dt and no transform overlay`, async () => {
       const res = await request(await createApp()).get(route);
       expect(res.status).toBe(200);
-      // The ALT row uses <dt>ALT</dt> in trick-transform.hbs +
-      // trick-comparative-row.hbs. Pin against that literal pattern.
+      // The ALT row uses <dt>ALT</dt> in trick-transform.hbs.
+      // Pin against that literal pattern.
       expect(res.text).not.toContain('<dt>ALT</dt>');
       // The transform partial is gated by aria-label.
       expect(res.text).not.toContain('aria-label="ALT formula (reverse-pair interpretation)"');

@@ -129,13 +129,17 @@ describe('Phase 3 — family-anchor callout on flagship trick-detail pages', () 
   });
 });
 
-describe('Phase 3 — first-class Notation summary regression (must still render)', () => {
+describe('flagship anchors — universal notation card renders', () => {
   it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
-    '%s page still renders the first-class Notation summary card',
+    '%s page renders the universal notation card (Execution notation + ADD derivation)',
     async (slug) => {
       const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
-      expect(res.text).toMatch(/class="trick-notation-summary"/);
-      expect(res.text).toMatch(/class="trick-notation-summary-heading"[^>]*>\s*Notation summary\s*</);
+      // Execution notation section: the operational chain renders as op-tokens.
+      expect(res.text).toMatch(/operational-notation-display"[^>]*aria-label="Execution notation"/);
+      expect(res.text).toMatch(/<h2>Execution notation<\/h2>/);
+      // ADD derivation section.
+      expect(res.text).toMatch(/trick-add-analysis"[^>]*aria-label="ADD derivation"/);
+      expect(res.text).toMatch(/<dt>ADD<\/dt>/);
     },
   );
 
@@ -161,6 +165,28 @@ describe('Phase 3 — non-anchor tricks do NOT render the family-anchor callout'
   });
 });
 
+describe('base-family paragraph appears on the family-anchor page only', () => {
+  // The generic base-family prose (FAMILY_NOTES) belongs on the base trick's own
+  // page, not repeated on every derivative About section.
+  it('the mirage base page renders the base-family paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('The mirage is the foundational 2-ADD dex base');
+  });
+
+  it('a mirage derivative does NOT repeat the base-family paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('The mirage is the foundational 2-ADD dex base');
+  });
+
+  it('a whirl derivative does NOT repeat the whirl base-family paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/paradox-whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('The whirl is the central rotational base');
+  });
+});
+
 describe('Phase 3 — no curator-internal language leakage', () => {
   it.each(['whirl', 'butterfly', 'mirage', 'osis'])(
     '%s callout does not expose pt##/Slice/Wave/Sprint labels',
@@ -179,4 +205,43 @@ describe('Phase 3 — no curator-internal language leakage', () => {
       expect(region).not.toMatch(/curatorConfirmPending/i);
     },
   );
+});
+
+describe('compact structural-fact block', () => {
+  const blockOf = (html: string): string => {
+    const i = html.indexOf('trick-structural-facts"');
+    if (i < 0) return '';
+    return html.slice(i, html.indexOf('</section>', i));
+  };
+
+  it('a derivative surfaces family base, movement system, neighborhood, and modifier with links', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    expect(res.status).toBe(200);
+    const block = blockOf(res.text);
+    expect(block).not.toBe('');
+    expect(block).toContain('Family base');
+    expect(block).toContain('href="/freestyle/tricks/mirage"');
+    expect(block).toContain('Movement system');
+    expect(block).toContain('href="/freestyle/tricks?view=movement-system#movement-axis-entry-topology"');
+    expect(block).toContain('Movement neighborhood');
+    expect(block).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
+    expect(block).toContain('Modifier');
+    expect(block).toContain('href="/freestyle/modifier/paradox"');
+    // Each classification carries a one-line beginner explanation.
+    expect(block).toContain('structural-fact-note');
+    expect(block).toContain('The hips pivot between two dexterity moves');
+    // The neighborhood grouping is marked exploratory in plain language (no
+    // "observational" jargon).
+    expect(block).toContain('>exploratory<');
+    expect(block).not.toContain('>observational<');
+  });
+
+  it('the family base row is suppressed on the base trick page (no self-reference)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/mirage');
+    expect(res.status).toBe(200);
+    const block = blockOf(res.text);
+    // mirage is its own family base, so the block (if present) carries no
+    // Family base row pointing at itself.
+    expect(block).not.toContain('Family base');
+  });
 });

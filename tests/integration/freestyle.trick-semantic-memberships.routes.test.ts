@@ -134,7 +134,6 @@ describe('trick-detail — topology memberships', () => {
   it('mirage surfaces only hippy-downtime-dex (base ∈ HIPPY_BASES)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Topology memberships');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
     // Should NOT have leggy or whirl-swirl
     expect(res.text).not.toContain('href="/freestyle/tricks?view=topology#topology-leggy-dex"');
@@ -226,10 +225,11 @@ describe('trick-detail — empty memberships', () => {
     expect(res.text).not.toContain('Component memberships');
   });
 
-  it('a trick with topology memberships but no component memberships renders only the topology panel', async () => {
+  it('a trick with topology memberships surfaces them as a Movement neighborhood row in the structural block', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mirage');
-    expect(res.text).toContain('trick-semantic-memberships');
-    expect(res.text).toContain('Topology memberships');
+    expect(res.text).toContain('trick-structural-facts');
+    expect(res.text).toContain('Movement neighborhood');
+    expect(res.text).toContain('href="/freestyle/tricks?view=topology#topology-hippy-downtime-dex"');
     expect(res.text).not.toContain('Component memberships');
   });
 });
@@ -239,22 +239,17 @@ describe('trick-detail — empty memberships', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('trick-detail — observational badge + visual contract', () => {
-  it('the topology panel heading carries the observational symbolic-layer badge', async () => {
+  it('the Movement neighborhood row carries the observational symbolic-layer badge', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/montage');
-    // Count badge occurrences inside the trick-semantic-memberships aside.
-    const asideStart = res.text.indexOf('class="trick-semantic-memberships"');
-    expect(asideStart).toBeGreaterThan(-1);
-    const asideEnd = res.text.indexOf('</aside>', asideStart);
-    const region = res.text.slice(asideStart, asideEnd);
-    // Only the topology panel renders now — exactly one badge.
+    // The neighborhood facts are observational; the structural block marks them
+    // so the canonical/observational distinction is preserved.
+    const blockStart = res.text.indexOf('trick-structural-facts"');
+    expect(blockStart).toBeGreaterThan(-1);
+    const blockEnd = res.text.indexOf('</section>', blockStart);
+    const region = res.text.slice(blockStart, blockEnd);
+    expect(region).toContain('Movement neighborhood');
     const badgeMatches = region.match(/class="symbolic-layer-badge"/g) ?? [];
     expect(badgeMatches.length).toBe(1);
-  });
-
-  it('panels render as a single <aside class="trick-semantic-memberships">', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/phoenix');
-    const asideOpens = res.text.match(/<aside class="trick-semantic-memberships"/g) ?? [];
-    expect(asideOpens.length).toBe(1);
   });
 });
 

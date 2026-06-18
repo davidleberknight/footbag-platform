@@ -15,21 +15,29 @@
 {{/if}}
 
 {{!-- Section 2 — Execution notation: the set-arc (operational) form, in its own
-     section so the page reads Movement notation -> Execution notation ->
-     Equivalent readings. Suppressed for first-class tricks (their JOB row is in
-     the comparative-row card under the hero). --}}
-{{#if content.operationalNotation}}{{#unless content.isFirstClass}}
+     section so the page reads Movement notation -> Execution notation -> ADD ->
+     Equivalent readings. Rendered the same way for bases and derivatives: when a
+     trick carries operational notation (CORE_TRICK_SPEC / curator / DB), its JOB
+     reads here. Source-provenance citation is intentionally NOT rendered (it is
+     curator-internal metadata, not public detail-card copy). --}}
+{{#if content.operationalNotation}}
 <section class="content-section operational-notation-display" aria-label="Execution notation">
   <div class="section-heading">
     <h2>Execution notation</h2>
     {{#if content.sectionSubtitles.executionNotation}}<p class="section-intro">{{content.sectionSubtitles.executionNotation}}</p>{{/if}}
   </div>
   <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
-  {{#if content.operationalNotation.sourceNote}}
-  <p class="operational-notation-source-note">{{content.operationalNotation.sourceNote}}</p>
+  {{#if content.executionExpanded}}
+  {{!-- Spelled-out form for named-set-shorthand entries (e.g. '(railing set)'). --}}
+  <p class="operational-notation-expanded"><span class="operational-notation-expanded-label">Expanded</span> <code>{{content.executionExpanded}}</code></p>
   {{/if}}
 </section>
-{{/unless}}{{/if}}
+{{/if}}
+
+{{!-- Section 3 — ADD derivation, directly below Execution notation so the
+     notation card reads Movement notation -> Execution notation -> ADD for
+     bases and derivatives alike. --}}
+{{> trick-add-analysis}}
 
 {{!-- Token reference: one glossary deeplink after the notation forms (before
      Equivalent readings), shown when either notation section rendered. --}}
@@ -37,50 +45,4 @@
 <p class="notation-glossary-link">
   <a href="/freestyle/glossary#notation">Token reference &rarr;</a>
 </p>
-{{/if}}
-
-{{!--
-  Layer 2 — Curated equivalence chain (editorial palette, progressive
-  hierarchy). Renders when semanticNotation.layer == 'equivalence'. Coexists
-  with Layer 1 when both exist. Visually editorial / pedagogical, distinct
-  from Layer 1's canonical treatment.
---}}
-{{#if content.semanticNotation}}
-{{#if content.semanticNotation.isEquivalenceLayer}}
-<section class="content-section equivalent-readings" aria-label="Equivalent readings">
-  <div class="section-heading">
-    <h2>Equivalent readings</h2>
-    {{#if (or content.sectionSubtitles.equivalentReadings content.semanticNotation.curatorConfirmPending)}}
-    <p class="section-intro">{{content.sectionSubtitles.equivalentReadings}}{{#if content.semanticNotation.curatorConfirmPending}} <span class="equivalent-readings-pending-flag">pending</span>{{/if}}</p>
-    {{/if}}
-  </div>
-  <ol class="equivalent-readings-list">
-    {{#each content.semanticNotation.readings}}
-    <li class="equivalent-reading equivalent-reading-depth-{{depthIndex}}">
-      {{#each tokens}}{{#if (eq kind "link")}}<a class="equivalent-reading-token equivalent-reading-token-link" href="{{href}}">{{text}}</a>{{else}}<span class="equivalent-reading-token">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
-    </li>
-    {{/each}}
-  </ol>
-</section>
-{{/if}}
-
-{{!--
-  Layer 3 — Base-lineage phrase. One-line prose pointing at the structural
-  base when the trick has a resolvable base_trick but no chain and no
-  curator notation. Quiet, restrained.
---}}
-{{#if content.semanticNotation.isBaseLineageLayer}}
-<section class="content-section semantic-base-lineage" aria-label="Trick lineage">
-  <p class="semantic-base-lineage-phrase">Built on <a href="/freestyle/tricks/{{content.semanticNotation.baseSlug}}">{{content.semanticNotation.baseName}}</a>.</p>
-</section>
-{{/if}}
-
-{{!--
-  Layer 5b — Non-core curation-gap cue. Renders for decomposable tricks
-  whose structural decomposition is not yet curator-authored. Pure prose;
-  no compensatory navigation. Visually very quiet.
---}}
-{{#if content.semanticNotation.isCurationGapLayer}}
-<p class="semantic-notation-pending">Compositional reading pending curation.</p>
-{{/if}}
 {{/if}}

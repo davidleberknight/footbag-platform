@@ -114,44 +114,52 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// ── DATW + DLO + rev-whirl: JOB + ADD rows render with the user's exact spec ──
-describe('DATW + DLO + rev-whirl: rendered JOB + ADD per curator spec', () => {
-  it('DATW renders JOB "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1) = 3 ADD"', async () => {
+// ── DATW + DLO + rev-whirl: Execution notation + ADD rows per the user's exact spec ──
+describe('DATW + DLO + rev-whirl: rendered Execution notation + ADD per curator spec', () => {
+  it('DATW renders Execution notation "TOE > SAME IN [DEX] > SAME IN [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/double-around-the-world');
     expect(res.status).toBe(200);
-    // The notation-summary card's JOB row renders the chain as plain
-    // text inside <code> (HTML-escaped). Match the contiguous string.
-    expect(res.text).toMatch(/TOE &gt; SAME IN \[DEX\] &gt; SAME IN \[DEX\] &gt; SAME TOE \[DEL\]/);
-    // ADD breakdown (Slice D 2026-05-26: `= N ADD` terminator stripped).
+    // The operational chain renders as role-classified op-tokens in the
+    // Execution notation section; assert each token in order.
+    expect(res.text).toMatch(
+      />TOE<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</,
+    );
+    // ADD breakdown (the `= N ADD` terminator is stripped on trick-detail).
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('DLO renders JOB "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
+  it('DLO renders Execution notation "SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]" + ADD "dex(2) + stall(1)"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/double-leg-over');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/SET &gt; OP IN \[DEX\] &gt; OP OUT \[DEX\] &gt; SAME TOE \[DEL\]/);
+    expect(res.text).toMatch(
+      />SET<[\s\S]+?>OP<[\s\S]+?>IN<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>SAME<[\s\S]+?>TOE<[\s\S]+?>\[DEL\]</,
+    );
     expect(res.text).toMatch(/dex\(2\)\s*\+\s*stall\(1\)/);
   });
 
-  it('rev-whirl renders JOB + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
+  it('rev-whirl renders Execution notation + ADD "xbody(1) + dex(1) + stall(1)" + ALT "rev(0) + whirl(3)"', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
     expect(res.status).toBe(200);
-    // JOB.
-    expect(res.text).toMatch(/CLIP &gt; OP OUT \[DEX\] &gt; OP CLIP \[XBD\] \[DEL\]/);
+    // Execution notation chain.
+    expect(res.text).toMatch(
+      />CLIP<[\s\S]+?>OP<[\s\S]+?>OUT<[\s\S]+?>\[DEX\]<[\s\S]+?>OP<[\s\S]+?>CLIP<[\s\S]+?>\[XBD\]<[\s\S]+?>\[DEL\]</,
+    );
     // ADD: structural decomposition, not the rev(0) reading.
     expect(res.text).toMatch(/xbody\(1\)\s*\+\s*dex\(1\)\s*\+\s*stall\(1\)/);
     // ALT: rev formula, NOT in the ADD row.
     expect(res.text).toMatch(/rev\(0\)\s*\+\s*whirl\(3\)/);
   });
 
-  it('rev-whirl JOB row is NOT labelled "canonical decomposition pending"', async () => {
+  it('rev-whirl Execution notation carries the actual chain, NOT a "canonical decomposition pending" placeholder', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/rev-whirl');
-    expect(res.text).toMatch(/<dt>JOB<\/dt>/);
-    // The notation-summary card's JOB row must carry the actual chain,
-    // not the placeholder.
-    const summary = res.text.match(/class="trick-notation-summary"[\s\S]+?<\/section>/);
-    expect(summary).not.toBeNull();
-    expect(summary![0]).not.toMatch(/canonical decomposition pending/i);
+    // The Execution notation section renders the real operational chain.
+    const classIdx = res.text.indexOf('operational-notation-display');
+    expect(classIdx).toBeGreaterThan(0);
+    const open = res.text.lastIndexOf('<section', classIdx);
+    const end = res.text.indexOf('</section>', classIdx);
+    const region = res.text.slice(open, end);
+    expect(region).toMatch(/<h2>Execution notation<\/h2>/);
+    expect(region).not.toMatch(/canonical decomposition pending/i);
   });
 });
 

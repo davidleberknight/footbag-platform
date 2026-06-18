@@ -1,0 +1,37 @@
+{{!--
+  Equivalent readings (progressive-disclosure reference layer). Extracted from
+  the top notation card so the compact above-the-fold view stays Movement
+  notation -> Execution notation -> ADD. Renders below the fold.
+
+  Layer 2 — curated equivalence chain; Layer 3 — base-lineage phrase;
+  Layer 5b — curation-gap cue. Each gates on its own semanticNotation flag.
+--}}
+{{#if content.semanticNotation}}
+{{#if content.semanticNotation.isEquivalenceLayer}}
+<section class="content-section equivalent-readings" aria-label="Equivalent readings">
+  <div class="section-heading">
+    <h2>Equivalent readings</h2>
+    {{#if (or content.sectionSubtitles.equivalentReadings content.semanticNotation.curatorConfirmPending)}}
+    <p class="section-intro">{{content.sectionSubtitles.equivalentReadings}}{{#if content.semanticNotation.curatorConfirmPending}} <span class="equivalent-readings-pending-flag">pending</span>{{/if}}</p>
+    {{/if}}
+  </div>
+  <ol class="equivalent-readings-list">
+    {{#each content.semanticNotation.readings}}
+    <li class="equivalent-reading equivalent-reading-depth-{{depthIndex}}">
+      {{#each tokens}}{{#if (eq kind "link")}}<a class="equivalent-reading-token equivalent-reading-token-link" href="{{href}}">{{text}}</a>{{else}}<span class="equivalent-reading-token">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+    </li>
+    {{/each}}
+  </ol>
+</section>
+{{/if}}
+
+{{#if content.semanticNotation.isBaseLineageLayer}}
+<section class="content-section semantic-base-lineage" aria-label="Trick lineage">
+  <p class="semantic-base-lineage-phrase">Built on <a href="/freestyle/tricks/{{content.semanticNotation.baseSlug}}">{{content.semanticNotation.baseName}}</a>.</p>
+</section>
+{{/if}}
+
+{{#if content.semanticNotation.isCurationGapLayer}}
+<p class="semantic-notation-pending">Compositional reading pending curation.</p>
+{{/if}}
+{{/if}}

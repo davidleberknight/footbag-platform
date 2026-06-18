@@ -15,8 +15,6 @@
 
 <div class="wrapper trick-shell">
 
-  {{> trick-comparative-row}}
-
   {{> trick-compressed-from}}
 
   {{#if content.ux2Pilot}}
@@ -34,19 +32,25 @@
     About, so no standalone mechanical-delta or progressive-readings
     section is needed.
   --}}
-  {{!-- Notation first on every trick page: Movement notation, then Execution
-       notation, then Equivalent readings, so the trick's structure reads before
-       the Movement intuition and About prose that follow. --}}
+  {{!-- Above the fold: the universal notation card (Movement notation ->
+       Execution notation -> ADD), then About (description / how it's built /
+       compared with base), then the compact structural-fact block, so a reader
+       grasps what the trick is, how it is executed, and how it is built without
+       scrolling. --}}
   {{> trick-notation}}
-
-  {{> trick-intuition}}
 
   {{> trick-about}}
 
-  {{!-- Wayfinding summary near the top: jump-links to learn / watch / family.
-       Placed above the deep sections and the media block so it reads as a
-       table of contents, not a repeat of the demos shown below. --}}
+  {{> trick-structural-facts}}
+
+  {{!-- Wayfinding summary: jump-links to learn / watch / family. --}}
   {{> trick-pathways}}
+
+  {{!-- Below the fold: reference depth, progressive disclosure. Movement
+       intuition and Equivalent readings lead the deeper layer. --}}
+  {{> trick-intuition}}
+
+  {{> trick-equivalent-readings}}
 
   {{> trick-primitive-note}}
 
@@ -57,8 +61,6 @@
   {{> trick-modifiers}}
 
   {{> trick-modifier-layering}}
-
-  {{> trick-add-analysis}}
 
   {{> trick-scoring-notes}}
 
@@ -98,8 +100,6 @@
   {{> trick-related}}
 
   {{> symbolic-related-topology}}
-
-  {{> trick-semantic-memberships}}
 
   {{#if content.hasMediaBlock}}
   <section id="media" class="content-section trick-media-block" aria-label="Media">

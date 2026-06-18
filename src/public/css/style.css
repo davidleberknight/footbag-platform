@@ -3255,6 +3255,70 @@ section.home-media { padding-top: 0; }
   word-break: break-word;
 }
 
+/* Spelled-out "Expanded" form for named-set-shorthand Execution notation. */
+.operational-notation-expanded {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 100%;
+  word-break: break-word;
+}
+.operational-notation-expanded-label {
+  font-weight: 600;
+  margin-right: 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Compact structural-fact block: family base / movement system / movement
+   neighborhood / modifiers as label-led rows, high on the trick page for an
+   at-a-glance scan of the trick's structure. */
+.trick-structural-facts {
+  background: var(--sec-bg);
+  border-left: 3px solid var(--secondary);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+.trick-structural-facts-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin: 0;
+}
+.trick-structural-facts-list dt {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.trick-structural-facts-list dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+/* One fact per line so each name + its one-line note reads cleanly. */
+.structural-fact {
+  display: block;
+  margin-bottom: 2px;
+}
+.structural-fact:last-child { margin-bottom: 0; }
+.structural-fact-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+@media (max-width: 480px) {
+  .trick-structural-facts-list {
+    grid-template-columns: 1fr;
+    row-gap: 2px;
+  }
+  .trick-structural-facts-list dt {
+    margin-top: 4px;
+  }
+  .trick-structural-facts-list dt:first-of-type {
+    margin-top: 0;
+  }
+}
+
 .op-token {
   padding: 0 0.15em;
   border-radius: var(--radius-2xs);
@@ -3327,19 +3391,6 @@ section.home-media { padding-top: 0; }
   color: var(--sec-dev);  /* match notation-core-family cool palette on hover */
 }
 
-/* O1d: curator-authored provenance / citation line. Muted italic so it
- * recedes below the token block; sits between the notation and the
- * glossary deeplink. Free-form text supporting the three real states
- * (FM curator-reviewed / IFPA-authored / FM alternative-reading) plus
- * ontology-conflict transparency. Omits entirely when null. */
-.operational-notation-source-note {
-  margin: 10px 0 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-style: italic;
-  line-height: 1.5;
-  max-width: 720px;
-}
 .notation-token {
   padding: 0 0.15em;
   border-radius: var(--radius-2xs);
@@ -5135,83 +5186,10 @@ section.home-media { padding-top: 0; }
   margin-bottom: 8px;
 }
 
-/* Notation summary: first-class trick reference card. Neutral palette
-   (white background, thin gray border, smaller typography); visually
-   secondary to the hero, not a warning panel. */
-.trick-notation-summary {
-  margin: 0 0 18px 0;
-  padding: 10px 14px;
-  background: var(--white);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-xs);
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--earth-750);
-}
-.trick-notation-summary-heading {
-  margin: 0 0 6px 0;
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--gray-550);
-  text-transform: uppercase;
-}
-.trick-notation-summary-fields {
-  margin: 0;
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  column-gap: 14px;
-  row-gap: 4px;
-  align-items: baseline;
-}
-.trick-notation-summary-fields dt {
-  font-weight: 600;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  color: var(--earth-gold);
-  text-transform: uppercase;
-  margin: 0;
-  white-space: nowrap;
-}
-.trick-notation-summary-fields dd {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--earth-750);
-  word-break: break-word;
-}
-.trick-notation-summary-fields dd code {
-  background: var(--parch-100);
-  padding: 1px 5px;
-  border-radius: var(--radius-2xs);
-  font-size: 0.93em;
-}
-.trick-notation-summary-compact {
-  font-style: italic;
-  color: var(--earth-650);
-}
-.trick-notation-summary-chain {
-  font-size: 0.84em !important;
-}
-.trick-notation-summary-derivation {
-  font-size: 0.86em !important;
-}
-.trick-notation-summary-official {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--earth-650);
-}
-.trick-notation-summary-video {
-  color: var(--earth-650);
-}
-.trick-notation-summary-video--none-yet {
-  color: var(--gray-520);
-  font-style: italic;
-}
 
 /* "Compressed from" / "Compressed reading" pedagogy line, a
-   glossary follow-on. Single line; visually subordinate to the JOB/
-   ADD/ALT cluster above it. Margin-top pulls it close to the notation
-   summary block. */
+   glossary follow-on. Single line; visually subordinate, sitting near the
+   top of the trick-detail page above the notation card. */
 .trick-compressed-from {
   margin: 0.25rem 0 0.75rem;
   font-size: 0.88em;
@@ -5224,18 +5202,6 @@ section.home-media { padding-top: 0; }
 }
 .trick-compressed-from-reading {
   font-style: italic;
-}
-@media (max-width: 480px) {
-  .trick-notation-summary-fields {
-    grid-template-columns: 1fr;
-    row-gap: 2px;
-  }
-  .trick-notation-summary-fields dt {
-    margin-top: 4px;
-  }
-  .trick-notation-summary-fields dt:first-of-type {
-    margin-top: 0;
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -8882,69 +8848,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
-  }
-}
-
-/* Trick-detail reverse-semantic-membership panels.
- * Two small subordinate panels (Topology + Component) surfacing the
- * browse-view groups the current trick belongs to. Observational layer. */
-.trick-semantic-memberships {
-  margin: 28px 0;
-  padding: 14px 16px;
-  background: var(--parch-50);
-  border-left: 3px solid var(--parch-350);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-.trick-semantic-memberships-panel { min-width: 0; }
-.trick-semantic-memberships-heading {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--earth-400);
-  margin: 0 0 8px 0;
-  font-weight: 600;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.trick-semantic-memberships-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.trick-semantic-memberships-list li {
-  font-size: 0.9rem;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--earth-700);
-}
-.trick-semantic-memberships-list a {
-  color: var(--earth-800);
-  text-decoration: underline dotted;
-}
-.trick-semantic-memberships-list a:hover { text-decoration: underline solid; }
-.trick-semantic-memberships-axis-chip {
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--earth-300);
-  background: var(--parch-200);
-  padding: 1px 6px;
-  border-radius: var(--radius-2xs);
-}
-
-@media (max-width: 768px) {
-  .trick-semantic-memberships {
-    grid-template-columns: 1fr;
-    gap: 14px;
   }
 }
 

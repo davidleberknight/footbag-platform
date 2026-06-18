@@ -1,17 +1,22 @@
 /**
- * Integration tests: the railing cohort renders as genuine first-class
- * tricks, with the named-set shorthand AND its full spelled-out expansion.
+ * Integration tests: the railing cohort renders the universal notation
+ * card, carrying the named-set shorthand in its Execution notation and the
+ * full ADD derivation.
  *
  * Contract under test:
  *   - With the railing set registered as a (+2) set-type modifier and
- *     linked, the cohort passes the first-class convergence rule
- *     (base + modifiers == official ADD) and renders the Notation summary
- *     card. railing(2) + symposium(1) + mirage(2) = 5, etc.
- *   - The summary card carries BOTH the compact JOB shorthand
- *     ('(railing set) >>') and an EXPANDED row spelling the set out
- *     ('... OP OUT [DEX] (rooted) ...').
- *   - A trick whose JOB notation is already fully expanded (no shorthand)
- *     gets no EXPANDED row.
+ *     linked, the cohort renders the Execution notation section carrying
+ *     the compact named-set shorthand ('(railing set)') as a pre-state
+ *     token.
+ *   - The ADD derivation section spells the full breakdown
+ *     (railing(2) + symposium(1) + mirage(2), shooting(3) + eggbeater(3),
+ *     etc.).
+ *   - A base trick with no named-set shorthand renders no such shorthand
+ *     token (its Execution notation is the plain operational chain).
+ *
+ * The named-set shorthand lives in the Execution notation and the ADD
+ * derivation carries the structural total. The spelled-out form is resurfaced
+ * as an "Expanded" line directly below the shorthand tokens.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -87,48 +92,75 @@ async function trick(slug: string): Promise<string> {
   return res.text;
 }
 
-describe('railing cohort — genuine first-class rendering', () => {
-  it('dorshanatrix renders the first-class Notation summary with shorthand + EXPANDED', async () => {
+// Extract the Execution notation section so a shorthand-token assertion
+// targets only that region.
+function executionNotation(html: string): string | null {
+  const classIdx = html.indexOf('operational-notation-display');
+  if (classIdx < 0) return null;
+  const open = html.lastIndexOf('<section', classIdx);
+  const end = html.indexOf('</section>', classIdx);
+  if (open < 0 || end < 0) return null;
+  return html.slice(open, end + '</section>'.length);
+}
+
+describe('railing cohort — universal notation card', () => {
+  it('dorshanatrix renders the named-set shorthand in Execution notation and the full ADD derivation', async () => {
     const html = await trick('dorshanatrix');
-    expect(html).toContain('Notation summary');
-    // Compact shorthand stays in the JOB row.
-    expect(html).toContain('(railing set)');
-    // EXPANDED row spells the railing set out (rooted sailing spine).
-    expect(html).toMatch(/>EXPANDED</);
-    expect(html).toContain('OP OUT [DEX] (rooted)');
+    // Compact named-set shorthand renders as a pre-state token in the
+    // Execution notation section.
+    const exec = executionNotation(html);
+    expect(exec).not.toBeNull();
+    expect(exec!).toContain('(railing set)');
+    // The ADD derivation carries the full structural breakdown.
+    expect(html).toContain('railing(2) + symposium(1) + mirage(2)');
+    // The spelled-out form is resurfaced as an "Expanded" line below the
+    // shorthand tokens, inside the Execution notation section.
+    expect(exec!).toContain('operational-notation-expanded');
+    expect(exec!).toContain('>Expanded<');
   });
 
-  it('flying-fish and rail-warrior also render first-class with the EXPANDED row', async () => {
+  it('flying-fish and rail-warrior also render the named-set shorthand in Execution notation', async () => {
     for (const slug of ['flying-fish', 'rail-warrior']) {
       const html = await trick(slug);
-      expect(html).toContain('Notation summary');
-      expect(html).toMatch(/>EXPANDED</);
-      expect(html).toContain('(rooted)');
+      const exec = executionNotation(html);
+      expect(exec).not.toBeNull();
+      expect(exec!).toContain('(railing set)');
+      // The spelled-out EXPANDED row was retired with the summary card.
+      expect(html).not.toMatch(/>EXPANDED</);
     }
   });
 
-  it('redwetter (shooting set) renders first-class with shorthand + EXPANDED', async () => {
+  it('redwetter (shooting set) renders the named-set shorthand in Execution notation', async () => {
     const html = await trick('redwetter');
-    expect(html).toContain('Notation summary');
-    expect(html).toContain('(shooting set)');
-    expect(html).toMatch(/>EXPANDED</);
-    expect(html).toContain('OP OUT [PDX] [DEX]');
+    const exec = executionNotation(html);
+    expect(exec).not.toBeNull();
+    expect(exec!).toContain('(shooting set)');
+    expect(html).toContain('shooting(3) + eggbeater(3)');
+    expect(html).not.toMatch(/>EXPANDED</);
   });
 
-  it('floatation (floating set) renders first-class with the shorthand', async () => {
+  it('floatation (floating set) renders the named-set shorthand', async () => {
     const html = await trick('floatation');
-    expect(html).toContain('Notation summary');
-    expect(html).toContain('(floating set)');
+    const exec = executionNotation(html);
+    expect(exec).not.toBeNull();
+    expect(exec!).toContain('(floating set)');
   });
 
-  it('warp (warping set) renders first-class with the shorthand', async () => {
+  it('warp (warping set) renders the named-set shorthand', async () => {
     const html = await trick('warp');
-    expect(html).toContain('Notation summary');
-    expect(html).toContain('(warping set)');
+    const exec = executionNotation(html);
+    expect(exec).not.toBeNull();
+    expect(exec!).toContain('(warping set)');
   });
 
-  it('a base trick with no set shorthand renders no EXPANDED row', async () => {
+  it('a base trick renders no named-set shorthand token', async () => {
+    // mirage is a base with no named-set; its Execution notation is the
+    // plain operational chain. (The EXPANDED row is retired app-wide.)
     const html = await trick('mirage');
     expect(html).not.toMatch(/>EXPANDED</);
+    const exec = executionNotation(html);
+    if (exec !== null) {
+      expect(exec).not.toMatch(/\([a-z]+ set\)/);
+    }
   });
 });

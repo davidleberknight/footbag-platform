@@ -157,6 +157,7 @@ import {
   resolveModifierCompositionGloss,
   resolveAxisForModifier,
 } from '../content/freestyleMovementSystems';
+import { resolveModifierBeginnerNote } from '../content/freestyleStructuralFactNotes';
 import {
   ALTERNATIVE_SURFACES,
 } from '../content/freestyleAlternativeSurfaces';
@@ -1388,10 +1389,6 @@ export interface FreestyleTrickContent {
   // panels. Currently triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
-  // Reverse semantic linkage. Topology + component
-  // groups this trick belongs to. Each renders as a small inline link to
-  // its browse-view anchor. Empty arrays mean no memberships; the panel hides.
-  symbolicMemberships: TrickSemanticMemberships;
   // Next Tricks: same family + higher ADD; per-bucket-2 sampling, capped at 5.
   // Family-scoped progression; cross-family progression intentionally excluded.
   nextTricks: FreestyleNextTrick[];
@@ -1444,6 +1441,13 @@ export interface FreestyleTrickContent {
   // palette); the token classification lives in
   // operationalNotationRendering.ts.
   operationalNotation: OperationalNotation | null;
+  // Fully spelled-out operational chain for named-set-shorthand entries,
+  // rendered below the Execution notation tokens. Null when absent.
+  executionExpanded: string | null;
+  // Compact structural-fact block (family base / movement system(s) / movement
+  // neighborhood(s) / modifier(s)), rendered right after About. Null when the
+  // trick has none of those facts (e.g. a bare family-base atom).
+  structuralFacts: TrickStructuralFacts | null;
   // Single-page pilot. Populated only for the flagship
   // pilot trick (montage). Null for every other trick so the legacy template
   // continues to render unchanged. When populated, the universal shell
@@ -1498,25 +1502,13 @@ export interface FreestyleTrickContent {
   // Tier-4 patterns on browse cards + landing; trick-detail pages are the
   // only public surface (alongside /freestyle/add-analysis) where this
   // surfaces. Provenance is curator-internal language and is NOT exposed.
-  // Suppressed (null) when isFirstClass is true; the comparativeNotation
-  // row supersedes this surface for first-class tricks.
+  // Renders in the universal notation card (below Execution notation) for
+  // every trick that has a derivation, bases and derivatives alike.
   addAnalysis: TrickAddAnalysisDisclosure | null;
   // First-class trick promotion flag (pilot). True when the slug passes
   // the First-Class ADD Convergence Rule AND appears in the pilot
-  // allow-list. Drives the comparativeNotation surface; outside the
-  // pilot, the field stays false even for governance-clean slugs.
+  // allow-list. Drives first-class-only surfaces elsewhere on the page.
   isFirstClass: boolean;
-  // Comparative-notation row (Zone B, smaller font, label-led inline
-  // metadata: JOB / ADD / VIDEO). Non-null only when isFirstClass is
-  // true. Renders directly below the hero, before the rest of the page.
-  comparativeNotation: ComparativeNotationRow | null;
-  // Presentation-only: hoist the existing Movement-notation block above
-  // Movement Intuition/About so a non-first-class family/branch anchor's
-  // structure reads near the top, at the same visibility as a first-class
-  // page's notation summary. The block renders exactly once (hoisted here
-  // OR at its default position below About, never both). No data/doctrine
-  // change; gating only.
-  hoistNotation: boolean;
   // Equivalence-topology view: alternate-derivation paths for tricks
   // whose canonical reading admits a structurally distinct path that
   // converges arithmetically. Null when no entry is authored OR when
@@ -1683,48 +1675,6 @@ export interface FreestyleTrickContent {
 // trick-detail view-model can type their handlers without depending on
 // the content module directly.
 export type { EquivalenceTopologyEntry } from '../content/freestyleEquivalenceTopology';
-
-/** First-class trick metadata strip — six labeled fields rendered as a
- *  Wikipedia-infobox-style publication metadata block below the hero.
- *  Visually distinct from ordinary trick pages; values are pre-shaped so
- *  the template only places labels and emits values. Source attributions
- *  ride as small captions next to each value (NOT inline debug prose). */
-export interface ComparativeNotationRow {
-  /** Slug-tag form ('#osis'). Appears as the strip's title row. */
-  trickTag:           string;
-  /** Curator-authored compact notation (e.g. 'gyro torque',
-   *  'stepping paradox mirage') from freestyle_tricks.notation. */
-  compactNotation:    string;
-  /** Operational / Job-lineage notation chain. */
-  jobLineage:         string;
-  /** 'curator' = curator-published operational notation; 'derived' =
-   *  mechanical derivation from base + modifier stack; 'atomic' = atomic
-   *  upper-case chain form for singleton atoms; 'absent' = no lineage
-   *  notation available (last-resort empty state). */
-  jobLineageSource:   'curator' | 'derived' | 'atomic' | 'absent';
-  /** Fully spelled-out operational chain when jobLineage uses a named-set
-   *  shorthand (e.g. '(railing set) >>'); empty string when the lineage is
-   *  already fully expanded. Renders as the EXPANDED summary row. */
-  expandedNotation:   string;
-  /** ADD-breakdown derivation string (e.g. 'paradox(+1) + mirage(2) = 3 ADD'). */
-  addBreakdown:       string;
-  /** 'curator' = curator-published RESOLVED_FORMULAS_SPRINT_1 row;
-   *  'atomic' = atomic flag-component decomposition from
-   *  ATOMIC_FLAG_DECOMPOSITIONS. */
-  addBreakdownSource: 'curator' | 'atomic';
-  /** Curator-locked numeric ADD from freestyle_tricks.adds. */
-  officialAdd:        number;
-  /** 'tutorial' / 'demo' / 'available' / 'none-yet'. */
-  videoState:         'tutorial' | 'demo' | 'available' | 'none-yet';
-  videoLabel:         string;
-  /** Alternate interpretive formula (the ALT row). Populated only when
-   *  a transform expression exists for this slug (the 5 curator-locked
-   *  rev(0) entries: illusion / pickup / rev-whirl / rev-swirl / orbit).
-   *  rev(+0) belongs in this row, not in the ADD calculation, so the
-   *  reverse-pair interpretation stays separate from the direct ADD
-   *  derivation. */
-  altFormula:         string | null;
-}
 
 /** Curator-published ADD derivation surfaced under a collapsed disclosure
  *  on the trick-detail page. Only `derivation` + `totalAdd` are
@@ -4097,13 +4047,28 @@ function stripDerivationAddTerminator(s: string): string {
   return s.replace(/\s*=\s*\d+\s*ADD\s*$/, '');
 }
 
-function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null {
+function shapeTrickAddAnalysis(slug: string, isAtomic = false): TrickAddAnalysisDisclosure | null {
   const formula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-  if (!formula) return null;
-  return {
-    derivation: stripDerivationAddTerminator(formula.derivation),
-    totalAdd:   formula.totalAdd,
-  };
+  if (formula) {
+    return {
+      derivation: stripDerivationAddTerminator(formula.derivation),
+      totalAdd:   formula.totalAdd,
+    };
+  }
+  // Atomic base trick (no modifiers): its ADD breakdown lives in the atomic
+  // flag-decomposition registry rather than RESOLVED_FORMULAS, so the unified
+  // notation card can still render an ADD line for it.
+  if (isAtomic) {
+    const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(slug);
+    if (atomic) {
+      const total = Number(atomic.decomposition.match(/=\s*(\d+)\s*ADD/)?.[1] ?? 0);
+      return {
+        derivation: stripDerivationAddTerminator(atomic.decomposition),
+        totalAdd:   total,
+      };
+    }
+  }
+  return null;
 }
 
 // ── First-class trick cohort ─────────────────────────────────────────────
@@ -5064,8 +5029,7 @@ function deriveComputedAddFromComposite(
 /**
  * Apply the First-Class ADD Convergence Rule (H1-H8) to a candidate
  * slug. Returns the convergence status + a one-line diagnostic. The
- * returned `status` is consumed by the service to gate the
- * comparativeNotation surface and the isFirstClass field.
+ * returned `status` is consumed by the service to gate the isFirstClass field.
  *
  * Rule summary: resolved = notation-complete + accounting-converged +
  * doctrine-clean. The three-way arithmetic equality (executable
@@ -5147,137 +5111,6 @@ export function assertFirstClassConvergence(
     return { status: 'governance-blocked', diagnostic: `atomic decomp total ${atomicDecomp.totalAdd} != official ${officialAdd}` };
   }
   return { status: 'first-class', diagnostic: 'convergence-rule passed' };
-}
-
-/** Shape the Zone B comparative-notation row for a first-class trick.
- *  Returns null when the slug is not first-class. The JOB cell prefers
- *  curator-authored operational notation; falls back to a derived chain
- *  for atomic singletons. The ADD cell prefers RESOLVED_FORMULAS_SPRINT_1
- *  derivation; falls back to atomic-trivial `<base>(N) = N ADD`. The
- *  VIDEO cell summarises curated reference-media presence.
- *
- *  Provenance language from RESOLVED_FORMULAS_SPRINT_1.provenance is
- *  intentionally NOT included in the row; curator-internal text never
- *  reaches the rendered page (see [[feedback_public_facing_prose]]). */
-function shapeComparativeNotation(
-  slug: string,
-  dictRow: { canonical_name?: string; adds?: string | number | null;
-             base_trick?: string | null; notation?: string | null;
-             operational_notation?: string | null } | null,
-  modifierSlugs: readonly string[],
-  tutorialMediaCount: number,
-  demoMediaCount: number,
-): ComparativeNotationRow | null {
-  if (!dictRow) return null;
-  const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
-
-  // TRICK row — slug-tag identity form.
-  const trickTag = slugToHashtag(slug);
-
-  // COMPACT NOTATION row — curator-authored compact form (lowercased
-  // for in-card readability; DB stores SHOUTY uppercase).
-  const compactNotation = (dictRow.notation ?? '').trim().toLowerCase()
-    || (dictRow.canonical_name ?? slug).trim().toLowerCase();
-
-  // Operational / Job row — pick the highest-priority curator source:
-  // resolveOperationalNotationRaw consults CoreTrickSpec (12 atoms) →
-  // RESOLVED_FORMULAS_SPRINT_1 overrides → DB operational_notation
-  // column. When all three are empty, fall back to atomic-flag
-  // decomposition's curator-authored movement chain; otherwise absent.
-  // Tautological-suppression below filters out the uppercase compact-
-  // form echo for atom singletons.
-  const atomicDecompForOp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
-  const resolvedOpRaw = resolveOperationalNotationRaw(slug, dictRow.operational_notation);
-  let jobLineage: string;
-  let jobLineageSource: ComparativeNotationRow['jobLineageSource'];
-  if (resolvedOpRaw && resolvedOpRaw.trim()) {
-    jobLineage = resolvedOpRaw;
-    jobLineageSource = 'curator';
-  } else if (atomicDecompForOp?.operationalChain) {
-    jobLineage = atomicDecompForOp.operationalChain;
-    jobLineageSource = 'atomic';
-  } else {
-    jobLineage = '';
-    jobLineageSource = 'absent';
-  }
-
-  // Tautological-suppression: if jobLineage (case-insensitive) equals
-  // the compact form or canonical name, hide it. 'JOB: OSIS' is not
-  // information; the compact row already carries that.
-  const compactCompare = compactNotation.toLowerCase().trim();
-  const canonicalCompare = (dictRow.canonical_name ?? slug).toLowerCase().trim();
-  const lineageCompare = jobLineage.toLowerCase().trim();
-  if (lineageCompare === compactCompare || lineageCompare === canonicalCompare) {
-    jobLineage = '';
-    jobLineageSource = 'absent';
-  }
-
-  // ADD DERIVATION row — prefer published compound derivation; fall
-  // back to atomic flag-component decomposition from the curator-
-  // published registry. No trivial-identity fallback.
-  const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
-  // EXPANDED row — full operational chain for entries whose jobLineage uses a
-  // named-set shorthand. The detail page carries both forms; compact cards
-  // keep the shorthand. Suppressed when it would echo the JOB row verbatim.
-  let expandedNotation = (published?.expandedNotation ?? '').trim();
-  if (expandedNotation && expandedNotation === jobLineage.trim()) expandedNotation = '';
-  const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
-  let addBreakdown: string;
-  let addBreakdownSource: ComparativeNotationRow['addBreakdownSource'];
-  if (published) {
-    addBreakdown = stripDerivationAddTerminator(published.derivation);
-    addBreakdownSource = 'curator';
-  } else if (atomicDecomp) {
-    addBreakdown = stripDerivationAddTerminator(atomicDecomp.decomposition);
-    addBreakdownSource = 'atomic';
-  } else {
-    return null;  // shouldn't happen — convergence check should have rejected
-  }
-
-  // OFFICIAL ADD row — curator-locked numeric from DB.
-  const addsRaw = dictRow.adds;
-  const officialAdd =
-    typeof addsRaw === 'number' ? addsRaw :
-    typeof addsRaw === 'string' && addsRaw.trim() !== '' ? Number(addsRaw) :
-    0;
-
-  // VIDEO row.
-  let videoState: ComparativeNotationRow['videoState'];
-  let videoLabel: string;
-  if (tutorialMediaCount > 0) {
-    videoState = 'tutorial';
-    videoLabel = tutorialMediaCount > 1 ? `Yes (${tutorialMediaCount} tutorials)` : 'Yes (tutorial)';
-  } else if (demoMediaCount > 0) {
-    videoState = 'demo';
-    videoLabel = demoMediaCount > 1 ? `Yes (${demoMediaCount} demos)` : 'Yes (demo)';
-  } else {
-    videoState = 'none-yet';
-    videoLabel = 'No';
-  }
-
-  // ALT row — alternate interpretive formula for the 5 curator-locked
-  // rev(0) entries (illusion, pickup, rev-whirl, rev-swirl, orbit). For
-  // any other slug, altFormula stays null. rev belongs in ALT, NOT in
-  // the ADD row — the direct ADD derivation (xbody/dex/stall buckets)
-  // stays uncluttered. rev(0) adds 0 ADD, so the total equals the base.
-  const transformEntry = getReversePairTransform(slug);
-  const altFormula: string | null = transformEntry
-    ? `rev(0) + ${transformEntry.baseName}(${officialAdd})`
-    : null;
-
-  return {
-    trickTag,
-    compactNotation,
-    jobLineage,
-    jobLineageSource,
-    expandedNotation,
-    addBreakdown,
-    addBreakdownSource,
-    officialAdd,
-    videoState,
-    videoLabel,
-    altFormula,
-  };
 }
 
 /**
@@ -5742,7 +5575,10 @@ function shapeDictEntry(
     isModifier,
     isCompound,
     appliedModifiers,
-    familyNote:       (row.trick_family && FAMILY_NOTES[row.trick_family]) ? FAMILY_NOTES[row.trick_family] : null,
+    // The generic base-family paragraph belongs on the family-anchor (base)
+    // page only, not repeated on every derivative. Derivatives keep their
+    // trick-specific About line, build path, and "compared with base" note.
+    familyNote:       (isFamilyDisplayAnchor(row.slug) && row.trick_family && FAMILY_NOTES[row.trick_family]) ? FAMILY_NOTES[row.trick_family] : null,
   };
 }
 
@@ -6074,6 +5910,95 @@ function computeTrickSymbolicMemberships(
     });
 
   return { topology, component };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Compact structural-fact block for the trick-detail page: family base,
+// movement system(s), movement neighborhood(s), and modifier(s). Consolidates
+// data already computed elsewhere (resolveDisplayFamily, resolveAxisForModifier,
+// the topology predicates, the trick's modifier links) into one scan-at-a-glance
+// panel rendered high on the page, so a reader grasps the trick's structure
+// without scrolling into the deeper reference sections.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface TrickStructuralFact {
+  name: string;
+  slug: string;          // dynamic URL segment; the partial builds the href per row type
+  note: string | null;   // one-line beginner explanation; null when none is known
+}
+
+export interface TrickStructuralFacts {
+  familyBase:      TrickStructuralFact | null;
+  movementSystems: readonly TrickStructuralFact[];
+  neighborhoods:   readonly TrickStructuralFact[];
+  modifiers:       readonly TrickStructuralFact[];
+  hasAny:          boolean;
+}
+
+// First sentence of a longer curator definition, for the compact tooltip-style
+// note. Cuts at the first sentence-ending period so the structural-fact rows
+// stay one line each.
+function firstSentence(s: string): string {
+  const trimmed = s.trim();
+  const m = trimmed.match(/^(.*?[.!?])(\s|$)/);
+  return (m ? m[1] : trimmed).trim();
+}
+
+function buildStructuralFacts(
+  row: { slug: string; base_trick: string | null; trick_family: string | null },
+  isBase: boolean,
+  modifierLinks: ModifierLinkInfo[],
+): TrickStructuralFacts {
+  // Family base — the family root; suppressed on the base's own page so it
+  // does not point at itself.
+  let familyBase: TrickStructuralFact | null = null;
+  const familyRoot = resolveDisplayFamily(row.slug);
+  if (familyRoot && !isBase && familyRoot !== row.slug) {
+    familyBase = { name: operatorTitleCase(familyRoot), slug: familyRoot, note: null };
+  }
+
+  // Movement system(s) — the axes the trick's modifiers belong to, deduped.
+  // Note = the first sentence of the curator axis definition.
+  const seenAxis = new Set<string>();
+  const movementSystems: TrickStructuralFact[] = [];
+  for (const link of modifierLinks) {
+    const axis = resolveAxisForModifier(link.slug);
+    if (axis && !seenAxis.has(axis.axisKey)) {
+      seenAxis.add(axis.axisKey);
+      movementSystems.push({
+        name: axis.axisName,
+        slug: axis.axisKey,
+        note: firstSentence(axis.axisDefinition),
+      });
+    }
+  }
+
+  // Movement neighborhood(s) — topology memberships. Note = the first sentence
+  // of the curator topology definition.
+  const neighborhoods: TrickStructuralFact[] =
+    computeTrickSymbolicMemberships(row, modifierLinks).topology.map(t => ({
+      name: t.topologyName,
+      slug: t.topologySlug,
+      note: firstSentence(t.topologyDefinition),
+    }));
+
+  // Modifier(s) — deduped by slug (a modifier can appear at multiple orders).
+  // Note = the beginner one-liner when one is known for the operator.
+  const seenMod = new Set<string>();
+  const modifiers: TrickStructuralFact[] = [];
+  for (const link of modifierLinks) {
+    if (seenMod.has(link.slug)) continue;
+    seenMod.add(link.slug);
+    modifiers.push({
+      name: operatorTitleCase(link.slug),
+      slug: link.slug,
+      note: resolveModifierBeginnerNote(link.slug),
+    });
+  }
+
+  const hasAny = !!familyBase || movementSystems.length > 0
+    || neighborhoods.length > 0 || modifiers.length > 0;
+  return { familyBase, movementSystems, neighborhoods, modifiers, hasAny };
 }
 
 function buildModifierLinkMap(
@@ -6417,13 +6342,9 @@ export const freestyleService = {
    * two derived one-liners, `intuitionDelta` (rendered in Movement Intuition) and
    * `buildPath` (rendered in About), both null for atoms and link-less tricks.
    *
-   * Notation placement: first-class tricks render the hero `comparativeNotation`
-   * summary card (its JOB+ADD derivation rows need curator convergence data). A
-   * non-first-class trick that is a family/branch display anchor cannot get that
-   * card without authoring derivation data the source lacks, so it instead HOISTS
-   * the standard `trick-notation` block above Movement Intuition/About via
-   * `hoistNotation` (true when the slug is a display anchor and not first-class);
-   * the block is moved, never duplicated. All other tricks keep it in place.
+   * Notation placement: every trick renders one universal notation card
+   * (`trick-notation`) reading Movement notation -> Execution notation -> ADD,
+   * the same for bases and derivatives.
    */
   getTrickDetailPage(rawSlug: string): PageViewModel<FreestyleTrickContent> {
     // A record or media link may address a trick by an alias slug; resolve it
@@ -6836,12 +6757,15 @@ export const freestyleService = {
           modifierMemberships,
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
-          symbolicMemberships:     dictRow
-            ? computeTrickSymbolicMemberships(
-                { slug: dictRow.slug, base_trick: dictRow.base_trick },
-                currentTrickMods.map(m => ({ slug: m.slug, name: m.name, type: m.type, cssRole: m.cssRole })),
-              )
-            : { topology: [], component: [] },
+          structuralFacts: (() => {
+            if (!dictRow) return null;
+            const facts = buildStructuralFacts(
+              { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family },
+              dictEntry?.isBase ?? false,
+              currentTrickMods,
+            );
+            return facts.hasAny ? facts : null;
+          })(),
           previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
           nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
           tutorialMedia,
@@ -6908,6 +6832,19 @@ export const freestyleService = {
             const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
             return { raw: display.raw, tokens: display.tokens, sourceNote };
           })(),
+          // Fully spelled-out operational chain for entries whose Execution
+          // notation uses a named-set shorthand (e.g. '(railing set)'). Shown on
+          // the trick page below the shorthand tokens; null when absent or
+          // identical to the displayed form.
+          executionExpanded: (() => {
+            const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+            const expanded = (published?.expandedNotation ?? '').trim();
+            if (!expanded) return null;
+            const opRaw = (resolveOperationalNotationRaw(
+              slug, dictRow?.operational_notation ?? null,
+            ) ?? '').trim();
+            return expanded === opRaw ? null : expanded;
+          })(),
           ux2Pilot: shapeUx2PilotFromRow(dictRow, currentRows.length),
           densityTier: classifyDensityTier({
             modifierLinkCount: dictEntry?.appliedModifiers?.length ?? 0,
@@ -6965,17 +6902,9 @@ export const freestyleService = {
           ...(() => {
             // First-class trick cohort. Two gates: convergence-rule pass
             // AND cohort-tier membership (FIRST_CLASS_TIER_1 ∪
-            // FIRST_CLASS_TIER_2 via isFirstClass helper). addAnalysis
-            // (the collapsed disclosure) is suppressed for first-class
-            // tricks so the comparativeNotation row doesn't double-render
-            // the ADD breakdown.
-            //
-            // Core-atom suppression rule:
-            // addAnalysis is also suppressed for any slug in
-            // CORE_ATOM_SLUGS. Atoms are the floor of decomposition;
-            // rendering a compositional ADD analysis on them implies
-            // a deeper reading that does not exist. See isCoreAtom()
-            // in freestyleCoreAtomEducational for the canonical set.
+            // FIRST_CLASS_TIER_2 via isFirstClass helper). The flag drives
+            // first-class-only surfaces elsewhere on the page; the notation
+            // card itself is now universal.
             const modifierBonusTable = new Map<string, { add_bonus: number; add_bonus_rotational: number }>();
             for (const row of allModifierRows) {
               modifierBonusTable.set(row.slug, {
@@ -7000,23 +6929,16 @@ export const freestyleService = {
             const firstClassPasses =
               convergence.status === 'first-class'
               && isFirstClass(slug);
-            const comparativeNotation = firstClassPasses
-              ? shapeComparativeNotation(
-                  slug,
-                  dictRow ?? null,
-                  modifierSlugs,
-                  tutorialMedia.length,
-                  demoMedia.length,
-                )
-              : null;
-            const addAnalysis = (firstClassPasses || isCoreAtom(slug))
-              ? null
-              : shapeTrickAddAnalysis(slug);
+            // The ADD derivation renders in the unified notation card for every
+            // trick that has one — bases, derivatives, and the core atoms (whose
+            // atomic flag-decomposition, e.g. spin(1) + xbod(1) + stall(1), is a
+            // real breakdown). shapeTrickAddAnalysis returns null when no formula
+            // exists, so the line simply omits.
+            const isAtomicTrick = dictRow?.base_trick === slug && modifierSlugs.length === 0;
+            const addAnalysis = shapeTrickAddAnalysis(slug, isAtomicTrick);
             return {
               isFirstClass: firstClassPasses,
-              comparativeNotation,
               addAnalysis,
-              hoistNotation: isFamilyDisplayAnchor(slug) && !isFirstClass(slug),
             };
           })(),
           equivalenceTopology: (() => {

@@ -17,9 +17,9 @@
  *   5. The compound-description slot does not duplicate the JOB
  *      formula. For atomic-style tricks (cloud-kick) the operational
  *      notation string renders only once.
- *   6. Formula rows render in JOB → ADD → ALT order on first-class
- *      trick detail pages, and rev(0) lives in the ALT row (not in
- *      the ADD calculation).
+ *   6. The notation card reads Execution notation (the operational JOB
+ *      chain) then ADD derivation; the rev(0) reading lives in the ALT
+ *      transform row (not in the ADD calculation).
  *   7. Rake renders curator-locked JOB notation `SET > SWING TOE [DEL]`
  *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" no longer appears in ADD-accounting displays;
@@ -274,23 +274,25 @@ describe('Items 5 + 6 + 8: cloud-kick formula rows', () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/cloud-kick');
     // The operational notation "[set] > cloud kick" should render at
-    // most once on an atomic trick — the JOB row in the notation
-    // summary card carries it. The lower trick-operational section is
-    // suppressed for first-class tricks (cloud-kick qualifies).
+    // most once on an atomic trick — the Execution notation section is
+    // its single home; no second copy renders in a description slot.
     // Count both unescaped (> in plain text) and HTML-escaped (&gt;)
     // forms; the canonical render is escaped inside <code>.
     const occurrences = res.text.match(/\[set\]\s*(?:>|&gt;)\s*cloud kick/g) ?? [];
     expect(occurrences.length).toBeLessThanOrEqual(1);
   });
 
-  it('renders the JOB row label and the ADD row label in JOB → ADD order', async () => {
+  it('renders the Execution notation (operational JOB chain) before the ADD derivation', async () => {
+    // The operational JOB form now reads in the Execution notation
+    // section; it renders above the ADD derivation section so the page
+    // reads Movement notation -> Execution notation -> ADD.
     const app = await createApp();
     const res = await request(app).get('/freestyle/tricks/cloud-kick');
-    const jobIdx = res.text.indexOf('<dt>JOB</dt>');
-    const addIdx = res.text.indexOf('<dt>ADD</dt>');
-    expect(jobIdx).toBeGreaterThan(0);
+    const execIdx = res.text.indexOf('operational-notation-display');
+    const addIdx = res.text.indexOf('trick-add-analysis');
+    expect(execIdx).toBeGreaterThan(0);
     expect(addIdx).toBeGreaterThan(0);
-    expect(jobIdx).toBeLessThan(addIdx);
+    expect(execIdx).toBeLessThan(addIdx);
   });
 });
 

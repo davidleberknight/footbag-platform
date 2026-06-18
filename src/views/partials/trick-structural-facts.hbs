@@ -1,0 +1,34 @@
+{{!--
+  Compact structural-fact block. Family base / Movement system(s) / Movement
+  neighborhood(s) / Modifier(s) as concise labeled rows, each value followed by
+  a one-line plain-English note so a beginner grasps what the classification
+  means without leaving the page. Each row hides when its list is empty.
+
+  Hrefs are built here from literal path text + a single slug variable (per the
+  single-variable URL rule), so the query string is not entity-escaped.
+--}}
+{{#if content.structuralFacts}}
+<section class="content-section trick-structural-facts" aria-label="Structure at a glance">
+  <dl class="trick-structural-facts-list">
+    {{#if content.structuralFacts.familyBase}}
+    <dt>Family base</dt>
+    <dd><span class="structural-fact"><a href="/freestyle/tricks/{{content.structuralFacts.familyBase.slug}}">{{content.structuralFacts.familyBase.name}}</a>{{#if content.structuralFacts.familyBase.note}} <span class="structural-fact-note">{{content.structuralFacts.familyBase.note}}</span>{{/if}}</span></dd>
+    {{/if}}
+
+    {{#if content.structuralFacts.movementSystems.length}}
+    <dt>{{#if (gt content.structuralFacts.movementSystems.length 1)}}Movement systems{{else}}Movement system{{/if}}</dt>
+    <dd>{{#each content.structuralFacts.movementSystems}}<span class="structural-fact"><a href="/freestyle/tricks?view=movement-system#movement-axis-{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
+    {{/if}}
+
+    {{#if content.structuralFacts.neighborhoods.length}}
+    <dt>{{#if (gt content.structuralFacts.neighborhoods.length 1)}}Movement neighborhoods{{else}}Movement neighborhood{{/if}} <span class="symbolic-layer-badge" title="An exploratory grouping by movement feel, not an official family classification">exploratory</span></dt>
+    <dd>{{#each content.structuralFacts.neighborhoods}}<span class="structural-fact"><a href="/freestyle/tricks?view=topology#topology-{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
+    {{/if}}
+
+    {{#if content.structuralFacts.modifiers.length}}
+    <dt>{{#if (gt content.structuralFacts.modifiers.length 1)}}Modifiers{{else}}Modifier{{/if}}</dt>
+    <dd>{{#each content.structuralFacts.modifiers}}<span class="structural-fact"><a href="/freestyle/modifier/{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
+    {{/if}}
+  </dl>
+</section>
+{{/if}}
