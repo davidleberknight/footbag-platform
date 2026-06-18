@@ -61,10 +61,8 @@ for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_results.csv" \
           "${CANONICAL_INPUT_DIR}/event_result_participants.csv" \
           "${CANONICAL_INPUT_DIR}/persons.csv" \
-          "${RECORDS_MASTER_CSV}" \
           "${CLUBS_SEED_CSV}" \
           "${CLUB_MEMBERS_SEED_CSV}" \
-          "${SCRAPED_MOVES_CSV}" \
           "${SCHEMA}"; do
   [[ -f "${_f}" ]] || _missing+=("${_f}")
 done
@@ -127,33 +125,13 @@ echo "  → Loading seed data into database..."
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
 
-# Load freestyle passback records
-echo "  → Loading freestyle passback records..."
-"${PYTHON}" legacy_data/event_results/scripts/10_load_freestyle_records_to_sqlite.py \
-  --db "${DB_FILE}" \
-  --records-csv legacy_data/inputs/curated/records/records_master.csv
-
-# Load consecutive kicks records
-echo "  → Loading consecutive kicks records..."
-"${PYTHON}" legacy_data/event_results/scripts/11_load_consecutive_records_to_sqlite.py \
-  --db "${DB_FILE}"
-
-# Load freestyle trick dictionary (tricks + modifiers + aliases + curated-v1 source).
-# Script 17 must run BEFORE script 19 (Red expert additions) and script 20 (footbag.org
-# overlay) because both layer source-scoped rows on top of script 17's base load.
-# All three must run BEFORE the freestyle media loaders below (21/22/23) so that
-# media_links.entity_id='trick' rows resolve to existing freestyle_tricks.slug.
-echo "  → Loading freestyle trick dictionary..."
-"${PYTHON}" legacy_data/event_results/scripts/17_load_trick_dictionary.py \
-  --db "${DB_FILE}"
-
-echo "  → Loading Red Husted expert-review trick additions..."
-"${PYTHON}" legacy_data/event_results/scripts/19_load_red_additions.py \
-  --db "${DB_FILE}"
-
-echo "  → Overlaying footbag.org trick provenance..."
-"${PYTHON}" legacy_data/event_results/scripts/20_link_footbag_org_sources.py \
-  --db "${DB_FILE}"
+# Build the freestyle tables via the self-contained freestyle pipeline: records,
+# consecutive records, trick dictionary (curated-v1 + Red overlays + footbag.org
+# provenance + pending), the notation parser, and QC. Freestyle lives outside
+# legacy_data/ so it survives the cutover freeze; this delegates so the build is
+# defined in exactly one place (freestyle/run_freestyle.sh).
+echo "  → Building freestyle tables (freestyle/run_freestyle.sh)..."
+PYTHON="${PYTHON}" bash freestyle/run_freestyle.sh "${DB_FILE}"
 
 # Seed name_variants (HIGH-confidence only; MEDIUM rows are deferred to a
 # review artifact). Required for verify-time auto-link tier1/tier2 matching.
