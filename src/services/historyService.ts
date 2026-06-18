@@ -3,9 +3,9 @@
  *
  * Serves:
  *   - GET /history/:personId: historical player detail. Public for HoF/BAP persons; auth required
- *     otherwise (the controller loads the person, checks honor flags, and redirects an
- *     unauthenticated visitor to /login?returnTo=... for non-honored persons). There is no bare
- *     /history route.
+ *     otherwise (the service loads the person and checks honor flags, returning an action the
+ *     controller acts on, such as redirecting an unauthenticated visitor to /login?returnTo=...
+ *     for non-honored persons). There is no bare /history route.
  *
  * Rendering contract:
  *   - getHistoricalPlayerPage() returns a discriminated HistoryDetailResult

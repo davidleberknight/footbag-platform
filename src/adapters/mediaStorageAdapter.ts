@@ -12,9 +12,10 @@
  *
  * The `/media-store/` URL prefix is dedicated to binary storage and is
  * disjoint from the `/media` user-facing app section (routes `/media`,
- * `/media/:galleryId`, `/media/browse`). Content-agnostic: the adapter
- * handles photos, system-account video bytes, and posters identically.
- * Per DD §1.5.
+ * `/media/:galleryId`, `/media/browse`). Handles photos, system-account
+ * video bytes, and posters; the caller passes each object's content type so
+ * it is stored and served under the correct MIME (defaulting to `image/jpeg`
+ * for the photo path). Per DD §1.5.
  */
 import { mkdir, writeFile, unlink, access, readFile, stat } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -30,8 +31,13 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config/env';
 
 export interface MediaStorageAdapter {
-  /** Write data to the given storage key, creating directories as needed. */
-  put(key: string, data: Buffer): Promise<void>;
+  /**
+   * Write data to the given storage key, creating directories as needed.
+   * `contentType` is the object's MIME type, set on the stored object so the
+   * CDN serves it correctly; it defaults to `image/jpeg` for the common photo
+   * path, and callers writing other media (video bytes) pass the real type.
+   */
+  put(key: string, data: Buffer, contentType?: string): Promise<void>;
 
   /** Read the object at the given storage key into a Buffer. Throws if missing. */
   get(key: string): Promise<Buffer>;
@@ -197,13 +203,13 @@ export function createS3MediaStorageAdapter(opts: {
     });
   const bucket = opts.bucket;
   return {
-    async put(key: string, data: Buffer): Promise<void> {
+    async put(key: string, data: Buffer, contentType = 'image/jpeg'): Promise<void> {
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
           Body: data,
-          ContentType: 'image/jpeg',
+          ContentType: contentType,
           CacheControl: 'public, max-age=31536000, immutable',
         }),
       );

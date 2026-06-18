@@ -331,13 +331,22 @@ function getPasswordForgot(_req: Request, res: Response): void {
   res.render('auth/password-forgot', {
     seo: { title: 'Reset Your Password' },
     page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
-    content: {},
+    content: { turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordForgotContent>);
 }
 
 async function postPasswordForgot(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
   try {
+    const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha.ok) {
+      res.status(422).render('auth/password-forgot', {
+        seo: { title: 'Reset Your Password' },
+        page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
+        content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+      } satisfies PageViewModel<PasswordForgotContent>);
+      return;
+    }
     await identityAccessService.requestPasswordReset(email ?? '');
     // Simulated email card on dev and staging (stub adapter) so the operator can complete the
     // reset flow without leaving the page; null in production. Filtered to

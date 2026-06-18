@@ -129,25 +129,27 @@ function shape(row: FreestyleTrickRow, rule: FreestyleRelatedTrick['rule']): Fre
 /**
  * Build the Related Tricks list for a given trick row.
  *
- * Rules in priority order:
- *   R1 — Same family (trick_family match, exclude self).
+ * Rules in priority order (this is also the display order):
+ *   R0 — Curated movement-neighborhood overlay: hand-listed neighbors for
+ *        sui-generis primitives whose self-family and self-base leave them
+ *        with no rule-derived neighbors. Shaped as `neighborhood`.
+ *   R1 — Same family (trick_family match, exclude self). Shaped as `family`.
  *   R2 — Same modifier-prefix (slug starts with same `{first-segment}-`,
- *        different family). Only applies when current slug has a hyphen.
+ *        different family). Only applies when the slug's first segment is a
+ *        real modifier prefix. Shaped as `modifier-prefix`.
  *   R3 — Grandparent base trick (current.base_trick → that row's base_trick;
  *        include if active, non-modifier, and trick_family differs from
- *        current's). Gated: only fires when R1+R2 < 6 AND not duplicate.
- *   R4 — Parent base trick (current.base_trick itself; the compound one
- *        compositional hop up). 2026-05-26 polish: surfaces the direct
- *        parent for sparse-family compounds where R1/R2 yield little
- *        and R3 jumps two hops up (e.g. avalanche's parent is
- *        paradox-illusion; R3 was finding only the grandparent illusion).
- *        Gated: only fires when R1+R2 < 6 AND parent not already in
- *        R1/R2/R3 (typically true for compounds whose base_trick is in
- *        a different trick_family).
+ *        current's). Gated: only fires when R0+R1+R2 < 6 AND not duplicate.
+ *        Shaped as `grandparent`.
+ *   R4 — Parent base trick (current.base_trick itself; one compositional hop
+ *        up). Surfaces the direct parent for sparse-family compounds where
+ *        R1/R2 yield little and R3 jumps two hops up (e.g. avalanche's parent
+ *        is paradox-illusion). Gated: only fires when R0+R1+R2 < 6 AND parent
+ *        not already in R1/R2/R3. Shaped as `parent`.
  *
  * Within each rule's candidate set, results are sorted via round-robin
  * across ADD buckets (low/mid/high mixed). Final display order is the
- * concatenation of R1 picks → R2 picks → R3 picks → R4 picks, capped at 8.
+ * concatenation of R0 → R1 → R2 → R3 → R4 picks, capped at 8.
  *
  * All inputs filtered to `is_active = 1` AND `category != 'modifier'` per
  * the public-surface invariant + modifier-layer separation.

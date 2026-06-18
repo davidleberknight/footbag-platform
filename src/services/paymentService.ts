@@ -18,7 +18,8 @@
  *     MembershipTieringService.applyPurchaseGrantInTx, called within the
  *     webhook-success transaction so the grant is atomic with the status change)
  *   - The actual Stripe SDK calls (delegated to PaymentAdapter)
- *   - Email body rendering (delegated to CommunicationService templates)
+ *   - Sending the receipt email (the body is assembled here, then handed to
+ *     the communication/outbox path for delivery; no template engine exists)
  *
  * Required patterns:
  *   - Webhook signature: handleWebhook verifies the signature first

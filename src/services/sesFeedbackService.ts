@@ -12,8 +12,8 @@
  * SubscribeURL is never auto-fetched: auto-confirm would fetch an
  * attacker-supplied URL).
  *
- * Transport auth (the shared-secret query key on the webhook URL) is the
- * IPC controller's concern, not this service's.
+ * Transport auth (the shared-secret query key plus SNS signature verification
+ * on the webhook request) is the IPC controller's concern, not this service's.
  */
 import { sesFeedback, mailingListSubscriptions, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';

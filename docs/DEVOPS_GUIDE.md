@@ -543,10 +543,9 @@ All Parameter Store paths must follow:
 Examples:
 
 ```text
-/footbag/production/stripe/api_key
-/footbag/production/stripe/webhook_secret
+/footbag/production/secrets/stripe_secret_key
 /footbag/production/app/bootstrap/admin_token
-/footbag/staging/stripe/api_key
+/footbag/staging/secrets/stripe_secret_key
 /footbag/development/test/ses_sender
 ```
 
@@ -1237,21 +1236,11 @@ Operational rule: if readiness fails persistently, treat the origin as not safe 
 
 Maintenance mode operates in two layers.
 
-**HTTP 503 layer (planned maintenance and cutover):** Express middleware returns 503 with a small response body when `MAINTENANCE_MODE=1` is set in the systemd unit environment. The middleware skips internal routes (`/health/live`, `/health/ready`, and any internal-only batch endpoints) so the auto-link batch and health probes keep working while user-facing routes return 503. Operator toggle:
-
-```bash
-sudo systemctl set-environment MAINTENANCE_MODE=1
-sudo systemctl reload footbag.service
-# operator work, for example the cutover auto-link batch
-sudo systemctl set-environment MAINTENANCE_MODE=
-sudo systemctl reload footbag.service
-```
-
-Use this layer when the platform must be running internally (the cutover auto-link batch, schema migrations that touch live tables, or any task that needs SQLite access) while user traffic is paused.
+**HTTP 503 layer (planned maintenance and cutover):** an in-app maintenance mode that returns 503 with a small response body for user-facing routes while internal routes (`/health/live`, `/health/ready`, and internal-only batch endpoints) keep serving, so the cutover auto-link batch, schema migrations that touch live tables, and any task needing SQLite access continue while user traffic is paused.
 
 **CloudFront fallback layer (unplanned origin loss):** CloudFront custom error responses for origin 500/502/503/504 or origin unreachability serve the maintenance page asset stored in S3. Short error cache TTL so recovery becomes visible quickly. This layer handles outages where the origin is unreachable or returning 5xx without an explicit maintenance-mode signal.
 
-For planned maintenance the HTTP 503 layer is preferred because it returns a graceful response immediately and lets internal work continue. The CloudFront layer remains as the safety net for unplanned origin failure.
+For planned maintenance the HTTP 503 layer returns a graceful response immediately and lets internal work continue; the CloudFront layer is the safety net for unplanned origin failure.
 
 ### 8.4 Planned maintenance
 
@@ -2034,15 +2023,15 @@ Symptom-to-checks tree:
 
 | Symptom | First checks |
 |---|---|
-| Stripe Dashboard shows webhook delivery failures | webhook endpoint reachable from public internet; CloudFront not blocking the webhook path; nginx X-Origin-Verify header is not breaking the request (Stripe does not send X-Origin-Verify, so the path must be exempt at the edge); CloudFront cache behavior for `/webhooks/*` does not strip the POST body |
-| Signature validation failures in app logs | Parameter Store `/footbag/{env}/stripe/webhook_secret` matches the signing secret in the Stripe Dashboard for that endpoint; recent rotation per §5.5 was completed and the app was restarted afterward; request timestamp skew (Stripe rejects events older than 5 minutes by default; the app should match); raw payload preserved exactly (Express body parsing must capture the raw body before JSON parsing) |
+| Stripe Dashboard shows webhook delivery failures | webhook endpoint reachable from public internet; CloudFront not blocking the webhook path; nginx X-Origin-Verify header is not breaking the request (Stripe does not send X-Origin-Verify, so the path must be exempt at the edge); CloudFront cache behavior for `/payments/webhook` does not strip the POST body |
+| Signature validation failures in app logs | the host env `STRIPE_WEBHOOK_SECRET` (`/srv/footbag/env`) matches the signing secret in the Stripe Dashboard for that endpoint; recent rotation per §5.5 was completed and the app was restarted afterward; request timestamp skew (Stripe rejects events older than 5 minutes by default; the app should match); raw payload preserved exactly (Express body parsing must capture the raw body before JSON parsing) |
 | Idempotency table grows without corresponding payment progress | the handler is inserting into `stripe_events` but failing in the subsequent transaction; check error logs for the specific `event_id`; verify the state-machine transitions are valid for the incoming event |
 | Stripe retries exhausted (event marked failed in the Dashboard) | use the Stripe Dashboard event view to replay the event manually; if the issue is now fixed, the replay succeeds; if not, fix the root cause and replay |
 
 Resolution order:
 
-1. Confirm the webhook endpoint is reachable: `curl -I https://<domain>/webhooks/stripe` from outside the network. Expect 405 Method Not Allowed (or 200 to OPTIONS), not connection refused or 404.
-2. Verify the signing secret: `aws ssm get-parameter --with-decryption --name /footbag/{env}/stripe/webhook_secret --query Parameter.Value --output text` and compare against the Stripe Dashboard webhook view.
+1. Confirm the webhook endpoint is reachable: `curl -I https://<domain>/payments/webhook` from outside the network. Expect 405 Method Not Allowed (or 200 to OPTIONS), not connection refused or 404.
+2. Verify the signing secret: confirm `STRIPE_WEBHOOK_SECRET` in `/srv/footbag/env` matches the Stripe Dashboard webhook view.
 3. Check app logs for the failing `event_id`; distinguish signature-validation error from handler error.
 4. If the signing secret was recently rotated, confirm the app has restarted since rotation (per §5.5).
 5. If the issue is transient or fixed, replay the failed event from the Stripe Dashboard. If the failure persists, escalate per §13.9.

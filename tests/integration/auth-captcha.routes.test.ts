@@ -1,8 +1,9 @@
 /**
  * Server-side Turnstile CAPTCHA gate on the anti-enumeration auth surfaces:
- * registration, login, verify-email resend, and password reset. Each surface
- * rejects a failed challenge before any DB read, returns a generic 422 that
- * looks identical to any other non-result, and performs no account mutation.
+ * registration, login, verify-email resend, and the password-reset request and
+ * completion. Each surface rejects a failed challenge before any DB read,
+ * returns a generic 422 that looks identical to any other non-result, and
+ * performs no account mutation.
  *
  * User story anchors: V_Register_Account, M_Login, M_Verify_Email,
  * M_Reset_Password.
@@ -107,6 +108,43 @@ describe('captcha gate on verify-email resend', () => {
     // turns it into a 422 with the generic challenge message instead.
     expect(res.status).toBe(422);
     expect(res.text).toContain('verification');
+  });
+});
+
+describe('captcha widget on the password-reset request form', () => {
+  it('renders the stub "You are human" card in the stub environment', async () => {
+    const res = await request(createApp()).get('/password/forgot');
+    expect(res.status).toBe(200);
+    // Stub adapter + null turnstileSiteKey makes the captcha-field partial show
+    // the labeled bypass card instead of the real Turnstile widget.
+    expect(res.text).toContain('You are human');
+  });
+});
+
+describe('captcha gate on password-reset request', () => {
+  it('rejects a failed challenge with a generic 422 and issues no reset token', async () => {
+    const { STUB_CAPTCHA_FAIL_TOKEN } = await import('../../src/adapters/captchaAdapter');
+    const memberId = insertMember(db, {
+      slug: 'forgot_cap',
+      login_email: 'forgot-captcha@example.com',
+      real_name: 'Forgot Cap',
+    });
+
+    const res = await request(createApp())
+      .post('/password/forgot')
+      .type('form')
+      .send({
+        email: 'forgot-captcha@example.com',
+        'cf-turnstile-response': STUB_CAPTCHA_FAIL_TOKEN,
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('verification');
+    // The gate fires before requestPasswordReset, so no reset token is issued.
+    const tokens = db
+      .prepare('SELECT COUNT(*) AS n FROM account_tokens WHERE member_id = ?')
+      .get(memberId) as { n: number };
+    expect(tokens.n).toBe(0);
   });
 });
 

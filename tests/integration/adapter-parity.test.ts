@@ -912,6 +912,21 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     expect(input.CacheControl).toBe('public, max-age=31536000, immutable');
   });
 
+  it('s3 put stores an explicit contentType (video bytes are not mislabeled image/jpeg)', async () => {
+    const fake = makeFakeS3Client();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: fake.client,
+    });
+    await adapter.put(
+      'member_fh/detached/abc-video.mp4',
+      Buffer.from('mp4-bytes'),
+      'video/mp4',
+    );
+    expect(fake.puts).toHaveLength(1);
+    expect(fake.puts[0].input.ContentType).toBe('video/mp4');
+  });
+
   it('s3 headSize returns ContentLength, and null on NotFound (parity with local)', async () => {
     const fake = makeFakeS3Client();
     const adapter = createS3MediaStorageAdapter({

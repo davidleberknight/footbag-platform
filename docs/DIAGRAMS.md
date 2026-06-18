@@ -136,6 +136,8 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║  Adapters  (same interface; implementation switches by env):        ║
 ║    SesAdapter  ·  MediaStorageAdapter  ·  PaymentAdapter            ║
 ║    SecretsAdapter  ·  JwtSigningAdapter  ·  SafeBrowsingAdapter     ║
+║    CaptchaAdapter  ·  HttpReachabilityAdapter                       ║
+║    ImageProcessingAdapter  ·  VideoTranscodingAdapter               ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
   ↕
@@ -163,7 +165,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  AuthService                                                        │
-│  3. queries.memberByEmail.get(email)  →  member row or null         │
+│  3. memberByEmail.get(email) → row or null  [excludes deceased]     │
 │  4. Not found?  → generic 'invalid credentials' error               │
 │     (same message as wrong password — prevents enumeration)         │
 │  5. Compare submitted password against stored passwordHash:         │
@@ -176,16 +178,15 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  Generate JWT  (signed via  kms:Sign  — key never leaves KMS)       │
 │                                                                     │
 │  {                                                                  │
-│    memberId:        "uuid",                                         │
-│    tier:            1,             // 0 | 1 | 2 | 3                 │
-│    roles:           ["member"],    // + "admin" if applicable       │
+│    sub:             "uuid",        // member id                     │
 │    passwordVersion: 4,             // incremented on pwd change     │
+│    role:            "member",      // routing hint ("admin" if so)  │
 │    iat:             1234567890,    // issued-at timestamp           │
 │    exp:             1234654290,    // +24 hours                     │
 │    kid:             "kms-key-id"   // active key ID for rotation    │
 │  }                                                                  │
 │                                                                     │
-│  Set-Cookie: session=<JWT>                                          │
+│  Set-Cookie: footbag_session=<JWT>                                  │
 │    HttpOnly · Secure · SameSite=Lax · Max-Age: 86400                │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
@@ -200,7 +201,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 
 ════════════════════  AUTHENTICATED REQUEST FLOW  ═════════════════════
 
-  Browser:  GET /events/123   Cookie: session=<JWT>
+  Browser:  GET /events/123   Cookie: footbag_session=<JWT>
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  web Controller  (runs on every protected route)                    │
@@ -381,7 +382,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ════════  WRITE PATH  (e.g.  POST /events/123 — update event)  ════════
 
   Browser:  POST /events/123  { title, description, expectedVersion: 5 }
-  Cookie:   session=<JWT>  |  SameSite=Lax + Origin pin block CSRF
+  Cookie:   footbag_session=<JWT>  |  SameSite=Lax + Origin pin block CSRF
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  CloudFront → nginx → web container                                 │

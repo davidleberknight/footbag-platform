@@ -190,7 +190,11 @@ export interface VerifyResultContent {
   signInPrompt?: boolean;
 }
 
-export type PasswordForgotContent = Record<string, never>;
+export interface PasswordForgotContent {
+  error?: string;
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
+}
 
 export interface PasswordForgotSentContent {
   email?: string;
@@ -392,9 +396,10 @@ export interface LinkHistoryContent {
    * "is one of these you?" prompt with the dispute affordance. */
   conflictPrompt: { records: RegistrationConflictRecord[] } | null;
   /**
-   * Static "Your clubs (coming soon)" placeholder per
-   * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
-   * surfaces actual suggestions is not built yet; this is a placeholder.
+   * Flag for a static "Your clubs (coming soon)" placeholder in the claim flow,
+   * per `M_Review_Legacy_Club_Data_During_Claim`. The club-bootstrap pipeline
+   * that would surface real suggestions is not built, and no claim-flow template
+   * consumes this flag yet.
    */
   showClubsComingSoon: boolean;
 }

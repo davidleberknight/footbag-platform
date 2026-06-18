@@ -9,9 +9,9 @@
  *   - /media hub page read (FH-owned + member-owned named-gallery listing)
  *   - /media/:galleryId named-gallery page read (tag-AND membership)
  *   - /media/browse on-the-fly tag browse read (paginated results mode)
- *   - /media/freestyle-tutorials read: the media-side index of freestyle tutorial and
- *     demonstration galleries, in fixed source order, gated on which galleries are seeded
- *     (registered before /media/:galleryId)
+ *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
+ *     where the freestyle media surface lives (registered before
+ *     /media/:galleryId so the literal path matches first)
  *
  * Does not own:
  *   - Any media or gallery write: uploads, edits, deletes, gallery

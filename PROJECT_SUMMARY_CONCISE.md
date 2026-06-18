@@ -13,7 +13,7 @@ Use this file for quick orientation and document routing. For implemented behavi
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load targeted sections of `docs/DESIGN_DECISIONS.md`: read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
-- Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE.md` for ops details.
+- The platform serves from a single Lightsail origin behind CloudFront; for operational procedures load `docs/DEVOPS_GUIDE.md`.
 
 ## Project identity
 

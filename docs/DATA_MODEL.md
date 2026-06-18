@@ -400,7 +400,7 @@ Admin task queue with `queue_category` and `task_type`. Active `task_type` value
 
 `system_config_current` is the authoritative read surface for all runtime config lookups. All background jobs and application code MUST use this view for config reads; never query `system_config` directly unless building admin history UIs or audit reports.
 
-Config values are admin-configurable. All numeric limits and time windows in the system are stored here rather than being hardcoded (US §1 Global Behaviors). Background jobs and application code read their thresholds from `system_config_current` at runtime; missing keys will cause runtime errors. See §4.23 for the full list of seeded defaults.
+Config values are admin-configurable. Numeric limits and time windows are stored here rather than hardcoded (US §1 Global Behaviors). Background jobs and application code read their thresholds from `system_config_current` at runtime, falling back to a built-in default where a key has no row. See §4.23 for the config keys and their default values.
 
 `changed_by_member_id` is a typed FK to `members` (not free-form text). System-seeded rows at initialization use NULL for this field with a documented `reason_text` explaining the system origin.
 
@@ -415,7 +415,7 @@ Emitted values, grouped by namespace:
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed).
 - **`legacy.*`**: `auto_link_silent_claim`, `auto_link_confirmed`, `auto_link_revert`, `auto_link_notification_failed`, `claim_initiate_notification_failed`.
 - **`wizard.*`**: `start`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
-- **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `leader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
+- **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
 - **`payment.*`**: `checkout_started`, `succeeded`, `failed`, `refunded`, `canceled`.
 - **`active_player.*`**: `grant`, `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
@@ -1083,7 +1083,7 @@ Required default rows are included at the end of `schema.sql` (Section 23) and a
 
 #### System config defaults
 
-All `system_config` seed rows use `effective_start_at = '2000-01-01T00:00:00.000Z'` (platform epoch) and `changed_by_member_id = NULL` (system-seeded). The `system_config_current` view returns these as the current effective values until a new row is inserted for any key.
+Each row below is a config key and its default value. Seeded keys are written to `system_config` with `effective_start_at = '2000-01-01T00:00:00.000Z'` (platform epoch) and `changed_by_member_id = NULL` (system-seeded), and the `system_config_current` view returns them as the current effective values until a new row is inserted; keys with no seed row resolve to the built-in code fallback shown as their default.
 
 To change any value: INSERT a new row into `system_config` with the desired `value_json`, a new `effective_start_at`, and the acting admin's `changed_by_member_id`. Do not UPDATE existing rows.
 

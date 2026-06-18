@@ -444,10 +444,10 @@ function transitionToDetourPaused(
  * Dashboard task widget: returns a member's onboarding tasks split into
  * pending / paused / completed. Paused entries carry a `resumeUrl`
  * reconstructed from the latest `wizard.task.detour_paused` audit row's
- * metadata (target_story + source_card). The url shape is intentionally
- * generic (`/onboarding-wizard?task={taskType}&card={sourceCard}`) so the
- * wizard controller can route the member back to the exact card without
- * the widget needing to know wizard route specifics.
+ * metadata (target_story + source_card). The resume url is the wizard entry
+ * path for the task (`/register/wizard/{taskType}`) so the wizard controller
+ * can route the member back into the in-progress task without the widget
+ * needing to know wizard route specifics.
  */
 function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   interface WidgetRow {

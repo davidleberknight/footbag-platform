@@ -1248,7 +1248,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
       const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
 
-      await storage.put(videoKey, transcoded.bytes);
+      await storage.put(videoKey, transcoded.bytes, 'video/mp4');
       await storage.put(posterDisplayKey, processed.display);
       await storage.put(posterThumbKey, processed.thumb);
 
