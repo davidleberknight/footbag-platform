@@ -36,6 +36,10 @@ export default defineConfig({
       '**/dist/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+      // Isolated git worktrees under .claude/worktrees/ hold a frozen copy of
+      // the tree; running their stale test files (e.g. fixtures that point at
+      // since-moved paths) produces spurious failures in the main run.
+      '**/.claude/worktrees/**',
     ],
     coverage: {
       provider: 'v8',
