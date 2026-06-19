@@ -113,7 +113,7 @@ function parseQuotedCsv(text: string): string[][] {
 let symbolicSeedCache: { table: string; cols: readonly string[]; rows: string[][] }[] | null = null;
 function symbolicSeedData(): { table: string; cols: readonly string[]; rows: string[][] }[] {
   if (symbolicSeedCache) return symbolicSeedCache;
-  const dir = path.join(process.cwd(), 'exploration', 'symbolic-grammar-2');
+  const dir = path.join(process.cwd(), 'freestyle', 'symbolic_grammar');
   symbolicSeedCache = SYMBOLIC_SPECS.map(([file, table, cols]) => {
     const parsed = parseQuotedCsv(fs.readFileSync(path.join(dir, file), 'utf8'));
     const header = parsed[0] ?? [];
