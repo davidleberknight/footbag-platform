@@ -128,25 +128,17 @@ def main() -> None:
     system_user = "seed_loader"
 
     conn = sqlite3.connect(db_path)
-    # Current: foreign keys are disabled for the whole DELETE+INSERT reseed.
-    # SQLite's foreign_keys pragma is transaction-global (a no-op once DML has
-    # opened a transaction), and this reseed is a single transaction, so FK
-    # enforcement is all-or-nothing for the run. Two concrete constraints keep
-    # it OFF:
-    #   1. The delete sequence below removes historical_persons after
-    #      event_result_entry_participants, which holds a FK to it. The order is
-    #      now FK-safe (participants first), so this constraint is satisfied for
-    #      the delete phase.
+    # Foreign keys are enforced for the whole DELETE+INSERT reseed. Two
+    # conditions make this safe:
+    #   1. The delete sequence below removes child rows before their parents
+    #      (event_result_entry_participants, which holds a FK to
+    #      historical_persons, is deleted before historical_persons itself), so
+    #      no delete strands a referencing row.
     #   2. The historical_persons insert binds legacy_member_id ->
-    #      legacy_members for the rows that carry a member id. That parent is
-    #      seeded before this loader only in the dev reset and CI loader paths;
-    #      run_pipeline.sh calls this loader without seeding legacy_members
-    #      first, so those references are dangling there and FK-on would reject
-    #      the insert.
-    # Target: wire load_legacy_members_seed.py before every call to this loader
-    # in run_pipeline.sh, then enable FK-on for the whole reseed. Tracked in
-    # legacy_data/IMPLEMENTATION_PLAN.md.
-    conn.execute("PRAGMA foreign_keys = OFF;")
+    #      legacy_members for the rows that carry a member id. The member seed
+    #      runs before this loader in every path that invokes it, so those
+    #      parent rows exist when the insert binds them.
+    conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
 
     try:
@@ -525,7 +517,6 @@ def main() -> None:
                 fx_event_key, fx_disc_id, 1, "#BringBackTheHack",
             ),
         )
-        fx_member_id  = stable_id("member", "footbag-hacky")
         fx_person_id  = stable_id("person", "footbag-hacky")
 
         # Historical person record for Footbag Hacky. source_scope
@@ -543,7 +534,10 @@ def main() -> None:
             (fx_person_id, "Footbag Hacky", "New Zealand"),
         )
 
-        # Link the result participant to both the member and the historical person.
+        # Link the result participant to the historical person. member_id stays
+        # NULL: the Footbag Hacky system account is bootstrapped at registration,
+        # not during seed load, so there is no members row to reference here, and
+        # the historical_person_id link already carries the association.
         conn.execute(
             """
             INSERT OR IGNORE INTO event_result_entry_participants (
@@ -554,7 +548,7 @@ def main() -> None:
             """,
             (
                 fx_part_id, ts, system_user, ts, system_user,
-                fx_result_id, 1, fx_member_id, "Footbag Hacky", fx_person_id,
+                fx_result_id, 1, None, "Footbag Hacky", fx_person_id,
             ),
         )
 

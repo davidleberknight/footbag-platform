@@ -259,6 +259,10 @@ run_phase_clubs_seed_load() {
 run_db_load_canonical() {
     echo ""
     echo "── DB load: canonical seed ────────────────────────────────────────────"
+    # Seed legacy_members before the canonical load so the FK
+    # historical_persons.legacy_member_id -> legacy_members is satisfied with
+    # foreign-key enforcement on. Idempotent (INSERT OR IGNORE).
+    python scripts/load_legacy_members_seed.py --db "${REPO_ROOT}/database/footbag.db"
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
@@ -336,6 +340,10 @@ run_v0_backbone() {
     echo ""
 
     echo "── [7/7] DB LOAD ──────────────────────────────────────"
+    # Seed legacy_members before the canonical load so the FK
+    # historical_persons.legacy_member_id -> legacy_members is satisfied with
+    # foreign-key enforcement on. Idempotent (INSERT OR IGNORE).
+    python scripts/load_legacy_members_seed.py --db "${REPO_ROOT}/database/footbag.db"
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
