@@ -82,6 +82,7 @@ flying-inside,notation,,FLYING INSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 bo
 flying-outside,notation,,FLYING OUTSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
 walk-over,notation,,WALK OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
 hop-over,notation,,HOP OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+hop-over,operational_notation,,SET > JUMP [BOD] > SAME/OP INSIDE [DEL] > (land),Held-delay leg-over (jumping variant): jump over a held inside delay, mirroring eclipse minus its airborne out-dex. 2 brackets ([BOD] [DEL]) match 2 ADD.
 spinning-whirl,adds,5,4,Phase pt10-followup 2026-05-10: align asserted_adds with new spinning rotational rule (spinning is flat +1 on rotational base). Computed: spinning(+1) + whirl(3) = 4. Resolves Red Review Queue id 11.
 spinning-symposium-whirl,adds,6,5,Phase pt10-followup 2026-05-10: align with new spinning rotational rule. Computed: spinning(+1) + symposium(+1) + whirl(3) = 5. Matches pt10 email example. Resolves Red Review Queue id 11.
 spinning-torque,adds,6,5,Phase pt10-followup 2026-05-10: align with new spinning rotational rule. Computed: spinning(+1) + torque(4) = 5. Resolves Red Review Queue id 11.
@@ -1389,6 +1390,7 @@ fairy-gyro-drifter,notation,,FAIRY GYRO DRIFTER,JOB notation backfill (mechanica
 fairy-gyro-drifter,trick_family,gyro-drifter,drifter,terminal-identity family override: gyro-drifter resolves to the drifter family (loader-19 default would mis-set family=gyro-drifter).
 fairy-gyro-torque,notation,,FAIRY GYRO TORQUE,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-gyro-torque,trick_family,torque,osis,terminal-identity family override: torque resolves to the osis family (loader-19 default would mis-set family=torque).
+fairy-gyro-torque,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],Fairy entry + gyro spin prepended onto the torque body; the gyro spin and the torque body-spin stack as a double back-spin (precedent gyro-osis / gyro-blender). 6 brackets ([DEX] [BOD] [DEX] [BOD] [XBD] [DEL]) match 6 ADD.
 fairy-illusion,notation,,FAIRY ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-merkon,notation,,FAIRY MERKON,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-merkon,trick_family,merkon,legover,terminal-identity family override: merkon resolves to the legover family (loader-19 default would mis-set family=merkon).
