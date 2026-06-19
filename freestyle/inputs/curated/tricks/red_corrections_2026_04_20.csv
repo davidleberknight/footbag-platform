@@ -12,6 +12,8 @@ drifter,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base forma
 flying-inside,base_trick,flying inside,flying-inside,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 flying-outside,base_trick,flying outside,flying-outside,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 forehead-stall,base_trick,forehead stall,forehead-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+fusion,base_trick,dod,double-over-down,Base abbreviation dod resolved to the active slug; fusion is atomic double-over-down
+head-stall,base_trick,head stall,head-stall,Name-form-to-slug (self-ref) normalization so base_trick points at the active slug, matching the sibling surface stalls
 heel-stall,base_trick,heel stall,heel-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 high-plains-drifter,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base format mismatch normalization 2026-05-09
 hop-over,base_trick,hop over,hop-over,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
@@ -20,6 +22,7 @@ knee-stall,base_trick,knee stall,knee-stall,Phase 5e Tier A1 name-form-to-slug (
 neck-stall,base_trick,neck stall,neck-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 outside-stall,base_trick,outside stall,outside-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 reaper,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base format mismatch normalization 2026-05-09
+shoulder-stall,base_trick,shoulder stall,shoulder-stall,Name-form-to-slug (self-ref) normalization so base_trick points at the active slug, matching the sibling surface stalls
 sole-kick,base_trick,sole kick,sole-kick,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 sole-stall,base_trick,sole stall,sole-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 toe-stall,base_trick,toe stall,toe-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
@@ -887,6 +890,8 @@ pixie-ducking-osis,notation,,PIXIE DUCKING OSIS,W3c 2026-05-27: JOB per mechanic
 pixie-ducking-osis,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W3c 2026-05-27: phoenix/assassin chassis with osis's body-spin in the inner-dex slot. Double [BOD] per stepping-ducking-osis precedent. 5 brackets matches 5 ADD.
 pixie-ducking-whirl,notation,,PIXIE DUCKING WHIRL,W3c 2026-05-27: JOB per mechanical uppercase rule.
 pixie-ducking-whirl,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP IN [DEX] > OP CLIP [XBD] [DEL],W3c 2026-05-27: phoenix/assassin chassis with whirl's IN-dex + cross-body clipper terminator. 5 brackets matches 5 ADD.
+pixie-ducking-eggbeater,notation,,PIXIE DUCKING EGGBEATER,JOB per mechanical uppercase rule.
+pixie-ducking-eggbeater,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Pixie-ducking chassis with eggbeater's twin OP-OUT-dex body and same-toe terminal mirroring pixie-ducking-legover. 5 brackets ([DEX] [BOD] [DEX] [DEX] [DEL]) match 5 ADD.
 pixie-diving-mirage,notation,,PIXIE DIVING MIRAGE,W3c 2026-05-27: JOB per mechanical uppercase rule.
 pixie-diving-mirage,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] >> OP IN [DEX] > OP TOE [DEL],W3c 2026-05-27: darkwalk chassis with mirage's OP IN dex + op-toe terminator. 4 brackets matches 4 ADD.
 pixie-diving-pickup,notation,,PIXIE DIVING PICKUP,W3c 2026-05-27: JOB per mechanical uppercase rule.
@@ -1339,6 +1344,7 @@ stepping-ducking-symposium-eggbeater,notation,,STEPPING DUCKING SYMPOSIUM EGGBEA
 stepping-ducking-symposium-eggbeater,trick_family,eggbeater,legover,terminal-identity family override: eggbeater resolves to the legover family (loader-19 default would mis-set family=eggbeater).
 spinning-eggbeater,notation,,SPINNING EGGBEATER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the spinning batch.
 spinning-eggbeater,trick_family,eggbeater,legover,terminal-identity family override: eggbeater resolves to the legover family (loader-19 default would mis-set family=eggbeater).
+pixie-ducking-eggbeater,trick_family,eggbeater,legover,terminal-identity family override: eggbeater resolves to the legover family (loader-19 default would mis-set family=eggbeater).
 spinning-rev-whirl,notation,,SPINNING REV WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the spinning batch.
 spinning-rev-whirl,trick_family,rev-whirl,whirl,terminal-identity family override: rev-whirl resolves to the whirl family (loader-19 default would mis-set family=rev-whirl).
 spinning-tomahawk,notation,,SPINNING TOMAHAWK,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the spinning batch.
@@ -2046,3 +2052,6 @@ shooting,is_active,1,0,"Convert to set: shooting is a set operator (+3), not a c
 sailing,is_active,1,0,"Convert to set: sailing is a composite set operator (+2), not a complete trick; its notation ends on a dex with no terminal delay. Retained as the sailing-set canonical set and the sailing operator."
 pogo,is_active,1,0,"Convert to set: pogo is a 0-ADD set state (the no-plant suspension set), not a complete trick. Retained as the pogo-set canonical set and the pogo operator."
 rooted,is_active,1,0,"Convert to set: rooted is a 0-ADD set state, not a complete trick. Retained as the rooted set operator."
+fairy-gyro-drifter,base_trick,gyro-drifter,vortex,"Repoint base to the active folk-named canonical; gyro-drifter was retired as a structural duplicate of vortex, so the base must reference the published trick rather than the retired slug."
+paradox-symposium-illusion,base_trick,symposium-illusion,flail,"Repoint base to the active folk-named canonical; symposium-illusion was retired as a structural duplicate of flail, so the base must reference the published trick rather than the retired slug."
+symposium-whirling-mirage,base_trick,whirling-mirage,blaze,"Repoint base to the active folk-named canonical; whirling-mirage was retired as a structural duplicate of blaze, so the base must reference the published trick rather than the retired slug."

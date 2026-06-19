@@ -1523,10 +1523,10 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     operator:    'heel terminal (toe→heel surface swap)',
     base:        'double-around-the-world',
     baseAdd:     3,
-    totalAdd:    3,
-    derivation:  'dex(2) + heel-stall(1) = 3 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Terminal-surface variant of double-around-the-world (toe→heel + [UNS] unusual-surface tag); fb.org-derived; not Red-confirmed.
-    provenance:  'Foundational-vocabulary promotion. Terminal-surface variant of double-around-the-world: math identical (dex(2) + stall(1) = 3 ADD) since heel-stall is a 1-ADD stall variant; the [UNS] (unusual surface) tag carries the heel-specific terminal classification per IFPA convention. fb.org-derived; not Red-confirmed.',
+    totalAdd:    4,
+    derivation:  'dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME IN [DEX] > SAME HEEL [UNS] [DEL]',  // Terminal-surface variant of double-around-the-world (toe→heel); the heel terminal is an unusual surface, so it carries both [UNS] and the stall [DEL]. fb.org-derived; not Red-confirmed.
+    provenance:  'Foundational-vocabulary promotion. Terminal-surface variant of double-around-the-world: the heel is an unusual surface, so the terminal carries a [UNS] tag on top of the stall delay, giving dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD. Bracket count 4 matches the official ADD. fb.org-derived; not Red-confirmed.',
   },
 
   // ─── Held-delay leg-over family + butterfly-kick correction ───────────
@@ -3207,12 +3207,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     slug:        'pixie-clipper',
     name:        'pixie clipper',
     operator:    'pixie',
-    base:        'clipper',
-    baseAdd:     1,
-    totalAdd:    2,
-    derivation:  'pixie(+1) + clipper(1) = 2 ADD',
-    operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [DEL]',  // pixie chassis on canonical clipper; bracket count 2 matches ADD.
-    provenance:  'Clean Tier-1 sweep. pixie on canonical clipper; bracket count 2 matches ADD. Observational (SG).',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'pixie(+1) + clipper-stall(2) = 3 ADD',
+    operationalNotation: 'TOE > SAME IN [DEX] > SAME CLIP [XBD] [DEL]',  // pixie chassis on the clipper stall (cross-body delay); bracket count 3 matches ADD.
+    provenance:  'pixie on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
     slug:        'pixie-double-pickup',
@@ -3295,12 +3295,12 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     slug:        'diving-clipper',
     name:        'diving clipper',
     operator:    'diving',
-    base:        'clipper',
-    baseAdd:     1,
-    totalAdd:    2,
-    derivation:  'diving(+1) + clipper(1) = 2 ADD',
-    operationalNotation: 'SET > DIVE [BOD] > SAME CLIP [DEL]',  // diving chassis on canonical clipper; bracket count 2 matches ADD.
-    provenance:  'Clean Tier-1 sweep. diving on canonical clipper; bracket count 2 matches ADD. Observational (SG).',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'diving(+1) + clipper-stall(2) = 3 ADD',
+    operationalNotation: 'SET > DIVE [BOD] > SAME CLIP [XBD] [DEL]',  // diving chassis on the clipper stall (cross-body delay); bracket count 3 matches ADD.
+    provenance:  'diving on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
     slug:        'diving-toe-stall',
@@ -3328,23 +3328,23 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     slug:        'stepping-clipper',
     name:        'stepping clipper',
     operator:    'stepping',
-    base:        'clipper',
-    baseAdd:     1,
-    totalAdd:    2,
-    derivation:  'stepping(+1) + clipper(1) = 2 ADD',
-    operationalNotation: 'CLIP > OP IN [DEX] >> SAME CLIP [DEL]',  // stepping chassis on canonical clipper; bracket count 2 matches ADD.
-    provenance:  'Clean Tier-1 sweep. stepping on canonical clipper; bracket count 2 matches ADD. Observational (SG).',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'stepping(+1) + clipper-stall(2) = 3 ADD',
+    operationalNotation: 'CLIP > OP IN [DEX] >> SAME CLIP [XBD] [DEL]',  // stepping chassis on the clipper stall (cross-body delay); bracket count 3 matches ADD.
+    provenance:  'stepping on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
     slug:        'gyro-clipper',
     name:        'gyro clipper',
     operator:    'gyro',
-    base:        'clipper',
-    baseAdd:     1,
-    totalAdd:    2,
-    derivation:  'gyro(+1) + clipper(1) = 2 ADD',
-    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME CLIP [DEL]',  // gyro chassis on canonical clipper; bracket count 2 matches ADD.
-    provenance:  'Clean Tier-1 sweep. gyro on canonical clipper; bracket count 2 matches ADD. Observational (SG).',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'gyro(+1) + clipper-stall(2) = 3 ADD',
+    operationalNotation: 'CLIP > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',  // gyro chassis on the clipper stall (cross-body delay); bracket count 3 matches ADD.
+    provenance:  'gyro on the clipper stall; the clipper terminal is the 2-ADD cross-body stall, so bracket count 3 matches ADD. Observational (SG).',
   },
   {
     slug:        'gyro-diving-butterfly',

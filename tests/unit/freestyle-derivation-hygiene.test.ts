@@ -9,7 +9,7 @@ describe('Resolved-formula derivation hygiene', () => {
   it('the three cleaned derivations carry structural math only', () => {
     const bySlug = new Map(RESOLVED_FORMULAS_SPRINT_1.map(f => [f.slug, f.derivation]));
     expect(bySlug.get('around-the-world-kick')).toBe('dex(1) = 1 ADD');
-    expect(bySlug.get('double-around-the-world-heel')).toBe('dex(2) + heel-stall(1) = 3 ADD');
+    expect(bySlug.get('double-around-the-world-heel')).toBe('dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD');
     expect(bySlug.get('butterfly-kick')).toBe('bod(1) + dex(1) = 2 ADD');
   });
 
