@@ -2114,3 +2114,78 @@ toe-whirling-swirl,notation,,TOE WHIRLING SWIRL,JOB notation backfill: mechanica
 whirling-gyro-mirage,notation,,WHIRLING GYRO MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
 whirling-paradox-mirage,notation,,WHIRLING PARADOX MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
 whirling-reverse-whirl,notation,,WHIRLING REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+gyro-toe,notation,,GYRO TOE,Settled-operator gyro pilot: JOB per mechanical uppercase rule.
+gyro-toe,operational_notation,,SET > (back) SPIN [BOD] > SAME TOE [DEL],Settled-operator gyro pilot: gyro back-spin on the toe-stall terminal. 2 brackets matches 2 ADD.
+gyro-symposium-mirage,notation,,GYRO SYMPOSIUM MIRAGE,Settled-operator gyro pilot: JOB per mechanical uppercase rule.
+gyro-symposium-mirage,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL],Settled-operator gyro pilot: gyro-symposium-whirl chassis with mirage OP-TOE terminal. 4 brackets matches 4 ADD.
+gyro-symposium-double-leg-over,notation,,GYRO SYMPOSIUM DOUBLE LEG OVER,Settled-operator gyro pilot: JOB per mechanical uppercase rule.
+gyro-symposium-double-leg-over,operational_notation,,CLIP > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],Settled-operator gyro pilot: gyro-double-leg-over chassis with symposium [BOD] on the leading dex. 5 brackets matches 5 ADD.
+nuclear-rev-whirl,notation,,NUCLEAR REVERSE WHIRL,Settled-operator nuclear pilot: JOB per mechanical uppercase rule.
+nuclear-rev-whirl,operational_notation,,CLIP > SAME OUT [PDX] [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Settled-operator nuclear pilot: nuclear-whirl chassis with reverse-whirl IN->OUT direction. 5 brackets matches 5 ADD.
+nuclear-rev-guay,notation,,NUCLEAR REVERSE GUAY,Settled-operator nuclear pilot: JOB per mechanical uppercase rule.
+nuclear-rev-guay,operational_notation,,CLIP > SAME OUT [PDX] [DEX] > SAME IN [DEX] > OP INSIDE [DEL],Settled-operator nuclear pilot: nuclear-guay chassis with reverse-guay parity flip. 4 brackets matches 4 ADD.
+nuclear-rev-guay,trick_family,guay,inside-stall,terminal-identity family: guay terminates in inside-stall; promoted as an inside-stall family member.
+barraging-double-leg-over,notation,,BARRAGING DOUBLE LEG OVER,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+barraging-double-leg-over,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Settled-operator mirror batch: barraging two-dex uptime prefix on the double-leg-over body. 5 brackets matches 5 ADD.
+quantum-double-leg-over,notation,,QUANTUM DOUBLE LEG OVER,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+quantum-double-leg-over,operational_notation,,TOE > OP IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Settled-operator mirror batch: quantum OP-IN dex prefix on the double-leg-over body. 4 brackets matches 4 ADD.
+quantum-flail,notation,,QUANTUM FLAIL,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+quantum-flail,operational_notation,,TOE > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],Settled-operator mirror batch: quantum OP-IN dex prefix on the flail body. 4 brackets matches 4 ADD.
+quantum-butterfly-swirl,notation,,QUANTUM BUTTERFLY SWIRL,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+quantum-butterfly-swirl,operational_notation,,TOE > OP IN [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Settled-operator mirror batch: quantum OP-IN dex prefix on the butterfly-swirl body. 5 brackets matches 5 ADD.
+miraging-flail,notation,,MIRAGING FLAIL,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+miraging-flail,operational_notation,,SET > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],Settled-operator mirror batch: miraging OP-IN dex prefix on the flail body. 4 brackets matches 4 ADD.
+pixie-ducking-butterfly-swirl,notation,,PIXIE DUCKING BUTTERFLY SWIRL,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+pixie-ducking-butterfly-swirl,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Settled-operator mirror batch: pixie-ducking chassis (assassin) on the butterfly-swirl body. 6 brackets matches 6 ADD.
+fairy-gyro-double-leg-over,notation,,FAIRY GYRO DOUBLE LEG OVER,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+fairy-gyro-double-leg-over,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Settled-operator mirror batch: fairy-gyro chassis (fairy-gyro-mirage) with gyro SAME-IN flip on the double-leg-over body. 5 brackets matches 5 ADD.
+stepping-ducking-double-pickup,notation,,STEPPING DUCKING DOUBLE PICKUP,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+stepping-ducking-double-pickup,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > SAME IN [DEX] > SAME TOE [DEL],Settled-operator mirror batch: stepping-ducking chassis (stepping-ducking-magellan) on the double-pickup body. 5 brackets matches 5 ADD.
+paradox-symposium-torque,notation,,PARADOX SYMPOSIUM TORQUE,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+paradox-symposium-torque,operational_notation,,CLIP (plant) > (no plant while) OP IN [PDX] [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],Settled-operator mirror batch: paradox-symposium chassis (paradox-symposium-eggbeater) with PDX+BOD fused onto torque's leading dex. 6 brackets matches 6 ADD.
+fairy-gyro-barrage,notation,,FAIRY GYRO BARRAGE,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+fairy-gyro-barrage,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > SAME IN [DEX] > OP TOE [DEL],Settled-operator mirror batch: fairy-gyro chassis (fairy-gyro-butterfly) on the barrage double-dex body. 5 brackets matches 5 ADD.
+fairy-ducking-drifter,notation,,FAIRY DUCKING DRIFTER,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+fairy-ducking-drifter,operational_notation,,TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > SAME CLIP [XBD] [DEL],Settled-operator mirror batch: fairy-ducking chassis (fairy-ducking-pickup) on the drifter body. 5 brackets matches 5 ADD.
+stepping-ducking-butterfly-swirl,notation,,STEPPING DUCKING BUTTERFLY SWIRL,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+stepping-ducking-butterfly-swirl,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Settled-operator mirror batch: stepping-ducking chassis (stepping-ducking-smudge) on the butterfly-swirl body. 6 brackets matches 6 ADD (parser reads 5 via swirl-dex approximation).
+stepping-diving-double-leg-over,notation,,STEPPING DIVING DOUBLE LEG OVER,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+stepping-diving-double-leg-over,operational_notation,,CLIP > OP IN [DEX] > DIVE [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Settled-operator mirror batch: stepping-diving chassis (stepping-diving-mirage) with diving SAME-IN flip on the double-leg-over body. 5 brackets matches 5 ADD.
+pixie-diving-osis,notation,,PIXIE DIVING OSIS,Settled-operator mirror batch: JOB per mechanical uppercase rule.
+pixie-diving-osis,operational_notation,,TOE > SAME IN [DEX] >> DIVE [BOD] >> (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],Settled-operator mirror batch: pixie-diving chassis (pixie-diving-mirage) on the osis spin body. 5 brackets matches 5 ADD.
+pixie-gyro-double-leg-over,notation,,PIXIE GYRO DOUBLE LEG OVER,Composed chassis: JOB per mechanical uppercase rule.
+pixie-gyro-double-leg-over,operational_notation,,TOE > SAME IN [DEX] > (back) SPIN [BOD] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],Composed chassis: pixie set-dex + gyro back-spin + double-leg-over body (gyro SAME-IN lead flip); twin of fairy-gyro-double-leg-over with pixie IN-dex. 5 brackets matches 5 ADD.
+diving-symposium-whirl,notation,,DIVING SYMPOSIUM WHIRL,Composed chassis: JOB per mechanical uppercase rule.
+diving-symposium-whirl,operational_notation,,SET > DIVE [BOD] > (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],Composed chassis: diving body-dip + symposium no-plant body on whirl's dex into the cross-body terminal; multi-body per gyro-ducking-symposium-torque precedent. 5 brackets matches 5 ADD.
+tapping-diving-mirage,notation,,TAPPING DIVING MIRAGE,Composed chassis: JOB per mechanical uppercase rule.
+tapping-diving-mirage,operational_notation,,TOE > OP OUT [DEX] >> DIVE [BOD] >> OP IN [DEX] > OP TOE [DEL],Composed chassis: tapping prepend-dex + diving body-dip + mirage body; twin of pixie-diving-mirage with tapping OP-OUT dex. 4 brackets matches 4 ADD.
+tapping-whirling-swirl,notation,,TAPPING WHIRLING SWIRL,Composed chassis: JOB per mechanical uppercase rule.
+tapping-whirling-swirl,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Composed chassis: tapping prepend-dex onto the active whirling-swirl chassis. 5 brackets matches 5 ADD.
+pixie-butterfly-swirl,notation,,PIXIE BUTTERFLY SWIRL,Mirror-safe batch: JOB per mechanical uppercase rule.
+pixie-butterfly-swirl,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Mirror-safe batch: pixie set-dex on the butterfly-swirl body. 5 brackets matches 5 ADD (parser reads 4 via swirl-dex approximation).
+shooting-illusion,notation,,SHOOTING ILLUSION,Mirror-safe batch: JOB per mechanical uppercase rule.
+shooting-illusion,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > OP TOE [DEL],Mirror-safe batch: shooting +3 chassis (shooting-mirage) on illusion's OP-OUT dex. 5 brackets matches 5 ADD.
+shooting-legover,notation,,SHOOTING LEGOVER,Mirror-safe batch: JOB per mechanical uppercase rule.
+shooting-legover,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL],Mirror-safe batch: shooting +3 chassis (shooting-double-leg-over) on legover's single OP-OUT dex. 5 brackets matches 5 ADD.
+shooting-pickup,notation,,SHOOTING PICKUP,Mirror-safe batch: JOB per mechanical uppercase rule.
+shooting-pickup,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP IN [DEX] > SAME TOE [DEL],Mirror-safe batch: shooting +3 chassis (shooting-mirage) with pickup OP-IN dex and same-toe terminal. 5 brackets matches 5 ADD.
+sailing-clipper,notation,,SAILING CLIPPER,Mirror-safe batch: JOB per mechanical uppercase rule.
+sailing-clipper,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Mirror-safe batch: sailing two-dex chassis into the clipper-stall terminal. 4 brackets matches 4 ADD.
+sailing-pickup,notation,,SAILING PICKUP,Mirror-safe batch: JOB per mechanical uppercase rule.
+sailing-pickup,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > SAME TOE [DEL],Mirror-safe batch: sailing two-dex chassis with pickup OP-IN dex and same-toe terminal. 4 brackets matches 4 ADD.
+fairy-gyro-symposium-mirage,notation,,FAIRY GYRO SYMPOSIUM MIRAGE,Composed: JOB per mechanical uppercase rule.
+fairy-gyro-symposium-mirage,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] > (no plant while) SAME IN [BOD] [DEX] > OP TOE [DEL],Composed: fairy-gyro-mirage + symposium [BOD] on the mirage dex. 5 brackets matches 5 ADD.
+gyro-diving-symposium-torque,notation,,GYRO DIVING SYMPOSIUM TORQUE,Composed: JOB per mechanical uppercase rule.
+gyro-diving-symposium-torque,operational_notation,,CLIP > (back) SPIN [BOD] > DIVE [BOD] > (no plant while) SAME IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],Composed: gyro-ducking-symposium-torque with DUCK->DIVE. 7 brackets matches 7 ADD.
+spinning-whirling-symposium-swirl,notation,,SPINNING WHIRLING SYMPOSIUM SWIRL,Composed: JOB per mechanical uppercase rule.
+spinning-whirling-symposium-swirl,operational_notation,,CLIP > (back) SPIN [BOD] > OP IN [DEX] > (no plant while) OP BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL],Composed: spinning-whirling-swirl + symposium [BOD] on the back-swirl dex. 6 brackets matches 6 ADD.
+pixie-miraging-symposium-eggbeater,notation,,PIXIE MIRAGING SYMPOSIUM EGGBEATER,Composed: JOB per mechanical uppercase rule.
+pixie-miraging-symposium-eggbeater,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],Composed: pixie set-dex onto miraging-symposium-eggbeater. 6 brackets matches 6 ADD.
+shooting-ducking-butterfly,notation,,SHOOTING DUCKING BUTTERFLY,Composed: JOB per mechanical uppercase rule.
+shooting-ducking-butterfly,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Composed: shooting-butterfly + ducking DUCK [BOD] after the shooting dex-pair. 7 brackets matches 7 ADD.
+shooting-gyro-mirage,notation,,SHOOTING GYRO MIRAGE,Composed: JOB per mechanical uppercase rule.
+shooting-gyro-mirage,operational_notation,,CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL],Composed: shooting-mirage + gyro back-spin after the shooting dex-pair. 6 brackets matches 6 ADD.
+swirling-paradox-symposium-whirl,notation,,SWIRLING PARADOX SYMPOSIUM WHIRL,Composed: JOB per mechanical uppercase rule.
+swirling-paradox-symposium-whirl,operational_notation,,CLIP > SAME BACK SWIRL [DEX] > (no plant while) SAME IN [BOD] [PDX] [DEX] > OP CLIP [XBD] [DEL],Composed: swirling back-swirl prefix onto paradox-symposium-whirl. 6 brackets matches 6 ADD.
+spinning-ducking-symposium-torque,notation,,SPINNING DUCKING SYMPOSIUM TORQUE,Composed: JOB per mechanical uppercase rule.
+spinning-ducking-symposium-torque,operational_notation,,SET > (back) SPIN [BOD] > DUCK [BOD] > (no plant while) OP IN [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],Composed: spinning-ducking-symposium-whirl chassis with torque back-spin terminal. 7 brackets matches 7 ADD.

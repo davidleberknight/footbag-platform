@@ -22,7 +22,7 @@ plus 1 minor follow-up.**
 | B1 Pogo ADD | OPEN | ~13 |
 | C1 Shooting operator | SETTLED (+3); residual sub-questions | ~13 residual |
 | C2 Spyro governance | OPEN | ~6 |
-| D1 Atomic / Illusioning naming | Arithmetic SETTLED; naming OPEN | governance only |
+| D1 Atomic / Illusioning naming | CLOSED — merged into atomic (canonical) | governance only |
 | E1 X-Dex eligibility | Mostly SETTLED; one follow-up | a few |
 
 **Recommended ruling order (highest impact first):**
@@ -338,7 +338,16 @@ divergence per-compound.
 
 # Section D — Naming and Normalization Questions
 
-## D1. Atomic / Illusioning Normalization
+## D1. Atomic / Illusioning Normalization — CLOSED
+
+**RESOLVED: the recommended normalization is adopted.** Illusioning and atomic are the same
+dexterity operator (the outward-dex / rev(0)-miraging chassis); **atomic is canonical**.
+Illusioning is retired as a productive modifier (the `illusioning` row is removed from the
+modifier registry, leaving 34 modifiers) and survives only as a descriptive reading for the
+handful of historically-named cases. No productive "illusioning-X" family is generated. The
+data layer already reflected this (0 modifier_links used illusioning); formalizing it changed
+no ADD values (769 active-row ADD-matches before and after). The atomic +2-rotational holdout
+is a separate, still-open migration and is NOT affected by this closure.
 
 **This section is governance-only. Atomic arithmetic is settled and is not reopened here.**
 
@@ -451,9 +460,8 @@ A one-page list for the call. Each line is a single decision.
    the pt12 follow-up for Blurry Whirl (5) and Blurry Torque (6). *(~7 direct.)*
 5. **Spyro (C2):** Does **"spyro" mean gyro (folk alias), inspin, or a distinct variant**?
    Confirm whether the "spyro → inspin" note is historical renaming. *(~6 tricks.)*
-6. **Atomic / Illusioning (D1):** Is **illusioning an independent operator or a descriptive
-   presentation** of the outward-dex (rev(0) miraging) movement? *(Governance only; atomic
-   arithmetic is settled and not reopened.)*
+6. **Atomic / Illusioning (D1): CLOSED.** Resolved as a descriptive presentation of atomic's
+   outward-dex; illusioning retired as a productive modifier, atomic canonical. No ruling needed.
 7. **Shooting residual (C1):** Do the **same-side ("ss") shooting variants collapse** to the
    opposite-side forms, or are they distinct? *(~13 residual; operator +3 already settled.)*
 8. **X-Dex (E1):** Beyond mirage (atom-smasher), are **whirl / swirl X-Dex-eligible** when an

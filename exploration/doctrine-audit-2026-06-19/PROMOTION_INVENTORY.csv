@@ -1,0 +1,53 @@
+rank,class,risk,slug,display_name,base,operator_set,mirror_exemplar,expected_add,family
+1,A,low,quantum-butterfly-swirl,Quantum Butterfly Swirl,butterfly-swirl,quantum,quantum-drifter,5,swirl
+2,A,low,quantum-double-leg-over,Quantum Double Leg Over,double-leg-over,quantum,quantum-drifter,4,legover
+3,A,low,quantum-flail,Quantum Flail,flail,quantum,quantum-drifter,4,illusion
+4,A,low,miraging-flail,Miraging Flail,flail,miraging,miraging-eclipse,4,illusion
+5,A,low,barraging-double-leg-over,Barraging Double Leg Over,double-leg-over,barraging,barraging-pickup,5,legover
+6,A,medium,pixie-butterfly-swirl,Pixie Butterfly Swirl,butterfly-swirl,pixie,pixie-mirage,5,swirl
+7,A,medium,nuclear-osis,Nuclear Osis,osis,nuclear,nuclear-dyno,5,osis
+8,A,medium,shooting-illusion,Shooting Illusion,illusion,shooting,shooting-butterfly,5,illusion
+9,A,medium,shooting-legover,Shooting Legover,legover,shooting,shooting-butterfly,5,legover
+10,A,medium,shooting-pickup,Shooting Pickup,pickup,shooting,shooting-butterfly,5,pickup
+11,A,medium,sailing-clipper,Sailing Clipper,clipper,sailing,sailing-mirage,3,clipper
+12,A,medium,sailing-pickup,Sailing Pickup,pickup,sailing,sailing-mirage,4,pickup
+13,A,medium,railing-butterfly,Railing Butterfly,butterfly,railing,rail-warrior,5,butterfly
+14,A,medium,railing-illusion,Railing Illusion,illusion,railing,rail-warrior,4,illusion
+15,A,medium,railing-legover,Railing Legover,legover,railing,rail-warrior,4,legover
+16,A,medium,railing-mirage,Railing Mirage,mirage,railing,rail-warrior,4,mirage
+17,A,medium,surfing-osis,Surfing Osis,osis,surfing,big-papa-smurf,6,osis
+18,A,medium,surfing-pickup,Surfing Pickup,pickup,surfing,big-papa-smurf,5,pickup
+19,C,medium,ducking-clipper-symposium-whirl,Ducking Clipper Symposium Whirl,clipper-symposium-whirl,ducking,ducking-toe-stall,5,whirl
+20,C,medium,whirling-symposium-mirage,Whirling Symposium Mirage,symposium-mirage,whirling,reverse-whirling-twirl,4,mirage
+21,C,medium,whirling-symposium-swirl,Whirling Symposium Swirl,symposium-swirl,whirling,reverse-whirling-twirl,5,swirl
+22,C,medium,swirling-dragon,Swirling Dragon,dragon,swirling,reverse-swirling-osis,3,dragon
+23,C,medium,swirling-paradox-symposium-whirl,Swirling Paradox Symposium Whirl,paradox-symposium-whirl,swirling,reverse-swirling-osis,6,whirl
+24,C,medium,miraging-dragon,Miraging Dragon,dragon,miraging,miraging-eclipse,3,dragon
+25,C,medium,spinning-ducking-symposium-torque,Spinning Ducking Symposium Torque,symposium-torque,spinning+ducking,spinning-ducking-whirl,7,osis
+26,C,medium,spinning-whirling-symposium-swirl,Spinning Whirling Symposium Swirl,symposium-swirl,spinning+whirling,double-spinning-butterfly,6,swirl
+27,C,medium,swirling-gyro-inside-stall,Swirling Gyro Inside Stall,inside-stall,swirling+gyro,reverse-swirling-osis,3,inside-stall
+28,C,medium,spinning-miraging-symposium-miraging-refraction,Spinning Miraging Symposium Miraging Refraction,refraction,spinning+miraging+symposium+miraging,double-spinning-butterfly,7,refraction
+29,B,low,paradox-symposium-torque,Paradox Symposium Torque,torque,paradox+symposium,paradox-symposium-eggbeater,6,osis
+30,B,low,pixie-ducking-butterfly-swirl,Pixie Ducking Butterfly Swirl,butterfly-swirl,pixie+ducking,pixie-ducking-osis,6,swirl
+31,B,low,stepping-ducking-butterfly-swirl,Stepping Ducking Butterfly Swirl,butterfly-swirl,stepping+ducking,stepping-ducking-smudge,6,swirl
+32,B,low,stepping-ducking-double-pickup,Stepping Ducking Double Pickup,double-pickup,stepping+ducking,stepping-ducking-smudge,5,pickup
+33,B,low,fairy-ducking-drifter,Fairy Ducking Drifter,drifter,fairy+ducking,fairy-ducking-clipper,5,clipper-stall
+34,B,low,fairy-gyro-barrage,Fairy Gyro Barrage,barrage,fairy+gyro,fairy-gyro-butterfly,5,barrage
+35,B,low,fairy-gyro-double-leg-over,Fairy Gyro Double Leg Over,double-leg-over,fairy+gyro,fairy-gyro-butterfly,5,legover
+36,B,low,pixie-gyro-double-leg-over,Pixie Gyro Double Leg Over,double-leg-over,pixie+gyro,pixie-mirage,5,legover
+37,B,low,diving-symposium-whirl,Diving Symposium Whirl,whirl,diving+symposium,fairy-diving-butterfly,5,whirl
+38,B,low,pixie-diving-osis,Pixie Diving Osis,osis,pixie+diving,pixie-diving-mirage,5,osis
+39,B,low,stepping-diving-double-leg-over,Stepping Diving Double Leg Over,double-leg-over,stepping+diving,stepping-diving-butterfly,5,legover
+40,B,low,tapping-diving-mirage,Tapping Diving Mirage,mirage,tapping+diving,tapping-mobius,4,mirage
+41,B,low,tapping-whirling-swirl,Tapping Whirling Swirl,swirl,tapping+whirling,tapping-mobius,5,swirl
+42,B,medium,shooting-ducking-butterfly,Shooting Ducking Butterfly,butterfly,shooting+ducking,shooting-butterfly,7,butterfly
+43,B,medium,shooting-gyro-mirage,Shooting Gyro Mirage,mirage,shooting+gyro,shooting-butterfly,6,mirage
+44,B,medium,sailing-gyro-pickup,Sailing Gyro Pickup,pickup,sailing+gyro,sailing-mirage,5,pickup
+45,B,medium,railing-ducking-legover,Railing Ducking Legover,legover,railing+ducking,rail-warrior,5,legover
+46,B,medium,fairy-gyro-symposium-mirage,Fairy Gyro Symposium Mirage,mirage,fairy+gyro+symposium,fairy-spinning-ducking-osis,5,mirage
+47,B,medium,gyro-diving-symposium-torque,Gyro Diving Symposium Torque,torque,gyro+diving+symposium,gyro-clipper,7,osis
+48,B,medium,symposium-whirling-swirling-mirage,Symposium Whirling Swirling Mirage,mirage,symposium+whirling+swirling,spinning-ducking-symposium-double-over-down,5,mirage
+49,B,medium,paradox-miraging-symposium-eggbeater,Paradox Miraging Symposium Eggbeater,eggbeater,paradox+miraging+symposium,paratoxic,6,legover
+50,B,medium,paradox-miraging-symposium-mirage,Paradox Miraging Symposium Mirage,mirage,paradox+miraging+symposium,paratoxic,5,mirage
+51,B,medium,pixie-miraging-symposium-eggbeater,Pixie Miraging Symposium Eggbeater,eggbeater,pixie+miraging+symposium,pixie-mirage,6,legover
+52,B,medium,pixie-miraging-symposium-miraging-legover,Pixie Miraging Symposium Miraging Legover,legover,pixie+miraging+symposium+miraging,pixie-mirage,6,legover
