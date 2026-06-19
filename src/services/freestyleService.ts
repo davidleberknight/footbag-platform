@@ -4142,7 +4142,6 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   //    "foundational + publication-quality"). Each entry introduces a
   //    distinct learning dimension. JOB sourced from curator DB
   //    op-notation; ADD from ATOMIC_FLAG_DECOMPOSITIONS below.
-  'heel-stall',          // anatomical surface stall (heel); universal stall=1
   'inside-stall',        // anatomical surface stall (inside-of-foot); base for clipper family
   'outside-stall',       // anatomical surface stall (outside-of-foot)
   'head-stall',          // anatomical surface stall (head)
@@ -4164,13 +4163,14 @@ const FIRST_CLASS_TIER_1: ReadonlySet<string> = new Set([
   //    normalization). Extend the foundational band
   //    upward; each exposes a core ADD bucket explicitly.
   'cloud-stall',         // 2-ADD unusual-surface stall; teaches the unusual-surface(shin) + stall buckets
+  'heel-stall',          // 2-ADD unusual-surface stall (heel); the heel is an unusual surface, so delay + UNS
   'dragonfly-kick',      // 2-ADD flying primitive with dex; teaches bod + dex buckets
   'flying-clipper',      // 2-ADD flying primitive with xbody; teaches bod + xbody buckets
   // ── knee-clipper: folk name, not a literal clipper-surface stall;
-  //    curator clarified it reads as a flying dex knee kick
-  //    (bod + xbody = 2 ADD). Added to the foundational band so the
-  //    audit/parser classification no longer trips on KNEE-CLIPPER STALL.
-  'knee-clipper',        // 2-ADD flying dex knee kick (folk-name resolution)
+  //    it reads as a flying knee kick (a jump-kick contacting the bag
+  //    cross-body with the knee): bod + xbody = 2 ADD. The knee-surface
+  //    sibling of flying-clipper (inside) and toe-clipper (toe).
+  'knee-clipper',        // 2-ADD flying knee kick (the knee-surface flying clipper)
   // ── guay: 2-ADD pickup-pattern dex primitive ending in inside-stall
   //    (sibling structure to pickup / legover / illusion / mirage).
   //    Released from DOCTRINE_BLOCKED_SLUGS curator_hold.
@@ -4475,7 +4475,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   //    display only on trick-detail pages).
   'around-the-world-kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
   'triple-around-the-world',     // dex(3) + stall(1) = 4 ADD
-  'double-around-the-world-heel', // dex(2) + heel-stall(1) = 3 ADD
+  'double-around-the-world-heel', // dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD
   'hop-over',                    // inside-delay(1) + bod(1) = 2 ADD
   'walk-over',                   // inside-delay(1) + dex(1) = 2 ADD
   'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
@@ -4721,9 +4721,9 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   //    kicks. operationalChain mirrors the DB op-notation; ChainSource
   //    falls back to atomic when DB is somehow stripped.
   ['heel-stall', {
-    decomposition:    'stall(1) = 1 ADD',
-    totalAdd:         1,
-    operationalChain: '[set] > heel',
+    decomposition:    'stall(1) + unusual-surface(1) = 2 ADD',
+    totalAdd:         2,
+    operationalChain: 'SET > SAME HEEL [UNS] [DEL]',
   }],
   ['inside-stall', {
     decomposition:    'stall(1) = 1 ADD',

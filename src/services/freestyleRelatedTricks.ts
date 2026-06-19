@@ -55,8 +55,6 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
   // Both-feet / both-knees airborne primitives share the flying-contact set.
   'double-knee': ['flying-inside', 'flying-outside', 'flying-clipper'],
   'double-kick': ['flying-inside', 'flying-outside', 'flying-clipper'],
-  // Cross-body toe contact: the toe-surface sibling of the inside-contact clipper kick.
-  'toe-clipper': ['flying-clipper'],
 };
 
 // Mutual movement neighborhoods: every member relates to the others. Surface
@@ -64,8 +62,13 @@ const EXPLICIT_NEIGHBORS: Readonly<Record<string, readonly string[]>> = {
 // the foot-stall set or the body-stall set; this overlay groups them by where
 // the bag is caught (a movement neighborhood, not a taxonomy change).
 const NEIGHBORHOOD_GROUPS: readonly (readonly string[])[] = [
-  ['toe-stall', 'inside-stall', 'outside-stall', 'clipper-stall', 'heel-stall', 'sole-stall', 'knee-clipper', 'cross-body-sole-stall'],
+  ['toe-stall', 'inside-stall', 'outside-stall', 'clipper-stall', 'heel-stall', 'sole-stall', 'cross-body-sole-stall'],
   ['head-stall', 'forehead-stall', 'neck-stall', 'shoulder-stall', 'knee-stall', 'cloud-stall'],
+  // The three flying clipper moves: a jump-kick contacting the bag cross-body
+  // with the kicking leg tucked behind the jumping leg, varying by contact
+  // surface (inside = flying-clipper, toe = toe-clipper, knee = knee-clipper).
+  // Each sits in its own family, so only this overlay connects them.
+  ['flying-clipper', 'toe-clipper', 'knee-clipper'],
   // Swing elements: completed by the swing action itself, with an open terminal
   // (stall / kick / catch / follow-on). A movement neighbourhood, not a family.
   ['pendulum', 'rake'],

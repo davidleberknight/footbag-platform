@@ -476,8 +476,9 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   // distinct from the named operator modifiers (paradox,
   // spinning, ducking, symposium, stepping, atomic, whirling, pixie).
   //
-  // Swing-element pair: pendulum = toe(1) + swing(1) = 2 ADD; rake reads
-  // the same arithmetic in reverse element order (swing then toe). Only
+  // Swing-element pair: pendulum = swing(1) + contact(1) = 2 ADD, finishing
+  // on an arbitrary terminal contact; rake = swing(1) + toe-stall(1) with a
+  // fixed toe terminal. Only
   // pendulum is published here; rake has no active freestyle_tricks row
   // yet. Canonicalization of rake (red_additions_2026_04_20.csv + DB
   // reload) is a separate curator step before its resolved-formula entry
@@ -505,8 +506,8 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     base:        'toe-stall',
     baseAdd:     1,
     totalAdd:    2,
-    derivation:  'toe(1) + swing(1) = 2 ADD',
-    provenance:  'Curator-locked swing-element doctrine: pendulum decomposes to a toe-stall start position plus a swing movement element (+1). The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the same arithmetic with reversed element order (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
+    derivation:  'swing(1) + contact(1) = 2 ADD',
+    provenance:  'Curator-locked swing-element doctrine: pendulum is a toe-swing that completes on an arbitrary terminal contact. It is the only trick with an arbitrary final surface, so the terminal renders as an open (contact) rather than a fixed stall, for ADD = swing(1) + contact(1) = 2. The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the swing-element arithmetic with a fixed toe-stall terminal (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
   },
   {
     slug:        'flying-clipper',

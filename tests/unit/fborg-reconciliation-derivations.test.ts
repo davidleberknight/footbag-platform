@@ -45,7 +45,7 @@ const APPROVED = [
 
 // bracket-count deliberately differs from ADD: swing-element (pendulum).
 const EXCEPTIONS = [
-  { slug: 'pendulum',    notation: 'TOE SWING (SET) > SAME TOE [DEL]' },
+  { slug: 'pendulum',    notation: 'TOE SWING (SET) > (contact)' },
 ] as const;
 
 const correctionsLines = readFileSync(

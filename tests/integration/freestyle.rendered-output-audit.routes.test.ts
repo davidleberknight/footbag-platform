@@ -63,7 +63,7 @@ beforeAll(async () => {
     slug: 'pendulum', canonical_name: 'pendulum', adds: '2',
     base_trick: 'pendulum', trick_family: 'pendulum', category: 'compound',
     notation: 'PENDULUM',
-    operational_notation: 'SET > TOE SWING [DEL]',
+    operational_notation: 'TOE SWING (SET) > (contact)',
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrick(db, {
@@ -207,9 +207,11 @@ describe('rake + pendulum: ≡ slot does not echo the JOB notation', () => {
     const card = res.text.match(/data-trick-slug="pendulum"[\s\S]*?<\/article>/);
     expect(card).not.toBeNull();
     expect(card![0]).not.toMatch(/core-trick-equivalence[\s\S]*?toe[\s\S]*?swing/);
-    // 2026-05-24 audit: pendulum's prior "[DEL] [DEX]" operational
-    // notation was ambiguous two-flags-out-of-context; now canonical.
-    expect(card![0]).toMatch(/SET &gt; TOE SWING \[DEL\]/);
+    // pendulum's terminal surface is arbitrary, so the JOB row renders the
+    // open (contact) terminal, not a fixed stall or the ambiguous two-flags form.
+    expect(card![0]).toMatch(/TOE SWING/);
+    expect(card![0]).toMatch(/\(contact\)/);
+    expect(card![0]).not.toMatch(/SAME TOE/);
     expect(card![0]).not.toMatch(/\[DEL\]\s*\[DEX\]/);
   });
 });

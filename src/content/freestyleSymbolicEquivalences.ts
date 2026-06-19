@@ -603,7 +603,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   // 'pendulum' has no chain reading: "toe swing" is just the JOB-form
   // lowercase echo and adds no information to the browse card (the JOB
-  // row carries the canonical form SET > TOE SWING [DEL]). Omitted
+  // row carries the canonical form TOE SWING (SET) > (contact)). Omitted
   // alongside rake's analogous "swing toe" reading.
   // 'rake' has no chain reading: "swing toe" is just the JOB-form
   // lowercase echo of the canonical SET > SWING TOE [DEL] notation and
