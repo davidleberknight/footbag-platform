@@ -6,8 +6,11 @@
 # Usage:  freestyle/run_freestyle.sh [path/to/footbag.db]   (default: database/footbag.db)
 #
 # The symbolic-grammar layer is loaded into the DB (26_load_symbolic_grammar.py)
-# and read from there at runtime. Deferred follow-up: relocating the symbolic CSVs
-# + build scripts out of exploration/ into freestyle/.
+# from committed CSVs under freestyle/symbolic_grammar/ and read from the DB at
+# runtime, so the build never reads exploration/. The build_symbolic_grammar_*
+# generators that regenerate those CSVs stay in legacy_data/scripts/ because they
+# read upstream exploration/ source registries; they are a manual dev-time step,
+# not part of this rebuild.
 set -euo pipefail
 cd "$(dirname "$0")/.."          # repo root
 

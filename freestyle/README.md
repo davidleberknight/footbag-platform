@@ -37,16 +37,15 @@ for review and commit. Without `--live` the script is a no-op.
 ## Symbolic grammar
 
 The symbolic-grammar observational layer is loaded into the DB by
-`loaders/26_load_symbolic_grammar.py` (wired into `run_freestyle.sh`); the
-runtime reads it from the database, not from disk. The loader still reads the
-committed CSVs from `exploration/symbolic-grammar-2/`, and the
-`build_symbolic_grammar_*` generators still live in `legacy_data/scripts/`;
-relocating both into `freestyle/` is the remaining follow-up.
+`loaders/26_load_symbolic_grammar.py` (wired into `run_freestyle.sh`) from the
+committed CSVs under `symbolic_grammar/`; the runtime reads it from the database,
+not from disk. The build never reads `exploration/`. The `build_symbolic_grammar_*`
+generators that regenerate those CSVs stay in `legacy_data/scripts/` because they
+read upstream `exploration/` source registries; they are a manual dev-time step,
+not part of the rebuild.
 
 ## Not here yet
 
-- Relocating the symbolic-grammar CSVs + `build_symbolic_grammar_*` generators
-  out of `exploration/` / `legacy_data/scripts/` into `freestyle/` (see above).
 - The shared `_trick_canonicalization.py` / `_trick_tag_invariant.py` helpers
   stay in `scripts/` (also used by the curator-media seeder); the QC loaders
   import them from there.

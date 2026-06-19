@@ -9,8 +9,8 @@ Inputs (read-only):
   - exploration/passback-intake/passback_glossary_staging.csv (180 parsed terms)
   - exploration/freestyle-notation-grammar/UX1_GLOSSARY_TOKEN_MATRIX.csv (83 tokens)
   - exploration/freestyle-notation-grammar/GRAMMAR_GLOSSARY_V3.md (observational v3)
-  - exploration/symbolic-grammar-2/glossary_crosslinks.csv (68 crosslinks)
-  - exploration/symbolic-grammar-2/symbolic_*_groups.csv (62 groups across 5 axes)
+  - freestyle/symbolic_grammar/glossary_crosslinks.csv (68 crosslinks)
+  - freestyle/symbolic_grammar/symbolic_*_groups.csv (62 groups across 5 axes)
   - database/footbag.db (modifier table + active tricks; read-only)
 
 Outputs (all under exploration/glossary-synthesis-1/):
@@ -35,13 +35,13 @@ IFPA_GLOSSARY = ROOT / "docs" / "Freestyle_Footbag_Glossary.md"
 PB_GLOSSARY_TXT = ROOT / "legacy_data" / "inputs" / "curated" / "tricks" / "passback-glossary.txt"
 PB_GLOSSARY_CSV = ROOT / "exploration" / "passback-intake" / "passback_glossary_staging.csv"
 UX1_TOKENS = ROOT / "exploration" / "freestyle-notation-grammar" / "UX1_GLOSSARY_TOKEN_MATRIX.csv"
-SG2_CROSSLINKS = ROOT / "exploration" / "symbolic-grammar-2" / "glossary_crosslinks.csv"
-SG2_TOPOLOGY = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_topology_groups.csv"
-SG2_MODIFIER = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_modifier_groups.csv"
-SG2_CONTACT = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_contact_groups.csv"
-SG2_DEX = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_dex_groups.csv"
-SG2_EXEC = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_execution_patterns.csv"
-SG2_MEMBERSHIP = ROOT / "exploration" / "symbolic-grammar-2" / "symbolic_group_membership.csv"
+SG2_CROSSLINKS = ROOT / "freestyle" / "symbolic_grammar" / "glossary_crosslinks.csv"
+SG2_TOPOLOGY = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_topology_groups.csv"
+SG2_MODIFIER = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_modifier_groups.csv"
+SG2_CONTACT = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_contact_groups.csv"
+SG2_DEX = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_dex_groups.csv"
+SG2_EXEC = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_execution_patterns.csv"
+SG2_MEMBERSHIP = ROOT / "freestyle" / "symbolic_grammar" / "symbolic_group_membership.csv"
 DB = ROOT / "database" / "footbag.db"
 OUT_DIR = ROOT / "exploration" / "glossary-synthesis-1"
 

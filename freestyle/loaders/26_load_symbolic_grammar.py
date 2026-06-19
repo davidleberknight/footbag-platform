@@ -5,8 +5,7 @@ Reads the committed symbolic-grammar CSVs and DELETE+INSERTs them into the
 symbolic_* tables that symbolicGrammarService reads at runtime (replacing the
 old read-the-CSV-files-at-runtime path). Idempotent; honest counters.
 
-Reads:  exploration/symbolic-grammar-2/*.csv   (committed; relocating these into
-        freestyle/ is a separate follow-up)
+Reads:  freestyle/symbolic_grammar/*.csv   (committed loader inputs)
 Writes: database/footbag.db
           symbolic_equivalence_clusters
           symbolic_group_membership
@@ -28,7 +27,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 DEFAULT_DB = REPO_ROOT / "database" / "footbag.db"
-CSV_DIR = REPO_ROOT / "exploration" / "symbolic-grammar-2"
+CSV_DIR = REPO_ROOT / "freestyle" / "symbolic_grammar"
 
 # (csv filename, table, columns) — columns match both the CSV header and the
 # schema table; the service reads every value as a string.

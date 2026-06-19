@@ -4,7 +4,7 @@
 Generates Tasks A/B/C/F/G of the SG-2 brief from IFPA dictionary state +
 SYMBOLIC-GRAMMAR-1 outputs + GRAMMAR-GLOSSARY-1 outputs + PassBack-intake data.
 
-Outputs (all under exploration/symbolic-grammar-2/):
+Outputs (all under freestyle/symbolic_grammar/):
   Task A — 5 group CSVs:
     symbolic_topology_groups.csv
     symbolic_modifier_groups.csv
@@ -38,7 +38,7 @@ SG1_MASTER = ROOT / "exploration" / "footbagmoves-federation" / "SYMBOLIC_GRAMMA
 SG1_FAMILY = ROOT / "exploration" / "footbagmoves-federation" / "SYMBOLIC_GRAMMAR_FAMILY_SUMMARY.csv"
 GG_FAMILY = ROOT / "exploration" / "freestyle-notation-grammar" / "SYMBOLIC_FAMILY_REGISTRY.csv"
 GG_DECOMP = ROOT / "exploration" / "freestyle-notation-grammar" / "SYMBOLIC_DECOMPOSITION_REGISTRY.csv"
-OUT_DIR = ROOT / "exploration" / "symbolic-grammar-2"
+OUT_DIR = ROOT / "freestyle" / "symbolic_grammar"
 
 
 # ─────────────────────────────────────────────────────────────────────────
