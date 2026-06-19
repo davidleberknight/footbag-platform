@@ -1392,9 +1392,11 @@ fairy-gyro-torque,trick_family,torque,osis,terminal-identity family override: to
 fairy-illusion,notation,,FAIRY ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-merkon,notation,,FAIRY MERKON,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-merkon,trick_family,merkon,legover,terminal-identity family override: merkon resolves to the legover family (loader-19 default would mis-set family=merkon).
+fairy-merkon,operational_notation,,TOE > SAME OUT [DEX] > (back) SPIN [BOD] >> OP OUT [DEX] > SAME TOE [DEL],Fairy set prepended onto the merkon body (back-spin + out-dex + same-toe terminal) mirroring fairy-osis and fairy-dyno. 4 brackets ([DEX] [BOD] [DEX] [DEL]) match 4 ADD.
 fairy-rev-whirl,notation,,FAIRY REV WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-rev-whirl,trick_family,rev-whirl,whirl,terminal-identity family override: rev-whirl resolves to the whirl family (loader-19 default would mis-set family=rev-whirl).
 fairy-ripstein,notation,,FAIRY RIPSTEIN,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
+fairy-ripstein,operational_notation,,TOE > SAME OUT [DEX] > SAME BACK SWIRL [DEX] >> SAME BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],Fairy set prepended onto the ripstein body (twin back-swirl dexes + cross-body clipper terminal) mirroring fairy-eggbeater's dex graft. 5 brackets ([DEX] [DEX] [DEX] [XBD] [DEL]) match 5 ADD.
 fairy-spinning-ducking-osis,notation,,FAIRY SPINNING DUCKING OSIS,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-spinning-ducking-osis,trick_family,spinning-ducking-osis,osis,terminal-identity family override: spinning-ducking-osis resolves to the osis family (loader-19 default would mis-set family=spinning-ducking-osis).
 fairy-swirling-swirl,notation,,FAIRY SWIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
@@ -2055,3 +2057,58 @@ rooted,is_active,1,0,"Convert to set: rooted is a 0-ADD set state, not a complet
 fairy-gyro-drifter,base_trick,gyro-drifter,vortex,"Repoint base to the active folk-named canonical; gyro-drifter was retired as a structural duplicate of vortex, so the base must reference the published trick rather than the retired slug."
 paradox-symposium-illusion,base_trick,symposium-illusion,flail,"Repoint base to the active folk-named canonical; symposium-illusion was retired as a structural duplicate of flail, so the base must reference the published trick rather than the retired slug."
 symposium-whirling-mirage,base_trick,whirling-mirage,blaze,"Repoint base to the active folk-named canonical; whirling-mirage was retired as a structural duplicate of blaze, so the base must reference the published trick rather than the retired slug."
+around-the-world-kick,notation,,AROUND THE WORLD KICK,JOB notation backfill: mechanical uppercase of the structural name.
+butterfly-gyro-toe,notation,,BUTTERFLY GYRO TOE,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-diving-whirl,notation,,CLIPPER DIVING WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-ducking-blender,notation,,CLIPPER DUCKING BLENDER,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-ducking-drifter,notation,,CLIPPER DUCKING DRIFTER,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-ducking-symposium-whirl,notation,,CLIPPER DUCKING SYMPOSIUM WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-ducking-whirl,notation,,CLIPPER DUCKING WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+clipper-symposium-whirl,notation,,CLIPPER SYMPOSIUM WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+diving-reverse-swirl,notation,,DIVING REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+ducking-reverse-guay,notation,,DUCKING REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+fairy-reverse-guay,notation,,FAIRY REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+fairy-reverse-swirl,notation,,FAIRY REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+fairy-reverse-whirl,notation,,FAIRY REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+gyro-reverse-guay,notation,,GYRO REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+inspinning-reverse-guay,notation,,INSPINNING REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+paradox-blender,notation,,PARADOX BLENDER,JOB notation backfill: mechanical uppercase of the structural name.
+paradox-symposium-whirling-rake,notation,,PARADOX SYMPOSIUM WHIRLING RAKE,JOB notation backfill: mechanical uppercase of the structural name.
+paradox-torque,notation,,PARADOX TORQUE,JOB notation backfill: mechanical uppercase of the structural name.
+paradox-whirling-rake,notation,,PARADOX WHIRLING RAKE,JOB notation backfill: mechanical uppercase of the structural name.
+pixie-reverse-guay,notation,,PIXIE REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+pixie-reverse-swirl,notation,,PIXIE REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+pixie-reverse-whirl,notation,,PIXIE REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+rev-swirl,notation,,REV SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-blender,notation,,REVERSE BLENDER,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-swirling-blender,notation,,REVERSE SWIRLING BLENDER,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-swirling-osis,notation,,REVERSE SWIRLING OSIS,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-swirling-paradox-torque,notation,,REVERSE SWIRLING PARADOX TORQUE,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-swirling-pickup,notation,,REVERSE SWIRLING PICKUP,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-swirling-symposium-mirage,notation,,REVERSE SWIRLING SYMPOSIUM MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-torque,notation,,REVERSE TORQUE,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-whirling-rake,notation,,REVERSE WHIRLING RAKE,JOB notation backfill: mechanical uppercase of the structural name.
+reverse-whirling-twirl,notation,,REVERSE WHIRLING TWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+spinning-reverse-guay,notation,,SPINNING REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+spinning-reverse-swirl,notation,,SPINNING REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+spinning-reverse-whirl,notation,,SPINNING REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+stepping-reverse-guay,notation,,STEPPING REVERSE GUAY,JOB notation backfill: mechanical uppercase of the structural name.
+stepping-reverse-swirl,notation,,STEPPING REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+stepping-reverse-whirl,notation,,STEPPING REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+surging,notation,,SURGING,JOB notation backfill: mechanical uppercase of the structural name.
+surging-legover,notation,,SURGING LEGOVER,JOB notation backfill: mechanical uppercase of the structural name.
+surging-mirage,notation,,SURGING MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
+surging-osis,notation,,SURGING OSIS,JOB notation backfill: mechanical uppercase of the structural name.
+surging-whirl,notation,,SURGING WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
+swirling-reverse-swirl,notation,,SWIRLING REVERSE SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+symposium-reverse-swirling-pickup,notation,,SYMPOSIUM REVERSE SWIRLING PICKUP,JOB notation backfill: mechanical uppercase of the structural name.
+symposium-reverse-whirling-swirl,notation,,SYMPOSIUM REVERSE WHIRLING SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+toe-ducking-legover,notation,,TOE DUCKING LEGOVER,JOB notation backfill: mechanical uppercase of the structural name.
+toe-flurry,notation,,TOE FLURRY,JOB notation backfill: mechanical uppercase of the structural name.
+toe-gyro-mirage,notation,,TOE GYRO MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
+toe-spinning-torque,notation,,TOE SPINNING TORQUE,JOB notation backfill: mechanical uppercase of the structural name.
+toe-symposium-swirl,notation,,TOE SYMPOSIUM SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+toe-whirling-swirl,notation,,TOE WHIRLING SWIRL,JOB notation backfill: mechanical uppercase of the structural name.
+whirling-gyro-mirage,notation,,WHIRLING GYRO MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
+whirling-paradox-mirage,notation,,WHIRLING PARADOX MIRAGE,JOB notation backfill: mechanical uppercase of the structural name.
+whirling-reverse-whirl,notation,,WHIRLING REVERSE WHIRL,JOB notation backfill: mechanical uppercase of the structural name.
