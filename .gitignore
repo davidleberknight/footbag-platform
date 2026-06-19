@@ -217,6 +217,9 @@ legacy_data/reports/
 # Local working planning doc (never commit)
 /PLANNING.md
 
+# Per-session commit handoff script (staged-and-handed-off, never committed)
+/commit.sh
+
 # Operator-run audit outputs (CSV reports etc., regenerated on demand)
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
