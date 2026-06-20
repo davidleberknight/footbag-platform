@@ -366,6 +366,7 @@ def main() -> int:
         mappings_unchanged = 0
         candidates_skipped_no_club = 0
         duplicates_merged = 0
+        duplicates_unmapped = 0
         missing_seed: list[str] = []
 
         dup_map = load_duplicate_canonical_map()
@@ -376,6 +377,18 @@ def main() -> int:
             canonical_key = dup_map.get(legacy_key)
             if canonical_key is not None:
                 canonical_club_id = stable_id("club", canonical_key)
+                # The merge only means something when the canonical (keep) club
+                # was promoted to a clubs row. When both rows in a duplicate pair
+                # classify below pre_populate, neither is promoted, so there is no
+                # clubs row to point at; stamping mapped_club_id here would
+                # FK-fail. Leave the duplicate unmapped, exactly like any other
+                # non-promoted candidate: it still surfaces through onboarding.
+                canonical_exists = con.execute(
+                    "SELECT 1 FROM clubs WHERE id = ?", (canonical_club_id,)
+                ).fetchone() is not None
+                if not canonical_exists:
+                    duplicates_unmapped += 1
+                    continue
                 cur = con.execute(
                     """
                     UPDATE legacy_club_candidates
@@ -510,6 +523,7 @@ def main() -> int:
     print(f"  candidate mappings written: {mappings_written}")
     print(f"  candidate mappings unchanged (already set): {mappings_unchanged}")
     print(f"  duplicates merged (entry B → entry A): {duplicates_merged}")
+    print(f"  duplicates left unmapped (canonical not promoted): {duplicates_unmapped}")
     print(f"  non-eligible candidates skipped (no matching clubs row): {candidates_skipped_no_club}")
     if missing_seed:
         print(

@@ -318,6 +318,13 @@ def main() -> None:
         # set is built so the set contains only CANONICAL-owned names; otherwise
         # stale PROVISIONAL names would mask themselves and the insert loop
         # would produce zero rows on re-invocation.
+        #
+        # legacy_person_club_affiliations is the leaf child of BOTH the
+        # PROVISIONAL persons cleared here and the legacy_club_candidates
+        # cleared in Step 2, and neither FK cascades. Clear that child up front
+        # so both parent DELETEs succeed when re-run over a populated DB; a fresh
+        # DB has nothing to delete and is unaffected. It is rebuilt in Step 3.
+        conn.execute("DELETE FROM legacy_person_club_affiliations")
         _prov_deleted = conn.execute(
             "DELETE FROM historical_persons WHERE source_scope = 'PROVISIONAL'"
         ).rowcount
@@ -433,9 +440,9 @@ def main() -> None:
         # INSERT OR IGNORE-only pattern silently skipped every existing
         # legacy_club_key on re-runs, leaving upstream classifier changes
         # (e.g. bootstrap_eligible) stranded at stale DB values.
-        # Child first (FK: legacy_person_club_affiliations.legacy_club_candidate_id
-        # → legacy_club_candidates.id), then parent.
-        conn.execute("DELETE FROM legacy_person_club_affiliations")
+        # The affiliations child (FK: legacy_person_club_affiliations
+        # .legacy_club_candidate_id → legacy_club_candidates.id) was already
+        # cleared before Step 1, so the parent has no remaining FK references.
         conn.execute("DELETE FROM legacy_club_candidates")
 
         # Build key → id map for use in step 3
