@@ -113,6 +113,12 @@
       </p>
       {{/each}}
     {{/if}}
+    {{! Slot 4 — "Also called" (folk names / aliases). Distinct from the ≡ structural readings. }}
+    {{#if commonAliases.length}}
+      <p class="dict-card-aliases" aria-label="Also called">
+        Also called: {{#each commonAliases}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
+      </p>
+    {{/if}}
     {{! Slot 5 — JOB block (operational notation). Independent of slot 3. }}
     {{#if operationalNotation}}
       <div class="dict-card-notation-block" aria-label="Set notation">

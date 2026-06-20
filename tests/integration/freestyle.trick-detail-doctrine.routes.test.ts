@@ -615,3 +615,20 @@ describe('ripstein folk-name rescue (intuition + placeholder suppression)', () =
     expect(res.text).not.toContain('class="content-section trick-family-evolution"');
   });
 });
+
+describe('Family-lineage heading is "Family" only for official Family Parents', () => {
+  it('an official Family Parent (mirage) labels its lineage section "Family"', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="content-section trick-family-lineage"');
+    expect(res.text).toMatch(/<h2>[^<]*\bFamily<\/h2>/);
+  });
+
+  it('a non-parent trick (paradox-mirage) labels its lineage section "Related", never "Family"', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/paradox-mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="content-section trick-family-lineage"');
+    expect(res.text).toMatch(/<h2>[^<]*\bRelated<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>[^<]*\bFamily<\/h2>/);
+  });
+});

@@ -69,7 +69,7 @@ beforeAll(async () => {
     // mobius is in freestyleSymbolicEquivalences.ts → gets a tokenizedEquivalence
     // (≡) reading AND has operational notation. The normalization contract
     // requires BOTH to render (not either/or).
-    { slug: 'mobius', canonical_name: 'mobius', adds: '5', base_trick: 'mobius', trick_family: 'torque', category: 'compound', notation: 'MOBIUS', operational_notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]', review_status: 'expert_reviewed', is_active: 1 },
+    { slug: 'mobius', canonical_name: 'mobius', adds: '5', base_trick: 'mobius', trick_family: 'torque', category: 'compound', notation: 'MOBIUS', operational_notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]', aliases_json: '["möbius","moebius","gyro torque","toe mobius"]', review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
@@ -254,5 +254,33 @@ describe('/freestyle/observational — Emerging Vocabulary copy + source chips',
     expect(res.text).toMatch(/observed-source-strip-item--FB[^>]*>Footbag\.org</);
     // Stanford shorthand (SG)
     expect(res.text).toMatch(/observed-source-strip-item--SG[^>]*>Stanford shorthand</);
+  });
+});
+
+// "Also called:" surfaces folk aliases in their own slot, distinct from the ≡
+// structural readings. An alias that duplicates a ≡ reading is filtered so the
+// same phrase never appears in both places.
+describe('/freestyle/tricks — "Also called:" alias slot, separate from ≡ readings', () => {
+  function mobiusCard(text: string): string {
+    const start = text.indexOf('data-trick-slug="mobius"');
+    return start === -1 ? '' : text.slice(start, start + 1800);
+  }
+
+  it('renders folk aliases under "Also called:" on the mobius card', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const card = mobiusCard(res.text);
+    expect(card).toContain('Also called:');
+    expect(card).toContain('möbius');
+    expect(card).toContain('toe mobius');
+  });
+
+  it('omits an alias that duplicates the ≡ reading (gyro torque) from "Also called:"', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const card = mobiusCard(res.text);
+    // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat in
+    // the "Also called:" line.
+    const alsoCalledLine = card.split('Also called:')[1]?.split('</')[0] ?? '';
+    expect(alsoCalledLine).toContain('möbius');
+    expect(alsoCalledLine).not.toContain('gyro torque');
   });
 });

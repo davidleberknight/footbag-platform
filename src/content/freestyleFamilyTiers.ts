@@ -87,3 +87,15 @@ export function familyTier(slug: string): FamilyTier {
   if (count === undefined) return 'family-parent';
   return classifyFamilyTier(slug, count);
 }
+
+/**
+ * Strict test for the official Family Parents. Unlike `familyTier`, an
+ * unrecognised slug is NOT treated as a parent: a slug qualifies only when its
+ * curated descendant count is over the threshold. This is what decides whether
+ * a detail-page section reads "<name> Family" (a true official family) versus
+ * "<name> Related" (an adjacency group that is not an official family).
+ */
+export function isOfficialFamilyParent(slug: string): boolean {
+  const count = FAMILY_DESCENDANT_COUNTS.get(slug);
+  return count !== undefined && classifyFamilyTier(slug, count) === 'family-parent';
+}

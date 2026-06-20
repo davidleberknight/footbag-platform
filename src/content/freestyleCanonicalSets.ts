@@ -56,6 +56,19 @@ export interface EquivalenceNote {
   citation: string;    // e.g. "Holden parenthetical"
 }
 
+/**
+ * A doctrine-supported alternate or historic NAME for the set, distinct from
+ * the structural equivalenceNotes. `structuralReading` gives the structural
+ * explanation that grounds the name (e.g. Illusioning's REV(0) Miraging);
+ * `note` carries any phrasing nuance. This is a set-naming equivalence, not a
+ * folk alias and not a structural ≡ reading.
+ */
+export interface SetEquivalentName {
+  name: string;
+  structuralReading?: string;
+  note?: string;
+}
+
 export interface SlugReference {
   slug: string;        // e.g. "pixie"
   label: string;       // e.g. "Pixie"
@@ -82,6 +95,11 @@ export interface CanonicalSet {
   movementExplanation: string;
   /** Equivalence notes (Holden parentheticals, folk-name readings). */
   equivalenceNotes: readonly EquivalenceNote[];
+  /**
+   * Doctrine-supported alternate / historic set names ("Equivalent names"),
+   * kept distinct from the structural equivalenceNotes / ≡ readings.
+   */
+  equivalentNames?: readonly SetEquivalentName[];
   /** Sets that compose FROM this one (e.g. pixie → terraging). */
   derivedSystems: readonly SlugReference[];
   /** Parallel / sibling sets (e.g. pixie ↔ fairy directional mirrors). */
@@ -289,6 +307,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     equivalenceNotes: [
       { reading: 'Toe set Illusion', citation: 'Holden parenthetical' },
     ],
+    equivalentNames: [
+      { name: 'Illusioning', structuralReading: 'REV(0) Miraging', note: 'Alternate, historic set-operator name; the descriptive reading of the atomic operator.' },
+    ],
     derivedSystems: [
       { slug: 'fairy-atomic', label: 'Fairy Atomic' },
       { slug: 'neutron',      label: 'Neutron' },
@@ -367,6 +388,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     equivalenceNotes: [
       { reading: 'uptime illusion structure', citation: 'Structural reading' },
     ],
+    equivalentNames: [
+      { name: 'Atomic', structuralReading: 'REV(0) Miraging', note: 'The underlying set-operator name for this uptime illusion reading.' },
+    ],
     derivedSystems: [],
     relatedSystems: [
       { slug: 'miraging', label: 'Miraging (inward-dex mirror)' },
@@ -418,13 +442,15 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
       'Stepping extended with a second inward dex (folk name High Stepping): stepping\'s ' +
-      'opening dex followed by a same-side inward dex.',
+      'opening dex followed by a same-side inward dex. The same two-dex set is also named ' +
+      'Furious, with Barraging the more explanative term.',
     equivalenceNotes: [
       { reading: 'High Stepping', citation: 'Holden parenthetical' },
     ],
-    derivedSystems: [
-      { slug: 'furious', label: 'Furious (third dex extension)' },
+    equivalentNames: [
+      { name: 'Furious', note: 'The same two-dex set under a retained name; used by named compounds such as Furious Clipper.' },
     ],
+    derivedSystems: [],
     relatedSystems: [
       { slug: 'stepping', label: 'Stepping (single-dex base)' },
     ],
@@ -472,21 +498,21 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
   },
   {
     slug: 'furious', hashtag: '#furious-set', displayName: 'Furious', subtype: 'composite-derived',
-    formula: 'Structural +2 set primitive (Red pt6, parallel to atomic); no live bracket decomposition',
+    formula: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',
     movementExplanation:
-      'Furious is a +2 structural set primitive, ruled by Red (pt6) as a set distinct from the ' +
-      'Fury move and anchored by Fury = furious + paradox + mirage = 5. Its +2 is a structural ' +
-      'assignment (parallel to atomic), not a counted bracket motion, so it has no live bracket ' +
-      'decomposition. The earlier Barraging Paradox Miraging reading (the longest named chain in ' +
-      'Holden\'s compilation) is superseded lineage, kept below as a historical equivalence note ' +
-      'rather than a current expansion.',
+      'Furious is the same two-dex set as Barraging, with Barraging the more explanative term. ' +
+      'It contributes +2 and is kept as a name because named compounds use it, such as Furious ' +
+      'Clipper and Fury (furious + paradox + mirage = 5). An earlier reading treated Furious as a ' +
+      'distinct standalone primitive expanded through a longer Barraging Paradox Miraging chain; ' +
+      'that lineage is superseded by folding Furious into Barraging as one set.',
     equivalenceNotes: [
-      { reading: 'Barraging Paradox Miraging (superseded Holden / pt4 lineage)', citation: 'Holden parenthetical; replaced by the Red pt6 furious-set ruling' },
+      { reading: 'Barraging Paradox Miraging (superseded lineage)', citation: 'Holden parenthetical; superseded by folding Furious into Barraging' },
+    ],
+    equivalentNames: [
+      { name: 'Barraging', note: 'The more explanative term for this same two-dex set.' },
     ],
     derivedSystems: [],
-    relatedSystems: [
-      { slug: 'barraging', label: 'Barraging (two-dex base)' },
-    ],
+    relatedSystems: [],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',

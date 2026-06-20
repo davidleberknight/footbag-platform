@@ -324,3 +324,12 @@ describe('/freestyle/glossary — compositional-premise §7 subsection', () => {
     expect(res.text).toContain('href="#compositional-premise"');
   });
 });
+
+describe('/freestyle/compositional-sets — Furious folded into Barraging (three-dex reading superseded)', () => {
+  it('presents the older Furious three-dex reading as superseded, not as current structure', async () => {
+    const res = await request(createApp()).get('/freestyle/compositional-sets');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/superseded/i);
+    expect(res.text).not.toContain('Barraging-set extended with a third dex');
+  });
+});

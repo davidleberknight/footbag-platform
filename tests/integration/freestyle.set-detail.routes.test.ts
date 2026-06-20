@@ -245,6 +245,110 @@ describe('/freestyle/sets routes render directly', () => {
   });
 });
 
+describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name equivalences)', () => {
+  it('atomic shows Illusioning as an equivalent name with its REV(0) Miraging structural reading', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Equivalent names');
+    expect(res.text).toContain('Illusioning');
+    expect(res.text).toContain('Structural reading: REV(0) Miraging');
+  });
+
+  it('keeps the equivalent name out of the structural Equivalence readings slot', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    // The structural ≡ slot stays its own section with its own reading...
+    expect(res.text).toContain('Equivalence readings');
+    expect(res.text).toContain('Toe set Illusion');
+    // ...and the equivalent NAME does not leak into that structural slot.
+    const structuralSlot = res.text.split('Equivalence readings')[1]?.split('</section>')[0] ?? '';
+    expect(structuralSlot).not.toContain('Illusioning');
+  });
+
+  it('a set without equivalent names (pixie) does not render the section', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Equivalent names');
+  });
+});
+
+// Furious and Barraging are one two-dex set (later doctrine). The page must not
+// reintroduce the older base/extension contradiction.
+describe('GET /freestyle/sets/:slug — Furious and Barraging are one set', () => {
+  it('barraging names Furious as an equivalent, not a "third dex extension"', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/barraging');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Equivalent names');
+    expect(res.text).toContain('Furious');
+    expect(res.text).not.toContain('third dex extension');
+  });
+
+  it('furious names Barraging as an equivalent, drops the "+2 primitive"/"two-dex base" framing', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Equivalent names');
+    expect(res.text).toContain('Barraging');
+    expect(res.text).not.toContain('two-dex base');
+    expect(res.text).not.toContain('Structural +2 set primitive');
+    expect(res.text).not.toContain('parallel to atomic');
+  });
+
+  it('furious renders the two-dex set formula, not a three-dex chain', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious');
+    expect(res.text).toContain('SAME IN [DEX]');
+    // The reconciled formula stops at two dexes; no third OP IN dex follows.
+    expect(res.text).not.toMatch(/SAME IN \[DEX\] &gt; OP IN \[DEX\]/);
+  });
+});
+
+// Section-order parity with the trick-detail shell: identity/notation/explanation
+// near the top, then equivalent names, then the structural equivalence readings,
+// then relationships, examples, cross-links, and provenance last.
+const SET_PARITY_ORDER = [
+  'aria-label="Formula"',
+  'aria-label="Movement explanation"',
+  'aria-label="Equivalent names"',
+  'aria-label="Equivalence readings"',
+  'aria-label="Derived systems"',
+  'aria-label="Related systems"',
+  'aria-label="Example tricks"',
+  'aria-label="Cross-references"',
+  'aria-label="Source provenance"',
+];
+
+function presentSectionsInOrder(text: string): { present: string[]; ascending: boolean } {
+  const present = SET_PARITY_ORDER.filter(m => text.includes(m));
+  const positions = present.map(m => text.indexOf(m));
+  let ascending = true;
+  for (let i = 1; i < positions.length; i++) {
+    if (positions[i] <= positions[i - 1]) ascending = false;
+  }
+  return { present, ascending };
+}
+
+describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail shell', () => {
+  it('atomic renders every parity section, in trick-detail order', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/atomic');
+    const { present, ascending } = presentSectionsInOrder(res.text);
+    expect(present).toEqual(SET_PARITY_ORDER); // all sections present
+    expect(ascending).toBe(true);
+  });
+
+  it('furious keeps its present sections in parity order, equivalent names above the readings', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/furious');
+    const { present, ascending } = presentSectionsInOrder(res.text);
+    expect(ascending).toBe(true);
+    expect(present.indexOf('aria-label="Equivalent names"'))
+      .toBeLessThan(present.indexOf('aria-label="Equivalence readings"'));
+  });
+
+  it('barraging keeps its present sections in parity order, with an equivalent-names section', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/barraging');
+    const { present, ascending } = presentSectionsInOrder(res.text);
+    expect(ascending).toBe(true);
+    expect(present).toContain('aria-label="Equivalent names"');
+  });
+});
+
 // "Set Hub — Phase B activation of detail-page links" describe block
 // removed 2026-05-27: the Phase A/B Set Hub at /freestyle/tricks?view=sets
 // was retired; that URL now answers "which tricks use this set?" via a

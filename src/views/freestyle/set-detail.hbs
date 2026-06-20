@@ -1,9 +1,12 @@
 {{!--
   Set detail page.
-  One page per canonical set; structurally mirrors the trick-detail
-  layout but expresses the set ontology object (hashtag, formula,
-  movement explanation, equivalence readings, derived/related systems,
-  example tricks, cross-links, source/audit provenance).
+  One page per canonical set. Mirrors the trick-detail information order so the
+  two surfaces read the same way: identity (name / hashtag) then notation
+  (formula) then explanation (movement) near the top, then equivalent names,
+  then the structural equivalence readings, then related / derived systems,
+  then example tricks, then cross-links, sibling navigation, and source / audit
+  provenance last. Equivalent names (alternate set names) and the structural
+  equivalence readings are separate sections and are never merged.
 --}}
 <article class="set-detail" data-set-slug="{{content.slug}}">
 
@@ -22,6 +25,21 @@
     <h2>Movement</h2>
     <p class="set-detail-movement">{{content.movementExplanation}}</p>
   </section>
+
+  {{#if content.equivalentNames.length}}
+  <section class="set-detail-section" aria-label="Equivalent names">
+    <h2>Equivalent names</h2>
+    <ul class="set-detail-equivalent-names">
+      {{#each content.equivalentNames}}
+      <li>
+        <strong>{{name}}</strong>
+        {{#if structuralReading}}<span class="set-detail-equivalent-structural">Structural reading: {{structuralReading}}</span>{{/if}}
+        {{#if note}}<span class="set-detail-equivalent-note">{{note}}</span>{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
 
   {{#if content.equivalenceReadings.length}}
   <section class="set-detail-section" aria-label="Equivalence readings">

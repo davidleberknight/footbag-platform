@@ -718,9 +718,11 @@ describe('GET /freestyle/tricks/:slug — Previous/Next Tricks sections removed'
     const res = await request(app).get('/freestyle/tricks/spinning-whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Previous Tricks');
-    // The lower-ADD peer is surfaced via the Family ladder instead.
+    // The lower-ADD peer is surfaced via the Family ladder instead. Anchor on the
+    // section class, not the heading word: a non-parent's lineage heading reads
+    // "Related", not "Family".
     expect(res.text).toContain('content-section trick-family-lineage');
-    const familySection = res.text.split('Family</h2>')[1] ?? '';
+    const familySection = res.text.split('content-section trick-family-lineage')[1] ?? '';
     expect(familySection).toContain('/freestyle/tricks/whirl');
   });
 

@@ -45,6 +45,12 @@
       </span>
     {{/if}}
 
+    {{#if commonAliases.length}}
+      <span class="dict-trick-row-aliases" aria-label="Also called">
+        Also called: {{#each commonAliases}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
+      </span>
+    {{/if}}
+
     {{#if hasReferenceMedia}}
       <span class="dict-trick-row-media dict-trick-row-media--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}

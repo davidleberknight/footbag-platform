@@ -8233,6 +8233,11 @@ a.dict-card-title:hover {
 .dict-card-equivalence:first-of-type {
   margin-top: 6px;
 }
+.dict-card-aliases {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 /* Successive ≡ lines hug each other (same tight-stack rule as
    .core-trick-equivalence on landing). */
 
@@ -8300,6 +8305,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-secondary);
 }
 .dict-trick-row-interpretation .core-trick-equiv-sigil { color: var(--text-muted); margin-right: 0.15em; }
+.dict-trick-row-aliases {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 .dict-trick-row-media {
   font-size: 0.7rem;
   font-weight: 600;
@@ -11371,16 +11380,27 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-detail-equivalences,
 .set-detail-link-list,
-.set-detail-cross-links {
+.set-detail-cross-links,
+.set-detail-equivalent-names {
   list-style: disc;
   padding-left: 22px;
   margin: 0;
 }
 .set-detail-equivalences li,
 .set-detail-link-list li,
-.set-detail-cross-links li {
+.set-detail-cross-links li,
+.set-detail-equivalent-names li {
   padding: 2px 0;
   font-size: 0.95rem;
+}
+.set-detail-equivalent-structural,
+.set-detail-equivalent-note {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.set-detail-equivalent-structural {
+  font-family: var(--font-mono);
 }
 .set-detail-trick-list {
   list-style: none;

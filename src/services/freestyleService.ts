@@ -139,6 +139,7 @@ import {
 } from '../content/freestyleSymbolicEquivalences';
 import {
   filterAliasesForBrowse,
+  getAliasGovernanceEntry,
 } from '../content/freestyleAliasGovernance';
 import {
   FreestyleTrickKind,
@@ -172,6 +173,7 @@ import {
 } from '../content/freestylePublicFamilies';
 import {
   familyTier,
+  isOfficialFamilyParent,
   FAMILY_DESCENDANT_COUNTS,
   FAMILY_TIER_LABEL,
   type FamilyTier,
@@ -1329,6 +1331,9 @@ export interface FreestyleTrickContent {
   // Family members: siblings or derivatives, sorted by ADD value
   familyMembers: FreestyleFamilyMember[];   // empty when family has only one member
   hasFamilyMembers: boolean;
+  // "Family" only when this trick is one of the official Family Parents; the
+  // broader adjacency groups read "Related" so they are not called families.
+  familyHeadingLabel: string;
   // Hero family chip — parent-resolved family; null when the trick's family is
   // a route-out (foundational surface / ecosystem / alt-surface / multi-bag).
   // The template builds the href from `slug` so the `?family=` stays literal.
@@ -2454,7 +2459,10 @@ export interface DictionaryTrickCard {
   tokenizedEquivalences:      SemanticBrowseToken[][];
   operationalNotation:        OperationalNotation | null;    // role-tagged tokens; null when pending
   operationalNotationStatus:  'available' | 'pending';
-  commonAliases:              string[];                      // service-side "common aliases only" filter applied here
+  // Folk names / spelling variants / common aliases for the "Also called:" line,
+  // kept distinct from the structural ≡ readings: anything already shown as a ≡
+  // reading, the canonical name/slug, and governance-suppressed aliases are removed.
+  commonAliases:              string[];
   isExternalOnly:             boolean;                       // suppresses href; renders placeholder shell
   statusBadge:                string | null;                 // adjudication-state badge for external placeholders
   placeholderNote:            string | null;                 // adjudication-state explainer (status, not prose description)
@@ -2687,6 +2695,9 @@ export interface FreestyleSetDetailContent {
   formula:              string;
   movementExplanation:  string;
   equivalenceReadings:  readonly string[];
+  // Doctrine-supported alternate / historic set names, distinct from the
+  // structural equivalenceReadings above. Pre-shaped for direct rendering.
+  equivalentNames:      readonly { name: string; structuralReading: string | null; note: string | null }[];
   derivedSystems:       readonly SlugLinkVM[];
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
@@ -5210,9 +5221,9 @@ function bandCardsByAdd(
 //   - The two sources are merged. Empty result → template suppresses the
 //     ≡ row entirely.
 //
-// `commonAliases` is also filtered through the allow-list so the legacy
-// "aliases:" text row stops surfacing problematic entries (frigidosis,
-// leg-over, reverse-swirl, etc.).
+// `commonAliases` is a separate layer: the folk names / spelling variants for
+// the "Also called:" line, distinct from the ≡ readings above it. See its
+// derivation below for the prune rules that keep the two from overlapping.
 // ─────────────────────────────────────────────────────────────────────────
 // ADD-view line-2 formula derivation. Priority: curator RESOLVED_FORMULAS
 // → atomic flag decomposition → mechanical modifier-link derivation
@@ -5311,6 +5322,33 @@ function shapeDictionaryTrickCard(
   );
   const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
   const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
+
+  // "Also called" — folk names, spelling variants, and common aliases for the
+  // card's second info line, kept separate from the structural ≡ readings above
+  // so the two never blur together. Sourced from the full alias set, then pruned
+  // so a name never appears twice and noise stays out: drop anything already
+  // shown as a ≡ reading, parenthetical notes, an alias that merely re-states the
+  // trick's own name with different spacing or hyphenation (orthographic noise),
+  // and any alias the governance layer marks as not-for-browse. Genuine spelling
+  // variants (e.g. a diacritic form) survive. De-duped case-insensitively.
+  const equivReadingsLower = new Set(symbolicEquivalences.map(e => e.toLowerCase().trim()));
+  const stripOrthographic  = (s: string) => s.toLowerCase().replace(/[\s\-_]+/g, '');
+  const canonicalStripped  = stripOrthographic(indexRow.canonicalName);
+  const slugStripped       = stripOrthographic(indexRow.slug);
+  const alsoCalled: string[] = [];
+  const alsoCalledSeen = new Set<string>();
+  for (const alias of indexRow.aliases) {
+    const norm = alias.toLowerCase().trim();
+    if (!norm || alsoCalledSeen.has(norm)) continue;
+    if (alias.includes('(') || alias.includes(')')) continue;
+    if (equivReadingsLower.has(norm)) continue;
+    const stripped = stripOrthographic(alias);
+    if (stripped === canonicalStripped || stripped === slugStripped) continue;
+    const gov = getAliasGovernanceEntry(indexRow.slug, alias);
+    if (gov && gov.surfaceOnBrowse === false) continue;
+    alsoCalledSeen.add(norm);
+    alsoCalled.push(alias);
+  }
 
   // Tokenize each ≡ reading. `groupAnchor` is the
   // active view's anchor slug (family / component / topology); tokens matching
@@ -5413,7 +5451,7 @@ function shapeDictionaryTrickCard(
     tokenizedEquivalences,
     operationalNotation,
     operationalNotationStatus:  operationalNotation ? 'available' : 'pending',
-    commonAliases:              browseSafeAliases,
+    commonAliases:              alsoCalled,
     isExternalOnly:             indexRow.isExternalOnly,
     statusBadge:                indexRow.statusBadge,
     placeholderNote:            indexRow.placeholderNote,
@@ -6763,6 +6801,7 @@ export const freestyleService = {
           dictEntry,
           familyMembers,
           hasFamilyMembers: familyMembers.length > 1,
+          familyHeadingLabel: isOfficialFamilyParent(slug) ? 'Family' : 'Related',
           familyChip:       familySlug
             ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug) }
             : null,
@@ -9703,6 +9742,11 @@ export const freestyleService = {
         formula:               set.formula,
         movementExplanation:   set.movementExplanation,
         equivalenceReadings:   set.equivalenceNotes.map(n => `${n.reading}: ${n.citation}`),
+        equivalentNames:       (set.equivalentNames ?? []).map(e => ({
+          name:              e.name,
+          structuralReading: e.structuralReading ?? null,
+          note:              e.note ?? null,
+        })),
         derivedSystems:        set.derivedSystems.map(r => ({
           slug:  r.slug,
           label: r.label,
