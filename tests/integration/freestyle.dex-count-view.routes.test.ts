@@ -9,7 +9,8 @@
  *   1 dex event   — single-dex tricks (mirage, illusion, fairy)
  *   2 dex events  — most named compounds
  *   3+ dex events — deep compounds
- *   Unknown / no notation — tricks without op_notation
+ *   JOB notation set, operational notation pending — has JOB, not yet dex-countable
+ *   No notation yet — no JOB and no operational notation
  *
  * Uses the shared dictionary-trick-card partial; card shapes identical
  * to the ADD view. Phase 4.1 of the audit-driven roadmap; backed by
@@ -109,17 +110,18 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
     expect(res.text).toContain('<h2>1 dex event</h2>');
     expect(res.text).toContain('<h2>2 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
-    expect(res.text).toContain('<h2>Unknown / no notation</h2>');
+    // mystery-trick has no JOB and no op-notation, so it is "No notation yet".
+    expect(res.text).toContain('<h2>No notation yet</h2>');
   });
 
   it('places each seeded trick in the right bucket via section id', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    // Section ids match #dex-{count} and #dex-unknown for the Unknown bucket
+    // Section ids match #dex-{count} and #dex-no-notation for the no-notation bucket
     expect(res.text).toMatch(/id="dex-0"[^>]*>[\s\S]*?data-trick-slug="toe-stall"/);
     expect(res.text).toMatch(/id="dex-1"[^>]*>[\s\S]*?data-trick-slug="mirage"/);
     expect(res.text).toMatch(/id="dex-2"[^>]*>[\s\S]*?data-trick-slug="eggbeater-fixture"/);
     expect(res.text).toMatch(/id="dex-3"[^>]*>[\s\S]*?data-trick-slug="ripwalk-deep"/);
-    expect(res.text).toMatch(/id="dex-unknown"[^>]*>[\s\S]*?data-trick-slug="mystery-trick"/);
+    expect(res.text).toMatch(/id="dex-no-notation"[^>]*>[\s\S]*?data-trick-slug="mystery-trick"/);
   });
 
   it('does NOT render dex-count sections on the ADD view (avoids cross-view leakage)', async () => {

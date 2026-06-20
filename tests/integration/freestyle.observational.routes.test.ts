@@ -63,19 +63,27 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the six frontier-health metrics (status-first; no ecosystem stats)', async () => {
+  it('renders the eight frontier-health categories (status-first, not Red-centric)', async () => {
     const html = await page();
     expect(html).toContain('observed-stats');
     expect(html).toContain('observed-stat-value');
-    for (const label of ['Awaiting Ruling', 'Needs Authoring', 'Doctrine Blocked',
-                         'Folk / Unresolved', 'Alias / Duplicate', 'Structurally Understood']) {
+    for (const label of ['Red doctrine blocked', 'Curator / governance', 'Identification',
+                         'Notation blocked', 'Needs authoring', 'Structurally ready',
+                         'Folk / unresolved', 'Alias / duplicate']) {
       expect(html).toContain(label);
     }
-    // The prior ecosystem-centric stat labels are gone.
-    expect(html).not.toContain('Lexical archive');
-    expect(html).not.toContain('Canonical tricks');
-    // % structurally understood is shown.
+    // The stale "Doctrine Blocked = awaiting a curator or Red ruling" metric is gone.
+    expect(html).not.toContain('Doctrine Blocked');
+    expect(html).not.toContain('awaiting a curator or Red ruling');
     expect(html).toMatch(/\d+%/);
+  });
+
+  it('does not present the frontier as 185 names waiting on Red', async () => {
+    const html = await page();
+    // Red-doctrine is now a small slice (Weaving), reported as such in the note.
+    expect(html).toMatch(/Only \d+ await a Red ruling/);
+    // Settled doctrine (Blurry, Pogo) is its own structurally-ready category.
+    expect(html).toContain('Structurally ready');
   });
 
   it('makes Awaiting Ruling the first content section, above the metric strip', async () => {
@@ -111,14 +119,15 @@ describe('GET /freestyle/observational — governance surface', () => {
     expect(nums).toEqual([...nums].sort((a, b) => a - b));
   });
 
-  it('preserves Doctrine Blocked as clusters with a blocking question', async () => {
+  it('reframes the doctrine clusters by current status, not "all waiting on Red"', async () => {
     const html = await page();
     expect(html).toContain('id="doctrine-blocked"');
     expect(html).toContain('observed-cluster');
-    // Blocker-precise clusters: blurry is split from furious (furious is resolved
-    // and no longer a blocker), and DOD/DDD is its own card.
-    expect(html).toContain('Blurry transitivity');
-    expect(html).toContain('DOD / DDD policy');
+    expect(html).toContain('Doctrine &amp; governance clusters');
+    // Only Weaving genuinely awaits Red; settled clusters say so in their status line.
+    expect(html).toMatch(/Only the Weaving cluster genuinely awaits a\s+Red ruling/);
+    expect(html).toMatch(/Blurry is Stepping with a Paradox/);
+    expect(html).toMatch(/Pogo is a \+0 set/);
   });
 
   it('surfaces the Alias / Duplicate archive collapsed, with the ecosystem matrix demoted to a disclosure', async () => {

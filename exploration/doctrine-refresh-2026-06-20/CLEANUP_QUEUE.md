@@ -74,3 +74,23 @@ Q4 (format consistency)     doctrine review, then reorder set pages ┘    share
 **Single gating decision (affects Q2/Q3/Q4):** do aliases/equivalent-names get a **distinct "also
 called" slot**, or **share the existing `≡` alternate-reading slot**? Recommend distinct, per strict
 slot ownership. Everything else can proceed once that's set.
+
+## Status (updated)
+
+- **Q1** family→"Related" wording — **done, committed.**
+- **Q2** distinct "Also called" alias slot — **done, committed.**
+- **Q3** set `equivalentNames` + Furious/Barraging pt14 reconciliation — **done, committed.**
+- **Alias corrections** (orbit-kick/spin/.../illusion; guay directionality) — **done, committed.**
+- **Emerging Vocabulary taxonomy** (8-category metric split) + dex-count notation split — **done, this batch.**
+- **Q4** set/trick format parity — shipped as a codify-and-enforce pass (section-order pinned by test);
+  **RE-QUEUED** for a possible layout revisit per curator, now that the set encyclopedia is internally
+  consistent. The order test makes any reorder a low-risk, pinned change.
+
+## Backlog
+
+- **Source-audit the "Notation blocked = 236" bucket before treating it as truly blocked.** Pogo,
+  Terraging, and Blurry all showed that a "notation-blocked" / "unknown" label can hide existing JOB
+  notation, operator structure, or derived ADD. The 236 are rows whose `failureClass` is
+  `unknown-modifier-token`; some likely already have a resolvable operator chassis or source notation.
+  Audit the underlying data (as was done for Pogo/the dex-count "Unknown" bucket) and reclassify the
+  ones that are actually authorable, rather than counting all 236 as blocked.

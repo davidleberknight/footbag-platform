@@ -2756,9 +2756,9 @@ export interface FreestyleAddBand {
 }
 
 export interface FreestyleTrickDexCountGroup {
-  dexCount: number | null;     // null = unknown (no op_notation)
-  dexLabel: string;            // pre-shaped: '0 dex events', '1 dex event', '2 dex events', '3+ dex events', 'Unknown / no notation'
-  bucketId: string;            // pre-shaped section anchor: 'dex-0', 'dex-1', ... 'dex-unknown'. Avoids Handlebars 0-is-falsy footgun in the template.
+  dexCount: number | null;     // null = not dex-countable (no op_notation); split below by JOB presence
+  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events', 'JOB notation set, operational notation pending', 'No notation yet'
+  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', 'dex-job-only', 'dex-no-notation'. Avoids Handlebars 0-is-falsy footgun in the template.
   cards: DictionaryTrickCard[];
   // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
   // The template renders these so the secondary ADD ordering carries a header.
@@ -8108,6 +8108,7 @@ export const freestyleService = {
       dexCount: number | null,
       dexLabel: string,
       entries: AddBucketEntry[],
+      bucketIdOverride?: string,
     ): FreestyleTrickDexCountGroup => {
       // Ordering within a dex bucket: ADD ascending, then alphabetical.
       const sorted = entries.slice().sort((a, b) => {
@@ -8116,7 +8117,7 @@ export const freestyleService = {
         if (aa !== ba) return aa - ba;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
-      const bucketId = dexCount === null ? 'dex-unknown' : `dex-${dexCount}`;
+      const bucketId = bucketIdOverride ?? (dexCount === null ? 'dex-unknown' : `dex-${dexCount}`);
       const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
       return {
         dexCount,
@@ -8135,8 +8136,21 @@ export const freestyleService = {
         '3+ dex events';
       dexCountGroups.push(buildDexGroup(k, label, dexBuckets.get(k) ?? []));
     }
+    // Rows with no operational_notation cannot be dex-counted. Split them by
+    // whether they still carry a JOB notation chain, so a trick with JOB +
+    // derived ADD is never mislabeled "no notation": the dominant case is a
+    // pending operational-notation backfill, not an unmapped trick.
     if (dexBuckets.has(null)) {
-      dexCountGroups.push(buildDexGroup(null, 'Unknown / no notation', dexBuckets.get(null) ?? []));
+      const nullEntries = dexBuckets.get(null) ?? [];
+      const hasJob = (e: AddBucketEntry) => !!(e.row.notation && e.row.notation.trim());
+      const jobOnly    = nullEntries.filter(hasJob);
+      const noNotation = nullEntries.filter(e => !hasJob(e));
+      if (jobOnly.length) {
+        dexCountGroups.push(buildDexGroup(null, 'JOB notation set, operational notation pending', jobOnly, 'dex-job-only'));
+      }
+      if (noNotation.length) {
+        dexCountGroups.push(buildDexGroup(null, 'No notation yet', noNotation, 'dex-no-notation'));
+      }
     }
 
     // Load modifier reference table (still shaped; rendering currently disabled)
@@ -9376,17 +9390,27 @@ export const freestyleService = {
     const frontierCards = frontierRows.map(shape);
     const frontierGroups = groupByAdd(frontierRows);
 
-    // Section C — doctrine bottleneck clusters.
+    // Section C — historically doctrine-flagged clusters, with each cluster's
+    // current status. Most no longer wait on Red: the generated blocking-question
+    // text predates the rulings, so it is overridden here (reversible) to state
+    // what each cluster is actually waiting on now.
+    const CLUSTER_STATUS: Record<string, string> = {
+      weaving:   'Genuinely open: awaiting a Red ruling on the weaving operator (status and ADD). Resolve it and the cluster unblocks.',
+      blurry:    'Settled: Blurry is Stepping with a Paradox. These are structurally ready for curation, not doctrine-blocked.',
+      pogo:      'Settled: Pogo is a +0 set; a first batch has already promoted. The rest are structurally ready for curation.',
+      'dod-ddd': 'Governance and verification: the down-family structure is understood; each row needs a per-trick decomposition check, not a Red ruling.',
+      other:     'Identification: structure or identity not yet confirmed (dragon, refraction).',
+    };
     const doctrineRows = inSection('doctrine');
     const doctrineClusters: ObservationalDoctrineCluster[] =
-      ['blurry', 'dod-ddd', 'pogo', 'weaving', 'shooting', 'other']
+      ['weaving', 'dod-ddd', 'blurry', 'pogo', 'shooting', 'other']
         .map(key => {
           const rows = doctrineRows.filter(r => r.cluster === key);
           return {
             key,
             label:            observedEcosystemLabel(key),
             count:            rows.length,
-            blockingQuestion: DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Ruling pending.',
+            blockingQuestion: CLUSTER_STATUS[key] ?? DOCTRINE_BLOCKING_QUESTIONS[key] ?? 'Status pending.',
             sampleNames:      rows.slice(0, 6).map(r => r.name),
           };
         })
@@ -9437,21 +9461,47 @@ export const freestyleService = {
     // archive. The frontier counts distinct mechanically-coherent candidate
     // structures; the archive (aliases, duplicates, single-source noise, unresolved
     // doctrine) is documented vocabulary, never counted as candidate tricks.
-    // Frontier-health metrics (replace the prior ecosystem-centric stats).
-    const readyN    = readyCards.length;
-    const needsN    = frontierCards.length;
-    const doctrineN = doctrineRows.length;
-    const folkN     = folk.total + parser.total;
-    const aliasN    = aliasArchive.total;
-    const frontierSize  = readyN + needsN + doctrineN + folkN; // excludes the alias archive
-    const pctUnderstood = frontierSize ? Math.round(((readyN + needsN) / frontierSize) * 100) : 0;
+    // Frontier-health metrics, classified by what each name is actually waiting
+    // on. Each row maps to exactly one of eight current categories, derived from
+    // the universe's existing fields (no regeneration; reversible). The stale
+    // doctrineConfidence flag predates the settled rulings, so Blurry and Pogo
+    // are NOT doctrine-blocked here: they are structurally ready. Only Weaving
+    // genuinely awaits Red on this frontier; the other open Red question (the
+    // atomic / X-Dex receiver rule) is a value-migration on the canonical band,
+    // not part of this emerging-vocabulary frontier.
+    type FrontierCategory =
+      | 'red' | 'governance' | 'identification' | 'notation'
+      | 'authoring' | 'ready' | 'folk' | 'alias';
+    const classifyFrontier = (r: ObservationalUniverseRow): FrontierCategory => {
+      if (isAliasArchive(r)) return 'alias';
+      if (r.section === 'doctrine') {
+        if (r.cluster === 'weaving') return 'red';
+        if (r.cluster === 'blurry' || r.cluster === 'pogo') return 'ready';  // settled rulings
+        if (r.cluster === 'dod-ddd') return 'governance';                    // verification / governance
+        return 'identification';                                            // dragon / refraction
+      }
+      if (r.section === 'ready') return 'ready';
+      if (r.section === 'frontier') return 'authoring';
+      if (r.failureClass === 'unknown-modifier-token') return 'notation';
+      return 'folk';
+    };
+    const catCount = new Map<FrontierCategory, number>();
+    for (const r of universe) {
+      const c = classifyFrontier(r);
+      catCount.set(c, (catCount.get(c) ?? 0) + 1);
+    }
+    const cc = (c: FrontierCategory) => catCount.get(c) ?? 0;
+    const nonAlias = universe.length - cc('alias');
+    const pctReady = nonAlias ? Math.round(((cc('ready') + cc('authoring')) / nonAlias) * 100) : 0;
     const statBlocks: ObservationalStat[] = [
-      { label: 'Awaiting Ruling',         value: String(readyN),      hint: 'structurally understood; blocked on a curator ruling, an operator chassis, or a missing base' },
-      { label: 'Needs Authoring',         value: String(needsN),      hint: 'structure understood, awaiting notation or decomposition' },
-      { label: 'Doctrine Blocked',        value: String(doctrineN),   hint: 'awaiting a curator or Red ruling' },
-      { label: 'Folk / Unresolved',       value: String(folkN),       hint: 'documented names whose structure is not yet understood' },
-      { label: 'Alias / Duplicate',       value: String(aliasN),      hint: 'resolve to an existing trick; archive, not frontier' },
-      { label: 'Structurally Understood', value: `${pctUnderstood}%`, hint: 'promotion-ready + needs-authoring share of the non-alias frontier' },
+      { label: 'Red doctrine blocked', value: String(cc('red')),            hint: 'awaiting a Red ruling (Weaving). The atomic / X-Dex receiver rule is the other open Red question, but it is a value-migration on the canonical band, not this frontier' },
+      { label: 'Curator / governance', value: String(cc('governance')),     hint: 'a verification, precedent, or insertion-convention call, not a Red ruling (DOD / DDD)' },
+      { label: 'Identification',       value: String(cc('identification')), hint: 'structure or identity not yet confirmed' },
+      { label: 'Notation blocked',     value: String(cc('notation')),       hint: 'a name with an unresolved modifier token; no canonical notation authored yet' },
+      { label: 'Needs authoring',      value: String(cc('authoring')),      hint: 'structure understood; notation or decomposition not yet authored' },
+      { label: 'Structurally ready',   value: String(cc('ready')),          hint: 'settled doctrine with a clean derived ADD (Blurry, Pogo); ready for curation, not auto-published' },
+      { label: 'Folk / unresolved',    value: String(cc('folk')),           hint: 'documented names whose structure is not yet understood' },
+      { label: 'Alias / duplicate',    value: String(cc('alias')),          hint: 'resolve to an existing trick; archived, not part of the frontier' },
     ];
 
     const sources = Object.keys(stats.sources).map(badge => ({
@@ -9480,11 +9530,12 @@ export const freestyleService = {
       content: {
         stats: statBlocks,
         statsNote:
-          `The promotion frontier, ordered by status. ${readyN} names are ready to promote, ` +
-          `${needsN} need authoring, ${doctrineN} are doctrine-blocked, and ${folkN} remain folk ` +
-          `or unresolved; a further ${aliasN} resolve to existing tricks (archived). ` +
-          `${pctUnderstood}% of the non-alias frontier is structurally understood. Nothing here ` +
-          `duplicates a published canonical trick.`,
+          `The promotion frontier, classified by what each name is actually waiting on. ` +
+          `Only ${cc('red')} await a Red ruling (Weaving); ${cc('governance')} need a curator or ` +
+          `governance call, ${cc('ready')} are structurally ready for curation, and ${cc('authoring')} ` +
+          `need authoring. A further ${cc('alias')} resolve to existing tricks (archived). ` +
+          `${pctReady}% of the non-alias frontier is structurally ready or one authoring step away. ` +
+          `Nothing here duplicates a published canonical trick.`,
         layerNote:
           'These are community-documented freestyle trick names being canonicalized. ' +
           'Provisional ADD and decomposition are observationally extrapolated: they ' +

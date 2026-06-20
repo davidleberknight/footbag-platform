@@ -60,6 +60,11 @@ beforeAll(async () => {
     // Boundary: body category but NOT its own base + no notation stays Unknown — it is a
     // dex-bearing body compound pending notation, not a dex-less primitive.
     { slug: 'body-compound-fixture', canonical_name: 'body compound fixture', adds: '3', base_trick: 'legover', trick_family: 'legover', category: 'body', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // Has a JOB notation chain but no operational_notation: not dex-countable, but
+    // NOT "no notation" — it must split into the JOB-only bucket, not be mislabeled.
+    { slug: 'job-only-fixture', canonical_name: 'job only fixture', adds: '4', base_trick: 'job-only-fixture', trick_family: 'job-only-fixture', category: 'compound', notation: 'JOB ONLY FIXTURE CHAIN', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
+    // A modifier (recognized by resolveTrickKind): excluded from the trick dex-count view entirely.
+    { slug: 'ducking', canonical_name: 'ducking', adds: 'modifier', base_trick: 'ducking', trick_family: 'ducking', category: 'modifier', notation: '', operational_notation: null, review_status: 'expert_reviewed', is_active: 1 },
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
@@ -94,16 +99,31 @@ function sectionFor(html: string, bucketId: string): string {
 }
 
 describe('Dex view — two-line row contract', () => {
-  it('200 + dex-bucket group headers preserved', async () => {
+  it('200 + dex-bucket group headers preserved, with the no-notation split', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<h2>0 dex events</h2>');
     expect(res.text).toContain('<h2>1 dex event</h2>');
     expect(res.text).toContain('<h2>2 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
-    expect(res.text).toContain('<h2>Unknown / no notation</h2>');
+    // The old conflated label is gone; no-op-notation rows split by JOB presence.
+    expect(res.text).not.toContain('Unknown / no notation');
+    expect(res.text).toContain('<h2>JOB notation set, operational notation pending</h2>');
+    expect(res.text).toContain('<h2>No notation yet</h2>');
     expect(res.text).toMatch(/id="dex-0"/);
-    expect(res.text).toMatch(/id="dex-unknown"/);
+    expect(res.text).toMatch(/id="dex-job-only"/);
+    expect(res.text).toMatch(/id="dex-no-notation"/);
+  });
+
+  it('a JOB-notation trick is not mislabeled "no notation"; modifiers are excluded', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    const jobBucket = sectionFor(res.text, 'dex-job-only');
+    expect(jobBucket).toContain('data-trick-slug="job-only-fixture"');
+    const noneBucket = sectionFor(res.text, 'dex-no-notation');
+    expect(noneBucket).toContain('data-trick-slug="mystery-trick"');
+    expect(noneBucket).not.toContain('data-trick-slug="job-only-fixture"');
+    // A modifier never appears in the trick dex-count view.
+    expect(res.text).not.toContain('data-trick-slug="ducking"');
   });
 
   it('every representative row uses the generalized dict-trick-row wrapper (line 1 + line 2)', async () => {
@@ -158,12 +178,12 @@ describe('Dex view — two-line row contract', () => {
     expect(rowFor(res.text, 'fairy-legover')).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
   });
 
-  it('hop-over (dex-less body atom) buckets as 0 dex, never Unknown', async () => {
+  it('hop-over (dex-less body atom) buckets as 0 dex, never no-notation', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const zero = sectionFor(res.text, 'dex-0');
-    const unknown = sectionFor(res.text, 'dex-unknown');
+    const noNotation = sectionFor(res.text, 'dex-no-notation');
     expect(zero, 'hop-over should sit in the 0-dex bucket').toContain('data-trick-slug="hop-over"');
-    expect(unknown, 'hop-over should not sit in the Unknown bucket').not.toContain('data-trick-slug="hop-over"');
+    expect(noNotation, 'hop-over should not sit in the no-notation bucket').not.toContain('data-trick-slug="hop-over"');
   });
 
   it('spyro is modifier-kind, so it never appears in the trick browse (no dex bucket at all)', async () => {
@@ -171,11 +191,11 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).not.toContain('data-trick-slug="spyro"');
   });
 
-  it('a body trick that is NOT its own base stays Unknown when unnotated', async () => {
+  it('a body trick that is NOT its own base stays in no-notation when unnotated', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const zero = sectionFor(res.text, 'dex-0');
-    const unknown = sectionFor(res.text, 'dex-unknown');
-    expect(unknown).toContain('data-trick-slug="body-compound-fixture"');
+    const noNotation = sectionFor(res.text, 'dex-no-notation');
+    expect(noNotation).toContain('data-trick-slug="body-compound-fixture"');
     expect(zero).not.toContain('data-trick-slug="body-compound-fixture"');
   });
 

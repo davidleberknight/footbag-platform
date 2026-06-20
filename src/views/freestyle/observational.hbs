@@ -99,17 +99,18 @@
     </section>
     {{/if}}
 
-    {{! ── Section C — Doctrine Blocked (clusters; preserved) ── }}
+    {{! ── Section C — Doctrine & governance clusters (cluster breakdown) ── }}
     {{#if content.doctrineTotal}}
-    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine blocked">
+    <section class="observed-section" id="doctrine-blocked" aria-label="Doctrine and governance clusters">
       <div class="section-heading">
-        <h2>Doctrine Blocked</h2>
+        <h2>Doctrine &amp; governance clusters</h2>
         <span class="section-count">{{content.doctrineTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        These are not random unresolved tricks: they are governance bottlenecks
-        concentrated in a few ecosystems, each waiting on a single ontology ruling.
-        Resolve the ruling and the whole cluster unblocks.
+        The names historically flagged as doctrine-blocked, grouped by cluster. Most are
+        no longer waiting on Red: Blurry and Pogo are settled and structurally ready, and
+        the down-family is a verification pass. Only the Weaving cluster genuinely awaits a
+        Red ruling. Each cluster states what it is actually waiting on.
       </p>
       <div class="observed-cluster-grid">
         {{#each content.doctrineClusters}}
