@@ -11,6 +11,7 @@ Output columns:
   contact_member_id, external_url, description, created, last_updated
 """
 
+import argparse
 import csv
 import os
 import re
@@ -201,7 +202,29 @@ def extract_club(html_path, legacy_club_key):
     }
 
 
+def _existing_row_count(path):
+    """Count the data rows already in the output CSV (0 if absent or empty).
+
+    Parsed with csv, not line counting, because a club description can carry
+    embedded newlines that would inflate a naive line count.
+    """
+    if not path.exists():
+        return 0
+    with open(path, newline="", encoding="utf-8") as f:
+        return max(0, sum(1 for _ in csv.reader(f)) - 1)
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--allow-shrink",
+        action="store_true",
+        help="Permit overwriting the seed when the extraction yields fewer "
+        "clubs than the existing seed (e.g. genuine club removals). Without "
+        "this, a smaller extraction is refused as a likely incomplete mirror.",
+    )
+    args = parser.parse_args()
+
     if not CLUBS_SHOW_DIR.is_dir():
         print(f"ERROR: mirror not found at {CLUBS_SHOW_DIR}", file=sys.stderr)
         sys.exit(1)
@@ -227,6 +250,23 @@ def main():
             skipped += 1
         else:
             rows.append(row)
+
+    # Refuse to shrink the seed. A mirror reduced to a fraction of its clubs
+    # (e.g. a depleted or partially-synced clubs/show tree) would otherwise
+    # silently overwrite a complete seed with a tiny one, stranding every
+    # downstream club step on the missing rows. A genuine reduction is opted
+    # into with --allow-shrink.
+    existing = _existing_row_count(OUTPUT_CSV)
+    if len(rows) < existing and not args.allow_shrink:
+        print(
+            f"ERROR: extracted {len(rows)} clubs but {OUTPUT_CSV} already holds "
+            f"{existing}. The mirror at {CLUBS_SHOW_DIR} is almost certainly "
+            f"incomplete; refusing to overwrite the larger seed. Restore the "
+            f"full clubs/show mirror and re-run, or pass --allow-shrink if the "
+            f"reduction is intentional.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
