@@ -413,7 +413,7 @@ Emitted values, grouped by namespace:
 
 - **`auth.*`**: `register`, `register_rate_limited`, `register_notification_failed`, `email_verified`, `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset`, `password_reset_notification_failed`.
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed).
-- **`legacy.*`**: `auto_link_silent_claim`, `auto_link_confirmed`, `auto_link_revert`, `auto_link_notification_failed`, `claim_initiate_notification_failed`.
+- **`legacy.*`**: `auto_link_candidate_staged`, `auto_link_candidate_confirmed`, `auto_link_candidate_declined`, `auto_link_candidate_expired`, `auto_link_candidate_failed`, `auto_link_reported_incorrect`, `auto_link_revert`, `cross_source_candidate_offered`, `cross_source_candidate_confirmed`, `cross_source_candidate_declined`, `mailbox_link_token_issued`, `mailbox_link_token_consumed`, `mailbox_link_token_expired`, `mailbox_link_email_enqueue_failed`, `registration_conflict_prompted`, `registration_conflict_disputed`, `claim_initiate_notification_failed`, `claim_tier_grant`.
 - **`wizard.*`**: `start`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.

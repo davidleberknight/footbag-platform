@@ -748,7 +748,7 @@ Impact:
 
 Decision:
 
-Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
+Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), deploy-image discipline (every runtime read resolving under the repository root has a matching Dockerfile COPY), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
 
 Rationale:
 
@@ -3683,6 +3683,8 @@ The minimum required runtime containers are:
 - `web`
 - `worker`
 - `image`
+
+The TypeScript build emits only JavaScript, so non-compiled runtime data files (Handlebars views, static assets, IFPA rules content) reach the runtime image only through an explicit COPY in the image Dockerfile. The §1.15 convention gate verifies every runtime read resolving under the repository root has a matching COPY, so a new data dependency cannot ship a runtime image that is missing its files.
 
 Rationale:
 

@@ -639,6 +639,11 @@ if ! bash scripts/ci/check_no_live_pipeline_fetch.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: runtime repo-data reads have a matching Dockerfile COPY (delegated)"
+if ! bash scripts/ci/check_runtime_data_paths_copied.sh; then
+  violations=$((violations + 1))
+fi
+
 # Rule: tests/ comments and describe/it names never reference docs, doc-section
 # shorthands, or finding ids. A test name describes the long-term contract in
 # plain words; doc paths and section numbers rot as docs evolve, and finding

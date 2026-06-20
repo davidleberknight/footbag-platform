@@ -60,13 +60,14 @@ RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
       printf 'module.exports = { initDevShortcuts: function () {}, applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, repairAdminTier2Invariant: function () { return { repaired: 0 }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi
 
-# Copy non-compiled assets that tsc does not process.
-# IMPORTANT: these must be explicitly copied — tsc only emits .js files.
-# Views path: process.cwd()/src/views  → /app/src/views
-# Static path: process.cwd()/src/public → /app/src/public
-# Rules content: process.cwd()/ifpa/rules → /app/ifpa/rules (loaded by rulesLoader)
-# Symbolic-grammar data is no longer copied into the image: symbolicGrammarService
-# reads the symbolic_* database tables at runtime (loaded by the freestyle pipeline).
+# Copy non-compiled assets that tsc does not process (tsc emits only .js).
+# The convention gate scripts/ci/check_runtime_data_paths_copied.sh enforces that
+# every process.cwd()-anchored runtime read resolves under a COPY listed here.
+# Views:  process.cwd()/src/views  -> /app/src/views
+# Static: process.cwd()/src/public -> /app/src/public
+# Rules:  process.cwd()/ifpa/rules -> /app/ifpa (loaded by rulesLoader)
+# Symbolic-grammar content needs no COPY: symbolicGrammarService reads the
+# symbolic_* database tables at runtime.
 COPY src/views  ./src/views
 COPY src/public ./src/public
 COPY ifpa       ./ifpa

@@ -20,9 +20,10 @@
  *    event each, and re-sweeping is a no-op.
  *  - system_job_runs row records the staging counter struct.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { expectLoggedError } from '../setup-env';
 import {
   insertMember,
   insertLegacyMember,
@@ -42,6 +43,8 @@ beforeAll(async () => {
   ops = await import('../../src/services/operationsPlatformService');
   identity = await import('../../src/services/identityAccessService');
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 afterAll(() => cleanupTestDb(dbPath));
 
@@ -337,5 +340,55 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
       skipped_none:                     expect.any(Number),
       skipped_error:                    expect.any(Number),
     });
+  });
+
+  it('a per-candidate classification throw records an operational error and the batch continues', async () => {
+    const t = seedTriple({ prefix: 'clserr', memberRealName: 'Classify Error', hpName: 'Classify Error' });
+
+    expectLoggedError(/legacy\.auto_link_candidate_failed/);
+    const orig = identity.identityAccessService.getAutoLinkClassificationForMember;
+    vi.spyOn(identity.identityAccessService, 'getAutoLinkClassificationForMember')
+      .mockImplementation((memberId) => {
+        if (memberId === t.memberId) throw new Error('synthetic classification failure');
+        return orig.call(identity.identityAccessService, memberId);
+      });
+
+    const result = await ops.operationsPlatformService.runBatchAutoLink();
+
+    // The bad candidate is counted, nothing is staged for it, and the loop
+    // still finishes the rest of the batch.
+    expect(result.skipped_error).toBeGreaterThanOrEqual(1);
+    expect(stagedRows(t.memberId)).toHaveLength(0);
+
+    // The failure is now an alarmable operational error, not a silent skip.
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_failed')).toHaveLength(1);
+
+    // The job still records succeeded; one bad candidate does not abort it.
+    const db = openRO();
+    const row = db.prepare(`
+      SELECT status FROM system_job_runs
+      WHERE job_name = 'SYS_Batch_Auto_Link'
+      ORDER BY started_at DESC LIMIT 1
+    `).get() as { status: string };
+    db.close();
+    expect(row.status).toBe('succeeded');
+  });
+
+  it('a per-candidate staging throw records an operational error and the batch continues', async () => {
+    const t = seedTriple({ prefix: 'stgerr', memberRealName: 'Stage Error', hpName: 'Stage Error' });
+
+    expectLoggedError(/legacy\.auto_link_candidate_failed/);
+    const orig = identity.identityAccessService.stageAutoLinkCandidate;
+    vi.spyOn(identity.identityAccessService, 'stageAutoLinkCandidate')
+      .mockImplementation((memberId, evidence, sourcePass) => {
+        if (memberId === t.memberId) throw new Error('synthetic staging failure');
+        return orig.call(identity.identityAccessService, memberId, evidence, sourcePass);
+      });
+
+    const result = await ops.operationsPlatformService.runBatchAutoLink();
+
+    expect(result.skipped_error).toBeGreaterThanOrEqual(1);
+    expect(stagedRows(t.memberId)).toHaveLength(0);
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_failed')).toHaveLength(1);
   });
 });

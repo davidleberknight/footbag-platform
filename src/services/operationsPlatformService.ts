@@ -48,9 +48,9 @@
  *   - work_queue_items insert (auto_link_match, low confidence)
  *   - outbox_emails enqueue (admin-alerts fan-out)
  *   - payments anonymize-write (compliance-retention cleanup)
- *   - audit_entries append (pii_erasure_failed and
- *     payment.compliance_anonymize_failed operational errors; the per-row
- *     erasure audit rows belong to MemberService)
+ *   - audit_entries append (legacy.auto_link_candidate_failed,
+ *     pii_erasure_failed, and payment.compliance_anonymize_failed operational
+ *     errors; the per-row erasure audit rows belong to MemberService)
  *   - logger.error on job failure (drives the CloudWatch alarm)
  *
  * Service shape: class singleton (`operationsPlatformService`); adapters are
@@ -346,7 +346,15 @@ export class OperationsPlatformService {
         let classification;
         try {
           classification = identityAccessService.getAutoLinkClassificationForMember(c.id);
-        } catch {
+        } catch (err) {
+          recordOperationalError({
+            actionType: 'legacy.auto_link_candidate_failed',
+            category:   'identity',
+            entityType: 'member',
+            entityId:   c.id,
+            reasonText: 'Cutover batch auto-link: classifying a candidate threw',
+            cause:      err,
+          });
           result.skipped_error += 1;
           continue;
         }
@@ -408,7 +416,15 @@ export class OperationsPlatformService {
             },
             'batch',
           );
-        } catch {
+        } catch (err) {
+          recordOperationalError({
+            actionType: 'legacy.auto_link_candidate_failed',
+            category:   'identity',
+            entityType: 'member',
+            entityId:   c.id,
+            reasonText: 'Cutover batch auto-link: staging a candidate threw',
+            cause:      err,
+          });
           result.skipped_error += 1;
           continue;
         }
