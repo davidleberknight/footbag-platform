@@ -6452,6 +6452,45 @@ export const tagStats = {
     LIMIT ?
   `); },
 
+  // Real community-popular tags only: at least two distinct members share the
+  // tag. This is the "people are uploading and tagging" signal that ranks ahead
+  // of curated starter seeds in the suggestion surface.
+  get listMemberCommunityPopularTags() { return db.prepare(`
+    SELECT ts.tag_id, t.tag_normalized, t.tag_display,
+           ts.usage_count, ts.distinct_member_count
+    FROM tag_stats ts
+    JOIN tags t ON t.id = ts.tag_id
+    WHERE t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized <> '#unavailable_embed'
+      AND ts.distinct_member_count >= 2
+    ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
+    LIMIT ?
+  `); },
+
+  // Curator-published tags that are not yet shared by two distinct members.
+  // Public (they ride system-owned content) but they fill suggestion slots only
+  // after real community tags and the curated starter seeds.
+  get listCuratorPublishedPopularTags() { return db.prepare(`
+    SELECT ts.tag_id, t.tag_normalized, t.tag_display,
+           ts.usage_count, ts.distinct_member_count
+    FROM tag_stats ts
+    JOIN tags t ON t.id = ts.tag_id
+    WHERE t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized <> '#unavailable_embed'
+      AND ts.distinct_member_count < 2
+      AND EXISTS (
+            SELECT 1 FROM media_tags mt
+            JOIN media_items mi ON mi.id = mt.media_id
+            JOIN members m ON m.id = mi.uploader_member_id
+            WHERE mt.tag_id = ts.tag_id
+              AND mi.moderation_status = 'active'
+              AND mi.is_avatar = 0
+              AND m.is_system = 1
+          )
+    ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
+    LIMIT ?
+  `); },
+
   get listStandardTagsWithMedia() { return db.prepare(`
     SELECT t.id AS tag_id, t.tag_normalized, t.tag_display, t.standard_type,
            ts.usage_count

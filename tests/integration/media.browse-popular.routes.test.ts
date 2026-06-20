@@ -1,8 +1,10 @@
 /**
- * The /media/browse landing (no query) leads with discovery: the Popular-tags
- * chip cloud renders the real most-used public tags and precedes the filter
- * form. The old hardcoded "Try one" fallback chips are gone now that popular
- * tags populate from curated/system content.
+ * The /media/browse landing (no query) leads with discovery: the Suggested-tags
+ * chip cloud renders the most-used public tags and precedes the filter form.
+ * Real popular tags lead, ranked by usage; curated starter seeds pad any
+ * unfilled slots up to eight, so representative club, event, and style tags
+ * surface before community usage accrues. The old hardcoded "Try one" fallback
+ * chips are gone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -53,6 +55,15 @@ describe('GET /media/browse landing — search leads, suggested tags follow', ()
     expect(res.status).toBe(200);
     expect(res.text).toContain('Suggested tags');
     expect(res.text).toContain('#passback_records');
+  });
+
+  it('pads the unfilled slots with the curated starter seeds alongside the real tag', async () => {
+    const res = await request(createApp()).get('/media/browse');
+    // One real public tag leads; the curated seeds fill the rest up to eight.
+    expect(res.text).toContain('#passback_records');
+    expect(res.text).toContain('#club_wellington');
+    expect(res.text).toContain('#event_2026_worlds_japan');
+    expect(res.text).toContain('#chinlone');
   });
 
   it('drops the hardcoded fallback chips and the separate club/event sections', async () => {

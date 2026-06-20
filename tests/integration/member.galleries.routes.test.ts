@@ -199,7 +199,11 @@ describe('GET /members/:memberKey/galleries', () => {
     // the old bare "no galleries yet" message.
     expect(res.text).toContain('You have not shared any photos or videos yet.');
     expect(res.text).toContain('Popular tags');
-    expect(res.text).toContain('#freestyle');
+    // With no real popular tags accrued, the curated starter seeds fill the
+    // chips: a representative club, the upcoming worlds event, and a style tag.
+    expect(res.text).toContain('#club_wellington');
+    expect(res.text).toContain('#event_2026_worlds_japan');
+    expect(res.text).toContain('#chinlone');
     // Replaced the old developer-spec description with member-facing copy.
     expect(res.text).toContain('saved view of your photos and videos');
   });

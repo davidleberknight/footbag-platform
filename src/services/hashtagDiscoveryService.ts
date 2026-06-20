@@ -6,8 +6,10 @@
  *   - Popular public tags: the most-used tags that are public, meaning used by
  *     2+ distinct members OR carried by curator/system-uploaded content. A single
  *     non-system member's personal tags stay out so they never leak into discovery.
- *   - Seed-padded teaching tags and the hashtag summary (cold-start empty state,
- *     before real popular tags accrue)
+ *   - Suggestion tags composed in three tiers (real community-popular tags, then
+ *     pinned curated starters, then curator-published backfill) and the hashtag
+ *     summary; the starters are visible while the community is quiet and are
+ *     phased out as real community usage accrues
  *   - Standard tags with media (club/event tags that have tagged content)
  *   - Tag prefix suggest (autocomplete)
  *   - Member-context tag suggestions (club affiliations, participated events)
@@ -36,7 +38,7 @@ import {
   type MemberTagRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
-import { TEACHING_TAG_SEEDS, padPopularTagsWithSeeds } from '../content/teachingTagSeeds';
+import { TEACHING_TAG_SEEDS, composeSuggestedTags } from '../content/teachingTagSeeds';
 
 export interface TagChipShape {
   display: string;
@@ -128,13 +130,17 @@ export const hashtagDiscoveryService = {
     });
   },
 
-  // Real popular tags first, padded up to `limit` with curated starter seeds
-  // so the teaching empty state and tag suggestions are never bare before
-  // community usage accrues. Seeds drop out automatically as real tags fill
-  // the slots (the pad helper dedups and respects the limit).
-  getPopularTagsWithSeeds(limit: number = 12): TagChipShape[] {
-    const real = hashtagDiscoveryService.getPopularTags(limit);
-    return padPopularTagsWithSeeds(real, TEACHING_TAG_SEEDS, limit, tagToBrowseHref);
+  // Suggestion surface: real community-popular tags first, then the pinned
+  // curated starter seeds, then curator-published tags backfilling the rest.
+  // Before community usage accrues the seeds are visible at the top; as members
+  // upload and real community tags fill the high slots, the seeds are squeezed
+  // out automatically (the composer dedups and respects the limit).
+  getPopularTagsWithSeeds(limit: number = 8): TagChipShape[] {
+    return runSqliteRead('hashtagDiscoveryService.getPopularTagsWithSeeds', () => {
+      const community = (tagStats.listMemberCommunityPopularTags.all(limit) as PopularTagRow[]).map(rowToChip);
+      const curator = (tagStats.listCuratorPublishedPopularTags.all(limit) as PopularTagRow[]).map(rowToChip);
+      return composeSuggestedTags(community, TEACHING_TAG_SEEDS, curator, limit, tagToBrowseHref);
+    });
   },
 
   // Aggregated hashtag statistics for the teaching empty state. The count is

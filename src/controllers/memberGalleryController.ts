@@ -32,7 +32,7 @@ type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
 // Caps for the no-media teaching empty state (recent community examples and
 // the seed-padded popular-tag chips).
 const TEACHING_EXAMPLE_LIMIT = 6;
-const TEACHING_TAG_LIMIT = 12;
+const TEACHING_TAG_LIMIT = 8;
 
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);

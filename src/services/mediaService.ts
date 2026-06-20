@@ -1071,9 +1071,10 @@ export const mediaService = {
       // submitted tokens via formInclude/ExcludeText only; chip lists empty.
       if (criteriaTagIds.length === 0) {
         // A short suggested-tag list keeps the landing a discovery aid, not a wall
-        // of chips; club/event tags ride this same list when they rank, so the
-        // page stays one browse-by-tag surface rather than several parallel ones.
-        const popularTags = hashtagDiscoveryService.getPopularTags(12);
+        // of chips. Real popular tags lead, ranked by usage; curated starter seeds
+        // pad any unfilled slots so representative club, event, and style tags can
+        // surface before community usage accrues, then fall away as it does.
+        const popularTags = hashtagDiscoveryService.getPopularTagsWithSeeds(8);
         return {
           seo: { title: 'Browse Media' },
           page: {
