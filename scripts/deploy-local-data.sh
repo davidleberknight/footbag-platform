@@ -137,13 +137,12 @@ run_from_csv() {
   echo "==> deploy-local-data: --from-csv"
   local missing=()
   local ci="${REPO_ROOT}/legacy_data/event_results/canonical_input"
-  local seed="${REPO_ROOT}/legacy_data/event_results/seed/mvfp_full"
 
+  # Only canonical_input is required here. The mvfp_full seed CSVs are built
+  # from it at load time (run_pipeline.sh run_db_load_canonical, via script 07),
+  # so they are neither required as inputs nor committed.
   for f in events event_disciplines event_results event_result_participants persons; do
     [[ -f "${ci}/${f}.csv" ]] || missing+=("legacy_data/event_results/canonical_input/${f}.csv")
-  done
-  for f in seed_events seed_event_disciplines seed_event_results seed_event_result_participants seed_persons; do
-    [[ -f "${seed}/${f}.csv" ]] || missing+=("legacy_data/event_results/seed/mvfp_full/${f}.csv")
   done
 
   if [[ ${#missing[@]} -gt 0 ]]; then
