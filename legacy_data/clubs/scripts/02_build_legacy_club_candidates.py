@@ -636,16 +636,34 @@ def main(argv: list[str] | None = None) -> None:
         raise FileNotFoundError(f"Missing club_members.csv: {CLUB_MEMBERS_CSV}")
     if not PERSON_UNIVERSE_CSV.exists():
         raise FileNotFoundError(f"Missing person universe: {PERSON_UNIVERSE_CSV}")
-    if not AFFILIATIONS_CSV.exists():
-        raise FileNotFoundError(f"Missing affiliations file: {AFFILIATIONS_CSV}")
     if not EVENTS_CSV.exists():
         raise FileNotFoundError(f"Missing canonical events file: {EVENTS_CSV}")
 
     clubs = pd.read_csv(CLUBS_CSV, dtype=str).fillna("")
     club_members = pd.read_csv(CLUB_MEMBERS_CSV, dtype=str).fillna("")
     person_universe = pd.read_csv(PERSON_UNIVERSE_CSV, dtype=str).fillna("")
-    affiliations = pd.read_csv(AFFILIATIONS_CSV, dtype=str).fillna("")
     events = pd.read_csv(EVENTS_CSV, dtype=str).fillna("")
+
+    # The affiliations file is produced by the affiliations builder, which in
+    # turn reads this script's own club-roster output: the two form a
+    # fixed-point pair. On a tree with a prior run the file exists; on a clean
+    # tree it does not yet. Treat its absence as an empty affiliation set so
+    # this first pass can still emit the club roster (club_key, name), which the
+    # affiliations builder needs. The orchestrator then re-runs this script
+    # after the affiliations are built, so the final classification reflects the
+    # current run's affiliations (a re-run also refreshes a populated tree off
+    # this run's affiliations rather than the previous run's). The recency
+    # signals derived from affiliations are simply absent on the bootstrap pass.
+    affil_cols = ["club_key", "mirror_member_id", "matched_person_id", "match_status"]
+    if AFFILIATIONS_CSV.exists():
+        affiliations = pd.read_csv(AFFILIATIONS_CSV, dtype=str).fillna("")
+    else:
+        print(
+            f"NOTE: {AFFILIATIONS_CSV} absent (clean tree); bootstrapping with an "
+            f"empty affiliation set. The orchestrator re-runs this script after "
+            f"the affiliations are built to finalize classification."
+        )
+        affiliations = pd.DataFrame({c: pd.Series(dtype=str) for c in affil_cols})
 
     require_columns(clubs, {"name", "country"}, "clubs.csv")
 

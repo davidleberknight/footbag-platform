@@ -293,9 +293,14 @@ def main() -> None:
         legacy_data / 'out' / 'stage2_qc_issues.jsonl'
     )
 
-    for path, label in [(quarantine_csv, 'quarantine CSV'), (qc_jsonl, 'QC JSONL')]:
-        if not path.exists():
-            raise SystemExit(f'ERROR: {label} not found: {path}')
+    # The quarantine CSV is a committed input and is always required. The QC
+    # JSONL is a backbone QC artifact that the no-mirror, CSV-only build path
+    # never produces; when present (a tree with a prior backbone run) its QC
+    # issues are imported for parity, and when absent the quarantine events
+    # still load and the QC issues are skipped rather than failing. QC issues
+    # are diagnostic and repopulate whenever the backbone runs.
+    if not quarantine_csv.exists():
+        raise SystemExit(f'ERROR: quarantine CSV not found: {quarantine_csv}')
 
     db = sqlite3.connect(db_path)
     db.execute('PRAGMA foreign_keys = ON')
@@ -307,16 +312,23 @@ def main() -> None:
         q_ins, q_skip = import_quarantine_events(db, quarantine_csv)
         print(f'  inserted={q_ins}  skipped(already present)={q_skip}')
 
-        print(f'Importing QC issues from {qc_jsonl.name} …')
-        qc_ins, qc_skip, collisions = import_qc_issues(db, qc_jsonl)
-        print(f'  inserted={qc_ins}  skipped(already present)={qc_skip}')
+        if qc_jsonl.exists():
+            print(f'Importing QC issues from {qc_jsonl.name} …')
+            qc_ins, qc_skip, collisions = import_qc_issues(db, qc_jsonl)
+            print(f'  inserted={qc_ins}  skipped(already present)={qc_skip}')
 
-        if collisions:
-            print(f'  WARN: {len(collisions)} duplicate key collision(s) in JSONL:')
-            for c in collisions[:10]:
-                print(f'    {c}')
-            if len(collisions) > 10:
-                print(f'    … and {len(collisions) - 10} more')
+            if collisions:
+                print(f'  WARN: {len(collisions)} duplicate key collision(s) in JSONL:')
+                for c in collisions[:10]:
+                    print(f'    {c}')
+                if len(collisions) > 10:
+                    print(f'    … and {len(collisions) - 10} more')
+        else:
+            print(
+                f'NOTE: {qc_jsonl} absent (no-backbone build); skipping QC-issue '
+                f'import. Quarantine events still loaded; QC issues repopulate '
+                f'when the backbone runs.'
+            )
 
         db.execute('COMMIT')
         print_summary(db)

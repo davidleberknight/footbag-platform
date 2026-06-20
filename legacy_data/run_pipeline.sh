@@ -126,9 +126,9 @@ run_preflight_enrichment_only() {
 #
 # Required files:
 #   event_results/canonical_input/   — 5 platform-export CSVs
-#   event_results/seed/mvfp_full/    — 5 seed CSVs (built by script 07)
 #   membership/inputs/               — membership normalized CSV
 #   seed/                            — clubs + club_members CSVs
+# (mvfp_full seed CSVs are built from canonical_input at load time, not required here.)
 # =============================================================================
 run_preflight_csv_only() {
     echo ""
@@ -142,11 +142,8 @@ run_preflight_csv_only() {
             || missing+=("event_results/canonical_input/${f}.csv")
     done
 
-    # Seed CSVs (produced by script 07)
-    for f in seed_events seed_event_disciplines seed_event_results seed_event_result_participants seed_persons; do
-        [[ -f "event_results/seed/mvfp_full/${f}.csv" ]] \
-            || missing+=("event_results/seed/mvfp_full/${f}.csv")
-    done
+    # The mvfp_full seed CSVs are not required here: run_db_load_canonical now
+    # builds them from canonical_input via script 07 before loading.
 
     # Membership input
     [[ -f "membership/inputs/membership_input_normalized.csv" ]] \
@@ -263,6 +260,10 @@ run_db_load_canonical() {
     # historical_persons.legacy_member_id -> legacy_members is satisfied with
     # foreign-key enforcement on. Idempotent (INSERT OR IGNORE).
     python scripts/load_legacy_members_seed.py --db "${REPO_ROOT}/database/footbag.db"
+    # Build the mvfp_full seed CSVs from the committed canonical_input so this
+    # no-mirror path produces them itself rather than depending on a prior run
+    # having left them on disk.
+    python event_results/scripts/07_build_mvfp_seed_full.py
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
@@ -386,6 +387,15 @@ run_phase_d() {
     python clubs/scripts/01_build_club_person_universe.py
     python clubs/scripts/02_build_legacy_club_candidates.py
     python clubs/scripts/03_build_legacy_person_club_affiliations.py
+    # The candidate builder and the affiliations builder are a fixed-point pair:
+    # the candidate builder classifies clubs using affiliation-recency signals,
+    # while the affiliations builder reads only the club roster (club_key, name),
+    # which is invariant to classification. Re-run the candidate builder so the
+    # final categories reflect this run's affiliations. On a clean tree the first
+    # pass bootstrapped with empty affiliations; on a populated tree this refresh
+    # replaces the previous run's affiliations with the current run's. The
+    # affiliations builder needs no second pass.
+    python clubs/scripts/02_build_legacy_club_candidates.py
     python clubs/scripts/04_build_club_bootstrap_leaders.py
     python clubs/scripts/04a_compute_bootstrap_leader_signals.py
     python clubs/scripts/05_build_club_only_persons.py
