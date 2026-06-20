@@ -9,8 +9,8 @@
  *   1 dex event   — single-dex tricks (mirage, illusion, fairy)
  *   2 dex events  — most named compounds
  *   3+ dex events — deep compounds
- *   JOB notation set, operational notation pending — has JOB, not yet dex-countable
- *   No notation yet — no JOB and no operational notation
+ *   then the no-op-notation rows grouped by real blocker (Needs authoring, Stale,
+ *   Blocked: undefined operator / Red doctrine / governance / identification)
  *
  * Uses the shared dictionary-trick-card partial; card shapes identical
  * to the ADD view. Phase 4.1 of the audit-driven roadmap; backed by
@@ -110,18 +110,19 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
     expect(res.text).toContain('<h2>1 dex event</h2>');
     expect(res.text).toContain('<h2>2 dex events</h2>');
     expect(res.text).toContain('<h2>3+ dex events</h2>');
-    // mystery-trick has no JOB and no op-notation, so it is "No notation yet".
-    expect(res.text).toContain('<h2>No notation yet</h2>');
+    // mystery-trick is an active canonical trick with no blocker token: it groups
+    // by blocker as "Needs authoring", not by its missing notation field.
+    expect(res.text).toMatch(/<h2>Needs authoring/);
   });
 
   it('places each seeded trick in the right bucket via section id', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    // Section ids match #dex-{count} and #dex-no-notation for the no-notation bucket
+    // Section ids match #dex-{count} and the no-op-notation blocker buckets.
     expect(res.text).toMatch(/id="dex-0"[^>]*>[\s\S]*?data-trick-slug="toe-stall"/);
     expect(res.text).toMatch(/id="dex-1"[^>]*>[\s\S]*?data-trick-slug="mirage"/);
     expect(res.text).toMatch(/id="dex-2"[^>]*>[\s\S]*?data-trick-slug="eggbeater-fixture"/);
     expect(res.text).toMatch(/id="dex-3"[^>]*>[\s\S]*?data-trick-slug="ripwalk-deep"/);
-    expect(res.text).toMatch(/id="dex-no-notation"[^>]*>[\s\S]*?data-trick-slug="mystery-trick"/);
+    expect(res.text).toMatch(/id="dex-needs-authoring"[^>]*>[\s\S]*?data-trick-slug="mystery-trick"/);
   });
 
   it('does NOT render dex-count sections on the ADD view (avoids cross-view leakage)', async () => {

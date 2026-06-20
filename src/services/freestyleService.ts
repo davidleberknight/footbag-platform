@@ -552,6 +552,40 @@ function isDexlessBodyAtom(r: { category: string | null; base_trick: string | nu
   return r.category === 'body' && r.base_trick === r.slug;
 }
 
+// An active trick that carries no operational_notation cannot be dex-counted, but
+// "no op-notation" is not itself a frontier reason. This classifies such a trick
+// by its REAL blocker so the dictionary groups by why a row is stuck, not by which
+// notation field happens to be populated. Token-driven + curator-extensible.
+export type NotationBlocker =
+  | 'undefined-operator' | 'red-doctrine' | 'governance' | 'stale' | 'needs-authoring' | 'identification';
+const NB_UNDEFINED_OPERATORS = new Set([
+  'blazing','zulu','symple','slapping','fusing','phasing','slaying','sonic','twinspinning',
+  'frootie','fyro','leaning','twisted','twisting','wonton','wrecking','snapping','zipper',
+]);
+const NB_XDEX_RECEIVERS = new Set(['mirage','illusion','whirl','torque','drifter']);
+const NB_SETTLED_OPERATORS = new Set(['blurry','blurrier','blurriest','terraging','terrage','pogo']);
+function classifyNotationBlocker(
+  r: { slug: string; canonical_name: string | null },
+): NotationBlocker {
+  const name = (r.canonical_name ?? r.slug).toLowerCase();
+  const toks: string[] = name.match(/[a-z]+/g) ?? [];
+  // an undefined folk operator in the name is the blocker, whatever else is present
+  if (toks.some(t => NB_UNDEFINED_OPERATORS.has(t))) return 'undefined-operator';
+  // atomic / quantum / nuclear on an X-Dex receiver base is the open atomic/X-Dex value-migration
+  if (name === 'witchdoctor'
+      || ((toks.includes('atomic') || toks.includes('quantum') || toks.includes('nuclear'))
+          && toks.some(t => NB_XDEX_RECEIVERS.has(t)))) return 'red-doctrine';
+  if (toks.includes('weaving')) return 'red-doctrine';
+  // down-family / DOD is a governance / verification call
+  if (toks.includes('down') || toks.includes('dod') || toks.includes('ddd')) return 'governance';
+  // a settled set operator with no op-notation is a stale backfill gap, not a blocker
+  if (toks.some(t => NB_SETTLED_OPERATORS.has(t))) return 'stale';
+  // an active canonical trick with no specific blocker has an accepted structure;
+  // it simply needs its operational notation authored. (Identification stays in the
+  // taxonomy for genuinely-unconfirmed rows but does not apply to promoted tricks.)
+  return 'needs-authoring';
+}
+
 function buildFreestyleByNumbers(
   trickRows: readonly FreestyleTrickRow[],
   linkRows: readonly FreestyleTrickModifierLinkRow[],
@@ -2756,9 +2790,9 @@ export interface FreestyleAddBand {
 }
 
 export interface FreestyleTrickDexCountGroup {
-  dexCount: number | null;     // null = not dex-countable (no op_notation); split below by JOB presence
-  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events', 'JOB notation set, operational notation pending', 'No notation yet'
-  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', 'dex-job-only', 'dex-no-notation'. Avoids Handlebars 0-is-falsy footgun in the template.
+  dexCount: number | null;     // null = not dex-countable (no op_notation); grouped below by real blocker
+  dexLabel: string;            // pre-shaped: '0 dex events' … '3+ dex events', then blocker-type labels (Needs authoring, Stale, Blocked: undefined operator / Red doctrine / governance / identification)
+  bucketId: string;            // pre-shaped section anchor: 'dex-0' … 'dex-3', then 'dex-needs-authoring', 'dex-stale', 'dex-undefined-operator', 'dex-red-doctrine', 'dex-governance', 'dex-identification'. Avoids Handlebars 0-is-falsy footgun in the template.
   cards: DictionaryTrickCard[];
   // The same cards, partitioned into ADD-labelled sub-bands (ADD ascending).
   // The template renders these so the secondary ADD ordering carries a header.
@@ -8136,20 +8170,29 @@ export const freestyleService = {
         '3+ dex events';
       dexCountGroups.push(buildDexGroup(k, label, dexBuckets.get(k) ?? []));
     }
-    // Rows with no operational_notation cannot be dex-counted. Split them by
-    // whether they still carry a JOB notation chain, so a trick with JOB +
-    // derived ADD is never mislabeled "no notation": the dominant case is a
-    // pending operational-notation backfill, not an unmapped trick.
+    // Rows with no operational_notation cannot be dex-counted, but "no op-notation"
+    // is not a frontier reason. Group them by their REAL blocker (undefined operator,
+    // Red doctrine, governance, stale, needs-authoring, identification) so the page is
+    // organized by why a row is stuck, not by which notation field is populated.
     if (dexBuckets.has(null)) {
-      const nullEntries = dexBuckets.get(null) ?? [];
-      const hasJob = (e: AddBucketEntry) => !!(e.row.notation && e.row.notation.trim());
-      const jobOnly    = nullEntries.filter(hasJob);
-      const noNotation = nullEntries.filter(e => !hasJob(e));
-      if (jobOnly.length) {
-        dexCountGroups.push(buildDexGroup(null, 'JOB notation set, operational notation pending', jobOnly, 'dex-job-only'));
+      const byBlocker = new Map<NotationBlocker, AddBucketEntry[]>();
+      for (const e of dexBuckets.get(null) ?? []) {
+        const b = classifyNotationBlocker(e.row);
+        const list = byBlocker.get(b) ?? [];
+        list.push(e);
+        byBlocker.set(b, list);
       }
-      if (noNotation.length) {
-        dexCountGroups.push(buildDexGroup(null, 'No notation yet', noNotation, 'dex-no-notation'));
+      const BLOCKER_GROUPS: ReadonlyArray<readonly [NotationBlocker, string, string]> = [
+        ['needs-authoring',     'dex-needs-authoring',     'Needs authoring (structure resolved, notation not yet written)'],
+        ['stale',               'dex-stale',               'Stale: settled operator, operational-notation backfill pending'],
+        ['undefined-operator',  'dex-undefined-operator',  'Blocked: undefined operator'],
+        ['red-doctrine',        'dex-red-doctrine',        'Blocked: Red doctrine (atomic / X-Dex, weaving)'],
+        ['governance',          'dex-governance',          'Blocked: curator / governance'],
+        ['identification',      'dex-identification',       'Blocked: identification'],
+      ];
+      for (const [b, id, label] of BLOCKER_GROUPS) {
+        const entries = byBlocker.get(b);
+        if (entries && entries.length) dexCountGroups.push(buildDexGroup(null, label, entries, id));
       }
     }
 
@@ -8601,11 +8644,26 @@ export const freestyleService = {
     // each card's count = buckets / groups, NOT trick rows (since the same
     // trick appears in multiple axes — would mislead).
     const dexChipLabel = (dexCount: number | null): string =>
-      dexCount === null ? 'Unknown'
+      dexCount === null ? 'Unresolved'
       : dexCount === 0  ? '0 dex'
       : dexCount === 1  ? '1 dex'
       : dexCount === 2  ? '2 dex'
       : '3+ dex';
+    // Landing-card chips only: the detail page keeps the richer no-op-notation
+    // blocker buckets (needs-authoring / stale / undefined-operator / …), but on
+    // the landing summary they collapse into ONE "Unresolved" chip so the card
+    // never shows a row of repeated labels. The detail page is unchanged.
+    const dexLandingChips: { label: string; href: string; count: number }[] = (() => {
+      const numeric = dexCountGroups
+        .filter(g => g.dexCount !== null)
+        .map(g => ({ label: dexChipLabel(g.dexCount), href: `/freestyle/tricks?view=dex-count#${g.bucketId}`, count: g.cards.length }));
+      const unresolved = dexCountGroups.filter(g => g.dexCount === null);
+      const unresolvedCount = unresolved.reduce((s, g) => s + g.cards.length, 0);
+      if (unresolvedCount > 0 && unresolved[0]) {
+        numeric.push({ label: 'Unresolved', href: `/freestyle/tricks?view=dex-count#${unresolved[0].bucketId}`, count: unresolvedCount });
+      }
+      return numeric;
+    })();
     const axisChipLabel = (axisKey: string, axisName: string): string => {
       switch (axisKey) {
         case 'set-uptime':          return 'Set/Uptime';
@@ -8722,11 +8780,11 @@ export const freestyleService = {
             {
               label:        'By dex count',
               href:         '/freestyle/tricks?view=dex-count',
-              count:        dexCountGroups.length,
-              countDisplay: fmtCount(dexCountGroups.length),
+              count:        dexLandingChips.length,
+              countDisplay: fmtCount(dexLandingChips.length),
               countSuffix:  'dex buckets',
               lensQuestion: 'How many dexterity moves does it have?',
-              chips:        dexCountGroups.map(g => ({ label: dexChipLabel(g.dexCount), href: `/freestyle/tricks?view=dex-count#${g.bucketId}`, count: g.cards.length })),
+              chips:        dexLandingChips,
             },
           ],
         },

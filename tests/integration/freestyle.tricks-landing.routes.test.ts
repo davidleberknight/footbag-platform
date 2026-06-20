@@ -320,8 +320,8 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
   it('By dex-count sorts entries structurally (ADD ascending) within a bucket', async () => {
     const html = (await request(createApp()).get('/freestyle/tricks?view=dex-count')).text;
     const at = (slug: string) => html.indexOf(`data-trick-slug="${slug}"`);
-    // Seed tricks have no JOB and no operational notation -> all in the
-    // dex-no-notation bucket, ordered by ADD asc: mirage(2) before whirl(3)
+    // Seed tricks have no operational notation and no blocker token -> all in the
+    // dex-needs-authoring bucket, ordered by ADD asc: mirage(2) before whirl(3)
     // before double-spinning-whirl(5).
     expect(at('mirage')).toBeGreaterThan(-1);
     expect(at('whirl')).toBeGreaterThan(at('mirage'));
