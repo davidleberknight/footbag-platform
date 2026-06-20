@@ -172,8 +172,7 @@ tfplan
 
 # Generated cache files (never commit)
 legacy_data/robots_cache.json
-# canonical_input/ is intentionally committed: the no-mirror --from-csv build
-# reads it as source-data input, so it must survive a fresh clone.
+legacy_data/event_results/canonical_input/
 
 # Identity lock: keep only the latest versioned snapshots
 legacy_data/inputs/identity_lock/Placements_ByPerson_v*.csv
