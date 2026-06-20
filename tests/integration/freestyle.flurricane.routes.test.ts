@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — flurricane.
+ * Flurricane canonical trick promotion: routes and rendering.
  *
  * 5 ADD = gyro(+1) + flurry(4). JOB FB.org-confirmed from fborg-5add.txt
  * (CLIP-set primary form) and gyroMoves.txt. FB.org also publishes a

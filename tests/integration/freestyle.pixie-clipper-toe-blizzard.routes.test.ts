@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25).
+ * Pixie, clipper, toe, and blizzard canonical trick promotion: routes and rendering.
  *
  * Three canonical changes:
  *

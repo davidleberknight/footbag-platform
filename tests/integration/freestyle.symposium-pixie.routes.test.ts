@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — symposium-pixie.
+ * Symposium-pixie canonical trick promotion: routes and rendering.
  *
  * 3 ADD = symposium(+1) + pixie(2). No FB.org-published JOB for this
  * specific compound; sibling-derived using the symposium-prefix pattern

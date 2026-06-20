@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — inspinning
+ * Inspinning-family canonical trick promotion: routes and rendering.
  * family. Three compounds, all mirroring spinning-* siblings via the
  * inspinning direction-flip rule established by FB.org-confirmed
  * inspinning-butterfly JOB.

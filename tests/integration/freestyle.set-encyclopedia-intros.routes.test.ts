@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian polish slice #3 (2026-05-26) — Set Encyclopedia category
+ * Set Encyclopedia category intros: routes and rendering.
  * one-liners. The /freestyle/sets surface previously rendered six
  * bare h2 category headings with no inline framing. The curator-
  * authored intros already exist in SET_SUBTYPE_SPECS in

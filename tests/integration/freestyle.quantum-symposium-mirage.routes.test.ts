@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-26) —
+ * Quantum-symposium-mirage canonical trick promotion: routes and rendering.
  * quantum-symposium-mirage.
  *
  * 4 ADD = quantum(+1) + symposium-mirage(3). FB.org-confirmed JOB

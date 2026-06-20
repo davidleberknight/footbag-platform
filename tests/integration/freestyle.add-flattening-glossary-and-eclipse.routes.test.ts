@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian polish slice 4 — ADD-flattening glossary note + eclipse
+ * ADD-flattening glossary note and eclipse: routes and rendering.
  * promotion (2026-05-25).
  *
  * Two concerns:

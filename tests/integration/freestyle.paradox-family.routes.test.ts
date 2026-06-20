@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — paradox family.
+ * Paradox-family canonical trick promotion: routes and rendering.
  *
  * Two compounds, both FB.org-confirmed JOBs from fborg-5add.txt:
  *   - paradox-da-da-curve (5 ADD) — paradox(+1) + dada-curve(4)

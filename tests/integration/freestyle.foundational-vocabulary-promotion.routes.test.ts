@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian foundational-vocabulary canonical promotion (2026-05-25).
+ * Foundational-vocabulary canonical trick promotion: routes and rendering.
  *
  * Conservative slice promoting 4 foundational rows:
  *   1. around-the-world-kick (NEW; 1 ADD; kick-rule)
@@ -112,7 +112,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Pre-Adrian promotion — RESOLVED_FORMULAS overlay carries each slug', () => {
+describe('Foundational-vocabulary promotion — RESOLVED_FORMULAS overlay carries each slug', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '%s is present in RESOLVED_FORMULAS_SPRINT_1 with non-empty operationalNotation',
     (slug) => {
@@ -124,7 +124,7 @@ describe('Pre-Adrian promotion — RESOLVED_FORMULAS overlay carries each slug',
   );
 });
 
-describe('Pre-Adrian promotion — trick-detail page renders for each slug', () => {
+describe('Foundational-vocabulary promotion — trick-detail page renders for each slug', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '/freestyle/tricks/%s returns 200',
     async (slug) => {
@@ -134,7 +134,7 @@ describe('Pre-Adrian promotion — trick-detail page renders for each slug', () 
   );
 });
 
-describe('Pre-Adrian promotion — JOB renders via tokenized op-notation partial', () => {
+describe('Foundational-vocabulary promotion — JOB renders via tokenized op-notation partial', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug, r.jobTokens, r.forbiddenJobTokens] as const))(
     '%s renders each expected op-token in the operational-notation-display section',
     async (slug, jobTokens, forbidden) => {
@@ -167,7 +167,7 @@ describe('Pre-Adrian promotion — JOB renders via tokenized op-notation partial
   );
 });
 
-describe('Pre-Adrian promotion — no "canonical decomposition pending" leakage', () => {
+describe('Foundational-vocabulary promotion — no "canonical decomposition pending" leakage', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '%s does NOT render the "JOB: canonical decomposition pending" incomplete-state line on browse cards',
     async (slug) => {
@@ -189,7 +189,7 @@ describe('Pre-Adrian promotion — no "canonical decomposition pending" leakage'
   );
 });
 
-describe('Pre-Adrian promotion — no tautological compound-slot leakage', () => {
+describe('Foundational-vocabulary promotion — no tautological compound-slot leakage', () => {
   it('around-the-world-kick does NOT render its own canonical name as a fake chain reading', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/around-the-world-kick');
     // The equivalent-readings chain (semanticNotation layer 2) must NOT
@@ -230,7 +230,7 @@ describe('Foundational-vocabulary promotion — provenance is visible, not silen
 // that the JOB row is present on the card.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view=add) renders the 4 new trick rows', () => {
+describe('Foundational-vocabulary promotion — canonical browse view (/freestyle/tricks?view=add) renders the 4 new trick rows', () => {
   it.each(PROMOTION_COHORT.map(r => [r.slug] as const))(
     '%s appears as an article card on the ADD browse view',
     async (slug) => {
@@ -272,7 +272,7 @@ describe('Pre-Adrian promotion — canonical browse view (/freestyle/tricks?view
   });
 });
 
-describe('Pre-Adrian promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
+describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
   it('TRACKED_UNPUBLISHED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
     // The total fluctuates: promotion waves drop it; corpus-expansion
     // waves raise it (Wave 0 added ~1700 names to the reconciliation

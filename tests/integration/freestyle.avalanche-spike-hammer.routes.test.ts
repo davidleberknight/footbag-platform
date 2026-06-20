@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) —
+ * Avalanche, spike, and hammer canonical trick promotion: routes and rendering.
  * avalanche + spike-hammer. Structural twins: both 5 ADD, identical
  * 3-operator modifier stack (stepping + ducking + paradox-X), differ
  * only in the base atom (illusion vs mirage).

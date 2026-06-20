@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-26) —
+ * Double-over-down-swirl canonical trick promotion: routes and rendering.
  * double-over-down-swirl. Single-row promotion. Extension of the
  * double-over-down chassis (shipped earlier this session) with an
  * OP BACK SWIRL third dex and SAME CLIP terminator swap.

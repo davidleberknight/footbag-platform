@@ -1322,7 +1322,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     expect(res.text).toContain('class="equivalent-readings');
     expect(res.text).toContain('Equivalent readings');
     // Tokens for each reading are span-wrapped; assert their text presence.
-    // Pre-Adrian polish #1 (2026-05-26): the S5 tokenizer expands
+    // The S5 tokenizer expands
     // `ss → same-side` and `op → opposite` at render time so the
     // chain reading vocabulary matches the JOB notation register. The
     // underlying chain data still stores the short forms; only the

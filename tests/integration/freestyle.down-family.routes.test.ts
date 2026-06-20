@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — down family.
+ * Down-family canonical trick promotion: routes and rendering.
  *
  * Three siblings, all FB.org-confirmed JOBs:
  *   - double-over-down (4 ADD) — toe-set chassis; SAME/SAME OUT dexes

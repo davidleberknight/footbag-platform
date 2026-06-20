@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian polish slice #1 (2026-05-26) — S5 chain reading
+ * S5 chain reading: notation expansion.
  * abbreviation expansion. The tokenizer expands `ss → same-side` and
  * `op → opposite` at render time so equivalence readings don't
  * present a different vocabulary register than JOB notation tokens

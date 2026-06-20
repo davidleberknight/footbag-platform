@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) —
+ * Down follow-ons and flux canonical trick promotion: routes and rendering.
  * down-family follow-ons + flux. Three new canonical rows:
  *
  *   - pixie-double-over-down (5 ADD = pixie(+1) + double-over-down(4))

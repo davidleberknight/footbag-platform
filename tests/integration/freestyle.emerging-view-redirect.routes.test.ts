@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian polish slice #2 (2026-05-26) — emerging-view redirect.
+ * Emerging-view redirect: routes.
  *
  * Replaces silent fall-through (?view=emerging rendered as default
  * add view) with explicit 302 redirect to /freestyle/observational

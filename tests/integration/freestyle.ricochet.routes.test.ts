@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — ricochet.
+ * Ricochet canonical trick promotion: routes and rendering.
  *
  * 5 ADD compound. Two out-to-in dexterities from a toe set ending on a
  * cross-body sole (flapper) delay. FB.org-confirmed JOB (fborg-5add.txt).

@@ -1,5 +1,5 @@
 /**
- * Pre-Adrian deferred-candidate promotion slice (2026-05-25) — pixie-swirl.
+ * Pixie-swirl canonical trick promotion: routes and rendering.
  *
  * 4 ADD = pixie(+1) + swirl(3). JOB FB.org-confirmed from fborg-4add.txt
  * + pixieMoves.txt. Pixie prefix adds SAME IN [DEX] before swirl base;
