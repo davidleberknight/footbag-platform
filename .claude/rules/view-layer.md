@@ -20,6 +20,11 @@ compile error at every call site.
 - `seo.title` is the browser-tab suffix; the layout renders `Footbag {seo.title}`, so the value
   never contains the word "Footbag". `seo.fullTitle`, when set, is the complete tab title with no
   `Footbag` prefix.
+- `seo.description` is the page meta description; the layout renders it as `<meta name="description">`
+  and `og:description`. `seo.noindex` marks a public page do-not-index (login, register, and other
+  thin auth pages), rendered as a robots noindex meta. The layout also emits a self-referencing
+  canonical and Open Graph / Twitter Card tags from request-derived `res.locals` (canonical and
+  `og:url` are omitted on error and not-found responses); services own only the `seo` fields.
 - `page.sectionKey` selects the active nav section; `page.pageKey` is a unique page id; `page.title`
   is the displayed h1 (distinct from `seo.title`); `eyebrow` / `intro` / `notice` are optional.
 - `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately

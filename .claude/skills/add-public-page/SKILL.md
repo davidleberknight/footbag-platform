@@ -67,6 +67,7 @@ Before touching any file, state:
 - service method(s) that will own the page shaping (from the owning service's file-header JSDoc)
 - if content comes from an external URL: the fetched content structure and how it maps to `content.sections[]`
 - if a new top-level nav section: which files need a nav item added (home controller, nav partial/layout, and the view-layer standard in `.claude/rules/view-layer.md`)
+- crawler exposure: a new public page is indexed by default and joins the XML sitemap; set `seo.noindex` for a thin auth page, and add any new top-level public section to the sitemap source list in `siteMetaService.ts`
 - complete list of files expected to change
 - verification plan
 

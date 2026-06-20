@@ -12,7 +12,7 @@ Templates are logic-light Handlebars. The service layer hands them a fully-shape
 Every public page (except Home, the one composition-page exception) receives a `PageViewModel<TContent>` from `src/types/page.ts` (full page contract and primitives in `.claude/rules/view-layer.md`):
 
     interface PageViewModel<TContent> {
-      seo: SeoMeta;       // { title, fullTitle?, description? }
+      seo: SeoMeta;       // { title, fullTitle?, description?, noindex? }
       page: PageMeta;     // { sectionKey, pageKey, title, eyebrow?, intro?, notice? }
       navigation?: NavigationMeta;
       content: TContent;  // page-specific shape

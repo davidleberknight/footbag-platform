@@ -2,6 +2,9 @@ export interface SeoMeta {
   title: string;
   fullTitle?: string;
   description?: string;
+  // Marks a public page do-not-index (login, register, password, and other thin
+  // auth/onboarding pages). The layout emits a robots noindex meta when set.
+  noindex?: boolean;
 }
 
 export interface PageMeta {

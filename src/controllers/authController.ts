@@ -35,7 +35,7 @@ function getLogin(req: Request, res: Response): void {
   }
   const returnTo = isSafePath(req.query.returnTo) ? req.query.returnTo : undefined;
   res.render('auth/login', {
-    seo: { title: 'Login' },
+    seo: { title: 'Login', noindex: true },
     page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
     content: {
       returnTo,
@@ -50,7 +50,7 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
 
   const renderError = (msg: string, status = 200) => {
     res.status(status).render('auth/login', {
-      seo: { title: 'Login' },
+      seo: { title: 'Login', noindex: true },
       page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
       content: {
         error: msg,
@@ -100,7 +100,7 @@ function getRegister(req: Request, res: Response): void {
     return;
   }
   res.render('auth/register', {
-    seo: { title: 'Register' },
+    seo: { title: 'Register', noindex: true },
     page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
     content: { turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<RegisterContent>);
@@ -113,7 +113,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
 
   const renderError = (msg: string, status = 422) => {
     res.status(status).render('auth/register', {
-      seo: { title: 'Register' },
+      seo: { title: 'Register', noindex: true },
       page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
         error: msg,
@@ -199,7 +199,7 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
       emailPreview = { mode: 'dev', messages: [] };
     }
     res.render('auth/check-email', {
-      seo: { title: 'Check Your Email' },
+      seo: { title: 'Check Your Email', noindex: true },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
       content: { emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
@@ -217,7 +217,7 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       // render against the token-bearing address.
       setNoStore(res);
       res.status(400).render('auth/verify-result', {
-        seo: { title: 'Verification' },
+        seo: { title: 'Verification', noindex: true },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
         content: { ok: false },
       } satisfies PageViewModel<VerifyResultContent>);
@@ -240,7 +240,7 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       });
       setNoStore(res);
       res.status(503).render('auth/verify-result', {
-        seo: { title: 'Verification' },
+        seo: { title: 'Verification', noindex: true },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
         content: { ok: false, signInPrompt: true },
       } satisfies PageViewModel<VerifyResultContent>);
@@ -260,7 +260,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
   if (!captcha.ok) {
     res.status(422).render('auth/check-email', {
-      seo: { title: 'Check Your Email' },
+      seo: { title: 'Check Your Email', noindex: true },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
       content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
@@ -281,7 +281,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     const emailPreview: SimulatedEmailPreview | undefined =
       config.sesAdapter === 'stub' ? { mode: 'dev', messages: [] } : undefined;
     res.render('auth/check-email', {
-      seo: { title: 'Check Your Email' },
+      seo: { title: 'Check Your Email', noindex: true },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
       content: { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
@@ -329,7 +329,7 @@ function postLogout(req: Request, res: Response): void {
 
 function getPasswordForgot(_req: Request, res: Response): void {
   res.render('auth/password-forgot', {
-    seo: { title: 'Reset Your Password' },
+    seo: { title: 'Reset Your Password', noindex: true },
     page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
     content: { turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordForgotContent>);
@@ -341,7 +341,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
     const captcha = await getCaptchaAdapter().verify(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
     if (!captcha.ok) {
       res.status(422).render('auth/password-forgot', {
-        seo: { title: 'Reset Your Password' },
+        seo: { title: 'Reset Your Password', noindex: true },
         page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
         content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       } satisfies PageViewModel<PasswordForgotContent>);
@@ -353,7 +353,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
     // submitter a live reset token for whatever address they typed. Operators
     // read dev/staging reset links from the internal outbox tooling instead.
     res.render('auth/password-forgot-sent', {
-      seo: { title: 'Reset Your Password' },
+      seo: { title: 'Reset Your Password', noindex: true },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
       content: {},
     } satisfies PageViewModel<PasswordForgotSentContent>);
@@ -371,7 +371,7 @@ function setNoStore(res: Response): void {
 function getPasswordReset(req: Request, res: Response): void {
   setNoStore(res);
   res.render('auth/password-reset', {
-    seo: { title: 'Set a New Password' },
+    seo: { title: 'Set a New Password', noindex: true },
     page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
     content: { token: req.params.token, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordResetContent>);
@@ -387,7 +387,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   if (!captcha.ok) {
     setNoStore(res);
     res.status(422).render('auth/password-reset', {
-      seo: { title: 'Set a New Password' },
+      seo: { title: 'Set a New Password', noindex: true },
       page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
       content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<PasswordResetContent>);
@@ -418,7 +418,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       });
       setNoStore(res);
       res.status(503).render('auth/password-reset', {
-        seo: { title: 'Set a New Password' },
+        seo: { title: 'Set a New Password', noindex: true },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
         content: {
           token: undefined,
@@ -436,7 +436,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     if (err instanceof ValidationError) {
       setNoStore(res);
       res.status(422).render('auth/password-reset', {
-        seo: { title: 'Set a New Password' },
+        seo: { title: 'Set a New Password', noindex: true },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
         content: { token, error: err.message, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       } satisfies PageViewModel<PasswordResetContent>);

@@ -9,6 +9,7 @@ import { authMiddleware } from './middleware/auth';
 import { requireOriginPin } from './middleware/requireOriginPin';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
+import { seoRouter }      from './routes/seoRoutes';
 import { ipcRouter }      from './routes/ipcRoutes';
 // The internal QC subsystem router. Production images strip dist/internal-qc
 // and replace this module with a stub exporting null, so the import is safe
@@ -111,6 +112,18 @@ export function createApp(): express.Application {
     hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
+
+  // Keep every non-production environment out of search indexes. Staging and
+  // development must never have their content indexed even if a URL leaks, so
+  // every response carries a noindex directive. Production omits the header so
+  // public pages are indexable; private production pages are handled per-response
+  // (authenticated) and per-page (thin auth pages) below and in the layout.
+  if (config.footbagEnv !== 'production') {
+    app.use((_req, res, next) => {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      next();
+    });
+  }
 
   // Served from src/public/ so .hbs templates can reference /css/style.css etc.
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
@@ -275,6 +288,10 @@ export function createApp(): express.Application {
   app.use((req, res, next) => {
     if (req.isAuthenticated) {
       res.setHeader('Cache-Control', 'private, no-store');
+      // Authenticated pages are personalized and must not be indexed. The header
+      // covers private content without naming any path in robots.txt (a Disallow
+      // line is public and would advertise the paths it hides).
+      res.setHeader('X-Robots-Tag', 'noindex');
     }
     next();
   });
@@ -303,21 +320,39 @@ export function createApp(): express.Application {
     }));
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
+    // Default social-preview image for the page head. Depends only on deploy
+    // config, so it is set here like currentSection above. The self-referencing
+    // canonical URL is set at render time below (it depends on the response
+    // status, not just the request).
+    const canonicalBase = config.publicBaseUrl.replace(/\/+$/, '');
+    res.locals.ogImageUrl = canonicalBase + '/img/ifpa-logo.png';
     // Pre-shaped boolean so templates branch on `isAdmin` rather than the raw
     // `role` field (`{{#if isAdmin}}` over `{{#if (eq role 'admin')}}`).
     res.locals.isAdmin = req.user?.role === 'admin';
     const flash = readFlash(req);
     if (flash?.kind === FLASH_KIND.LOGOUT) {
       res.locals.flashLoggedOut = true;
-      // Clear only when the banner actually renders, not on redirects.
-      // Otherwise a logout that redirects through an auth-gated page consumes
-      // the cookie on the 303 response before the banner ever surfaces.
-      const origRender = res.render.bind(res);
-      res.render = ((...args: Parameters<typeof origRender>) => {
-        clearFlash(res, req);
-        return origRender(...args);
-      }) as typeof res.render;
     }
+    // Wrap render so two render-time concerns are handled in one place:
+    //  1. Emit a self-referencing canonical (and og:url) only for successful
+    //     content responses. Error and not-found renders (status >= 400) must
+    //     not canonicalize the requested URL: it would point search engines at
+    //     a dead URL and, on anti-enumeration 404s, reflect the unknown
+    //     identifier into the page body. Query strings are dropped so filter
+    //     and sort variants of one page share a canonical.
+    //  2. Clear the logout flash only when the banner actually renders, not on
+    //     redirects: a logout that redirects through an auth-gated page would
+    //     otherwise consume the cookie on the 303 before the banner surfaces.
+    const origRender = res.render.bind(res);
+    res.render = ((...args: Parameters<typeof origRender>) => {
+      if (res.statusCode < 400) {
+        res.locals.canonicalUrl = canonicalBase + req.path;
+      }
+      if (res.locals.flashLoggedOut) {
+        clearFlash(res, req);
+      }
+      return origRender(...args);
+    }) as typeof res.render;
     next();
   });
 
@@ -327,6 +362,10 @@ export function createApp(): express.Application {
   });
 
   app.use('/health',   healthRouter);
+  // Crawler/AI-agent surfaces (/robots.txt, /sitemap.xml, /llms.txt). Public and
+  // unauthenticated; mounted ahead of the onboarding-gated public router so a
+  // crawler is never redirected through the onboarding flow.
+  app.use(seoRouter);
   app.use('/ipc',      ipcRouter);
   // Internal QC subsystem: dev/staging tooling only, retired at go-live.
   // Double gate: env check plus the null guard (production images stub the

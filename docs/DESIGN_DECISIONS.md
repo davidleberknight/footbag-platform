@@ -2411,26 +2411,29 @@ Impact:
 
 Decision:
 
-Only public pages are indexed. The public site is built for crawlability: server-rendered HTML, a production `robots.txt`, an XML sitemap, and a unique title, meta description, and canonical URL on every public page. Authenticated surfaces and the member-only legacy archive are kept out of search indexes. Search Console ownership is verified by a DNS TXT record. Meeting this standard is a go-live gate.
+Public pages are discoverable by both search engines and AI agents; everything else is kept out of search indexes. The public site is built for crawlability: server-rendered HTML, a production `robots.txt`, an XML sitemap, an `llms.txt` site map for AI agents, and a unique title, meta description, canonical URL, and social-preview tags on every public page. `robots.txt` names no private paths; private content is kept out of indexes by noindex directives, not by listing paths. Authenticated surfaces and the member-only legacy archive are kept out of search indexes. Search Console ownership is verified by a DNS TXT record. Meeting this standard is a go-live gate.
 
 Rationale:
 
 - Server-rendered HTML (§4.1) returns complete markup on the first response, so every crawler, including those that do not execute JavaScript, sees full content with no render step.
 - Public discoverability serves the community mission; private member data and governance surfaces must never reach a search index.
 - DNS-TXT verification survives redeploys and template edits and covers every subdomain under one property.
+- `robots.txt` names no private paths: a `Disallow` line is publicly readable and would advertise the paths it hides, and `Disallow` does not stop indexing of a linked URL while a noindex directive does. Private content is therefore excluded by noindex, not by `robots.txt`.
+- All crawlers are allowed, including AI retrieval and AI training crawlers, because the mission is to spread footbag history. `llms.txt` gives AI agents a concise site map at low cost; search-engine indexing is unaffected by it.
 
 Requirements:
 
-- `robots.txt` is served in production, permits page resources (CSS, JavaScript, images), names the sitemap, and disallows authenticated and internal path prefixes.
-- The shared layout emits a unique `<title>`, a `<meta name="description">`, and a `<link rel="canonical">` for every public page, all sourced from the page view-model.
-- An XML sitemap lists public pages only; the member-only legacy archive is never listed.
+- `robots.txt` is served in production, permits page resources (CSS, JavaScript, images), names the sitemap, and names no private paths. A non-production environment serves a `robots.txt` that disallows all crawling.
+- The shared layout emits a unique `<title>`, a `<meta name="description">`, a `<link rel="canonical">`, and Open Graph and Twitter Card tags for every public page, all sourced from the page view-model; the canonical and `og:url` are omitted on error and not-found responses.
+- An XML sitemap lists public pages only; member profiles and the member-only legacy archive are never listed.
 - Authenticated routes and the legacy archive carry a noindex directive; non-production environments return `X-Robots-Tag: noindex` for the whole site.
-- Structured data (Organization, Event) and an explicit AI-crawler allow/block policy are added only when there is a demonstrated need; `llms.txt` is not used, because no major crawler honors it.
+- All crawlers are allowed, including AI retrieval and training crawlers; `robots.txt` carries no per-crawler restrictions. An `llms.txt` site map is served for AI agents. Structured data (Organization, Event) is added only when there is a demonstrated need.
 
 Trade-offs:
 
 - Distinguishing public from private on one robots and sitemap surface costs an explicit per-route noindex on authenticated pages rather than a blanket allow.
 - Deferring structured data forgoes some rich-result eligibility in exchange for not maintaining markup with little payoff at the current scale.
+- Allowing AI training crawlers means footbag content may be used in model training without attribution; this is accepted in exchange for maximum discoverability for a non-profit archive.
 
 Impact:
 

@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{#if seo.fullTitle}}{{seo.fullTitle}}{{else}}Footbag{{#if seo.title}} {{seo.title}}{{else}} Worldwide{{/if}}{{/if}}</title>
+  {{#if seo.description}}<meta name="description" content="{{seo.description}}" />{{/if}}
+  {{#if seo.noindex}}<meta name="robots" content="noindex, follow" />{{/if}}
+  {{#if canonicalUrl}}<link rel="canonical" href="{{canonicalUrl}}" />{{/if}}
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Footbag Worldwide" />
+  <meta property="og:title" content="{{#if seo.fullTitle}}{{seo.fullTitle}}{{else}}Footbag{{#if seo.title}} {{seo.title}}{{else}} Worldwide{{/if}}{{/if}}" />
+  {{#if seo.description}}<meta property="og:description" content="{{seo.description}}" />{{/if}}
+  {{#if canonicalUrl}}<meta property="og:url" content="{{canonicalUrl}}" />{{/if}}
+  <meta property="og:image" content="{{ogImageUrl}}" />
+  <meta name="twitter:card" content="summary" />
   <link rel="icon" href="/img/ifpa-logo.png" />
   <link rel="stylesheet" href="{{{asset 'css/style.css'}}}" />
 </head>
