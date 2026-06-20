@@ -113,18 +113,24 @@ run_soup_to_nuts() {
     exit 1
   fi
   echo "    Mirror present: $mirror_dir"
-  # reset-local-db.sh first: drops the DB file, reapplies schema, runs the
-  # loader set run_pipeline.sh does not (load_legacy_members_seed, trick
-  # dictionary 17/19/20, freestyle media 21/22/23, seed_fh_curator). Then
-  # run_pipeline.sh full regenerates canonical_input from the mirror,
-  # reloads canonical/legacy tables, and runs phases C-G/H/V to refine
-  # (script 09 DELETE+INSERTs legacy_person_club_affiliations from
-  # clubs/out/, overriding reset-local-db.sh's seed-derived rows). Modern
-  # operator tables (members, votes, ballots, news_items, audit_entries,
-  # etc.) wiped by the schema reapply stay empty because run_pipeline.sh
-  # never touches them.
-  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
+  # Three phases so loader 08's canonical reseed runs on an empty slate: an
+  # in-place reseed over a populated DB aborts on net_* foreign keys (and the
+  # foreign-owned freestyle_records / auto_link_staged_candidates that no
+  # pipeline rebuilds).
+  #   1. reset-local-db.sh --slate: drop the DB file, reapply schema, seed
+  #      legacy_members (the one FK prerequisite loader 08 needs).
+  #   2. run_pipeline.sh full: regenerate canonical_input from the mirror and
+  #      load canonical + net + clubs + enrichment (phases C-G/H/V) onto the
+  #      slate; loader 08 deletes nothing because the slate is empty.
+  #   3. reset-local-db.sh --post-canonical: layer the freestyle pipeline, the
+  #      full clubs seed, curator content, and tag_stats, idempotently
+  #      re-running the loaders run_pipeline.sh already did (every post loader
+  #      is DELETE+INSERT or INSERT OR IGNORE). Modern operator tables
+  #      (members, votes, ballots, news_items, audit_entries, ...) wiped by the
+  #      schema reapply stay empty; nothing here repopulates them.
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh" --slate
   ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh full )
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh" --post-canonical
 }
 
 run_from_csv() {
@@ -166,13 +172,14 @@ run_from_csv() {
     run_or_print cp "${ci}/${f}.csv" "${out_canonical}/${f}.csv"
   done
 
-  # Same ordering as run_soup_to_nuts: reset-local-db.sh first to wipe modern
-  # operator tables and run the loaders run_pipeline.sh does not, then
-  # csv_only re-runs canonical/enrichment phases. csv_only does not
-  # regenerate canonical_input, so both passes load against the committed
-  # snapshot.
-  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
+  # Same three-phase order as run_soup_to_nuts so loader 08 reseeds an empty
+  # slate. csv_only does not regenerate canonical_input (both passes load the
+  # committed snapshot), and it does not run phase NET, so the --post-canonical
+  # pass rebuilds the net tables (12/13/14) along with freestyle, the full
+  # clubs seed, curator content, and tag_stats.
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh" --slate
   ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh csv_only )
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh" --post-canonical
 }
 
 run_db_only() {

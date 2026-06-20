@@ -1,0 +1,42 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{content.galleryName}}</h1>
+    <p class="hero-subtitle"><a href="{{content.backHref}}" class="tag-chip-link">Back to gallery</a></p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <article class="gallery-item-detail">
+    <div class="gallery-item-media">
+      {{#if content.item.media}}
+        {{> video-facade media=content.item.media}}
+      {{else}}
+        <img src="{{content.item.displayHref}}" alt="{{content.item.caption}}" />
+      {{/if}}
+    </div>
+
+    {{#if content.item.caption}}
+      <p class="gallery-item-caption">{{content.item.caption}}</p>
+    {{/if}}
+
+    {{#if content.uploadedBy}}
+      <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}</p>
+    {{/if}}
+
+    {{#if content.tags.length}}
+      <ul class="gallery-tile-tags gallery-item-tags">
+        {{#each content.tags}}
+          <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
+        {{/each}}
+      </ul>
+    {{/if}}
+
+    <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
+
+    <nav class="gallery-item-pager">
+      {{#if content.prevHref}}<a href="{{content.prevHref}}" class="btn btn-outline" rel="prev">Previous</a>{{/if}}
+      <a href="{{content.backHref}}" class="btn btn-outline">Back to gallery</a>
+      {{#if content.nextHref}}<a href="{{content.nextHref}}" class="btn btn-outline" rel="next">Next</a>{{/if}}
+    </nav>
+  </article>
+</div>

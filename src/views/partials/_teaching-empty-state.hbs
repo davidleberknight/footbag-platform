@@ -1,0 +1,61 @@
+{{!--
+  Teaching empty state for a member with no media yet, shown in place of the
+  bare "no galleries" message. Reuses the gallery-tile and tag-chip primitives.
+  Works without JavaScript: every chip is a browse link.
+
+  Caller passes:
+    teaching         — { exampleItems[], popularTags[], stats }
+    uploadMediaHref  — the member's upload form URL
+--}}
+<div class="teaching-empty-state">
+  <p class="empty-state">You have not shared any photos or videos yet.</p>
+  <p>
+    <a href="{{uploadMediaHref}}" class="btn btn-primary">Upload your first media</a>
+  </p>
+
+  {{#if teaching.popularTags.length}}
+    <div class="teaching-block">
+      <h2 class="section-heading">Popular tags</h2>
+      <p class="text-muted">Tag your uploads with these so they appear in the right galleries.</p>
+      <ul class="tag-chip-row">
+        {{#each teaching.popularTags}}
+          <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+        {{/each}}
+      </ul>
+    </div>
+  {{/if}}
+
+  {{#if teaching.exampleItems.length}}
+    <div class="teaching-block">
+      <h2 class="section-heading">Recent from the community</h2>
+      <ul class="gallery-grid">
+        {{#each teaching.exampleItems}}
+          <li class="gallery-tile">
+            {{#if media}}
+              {{> video-facade media=media}}
+            {{else}}
+              <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
+                <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
+              </a>
+            {{/if}}
+            {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+            {{#if tags.length}}
+              <ul class="gallery-tile-tags">
+                {{#each tags}}
+                  <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
+                {{/each}}
+              </ul>
+            {{/if}}
+          </li>
+        {{/each}}
+      </ul>
+    </div>
+  {{/if}}
+
+  {{#if teaching.stats.hasCommunityTags}}
+    <p class="teaching-stats text-muted">
+      {{teaching.stats.communityTagCount}} community hashtags in use.
+      {{#if teaching.stats.topTag}} Most popular: <a href="{{teaching.stats.topTag.href}}" class="tag-chip">{{teaching.stats.topTag.display}}</a>.{{/if}}
+    </p>
+  {{/if}}
+</div>

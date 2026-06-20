@@ -462,6 +462,50 @@ describe('refreshAllPersonas', () => {
     expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 
+  it('tears down a build-on-switch persona (David) by slug, releasing his claimed legacy', () => {
+    const TS = '2026-01-01T00:00:00.000Z';
+    const DAVID_ID = 'member-david-built-1';
+
+    // A built David: a REAL registered member (random id, not member_persona_)
+    // carrying the build-on-switch slug, who claimed a real legacy account and
+    // uploaded media. Refresh must discover him by slug.
+    insertMember(db, { id: DAVID_ID, slug: 'david_leberknight', display_name: 'David Leberknight' });
+    insertLegacyMember(db, { legacy_member_id: 'legmem_real_david' });
+    db.prepare(
+      `UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = ?
+        WHERE legacy_member_id = 'legmem_real_david'`,
+    ).run(DAVID_ID, TS);
+    db.prepare(`UPDATE members SET legacy_member_id = 'legmem_real_david' WHERE id = ?`).run(DAVID_ID);
+    db.prepare(
+      `INSERT INTO media_items
+         (id, created_at, created_by, updated_at, updated_by, version, uploader_member_id, media_type, uploaded_at, s3_key_thumb, s3_key_display)
+       VALUES ('media-david-1', ?, 'system', ?, 'system', 1, ?, 'photo', ?, 'david/thumb.jpg', 'david/display.jpg')`,
+    ).run(TS, TS, DAVID_ID, TS);
+
+    const result = refreshAllPersonas(db);
+
+    // David's member row and media are gone; his media keys are returned for
+    // byte deletion by the refresh route.
+    expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, DAVID_ID)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM media_items WHERE id = 'media-david-1'`)).toBe(0);
+    expect(result.deletedMediaKeys).toEqual(
+      expect.arrayContaining(['david/thumb.jpg', 'david/display.jpg']),
+    );
+
+    // His claimed REAL legacy account survives, released (claimable again), not deleted.
+    const legacy = db
+      .prepare(
+        `SELECT claimed_by_member_id, claimed_at FROM legacy_members
+          WHERE legacy_member_id = 'legmem_real_david'`,
+      )
+      .get() as { claimed_by_member_id: string | null; claimed_at: string | null } | undefined;
+    expect(legacy).toBeDefined();
+    expect(legacy!.claimed_by_member_id).toBeNull();
+    expect(legacy!.claimed_at).toBeNull();
+
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+  });
+
   it('restores the append-only DELETE guards after refresh', () => {
     expect(() =>
       db.prepare(`DELETE FROM member_tier_grants WHERE member_id = ?`).run(T1),

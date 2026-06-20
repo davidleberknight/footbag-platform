@@ -570,7 +570,11 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).toContain('#by_ghost_account');
     expect(heroBlock).not.toMatch(/<a[^>]*href="\/members\/ghost_account"/);
   });
+});
 
+// These exercise the item-detail page (/media/:galleryId/:mediaId), where the
+// video facade renders, once per platform.
+describe('GET /media/:galleryId/:mediaId (item detail) -- video platform rendering', () => {
   it('renders YouTube tiles with the i.ytimg.com derived thumbnail and youtube.com href', async () => {
     const db = openDb();
     const id = insertVideo(db, {
@@ -582,7 +586,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('youtube-branch-marker');
     expect(res.text).toContain('https://i.ytimg.com/vi/YT_FIXTURE_ID/hqdefault.jpg');
@@ -602,7 +606,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('vimeo-branch-marker');
     expect(res.text).toContain('https://i.vimeocdn.com/video/987654321_640.jpg');
@@ -619,7 +623,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('s3-branch-marker');
     expect(res.text).toContain(`/media-store/${SYSTEM_ID}/detached/${id}-poster-display.jpg`);
@@ -637,7 +641,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="video-facade"');
     expect(res.text).toContain('data-platform="youtube"');
@@ -657,7 +661,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-platform="vimeo"');
     expect(res.text).toContain('data-embed-url="https://player.vimeo.com/video/424242424"');
@@ -673,12 +677,14 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}/${id}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-platform="s3"');
     expect(res.text).toContain(`data-video-src="/media-store/${SYSTEM_ID}/detached/${id}-video.mp4"`);
   });
+});
 
+describe('GET /media/:galleryId (named gallery, continued)', () => {
   it('does not mark photo tiles as video facades', async () => {
     const db = openDb();
     const id = insertPhoto(db, { caption: 'photo-not-facade-marker' });
@@ -998,6 +1004,88 @@ describe('GET /media/:galleryId — item tag chip linkification', () => {
     expect(tile).not.toMatch(/href="\/members\/media_regular"/);
     // Other criteria-tag chips on the same tile still link to /media/browse.
     expect(tile).toContain('href="/media/browse?tag&#x3D;curated"');
+  });
+});
+
+describe('GET /media/:galleryId/:mediaId (item detail) + grid linking', () => {
+  const GID = 'gallery_item_detail_test';
+  const ITEM_A = 'media_detail_a';
+  const ITEM_B = 'media_detail_b';
+  const ITEM_C = 'media_detail_c';
+
+  beforeAll(() => {
+    const db = openDb();
+    const detailTagId = 'tag-test-detailset';
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#detailset', '#detailset', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(detailTagId, TS, TS);
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, '#by_detail_uploader', '#by_detail_uploader', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run('tag-by-detail-uploader', TS, TS);
+    insertMember(db, { id: 'member-detail-uploader', slug: 'detail_uploader', display_name: 'Detail Uploader' });
+
+    insertNamedGallery(db, { id: GID, ownerId: SYSTEM_ID, name: 'Detail Set' });
+    insertGalleryCriteria(db, GID, [detailTagId]);
+
+    // upload_desc default ordering: newest first, so the gallery order is C, B, A.
+    insertPhoto(db, { id: ITEM_A, caption: 'detail-item-a', uploaded_at: '2026-07-01T00:00:00.000Z' });
+    insertPhoto(db, { id: ITEM_B, caption: 'detail-item-b', uploaded_at: '2026-07-02T00:00:00.000Z' });
+    insertPhoto(db, { id: ITEM_C, caption: 'detail-item-c', uploaded_at: '2026-07-03T00:00:00.000Z' });
+    for (const id of [ITEM_A, ITEM_B, ITEM_C]) attachTag(db, id, detailTagId, '#detailset');
+    // Attribute the middle item to a member, so the detail page shows uploader.
+    attachTag(db, ITEM_B, 'tag-by-detail-uploader', '#by_detail_uploader');
+    db.close();
+  });
+
+  it('renders an item detail with caption, back link, and prev/next within the gallery', async () => {
+    // Order C, B, A; middle B → prev is the newer C, next is the older A.
+    const res = await request(createApp()).get(`/media/${GID}/${ITEM_B}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('detail-item-b');
+    expect(res.text).toContain(`href="/media/${GID}"`);
+    expect(res.text).toContain(`href="/media/${GID}/${ITEM_C}"`);
+    expect(res.text).toContain(`href="/media/${GID}/${ITEM_A}"`);
+    expect(res.text).toContain('rel="prev"');
+    expect(res.text).toContain('rel="next"');
+  });
+
+  it('omits Previous on the first item and Next on the last', async () => {
+    const first = await request(createApp()).get(`/media/${GID}/${ITEM_C}`);
+    expect(first.status).toBe(200);
+    expect(first.text).not.toContain('rel="prev"');
+    expect(first.text).toContain('rel="next"');
+
+    const last = await request(createApp()).get(`/media/${GID}/${ITEM_A}`);
+    expect(last.status).toBe(200);
+    expect(last.text).toContain('rel="prev"');
+    expect(last.text).not.toContain('rel="next"');
+  });
+
+  it('shows uploader attribution as plain text for an anonymous viewer', async () => {
+    const res = await request(createApp()).get(`/media/${GID}/${ITEM_B}`);
+    expect(res.text).toContain('Uploaded by');
+    expect(res.text).toContain('Detail Uploader');
+    expect(res.text).not.toMatch(/href="\/members\/detail_uploader"/);
+  });
+
+  it('returns 404 for an item not in the gallery', async () => {
+    const res = await request(createApp()).get(`/media/${GID}/media_not_in_gallery`);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for an item under an unknown gallery', async () => {
+    const res = await request(createApp()).get(`/media/gallery_does_not_exist/${ITEM_B}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('links grid tiles to the item detail page rather than opening a new tab', async () => {
+    const res = await request(createApp()).get(`/media/${GID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`href="/media/${GID}/${ITEM_B}"`);
+    const gridSlice = res.text.slice(res.text.indexOf('gallery-grid'));
+    expect(gridSlice).not.toContain('target="_blank"');
   });
 });
 

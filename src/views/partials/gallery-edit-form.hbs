@@ -45,33 +45,38 @@
     {{#if fieldErrors.description}}<small class="form-field-error" role="alert">{{fieldErrors.description}}</small>{{/if}}
   </div>
 
-  <div class="form-field">
-    <label for="gallery-sort-order">Sort order</label>
-    <select id="gallery-sort-order" name="sortOrder">
-      <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
-      <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
-      <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
-    </select>
-    {{#if fieldErrors.sortOrder}}<small class="form-field-error" role="alert">{{fieldErrors.sortOrder}}</small>{{/if}}
-  </div>
+  <details class="gallery-advanced"{{#if (or fieldErrors.criteriaTags (or fieldErrors.excludeTags fieldErrors.sortOrder))}} open{{/if}}>
+    <summary>Advanced: which items appear, and their order</summary>
+    <p class="form-hint">These settings use hashtags to choose what the gallery collects, and how its items are ordered. They are separate from the gallery's name, which is only its title and its web address.</p>
 
-  <div class="form-field">
-    <label for="gallery-criteria-tags">Criteria tags</label>
-    <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
-    {{#if isCreate}}
-      <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
-    {{else}}
-      <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Tags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
-    {{/if}}
-    {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
-  </div>
+    <div class="form-field">
+      <label for="gallery-sort-order">Sort order</label>
+      <select id="gallery-sort-order" name="sortOrder">
+        <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
+        <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
+        <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
+      </select>
+      {{#if fieldErrors.sortOrder}}<small class="form-field-error" role="alert">{{fieldErrors.sortOrder}}</small>{{/if}}
+    </div>
 
-  <div class="form-field">
-    <label for="gallery-exclude-tags">Exclude tags</label>
-    <textarea id="gallery-exclude-tags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
-    <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
-    {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
-  </div>
+    <div class="form-field">
+      <label for="gallery-criteria-tags">Criteria tags</label>
+      <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
+      {{#if isCreate}}
+        <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is added automatically.</small>
+      {{else}}
+        <small class="form-hint">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Tags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
+      {{/if}}
+      {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
+    </div>
+
+    <div class="form-field">
+      <label for="gallery-exclude-tags">Exclude tags</label>
+      <textarea id="gallery-exclude-tags" name="excludeTags" rows="2" placeholder="#tricks_of_the_trade" data-tag-chips>{{gallery.excludeTagsString}}</textarea>
+      <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
+      {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
+    </div>
+  </details>
 
   {{#if externalLinkSlots.length}}
     <fieldset class="form-fieldset">

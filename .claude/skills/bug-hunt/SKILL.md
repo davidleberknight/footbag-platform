@@ -56,7 +56,7 @@ When an AI agent runs this file, treat it as a prompt with explicit role, succes
 
 ### 0.2 Audit-wide scope filters (apply to every section)
 
-Hard gate: before any finding is recorded, rebuild the in-scope inventory from the repository and write the diff between the re-derived surface and the seed inventory into scratch notes. The seed inventory is a starting hypothesis, never a scope authority. A run that has not produced and reconciled this diff has not established scope and must not record findings yet. Any seed-versus-code disagreement is investigated to resolution, not assumed in the seed's favor.
+Hard gate: before any finding is recorded, build the in-scope inventory from the repository (per §1.1) into scratch notes. A run that has not produced this inventory has not established scope and must not record findings yet. Any apparent gap between a documented story and the deployed code is investigated to resolution from the code, never assumed.
 
 - **Deployed-only**. A user story is "deployed" if at least one HTTP route in `src/routes/*.ts` (mounted by `src/app.ts`) serves it, or if a service-only call site is invoked at runtime.
 - **Everything deployed is in scope by default.** Per-run exclusions come only from the prompt that kicks off the hunt; record any such exclusion in the `BUGS.md` scope note so a later run knows what was skipped.
@@ -111,19 +111,15 @@ Alternatives: <only the realistic alternatives>
 
 Do not batch questions. Ask the highest-leverage blocking question first, then continue after the maintainer answers.
 
-### 1.1 Current seed inventory
+### 1.1 Derive the deployed surface (every run)
 
-The deployed surface below is the current seed inventory for §3 through §5. Re-derive it from the repo before relying on it:
+This skill carries no story inventory: which user stories are deployed, partial, or stubbed changes every slice, so any embedded list drifts and silently scopes the hunt wrong. Build the in-scope surface from the repository on every run, before scoping:
 
-- **Freestyle**: the `/freestyle/*` public surface — its GET routes in `src/routes/publicRoutes.ts` served by `src/controllers/freestyleController.ts`, backed by `freestyleService` / `freestyleRecordShaping` / `freestyleRecordVisibility` / `freestyleRelatedTricks`, rendered from `src/views/freestyle/**`, with the mechanically-tested dictionary-trick-card uniformity contract. GET-only/public: the stressed categories are §4.4.8 (XSS), §4.4.1 (logic), §4.4.6 (anti-enumeration on slug lookups), and §4.4B (design/comment divergence).
+- Enumerate the live routes in `src/routes/publicRoutes.ts` and every router mounted in `src/app.ts`. Follow each route to its controller and service to identify the user story it serves and how completely (full, partial, stub).
+- A story is in scope when a deployed route reaches its behavior. A story with no route, or only a service with no HTTP path, is out of scope for a route/integration hunt; note it and move on.
+- Record partial deployments (a route covering only some success criteria) and adapter stubs (a throwing payment or SES adapter) as you find them, since they bound what the hunt can exercise.
 
-- **V_*** (8): V_Browse_Static_Content, V_Browse_Clubs, V_Browse_Upcoming_Events (partial — TEMP-DEVIATION on upcoming region), V_Browse_Past_Events, V_View_Gallery, V_Access_Denied, V_Not_Found, V_Error_or_Maintenance_Mode, V_Register_Account
-- **M_*** (15): M_Login, M_Verify_Email, M_Reset_Password, M_Change_Password, M_Logout, M_Browse_Legacy_Archive (edge-only — not exercisable from Express), M_Claim_Legacy_Account, M_Confirm_Auto_Linked_Identity, M_Complete_Onboarding_Wizard, M_Edit_Profile, M_Contact_IFPA_Admin, M_Search_Members, M_View_Profile, M_Active_Player_Expiry, M_Upload_Photo, M_Organize_Media_Galleries, M_Delete_Own_Media
-- **A_*** (5): A_View_Official_Roster_Reports (service-only, no HTTP route deployed), A_Moderate_Media (partial — only the curator-edit / curator-delete sub-criteria deployed), A_Upload_Curated_Media, A_View_Dashboard (stub only), A_Resolve_Contact_IFPA_Admin_Request
-
-Stories NOT deployed today: V_View_Trick_Reference_Videos, V_View_News_Feed, V_View_Tutorials, V_Browse_Hashtags; M_Delete_Account / M_Restore_Account / M_Download_Data, M_Join_Club / M_Leave_Club / M_View_Club, M_Register_For_Event / M_View_Event, all M_* under §3.7 Voting / §3.8 (M_Submit_Video, M_Flag_Media) / §3.9 Email; all EO_*, all CL_*, and the majority of A_*. These are explicitly **out of scope** for §3-§5 work.
-
-**Now deployed (in scope):** the membership-payment surface — `POST /members/:memberKey/purchase-tier`, the stub checkout routes, `POST /payments/webhook`, `/payments/success` / `/payments/cancel`, and `GET /members/:memberKey/payments` (`src/routes/publicRoutes.ts`), served by `paymentController` / `paymentService` / the `paymentAdapter` stub. The live Stripe adapter is still a throwing stub (`PAYMENT_ADAPTER=stub` only), so live-mode webhook verification is not yet exercised. The §4 bug hunt covers this surface. The real webhook verifier and the SDK-signed stub are in place (`src/adapters/stripeWebhook.ts`); only the live Stripe checkout-session creation remains.
+Hold the derived surface in this run's scratch notes only; never write it back into this skill.
 
 ---
 
@@ -719,7 +715,7 @@ Report service-JSDoc findings under `Design-divergence and hygiene` unless the i
 
 0. **Audit `BUGS.md` before touching it** (run it after the §4.3 pre-reads, before any write). Re-verify every existing entry against current code: re-resolve each file:line, confirm the bug still exists, correct drifted line numbers, and delete entries whose fix has landed. Re-check that each Leads item still awaits its confirm/refute step. Only after this audit may the sweep write anything to the file.
 1. **Load the mandatory pre-reads** (§4.3). Establish the source-of-truth order and current accepted deviations.
-2. **Rebuild the deployed surface from code**: sweep `src/app.ts`, `src/routes/*.ts`, service-only runtime call sites, worker/internal routes, mounted routers, and route-level middleware. Compare the result to §1.1; any drift is a signal to investigate, not an automatic finding.
+2. **Rebuild the deployed surface from code**: sweep `src/app.ts`, `src/routes/*.ts`, service-only runtime call sites, worker/internal routes, mounted routers, and route-level middleware. This derived surface is the scope (per §1.1); any disagreement with a documented story is a signal to investigate, not an automatic finding.
 3. **Build the scratch deployed-story traceability matrix** (§1.0). Classify each story/feature as complete, partial, technical-without-story, designed-not-deployed, future, or ambiguous. For complete/partial deployed stories, list the success criteria that must be checked.
 4. **Run a quick threat-model pass** for the high-risk flows: login/session, register/verify/reset, legacy claim/auto-link/onboarding, member profile/media/gallery, clubs/groups where deployed, admin/curator, payments/webhooks, outbox/email, contact-admin, archive-boundary, and worker/internal IPC.
 5. **Sweep `src/routes/*.ts` + `src/app.ts`** for route registrations. Build a mental map of which controller serves each route. Note which routes traverse `requireAuth`, `requireAdmin`, `requireTier1Benefits`, `requireOriginPin`, rate limits, body parsers, upload middleware, and any route-specific cache/header behavior. Any divergence from the expected gate pattern is a candidate finding.
@@ -860,7 +856,7 @@ Run these checks. Fix the report (or your scan) if any fail.
 
 ### 4.7A Adversarial review of this skill (every run)
 
-Each run spends a final, explicit step attacking this skill, not just the code: where did the scope filters, anti-patterns, seed inventory, or stopping wording let a bug slip, narrow scope, or excuse incompleteness this run? Treat any default exclusion (CAPTCHA, `legacy_data/`, non-deployed stories) as a hypothesis to re-justify against this run's evidence, not a settled boundary. Record concrete skill-improvement notes to the maintainer in the closing summary (never edit this skill mid-hunt). A run that found the skill flawless must say why, naming what it specifically tried to break. Close the loop on escaped defects: any false negative discovered after a hunt (a real bug a prior sweep read past, or one surfaced later by tests, staging, or production) is converted into a permanent deterministic check (a regression test, or a convention/lint/CI gate) so that exact class cannot escape again, and if it is a new class, a new §4.4 category is proposed to the maintainer. A false positive that survived this skill's verification (a recorded finding later refuted) is handled the same way: identify which verification step should have caught it and propose the gap-closing edit.
+Each run spends a final, explicit step attacking this skill, not just the code: where did the scope filters, anti-patterns, scope derivation, or stopping wording let a bug slip, narrow scope, or excuse incompleteness this run? Treat any default exclusion (CAPTCHA, `legacy_data/`, non-deployed stories) as a hypothesis to re-justify against this run's evidence, not a settled boundary. Record concrete skill-improvement notes to the maintainer in the closing summary (never edit this skill mid-hunt). A run that found the skill flawless must say why, naming what it specifically tried to break. Close the loop on escaped defects: any false negative discovered after a hunt (a real bug a prior sweep read past, or one surfaced later by tests, staging, or production) is converted into a permanent deterministic check (a regression test, or a convention/lint/CI gate) so that exact class cannot escape again, and if it is a new class, a new §4.4 category is proposed to the maintainer. A false positive that survived this skill's verification (a recorded finding later refuted) is handled the same way: identify which verification step should have caught it and propose the gap-closing edit.
 
 ### 4.8 Anti-patterns — what NOT to flag
 

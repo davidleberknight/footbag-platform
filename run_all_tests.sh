@@ -45,17 +45,23 @@ FULL=0
 # --with-smoke). In that case missing staging credentials SKIP the smoke gate
 # instead of failing the whole run, so --full is usable without an AWS profile.
 SMOKE_OPTIONAL=0
+WITH_PERSONA_CRAWL=0
+# Like SMOKE_OPTIONAL: set when the persona crawl runs only because --full
+# implied it. Then a dev stack that is not up SKIPs the gate instead of failing
+# the whole run, so --full works without a running app.
+PERSONA_CRAWL_OPTIONAL=0
 FAIL_FAST=0
 for arg in "$@"; do
   case "$arg" in
-    --quick)      QUICK=1 ;;
-    --with-smoke) WITH_SMOKE=1 ;;
-    --pentest)    PENTEST=1 ;;
-    --full)       FULL=1 ;;
-    --fail-fast)  FAIL_FAST=1 ;;
+    --quick)              QUICK=1 ;;
+    --with-smoke)         WITH_SMOKE=1 ;;
+    --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
+    --pentest)            PENTEST=1 ;;
+    --full)               FULL=1 ;;
+    --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -68,6 +74,13 @@ Options:
   --with-smoke  Additionally run the staging-AWS adapter smoke suite
                 (npm run test:smoke). Requires RUN_STAGING_SMOKE=1 and a
                 configured staging AWS profile; errors out otherwise.
+  --with-persona-crawl
+                Additionally run the David Leberknight dev-persona build-switch
+                journey and page crawl (npm run test:persona-crawl) against an
+                already-running dev stack. It needs the loaded pipeline database
+                and the real image worker, so start ./run_dev.sh first; the gate
+                errors out when the app is unreachable. Point it elsewhere with
+                PERSONA_CRAWL_BASE_URL. Never runs in CI.
   --pentest     Additionally run the heavyweight pentest harness
                 (npm run test:pentest:heavy). Boots a throwaway stack and runs
                 the security-header walk, internal-route, and upload-abuse
@@ -107,6 +120,8 @@ if (( FULL == 1 )); then
   WITH_SMOKE=1
   PENTEST=1
   SMOKE_OPTIONAL=1
+  WITH_PERSONA_CRAWL=1
+  PERSONA_CRAWL_OPTIONAL=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -291,6 +306,69 @@ gate_pentest() {
   npm run test:pentest:heavy
 }
 
+gate_persona_crawl() {
+  # The DL persona is built against loaded pipeline data and the real image
+  # worker. This gate boots the dev stack against the existing loaded dev DB,
+  # runs the DL build-switch journey (media + onboarding), then tears the stack
+  # down. The in-suite seeded-persona crawl runs separately in the integration
+  # gate. Booting with no rebuild flag writes nothing under legacy_data/ or
+  # curated/, so the real-data fingerprint guard stays satisfied.
+  local base="${PERSONA_CRAWL_BASE_URL:-http://localhost:3000}"
+
+  # Require a loaded DB carrying DL's data (his HOF record + the Wellington club);
+  # the build-switch journey needs them. Absent → SKIP under --full, FAIL under an
+  # explicit --with-persona-crawl.
+  local have_db=0
+  if [[ -f database/footbag.db ]] && command -v sqlite3 >/dev/null 2>&1; then
+    local hof wel
+    hof=$(sqlite3 database/footbag.db "SELECT COUNT(*) FROM historical_persons WHERE hof_member=1 AND person_name LIKE '%Leberknight%';" 2>/dev/null || echo 0)
+    wel=$(sqlite3 database/footbag.db "SELECT COUNT(*) FROM clubs WHERE name LIKE '%Wellington%';" 2>/dev/null || echo 0)
+    [[ "${hof}" != "0" && "${wel}" != "0" ]] && have_db=1
+  fi
+  if (( have_db == 0 )); then
+    if (( PERSONA_CRAWL_OPTIONAL == 1 )); then
+      echo "  persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club); build one with ./run_dev.sh --reset; skipping under --full."
+      return 77
+    fi
+    echo "ERROR: persona crawl needs a loaded dev DB (DL's HOF record + the Wellington club)." >&2
+    echo "Recommendation: bash scripts/reset-local-db.sh (or ./run_dev.sh --reset), then re-run." >&2
+    return 1
+  fi
+
+  reclaim_port 3000
+  reclaim_port 4001
+
+  # Boot the dev stack (web + image worker) against the existing loaded DB. No
+  # rebuild flag → no DB work. scripts/dev.sh installs a trap that kills both
+  # children on SIGTERM, so signaling this PID cascades the shutdown; reclaim_port
+  # is the backstop.
+  ./run_dev.sh >"${LOG_DIR}/persona-stack.log" 2>&1 &
+  local stack_pid=$!
+
+  local ready=0 i
+  for i in $(seq 1 60); do
+    if curl -fsS -o /dev/null --max-time 2 "${base}/" 2>/dev/null; then ready=1; break; fi
+    kill -0 "${stack_pid}" 2>/dev/null || break
+    sleep 2
+  done
+
+  local rc=0
+  if (( ready == 0 )); then
+    echo "ERROR: dev stack did not become ready at ${base} within the timeout; see ${LOG_DIR}/persona-stack.log" >&2
+    rc=1
+  else
+    npm run test:persona-crawl
+    rc=$?
+  fi
+
+  kill -TERM "${stack_pid}" 2>/dev/null || true
+  sleep 3
+  kill -KILL "${stack_pid}" 2>/dev/null || true
+  reclaim_port 3000
+  reclaim_port 4001
+  return $rc
+}
+
 gate_smoke() {
   if [[ "${RUN_STAGING_SMOKE:-}" != "1" ]]; then
     if (( SMOKE_OPTIONAL == 1 )); then
@@ -372,6 +450,10 @@ fi
 
 if (( WITH_SMOKE == 1 )); then
   run_gate smoke      gate_smoke
+fi
+
+if (( WITH_PERSONA_CRAWL == 1 )); then
+  run_gate persona-crawl gate_persona_crawl
 fi
 
 if (( PENTEST == 1 )); then

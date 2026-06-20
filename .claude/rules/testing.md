@@ -131,6 +131,12 @@ The only scripts permitted to write a real-data path are the CI loader-pipeline 
 
 `./run_all_tests.sh` is the canonical local full-suite runner and is safe on a workstation holding real `legacy_data/` by design: it excludes the loader gate, and it fingerprints `legacy_data/` and `curated/` before and after the run, aborting non-zero if any tree changed. Any new suite added to `run_all_tests.sh` must preserve this — the new gate writes only to tmp.
 
+## /curated guardrail (pre-go-live; dev-only)
+
+In dev, curated-media writes mutate the persistent on-disk `/curated/` sidecar files, which are the committed source of truth, so a switchable test-persona admin must not author real curated content. The curator service refuses curated and FH-owned-gallery writes (`assertCuratorActorMayWriteCurated`) from seeded test personas (member ids carrying the `member_persona_` prefix). Real maintainer accounts and the David Leberknight persona register through the real flow and carry ordinary ids, so they pass; the coming freestyle sidecar curation reuses the same curator service and inherits the guard.
+
+The guard is keyed on `config.allowCuratedSidecarWrites`: it fires only where the on-disk sidecar write is enabled (dev, and the integration-test fixture, which sets `ALLOW_CURATED_SIDECAR_WRITES=1`). Staging and production run with the flag off, write curated content to the DB and object store only, and let any admin curate; there the guard is a no-op. Testing is therefore env-coupled: `tests/integration/curatorMediaService.persona-guard.test.ts` runs with the flag on (persona refused, real admin allowed, member-owned writes unaffected), and `tests/integration/curatorMediaService.persona-guard.sidecars-off.test.ts` boots with the flag cleared to pin the staging/production no-op.
+
 ## Cross-references
 
 - `docs/TESTING.md` — testing strategy and methodology: how to derive, layer, and verify tests.

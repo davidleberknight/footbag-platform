@@ -34,6 +34,19 @@ export const mediaController = {
     }
   },
 
+  namedGalleryItem(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = mediaService.getNamedGalleryItemPage(
+        req.params.galleryId,
+        req.params.mediaId,
+        { authenticated: req.user != null },
+      );
+      res.render('media/gallery-item', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'media controller (named gallery item)');
+    }
+  },
+
   browse(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = mediaService.getMediaBrowsePage(

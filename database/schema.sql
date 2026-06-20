@@ -2225,7 +2225,9 @@ CREATE TABLE media_items (
 
 -- Named collections of media items owned by a member. Each member may have
 -- one default gallery and any number of named galleries. Hard-delete only.
--- Deleting a gallery cascades to all its media items and external links.
+-- Deleting a gallery removes only the gallery row and its own tag-criteria and
+-- external-link rows (ON DELETE CASCADE); the media items it displayed survive,
+-- because a gallery is a saved tag-query, not a container of media.
 CREATE TABLE member_galleries (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,

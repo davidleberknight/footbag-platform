@@ -80,6 +80,7 @@ fi
 
 PYTHON="${VENV}/bin/python3"
 
+phase_slate() {
 echo "Resetting database: ${DB_FILE}"
 
 rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
@@ -96,7 +97,9 @@ sqlite3 "${DB_FILE}" < "${SCHEMA}"
 #   data export when it becomes available.
 echo "  → Loading legacy_members seed (temporary, mirror-derived)..."
 "${PYTHON}" legacy_data/scripts/load_legacy_members_seed.py --db "${DB_FILE}"
+}
 
+phase_canonical_seed() {
 # Build seed CSVs from canonical input. Script 07 stamps source_scope='CANONICAL'
 # on persons, which the /history Players query requires. This replaces the prior
 # cp-based shortcut, which dropped source_scope and broke the /history listing.
@@ -112,7 +115,9 @@ echo "  → Loading seed data into database..."
 "${PYTHON}" legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
+}
 
+phase_post_canonical() {
 # Build the freestyle tables via the self-contained freestyle pipeline: records,
 # consecutive records, trick dictionary (curated-v1 + Red overlays + footbag.org
 # provenance + pending), the notation parser, and QC. Freestyle lives outside
@@ -273,3 +278,24 @@ CLUB_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM clubs;")
 MEMBER_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM legacy_person_club_affiliations;")
 echo "  → Done. ${EVENT_COUNT} events, ${CLUB_COUNT} clubs, ${MEMBER_COUNT} club affiliations in database."
 echo "Reset complete: ${DB_FILE}"
+}
+
+# Phase dispatch. No argument runs the full standalone reset (slate + canonical
+# seed + post), preserving prior behavior for `run_dev --reset`, `--db-only`,
+# deploy-rebuild.sh, and direct invocation. The deploy two-pass
+# (deploy-local-data.sh soup-to-nuts / from-csv) calls --slate, then
+# run_pipeline.sh (which reseeds canonical loader 08 on the empty slate and
+# rebuilds net/clubs/enrichment), then --post-canonical to layer freestyle,
+# the full clubs seed, curator content, and tag_stats while idempotently
+# refreshing the rest. Splitting it this way keeps loader 08 off an
+# already-populated DB, which is what made the in-place reseed abort on the
+# net_* foreign keys.
+case "${1:-all}" in
+  --slate)          phase_slate ;;
+  --post-canonical) phase_post_canonical ;;
+  all|"")           phase_slate; phase_canonical_seed; phase_post_canonical ;;
+  *)
+    echo "usage: $(basename "$0") [--slate|--post-canonical]" >&2
+    exit 1
+    ;;
+esac

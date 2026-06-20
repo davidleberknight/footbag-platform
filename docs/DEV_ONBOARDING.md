@@ -410,34 +410,17 @@ Expected result:
 - the local DB file is rebuilt
 - the app has deterministic baseline data for local testing and optional smoke checks
 
-### 1.7.1 Optional: register yourself as a dev admin
+### 1.7.1 Dev admin allowlist (maintainers)
 
-The dev site auto-promotes new registrants to admin if their email is listed in a gitignored file. One-time setup per machine:
+Admin in dev confers the curator role, which authors real `/curated/` content (the committed source of truth), so it is restricted to the project maintainers and is not a default setup step. Normal local development needs no admin, and a new developer does not self-grant it. If you need admin for a specific task, coordinate with a maintainer rather than adding yourself.
 
-1. Create `.local/initial-admins.txt` at the repo root with one email per line. This is the email you'll use when registering on the dev site. `#` line-comments and blank lines are allowed:
-
-   ```
-   # one email per line
-   your-email@example.com
-   ```
-
-   The `.local/` directory is gitignored. Do not commit this file or any other file containing email addresses.
-
-2. Visit `/register`, fill in your name + email + password, submit.
-
-3. On the resulting `/register/check-email` page, the simulated email card shows the verification email (dev `SES_ADAPTER=stub` keeps it in-memory; no real SES). Click the verification link.
-
-4. You're now signed in. The "Admin" link appears in the nav and `/admin` is the dashboard.
-
-The file persists across DB resets. To grant admin to a different email, edit the file and reset the database via `bash scripts/reset-local-db.sh`, then re-register with the new email. When the file is missing or your email is not listed, registration proceeds normally as a non-admin member.
+For reference, the mechanism: the dev site auto-promotes a registrant whose normalized email is listed in the gitignored `.local/initial-admins.txt` allowlist (one email per line; `#` comments and blank lines allowed). A member whose email is not listed registers normally as a non-admin. The `.local/` directory is gitignored; never commit a file containing email addresses.
 
 Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE §17.8.
 
-### 1.7.2 Optional: pre-seed maintainer admin accounts
+### 1.7.2 Pre-seeding maintainer admin accounts (maintainers)
 
-An alternative to the register-time auto-promote in §1.7.1 is to pre-seed admin accounts directly into the local database, no register or verify flow needed. Useful when you want admin logins available immediately after a DB reset.
-
-The two mechanisms coexist; pick either, both, or neither.
+Maintainers can also pre-seed admin accounts directly into the local database, no register or verify flow needed, so a maintainer admin login is available immediately after a DB reset. Like the allowlist above, this is maintainer tooling for authoring real curated content, not a step a new developer runs to grant themselves admin; the two mechanisms are documented here for reference.
 
 1. Create `.local/dev-admin-seed.json` at the repo root. The `.local/` directory is gitignored. Required fields per entry: `loginEmail`, `displayName`, `realName` (all non-empty strings). Optional `tier`: `'tier2'` or `'tier3'` (defaults to `'tier2'` since admin requires Tier 2+).
 
@@ -511,7 +494,7 @@ The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the 
 
 For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
 
-To act as a maintainer admin tied to your own `.local/dev-admin-seed.json` entry, run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
+A maintainer who has seeded a `.local/dev-admin-seed.json` entry (see §1.7.2) can act as that admin: run the dev-admin seed so it lands as a Tier 2 admin member, then switch to its slug:
 
 ```bash
 ./scripts/manage-dev-admin-seed.sh --seed-dev-admins

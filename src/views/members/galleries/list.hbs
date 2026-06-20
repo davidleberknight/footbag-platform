@@ -71,6 +71,10 @@
       </tbody>
     </table>
   {{else}}
-    <p class="empty-state">You haven't created any galleries yet.</p>
+    {{#if content.teaching}}
+      {{> _teaching-empty-state teaching=content.teaching uploadMediaHref=content.uploadMediaHref}}
+    {{else}}
+      <p class="empty-state">You haven't created any galleries yet.</p>
+    {{/if}}
   {{/if}}
 </div>

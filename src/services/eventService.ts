@@ -49,6 +49,7 @@
  * Service shape: singleton object (no external adapters).
  */
 import {
+  countGalleryItemsByCriteria,
   CuratorSlotMediaRow,
   media,
   PublicCompletedEventSummaryRow,
@@ -57,6 +58,7 @@ import {
   PublicEventResultRow,
   PublicEventSummaryRow,
   publicEvents,
+  queryTagIdsByNormalized,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -152,6 +154,9 @@ export interface PublicEventPage {
   isSparse: boolean;
   primarySection: 'details' | 'results';
   resultSections: PublicResultSection[];
+  // Link to the event's media gallery, set only when media carries the event's
+  // hashtag (mirrors the club gallery link); null hides the affordance.
+  viewGalleryHref: string | null;
 }
 
 export interface FeaturedPromoCard {
@@ -187,6 +192,9 @@ export interface EventDetailContent {
   isSparse: boolean;
   primarySection: 'details' | 'results';
   resultSections: PublicResultSection[];
+  // Link to the event's media gallery, set only when media carries the event's
+  // hashtag (mirrors the club gallery link); null hides the affordance.
+  viewGalleryHref: string | null;
 }
 
 function assertArchiveYear(year: number): void {
@@ -452,6 +460,7 @@ function toPublicEventPage(
   eventRow: PublicEventDetailRow,
   disciplineRows: PublicEventDisciplineRow[],
   resultRows: PublicEventResultRow[],
+  viewGalleryHref: string | null,
 ): PublicEventPage {
   const resultSections = groupPublicResultRows(resultRows);
   const hasResults = resultSections.length > 0;
@@ -472,6 +481,7 @@ function toPublicEventPage(
     isSparse,
     primarySection: hasResults ? 'results' : 'details',
     resultSections,
+    viewGalleryHref,
   };
 }
 
@@ -515,7 +525,16 @@ export class EventService {
       const disciplineRows = publicEvents.listDisciplinesByEventId.all(eventRow.event_id) as PublicEventDisciplineRow[];
       const resultRows = publicEvents.listPublicResultRowsByEventId.all(eventRow.event_id) as PublicEventResultRow[];
 
-      return toPublicEventPage(eventRow, disciplineRows, resultRows);
+      // Offer the media-gallery link only when media carries the event's
+      // hashtag, mirroring the club gallery link.
+      const galleryToken = normalizedStoredTag.slice(1); // drop leading '#'
+      const tagRows = queryTagIdsByNormalized([normalizedStoredTag]);
+      const viewGalleryHref =
+        tagRows.length > 0 && countGalleryItemsByCriteria([tagRows[0].id]) > 0
+          ? `/media/browse?tag=${encodeURIComponent(galleryToken)}`
+          : null;
+
+      return toPublicEventPage(eventRow, disciplineRows, resultRows, viewGalleryHref);
     });
   }
 

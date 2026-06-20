@@ -101,7 +101,9 @@ function toRow(
     ...(backed && !switchable
       ? { loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}` }
       : {}),
-    switchHref: `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
+    switchHref: spec.buildOnSwitch
+      ? `/dev/build-switch?as=${encodeURIComponent(spec.slug)}`
+      : `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
   };
 }
 
@@ -145,8 +147,13 @@ function groupByDimension(specs: PersonaSpec[], rows: PersonaListRow[]): Persona
 
 export function getDevPersonas(_req: Request, res: Response, next: NextFunction): void {
   try {
+    // A build-on-switch persona (DL) shows wherever /dev mounts (dev + staging,
+    // never prod) and always offers a Switch, which builds it on first click;
+    // other personas show a Switch only when seeded and switchable.
     const rows = CANONICAL_PERSONAS.map((spec) =>
-      toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
+      spec.buildOnSwitch
+        ? toRow(spec, true, true)
+        : toRow(spec, isPersonaBacked(spec), isPersonaSwitchable(spec)),
     );
     res.render('dev/persona-listing', {
       seo: { title: 'Test personas' },

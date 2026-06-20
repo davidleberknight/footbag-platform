@@ -141,6 +141,18 @@ def main() -> None:
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
 
+    # This loader is a full canonical reseed; the deletes below assume an empty
+    # slate. If event_result_entries already holds rows, a prior full build
+    # populated the DB and the deletes would abort on foreign-key children that
+    # are not cleared here (for example net_team_appearance). Fail with a clear
+    # message rather than a cryptic FK error.
+    if conn.execute("SELECT 1 FROM event_result_entries LIMIT 1").fetchone():
+        raise SystemExit(
+            "08 canonical reseed aborted: event_result_entries is non-empty "
+            "(this loader requires an empty canonical slate). Rebuild via "
+            "reset-local-db.sh or deploy-local-data.sh, which wipe first."
+        )
+
     try:
         # ------------------------------------------------------------------
         # Clear existing result/event data only

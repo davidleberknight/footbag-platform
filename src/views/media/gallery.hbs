@@ -31,13 +31,10 @@
     <ul class="gallery-grid">
       {{#each content.items}}
         <li class="gallery-tile">
-          {{#if media}}
-            {{> video-facade media=media}}
-          {{else}}
-            <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-              <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
-            </a>
-          {{/if}}
+          <a href="{{itemHref}}" class="gallery-tile-media{{#if media}} gallery-tile-video{{/if}}">
+            <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
+            {{#if media}}<span class="gallery-tile-play" aria-hidden="true"><svg viewBox="0 0 24 24" width="48" height="48" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span>{{/if}}
+          </a>
           {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
           {{#if tags.length}}
             <ul class="gallery-tile-tags">

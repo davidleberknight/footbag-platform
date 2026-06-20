@@ -25,6 +25,10 @@
         {{#if content.event.externalUrl}}
           {{{externalLink content.event.externalUrl label="Event Website" class="btn btn-outline event-external-link"}}}
         {{/if}}
+
+        {{#if content.viewGalleryHref}}
+          <a href="{{content.viewGalleryHref}}" class="btn btn-outline">View gallery</a>
+        {{/if}}
       </div>
 
       {{! ── Description ───────────────────────────────────────── }}

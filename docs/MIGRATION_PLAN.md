@@ -190,6 +190,7 @@ These decisions are settled. Each is final unless a noted open question revises 
 28. [Open issues](#28-open-issues)
 29. [Operational readiness for go-live](#29-operational-readiness-for-go-live)
 30. [QC subsystem retirement (go-live gate)](#30-qc-subsystem-retirement-go-live-gate)
+31. [Primary-maintainer test-user retirement (go-live gate)](#31-primary-maintainer-test-user-retirement-go-live-gate)
 
 ---
 
@@ -2027,3 +2028,30 @@ Sign-off on QC retirement is a prerequisite for §24 State 3 → State 4 transit
 2. **Pattern grep** (defense in depth). A CI check runs against every PR targeting `main` that greps the source tree for known QC entry points (`/internal/`, `internalRoutes`, `netQcController`, `personsQcController`, `internal_qc` schema table names) and fails the build if any are found. The grep pattern list is maintained alongside the QC retirement PR.
 
 The retirement PR adds both layers to `.github/workflows/ci.yml`. R1 sign-off asserts both layers are present and green.
+
+## 31. Primary-maintainer test-user retirement (go-live gate)
+
+The primary-maintainer build-on-switch test user and all its scaffolding are a hard go-live gate: no production deployment may carry the journey builder, its build-then-switch route, its catalog entry, or the build-on-switch plumbing that supports it. The test user is an initial-testing aid that drives the real registration / verify / claim / onboarding / upload flows against a real-data dev or staging database; it is not a product feature. Retirement is deletion, not a post-launch tidy-up: it deletes the scaffolding only. The test user logs in with a synthetic test address and claims its Hall-of-Fame legacy record by `legacy_member_id`, so no maintainer email lives anywhere in the system to remove; admin, when present, comes only from the operator's own dev admin allowlist, not from the persona itself.
+
+Sign-off on this retirement is a prerequisite for the §24 State 3 → State 4 transition.
+
+**Retirement inventory** (canonical list; the retirement PR maintainer extends this list if files have been added since):
+
+- Delete `src/testkit/davidJourney.ts` (the journey builder) and `src/testkit/personaBuildSwitchRoute.ts` (the build-then-switch route).
+- `src/testkit/canonicalPersonas.ts`: remove the build-on-switch catalog entry.
+- `src/testkit/personaFactory.ts`: remove the `buildOnSwitch` field from `PersonaSpec`.
+- `src/testkit/devRoutes.ts`: remove the `/build-switch` route registration and its import.
+- `src/testkit/personaSeedRunner.ts` and `src/testkit/personaRefreshRunner.ts`: remove the `buildOnSwitch` skip branches and the refresh discovery-by-slug pass that tears down build-on-switch members.
+- `src/testkit/personaListingRoute.ts`: remove the `buildOnSwitch` switch-href and the build-on-switch row override.
+- Tests: remove the build-on-switch assertions in `tests/integration/devPersonasListing.test.ts` and the build-on-switch teardown case in `tests/integration/persona-refresh.service.test.ts`.
+
+**Database and operator-environment teardown** (staging, before the code deletion lands):
+
+- Run persona Refresh (`POST /dev/personas/refresh`), which releases the test user's claimed legacy account back to unclaimed (never deletes the real legacy or HoF record) and deletes the member row, media, and club leadership/affiliation rows. No email mutation needs reverting: the build never writes a maintainer email into the legacy record, and the synthetic login address is not a real mailbox.
+
+**Automated enforcement**: two layers, paired so a rename can't silently slip through:
+
+1. **Positive-assertion test** (preferred). A test asserts that the named scaffolding files (`davidJourney.ts`, `personaBuildSwitchRoute.ts`) no longer exist in the source tree, keyed to this inventory; absence is the success signal.
+2. **Pattern grep** (defense in depth). A CI check on every PR targeting `main` greps the source tree for known entry points (`davidJourney`, `personaBuildSwitchRoute`, `buildOnSwitch`, `build-switch`, `david_leberknight`) and fails the build if any are found.
+
+The retirement PR adds both layers to `.github/workflows/ci.yml`. Sign-off asserts both layers are present and green, and that no member carrying the test user's slug remains in the production-bound database.

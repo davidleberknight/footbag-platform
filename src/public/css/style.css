@@ -792,6 +792,57 @@ th.sortable:hover { color: var(--primary); }
   height: 100%;
   object-fit: cover;
 }
+.gallery-tile-video img { filter: brightness(0.85); }
+.gallery-tile-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  color: var(--white);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+/* Single-item detail page (/media/:galleryId/:mediaId) */
+.gallery-item-detail {
+  max-width: 800px;
+  margin: 0 auto;
+}
+.gallery-item-media {
+  margin: 0 auto;
+}
+.gallery-item-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.gallery-item-media > .video-facade,
+.gallery-item-media > .video-facade-iframe,
+.gallery-item-media > .video-facade-video {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.gallery-item-caption {
+  margin: 16px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+.gallery-item-uploader {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+.gallery-item-tags {
+  padding: 0;
+  margin-top: 12px;
+}
+.gallery-item-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
 
 .gallery-tile-caption {
   margin: 0;
@@ -2361,6 +2412,25 @@ section.home-media { padding-top: 0; }
   width: 100%;
 }
 
+/* Advanced disclosure on the gallery form: the hashtag criteria, exclusions,
+   and sort sit here so the common path (name + upload) stays uncluttered. */
+.gallery-advanced {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 16px;
+  margin: 0 0 20px;
+}
+.gallery-advanced > summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.gallery-advanced[open] > summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
 .form-row-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2736,6 +2806,18 @@ section.home-media { padding-top: 0; }
   padding: 1px 7px;
 }
 .picker-edit-link { font-size: 0.85rem; }
+.picker-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.picker-tags .tag-chip { font-size: 0.7rem; }
+.teaching-empty-state { margin-top: 8px; }
+.teaching-block { margin-top: 24px; }
+.teaching-stats { margin-top: 24px; }
 .gallery-external-link-row { margin-bottom: 10px; }
 .gallery-external-link-row-quarantined { opacity: 0.7; }
 

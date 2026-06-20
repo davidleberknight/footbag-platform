@@ -31,6 +31,7 @@
  * password literal stays behind that guard and is read only by the seed runner.
  */
 import BetterSqlite3 from 'better-sqlite3';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import {
   insertMember,
   insertMemberTierGrant,
@@ -285,6 +286,12 @@ export interface PersonaSpec {
    */
   blockedBy?: string;
   /**
+   * CUTOVER-REMOVE. Non-prod (dev + staging) special user (David Leberknight)
+   * built by real flows on first Switch rather than seeded: the seed/refresh
+   * runners skip it, and the listing points its "Switch" at /dev/build-switch.
+   */
+  buildOnSwitch?: boolean;
+  /**
    * Plain-English user story this persona traces to: the real-world scenario its
    * not-yet-built feature serves, shown beside a blocked persona.
    */
@@ -345,7 +352,11 @@ export function seedPersona(
   spec: PersonaSpec,
   opts: SeedPersonaOpts = {},
 ): Persona {
-  const memberId = `member_persona_${spec.slug}`;
+  // The member-id prefix is load-bearing for the pre-go-live curated-media
+  // guardrail: the curator service refuses curated writes from any member whose
+  // id carries it. Build it from the shared constant; do not inline a different
+  // prefix here without updating the guard in lockstep.
+  const memberId = `${SEEDED_PERSONA_MEMBER_ID_PREFIX}${spec.slug}`;
   const isAdmin = spec.isAdmin ? 1 : 0;
 
   const memberLoginEmail = spec.loginEmail ?? `${spec.slug}@personas.test`;

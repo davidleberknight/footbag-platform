@@ -417,6 +417,9 @@ Success Criteria:
 - Gallery header page displays tag names with proper capitalization, count of total media items.
 - Gallery grid shows standard photo/video layout.
 - Each gallery item displays thumbnail, caption excerpt, all clickable tags, upload date.
+- Opening a gallery item shows its detail (the full display image or a playable video, the full caption, all clickable hashtags, uploader attribution per the visibility rule below, and upload date) on a server-rendered page reached within the site, with a clear path back to the gallery it was opened from.
+- From an item's detail view, the viewer can move to the previous and next item in the same gallery without returning to the grid first.
+- Every surface that lists an item (gallery grid, item detail, browse results) shows that item's hashtags as clickable tags.
 - Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
 - The public hub at `/media` presents a fixed set of collection cards: Browse by hashtag first, the Member galleries card second, then the curated collection cards (Freestyle, Net, Sideline, Related Sports). The Member galleries card is always shown: when no member-owned named gallery exists it renders a "none yet" state with no link, and once at least one exists it links to the member-galleries list page. FH-owned named galleries are reached through the curated collection cards.
@@ -1245,7 +1248,11 @@ Success Criteria:
 
 ## 3.8 Media Sharing
 
-All member-published media is public unless an Administrator removes it via moderation. There is no per-media member-controlled visibility toggle (for example public/private/unlisted). Members control their own content, and if they delete a photo, video link, or gallery, it is permanently gone.
+All member-published media is public from the moment it is saved. An Administrator can remove an item through moderation; that is the only visibility control, and members do not set per-item visibility. Members own their content: deleting a photo or a video link removes it permanently, while deleting a named gallery removes only that gallery's saved view and leaves its items in place.
+
+Named galleries are saved tag-query albums. Each gallery is defined by the hashtags its items must carry, optionally hashtags to exclude, and a sort order; any item whose tags satisfy that query appears in the gallery, and the same item can appear in several galleries at once. A member organizes media by tagging it and naming galleries rather than filing each item into a single folder. The criteria, exclusions, and sort sit behind an Advanced disclosure so the common path (name a gallery, upload into it) stays simple. The member gallery experience and the curator gallery experience share one interface; the differences are that the curator (the system member) may upload binary video and apply the curated marker, while members submit video as YouTube or Vimeo links and their uploads carry their own uploader tag.
+
+Popular-tag suggestions (shown near the tag field and on the empty-state teaching block) are driven by real community usage: tags are ranked by how many distinct members have used them, and a tag qualifies as popular once at least two distinct members share it. Until enough real tags qualify to fill the suggestion list, the remaining slots are padded from a curated seed set (the core discipline tags plus a few community-representative event, club, and style tags). Seed tags occupy only the unfilled slots and fall away automatically as real community tags accrue, so the suggestions converge on genuine usage with no migration or manual edit. When a member's content area is empty, a teaching block shows recent example photos with their hashtags, the popular-tag suggestions, and aggregated hashtag statistics, each clickable to insert a tag.
 
 ### M_Upload_Photo
 
@@ -1259,12 +1266,11 @@ Success Criteria:
 - JPEG and PNG only; GIF not supported. Animated content should be uploaded to YouTube or Vimeo and embedded via video links.
 - Photo processing generates two variants only: Thumbnail (300×300 pixels) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
 - Add caption to photo optionally (plain text, max 500 chars).
-- Optional external URL on each uploaded photo (media_items.external_url; e.g. link to source article or creator page). Validated at the service boundary per DD §3.17. Upload form works without JavaScript.
+- Optional external URL on each uploaded photo (for example a link to a source article or creator page), validated at the service boundary (see DD §3.17). The upload form works without JavaScript.
 - Tag optionally with hashtags for discovery (standardized tags for events and clubs, plus freeform tags such as tutorial, golf).
 - Hashtag matching is case-insensitive for all tag operations (example: #Event_2025_beaver_open and #event_2025_Beaver_Open match identically).
 - Hashtags stored with original capitalization for display quality (example: #Event_2026_Japan_Worlds displays as entered, not lowercased).
-- Static tag suggestions are shown near the tag field using standardized event and club hashtags and popular community freeform tags. Clicking a suggested tag inserts it into the tag field; suggestions are not shown per keystroke as autocomplete (but can be added in phase two).
-- Teaching moments displayed on My Content page empty state: show recent example photos with their hashtags and popular community tags, all clickable to insert into the tag field, and highlight aggregated hashtag statistics.
+- Tag suggestions and the empty-state teaching block follow the §3.8 popular-tag rule; clicking a suggested tag inserts it into the field, with no per-keystroke autocomplete.
 - Photo upload rate limited to 10 uploads per hour per member to prevent abuse.
 - Photo upload controls are only rendered for members with Tier 1 benefits.
 - Visitors (not logged in) never see upload controls.
@@ -1286,13 +1292,12 @@ Success Criteria:
 - Accept URL patterns: youtube.com/watch?v=, youtu.be/, vimeo.com/
 - System validates URL format and extracts video ID.
 - Video metadata stored in video entity (uploaderId, platform, videoId, videoUrl, thumbnailUrl, caption, tags, status).
-- Optional external URL on each submitted video (media_items.external_url; e.g. link to creator's own page or article about the video). Validated at the service boundary per DD §3.17. Submission form works without JavaScript.
+- Optional external URL on each submitted video (for example a link to the creator's page or an article about the video), validated at the service boundary (see DD §3.17). The submission form works without JavaScript.
 - Video thumbnails fetched from YouTube/Vimeo APIs for preview.
-- Members do not upload video files (MP4/WebM/MOV); only YouTube/Vimeo URLs are accepted. Binary video upload is the admin/curator path (see A_Upload_Curated_Media); the member-upload controller rejects `video_platform='s3'` at the boundary per DD §6.8.
+- Members submit video as YouTube or Vimeo links only; binary video upload (MP4/WebM/MOV) is the admin/curator path (see A_Upload_Curated_Media). The member video path rejects a binary-upload submission at the service boundary (see DD §6.8).
 - Hashtag matching is case-insensitive for video tag operations (example: Tutorial and tutorial match identically).
 - Video link submissions are rate-limited per member to prevent abuse (for example, up to 5 submissions per hour).
-- Static tag suggestions are shown near the tag field using standardized event and club hashtags and popular community freeform tags. Clicking a suggested tag inserts it into the tag field; suggestions are not shown per keystroke as autocomplete (but can be added in phase two).
-- Teaching moments displayed on My Content page empty state: show recent example photos with their hashtags and popular community tags, all clickable to insert into the tag field, and highlight aggregated hashtag statistics.
+- Tag suggestions follow the §3.8 popular-tag rule; clicking a suggested tag inserts it into the field, with no per-keystroke autocomplete.
 - Videos and photos can be mixed in named galleries.
 - Video link submission controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see any video link submission controls.
 - Visitors (not logged in) never see video link submission controls.
@@ -1310,7 +1315,7 @@ Success Criteria:
 - Can create named galleries mixing photos and videos.
 - Each gallery can include optional external links that are validated before publication, with clear error messages and a simple retry path if validation fails.
 - Media appears in personal galleries and event galleries via hashtag matching.
-- Personal Gallery is the default per-member named gallery, with `criteria_tags = [#by_{member_slug}]`. Items appear via the same tag-AND query that powers every named gallery, because every member upload automatically carries the uploader's `#by_<slug>` tag (per §1.1 Uploader hashtags). Avatars are excluded platform-wide via `is_avatar = 0` at the named-gallery query layer; the rule is not specific to Personal Gallery.
+- Personal Gallery is the default per-member named gallery: it collects everything that member uploads, because every member upload automatically carries that member's uploader hashtag (per §1.1 Uploader hashtags) and Personal Gallery's criteria is that tag. Avatars are excluded from every named gallery platform-wide, not only from Personal Gallery.
 - Club and Event galleries aggregate both content types by hashtag matching.
 - Video tiles render as click-to-play facades with lazy-loaded thumbnails, so a gallery can mix any number of videos without a performance penalty.
 - Gallery creation and rename controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see gallery creation or rearrangement controls.
@@ -1326,6 +1331,7 @@ Success Criteria:
 - Uploader can delete own media anytime, with immediate permanent effect (no soft delete for media).
 - Delete controls for user-owned media are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see delete controls because they cannot upload media.
 - When deleting a media item, the deletion is permanent and has a cascading deletion of all the associated tags.
+- Deleting a named gallery removes only that gallery (its saved query: name, criteria tags, exclude tags, sort order). The items it displayed are not deleted; they stay published and continue to appear wherever else their tags match. Deleting an item is the separate, permanent action above.
 
 ### M_Flag_Media
 

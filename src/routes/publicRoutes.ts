@@ -63,6 +63,9 @@ publicRouter.get('/media/freestyle-tutorials', mediaController.freestyleTutorial
 // the member-galleries list page is not captured as a gallery id.
 publicRouter.get('/media/member-galleries', mediaController.memberGalleries);
 publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
+// Two-segment item-detail page within a named gallery; distinct depth from the
+// single-segment routes above, so ordering against them does not matter.
+publicRouter.get('/media/:galleryId/:mediaId', mediaController.namedGalleryItem);
 publicRouter.get('/hof',   hofController.index);
 publicRouter.get('/bap',   bapController.index);
 

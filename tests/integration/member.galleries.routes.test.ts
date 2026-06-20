@@ -194,7 +194,12 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('My Galleries');
     expect(res.text).toContain('Create new gallery');
-    expect(res.text).toContain('You haven\'t created any galleries yet.');
+    // A member with no galleries (so no media) sees the teaching empty state:
+    // a prompt, the upload CTA, and seed-padded popular-tag chips, in place of
+    // the old bare "no galleries yet" message.
+    expect(res.text).toContain('You have not shared any photos or videos yet.');
+    expect(res.text).toContain('Popular tags');
+    expect(res.text).toContain('#freestyle');
     // Replaced the old developer-spec description with member-facing copy.
     expect(res.text).toContain('saved view of your photos and videos');
   });
@@ -303,6 +308,11 @@ describe('GET /members/:memberKey/galleries/new', () => {
     expect(res.text).toContain('Create Gallery');
     expect(res.text).toMatch(/<form[^>]*action="\/members\/mg_owner\/galleries"/);
     expect(res.text).toContain('Create gallery');
+    // The hashtag criteria, exclusions, and sort sit behind an Advanced
+    // disclosure so the common path (name + upload) stays uncluttered.
+    expect(res.text).toContain('class="gallery-advanced"');
+    expect(res.text).toContain('<summary>Advanced');
+    expect(res.text).toContain('id="gallery-criteria-tags"');
   });
 
   it('redirects unauthenticated', async () => {
@@ -579,6 +589,8 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('form-field-error');
     expect(res.text).toMatch(/criteria tag must be/i);
+    // A criteria error auto-opens the Advanced disclosure so the error shows.
+    expect(res.text).toMatch(/<details class="gallery-advanced" open>/);
   });
 
   it('accepts a mixed-case criteria tag and resolves it to the normalized tag row', async () => {

@@ -13,6 +13,8 @@
  *   - Member media preview for the profile media grid (listMemberMediaPreview,
  *     consumed by memberService)
  *   - /media/:galleryId named-gallery page read (tag-AND membership)
+ *   - /media/:galleryId/:mediaId named-gallery item-detail read (one item with
+ *     prev/next over the gallery's ordered set and a back link to the gallery)
  *   - /media/browse on-the-fly tag browse read (paginated results mode)
  *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
  *     where the freestyle media surface lives (registered before
@@ -54,6 +56,7 @@ import {
   queryCuratorMediaTags,
   queryGalleryItemsByCriteria,
   queryGalleryItemsByCriteriaGrouped,
+  queryRecentCommunityMedia,
   queryMemberDisplayNamesBySlugs,
   queryTagIdsByNormalized,
 } from '../db/db';
@@ -177,6 +180,10 @@ export interface GalleryItem {
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
   media: VideoMedia | null;
+  // Link to the in-site detail page for this item. Set only in the named-
+  // gallery context (which has a stable ordered item set for prev/next); null
+  // on browse and profile grids, where tiles keep their own link.
+  itemHref: string | null;
 }
 
 export interface GalleryPagination {
@@ -301,6 +308,21 @@ export interface NamedGalleryContent {
   popularTags?: BrowseTagChip[];
 }
 
+// /media/:galleryId/:mediaId single-item detail within a named gallery.
+// Prev/next walk the gallery's ordered item set; backHref returns to the
+// gallery. uploadedBy lifts the item's `#by_<slug>` tag to a viewer-gated
+// member chip; tags are the item's remaining hashtags.
+export interface NamedGalleryItemContent {
+  galleryId: string;
+  galleryName: string;
+  backHref: string;
+  item: GalleryItem;
+  uploadedBy: TagChip | null;
+  tags: TagChip[];
+  prevHref: string | null;
+  nextHref: string | null;
+}
+
 // /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
 // named-gallery URL bookmark (no `member_galleries` row). Two render modes:
 //
@@ -400,6 +422,7 @@ function shapeItem(
     uploadedAtDisplay: formatUploadedAt(row.uploaded_at),
     tags,
     media,
+    itemHref: null,
   };
 }
 
@@ -655,9 +678,12 @@ export const mediaService = {
       }
 
       const adapter = getMediaStorageAdapter();
-      const items: GalleryItem[] = rows.map((row) =>
-        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
-      );
+      const galleryIdToken = encodeURIComponent(gallery.id);
+      const items: GalleryItem[] = rows.map((row) => {
+        const item = shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k));
+        item.itemHref = `/media/${galleryIdToken}/${encodeURIComponent(item.mediaId)}`;
+        return item;
+      });
 
       // When the gallery is empty, the empty state offers five site-wide
       // popular tags as a teachable jumping-off point.
@@ -691,6 +717,80 @@ export const mediaService = {
           excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
           truncationNotice,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
+        },
+      };
+    });
+  },
+
+  getNamedGalleryItemPage(
+    galleryId: string,
+    mediaId: string,
+    viewer: ViewerContext = { authenticated: false },
+  ): PageViewModel<NamedGalleryItemContent> {
+    return runSqliteRead('mediaService.getNamedGalleryItemPage', () => {
+      const gallery = media.getNamedGalleryById.get(galleryId) as
+        | NamedGalleryWithOwnerRow
+        | undefined;
+      if (!gallery) {
+        throw new NotFoundError(`gallery ${galleryId} not found`);
+      }
+
+      const tagRows = media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[];
+      const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[];
+      const tagIds = tagRows.map((t) => t.id);
+      const excludeTagIds = excludeTagRows.map((t) => t.id);
+
+      // The same ordered, capped item set the gallery page renders, so prev/next
+      // follow the gallery's sort. An item beyond the render cap is treated as
+      // not present, mirroring the gallery page's own truncation.
+      const fetched = queryGalleryItemsByCriteriaGrouped(
+        tagIds, gallery.sort_order, excludeTagIds, GALLERY_ITEMS_QUERY_CAP + 1,
+      );
+      const rows = fetched.length > GALLERY_ITEMS_QUERY_CAP
+        ? fetched.slice(0, GALLERY_ITEMS_QUERY_CAP) : fetched;
+      const index = rows.findIndex((r) => r.id === mediaId);
+      if (index === -1) {
+        throw new NotFoundError(`item ${mediaId} not found in gallery ${galleryId}`);
+      }
+      const row = rows[index];
+
+      const itemTagRows = queryCuratorMediaTags([mediaId]);
+      const memberNamesBySlug = collectMemberNamesForByTags(itemTagRows.map((r) => r.tag_display));
+
+      // The item's `#by_<slug>` tag becomes the uploader attribution (viewer-
+      // gated profile link); the rest render as browseable hashtag chips.
+      let uploadedBy: TagChip | null = null;
+      const tags: TagChip[] = [];
+      for (const tr of itemTagRows) {
+        if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
+          if (uploadedBy === null && memberNamesBySlug.has(tr.tag_display.slice(UPLOADER_TAG_PREFIX.length))) {
+            uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
+          }
+        } else {
+          tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => browseTagHref(tr.tag_normalized)));
+        }
+      }
+
+      const adapter = getMediaStorageAdapter();
+      const item = shapeItem(row, [], (k) => adapter.constructURL(k));
+      const gid = encodeURIComponent(gallery.id);
+
+      return {
+        seo: { title: gallery.name },
+        page: {
+          sectionKey: 'media',
+          pageKey: 'media_gallery_item',
+          title: gallery.name,
+        },
+        content: {
+          galleryId: gallery.id,
+          galleryName: gallery.name,
+          backHref: `/media/${gid}`,
+          item,
+          uploadedBy,
+          tags,
+          prevHref: index > 0 ? `/media/${gid}/${encodeURIComponent(rows[index - 1].id)}` : null,
+          nextHref: index < rows.length - 1 ? `/media/${gid}/${encodeURIComponent(rows[index + 1].id)}` : null,
         },
       };
     });
@@ -846,6 +946,35 @@ export const mediaService = {
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
         },
       };
+    });
+  },
+
+  // Recent member-authored community media for the teaching empty state shown
+  // to a member who has not uploaded anything yet. Topical chips only; the
+  // uploader marker is not surfaced. Returns an empty array when no member has
+  // shared media yet (the caller hides the example strip in that case).
+  listRecentCommunityMedia(limit: number): GalleryItem[] {
+    return runSqliteRead('mediaService.listRecentCommunityMedia', () => {
+      const rows = queryRecentCommunityMedia(limit, ['photo', 'video']);
+      if (rows.length === 0) return [];
+      const itemTagRows = queryCuratorMediaTags(rows.map((r) => r.id));
+      const tagsByMediaId = new Map<string, TagChip[]>();
+      for (const tr of itemTagRows) {
+        if (tr.tag_normalized.toLowerCase().startsWith(UPLOADER_TAG_PREFIX)) continue;
+        const chip = shapeTagChip(
+          tr.tag_display,
+          { authenticated: true },
+          new Map(),
+          () => browseTagHref(tr.tag_normalized),
+        );
+        const list = tagsByMediaId.get(tr.media_id);
+        if (list) list.push(chip);
+        else tagsByMediaId.set(tr.media_id, [chip]);
+      }
+      const adapter = getMediaStorageAdapter();
+      return rows.map((row) =>
+        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
+      );
     });
   },
 };

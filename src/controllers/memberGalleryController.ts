@@ -24,8 +24,15 @@ import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { mediaService } from '../services/mediaService';
+import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
+
+// Caps for the no-media teaching empty state (recent community examples and
+// the seed-padded popular-tag chips).
+const TEACHING_EXAMPLE_LIMIT = 6;
+const TEACHING_TAG_LIMIT = 12;
 
 function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
   const flash = readFlash(req);
@@ -148,6 +155,14 @@ export const memberGalleryController = {
         deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
         isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId,
       }));
+      // No galleries means the member has uploaded nothing yet (the Personal
+      // Gallery materializes on first upload), so this is the no-media state:
+      // attach the teaching content. Skipped entirely once any gallery exists.
+      const teaching = summaries.length > 0 ? null : {
+        exampleItems: mediaService.listRecentCommunityMedia(TEACHING_EXAMPLE_LIMIT),
+        popularTags: hashtagDiscoveryService.getPopularTagsWithSeeds(TEACHING_TAG_LIMIT),
+        stats: hashtagDiscoveryService.getCommunityHashtagSummary(),
+      };
       res.render('members/galleries/list', {
         seo: { title: 'My Galleries' },
         page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
@@ -156,6 +171,7 @@ export const memberGalleryController = {
           listHref: listHref(memberKey),
           newGalleryHref: `/members/${memberKey}/galleries/new`,
           uploadMediaHref: `/members/${memberKey}/media/upload`,
+          teaching,
           // Pre-shaped flash message so the template never branches on the
           // raw flash code.
           savedMessage: savedFlag === 'upload' ? 'Uploaded.' : savedFlag ? 'Saved.' : null,

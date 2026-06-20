@@ -50,7 +50,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const spec of CANONICAL_PERSONAS.filter((p) => !p.blockedBy)) {
+  for (const spec of CANONICAL_PERSONAS.filter((p) => !p.blockedBy && !p.buildOnSwitch)) {
     seedPersona(db, spec);
   }
   db.close();
@@ -74,7 +74,7 @@ describe('GET /dev/personas (staging boot)', () => {
   // route's session lookup excludes unverified, deceased, and soft-deleted rows,
   // so those render "Not switchable" rather than a Switch link that would 404.
   const isSwitchable = (p: (typeof CANONICAL_PERSONAS)[number]) =>
-    !p.blockedBy && p.emailVerified !== false && !p.isDeceased && !p.deletionState;
+    !p.blockedBy && !p.buildOnSwitch && p.emailVerified !== false && !p.isDeceased && !p.deletionState;
 
   it('lists every persona; only session-eligible personas get a Switch link', async () => {
     const res = await request(createApp()).get('/dev/personas');
@@ -87,9 +87,14 @@ describe('GET /dev/personas (staging boot)', () => {
     for (const spec of CANONICAL_PERSONAS.filter(isSwitchable)) {
       expect(res.text, spec.slug).toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));
     }
+    // Build-on-switch personas (staging-only DL, never seeded) offer a
+    // build-then-switch link instead of the plain Switch link.
+    for (const spec of CANONICAL_PERSONAS.filter((p) => p.buildOnSwitch)) {
+      expect(res.text, spec.slug).toMatch(new RegExp(`/dev/build-switch\\?as(=|&#x3D;)${spec.slug}\\b`));
+    }
     // Seeded-but-login-blocked personas offer a Log in link (the real login
     // attempt) instead of a Switch link: an exercisable link, not a dead row.
-    const loginBlocked = CANONICAL_PERSONAS.filter((p) => !p.blockedBy && !isSwitchable(p));
+    const loginBlocked = CANONICAL_PERSONAS.filter((p) => !p.blockedBy && !p.buildOnSwitch && !isSwitchable(p));
     expect(loginBlocked.length, 'catalog should include login-blocked personas').toBeGreaterThan(0);
     for (const spec of loginBlocked) {
       expect(res.text, spec.slug).not.toMatch(new RegExp(`/dev/switch\\?as(=|&#x3D;)${spec.slug}\\b`));

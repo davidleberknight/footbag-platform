@@ -4,6 +4,8 @@
  * Owns:
  *   - Tag stats rebuild (tag_stats upsert from media_tags + media_items)
  *   - Popular community tags (distinct_member_count >= 2)
+ *   - Seed-padded teaching tags and the community hashtag summary (cold-start
+ *     empty state, before real popular tags accrue)
  *   - Standard tags with media (club/event tags that have tagged content)
  *   - Tag prefix suggest (autocomplete)
  *   - Member-context tag suggestions (club affiliations, participated events)
@@ -32,11 +34,21 @@ import {
   type MemberTagRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
+import { TEACHING_TAG_SEEDS, padPopularTagsWithSeeds } from '../content/teachingTagSeeds';
 
 export interface TagChipShape {
   display: string;
   normalized: string;
   href: string;
+}
+
+export interface HashtagStatsSummary {
+  /** Count of community-popular tags (capped at the read limit). */
+  communityTagCount: number;
+  /** The single most-used community tag, or null at cold start. */
+  topTag: TagChipShape | null;
+  /** Pre-shaped: true when at least one community-popular tag exists. */
+  hasCommunityTags: boolean;
 }
 
 export interface TagSuggestion {
@@ -112,6 +124,28 @@ export const hashtagDiscoveryService = {
       const rows = tagStats.listPopularCommunityTags.all(limit) as PopularTagRow[];
       return rows.map(rowToChip);
     });
+  },
+
+  // Real popular tags first, padded up to `limit` with curated starter seeds
+  // so the teaching empty state and tag suggestions are never bare before
+  // community usage accrues. Seeds drop out automatically as real tags fill
+  // the slots (the pad helper dedups and respects the limit).
+  getPopularTagsWithSeeds(limit: number = 12): TagChipShape[] {
+    const real = hashtagDiscoveryService.getPopularTags(limit);
+    return padPopularTagsWithSeeds(real, TEACHING_TAG_SEEDS, limit, tagToBrowseHref);
+  },
+
+  // Aggregated hashtag statistics for the teaching empty state. The count is
+  // capped at the read limit; a teaching surface does not need an exact total.
+  // At cold start every value is empty/false, so the caller hides the stats
+  // block and shows only the seeded chips.
+  getCommunityHashtagSummary(): HashtagStatsSummary {
+    const top = hashtagDiscoveryService.getPopularTags(50);
+    return {
+      communityTagCount: top.length,
+      topTag: top[0] ?? null,
+      hasCommunityTags: top.length > 0,
+    };
   },
 
   getStandardTagsWithMedia(): { clubs: TagChipShape[]; events: TagChipShape[] } {

@@ -13,6 +13,7 @@
  */
 import { Router } from 'express';
 import { getDevSwitch } from './personaSwitchRoute';
+import { getDevBuildSwitch } from './personaBuildSwitchRoute';
 import { getDevLogin } from './personaLoginRoute';
 import { getDevPersonas } from './personaListingRoute';
 import { postDevPersonasRefresh } from './personaRefreshRoute';
@@ -20,6 +21,8 @@ import { postDevPersonasRefresh } from './personaRefreshRoute';
 export const devRouter = Router();
 
 devRouter.get('/switch', getDevSwitch);
+// CUTOVER-REMOVE: staging-only build-then-switch for the DL special user.
+devRouter.get('/build-switch', getDevBuildSwitch);
 devRouter.get('/login', getDevLogin);
 devRouter.get('/personas', getDevPersonas);
 devRouter.post('/personas/refresh', postDevPersonasRefresh);

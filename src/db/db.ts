@@ -6032,6 +6032,38 @@ export function queryGalleryItemsByCriteria(
   `).all(...tagIds, ...excludeTagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
 }
 
+// Recent member-authored community media, with no tag criterion, for the
+// teaching empty state on a member's gallery page. Mirrors the public
+// visibility filter of queryGalleryItemsByCriteria (active, non-avatar, never
+// #unavailable_embed) but selects across the whole community and excludes
+// system/curator uploads, so the examples are genuinely member-shared rather
+// than seeded curator content. Empty mediaTypes → empty result.
+export function queryRecentCommunityMedia(
+  limit: number,
+  mediaTypes: Array<'photo' | 'video'>,
+): CuratorGalleryRow[] {
+  if (mediaTypes.length === 0) return [];
+  const typePlaceholders = mediaTypes.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND mi.media_type IN (${typePlaceholders})
+      AND mi.uploader_member_id NOT IN (SELECT id FROM members WHERE is_system = 1)
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ?
+  `).all(...mediaTypes, limit) as CuratorGalleryRow[];
+}
+
 /**
  * Tag-AND-of-N gallery query for the grouped /media/<id> view. Items appear
  * grouped by their canonical trick tag. Ordering is controlled by the
@@ -6173,6 +6205,11 @@ export function countGalleryItemsByCriteria(
         AND mi.is_avatar = 0
         AND mt.tag_id IN (${placeholders})
         ${excludeClause}
+        AND NOT EXISTS (
+          SELECT 1 FROM media_tags mtu
+          JOIN tags tu ON tu.id = mtu.tag_id
+          WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+        )
       GROUP BY mi.id
       HAVING COUNT(DISTINCT mt.tag_id) = ?
     )

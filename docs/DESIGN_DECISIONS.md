@@ -618,6 +618,8 @@ Rationale:
 
 - Admin UI write paths (upload, edit, delete) are self-sufficient against the current phase's source of truth. Before go-live they write the `/curated/` sidecar and the seeder reconstitutes the DB row. After go-live the DB write is the contract: the admin UI writes the `media_items` row directly, with no dependency on a subsequent seeder run.
 
+- Before go-live, where `/curated/` is the committed working tree (dev), curated writes are restricted to real maintainer accounts: the curator service refuses curated and FH-owned-gallery writes from the seeded test personas (the switchable dev-harness identities), so a test persona cannot mutate the versioned source-of-truth sidecars. Staging and production write curated content to the DB and object store rather than the working tree, so the restriction does not apply there and any admin may curate.
+
 - Sidecar identity for URL-reference items is `(videoPlatform, videoUrl)`. The seeder's filename rule is `<primarySlug>_<sha1(videoUrl)[:8]>.meta.json`, which lets the service locate a sidecar from a row by globbing for the hash suffix and verifying the URL match. No schema column duplicates this filesystem layout.
 
 Requirements:

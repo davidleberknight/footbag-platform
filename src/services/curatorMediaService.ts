@@ -68,6 +68,14 @@
  *     `validateExternalUrl` (DD §3.17) inside the same transaction. Per-gallery cap
  *     `config.galleryMaxExternalLinks`.
  *   - FH-owned sidecar writes gated on `config.allowCuratedSidecarWrites` (dev only).
+ *   - Pre-go-live guardrail: where curated sidecar writes are on (dev, and the
+ *     integration-test fixture, which set `config.allowCuratedSidecarWrites`), a
+ *     curated/system write (curator photo/video/url-ref upload, edit, delete, and
+ *     FH-owned gallery create/update/delete) refuses a seeded test-persona actor
+ *     (`assertCuratorActorMayWriteCurated`); real maintainer accounts and the
+ *     David Leberknight persona carry ordinary ids and pass. In staging and
+ *     production the sidecar write is off, so any admin may curate and the guard
+ *     is a no-op. Member-owned writes never call it.
  *   - Member-gallery form uploads carry user-supplied `uploadTags` (never
  *     auto-stamped from gallery criteria); auto-applied tags are exactly
  *     `#by_<slug>` (member) and `#curated` (FH-owned).
@@ -135,6 +143,7 @@ import {
 import { writeSidecar } from '../lib/curatorSidecar';
 import { promises as fsp } from 'fs';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
@@ -840,6 +849,10 @@ export interface CuratorGalleryEditView {
     sourceFilename: string;
     editHref: string;
     isUnavailableEmbed: boolean;
+    // Topical hashtags on the item (the uploader marker and #curated are
+    // filtered out), so the owner can see how each item is tagged while
+    // managing the gallery.
+    tags: string[];
   }>;
   // True when the matching set exceeds the single-page render cap and
   // currentItems holds only the first page-worth; the form shows a notice.
@@ -1032,6 +1045,25 @@ function assertTier1Benefits(actorMemberId: string): void {
   }
 }
 
+// Pre-go-live guardrail protecting the real /curated content. It only applies
+// where curated writes edit the persistent on-disk sidecar files, which is dev
+// (config.allowCuratedSidecarWrites): there /curated/ is the committed
+// source-of-truth working tree, so a curated write mutates real git-tracked
+// data. In staging and production the sidecar write is off (curated writes land
+// in the DB and object store only), so any admin may curate and this is a no-op.
+// Within dev, seeded test personas must never author, edit, or delete curated
+// content: real maintainer accounts and the David Leberknight persona register
+// through the real flow and carry ordinary member ids, so they pass, while a
+// switchable seeded persona admin is refused. Member-owned media never calls
+// this (only the curated/system write paths do).
+function assertCuratorActorMayWriteCurated(actorMemberId: string): void {
+  if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+    throw new ForbiddenError(
+      'Curated media cannot be authored by a test persona in dev, where it would mutate the persistent /curated sidecar files (pre-go-live guardrail).',
+    );
+  }
+}
+
 // Default-wired factory for callers (controllers, tests at the wiring
 // seam) that just want a service instance backed by the configured
 // adapters. Encapsulates the dev/prod parity boundary so controllers do
@@ -1130,6 +1162,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
+      assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       validateCaption(input.caption);
       validateTags(input.tags);
@@ -1222,6 +1255,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async uploadVideo(input: CuratorVideoInput): Promise<CuratorUploadResult> {
+      assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       validateCaption(input.caption);
       validateTags(input.tags);
@@ -1487,6 +1521,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadUrlReference(
       input: CuratorUrlReferenceInput,
     ): Promise<CuratorUrlReferenceResult> {
+      assertCuratorActorMayWriteCurated(input.adminMemberId);
       validateCaption(input.title);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
@@ -1649,6 +1684,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async editMedia(input: CuratorMediaEditInput): Promise<CuratorMediaEditResult> {
+      assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       if (input.caption !== undefined) {
         validateCaption(input.caption);
@@ -1786,6 +1822,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
     async deleteMedia(input: CuratorMediaDeleteInput): Promise<{ mediaId: string }> {
+      assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       const row = runSqliteRead('getCuratorMediaItemById', () =>
         media.getCuratorMediaItemById.get(input.mediaId),
@@ -2078,6 +2115,20 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const itemRows = currentItemsTruncated
           ? itemRowsFetched.slice(0, GALLERY_ITEMS_QUERY_CAP)
           : itemRowsFetched;
+        // Topical hashtags per item for the management display. The uploader
+        // marker (#by_<slug>) and #curated are system markers, not content, so
+        // they are filtered out.
+        const itemTagRows = itemRows.length
+          ? queryCuratorMediaTags(itemRows.map((r) => r.id))
+          : [];
+        const tagsByMediaId = new Map<string, string[]>();
+        for (const tr of itemTagRows) {
+          const norm = tr.tag_normalized.toLowerCase();
+          if (norm.startsWith(UPLOADER_TAG_PREFIX) || norm === CURATED_TAG) continue;
+          const list = tagsByMediaId.get(tr.media_id);
+          if (list) list.push(tr.tag_display);
+          else tagsByMediaId.set(tr.media_id, [tr.tag_display]);
+        }
         const currentItems = itemRows.map((r) => ({
           mediaId: r.id,
           mediaType: r.media_type,
@@ -2090,6 +2141,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             ? `/members/${opts.memberKey}/media/${r.id}/edit`
             : `/admin/curator/media/${r.id}/edit`,
           isUnavailableEmbed: r.is_unavailable_embed === 1,
+          tags: tagsByMediaId.get(r.id) ?? [],
         }));
         const linkRows = media.listGalleryExternalLinks.all(galleryId) as Array<{
           id: string;
@@ -2149,6 +2201,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      // A curated (FH-owned) gallery edit hits the persistent /curated sidecar in
+      // dev; gate it. Member-owned gallery edits are never curated, so they pass.
+      if (existing.is_system === 1) {
+        assertCuratorActorMayWriteCurated(actorMemberId);
+      }
 
       // Auto-include the owner's `#by_<slug>` on member-owned gallery
       // edits, mirroring the create path. This survives the rewriteGalleryTagSets
@@ -2250,6 +2308,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       if (isFhOwned && !actorIsAdmin) {
         throw new ValidationError('Only admins may create FH-owned galleries.');
+      }
+      // A curated (FH-owned) gallery create hits the persistent /curated sidecar
+      // in dev; gate it. Member-owned creates are never curated, so they pass.
+      if (isFhOwned) {
+        assertCuratorActorMayWriteCurated(actorMemberId);
       }
 
       let galleryId: string;
@@ -2388,6 +2451,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      // A curated (FH-owned) gallery delete removes the persistent /curated
+      // sidecar in dev; gate it. Member-owned deletes are never curated.
+      if (existing.is_system === 1) {
+        assertCuratorActorMayWriteCurated(actorMemberId);
+      }
 
       // Delete + audit land in one transaction. Every other write method in
       // this service wraps in transaction(...) + appendAuditEntry; gallery
