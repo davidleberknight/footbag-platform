@@ -17,7 +17,7 @@ Any change that touches:
 - `legacy_data/clubs/scripts/**`, `legacy_data/persons/**`, `legacy_data/membership/**` (identity-pipeline producers)
 - `legacy_data/inputs/identity_lock/**` (frozen; patch toolchain only)
 - Workbook builders (`build_workbook_release.py`, `export_canonical_platform.py`)
-- Seed builders + DB loaders (`07_build_mvfp_seed_full.py`, `08_load_mvfp_seed_full_to_sqlite.py`, `09_load_enrichment_to_sqlite.py`, `10_*`, `11_*`, `scripts/reset-local-db.sh`)
+- Seed builders + DB loaders (`07_build_mvfp_seed_full.py`, `08_load_mvfp_seed_full_to_sqlite.py`, `09_load_enrichment_to_sqlite.py`, `scripts/reset-local-db.sh`)
 - Any new or edited script that reads `legacy_data/out/*` or writes to `legacy_data/out/`
 
 If the task touches none of these, skip this skill.
@@ -34,7 +34,7 @@ Every script that reads `out/*` must have its producer run earlier in the same o
 
 Sweep: list every `out/*` path the touched code reads; locate the producing script; confirm the orchestrator runs the producer first.
 
-Reference failure: 2026-04-27 staging deploy hit `FileNotFoundError` in `freestyle/loaders/20_link_footbag_org_sources.py` because `freestyle/scripts/18_scrape_footbag_org_moves.py` had not run.
+Reference failure: `run_pipeline.sh csv_only` aborts in its preflight with `MISSING: legacy_data/event_results/canonical_input/events.csv` when the canonical export (`export_canonical_platform.py`, run in the backbone) has not populated `canonical_input/` first.
 
 ### 2. No hidden dependency on prior local state
 

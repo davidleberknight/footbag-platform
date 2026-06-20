@@ -19,7 +19,7 @@ The pipeline is fixed. Do not invent parallel systems.
 raw source (e.g., legacy_data/inputs/curated/records/passback_raw_input.txt,
             yt-dlp inventory, FootbagSpot index, expert reply)
    ↓  manual + scripted classification
-legacy_data/tools/trick_video_discovery/snippet_candidates.csv
+freestyle/tools/trick_video_discovery/snippet_candidates.csv
    (rows with reviewer column blank are "staged but unapproved";
     rows with reviewer set to a non-empty value are "approved";
     rows with reviewer starting "promoted_*" are already done)
@@ -79,7 +79,7 @@ Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tag
 - **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
 - **Same trick can have TT tutorial AND PassBack record media**: that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
 - **`#passback_records` was added to the source tag whitelist on 2026-05-06**, after the gallery-readiness audit found that existing PassBack sidecars lacked it. A backfill script appended `#passback_records` to the 37 pre-existing PassBack sidecars; the `promote_snippet_candidates.py` change ensures new ones include it. Both changes were idempotent.
-- **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `legacy_data/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
+- **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `freestyle/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
 
 ## 5. Review buckets
 
@@ -161,11 +161,11 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 | `curated/galleries/*.json` | James-track since the 2026-06-06 boundary lift — create/edit gallery sidecars directly (catch-all `excludeTags` must list every source tag). |
 | `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Dave-owned (gallery editor + member upload). |
 | `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes need Dave coordination. |
-| `legacy_data/tools/trick_video_discovery/snippet_candidates.csv` | James-track. Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
+| `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | James-track. Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
 | `curated/freestyle_tricks/*.meta.json` | James-track for promotion + backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. |
 | `scripts/promote_snippet_candidates.py` | James-track. |
 | `scripts/_trick_tag_invariant.py` | James-track. Add new source tags to `UTILITY_EXACT` here. |
-| `legacy_data/event_results/scripts/{24,25,28}_qc_*.py` | James-track. |
+| `freestyle/loaders/{24,25}_qc_*.py` + `legacy_data/event_results/scripts/28_qc_bap_coverage.py` | James-track. |
 
 When in doubt about whether a change crosses Dave's boundary, ask. The cost of pausing is low; reverting an unwanted change to his territory is high.
 
@@ -221,7 +221,7 @@ Same `trick_slug` (`double-leg-over`), distinct `(source_id, video_url)` → dis
 
 ### Record-category example (no canonical trick slug)
 
-`Unique Fearless` is a PassBack record category for runs where every trick is 5+ ADD. It is not a trick. Stage in `legacy_data/tools/trick_video_discovery/passback_record_categories.csv`:
+`Unique Fearless` is a PassBack record category for runs where every trick is 5+ ADD. It is not a trick. Stage in `freestyle/tools/trick_video_discovery/passback_record_categories.csv`:
 
 ```csv
 category,url,start_seconds,player_name,date_recorded,record_count,place,adds,sort_friendly,notes

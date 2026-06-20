@@ -568,7 +568,7 @@ Rules:
 
 - **Verify external URLs before reviewer sign-off.** Extrapolated URLs sit in staging with `reviewer` blank; they must be HTTP-confirmed before promotion. Pattern-form-from-a-working-URL is a guess, not verification.
 
-- **Two-lane staging model.** `legacy_data/tools/trick_video_discovery/video_coverage.csv` is the record-clip lane. `legacy_data/tools/trick_video_discovery/snippet_candidates.csv` is the trick-tutorial lane. Generator filters on `reviewed=YES` and `reviewer != ''` respectively; nothing else promotes.
+- **Two-lane staging model.** `freestyle/tools/trick_video_discovery/video_coverage.csv` is the record-clip lane. `freestyle/tools/trick_video_discovery/snippet_candidates.csv` is the trick-tutorial lane. Generator filters on `reviewed=YES` and `reviewer != ''` respectively; nothing else promotes.
 
 - **`clip_type` is staging-only.** Values `tutorial / demo / record / slow_mo / compilation`. Drives reviewer triage and primary-policy biasing. Not persisted to DB.
 
