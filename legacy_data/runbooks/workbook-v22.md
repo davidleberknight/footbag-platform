@@ -115,7 +115,7 @@ These may exist in legacy builders (v17, v13) but should not be ported.
 
 ## What Not To Do
 
-- Do not run `build_workbook_release.py` before `./run_pipeline.sh release` completes —
+- Do not run `build_workbook_release.py` before `./run_pipeline.sh canonical_only` completes —
   the canonical inputs will be stale
 - Do not use `03_build_excel.py` output as a reference for correctness
 - Do not add Consecutive Records or Freestyle Insights sheets

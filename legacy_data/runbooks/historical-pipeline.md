@@ -58,16 +58,14 @@ git diff --stat out/canonical/
 # Step 1: Baseline current outputs
 wc -l out/canonical/*.csv
 
-# Step 2: Full rebuild (parse mirror + curated → stage2)
-./run_pipeline.sh rebuild
+# Step 2: Rebuild + export canonical CSVs (parse mirror + curated, apply
+# identity lock, export). canonical_only runs the QC gate internally and aborts
+# on any hard failure, so a clean exit already means QC passed; QC is no longer
+# a separate manual step. (Re-run pipeline/qc/run_qc.py standalone only to
+# re-print the report.)
+./run_pipeline.sh canonical_only
 
-# Step 3: Apply identity lock + export canonical CSVs
-./run_pipeline.sh release
-
-# Step 4: QC gate — must return PASS before proceeding
-.venv/bin/python pipeline/qc/run_qc.py
-
-# Step 5: Diff canonical outputs to confirm expected delta
+# Step 3: Diff canonical outputs to confirm expected delta
 wc -l out/canonical/*.csv
 git diff --stat out/canonical/
 ```
@@ -89,8 +87,9 @@ git diff --stat out/canonical/
 - Do not edit `out/canonical/*.csv` directly — rebuild instead
 - Do not run scripts 07 or 08 manually after a change unless QC has already passed
 - Do not modify `inputs/identity_lock/` files — they are versioned and frozen
-- Do not skip `./run_pipeline.sh rebuild` before `release` — stale stage2 + fresh release
-  produces incorrect outputs
+- Do not export canonical CSVs against stale `stage2` — `./run_pipeline.sh canonical_only`
+  rebuilds stage2 and exports the canonical CSVs together, so re-run it rather than reusing
+  old stage2
 - Do not run `02p5b_supplement_class_b.py` before `release` — it reads from `canonical_input/`
   which is populated by the release step
 - If canonical row counts drop unexpectedly, stop and investigate before proceeding —

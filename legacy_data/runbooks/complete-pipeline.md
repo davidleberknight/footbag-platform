@@ -48,7 +48,7 @@ This runs all stages in order and **fails fast on QC hard failures** — stages 
 | 4b | QC viewer | `event_comparison_viewerV13.py` → `out/event_comparison_viewer_v13.html` |
 | 5 | Workbook | `build_workbook_release.py` → `out/Footbag_Results_Release.xlsx` |
 | 6 | Seed build | `07_build_mvfp_seed_full.py` → `event_results/seed/mvfp_full/` |
-| 7 | DB load | `08_load_mvfp_seed_full_to_sqlite.py` + `10_load_freestyle_records` + `11_load_consecutive_records` → `database/footbag.db` |
+| 7 | DB load | `08_load_mvfp_seed_full_to_sqlite.py` → `database/footbag.db` (freestyle + consecutive records load separately via `freestyle/run_freestyle.sh`) |
 
 **Why 02p5b runs after release (not after rebuild):**
 `02p5b` reads from `event_results/canonical_input/` which is only populated by the

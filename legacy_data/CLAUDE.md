@@ -216,9 +216,9 @@ Authoritative curated inputs:
 No pipeline regenerates these.
 
 Loaders:
-- `event_results/scripts/10_load_freestyle_records_to_sqlite.py`
-- `event_results/scripts/11_load_consecutive_records_to_sqlite.py`
-- Both run from `scripts/reset-local-db.sh`.
+- `freestyle/loaders/10_load_freestyle_records_to_sqlite.py`
+- `freestyle/loaders/11_load_consecutive_records_to_sqlite.py`
+- Both run from `freestyle/run_freestyle.sh` (invoked by `scripts/reset-local-db.sh`).
 - Pattern: `DELETE FROM` + `INSERT OR REPLACE`.
 
 DB tables:
